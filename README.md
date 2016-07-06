@@ -1,6 +1,6 @@
 # libprosic
 
-[![Travis](https://img.shields.io/travis/prosic/libprosic.svg?maxAge=2592000?style=flat-square)](https://travis-ci.org/prosic/libprosic)
+[![Travis](https://img.shields.io/travis/PROSIC/libprosic.svg?maxAge=2592000?style=flat-square)](https://travis-ci.org/PROSIC/libprosic)
 
 An experimental implementation of PROSIC as a library.
 
