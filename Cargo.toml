@@ -1,0 +1,6 @@
+[package]
+name = "libprosic"
+version = "0.1.0"
+authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>"]
+
+[dependencies]
