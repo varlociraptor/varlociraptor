@@ -8,9 +8,9 @@ extern crate itertools;
 pub mod model;
 
 use std::ops::Range;
-
 use rust_htslib::bam;
 use rust_htslib::bcf;
+use bio::stats::logprobs;
 
 use model::observations;
 use model::InsertSize;
@@ -28,7 +28,7 @@ pub fn call<P: priors::Model, Q: priors::Model>(
     case_bam: bam::IndexedReader,
     control_bam: bam::IndexedReader,
     bcf: &mut bcf::Reader,
-    classes: &[CallClass],
+    classes: &mut [CallClass],
     joint_model: model::JointModel<P, Q>,
     case_insert_size: InsertSize,
     control_insert_size: InsertSize,
@@ -38,9 +38,10 @@ pub fn call<P: priors::Model, Q: priors::Model>(
     let mut control_processor = observations::BAMProcessor::new(control_bam, control_insert_size, pileup_window);
 
     for record in bcf.records() {
-        if let Ok(record) = record {
-            let ref_allele = record.alleles()[0];
-            for alt_allele in record.alleles()[1..].iter() {
+        if let Ok(mut record) = record {
+            let ref_allele = record.alleles()[0].to_owned();
+            for i in 1..record.allele_count() as usize {
+                let alt_allele = record.alleles()[i].to_owned();
                 if alt_allele.len() == ref_allele.len() {
                     continue;
                 }
@@ -50,8 +51,12 @@ pub fn call<P: priors::Model, Q: priors::Model>(
                     let case_pileup = try!(case_processor.extract_observations(chrom, record.pos(), alt_allele.len() as u32, is_del));
                     let control_pileup = try!(control_processor.extract_observations(chrom, record.pos(), alt_allele.len() as u32, is_del));
                     let marginal_prob = try!(joint_model.marginal_prob(&case_pileup, &control_pileup));
-                    for class in classes {
-                        try!(joint_model.posterior_prob(&case_pileup, &control_pileup, &class.af_case, &class.af_control, marginal_prob));
+                    for class in classes.iter_mut() {
+                        let posterior_prob = try!(joint_model.posterior_prob(&case_pileup, &control_pileup, &class.af_case, &class.af_control, marginal_prob));
+                        record.set_qual(logprobs::log_to_phred(posterior_prob) as f32);
+                        if let Err(_) = class.writer.write(&record) {
+                            return Err("Error writing BCF/VCF record.".to_owned());
+                        }
                     }
                 } else {
                     return Err("Error reading BCF/VCF.".to_owned());
