@@ -32,6 +32,7 @@ impl InfiniteSitesNeutralVariationModel {
 impl Model for InfiniteSitesNeutralVariationModel {
     fn prior_prob(&self, af: f64) -> LogProb {
         if af > 0.0 {
+            // TODO fail for non-discrete m
             let m = af * self.ploidy as f64;
             self.heterozygosity.ln() - m.ln()
         } else {
