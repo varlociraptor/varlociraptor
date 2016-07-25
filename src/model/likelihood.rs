@@ -28,8 +28,8 @@ impl LatentVariableModel {
     /// Likelihood to observe a read given allele frequencies for case and control.
     fn likelihood_observation(&self,
                        observation: &Observation,
-                       allele_freq_case: AlleleFreq,
-                       allele_freq_control: AlleleFreq) -> LogProb {
+                       allele_freq_case: f64,
+                       allele_freq_control: f64) -> LogProb {
         // read comes from control sample and is correctly mapped
         let prob_control = self.impurity() +
                            logprobs::add(allele_freq_control.ln() + observation.prob_alt,
@@ -45,12 +45,12 @@ impl LatentVariableModel {
     }
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
-    pub fn likelihood_pileup<'a, I: IntoIterator<Item=&'a Observation>>(&self,
-                                                                 pileup: I,
-                                                                 allele_freq_case: AlleleFreq,
-                                                                 allele_freq_control: AlleleFreq) -> LogProb {
+    pub fn likelihood_pileup(&self,
+                             pileup: &[Observation],
+                             allele_freq_case: f64,
+                             allele_freq_control: f64) -> LogProb {
         // calculate product of per-read likelihoods in log space
-        let likelihood = pileup.into_iter().fold(0.0,
+        let likelihood = pileup.iter().fold(0.0,
             |prob, obs| prob + self.likelihood_observation(obs, allele_freq_case, allele_freq_control));
         likelihood
     }

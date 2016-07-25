@@ -9,6 +9,8 @@ use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;
 
+use model;
+
 
 fn prob_mapping(mapq: u8) -> LogProb {
     logprobs::ln_1m_exp(logprobs::phred_to_log(mapq as f64))
@@ -32,18 +34,16 @@ pub struct Observation {
 pub struct BAMProcessor {
     reader: bam::IndexedReader,
     window: u32,
-    exp_insert_size: f64,
-    exp_insert_size_sd: f64
+    insert_size: model::InsertSize
 }
 
 
 impl BAMProcessor {
-    pub fn new(bam: bam::IndexedReader, window: u32, exp_insert_size: f64, exp_insert_size_sd: f64) -> Self {
+    pub fn new(bam: bam::IndexedReader, insert_size: model::InsertSize, window: u32) -> Self {
         BAMProcessor {
             reader: bam,
             window: window,
-            exp_insert_size: exp_insert_size,
-            exp_insert_size_sd: exp_insert_size_sd
+            insert_size: insert_size
         }
     }
 
@@ -118,11 +118,11 @@ impl BAMProcessor {
 
     fn fragment_observation(&self, record: &bam::Record, mate_mapq: u8, length: u32, is_del: bool) -> Observation {
         let insert_size = record.insert_size();
-        let exp_var_insert_size = if is_del { self.exp_insert_size - length as f64 } else { self.exp_insert_size + length as f64 };
+        let shift = if is_del { length as f64 } else { -(length as f64) };
         Observation {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
-            prob_alt: gaussian_pdf(insert_size as f64 - self.exp_insert_size, self.exp_insert_size_sd),
-            prob_ref: gaussian_pdf(insert_size as f64 - exp_var_insert_size, self.exp_insert_size_sd),
+            prob_alt: gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd),
+            prob_ref: gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd),
             prob_mismapped: 1.0 // if the fragment is mismapped, we assume sampling probability 1.0
         }
     }
