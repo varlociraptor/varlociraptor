@@ -12,6 +12,8 @@ use model::likelihood::LatentVariableModel;
 use model::sample::{Sample, Observation};
 
 
+/// Expected insert size in terms of mean and standard deviation.
+/// This should be estimated from unsorted(!) bam files to avoid positional biases.
 #[derive(Copy, Clone, Debug)]
 pub struct InsertSize {
     mean: f64,
@@ -19,17 +21,19 @@ pub struct InsertSize {
 }
 
 
-pub struct JointModel<A: Sample, B: Sample> {
+/// Joint variant calling model, combining two latent variable models.
+pub struct JointModel<P: priors::Model, Q: priors::Model> {
     case_model: LatentVariableModel,
     control_model: LatentVariableModel,
-    case_sample: A,
-    control_sample: B
+    case_sample: Sample<P>,
+    control_sample: Sample<Q>
 }
 
 
-impl<A: Sample, B: Sample> JointModel<A, B> {
+impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
 
-    pub fn new(case_model: LatentVariableModel, control_model: LatentVariableModel, case_sample: A, control_sample: B) -> Self {
+    /// Create new `JointModel`.
+    pub fn new(case_model: LatentVariableModel, control_model: LatentVariableModel, case_sample: Sample<P>, control_sample: Sample<Q>) -> Self {
         JointModel {
             case_model: case_model,
             control_model: control_model,
@@ -38,7 +42,18 @@ impl<A: Sample, B: Sample> JointModel<A, B> {
         }
     }
 
-    pub fn pileup(&mut self, chrom: &[u8], start: u32, length: u32, is_del: bool) -> Result<Pileup<A, B>, String> {
+    /// Calculate pileup and marginal probability for given variant.
+    ///
+    /// # Arguments
+    ///
+    /// * `chrom` - the chromosome of the variant
+    /// * `start` - the starting position of the variant
+    /// * `length` - the length of the variant
+    /// * `is_del` - whether the variant is a deletion or an insertion
+    ///
+    /// # Returns
+    /// The `Pileup`, or an error message.
+    pub fn pileup(&mut self, chrom: &[u8], start: u32, length: u32, is_del: bool) -> Result<Pileup<P, Q>, String> {
         let case_pileup = try!(self.case_sample.extract_observations(chrom, start, length, is_del));
         let control_pileup = try!(self.control_sample.extract_observations(chrom, start, length, is_del));
         let marginal_prob = try!(self.marginal_prob(&case_pileup, &control_pileup));
@@ -55,7 +70,7 @@ impl<A: Sample, B: Sample> JointModel<A, B> {
     }
 
     fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &Range<f64>, af_control: f64) -> Result<LogProb, String> {
-        fn f<A: Sample, B: Sample>(af_case: f64, params: &mut (&JointModel<A, B>, &[Observation], f64, LogProb)) -> Prob {
+        fn f<P: priors::ContinuousModel, Q: priors::DiscreteModel>(af_case: f64, params: &mut (&JointModel<P, Q>, &[Observation], f64, LogProb)) -> Prob {
             let (_self, case_pileup, af_control, lh_control) = *params;
             (_self.case_model.likelihood_pileup(case_pileup, af_case, af_control) +
             lh_control + _self.prior_prob(af_case, af_control)).exp()
@@ -83,16 +98,18 @@ impl<A: Sample, B: Sample> JointModel<A, B> {
 }
 
 
-pub struct Pileup<'a, A: 'a + Sample, B: 'a + Sample> {
-    model: &'a JointModel<A, B>,
+/// Pileup of observations associated with marginal probability.
+pub struct Pileup<'a, P: 'a + priors::Model, Q: 'a + priors::Model> {
+    model: &'a JointModel<P, Q>,
     case: Vec<Observation>,
     control: Vec<Observation>,
     marginal_prob: LogProb
 }
 
 
-impl<'a, A: Sample, B: Sample> Pileup<'a, A, B> {
-    pub fn new(model: &'a JointModel<A, B>, case: Vec<Observation>, control: Vec<Observation>, marginal_prob: LogProb) -> Self {
+impl<'a, P: priors::Model, Q: priors::Model> Pileup<'a, P, Q> {
+    /// Create new pileup.
+    fn new(model: &'a JointModel<P, Q>, case: Vec<Observation>, control: Vec<Observation>, marginal_prob: LogProb) -> Self {
         Pileup {
             model: model,
             case: case,
@@ -100,7 +117,10 @@ impl<'a, A: Sample, B: Sample> Pileup<'a, A, B> {
             marginal_prob: marginal_prob
         }
     }
+}
 
+impl<'a, P: priors::ContinuousModel, Q: priors::DiscreteModel> Pileup<'a, P, Q> {
+    /// Calculate posterior probability of given allele frequencies.
     pub fn posterior_prob(&self, af_case: &Range<f64>, af_control: &[f64]) -> Result<LogProb, String> {
         let mut summands = Vec::with_capacity(af_control.len());
         for &af_control in af_control.iter() {

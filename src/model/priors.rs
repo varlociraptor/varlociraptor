@@ -2,7 +2,9 @@
 use bio::stats::{LogProb, logprobs};
 
 
+/// A prior model of the allele frequency spectrum.
 pub trait Model {
+    /// Calculate prior probability of given allele frequency.
     fn prior_prob(&self, af: f64) -> LogProb;
 }
 
@@ -13,6 +15,7 @@ pub trait DiscreteModel: Model {}
 pub trait ContinuousModel: Model {}
 
 
+/// The classical population genetic model used for variant calling in e.g. GATK and Samtools.
 pub struct InfiniteSitesNeutralVariationModel {
     ploidy: u32,
     heterozygosity: f64,
@@ -21,6 +24,7 @@ pub struct InfiniteSitesNeutralVariationModel {
 
 
 impl InfiniteSitesNeutralVariationModel {
+    /// Create new model for given ploidy and heterozygosity.
     pub fn new(ploidy: u32, heterozygosity: f64) -> Self {
         let zero_prob = logprobs::ln_1m_exp(
             heterozygosity.ln() +
@@ -51,6 +55,7 @@ impl Model for InfiniteSitesNeutralVariationModel {
 impl DiscreteModel for InfiniteSitesNeutralVariationModel {}
 
 
+/// Flat priors.
 pub struct FlatModel;
 
 

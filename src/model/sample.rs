@@ -36,29 +36,41 @@ pub struct InsertSize {
 }
 
 
-pub trait Sample {
-    fn reader(&mut self) -> &mut bam::IndexedReader;
+pub struct Sample<P: model::priors::Model> {
+    reader: bam::IndexedReader,
+    pileup_window: u32,
+    insert_size: InsertSize,
+    prior_model: P
+}
 
-    fn pileup_window(&self) -> u32;
 
-    fn insert_size(&self) -> InsertSize;
+impl<P: model::priors::Model> Sample<P> {
+    pub fn new(bam: bam::IndexedReader, pileup_window: u32, insert_size: InsertSize, prior_model: P) -> Self {
+        Sample {
+            reader: bam,
+            pileup_window: pileup_window,
+            insert_size: insert_size,
+            prior_model: prior_model
+        }
+    }
 
-    fn prior_prob(&self, af: f64) -> LogProb;
+    pub fn prior_prob(&self, af: f64) -> LogProb {
+        self.prior_model.prior_prob(af)
+    }
 
-    fn extract_observations(&mut self, chrom: &[u8], start: u32, length: u32, is_del: bool) -> Result<Vec<Observation>, String> {
-        if let Some(tid) = self.reader().header.tid(chrom) {
+    pub fn extract_observations(&mut self, chrom: &[u8], start: u32, length: u32, is_del: bool) -> Result<Vec<Observation>, String> {
+        if let Some(tid) = self.reader.header.tid(chrom) {
             let mut observations = Vec::new();
             let end = start + length;
             let varpos = if is_del { start + length / 2 } else { start } as i32; // TODO do we really need two centerpoints?
             let mut pairs = HashMap::new();
-            let pileup_window = self.pileup_window();
 
-            if self.reader().seek(tid, start - pileup_window, end + pileup_window).is_err() {
+            if self.reader.seek(tid, start - self.pileup_window, end + self.pileup_window).is_err() {
                 return Err(format!("Unable to seek to variant at {}:{}", str::from_utf8(chrom).unwrap(), start));
             }
             let mut record = bam::Record::new();
             loop {
-                match self.reader().read(&mut record) {
+                match self.reader.read(&mut record) {
                     Err(bam::ReadError::NoMoreRecord) => break,
                     Err(_) => return Err("Error reading BAM record.".to_owned()),
                     _ => ()
@@ -122,71 +134,9 @@ pub trait Sample {
         let shift = if is_del { length as f64 } else { -(length as f64) };
         Observation {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
-            prob_alt: gaussian_pdf(insert_size as f64 - self.insert_size().mean, self.insert_size().sd),
-            prob_ref: gaussian_pdf(insert_size as f64 - self.insert_size().mean + shift, self.insert_size().sd),
+            prob_alt: gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd),
+            prob_ref: gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd),
             prob_mismapped: 1.0 // if the fragment is mismapped, we assume sampling probability 1.0
         }
     }
-}
-
-
-pub struct PolyploidSample<P: model::priors::DiscreteModel> {
-    reader: bam::IndexedReader,
-    pileup_window: u32,
-    insert_size: InsertSize,
-    prior_model: P
-}
-
-
-impl<P: model::priors::DiscreteModel> PolyploidSample<P> {
-    pub fn new(bam: bam::IndexedReader, pileup_window: u32, insert_size: InsertSize, prior_model: P) -> Self {
-        PolyploidSample {
-            reader: bam,
-            pileup_window: pileup_window,
-            insert_size: insert_size,
-            prior_model: prior_model
-        }
-    }
-}
-
-
-impl<P: model::priors::DiscreteModel> Sample for PolyploidSample<P> {
-    fn reader(&mut self) -> &mut bam::IndexedReader { &mut self.reader }
-
-    fn pileup_window(&self) -> u32 { self.pileup_window }
-
-    fn insert_size(&self) -> InsertSize { self.insert_size }
-
-    fn prior_prob(&self, af: f64) -> LogProb { self.prior_model.prior_prob(af) }
-}
-
-
-pub struct TumorSample<P: model::priors::ContinuousModel> {
-    reader: bam::IndexedReader,
-    pileup_window: u32,
-    insert_size: InsertSize,
-    prior_model: P
-}
-
-
-impl<P: model::priors::ContinuousModel> TumorSample<P> {
-    pub fn new(bam: bam::IndexedReader, pileup_window: u32, insert_size: InsertSize, prior_model: P) -> Self {
-        TumorSample {
-            reader: bam,
-            pileup_window: pileup_window,
-            insert_size: insert_size,
-            prior_model: prior_model
-        }
-    }
-}
-
-
-impl<P: model::priors::ContinuousModel> Sample for TumorSample<P> {
-    fn reader(&mut self) -> &mut bam::IndexedReader { &mut self.reader }
-
-    fn pileup_window(&self) -> u32 { self.pileup_window }
-
-    fn insert_size(&self) -> InsertSize { self.insert_size }
-
-    fn prior_prob(&self, af: f64) -> LogProb { self.prior_model.prior_prob(af) }
 }

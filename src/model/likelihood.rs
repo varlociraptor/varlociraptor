@@ -7,6 +7,7 @@ use model::sample::Observation;
 pub type AlleleFreq = f64;
 
 
+/// Variant calling model, taking purity and allele frequencies into account.
 pub struct LatentVariableModel {
     /// Purity of the case sample.
     purity: LogProb
