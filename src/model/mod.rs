@@ -12,15 +12,6 @@ use model::likelihood::LatentVariableModel;
 use model::sample::{Sample, Observation};
 
 
-/// Expected insert size in terms of mean and standard deviation.
-/// This should be estimated from unsorted(!) bam files to avoid positional biases.
-#[derive(Copy, Clone, Debug)]
-pub struct InsertSize {
-    mean: f64,
-    sd: f64
-}
-
-
 /// Joint variant calling model, combining two latent variable models.
 pub struct JointModel<P: priors::Model, Q: priors::Model> {
     case_model: LatentVariableModel,

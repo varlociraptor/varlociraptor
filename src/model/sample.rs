@@ -29,6 +29,8 @@ pub struct Observation {
 }
 
 
+/// Expected insert size in terms of mean and standard deviation.
+/// This should be estimated from unsorted(!) bam files to avoid positional biases.
 #[derive(Copy, Clone, Debug)]
 pub struct InsertSize {
     mean: f64,
@@ -36,6 +38,7 @@ pub struct InsertSize {
 }
 
 
+/// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample<P: model::priors::Model> {
     reader: bam::IndexedReader,
     pileup_window: u32,
@@ -45,6 +48,14 @@ pub struct Sample<P: model::priors::Model> {
 
 
 impl<P: model::priors::Model> Sample<P> {
+    /// Create a new `Sample`.
+    ///
+    /// # Arguments
+    ///
+    /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
+    /// * `pileup_window` - Window around the variant that shall be search for evidence (e.g. 5000).
+    /// * `insert_size` - estimated insert size
+    /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
     pub fn new(bam: bam::IndexedReader, pileup_window: u32, insert_size: InsertSize, prior_model: P) -> Self {
         Sample {
             reader: bam,
@@ -54,10 +65,12 @@ impl<P: model::priors::Model> Sample<P> {
         }
     }
 
+    /// Calculate prior probability for given allele frequency.
     pub fn prior_prob(&self, af: f64) -> LogProb {
         self.prior_model.prior_prob(af)
     }
 
+    /// Extract observations for the given variant.
     pub fn extract_observations(&mut self, chrom: &[u8], start: u32, length: u32, is_del: bool) -> Result<Vec<Observation>, String> {
         if let Some(tid) = self.reader.header.tid(chrom) {
             let mut observations = Vec::new();
