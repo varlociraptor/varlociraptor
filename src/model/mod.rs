@@ -1,7 +1,6 @@
 use std::ops::Range;
 
 pub mod likelihood;
-pub mod observations;
 pub mod priors;
 pub mod sample;
 
