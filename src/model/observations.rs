@@ -3,8 +3,7 @@ use std::str;
 use std::collections::HashMap;
 
 use rgsl::randist::gaussian::gaussian_pdf;
-use bio::stats::logprobs;
-use bio::stats::LogProb;
+use bio::stats::{logprobs, LogProb};
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;

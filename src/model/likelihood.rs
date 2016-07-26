@@ -1,7 +1,7 @@
 use bio::stats::logprobs;
 use bio::stats::LogProb;
 
-use model::observations::Observation;
+use model::sample::Observation;
 
 
 pub type AlleleFreq = f64;

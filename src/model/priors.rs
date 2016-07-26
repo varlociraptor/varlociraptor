@@ -7,6 +7,12 @@ pub trait Model {
 }
 
 
+pub trait DiscreteModel: Model {}
+
+
+pub trait ContinuousModel: Model {}
+
+
 pub struct InfiniteSitesNeutralVariationModel {
     ploidy: u32,
     heterozygosity: f64,
@@ -40,6 +46,9 @@ impl Model for InfiniteSitesNeutralVariationModel {
         }
     }
 }
+
+
+impl DiscreteModel for InfiniteSitesNeutralVariationModel {}
 
 
 pub struct FlatModel;
