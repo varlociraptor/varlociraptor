@@ -11,7 +11,11 @@ use std::ops::Range;
 use rust_htslib::bcf;
 use bio::stats::logprobs;
 
-use model::priors;
+
+pub use model::sample::Sample;
+pub use model::JointModel;
+pub use model::likelihood::LatentVariableModel;
+pub use model::priors;
 
 
 /// Event to call.
@@ -39,7 +43,7 @@ pub struct Event {
 pub fn call<P: priors::ContinuousModel, Q: priors::DiscreteModel>(
     bcf: &mut bcf::Reader,
     events: &mut [Event],
-    joint_model: &mut model::JointModel<P, Q>
+    joint_model: &mut JointModel<P, Q>
 ) -> Result<(), String> {
 
     let mut record = bcf::Record::new();
