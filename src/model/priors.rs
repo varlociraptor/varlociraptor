@@ -100,6 +100,9 @@ impl Model for WilliamsTumorModel {
 }
 
 
+impl ContinuousModel for WilliamsTumorModel {}
+
+
 /// Flat priors.
 pub struct FlatModel;
 
