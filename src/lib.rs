@@ -7,6 +7,8 @@ extern crate itertools;
 
 pub mod model;
 
+use std::ascii::AsciiExt;
+use std::path::Path;
 use std::ops::Range;
 use rust_htslib::bcf;
 use bio::stats::logprobs;
@@ -20,8 +22,8 @@ pub use model::priors;
 
 /// Event to call.
 pub struct Event {
-    /// BCF/VCF to store results
-    pub writer: bcf::Writer,
+    /// event name
+    pub name: String,
     /// continuous allele frequency range (case sample)
     pub af_case: Range<f64>,
     /// discrete allele frequencies (control sample)
@@ -40,47 +42,75 @@ pub struct Event {
 /// # Returns
 ///
 /// `Result` object with eventual error message.
-pub fn call<P: priors::ContinuousModel, Q: priors::DiscreteModel>(
-    bcf: &mut bcf::Reader,
-    events: &mut [Event],
+pub fn call<P: priors::ContinuousModel, Q: priors::DiscreteModel, R: AsRef<Path>, W: AsRef<Path>>(
+    inbcf: &R,
+    outbcf: &W,
+    events: &[Event],
     joint_model: &mut JointModel<P, Q>
 ) -> Result<(), String> {
-
-    let mut record = bcf::Record::new();
-    loop {
-        // Read BCF/VCF record.
-        match bcf.read(&mut record) {
-            Err(bcf::ReadError::NoMoreRecord) => break,
-            Err(_) => return Err("Error reading BCF/VCF.".to_owned()),
-            _ => ()
+    if let Ok(inbcf) = bcf::Reader::new(inbcf) {
+        let mut header = bcf::Header::with_template(&inbcf.header);
+        for event in events {
+            header.push_record(
+                format!(
+                    "##INFO=<ID=PROB_{},Number=A,Type=Float,\
+                    Description=\"PHRED-scaled probability for germline variant\">",
+                    event.name.to_ascii_uppercase()
+                ).as_bytes()
+            );
         }
 
-        // Iterate over alleles.
-        let ref_allele = record.alleles()[0].to_owned();
-        for i in 1..record.allele_count() as usize {
-            let alt_allele = record.alleles()[i].to_owned();
-            if alt_allele.len() == ref_allele.len() {
-                // no indel
-                continue;
-            }
-            let is_del = alt_allele.len() < ref_allele.len();
-            if let Some(rid) = record.rid() {
-                let chrom = bcf.header.rid2name(rid);
-                // obtain pileup and calculate marginal probability
-                let pileup = try!(joint_model.pileup(chrom, record.pos(), alt_allele.len() as u32, is_del));
-                for event in events.iter_mut() {
-                    // calculate posterior probability for event
-                    let posterior_prob = try!(pileup.posterior_prob(&event.af_case, &event.af_control));
-                    // TODO properly handle multiple alleles!
-                    record.set_qual(logprobs::log_to_phred(posterior_prob) as f32);
-                    if let Err(_) = event.writer.write(&record) {
-                        return Err("Error writing BCF/VCF record.".to_owned());
+        if let Ok(mut outbcf) = bcf::Writer::new(outbcf, &header, false, false) {
+            let mut record = bcf::Record::new();
+            loop {
+                // Read BCF/VCF record.
+                match inbcf.read(&mut record) {
+                    Err(bcf::ReadError::NoMoreRecord) => break,
+                    Err(_) => return Err("Error reading BCF/VCF.".to_owned()),
+                    _ => ()
+                }
+                // translate to header of the writer
+                outbcf.translate(&mut record);
+
+                // allocate memory for posterior probabilities
+                let mut posterior_probs = Vec::with_capacity(record.allele_count() as usize - 1);
+                for event in events {
+                    posterior_probs.clear();
+                    {
+                        // Iterate over alleles.
+                        let alleles = record.alleles();
+                        let ref_allele = alleles[0];
+                        for alt_allele in alleles {
+                            if alt_allele.len() == ref_allele.len() {
+                                // no indel
+                                continue;
+                            }
+                            let is_del = alt_allele.len() < ref_allele.len();
+                            if let Some(rid) = record.rid() {
+                                let chrom = inbcf.header.rid2name(rid);
+                                // obtain pileup and calculate marginal probability
+                                let pileup = try!(joint_model.pileup(chrom, record.pos(), alt_allele.len() as u32, is_del));
+                                // calculate posterior probability for event
+                                let posterior_prob = try!(pileup.posterior_prob(&event.af_case, &event.af_control));
+                                posterior_probs.push(logprobs::log_to_phred(posterior_prob) as f32);
+                            } else {
+                                return Err("Error reading BCF/VCF record.".to_owned());
+                            }
+                        }
+                    }
+                    if record.push_info_float(format!("PROB_{}", event.name.to_ascii_uppercase()).as_bytes(), &posterior_probs).is_err() {
+                        return Err("Error writing INFO tag in BCF.".to_owned());
+                    }
+                    if outbcf.write(&record).is_err() {
+                        return Err("Error writing BCF record.".to_owned());
                     }
                 }
-            } else {
-                return Err("Error reading BCF/VCF.".to_owned());
             }
+            Ok(())
+        } else {
+            Err("Error writing BCF record.".to_owned())
         }
+    } else {
+        Err("Error reading BCF/VCF".to_owned())
     }
-    Ok(())
 }

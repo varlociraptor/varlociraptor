@@ -88,14 +88,18 @@ impl<P: model::priors::Model> Sample<P> {
                     Err(_) => return Err("Error reading BAM record.".to_owned()),
                     _ => ()
                 }
+                if record.is_duplicate() || record.is_unmapped() {
+                    continue;
+                }
                 let pos = record.pos();
                 let cigar = record.cigar();
                 let end_pos = record.end_pos(&cigar);
-                if pos < varpos && end_pos > varpos {
+                if pos <= varpos || end_pos >= varpos {
                     // overlapping alignment
-                    observations.push(self.read_observation(&record, &cigar, start, length, is_del));
-                } else if end_pos < varpos {
+                    observations.push(self.read_observation(&record, &cigar, varpos, length, is_del));
+                } else if end_pos <= varpos {
                     // need to check mate
+                    // since the bam file is sorted by position, we can't see the mate first
                     if record.mpos() >= varpos {
                         pairs.insert(record.qname().to_owned(), record.mapq());
                     }
@@ -111,7 +115,10 @@ impl<P: model::priors::Model> Sample<P> {
         }
     }
 
-    fn read_observation(&self, record: &bam::Record, cigar: &[Cigar], start: u32, length: u32, is_del: bool) -> Observation {
+    fn read_observation(&self, record: &bam::Record, cigar: &[Cigar], varpos: i32, length: u32, is_del: bool) -> Observation {
+        let is_close = |qpos: i32, qlength: u32| (varpos - (qpos + qlength as i32 / 2)).abs() <= 50;
+        let is_similar_length = |qlength: u32| (length as i32 - qlength as i32).abs() <= 20;
+
         let mut qpos = record.pos();
         let prob_mapping = prob_mapping(record.mapq());
         let mut obs = Observation {
@@ -124,11 +131,11 @@ impl<P: model::priors::Model> Sample<P> {
             match c {
                 &Cigar::Match(l) | &Cigar::RefSkip(l) | &Cigar::Equal(l) | &Cigar::Diff(l) => qpos += l as i32,
                 &Cigar::Back(l) => qpos -= l as i32,
-                &Cigar::Del(l) if is_del && qpos as u32 == start && l == length => {
+                &Cigar::Del(l) if is_del && is_similar_length(l) && is_close(qpos, l) => {
                     // supports alt allele
                     return obs;
                 },
-                &Cigar::Ins(l) if !is_del && qpos as u32 == start && l == length => {
+                &Cigar::Ins(l) if !is_del && is_similar_length(l) && is_close(qpos, l) => {
                     // supports alt allele
                     return obs;
                 }
