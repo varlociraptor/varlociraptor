@@ -69,6 +69,8 @@ pub fn call<P: priors::ContinuousModel, Q: priors::DiscreteModel, R: AsRef<Path>
                     Err(_) => return Err("Error reading BCF/VCF.".to_owned()),
                     _ => ()
                 }
+                // obtain SVLEN tag if present
+                let svlen = record.info(b"SVLEN").integer().ok().map(|svlen| svlen[0]);
                 // translate to header of the writer
                 outbcf.translate(&mut record);
 
@@ -85,11 +87,32 @@ pub fn call<P: priors::ContinuousModel, Q: priors::DiscreteModel, R: AsRef<Path>
                                 // no indel
                                 continue;
                             }
-                            let is_del = alt_allele.len() < ref_allele.len();
+
+                            let variant = if alt_allele == b"<DEL>" {
+                                if let Some(length) = svlen {
+                                    model::Variant::Deletion((length.abs()) as u32)
+                                } else {
+                                    return Err("Error reading SVLEN of <DEL> variant.".to_owned());
+                                }
+                            } else if alt_allele == b"<INS>" {
+                                if let Some(length) = svlen {
+                                    model::Variant::Insertion(length as u32)
+                                } else {
+                                    return Err("Error reading SVLEN of <INS> variant.".to_owned());
+                                }
+                            } else if alt_allele[0] == b'<' {
+                                // other special tag
+                                continue;
+                            } else if alt_allele.len() < ref_allele.len() {
+                                model::Variant::Deletion((ref_allele.len() - alt_allele.len()) as u32)
+                            } else {
+                                model::Variant::Insertion((alt_allele.len() - ref_allele.len()) as u32)
+                            };
+
                             if let Some(rid) = record.rid() {
                                 let chrom = inbcf.header.rid2name(rid);
                                 // obtain pileup and calculate marginal probability
-                                let pileup = try!(joint_model.pileup(chrom, record.pos(), alt_allele.len() as u32, is_del));
+                                let pileup = try!(joint_model.pileup(chrom, record.pos(), variant));
                                 // calculate posterior probability for event
                                 let posterior_prob = try!(pileup.posterior_prob(&event.af_case, &event.af_control));
                                 posterior_probs.push(logprobs::log_to_phred(posterior_prob) as f32);
@@ -98,8 +121,10 @@ pub fn call<P: priors::ContinuousModel, Q: priors::DiscreteModel, R: AsRef<Path>
                             }
                         }
                     }
-                    if record.push_info_float(format!("PROB_{}", event.name.to_ascii_uppercase()).as_bytes(), &posterior_probs).is_err() {
-                        return Err("Error writing INFO tag in BCF.".to_owned());
+                    if !posterior_probs.is_empty() {
+                        if record.push_info_float(format!("PROB_{}", event.name.to_ascii_uppercase()).as_bytes(), &posterior_probs).is_err() {
+                            return Err("Error writing INFO tag in BCF.".to_owned());
+                        }
                     }
                     if outbcf.write(&record).is_err() {
                         return Err("Error writing BCF record.".to_owned());

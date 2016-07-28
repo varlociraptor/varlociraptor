@@ -9,6 +9,7 @@ use bio::stats::{logprobs, LogProb};
 
 
 use model;
+use model::Variant;
 
 
 fn prob_mapping(mapq: u8) -> LogProb {
@@ -71,11 +72,13 @@ impl<P: model::priors::Model> Sample<P> {
     }
 
     /// Extract observations for the given variant.
-    pub fn extract_observations(&mut self, chrom: &[u8], start: u32, length: u32, is_del: bool) -> Result<Vec<Observation>, String> {
+    pub fn extract_observations(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Vec<Observation>, String> {
         if let Some(tid) = self.reader.header.tid(chrom) {
             let mut observations = Vec::new();
-            let end = start + length;
-            let varpos = if is_del { start + length / 2 } else { start } as i32; // TODO do we really need two centerpoints?
+            let (end, varpos) = match variant {
+                Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
+                Variant::Insertion(length) => (start + length, start as i32)
+            };
             let mut pairs = HashMap::new();
 
             if self.reader.seek(tid, start - self.pileup_window, end + self.pileup_window).is_err() {
@@ -96,7 +99,7 @@ impl<P: model::priors::Model> Sample<P> {
                 let end_pos = record.end_pos(&cigar);
                 if pos <= varpos || end_pos >= varpos {
                     // overlapping alignment
-                    observations.push(self.read_observation(&record, &cigar, varpos, length, is_del));
+                    observations.push(self.read_observation(&record, &cigar, varpos, variant));
                 } else if end_pos <= varpos {
                     // need to check mate
                     // since the bam file is sorted by position, we can't see the mate first
@@ -105,7 +108,7 @@ impl<P: model::priors::Model> Sample<P> {
                     }
                 } else if let Some(mate_mapq) = pairs.get(record.qname()) {
                     // mate already visited, and this read maps right of varpos
-                    observations.push(self.fragment_observation(&record, *mate_mapq, length, is_del));
+                    observations.push(self.fragment_observation(&record, *mate_mapq, variant));
                 }
             }
 
@@ -115,7 +118,11 @@ impl<P: model::priors::Model> Sample<P> {
         }
     }
 
-    fn read_observation(&self, record: &bam::Record, cigar: &[Cigar], varpos: i32, length: u32, is_del: bool) -> Observation {
+    fn read_observation(&self, record: &bam::Record, cigar: &[Cigar], varpos: i32, variant: Variant) -> Observation {
+        let (length, is_del) = match variant {
+            Variant::Deletion(length) => (length, true),
+            Variant::Insertion(length) => (length, false)
+        };
         let is_close = |qpos: i32, qlength: u32| (varpos - (qpos + qlength as i32 / 2)).abs() <= 50;
         let is_similar_length = |qlength: u32| (length as i32 - qlength as i32).abs() <= 20;
 
@@ -149,9 +156,12 @@ impl<P: model::priors::Model> Sample<P> {
         obs
     }
 
-    fn fragment_observation(&self, record: &bam::Record, mate_mapq: u8, length: u32, is_del: bool) -> Observation {
+    fn fragment_observation(&self, record: &bam::Record, mate_mapq: u8, variant: Variant) -> Observation {
         let insert_size = record.insert_size();
-        let shift = if is_del { length as f64 } else { -(length as f64) };
+        let shift = match variant {
+            Variant::Deletion(length)  => length as f64,
+            Variant::Insertion(length) => -(length as f64)
+        };
         Observation {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
             prob_alt: gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd),

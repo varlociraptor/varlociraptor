@@ -12,6 +12,13 @@ use model::likelihood::LatentVariableModel;
 use model::sample::{Sample, Observation};
 
 
+#[derive(Copy, Clone)]
+pub enum Variant {
+    Deletion(u32),
+    Insertion(u32)
+}
+
+
 /// Joint variant calling model, combining two latent variable models.
 pub struct JointModel<P: priors::Model, Q: priors::Model> {
     case_model: LatentVariableModel,
@@ -44,9 +51,9 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
     ///
     /// # Returns
     /// The `Pileup`, or an error message.
-    pub fn pileup(&mut self, chrom: &[u8], start: u32, length: u32, is_del: bool) -> Result<Pileup<P, Q>, String> {
-        let case_pileup = try!(self.case_sample.extract_observations(chrom, start, length, is_del));
-        let control_pileup = try!(self.control_sample.extract_observations(chrom, start, length, is_del));
+    pub fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<P, Q>, String> {
+        let case_pileup = try!(self.case_sample.extract_observations(chrom, start, variant));
+        let control_pileup = try!(self.control_sample.extract_observations(chrom, start, variant));
         let marginal_prob = try!(self.marginal_prob(&case_pileup, &control_pileup));
         Ok(Pileup::new(
             self,
