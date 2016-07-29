@@ -1,4 +1,3 @@
-
 use bio::stats::{LogProb, logprobs};
 
 
@@ -28,7 +27,7 @@ impl InfiniteSitesNeutralVariationModel {
     pub fn new(ploidy: u32, heterozygosity: f64) -> Self {
         let zero_prob = logprobs::ln_1m_exp(
             heterozygosity.ln() +
-            (0..ploidy * 2).fold(0.0, |s, m| s + 1.0 / m as f64).ln()
+            (1..ploidy + 1).fold(0.0, |s, m| s + 1.0 / m as f64).ln()
         );
         InfiniteSitesNeutralVariationModel {
             ploidy: ploidy,
@@ -94,8 +93,13 @@ impl WilliamsTumorModel {
 
 impl Model for WilliamsTumorModel {
     fn prior_prob(&self, af: f64) -> LogProb {
-        let x = 1.0 / af - self.average_ploidy as f64;
-        self.effective_mutation_rate.ln() + x.ln() - (self.genome_size as f64).ln()
+        let x = 1.0 / af - 1.0 / self.average_ploidy as f64;
+        let p = self.effective_mutation_rate.ln() + x.ln() - (self.genome_size as f64).ln();
+        if p > 0.0 {
+            0.0
+        } else {
+            p
+        }
     }
 }
 
@@ -117,5 +121,52 @@ impl FlatModel {
 impl Model for FlatModel {
     fn prior_prob(&self, _: f64) -> LogProb {
         0.0
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use itertools::linspace;
+    use rgsl::integration;
+    use bio::stats::Prob;
+
+    #[test]
+    fn test_flat() {
+        let model = FlatModel::new();
+        assert_relative_eq!(model.prior_prob(0.1), 1.0f64.ln());
+    }
+
+    #[test]
+    fn test_infinite_sites_neutral_variation() {
+        let ploidy = 2;
+        let het = 0.001;
+        let model = InfiniteSitesNeutralVariationModel::new(ploidy, het);
+        assert_relative_eq!(model.prior_prob(0.5).exp(), 0.001);
+        assert_relative_eq!(model.prior_prob(1.0).exp(), 0.0005);
+        assert_relative_eq!(model.prior_prob(0.0).exp(), 0.9985);
+    }
+
+    #[test]
+    fn test_williams_tumor() {
+        let mut model = WilliamsTumorModel::new(2, 300.0, 3e9 as u64);
+        let mut p = 0.0;
+        for af in linspace(0.0000001, 1.0, 100) {
+            println!("{} {}", af, model.prior_prob(af).exp());
+            p += model.prior_prob(af).exp();
+        }
+        println!("p {}", p);
+        assert!(false);
+        fn f(af: f64, params: &mut WilliamsTumorModel) -> Prob {
+            let model = params;
+            model.prior_prob(af).exp()
+        }/*
+        let mut total = 0.0;
+        let mut abs_err = 0.0;
+        let mut n_eval = 0;
+        integration::qng(f, &mut model, 0.0, 1.0, 1e-6, 1e-6, &mut total, &mut abs_err, &mut n_eval);
+        println!("{}", n_eval);
+        assert_relative_eq!(total, 1.0);*/
     }
 }

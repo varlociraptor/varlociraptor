@@ -61,8 +61,6 @@ impl LatentVariableModel {
 mod tests {
     use super::*;
     use model::sample::Observation;
-    use std::f64;
-    use itertools::Itertools;
     use itertools::linspace;
 
     #[test]
@@ -101,7 +99,7 @@ mod tests {
     fn test_likelihood_pileup() {
         let model = LatentVariableModel::new(1.0f64.ln());
         let mut observations = Vec::new();
-        for i in 0..5 {
+        for _ in 0..5 {
             observations.push(Observation{
                 prob_mapping: 1.0f64.ln(),
                 prob_alt: 1.0f64.ln(),
@@ -109,7 +107,7 @@ mod tests {
                 prob_mismapped: 1.0f64.ln()
             });
         }
-        for i in 0..5 {
+        for _ in 0..5 {
             observations.push(Observation{
                 prob_mapping: 1.0f64.ln(),
                 prob_alt: 0.0f64.ln(),
