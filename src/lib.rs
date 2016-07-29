@@ -18,6 +18,7 @@ pub use model::sample::Sample;
 pub use model::JointModel;
 pub use model::likelihood::LatentVariableModel;
 pub use model::priors;
+pub use model::sample::InsertSize;
 
 
 /// Event to call.
