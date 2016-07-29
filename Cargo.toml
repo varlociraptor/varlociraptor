@@ -9,3 +9,4 @@ log = "0.3.*"
 rust-htslib = { git="https://github.com/rust-bio/rust-htslib.git" }
 GSL = "0.4.*"
 itertools = "0.4.*"
+approx = "0.1.*"

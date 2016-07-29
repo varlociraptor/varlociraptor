@@ -56,3 +56,73 @@ impl LatentVariableModel {
         likelihood
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use model::sample::Observation;
+    use std::f64;
+    use itertools::Itertools;
+    use itertools::linspace;
+
+    #[test]
+    fn test_likelihood_observation() {
+        let model = LatentVariableModel::new(1.0f64.ln());
+        let observation = Observation{
+            prob_mapping: 1.0f64.ln(),
+            prob_alt: 1.0f64.ln(),
+            prob_ref: 0.0f64.ln(),
+            prob_mismapped: 1.0f64.ln()
+        };
+
+        let lh = model.likelihood_observation(&observation, 1.0, 0.0);
+        assert_relative_eq!(lh, 1.0f64.ln());
+
+        let lh = model.likelihood_observation(&observation, 0.0, 0.0);
+        assert_relative_eq!(lh, 0.0f64.ln());
+
+        let lh = model.likelihood_observation(&observation, 0.5, 0.0);
+        assert_relative_eq!(lh, 0.5f64.ln());
+
+        let lh = model.likelihood_observation(&observation, 0.5, 0.5);
+        assert_relative_eq!(lh, 0.5f64.ln());
+
+        let lh = model.likelihood_observation(&observation, 0.1, 0.0);
+        assert_relative_eq!(lh, 0.1f64.ln());
+
+        // test with 50% purity
+        let model = LatentVariableModel::new(0.5f64.ln());
+
+        let lh = model.likelihood_observation(&observation, 0.0, 1.0);
+        assert_relative_eq!(lh, 0.5f64.ln());
+    }
+
+    #[test]
+    fn test_likelihood_pileup() {
+        let model = LatentVariableModel::new(1.0f64.ln());
+        let mut observations = Vec::new();
+        for i in 0..5 {
+            observations.push(Observation{
+                prob_mapping: 1.0f64.ln(),
+                prob_alt: 1.0f64.ln(),
+                prob_ref: 0.0f64.ln(),
+                prob_mismapped: 1.0f64.ln()
+            });
+        }
+        for i in 0..5 {
+            observations.push(Observation{
+                prob_mapping: 1.0f64.ln(),
+                prob_alt: 0.0f64.ln(),
+                prob_ref: 1.0f64.ln(),
+                prob_mismapped: 1.0f64.ln()
+            });
+        }
+        let lh = model.likelihood_pileup(&observations, 0.5, 0.0);
+        for af in linspace(0.0, 1.0, 10) {
+            if af != 0.5 {
+                let l = model.likelihood_pileup(&observations, af, 0.0);
+                assert!(lh > l);
+            }
+        }
+    }
+}

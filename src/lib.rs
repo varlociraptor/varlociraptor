@@ -4,6 +4,8 @@ extern crate rust_htslib;
 extern crate log;
 extern crate rgsl;
 extern crate itertools;
+#[macro_use]
+extern crate approx;
 
 pub mod model;
 
