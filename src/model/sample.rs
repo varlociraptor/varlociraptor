@@ -34,8 +34,8 @@ pub struct Observation {
 /// This should be estimated from unsorted(!) bam files to avoid positional biases.
 #[derive(Copy, Clone, Debug)]
 pub struct InsertSize {
-    mean: f64,
-    sd: f64
+    pub mean: f64,
+    pub sd: f64
 }
 
 
