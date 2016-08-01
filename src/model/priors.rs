@@ -199,9 +199,6 @@ mod tests {
 
     #[test]
     fn test_tumor() {
-        //let mut model = TumorModel::new(2, 30.0, 3e9 as u64, 0.5, 0.001);
-        //model.prior_prob(0.0);
-        //assert!(false);
         for purity in linspace(0.5, 1.0, 5) {
             let model = TumorModel::new(2, 30.0, 3e9 as u64, purity, 0.001);
             let density = |af| model.prior_prob(af);
