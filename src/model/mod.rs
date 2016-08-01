@@ -4,9 +4,7 @@ pub mod likelihood;
 pub mod priors;
 pub mod sample;
 
-use bio::stats::{LogProb, Prob, logprobs};
-use rgsl;
-use rgsl::integration;
+use bio::stats::{LogProb, logprobs};
 
 use model::likelihood::LatentVariableModel;
 use model::sample::{Sample, Observation};
@@ -24,19 +22,21 @@ pub struct JointModel<P: priors::Model, Q: priors::Model> {
     case_model: LatentVariableModel,
     control_model: LatentVariableModel,
     case_sample: Sample<P>,
-    control_sample: Sample<Q>
+    control_sample: Sample<Q>,
+    grid_points: usize
 }
 
 
 impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
 
     /// Create new `JointModel`.
-    pub fn new(case_model: LatentVariableModel, control_model: LatentVariableModel, case_sample: Sample<P>, control_sample: Sample<Q>) -> Self {
+    pub fn new(case_model: LatentVariableModel, control_model: LatentVariableModel, case_sample: Sample<P>, control_sample: Sample<Q>, grid_points: usize) -> Self {
         JointModel {
             case_model: case_model,
             control_model: control_model,
             case_sample: case_sample,
-            control_sample: control_sample
+            control_sample: control_sample,
+            grid_points: grid_points
         }
     }
 
@@ -54,7 +54,7 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
     pub fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<P, Q>, String> {
         let case_pileup = try!(self.case_sample.extract_observations(chrom, start, variant));
         let control_pileup = try!(self.control_sample.extract_observations(chrom, start, variant));
-        let marginal_prob = try!(self.marginal_prob(&case_pileup, &control_pileup));
+        let marginal_prob = self.marginal_prob(&case_pileup, &control_pileup);
         Ok(Pileup::new(
             self,
             case_pileup,
@@ -63,35 +63,25 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
         ))
     }
 
-    fn prior_prob(&self, af_case: f64, af_control: f64) -> LogProb {
-        self.case_sample.prior_prob(af_case) + self.control_sample.prior_prob(af_control)
+    fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &Range<f64>, af_control: f64) -> LogProb {
+        let case_density = |af| {
+            self.case_model.likelihood_pileup(case_pileup, af, af_control) +
+            self.case_sample.prior_prob(af)
+        };
+
+        let prob = self.control_sample.prior_prob(af_control) +
+                   self.control_model.likelihood_pileup(control_pileup, af_control, 0.0) +
+                   logprobs::integrate(case_density, af_case.start, af_case.end, self.grid_points);
+        prob
     }
 
-    fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &Range<f64>, af_control: f64) -> Result<LogProb, String> {
-        fn f<P: priors::ContinuousModel, Q: priors::DiscreteModel>(af_case: f64, params: &mut (&JointModel<P, Q>, &[Observation], f64, LogProb)) -> Prob {
-            let (_self, case_pileup, af_control, lh_control) = *params;
-            (_self.case_model.likelihood_pileup(case_pileup, af_case, af_control) +
-            lh_control + _self.prior_prob(af_case, af_control)).exp()
-        }
-
-        let lh_control = self.control_model.likelihood_pileup(control_pileup, af_control, 0.0);
-        let mut prob = 0.0f64;
-        let mut abs_err = 0.0;
-        let mut n_eval = 0;
-        if let rgsl::Value::Success = integration::qng(f, &mut (&self, case_pileup, af_control, lh_control), af_case.start, af_case.end, 1e-8, 1e-8, &mut prob, &mut abs_err, &mut n_eval) {
-            Ok(prob)
-        } else {
-            return Err("Error calculating integral.".to_owned())
-        }
-    }
-
-    fn marginal_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation]) -> Result<LogProb, String> {
+    fn marginal_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation]) -> LogProb {
         let mut summands = Vec::with_capacity(3);
         for &af_control in [0.0, 0.5, 1.0].iter() {
-            summands.push(try!(self.joint_prob(case_pileup, control_pileup, &(0.0..1.0), af_control)).ln());
+            summands.push(self.joint_prob(case_pileup, control_pileup, &(0.0..1.0), af_control));
         }
 
-        Ok(logprobs::sum(&summands))
+        logprobs::sum(&summands)
     }
 }
 
@@ -119,11 +109,11 @@ impl<'a, P: priors::Model, Q: priors::Model> Pileup<'a, P, Q> {
 
 impl<'a, P: priors::ContinuousModel, Q: priors::DiscreteModel> Pileup<'a, P, Q> {
     /// Calculate posterior probability of given allele frequencies.
-    pub fn posterior_prob(&self, af_case: &Range<f64>, af_control: &[f64]) -> Result<LogProb, String> {
+    pub fn posterior_prob(&self, af_case: &Range<f64>, af_control: &[f64]) -> LogProb {
         let mut summands = Vec::with_capacity(af_control.len());
         for &af_control in af_control.iter() {
-            summands.push(try!(self.model.joint_prob(&self.case, &self.control, af_case, af_control)));
+            summands.push(self.model.joint_prob(&self.case, &self.control, af_case, af_control));
         }
-        Ok(logprobs::sum(&summands) - self.marginal_prob)
+        logprobs::sum(&summands) - self.marginal_prob
     }
 }

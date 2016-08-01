@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use bio::stats::{LogProb, logprobs};
 
 
@@ -41,9 +43,14 @@ impl InfiniteSitesNeutralVariationModel {
 impl Model for InfiniteSitesNeutralVariationModel {
     fn prior_prob(&self, af: f64) -> LogProb {
         if af > 0.0 {
-            // TODO fail for non-discrete m
             let m = af * self.ploidy as f64;
-            self.heterozygosity.ln() - m.ln()
+            if relative_eq!(m % 1.0, 0.0) {
+                // if m is discrete
+                self.heterozygosity.ln() - m.ln()
+            } else {
+                // invalid allele frequency
+                0.0f64.ln()
+            }
         } else {
             self.zero_prob
         }
@@ -54,57 +61,100 @@ impl Model for InfiniteSitesNeutralVariationModel {
 impl DiscreteModel for InfiniteSitesNeutralVariationModel {}
 
 
-/// Model of neutral mutation in tumor cell populations described in
-/// Williams et al. Nature Genetics 2016.
-pub struct WilliamsTumorModel {
+/// Mixture of tumor and normal priors.
+/// The tumor model uses a published model of neutral mutation in tumor cell populations
+/// described in Williams et al. Nature Genetics 2016.
+pub struct TumorModel {
     effective_mutation_rate: f64,
-    average_ploidy: u32,
-    genome_size: u64
+    genome_size: u64,
+    purity: f64,
+    normal_model: InfiniteSitesNeutralVariationModel
 }
 
 
-impl WilliamsTumorModel {
-    /// Create new model for given average ploidy and mutation rate per effective cell division.
-    /// The latter, is the quotient mu/beta, with mu being the mutation rate and beta being the fraction
+impl TumorModel {
+    /// Create new model for given ploidy, heterozygosity (in normal tissue) and tumor mutation rate
+    /// per effective cell division.
+    /// The latter is the quotient mu/beta, with mu being the mutation rate and beta being the fraction
     /// of effective cell divisions (both lineages survive). Alone, the parameters are not observable.
     /// However, mu/beta can be estimated from e.g. SNV calls. It is the slope of the linear model
-    /// y = mu/beta * (x -  1 / fmax), with x being the reciprocal of the observed allele frequencies
+    /// `y = mu/beta * (x -  1 / fmax)``, with `x` being the reciprocal of the observed allele frequencies
     /// and y being the number of observed mutations corresponding to each frequency
     /// (see Williams et al. Nature Genetics 2016).
     ///
-    /// Based on the model, the prior probability of an allele frequency F = f is
-    /// Pr(F = f) = M(f) / n = mu/beta (1 / f - 1 / fmax) / n
-    /// with n being the size of the genome and fmax is the expected allele frequency of clonal variants
-    /// at the beginning of tumor evolution. Hence, fmax is set to fmax = 1 / ploidy.
+    /// Based on the Williams model, the prior probability of a subclonal allele frequency F = f is
+    /// `p_sub = M(f) / n = mu/beta (1 / f - 1 / fmax) / n`
+    /// with `n` being the size of the genome and `fmax` is the expected allele frequency of clonal variants
+    /// at the beginning of tumor evolution. The model assumes that the tumor comes from a single cell.
+    /// Hence, `fmax` is set to `fmax = 1 / ploidy`.
+    ///
+    /// The prior probability for a clonal allele frequency f (e.g. 0.0, 0.5, 1.0) in the tumor is
+    /// calculated with an `InfiniteSitesNeutralVariationModel`. This is valid since clonal variants
+    /// come from the underlying normal tissue and Williams model assumes that allele frequencies
+    /// do not change during tumor evolution (no genetic drift, no selection).
+    ///
+    /// For the final prior, we consider a given tumor purity and calculate the combined prior
+    /// for all possible allele frequency combinations satisfying `af = purity * af_tumor + (1-purity) * af_normal`.
     ///
     /// # Arguments
     ///
-    /// * `average_ploidy` - the average ploidy of the tumor (e.g. 2 for diploid)
-    /// * `effective_mutation_rate` - the mutation rate per effective cell division
-    pub fn new(average_ploidy: u32, effective_mutation_rate: f64, genome_size: u64) -> Self {
-        WilliamsTumorModel {
-            average_ploidy: average_ploidy,
+    /// * `ploidy` - the ploidy in the corresponding normal sample (e.g. 2 for diploid)
+    /// * `effective_mutation_rate` - the mutation rate per effective cell division in the tumor
+    /// * `genome_size` - the size of the genome
+    /// * `purity` - tumor purity
+    /// * `heterozygosity` - expected heterozygosity in the corresponding normal
+    pub fn new(
+        ploidy: u32,
+        effective_mutation_rate: f64,
+        genome_size: u64,
+        purity: f64,
+        heterozygosity: f64) -> Self {
+        let normal_model = InfiniteSitesNeutralVariationModel::new(ploidy, heterozygosity);
+        TumorModel {
             effective_mutation_rate: effective_mutation_rate,
-            genome_size: genome_size
+            genome_size: genome_size,
+            purity: purity,
+            normal_model: normal_model
         }
     }
-}
 
-
-impl Model for WilliamsTumorModel {
-    fn prior_prob(&self, af: f64) -> LogProb {
-        let x = 1.0 / af - 1.0 / self.average_ploidy as f64;
-        let p = self.effective_mutation_rate.ln() + x.ln() - (self.genome_size as f64).ln();
-        if p > 0.0 {
-            0.0
+    fn prior_prob_tumor(&self, af_tumor: f64) -> LogProb {
+        if af_tumor > 0.0 && af_tumor < 1.0 / self.normal_model.ploidy as f64 {
+            // subclonal event
+            let x = 1.0 / af_tumor - self.normal_model.ploidy as f64;
+            (self.effective_mutation_rate * x).ln() - (self.genome_size as f64).ln()
         } else {
-            p
+            // clonal event
+            self.normal_model.prior_prob(af_tumor)
         }
     }
 }
 
 
-impl ContinuousModel for WilliamsTumorModel {}
+impl Model for TumorModel {
+    fn prior_prob(&self, af: f64) -> LogProb {
+        // af = purity * af_tumor + (1-purity) * af_normal
+
+        // sum over the different possibilities to obtain af
+        let probs = (0..self.normal_model.ploidy + 1).filter_map(|m| {
+            let af_normal = m as f64 / self.normal_model.ploidy as f64;
+            if af >= af_normal {
+                let af_tumor = (af - (1.0 - self.purity) * af_normal) / self.purity;
+
+                let p_tumor = self.prior_prob_tumor(af_tumor);
+                let p_normal = self.normal_model.prior_prob(af_normal);
+                Some(p_tumor + p_normal)
+            } else {
+                None
+            }
+        }).collect_vec();
+
+        logprobs::sum(&probs) - (probs.len() as f64).ln()
+    }
+}
+
+
+impl ContinuousModel for TumorModel {}
 
 
 /// Flat priors.
@@ -129,8 +179,7 @@ impl Model for FlatModel {
 mod tests {
     use super::*;
     use itertools::linspace;
-    use rgsl::integration;
-    use bio::stats::Prob;
+    use bio::stats::logprobs;
 
     #[test]
     fn test_flat() {
@@ -149,24 +198,21 @@ mod tests {
     }
 
     #[test]
-    fn test_williams_tumor() {
-        let mut model = WilliamsTumorModel::new(2, 300.0, 3e9 as u64);
-        let mut p = 0.0;
-        for af in linspace(0.0000001, 1.0, 100) {
-            println!("{} {}", af, model.prior_prob(af).exp());
-            p += model.prior_prob(af).exp();
+    fn test_tumor() {
+        //let mut model = TumorModel::new(2, 30.0, 3e9 as u64, 0.5, 0.001);
+        //model.prior_prob(0.0);
+        //assert!(false);
+        for purity in linspace(0.5, 1.0, 5) {
+            let model = TumorModel::new(2, 30.0, 3e9 as u64, purity, 0.001);
+            let density = |af| model.prior_prob(af);
+            let total = logprobs::integrate(&density, 0.0, 1.0, 2000);
+            println!("purity={}", purity);
+            for af in linspace(0.0, 1.0, 10) {
+                println!("af={}, p={}", af, density(af).exp());
+            }
+
+            println!("total subclonal {}", logprobs::integrate(&density, 0.0, 0.5, 2000).exp());
+            assert_relative_eq!(total.exp() + density(0.0).exp(), 1.0, epsilon=0.01);
         }
-        println!("p {}", p);
-        assert!(false);
-        fn f(af: f64, params: &mut WilliamsTumorModel) -> Prob {
-            let model = params;
-            model.prior_prob(af).exp()
-        }/*
-        let mut total = 0.0;
-        let mut abs_err = 0.0;
-        let mut n_eval = 0;
-        integration::qng(f, &mut model, 0.0, 1.0, 1e-6, 1e-6, &mut total, &mut abs_err, &mut n_eval);
-        println!("{}", n_eval);
-        assert_relative_eq!(total, 1.0);*/
     }
 }

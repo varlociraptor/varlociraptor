@@ -117,7 +117,7 @@ pub fn call<P: priors::ContinuousModel, Q: priors::DiscreteModel, R: AsRef<Path>
                                 // obtain pileup and calculate marginal probability
                                 let pileup = try!(joint_model.pileup(chrom, record.pos(), variant));
                                 // calculate posterior probability for event
-                                let posterior_prob = try!(pileup.posterior_prob(&event.af_case, &event.af_control));
+                                let posterior_prob = pileup.posterior_prob(&event.af_case, &event.af_control);
                                 posterior_probs.push(logprobs::log_to_phred(posterior_prob) as f32);
                             } else {
                                 return Err("Error reading BCF/VCF record.".to_owned());
