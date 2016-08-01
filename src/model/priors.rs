@@ -205,7 +205,7 @@ mod tests {
         for purity in linspace(0.5, 1.0, 5) {
             let model = TumorModel::new(2, 30.0, 3e9 as u64, purity, 0.001);
             let density = |af| model.prior_prob(af);
-            let total = logprobs::integrate(&density, 0.0, 1.0, 2000);
+            let total = logprobs::integrate(&density, 0.0, 1.0, 200);
             println!("purity={}", purity);
             for af in linspace(0.0, 1.0, 10) {
                 println!("af={}, p={}", af, density(af).exp());

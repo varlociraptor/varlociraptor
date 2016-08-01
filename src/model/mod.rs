@@ -30,6 +30,14 @@ pub struct JointModel<P: priors::Model, Q: priors::Model> {
 impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
 
     /// Create new `JointModel`.
+    ///
+    /// # Arguments
+    ///
+    /// * `case_model` - model for the case sample
+    /// * `control_model` - model for the control sample
+    /// * `case_sample` - case sample
+    /// * `control_sample` - control sample
+    /// * `grid_points` - number of grid points to use for trapezoidal integration (e.g. 200)
     pub fn new(case_model: LatentVariableModel, control_model: LatentVariableModel, case_sample: Sample<P>, control_sample: Sample<Q>, grid_points: usize) -> Self {
         JointModel {
             case_model: case_model,
