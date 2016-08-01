@@ -79,7 +79,7 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
 
         let prob = self.control_sample.prior_prob(af_control) +
                    self.control_model.likelihood_pileup(control_pileup, af_control, 0.0) +
-                   logprobs::integrate(case_density, af_case.start, af_case.end, self.grid_points);
+                   logprobs::integrate(&case_density, af_case.start, af_case.end, self.grid_points);
         prob
     }
 
