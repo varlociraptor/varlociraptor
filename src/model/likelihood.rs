@@ -17,8 +17,11 @@ pub struct LatentVariableModel {
 impl LatentVariableModel {
 
     /// Create new model.
-    pub fn new(purity: LogProb) -> Self {
-        LatentVariableModel { purity: purity }
+    ///
+    ///
+    pub fn new(purity: f64) -> Self {
+        assert!(purity > 0.0 && purity <= 1.0);
+        LatentVariableModel { purity: purity.ln() }
     }
 
     /// Impurity of the case sample (fraction of control cells in the case sample).
@@ -65,7 +68,7 @@ mod tests {
 
     #[test]
     fn test_likelihood_observation() {
-        let model = LatentVariableModel::new(1.0f64.ln());
+        let model = LatentVariableModel::new(1.0);
         let observation = Observation{
             prob_mapping: 1.0f64.ln(),
             prob_alt: 1.0f64.ln(),
@@ -89,7 +92,7 @@ mod tests {
         assert_relative_eq!(lh, 0.1f64.ln());
 
         // test with 50% purity
-        let model = LatentVariableModel::new(0.5f64.ln());
+        let model = LatentVariableModel::new(0.5);
 
         let lh = model.likelihood_observation(&observation, 0.0, 1.0);
         assert_relative_eq!(lh, 0.5f64.ln());
@@ -97,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_likelihood_pileup() {
-        let model = LatentVariableModel::new(1.0f64.ln());
+        let model = LatentVariableModel::new(1.0);
         let mut observations = Vec::new();
         for _ in 0..5 {
             observations.push(Observation{

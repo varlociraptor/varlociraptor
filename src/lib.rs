@@ -56,9 +56,10 @@ pub fn call<P: priors::ContinuousModel, Q: priors::DiscreteModel, R: AsRef<Path>
         for event in events {
             header.push_record(
                 format!(
-                    "##INFO=<ID=PROB_{},Number=A,Type=Float,\
-                    Description=\"PHRED-scaled probability for germline variant\">",
-                    event.name.to_ascii_uppercase()
+                    "##INFO=<ID=PROB_{name_upper},Number=A,Type=Float,\
+                    Description=\"PHRED-scaled probability for {name} variant\">",
+                    name=event.name,
+                    name_upper=event.name.to_ascii_uppercase()
                 ).as_bytes()
             );
         }

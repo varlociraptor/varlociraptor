@@ -22,8 +22,7 @@ pub struct JointModel<P: priors::Model, Q: priors::Model> {
     case_model: LatentVariableModel,
     control_model: LatentVariableModel,
     case_sample: Sample<P>,
-    control_sample: Sample<Q>,
-    grid_points: usize
+    control_sample: Sample<Q>
 }
 
 
@@ -38,13 +37,12 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
     /// * `case_sample` - case sample
     /// * `control_sample` - control sample
     /// * `grid_points` - number of grid points to use for trapezoidal integration (e.g. 200)
-    pub fn new(case_model: LatentVariableModel, control_model: LatentVariableModel, case_sample: Sample<P>, control_sample: Sample<Q>, grid_points: usize) -> Self {
+    pub fn new(case_model: LatentVariableModel, control_model: LatentVariableModel, case_sample: Sample<P>, control_sample: Sample<Q>) -> Self {
         JointModel {
             case_model: case_model,
             control_model: control_model,
             case_sample: case_sample,
-            control_sample: control_sample,
-            grid_points: grid_points
+            control_sample: control_sample
         }
     }
 
@@ -72,14 +70,11 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
     }
 
     fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &Range<f64>, af_control: f64) -> LogProb {
-        let case_density = |af| {
-            self.case_model.likelihood_pileup(case_pileup, af, af_control) +
-            self.case_sample.prior_prob(af)
-        };
+        let case_likelihood = |af| self.case_model.likelihood_pileup(case_pileup, af, af_control);
 
-        let prob = self.control_sample.prior_prob(af_control) +
+        let prob = self.control_sample.prior_model().prior_prob(af_control) +
                    self.control_model.likelihood_pileup(control_pileup, af_control, 0.0) +
-                   logprobs::integrate(&case_density, af_case.start, af_case.end, self.grid_points);
+                   self.case_sample.prior_model().integrate(af_case, &case_likelihood);
         prob
     }
 
@@ -123,5 +118,102 @@ impl<'a, P: priors::ContinuousModel, Q: priors::DiscreteModel> Pileup<'a, P, Q> 
             summands.push(self.model.joint_prob(&self.case, &self.control, af_case, af_control));
         }
         logprobs::sum(&summands) - self.marginal_prob
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use LatentVariableModel;
+    use Sample;
+    use InsertSize;
+    use model::sample::Observation;
+    use rust_htslib::bam;
+
+    #[test]
+    fn test_joint_prob() {
+        let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
+        let case_sample = Sample::new(
+            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            5000,
+            insert_size,
+            priors::TumorModel::new(2, 30.0, 3e9 as u64, 1.0, 0.001)
+        );
+        let control_sample = Sample::new(
+            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            5000,
+            insert_size,
+            priors::InfiniteSitesNeutralVariationModel::new(2, 0.001)
+        );
+
+        let model = JointModel::new(
+            LatentVariableModel::new(1.0),
+            LatentVariableModel::new(1.0),
+            case_sample,
+            control_sample
+        );
+
+        let mut observations = Vec::new();
+        for _ in 0..5 {
+            observations.push(Observation{
+                prob_mapping: 1.0f64.ln(),
+                prob_alt: 1.0f64.ln(),
+                prob_ref: 0.0f64.ln(),
+                prob_mismapped: 1.0f64.ln()
+            });
+        }
+
+        let tumor_all = 0.0..1.0;
+        let tumor_alt = 0.001..1.0;
+        let normal_alt = [0.5, 1.0];
+        let normal_ref = [0.0];
+
+        // scenario 1: same pileup -> germline call
+        let marginal_prob = model.marginal_prob(&observations, &observations);
+        let pileup = Pileup::new(&model, observations.clone(), observations.clone(), marginal_prob);
+        // germline
+        assert_relative_eq!(pileup.posterior_prob(&tumor_all, &normal_alt).exp(), 1.0);
+        // somatic
+        assert_relative_eq!(pileup.posterior_prob(&tumor_alt, &normal_ref).exp(), 0.0);
+
+        // scenario 2: empty control pileup -> somatic call
+        let marginal_prob = model.marginal_prob(&observations, &[]);
+        let pileup = Pileup::new(&model, observations.clone(), vec![], marginal_prob);
+        // somatic close to prior for ref in ńormal
+        assert_relative_eq!(pileup.posterior_prob(&tumor_alt, &normal_ref).exp(), 0.9985, epsilon=0.0001);
+        // germline < somatic
+        assert!(pileup.posterior_prob(&tumor_all, &normal_alt).exp() < pileup.posterior_prob(&tumor_alt, &normal_ref).exp());
+
+        // scenario 3: subclonal variant
+        for _ in 0..50 {
+            observations.push(Observation{
+                prob_mapping: 1.0f64.ln(),
+                prob_alt: 0.0f64.ln(),
+                prob_ref: 1.0f64.ln(),
+                prob_mismapped: 1.0f64.ln()
+            });
+        }
+        let marginal_prob = model.marginal_prob(&observations, &[]);
+        let pileup = Pileup::new(&model, observations.clone(), vec![], marginal_prob);
+        // somatic
+        assert_relative_eq!(pileup.posterior_prob(&tumor_alt, &normal_ref).exp(), 0.9985, epsilon=0.0001);
+
+        // scenario 4: absent variant
+        observations.clear();
+        for _ in 0..10 {
+            observations.push(Observation{
+                prob_mapping: 1.0f64.ln(),
+                prob_alt: 0.0f64.ln(),
+                prob_ref: 1.0f64.ln(),
+                prob_mismapped: 1.0f64.ln()
+            });
+        }
+        let marginal_prob = model.marginal_prob(&observations, &observations);
+        let pileup = Pileup::new(&model, observations.clone(), observations.clone(), marginal_prob);
+        // germline
+        assert_relative_eq!(pileup.posterior_prob(&tumor_all, &normal_alt).exp(), 0.0, epsilon=0.00001);
+        // somatic
+        assert_relative_eq!(pileup.posterior_prob(&tumor_alt, &normal_ref).exp(), 0.0, epsilon=0.00001);
     }
 }

@@ -18,6 +18,7 @@ fn prob_mapping(mapq: u8) -> LogProb {
 
 
 /// An observation for or against a variant.
+#[derive(Clone, Debug)]
 pub struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     pub prob_mapping: LogProb,
@@ -67,8 +68,8 @@ impl<P: model::priors::Model> Sample<P> {
     }
 
     /// Calculate prior probability for given allele frequency.
-    pub fn prior_prob(&self, af: f64) -> LogProb {
-        self.prior_model.prior_prob(af)
+    pub fn prior_model(&self) -> &P {
+        &self.prior_model
     }
 
     /// Extract observations for the given variant.
