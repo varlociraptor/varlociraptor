@@ -203,7 +203,7 @@ impl TumorModel {
 impl Model for TumorModel {
     fn prior_prob(&self, af: f64) -> LogProb {
         // sum over the different possibilities to obtain af
-        /*let probs = self.germline_allelefreqs.iter().filter_map(|&af_normal| {
+        let probs = self.germline_allelefreqs.iter().filter_map(|&af_normal| {
             let f = (1.0 - self.purity) * af_normal;
             if af >= f {
                 // af = purity * af_tumor + (1-purity) * af_normal
@@ -218,9 +218,7 @@ impl Model for TumorModel {
         }).collect_vec();
 
         let p = logprobs::sum(&probs) - (probs.len() as f64).ln();
-        //println!("{:?} {}", probs, p);
-        p*/
-        self.tumor_density(af)
+        p
     }
 }
 
