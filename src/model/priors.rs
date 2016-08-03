@@ -187,7 +187,8 @@ impl TumorModel {
             }
         }).collect_vec();
 
-        logprobs::sum(&probs) - (probs.len() as f64).ln()
+        // summands are disjoint because we go over disjoint germline events
+        logprobs::sum(&probs)
     }
 }
 
@@ -209,7 +210,8 @@ impl Model for TumorModel {
             }
         }).collect_vec();
 
-        let p = logprobs::sum(&probs) - (probs.len() as f64).ln();
+        // summands are disjoint because we go over disjoint events on the normal sample
+        let p = logprobs::sum(&probs);
         p
     }
 }
@@ -282,14 +284,16 @@ mod tests {
     #[test]
     fn test_tumor() {
         for purity in linspace(0.5, 1.0, 5) {
+            println!("purity {}", purity);
             let model = TumorModel::new(2, 300.0, 3e9 as u64, purity, 0.001);
+            println!("af=0.0 -> {}", model.prior_prob(0.0));
             let total = model.integrate(&(0.0..1.0), &|_| 0.0);
             println!("total {}", total);
 
             for af in linspace(0.0, 1.0, 20) {
                 println!("af={} p={}", af, model.prior_prob(af));
             }
-            assert_relative_eq!(total.exp(), 1.0);
+            assert_relative_eq!(total.exp(), 1.0, epsilon=0.01);
         }
     }
 }
