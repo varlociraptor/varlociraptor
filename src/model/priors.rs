@@ -75,7 +75,6 @@ pub struct TumorModel {
     genome_size: u64,
     purity: f64,
     normal_model: InfiniteSitesNeutralVariationModel,
-    germline_model: InfiniteSitesNeutralVariationModel,
     grid_points: usize,
     germline_allelefreqs: Vec<f64>,
     panels: Vec<NotNaN<f64>>
@@ -123,7 +122,6 @@ impl TumorModel {
         heterozygosity: f64) -> Self {
         assert!(purity <= 1.0 && purity >= 0.0);
         let normal_model = InfiniteSitesNeutralVariationModel::new(ploidy, heterozygosity);
-        let germline_model = InfiniteSitesNeutralVariationModel::new(ploidy, heterozygosity);
         let germline_allelefreqs = (0..normal_model.ploidy + 1).map(|m| m as f64 / normal_model.ploidy as f64).collect_vec();
 
         // calculate outer panels for integration
@@ -143,21 +141,15 @@ impl TumorModel {
         }
         panels = panels.into_iter().unique().collect_vec();
 
-        let mut model = TumorModel {
+        let model = TumorModel {
             effective_mutation_rate: effective_mutation_rate,
             genome_size: genome_size,
             purity: purity,
             normal_model: normal_model,
-            germline_model: germline_model,
             grid_points: 200,
             germline_allelefreqs: germline_allelefreqs,
             panels: panels
         };
-        // correct zero-probability of normal model such that sum of tumor_density is 1
-        model.germline_model.zero_prob = logprobs::sub(
-            model.germline_model.zero_prob,
-            logprobs::integrate(|af| model.somatic_density(af), 0.0, 1.0, model.grid_points)
-        );
 
         model
     }
@@ -173,7 +165,7 @@ impl TumorModel {
     }
 
     fn germline_density(&self, af: f64) -> LogProb {
-        self.germline_model.prior_prob(af)
+        self.normal_model.prior_prob(af)
     }
 
     fn tumor_density(&self, af: f64) -> LogProb {
@@ -237,8 +229,7 @@ impl ContinuousModel for TumorModel {
             }
             let fmax = cmp::min(fmax, af_max);
             if fmin >= af_min {
-                // add density(f) in order to properly weight discrete part of the distribution
-                // TODO find a better way! MCMC?
+                // add density(fmin) because it contains the discrete peak
                 summands.push(density(*fmin));
             }
             let fmin = cmp::max(fmin, af_min);
@@ -271,7 +262,6 @@ impl Model for FlatModel {
 mod tests {
     use super::*;
     use itertools::linspace;
-    use bio::stats::logprobs;
 
     #[test]
     fn test_flat() {
