@@ -1,8 +1,9 @@
 use std::f64;
 use std::ops::Range;
+use std::cmp;
 
 use itertools::Itertools;
-
+use ordered_float::NotNaN;
 use bio::stats::{LogProb, logprobs};
 
 
@@ -74,8 +75,10 @@ pub struct TumorModel {
     genome_size: u64,
     purity: f64,
     normal_model: InfiniteSitesNeutralVariationModel,
+    germline_model: InfiniteSitesNeutralVariationModel,
     grid_points: usize,
-    fmax: f64
+    germline_allelefreqs: Vec<f64>,
+    panels: Vec<NotNaN<f64>>
 }
 
 
@@ -89,13 +92,15 @@ impl TumorModel {
     /// and y being the number of observed mutations corresponding to each frequency
     /// (see Williams et al. Nature Genetics 2016).
     ///
-    /// Based on the Williams model, the prior probability of a subclonal allele frequency F = f is
-    /// `p_sub = M(f) / n = mu/beta (1 / f - 1 / fmax) / n`
+    /// Based on the Williams model, the tail probability of a somatic allele frequency F > f can be expressed
+    /// as
+    /// `Pr(F > f) = M(f) / n = mu/beta (1 / f - 1 / fmax) / n`
     /// with `n` being the size of the genome and `fmax` is the expected allele frequency of clonal variants
-    /// at the beginning of tumor evolution. The model assumes that the tumor comes from a single cell.
-    /// Hence, `fmax` is set to `fmax = 1 / ploidy`.
+    /// at the beginning of tumor evolution.
+    /// From this, we can obtain the cumulative distribution function as `Pr(F <= f) = 1 - Pr(F > f)`.
+    /// Consequently, the density becomes the first derivate, i.e. `Pr(F = f) = - M(f)' / n = mu/beta * 1 / (f²n)`.
     ///
-    /// The prior probability for a clonal allele frequency f (e.g. 0.0, 0.5, 1.0) in the tumor is
+    /// The prior probability for a germline allele frequency f (e.g. 0.0, 0.5, 1.0) in the tumor is
     /// calculated with an `InfiniteSitesNeutralVariationModel`. This is valid since clonal variants
     /// come from the underlying normal tissue and Williams model assumes that allele frequencies
     /// do not change during tumor evolution (no genetic drift, no selection).
@@ -116,61 +121,75 @@ impl TumorModel {
         genome_size: u64,
         purity: f64,
         heterozygosity: f64) -> Self {
+        assert!(purity <= 1.0 && purity >= 0.0);
         let normal_model = InfiniteSitesNeutralVariationModel::new(ploidy, heterozygosity);
-        let fmax = 1.0 / normal_model.ploidy as f64;
-        let model = TumorModel {
+        let germline_model = InfiniteSitesNeutralVariationModel::new(ploidy, heterozygosity);
+        let germline_allelefreqs = (0..normal_model.ploidy + 1).map(|m| m as f64 / normal_model.ploidy as f64).collect_vec();
+
+        // calculate outer panels for integration
+        // we choose these such that we always start at a new peak in the density (e.g. at 0.0, 0.5)
+        let mut panels = Vec::new();
+        panels.extend(germline_allelefreqs.iter().map(|&af| NotNaN::new(af).unwrap()));
+        if purity < 1.0 {
+            // handle additional peaks
+            panels.extend(germline_allelefreqs.iter().filter_map(|af| {
+                let f = af / (1.0 - purity);
+                if f > 0.0 && f <= 1.0 {
+                    Some(NotNaN::new(f).unwrap())
+                } else {
+                    None
+                }
+            }));
+        }
+        panels = panels.into_iter().unique().collect_vec();
+
+        let mut model = TumorModel {
             effective_mutation_rate: effective_mutation_rate,
             genome_size: genome_size,
             purity: purity,
             normal_model: normal_model,
+            germline_model: germline_model,
             grid_points: 200,
-            fmax: fmax
+            germline_allelefreqs: germline_allelefreqs,
+            panels: panels
         };
-
-        // ensure that integral over 0.0..1.0 becomes 1.0
-        // i.e. 1 - (subclonal + clonal)
-
-        // desired integral value: 1 - clonal
-        // let p_clonal = logprobs::ln_1m_exp(model.normal_model.zero_prob);
-        // let mut sum_subclonal = linspace(0.0, model.fmax, model.grid_points).dropping(1).dropping_back(1).map(|af| 2.0f64.ln() + model.subclonal_density(af)).collect_vec();
-        // sum_subclonal.push(model.subclonal_density(model.fmax));
-        // let sum_subclonal = logprobs::sum(&sum_subclonal);
-        // let factor = 2.0 * (model.grid_points as f64 - 1.0) / model.fmax;
-        // model.zero_prob = logprobs::sub(p_clonal + factor.ln(), sum_subclonal);
+        // correct zero-probability of normal model such that sum of tumor_density is 1
+        model.germline_model.zero_prob = logprobs::sub(
+            model.germline_model.zero_prob,
+            logprobs::integrate(|af| model.somatic_density(af), 0.0, 1.0, model.grid_points)
+        );
 
         model
     }
 
-    fn subclonal_density(&self, af: f64) -> LogProb {
-        let x = 1.0 / af - self.normal_model.ploidy as f64;
-        (self.effective_mutation_rate * x).ln() - (self.genome_size as f64).ln()
-    }
-
-    fn prior_prob_tumor(&self, af_tumor: f64) -> LogProb {
-        if af_tumor > 0.0 && af_tumor < self.fmax {
-            // subclonal event
-            self.subclonal_density(af_tumor)
-        } else {
-            // clonal event
-            self.normal_model.prior_prob(af_tumor)
+    fn somatic_density(&self, af: f64) -> LogProb {
+        // mu/beta * 1 / (af**2 * n)
+        //let af = af + f64::EPSILON;
+        if af == 0.0 {
+            // undefined for 0, but returning 0 for convenience
+            return 0.0f64.ln()
         }
+        self.effective_mutation_rate.ln() - (2.0 * af.ln() + (self.genome_size as f64).ln())
     }
-}
 
+    fn germline_density(&self, af: f64) -> LogProb {
+        self.germline_model.prior_prob(af)
+    }
 
-impl Model for TumorModel {
-    fn prior_prob(&self, af: f64) -> LogProb {
-        // af = purity * af_tumor + (1-purity) * af_normal
+    fn tumor_density(&self, af: f64) -> LogProb {
+        let probs = self.germline_allelefreqs.iter().filter_map(|&af_germline| {
+            if af >= af_germline {
+                let af_somatic = af - af_germline;
 
-        // sum over the different possibilities to obtain af
-        let probs = (0..self.normal_model.ploidy + 1).filter_map(|m| {
-            let af_normal = m as f64 / self.normal_model.ploidy as f64;
-            if af >= af_normal {
-                let af_tumor = (af - (1.0 - self.purity) * af_normal) / self.purity;
+                let p_germline = self.germline_density(af_germline);
 
-                let p_tumor = self.prior_prob_tumor(af_tumor);
-                let p_normal = self.normal_model.prior_prob(af_normal);
-                Some(p_tumor + p_normal)
+                let p_somatic = if af_somatic != 0.0 {
+                    self.somatic_density(af_somatic)
+                } else {
+                    // do not consider somatic density for allele freq = 0
+                    0.0
+                };
+                Some(p_germline + p_somatic)
             } else {
                 None
             }
@@ -181,33 +200,52 @@ impl Model for TumorModel {
 }
 
 
+impl Model for TumorModel {
+    fn prior_prob(&self, af: f64) -> LogProb {
+        // sum over the different possibilities to obtain af
+        /*let probs = self.germline_allelefreqs.iter().filter_map(|&af_normal| {
+            let f = (1.0 - self.purity) * af_normal;
+            if af >= f {
+                // af = purity * af_tumor + (1-purity) * af_normal
+                let af_tumor = (af - f) / self.purity;
+
+                let p_tumor = self.tumor_density(af_tumor);
+                let p_normal = self.normal_model.prior_prob(af_normal);
+                Some(p_tumor + p_normal)
+            } else {
+                None
+            }
+        }).collect_vec();
+
+        let p = logprobs::sum(&probs) - (probs.len() as f64).ln();
+        //println!("{:?} {}", probs, p);
+        p*/
+        self.tumor_density(af)
+    }
+}
+
+
 impl ContinuousModel for TumorModel {
     fn integrate<D: Fn(f64) -> LogProb>(&self, af: &Range<f64>, likelihood: &D) -> LogProb {
-        let posterior_density = |af| self.prior_prob(af) + likelihood(af);
-        let mut summands = Vec::with_capacity(self.normal_model.ploidy as usize + 3);
+        let density = |af| self.prior_prob(af) + likelihood(af);
+        let mut summands = Vec::with_capacity(self.panels.len());
+        let af_min = NotNaN::new(af.start).expect("Allele frequency range may not be NaN.");
+        let af_max = NotNaN::new(af.end).expect("Allele frequency range may not be NaN.");
 
-        // add zero density
-        if af.start == 0.0 {
-            summands.push(posterior_density(0.0));
-        }
-        // add discrete densities
-        for m in 0..self.normal_model.ploidy + 1 {
-            // iterate over all allele frequencies beyond fmax that will yield probability > 0.0
-            let f = m as f64 / self.normal_model.ploidy as f64 * (1.0 - self.purity) + self.fmax * self.purity;
-            if f >= af.start && f <= af.end {
-                summands.push(posterior_density(f));
+        for i in 0..self.panels.len() - 1 {
+            let (fmin, fmax) = (self.panels[i], self.panels[i + 1]);
+            if fmin >= af_max {
+                break;
             }
+            let fmax = cmp::min(fmax, af_max);
+            if fmin >= af_min {
+                // add density(f) in order to properly weight discrete part of the distribution
+                // TODO find a better way! MCMC?
+                summands.push(density(*fmin));
+            }
+            let fmin = cmp::max(fmin, af_min);
+            summands.push(logprobs::integrate(&density, *fmin, *fmax, self.grid_points));
         }
-        // add continous densities
-        summands.push(
-            logprobs::integrate(
-                &posterior_density,
-                af.start,
-                if af.start < self.fmax { af.start } else { self.fmax },
-                self.grid_points
-            )
-        );
-
         logprobs::sum(&summands)
     }
 }
@@ -256,17 +294,14 @@ mod tests {
     #[test]
     fn test_tumor() {
         for purity in linspace(0.5, 1.0, 5) {
-            let model = TumorModel::new(2, 30.0, 3e9 as u64, purity, 0.001);
+            let model = TumorModel::new(2, 300.0, 3e9 as u64, purity, 0.001);
             let total = model.integrate(&(0.0..1.0), &|_| 0.0);
-            // let density = |af| model.prior_prob(af);
-            // let total = logprobs::integrate(&density, 0.0, 1.0, 200);
-            // println!("purity={}", purity);
-            // for af in linspace(0.0, 1.0, 10) {
-            //     println!("af={}, p={}", af, density(af).exp());
-            // }
-            //
-            // println!("total subclonal {}", logprobs::integrate(&density, 0.0, 0.5, 2000).exp());
-            assert_relative_eq!(total.exp(), 1.0, epsilon=0.01);
+            println!("total {}", total);
+
+            for af in linspace(0.0, 1.0, 20) {
+                println!("af={} p={}", af, model.prior_prob(af));
+            }
+            assert_relative_eq!(total.exp(), 1.0);
         }
     }
 }

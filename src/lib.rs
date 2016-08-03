@@ -7,6 +7,7 @@ extern crate itertools;
 #[macro_use]
 extern crate approx;
 extern crate rusty_machine;
+extern crate ordered_float;
 
 pub mod model;
 
