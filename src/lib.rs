@@ -6,6 +6,7 @@ extern crate rgsl;
 extern crate itertools;
 #[macro_use]
 extern crate approx;
+extern crate rusty_machine;
 
 pub mod model;
 
