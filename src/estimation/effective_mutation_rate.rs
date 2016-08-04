@@ -10,7 +10,8 @@ use itertools::Itertools;
 #[derive(Debug)]
 pub struct Estimate {
     pub effective_mutation_rate: f64,
-    pub observations: BTreeMap<NotNaN<f64>, u64>
+    pub observations: BTreeMap<NotNaN<f64>, u64>,
+    pub model: LinRegressor
 }
 
 
@@ -43,7 +44,8 @@ pub fn estimate<F: IntoIterator<Item=f64>>(allele_frequencies: F) -> Estimate {
 
     Estimate {
         effective_mutation_rate: slope,
-        observations: observations
+        observations: observations,
+        model: lin_mod
     }
 }
 
