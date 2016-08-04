@@ -169,7 +169,7 @@ impl<'a, A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use LatentVariableModel;
+    use likelihood::LatentVariableModel;
     use Sample;
     use InsertSize;
     use model::sample::Observation;
