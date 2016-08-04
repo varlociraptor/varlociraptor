@@ -1,5 +1,6 @@
 use std::str;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
 use rgsl::randist::gaussian::gaussian_pdf;
 use rust_htslib::bam;
@@ -7,7 +8,7 @@ use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;
 use bio::stats::{logprobs, LogProb};
 
-
+use model::priors::AlleleFreq;
 use model;
 use model::Variant;
 
@@ -41,16 +42,17 @@ pub struct InsertSize {
 
 
 /// A sequenced sample, e.g., a tumor or a normal sample.
-pub struct Sample<P: model::priors::Model> {
+pub struct Sample<A: AlleleFreq, P: model::priors::Model<A>> {
     reader: bam::IndexedReader,
     pileup_window: u32,
     insert_size: InsertSize,
     prior_model: P,
-    likelihood_model: model::likelihood::LatentVariableModel
+    likelihood_model: model::likelihood::LatentVariableModel,
+    a: PhantomData<A>
 }
 
 
-impl<P: model::priors::Model> Sample<P> {
+impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
     /// Create a new `Sample`.
     ///
     /// # Arguments
@@ -66,7 +68,8 @@ impl<P: model::priors::Model> Sample<P> {
             pileup_window: pileup_window,
             insert_size: insert_size,
             prior_model: prior_model,
-            likelihood_model: likelihood_model
+            likelihood_model: likelihood_model,
+            a: PhantomData
         }
     }
 

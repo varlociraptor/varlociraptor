@@ -18,6 +18,7 @@ use std::ops::Range;
 use rust_htslib::bcf;
 use bio::stats::logprobs;
 
+use model::priors::AlleleFreq;
 
 pub use model::sample::Sample;
 pub use model::JointModel;
@@ -27,13 +28,13 @@ pub use model::sample::InsertSize;
 
 
 /// Event to call.
-pub struct Event {
+pub struct Event<A: AlleleFreq, B: AlleleFreq> {
     /// event name
     pub name: String,
-    /// continuous allele frequency range (case sample)
-    pub af_case: Range<f64>,
-    /// discrete allele frequencies (control sample)
-    pub af_control: Vec<f64>
+    /// allele frequencies for case sample
+    pub af_case: A,
+    /// allele frequencies for control sample
+    pub af_control: B
 }
 
 
@@ -48,12 +49,20 @@ pub struct Event {
 /// # Returns
 ///
 /// `Result` object with eventual error message.
-pub fn call<P: priors::ContinuousModel, Q: priors::DiscreteModel, R: AsRef<Path>, W: AsRef<Path>>(
+pub fn call<A, B, P, Q, M, R, W>(
     inbcf: &R,
     outbcf: &W,
-    events: &[Event],
-    joint_model: &mut JointModel<P, Q>
-) -> Result<(), String> {
+    events: &[Event<A, B>],
+    joint_model: &mut M
+) -> Result<(), String> where
+    A: AlleleFreq,
+    B: AlleleFreq,
+    P: priors::Model<A>,
+    Q: priors::Model<B>,
+    M: JointModel<A, B, P, Q>,
+    R: AsRef<Path>,
+    W: AsRef<Path>
+{
     if let Ok(inbcf) = bcf::Reader::new(inbcf) {
         let mut header = bcf::Header::with_template(&inbcf.header);
         for event in events {

@@ -7,18 +7,27 @@ use ordered_float::NotNaN;
 use bio::stats::{LogProb, logprobs};
 
 
+pub type DiscreteAlleleFreq = Vec<f64>;
+pub type ContinousAlleleFreq = Range<f64>;
+
+
+pub trait AlleleFreq {}
+
+
+impl AlleleFreq for DiscreteAlleleFreq {}
+
+
+impl AlleleFreq for ContinousAlleleFreq {}
+
+
 /// A prior model of the allele frequency spectrum.
-pub trait Model {
-    /// Calculate prior probability of given allele frequency.
+pub trait Model<A: AlleleFreq> {
     fn prior_prob(&self, af: f64) -> LogProb;
-}
 
+    /// Calculate prior probability of given allele frequency.
+    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &A, event_prob: &E) -> LogProb;
 
-pub trait DiscreteModel: Model {}
-
-
-pub trait ContinuousModel: Model {
-    fn integrate<D: Fn(f64) -> LogProb>(&self, af: &Range<f64>, likelihood: &D) -> LogProb;
+    fn allele_freqs(&self) -> &A;
 }
 
 
@@ -26,7 +35,8 @@ pub trait ContinuousModel: Model {
 pub struct InfiniteSitesNeutralVariationModel {
     ploidy: u32,
     heterozygosity: f64,
-    zero_prob: LogProb
+    zero_prob: LogProb,
+    allele_freqs: Vec<f64>
 }
 
 
@@ -37,16 +47,20 @@ impl InfiniteSitesNeutralVariationModel {
             heterozygosity.ln() +
             (1..ploidy + 1).fold(0.0, |s, m| s + 1.0 / m as f64).ln()
         );
+
+        let allele_freqs = (0..ploidy + 1).map(|m| m as f64 / ploidy as f64).collect_vec();
+
         InfiniteSitesNeutralVariationModel {
             ploidy: ploidy,
             heterozygosity: heterozygosity,
-            zero_prob: zero_prob
+            zero_prob: zero_prob,
+            allele_freqs: allele_freqs
         }
     }
 }
 
 
-impl Model for InfiniteSitesNeutralVariationModel {
+impl Model<DiscreteAlleleFreq> for InfiniteSitesNeutralVariationModel {
     fn prior_prob(&self, af: f64) -> LogProb {
         if af > 0.0 {
             let m = af * self.ploidy as f64;
@@ -61,10 +75,15 @@ impl Model for InfiniteSitesNeutralVariationModel {
             self.zero_prob
         }
     }
+
+    fn allele_freqs(&self) -> &DiscreteAlleleFreq {
+        &self.allele_freqs
+    }
+
+    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &DiscreteAlleleFreq, event_prob: &E) -> LogProb {
+        logprobs::sum(&af.iter().map(|&af| self.prior_prob(af) + event_prob(af)).collect_vec())
+    }
 }
-
-
-impl DiscreteModel for InfiniteSitesNeutralVariationModel {}
 
 
 /// Mixture of tumor and normal priors.
@@ -76,8 +95,8 @@ pub struct TumorModel {
     purity: f64,
     normal_model: InfiniteSitesNeutralVariationModel,
     grid_points: usize,
-    germline_allelefreqs: Vec<f64>,
-    panels: Vec<NotNaN<f64>>
+    panels: Vec<NotNaN<f64>>,
+    allele_freqs: ContinousAlleleFreq
 }
 
 
@@ -122,15 +141,14 @@ impl TumorModel {
         heterozygosity: f64) -> Self {
         assert!(purity <= 1.0 && purity >= 0.0);
         let normal_model = InfiniteSitesNeutralVariationModel::new(ploidy, heterozygosity);
-        let germline_allelefreqs = (0..normal_model.ploidy + 1).map(|m| m as f64 / normal_model.ploidy as f64).collect_vec();
 
         // calculate outer panels for integration
         // we choose these such that we always start at a new peak in the density (e.g. at 0.0, 0.5)
         let mut panels = Vec::new();
-        panels.extend(germline_allelefreqs.iter().map(|&af| NotNaN::new(af).unwrap()));
+        panels.extend(normal_model.allele_freqs().iter().map(|&af| NotNaN::new(af).unwrap()));
         if purity < 1.0 {
             // handle additional peaks
-            panels.extend(germline_allelefreqs.iter().filter_map(|af| {
+            panels.extend(normal_model.allele_freqs().iter().filter_map(|af| {
                 let f = af / (1.0 - purity);
                 if f > 0.0 && f <= 1.0 {
                     Some(NotNaN::new(f).unwrap())
@@ -147,8 +165,8 @@ impl TumorModel {
             purity: purity,
             normal_model: normal_model,
             grid_points: 200,
-            germline_allelefreqs: germline_allelefreqs,
-            panels: panels
+            panels: panels,
+            allele_freqs: 0.0..1.0
         };
 
         model
@@ -156,7 +174,6 @@ impl TumorModel {
 
     fn somatic_density(&self, af: f64) -> LogProb {
         // mu/beta * 1 / (af**2 * n)
-        //let af = af + f64::EPSILON;
         if af == 0.0 {
             // undefined for 0, but returning 0 for convenience
             return 0.0f64.ln()
@@ -169,7 +186,7 @@ impl TumorModel {
     }
 
     fn tumor_density(&self, af: f64) -> LogProb {
-        let probs = self.germline_allelefreqs.iter().filter_map(|&af_germline| {
+        let probs = self.normal_model.allele_freqs().iter().filter_map(|&af_germline| {
             if af >= af_germline {
                 let af_somatic = af - af_germline;
 
@@ -193,10 +210,10 @@ impl TumorModel {
 }
 
 
-impl Model for TumorModel {
+impl Model<ContinousAlleleFreq> for TumorModel {
     fn prior_prob(&self, af: f64) -> LogProb {
         // sum over the different possibilities to obtain af
-        let probs = self.germline_allelefreqs.iter().filter_map(|&af_normal| {
+        let probs = self.normal_model.allele_freqs().iter().filter_map(|&af_normal| {
             let f = (1.0 - self.purity) * af_normal;
             if af >= f {
                 // af = purity * af_tumor + (1-purity) * af_normal
@@ -214,12 +231,9 @@ impl Model for TumorModel {
         let p = logprobs::sum(&probs);
         p
     }
-}
 
-
-impl ContinuousModel for TumorModel {
-    fn integrate<D: Fn(f64) -> LogProb>(&self, af: &Range<f64>, likelihood: &D) -> LogProb {
-        let density = |af| self.prior_prob(af) + likelihood(af);
+    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &ContinousAlleleFreq, event_prob: &E) -> LogProb {
+        let density = |af| self.prior_prob(af) + event_prob(af);
         let mut summands = Vec::with_capacity(self.panels.len());
         let af_min = NotNaN::new(af.start).expect("Allele frequency range may not be NaN.");
         let af_max = NotNaN::new(af.end).expect("Allele frequency range may not be NaN.");
@@ -239,23 +253,9 @@ impl ContinuousModel for TumorModel {
         }
         logprobs::sum(&summands)
     }
-}
 
-
-/// Flat priors.
-pub struct FlatModel;
-
-
-impl FlatModel {
-    pub fn new() -> Self {
-        FlatModel
-    }
-}
-
-
-impl Model for FlatModel {
-    fn prior_prob(&self, _: f64) -> LogProb {
-        0.0
+    fn allele_freqs(&self) -> &ContinousAlleleFreq {
+        &self.allele_freqs
     }
 }
 
@@ -264,12 +264,6 @@ impl Model for FlatModel {
 mod tests {
     use super::*;
     use itertools::linspace;
-
-    #[test]
-    fn test_flat() {
-        let model = FlatModel::new();
-        assert_relative_eq!(model.prior_prob(0.1), 1.0f64.ln());
-    }
 
     #[test]
     fn test_infinite_sites_neutral_variation() {

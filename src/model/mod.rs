@@ -1,12 +1,13 @@
-use std::ops::Range;
+use std::marker::PhantomData;
 
 pub mod likelihood;
 pub mod priors;
 pub mod sample;
 
-use bio::stats::{LogProb, logprobs};
+use bio::stats::LogProb;
 
 use model::sample::{Sample, Observation};
+use model::priors::{AlleleFreq, ContinousAlleleFreq, DiscreteAlleleFreq};
 
 
 #[derive(Copy, Clone)]
@@ -16,27 +17,27 @@ pub enum Variant {
 }
 
 
-/// Joint variant calling model, combining two latent variable models.
-pub struct JointModel<P: priors::Model, Q: priors::Model> {
-    case_sample: Sample<P>,
-    control_sample: Sample<Q>
-}
+pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>> {
+    /// Return case sample.
+    fn case_sample(&self) -> &Sample<A, P>;
 
+    /// Return control sample.
+    fn control_sample(&self) -> &Sample<B, Q>;
 
-impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
+    /// Return case sample.
+    fn case_sample_mut(&mut self) -> &mut Sample<A, P>;
 
-    /// Create new `JointModel`.
-    ///
-    /// # Arguments
-    ///
-    /// * `case_sample` - case sample
-    /// * `control_sample` - control sample
-    /// * `grid_points` - number of grid points to use for trapezoidal integration (e.g. 200)
-    pub fn new(case_sample: Sample<P>, control_sample: Sample<Q>) -> Self {
-        JointModel {
-            case_sample: case_sample,
-            control_sample: control_sample
-        }
+    /// Return control sample.
+    fn control_sample_mut(&mut self) -> &mut Sample<B, Q>;
+
+    /// Calculate joint probability of given pileups and allele frequencies.
+    fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &A, af_control: &B) -> LogProb;
+
+    /// Calculate marginal probability of given pileups.
+    fn marginal_prob(&mut self, case_pileup: &[Observation], control_pileup: &[Observation]) -> LogProb {
+        let af_case = self.case_sample().prior_model().allele_freqs();
+        let af_control = self.control_sample().prior_model().allele_freqs();
+        self.joint_prob(case_pileup, control_pileup, af_case, af_control)
     }
 
     /// Calculate pileup and marginal probability for given variant.
@@ -50,9 +51,11 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
     ///
     /// # Returns
     /// The `Pileup`, or an error message.
-    pub fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<P, Q>, String> {
-        let case_pileup = try!(self.case_sample.extract_observations(chrom, start, variant));
-        let control_pileup = try!(self.control_sample.extract_observations(chrom, start, variant));
+    fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<A, B, P, Q, Self>, String> where
+        Self: Sized
+    {
+        let case_pileup = try!(self.case_sample_mut().extract_observations(chrom, start, variant));
+        let control_pileup = try!(self.control_sample_mut().extract_observations(chrom, start, variant));
         let marginal_prob = self.marginal_prob(&case_pileup, &control_pileup);
         Ok(Pileup::new(
             self,
@@ -61,56 +64,102 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
             marginal_prob
         ))
     }
+}
 
-    fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &Range<f64>, af_control: f64) -> LogProb {
-        let case_likelihood = |af| self.case_sample.likelihood_model().likelihood_pileup(case_pileup, af, af_control);
 
-        let prob = self.control_sample.prior_model().prior_prob(af_control) +
-                   self.control_sample.likelihood_model().likelihood_pileup(control_pileup, af_control, 0.0) +
-                   self.case_sample.prior_model().integrate(af_case, &case_likelihood);
-        prob
+/// Joint variant calling model, combining two latent variable models.
+pub struct ContinuousVsDiscreteModel<P: priors::Model<ContinousAlleleFreq>, Q: priors::Model<DiscreteAlleleFreq>> {
+    case_sample: Sample<ContinousAlleleFreq, P>,
+    control_sample: Sample<DiscreteAlleleFreq, Q>
+}
+
+impl<P: priors::Model<ContinousAlleleFreq>, Q: priors::Model<DiscreteAlleleFreq>> ContinuousVsDiscreteModel<P, Q> {
+    /// Create new `JointModel`.
+    ///
+    /// # Arguments
+    ///
+    /// * `case_sample` - case sample
+    /// * `control_sample` - control sample
+    pub fn new(case_sample: Sample<ContinousAlleleFreq, P>, control_sample: Sample<DiscreteAlleleFreq, Q>) -> Self {
+        ContinuousVsDiscreteModel {
+            case_sample: case_sample,
+            control_sample: control_sample
+        }
+    }
+}
+
+
+impl<P: priors::Model<ContinousAlleleFreq>, Q: priors::Model<DiscreteAlleleFreq>> JointModel<ContinousAlleleFreq, DiscreteAlleleFreq, P, Q> for ContinuousVsDiscreteModel<P, Q> {
+
+    fn case_sample(&self) -> &Sample<ContinousAlleleFreq, P> {
+        &self.case_sample
     }
 
-    fn marginal_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation]) -> LogProb {
-        let mut summands = Vec::with_capacity(3);
-        for &af_control in [0.0, 0.5, 1.0].iter() {
-            summands.push(self.joint_prob(case_pileup, control_pileup, &(0.0..1.0), af_control));
-        }
+    fn control_sample(&self) -> &Sample<DiscreteAlleleFreq, Q> {
+        &self.control_sample
+    }
 
-        logprobs::sum(&summands)
+    fn case_sample_mut(&mut self) -> &mut Sample<ContinousAlleleFreq, P> {
+        &mut self.case_sample
+    }
+
+    fn control_sample_mut(&mut self) -> &mut Sample<DiscreteAlleleFreq, Q> {
+        &mut self.control_sample
+    }
+
+    fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &priors::ContinousAlleleFreq, af_control: &priors::DiscreteAlleleFreq) -> LogProb {
+        let control_event_prob = |af_control| {
+            let case_likelihood = |af| self.case_sample.likelihood_model().likelihood_pileup(case_pileup, af, af_control);
+            self.case_sample.prior_model().joint_prob(af_case, &case_likelihood) +
+            self.control_sample.likelihood_model().likelihood_pileup(control_pileup, af_control, 0.0)
+        };
+
+        let prob = self.control_sample.prior_model().joint_prob(af_control, &control_event_prob);
+
+        prob
     }
 }
 
 
 /// Pileup of observations associated with marginal probability.
-pub struct Pileup<'a, P: 'a + priors::Model, Q: 'a + priors::Model> {
-    model: &'a JointModel<P, Q>,
+pub struct Pileup<'a, A, B, P, Q, M> where
+    A: AlleleFreq,
+    B: AlleleFreq,
+    P: priors::Model<A>,
+    Q: priors::Model<B>,
+    M: 'a + JointModel<A, B, P, Q>
+{
+    model: &'a M,
     case: Vec<Observation>,
     control: Vec<Observation>,
-    marginal_prob: LogProb
+    marginal_prob: LogProb,
+    a: PhantomData<A>,
+    b: PhantomData<B>,
+    p: PhantomData<P>,
+    q: PhantomData<Q>
 }
 
 
-impl<'a, P: priors::Model, Q: priors::Model> Pileup<'a, P, Q> {
+impl<'a, A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>, M: JointModel<A, B, P, Q>> Pileup<'a, A, B, P, Q, M> {
     /// Create new pileup.
-    fn new(model: &'a JointModel<P, Q>, case: Vec<Observation>, control: Vec<Observation>, marginal_prob: LogProb) -> Self {
+    fn new(model: &'a M, case: Vec<Observation>, control: Vec<Observation>, marginal_prob: LogProb) -> Self {
         Pileup {
             model: model,
             case: case,
             control: control,
-            marginal_prob: marginal_prob
+            marginal_prob: marginal_prob,
+            a: PhantomData,
+            b: PhantomData,
+            p: PhantomData,
+            q: PhantomData
         }
     }
-}
 
-impl<'a, P: priors::ContinuousModel, Q: priors::DiscreteModel> Pileup<'a, P, Q> {
     /// Calculate posterior probability of given allele frequencies.
-    pub fn posterior_prob(&self, af_case: &Range<f64>, af_control: &[f64]) -> LogProb {
-        let mut summands = Vec::with_capacity(af_control.len());
-        for &af_control in af_control.iter() {
-            summands.push(self.model.joint_prob(&self.case, &self.control, af_case, af_control));
-        }
-        logprobs::sum(&summands) - self.marginal_prob
+    pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
+        let prob = self.model.joint_prob(&self.case, &self.control, af_case, af_control) + self.marginal_prob;
+
+        prob
     }
 }
 
