@@ -45,7 +45,8 @@ pub struct Sample<P: model::priors::Model> {
     reader: bam::IndexedReader,
     pileup_window: u32,
     insert_size: InsertSize,
-    prior_model: P
+    prior_model: P,
+    likelihood_model: model::likelihood::LatentVariableModel
 }
 
 
@@ -58,18 +59,25 @@ impl<P: model::priors::Model> Sample<P> {
     /// * `pileup_window` - Window around the variant that shall be search for evidence (e.g. 5000).
     /// * `insert_size` - estimated insert size
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
-    pub fn new(bam: bam::IndexedReader, pileup_window: u32, insert_size: InsertSize, prior_model: P) -> Self {
+    /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
+    pub fn new(bam: bam::IndexedReader, pileup_window: u32, insert_size: InsertSize, prior_model: P, likelihood_model: model::likelihood::LatentVariableModel) -> Self {
         Sample {
             reader: bam,
             pileup_window: pileup_window,
             insert_size: insert_size,
-            prior_model: prior_model
+            prior_model: prior_model,
+            likelihood_model: likelihood_model
         }
     }
 
-    /// Calculate prior probability for given allele frequency.
+    /// Return prior model.
     pub fn prior_model(&self) -> &P {
         &self.prior_model
+    }
+
+    /// Return likelihood model.
+    pub fn likelihood_model(&self) -> &model::likelihood::LatentVariableModel {
+        &self.likelihood_model
     }
 
     /// Extract observations for the given variant.

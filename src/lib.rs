@@ -10,6 +10,7 @@ extern crate rusty_machine;
 extern crate ordered_float;
 
 pub mod model;
+pub mod estimation;
 
 use std::ascii::AsciiExt;
 use std::path::Path;

@@ -6,7 +6,6 @@ pub mod sample;
 
 use bio::stats::{LogProb, logprobs};
 
-use model::likelihood::LatentVariableModel;
 use model::sample::{Sample, Observation};
 
 
@@ -19,8 +18,6 @@ pub enum Variant {
 
 /// Joint variant calling model, combining two latent variable models.
 pub struct JointModel<P: priors::Model, Q: priors::Model> {
-    case_model: LatentVariableModel,
-    control_model: LatentVariableModel,
     case_sample: Sample<P>,
     control_sample: Sample<Q>
 }
@@ -32,15 +29,11 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
     ///
     /// # Arguments
     ///
-    /// * `case_model` - model for the case sample
-    /// * `control_model` - model for the control sample
     /// * `case_sample` - case sample
     /// * `control_sample` - control sample
     /// * `grid_points` - number of grid points to use for trapezoidal integration (e.g. 200)
-    pub fn new(case_model: LatentVariableModel, control_model: LatentVariableModel, case_sample: Sample<P>, control_sample: Sample<Q>) -> Self {
+    pub fn new(case_sample: Sample<P>, control_sample: Sample<Q>) -> Self {
         JointModel {
-            case_model: case_model,
-            control_model: control_model,
             case_sample: case_sample,
             control_sample: control_sample
         }
@@ -70,10 +63,10 @@ impl<P: priors::ContinuousModel, Q: priors::DiscreteModel> JointModel<P, Q> {
     }
 
     fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &Range<f64>, af_control: f64) -> LogProb {
-        let case_likelihood = |af| self.case_model.likelihood_pileup(case_pileup, af, af_control);
+        let case_likelihood = |af| self.case_sample.likelihood_model().likelihood_pileup(case_pileup, af, af_control);
 
         let prob = self.control_sample.prior_model().prior_prob(af_control) +
-                   self.control_model.likelihood_pileup(control_pileup, af_control, 0.0) +
+                   self.control_sample.likelihood_model().likelihood_pileup(control_pileup, af_control, 0.0) +
                    self.case_sample.prior_model().integrate(af_case, &case_likelihood);
         prob
     }
