@@ -34,7 +34,7 @@ pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: prior
     fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &A, af_control: &B) -> LogProb;
 
     /// Calculate marginal probability of given pileups.
-    fn marginal_prob(&mut self, case_pileup: &[Observation], control_pileup: &[Observation]) -> LogProb {
+    fn marginal_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation]) -> LogProb {
         let af_case = self.case_sample().prior_model().allele_freqs();
         let af_control = self.control_sample().prior_model().allele_freqs();
         self.joint_prob(case_pileup, control_pileup, af_case, af_control)
@@ -110,8 +110,10 @@ impl<P: priors::Model<ContinousAlleleFreq>, Q: priors::Model<DiscreteAlleleFreq>
     fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &priors::ContinousAlleleFreq, af_control: &priors::DiscreteAlleleFreq) -> LogProb {
         let control_event_prob = |af_control| {
             let case_likelihood = |af| self.case_sample.likelihood_model().likelihood_pileup(case_pileup, af, af_control);
-            self.case_sample.prior_model().joint_prob(af_case, &case_likelihood) +
-            self.control_sample.likelihood_model().likelihood_pileup(control_pileup, af_control, 0.0)
+            let p_case = self.case_sample.prior_model().joint_prob(af_case, &case_likelihood);
+            let l_control = self.control_sample.likelihood_model().likelihood_pileup(control_pileup, af_control, 0.0);
+
+            p_case + l_control
         };
 
         let prob = self.control_sample.prior_model().joint_prob(af_control, &control_event_prob);
@@ -157,7 +159,7 @@ impl<'a, A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>,
 
     /// Calculate posterior probability of given allele frequencies.
     pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
-        let prob = self.model.joint_prob(&self.case, &self.control, af_case, af_control) + self.marginal_prob;
+        let prob = self.model.joint_prob(&self.case, &self.control, af_case, af_control) - self.marginal_prob;
 
         prob
     }
@@ -180,18 +182,18 @@ mod tests {
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             insert_size,
-            priors::TumorModel::new(2, 30.0, 3e9 as u64, 1.0, 0.001)
+            priors::TumorModel::new(2, 30.0, 3e9 as u64, 1.0, 0.001),
+            LatentVariableModel::new(1.0)
         );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             insert_size,
-            priors::InfiniteSitesNeutralVariationModel::new(2, 0.001)
+            priors::InfiniteSitesNeutralVariationModel::new(2, 0.001),
+            LatentVariableModel::new(1.0)
         );
 
-        let model = JointModel::new(
-            LatentVariableModel::new(1.0),
-            LatentVariableModel::new(1.0),
+        let model = ContinuousVsDiscreteModel::new(
             case_sample,
             control_sample
         );
@@ -208,8 +210,8 @@ mod tests {
 
         let tumor_all = 0.0..1.0;
         let tumor_alt = 0.001..1.0;
-        let normal_alt = [0.5, 1.0];
-        let normal_ref = [0.0];
+        let normal_alt = vec![0.5, 1.0];
+        let normal_ref = vec![0.0];
 
         // scenario 1: same pileup -> germline call
         let marginal_prob = model.marginal_prob(&observations, &observations);

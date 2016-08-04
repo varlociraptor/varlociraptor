@@ -273,6 +273,9 @@ mod tests {
         assert_relative_eq!(model.prior_prob(0.5).exp(), 0.001);
         assert_relative_eq!(model.prior_prob(1.0).exp(), 0.0005);
         assert_relative_eq!(model.prior_prob(0.0).exp(), 0.9985);
+
+        assert_relative_eq!(model.joint_prob(&vec![0.5, 1.0], &|_| 0.0).exp(), 0.0015);
+        assert_relative_eq!(model.joint_prob(&vec![0.0], &|_| 0.0).exp(), 0.9985);
     }
 
     #[test]
@@ -281,7 +284,7 @@ mod tests {
             println!("purity {}", purity);
             let model = TumorModel::new(2, 300.0, 3e9 as u64, purity, 0.001);
             println!("af=0.0 -> {}", model.prior_prob(0.0));
-            let total = model.integrate(&(0.0..1.0), &|_| 0.0);
+            let total = model.joint_prob(&(0.0..1.0), &|_| 0.0);
             println!("total {}", total);
 
             for af in linspace(0.0, 1.0, 20) {
