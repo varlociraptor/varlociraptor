@@ -14,7 +14,6 @@ pub mod estimation;
 
 use std::ascii::AsciiExt;
 use std::path::Path;
-use std::ops::Range;
 use rust_htslib::bcf;
 use bio::stats::logprobs;
 
