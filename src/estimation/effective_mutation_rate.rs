@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 use std::collections::btree_map;
 
 use rusty_machine::learning::lin_reg::LinRegressor;
-use rusty_machine::learning::SupModel;
 use rusty_machine::linalg::{Matrix, Vector};
+use rusty_machine::learning::SupModel;
 use ordered_float::NotNaN;
 use itertools::Itertools;
 
@@ -68,7 +68,7 @@ mod tests {
     fn test_estimate() {
         // example from Williams et al. Nature Genetics 2016.
         let freqs = linspace(0.12, 0.25, 2539);
-        let estimate = estimate(freqs);
-        assert_relative_eq!(estimate.effective_mutation_rate, 596.16, epsilon=0.01);
+        let estimator = Estimator::train(freqs);
+        assert_relative_eq!(estimator.effective_mutation_rate(), 596.16, epsilon=0.01);
     }
 }
