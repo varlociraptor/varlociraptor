@@ -13,8 +13,7 @@ pub mod model;
 pub mod estimation;
 
 pub use model::sample::Sample;
-pub use model::JointModel;
-pub use model::likelihood::LatentVariableModel;
+pub use model::likelihood;
 pub use model::priors;
 pub use model::sample::InsertSize;
 
