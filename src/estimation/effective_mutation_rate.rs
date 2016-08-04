@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::btree_map;
 
 use rusty_machine::learning::lin_reg::LinRegressor;
 use rusty_machine::learning::SupModel;
@@ -8,44 +9,52 @@ use itertools::Itertools;
 
 
 #[derive(Debug)]
-pub struct Estimate {
-    pub effective_mutation_rate: f64,
-    pub observations: BTreeMap<NotNaN<f64>, u64>,
-    pub model: LinRegressor
+pub struct Estimator {
+    observations: BTreeMap<NotNaN<f64>, u64>,
+    model: LinRegressor
 }
 
 
-/// Estimate the effective mutation rate from given allele frequencies of presumable somatic passenger
-/// mutations.
-///
-/// # Arguments
-///
-/// * `allele_frequencies` - allele frequencies of somatic passenger mutations (e.g. SNPs)
-pub fn estimate<F: IntoIterator<Item=f64>>(allele_frequencies: F) -> Estimate {
-    let mut observations = BTreeMap::new();
-    for f in allele_frequencies {
-        // count occurrences of 1 / f
-        *observations.entry(NotNaN::new(1.0 / f).unwrap()).or_insert(0) += 1;
+impl Estimator {
+    pub fn train<F: IntoIterator<Item=f64>>(allele_frequencies: F) -> Self {
+        let mut observations = BTreeMap::new();
+        for f in allele_frequencies {
+            // count occurrences of 1 / f
+            *observations.entry(NotNaN::new(1.0 / f).unwrap()).or_insert(0) += 1;
+        }
+        let freqs = observations.keys().map(|f| **f).collect_vec();
+        // calculate the cumulative sum
+        let counts = observations.values().scan(0.0, |s, c| {
+            *s += *c as f64;
+            Some(*s)
+        }).collect_vec();
+
+        let freqs = Matrix::new(freqs.len(), 1, freqs);
+        let counts = Vector::new(counts);
+
+        let mut lin_mod = LinRegressor::default();
+        lin_mod.train(&freqs, &counts);
+
+        Estimator {
+            observations: observations,
+            model: lin_mod
+        }
     }
-    let freqs = observations.keys().map(|f| **f).collect_vec();
-    // calculate the cumulative sum
-    let counts = observations.values().scan(0.0, |s, c| {
-        *s += *c as f64;
-        Some(*s)
-    }).collect_vec();
 
-    let freqs = Matrix::new(freqs.len(), 1, freqs);
-    let counts = Vector::new(counts);
+    pub fn effective_mutation_rate(&self) -> f64 {
+        self.slope()
+    }
 
-    let mut lin_mod = LinRegressor::default();
-    lin_mod.train(&freqs, &counts);
+    pub fn slope(&self) -> f64 {
+        self.model.parameters().unwrap()[1]
+    }
 
-    let slope = lin_mod.parameters().unwrap()[1];
+    pub fn intercept(&self) -> f64 {
+        self.model.parameters().unwrap()[0]
+    }
 
-    Estimate {
-        effective_mutation_rate: slope,
-        observations: observations,
-        model: lin_mod
+    pub fn observations(&self) -> btree_map::Iter<NotNaN<f64>, u64> {
+        self.observations.iter()
     }
 }
 
