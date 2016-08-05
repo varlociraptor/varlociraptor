@@ -147,9 +147,9 @@ pub mod case_control {
                                 return Err("Error writing INFO tag in BCF.".to_owned());
                             }
                         }
-                        if outbcf.write(&record).is_err() {
-                            return Err("Error writing BCF record.".to_owned());
-                        }
+                    }
+                    if outbcf.write(&record).is_err() {
+                        return Err("Error writing BCF record.".to_owned());
                     }
                     if i % 1000 == 0 {
                         info!("{} records processed.", i);
