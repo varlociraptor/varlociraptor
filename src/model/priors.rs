@@ -6,6 +6,8 @@ use itertools::Itertools;
 use ordered_float::NotNaN;
 use bio::stats::{LogProb, logprobs};
 
+use model::Variant;
+
 
 pub type DiscreteAlleleFreq = Vec<f64>;
 pub type ContinousAlleleFreq = Range<f64>;
@@ -22,10 +24,10 @@ impl AlleleFreq for ContinousAlleleFreq {}
 
 /// A prior model of the allele frequency spectrum.
 pub trait Model<A: AlleleFreq> {
-    fn prior_prob(&self, af: f64) -> LogProb;
+    fn prior_prob(&self, af: f64, variant: Variant) -> LogProb;
 
     /// Calculate prior probability of given allele frequency.
-    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &A, event_prob: &E) -> LogProb;
+    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &A, event_prob: &E, variant: Variant) -> LogProb;
 
     fn allele_freqs(&self) -> &A;
 }
@@ -61,7 +63,7 @@ impl InfiniteSitesNeutralVariationModel {
 
 
 impl Model<DiscreteAlleleFreq> for InfiniteSitesNeutralVariationModel {
-    fn prior_prob(&self, af: f64) -> LogProb {
+    fn prior_prob(&self, af: f64, _: Variant) -> LogProb {
         if af > 0.0 {
             let m = af * self.ploidy as f64;
             if relative_eq!(m % 1.0, 0.0) {
@@ -80,8 +82,8 @@ impl Model<DiscreteAlleleFreq> for InfiniteSitesNeutralVariationModel {
         &self.allele_freqs
     }
 
-    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &DiscreteAlleleFreq, event_prob: &E) -> LogProb {
-        logprobs::sum(&af.iter().map(|&af| self.prior_prob(af) + event_prob(af)).collect_vec())
+    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &DiscreteAlleleFreq, event_prob: &E, variant: Variant) -> LogProb {
+        logprobs::sum(&af.iter().map(|&af| self.prior_prob(af, variant) + event_prob(af)).collect_vec())
     }
 }
 
@@ -91,6 +93,8 @@ impl Model<DiscreteAlleleFreq> for InfiniteSitesNeutralVariationModel {
 /// described in Williams et al. Nature Genetics 2016.
 pub struct TumorModel {
     effective_mutation_rate: f64,
+    deletion_factor: f64,
+    insertion_factor: f64,
     genome_size: u64,
     purity: f64,
     normal_model: InfiniteSitesNeutralVariationModel,
@@ -136,6 +140,8 @@ impl TumorModel {
     pub fn new(
         ploidy: u32,
         effective_mutation_rate: f64,
+        deletion_factor: f64,
+        insertion_factor: f64,
         genome_size: u64,
         purity: f64,
         heterozygosity: f64) -> Self {
@@ -161,6 +167,8 @@ impl TumorModel {
 
         let model = TumorModel {
             effective_mutation_rate: effective_mutation_rate,
+            deletion_factor: deletion_factor,
+            insertion_factor: insertion_factor,
             genome_size: genome_size,
             purity: purity,
             normal_model: normal_model,
@@ -172,28 +180,35 @@ impl TumorModel {
         model
     }
 
-    fn somatic_density(&self, af: f64) -> LogProb {
+    fn somatic_density(&self, af: f64, variant: Variant) -> LogProb {
         // mu/beta * 1 / (af**2 * n)
         if af == 0.0 {
             // undefined for 0, but returning 0 for convenience
             return 0.0f64.ln()
         }
-        self.effective_mutation_rate.ln() - (2.0 * af.ln() + (self.genome_size as f64).ln())
+
+        // adjust effective mutation rate by type-specific factor
+        let factor = match variant {
+            Variant::Deletion(_)  => self.deletion_factor.ln(),
+            Variant::Insertion(_) => self.insertion_factor.ln()
+        };
+
+        self.effective_mutation_rate.ln() + factor - (2.0 * af.ln() + (self.genome_size as f64).ln())
     }
 
-    fn germline_density(&self, af: f64) -> LogProb {
-        self.normal_model.prior_prob(af)
+    fn germline_density(&self, af: f64, variant: Variant) -> LogProb {
+        self.normal_model.prior_prob(af, variant)
     }
 
-    fn tumor_density(&self, af: f64) -> LogProb {
+    fn tumor_density(&self, af: f64, variant: Variant) -> LogProb {
         let probs = self.normal_model.allele_freqs().iter().filter_map(|&af_germline| {
             if af >= af_germline {
                 let af_somatic = af - af_germline;
 
-                let p_germline = self.germline_density(af_germline);
+                let p_germline = self.germline_density(af_germline, variant);
 
                 let p_somatic = if af_somatic != 0.0 {
-                    self.somatic_density(af_somatic)
+                    self.somatic_density(af_somatic, variant)
                 } else {
                     // do not consider somatic density for allele freq = 0
                     0.0
@@ -211,7 +226,7 @@ impl TumorModel {
 
 
 impl Model<ContinousAlleleFreq> for TumorModel {
-    fn prior_prob(&self, af: f64) -> LogProb {
+    fn prior_prob(&self, af: f64, variant: Variant) -> LogProb {
         // sum over the different possibilities to obtain af
         let probs = self.normal_model.allele_freqs().iter().filter_map(|&af_normal| {
             let f = (1.0 - self.purity) * af_normal;
@@ -219,8 +234,8 @@ impl Model<ContinousAlleleFreq> for TumorModel {
                 // af = purity * af_tumor + (1-purity) * af_normal
                 let af_tumor = (af - f) / self.purity;
 
-                let p_tumor = self.tumor_density(af_tumor);
-                let p_normal = self.normal_model.prior_prob(af_normal);
+                let p_tumor = self.tumor_density(af_tumor, variant);
+                let p_normal = self.normal_model.prior_prob(af_normal, variant);
                 Some(p_tumor + p_normal)
             } else {
                 None
@@ -232,8 +247,8 @@ impl Model<ContinousAlleleFreq> for TumorModel {
         p
     }
 
-    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &ContinousAlleleFreq, event_prob: &E) -> LogProb {
-        let density = |af| self.prior_prob(af) + event_prob(af);
+    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &ContinousAlleleFreq, event_prob: &E, variant: Variant) -> LogProb {
+        let density = |af| self.prior_prob(af, variant) + event_prob(af);
         let mut summands = Vec::with_capacity(self.panels.len());
         let af_min = NotNaN::new(af.start).expect("Allele frequency range may not be NaN.");
         let af_max = NotNaN::new(af.end).expect("Allele frequency range may not be NaN.");
@@ -264,31 +279,34 @@ impl Model<ContinousAlleleFreq> for TumorModel {
 mod tests {
     use super::*;
     use itertools::linspace;
+    use model::Variant;
 
     #[test]
     fn test_infinite_sites_neutral_variation() {
+        let variant = Variant::Deletion(3);
         let ploidy = 2;
         let het = 0.001;
         let model = InfiniteSitesNeutralVariationModel::new(ploidy, het);
-        assert_relative_eq!(model.prior_prob(0.5).exp(), 0.001);
-        assert_relative_eq!(model.prior_prob(1.0).exp(), 0.0005);
-        assert_relative_eq!(model.prior_prob(0.0).exp(), 0.9985);
+        assert_relative_eq!(model.prior_prob(0.5, variant).exp(), 0.001);
+        assert_relative_eq!(model.prior_prob(1.0, variant).exp(), 0.0005);
+        assert_relative_eq!(model.prior_prob(0.0, variant).exp(), 0.9985);
 
-        assert_relative_eq!(model.joint_prob(&vec![0.5, 1.0], &|_| 0.0).exp(), 0.0015);
-        assert_relative_eq!(model.joint_prob(&vec![0.0], &|_| 0.0).exp(), 0.9985);
+        assert_relative_eq!(model.joint_prob(&vec![0.5, 1.0], &|_| 0.0, variant).exp(), 0.0015);
+        assert_relative_eq!(model.joint_prob(&vec![0.0], &|_| 0.0, variant).exp(), 0.9985);
     }
 
     #[test]
     fn test_tumor() {
+        let variant = Variant::Deletion(3);
         for purity in linspace(0.5, 1.0, 5) {
             println!("purity {}", purity);
-            let model = TumorModel::new(2, 300.0, 3e9 as u64, purity, 0.001);
-            println!("af=0.0 -> {}", model.prior_prob(0.0));
-            let total = model.joint_prob(&(0.0..1.0), &|_| 0.0);
+            let model = TumorModel::new(2, 300.0, 1.0, 1.0, 3e9 as u64, purity, 0.001);
+            println!("af=0.0 -> {}", model.prior_prob(0.0, variant));
+            let total = model.joint_prob(&(0.0..1.0), &|_| 0.0, variant);
             println!("total {}", total);
 
             for af in linspace(0.0, 1.0, 20) {
-                println!("af={} p={}", af, model.prior_prob(af));
+                println!("af={} p={}", af, model.prior_prob(af, variant));
             }
             assert_relative_eq!(total.exp(), 1.0, epsilon=0.01);
         }
