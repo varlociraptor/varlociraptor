@@ -81,6 +81,7 @@ pub mod case_control {
 
             if let Ok(mut outbcf) = bcf::Writer::new(outbcf, &header, false, false) {
                 let mut record = bcf::Record::new();
+                let mut i = 0;
                 loop {
                     // Read BCF/VCF record.
                     match inbcf.read(&mut record) {
@@ -88,6 +89,7 @@ pub mod case_control {
                         Err(_) => return Err("Error reading BCF/VCF.".to_owned()),
                         _ => ()
                     }
+                    i += 1;
                     // obtain SVLEN tag if present
                     let svlen = record.info(b"SVLEN").integer().ok().map(|svlen| svlen[0]);
                     // translate to header of the writer
@@ -148,6 +150,9 @@ pub mod case_control {
                         if outbcf.write(&record).is_err() {
                             return Err("Error writing BCF record.".to_owned());
                         }
+                    }
+                    if i % 1000 == 0 {
+                        info!("{} records processed.", i);
                     }
                 }
                 Ok(())
