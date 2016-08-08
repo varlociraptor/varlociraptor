@@ -250,12 +250,12 @@ impl Model<ContinousAlleleFreq> for TumorModel {
     }
 
     fn joint_prob<E: Sync + Fn(f64) -> LogProb>(&self, af: &ContinousAlleleFreq, event_prob: &E, variant: Variant) -> LogProb {
-        let density = |af| self.prior_prob(af, variant) + event_prob(af);
         //let mut summands = Vec::with_capacity(self.panels.len());
         let af_min = NotNaN::new(af.start).expect("Allele frequency range may not be NaN.");
         let af_max = NotNaN::new(af.end).expect("Allele frequency range may not be NaN.");
 
         (0..self.panels.len() - 1).into_par_iter().map(&|i: usize| {
+            let density = |af| self.prior_prob(af, variant) + event_prob(af);
             let (fmin, fmax) = (self.panels[i], self.panels[i + 1]);
             if fmin >= af_max {
                 return 0.0f64.ln();
