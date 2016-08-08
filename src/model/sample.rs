@@ -1,8 +1,7 @@
 use std::str;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque, vec_deque};
 use std::marker::PhantomData;
 use std::cmp;
-use std::slice;
 
 use rgsl::randist::gaussian::gaussian_pdf;
 use rust_htslib::bam;
@@ -20,26 +19,31 @@ fn prob_mapping(mapq: u8) -> LogProb {
 }
 
 
+/// Ringbuffer of BAM records. This data structure ensures that no bam record is read twice while
+/// extracting observations for given variants.
 pub struct RecordBuffer {
     reader: bam::IndexedReader,
-    inner: Vec<bam::Record>,
+    inner: VecDeque<bam::Record>,
     window: u32
 }
 
 
 impl RecordBuffer {
+    /// Create a new `RecordBuffer`.
     pub fn new(bam: bam::IndexedReader, window: u32) -> Self {
         RecordBuffer {
             reader: bam,
-            inner: Vec::with_capacity(window as usize * 2),
+            inner: VecDeque::with_capacity(window as usize * 2),
             window: window as u32
         }
     }
 
+    /// Return end position of buffer.
     fn end(&self) -> Option<u32> {
-        self.inner.last().map(|rec| rec.pos() as u32)
+        self.inner.back().map(|rec| rec.pos() as u32)
     }
 
+    /// Fill buffer around the given interval.
     pub fn fill(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<(), String> {
         if let Some(tid) = self.reader.header.tid(chrom) {
             let window_start = cmp::max(start as i32 - self.window as i32 - 1, 0) as u32;
@@ -51,10 +55,7 @@ impl RecordBuffer {
                 self.inner.clear();
             } else {
                 // remove records too far left
-                let to_remove = match self.inner.binary_search_by(|rec| (rec.pos() as u32).cmp(&window_start)) {
-                        Ok(i)  => i,
-                        Err(i) => i
-                };
+                let to_remove = self.inner.iter().take_while(|rec| rec.pos() < window_start as i32).count();
                 self.inner.drain(..to_remove);
             }
 
@@ -64,13 +65,14 @@ impl RecordBuffer {
                     Err(_) => return Err("Error reading BAM record.".to_owned()),
                     Ok(rec) => rec
                 };
-                if record.pos() > end as i32 + self.window as i32 {
-                    break;
-                }
+                let pos = record.pos();
                 if record.is_duplicate() || record.is_unmapped() {
                     continue;
                 }
-                self.inner.push(record);
+                self.inner.push_back(record);
+                if pos > end as i32 + self.window as i32 {
+                    break;
+                }
             }
 
             Ok(())
@@ -79,7 +81,7 @@ impl RecordBuffer {
         }
     }
 
-    pub fn iter(&self) -> slice::Iter<bam::Record> {
+    pub fn iter(&self) -> vec_deque::Iter<bam::Record> {
         self.inner.iter()
     }
 }
