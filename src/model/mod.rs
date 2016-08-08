@@ -56,6 +56,7 @@ pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: prior
         let case_pileup = try!(self.case_sample_mut().extract_observations(chrom, start, variant));
         let control_pileup = try!(self.control_sample_mut().extract_observations(chrom, start, variant));
         debug!("Obtained pileup (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
+        debug!("First 10 case observations: {:?}", &case_pileup[..10]);
         Ok(Pileup::new(
             self,
             case_pileup,
