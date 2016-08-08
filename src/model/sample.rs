@@ -161,7 +161,9 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
 
 
         // move window to the current variant
+        info!("Filling buffer...");
         try!(self.record_buffer.fill(chrom, start, end));
+        info!("Done.");
 
         // iterate over records
         for record in self.record_buffer.iter() {
