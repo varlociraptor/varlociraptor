@@ -55,6 +55,7 @@ pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: prior
     {
         let case_pileup = try!(self.case_sample_mut().extract_observations(chrom, start, variant));
         let control_pileup = try!(self.control_sample_mut().extract_observations(chrom, start, variant));
+        debug!("Obtained pileup (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         Ok(Pileup::new(
             self,
             case_pileup,
@@ -175,7 +176,7 @@ impl<'a, A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>,
 
     /// Calculate posterior probability of given allele frequencies.
     pub fn posterior_prob(&mut self, af_case: &A, af_control: &B) -> LogProb {
-        debug!("Calculating posterior probability");
+        debug!("Calculating posterior probability.");
         let prob = self.model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant) - self.marginal_prob();
 
         prob
