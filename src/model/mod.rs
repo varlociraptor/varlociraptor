@@ -46,8 +46,7 @@ pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: prior
     ///
     /// * `chrom` - the chromosome of the variant
     /// * `start` - the starting position of the variant
-    /// * `length` - the length of the variant
-    /// * `is_del` - whether the variant is a deletion or an insertion
+    /// * `variant` - the variant
     ///
     /// # Returns
     /// The `Pileup`, or an error message.
