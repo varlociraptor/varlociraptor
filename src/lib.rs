@@ -133,7 +133,7 @@ pub mod case_control {
                                 if let Some(rid) = record.rid() {
                                     let chrom = inbcf.header.rid2name(rid);
                                     // obtain pileup and calculate marginal probability
-                                    let pileup = try!(joint_model.pileup(chrom, record.pos(), variant));
+                                    let mut pileup = try!(joint_model.pileup(chrom, record.pos(), variant));
                                     // calculate posterior probability for event
                                     let posterior_prob = pileup.posterior_prob(&event.af_case, &event.af_control);
                                     posterior_probs.push(logprobs::log_to_phred(posterior_prob) as f32);

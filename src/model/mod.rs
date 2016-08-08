@@ -56,13 +56,10 @@ pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: prior
     {
         let case_pileup = try!(self.case_sample_mut().extract_observations(chrom, start, variant));
         let control_pileup = try!(self.control_sample_mut().extract_observations(chrom, start, variant));
-        debug!("Calculating marginal probability.");
-        let marginal_prob = self.marginal_prob(&case_pileup, &control_pileup, variant);
         Ok(Pileup::new(
             self,
             case_pileup,
             control_pileup,
-            marginal_prob,
             variant
         ))
     }
@@ -143,7 +140,7 @@ pub struct Pileup<'a, A, B, P, Q, M> where
     model: &'a M,
     case: Vec<Observation>,
     control: Vec<Observation>,
-    marginal_prob: LogProb,
+    marginal_prob: Option<LogProb>,
     variant: Variant,
     a: PhantomData<A>,
     b: PhantomData<B>,
@@ -154,12 +151,12 @@ pub struct Pileup<'a, A, B, P, Q, M> where
 
 impl<'a, A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>, M: JointModel<A, B, P, Q>> Pileup<'a, A, B, P, Q, M> {
     /// Create new pileup.
-    fn new(model: &'a M, case: Vec<Observation>, control: Vec<Observation>, marginal_prob: LogProb, variant: Variant) -> Self {
+    fn new(model: &'a M, case: Vec<Observation>, control: Vec<Observation>, variant: Variant) -> Self {
         Pileup {
             model: model,
             case: case,
             control: control,
-            marginal_prob: marginal_prob,
+            marginal_prob: None,
             variant: variant,
             a: PhantomData,
             b: PhantomData,
@@ -168,10 +165,19 @@ impl<'a, A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>,
         }
     }
 
+    fn marginal_prob(&mut self) -> LogProb {
+        if self.marginal_prob.is_none() {
+            debug!("Calculating marginal probability.");
+            self.marginal_prob = Some(self.model.marginal_prob(&self.case, &self.control, self.variant));
+        }
+
+        self.marginal_prob.unwrap()
+    }
+
     /// Calculate posterior probability of given allele frequencies.
-    pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
+    pub fn posterior_prob(&mut self, af_case: &A, af_control: &B) -> LogProb {
         debug!("Calculating posterior probability");
-        let prob = self.model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant) - self.marginal_prob;
+        let prob = self.model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant) - self.marginal_prob();
 
         prob
     }
