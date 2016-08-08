@@ -28,6 +28,10 @@ pub struct RecordBuffer {
 }
 
 
+unsafe impl Sync for RecordBuffer {}
+unsafe impl Send for RecordBuffer {}
+
+
 impl RecordBuffer {
     /// Create a new `RecordBuffer`.
     pub fn new(bam: bam::IndexedReader, window: u32) -> Self {

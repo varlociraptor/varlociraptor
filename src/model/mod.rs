@@ -88,7 +88,7 @@ impl<P: priors::Model<ContinousAlleleFreq>, Q: priors::Model<DiscreteAlleleFreq>
 }
 
 
-impl<P: priors::Model<ContinousAlleleFreq>, Q: priors::Model<DiscreteAlleleFreq>> JointModel<ContinousAlleleFreq, DiscreteAlleleFreq, P, Q> for ContinuousVsDiscreteModel<P, Q> {
+impl<P: Sync + priors::Model<ContinousAlleleFreq>, Q: Sync + priors::Model<DiscreteAlleleFreq>> JointModel<ContinousAlleleFreq, DiscreteAlleleFreq, P, Q> for ContinuousVsDiscreteModel<P, Q> {
 
     fn case_sample(&self) -> &Sample<ContinousAlleleFreq, P> {
         &self.case_sample

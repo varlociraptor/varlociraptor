@@ -6,6 +6,8 @@ use itertools::Itertools;
 use ordered_float::NotNaN;
 use bio::stats::{LogProb, logprobs};
 
+use rayon::prelude::*;
+
 use model::Variant;
 
 
@@ -27,7 +29,7 @@ pub trait Model<A: AlleleFreq> {
     fn prior_prob(&self, af: f64, variant: Variant) -> LogProb;
 
     /// Calculate prior probability of given allele frequency.
-    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &A, event_prob: &E, variant: Variant) -> LogProb;
+    fn joint_prob<E: Sync + Fn(f64) -> LogProb>(&self, af: &A, event_prob: &E, variant: Variant) -> LogProb;
 
     fn allele_freqs(&self) -> &A;
 }
@@ -247,13 +249,29 @@ impl Model<ContinousAlleleFreq> for TumorModel {
         p
     }
 
-    fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &ContinousAlleleFreq, event_prob: &E, variant: Variant) -> LogProb {
+    fn joint_prob<E: Sync + Fn(f64) -> LogProb>(&self, af: &ContinousAlleleFreq, event_prob: &E, variant: Variant) -> LogProb {
         let density = |af| self.prior_prob(af, variant) + event_prob(af);
-        let mut summands = Vec::with_capacity(self.panels.len());
+        //let mut summands = Vec::with_capacity(self.panels.len());
         let af_min = NotNaN::new(af.start).expect("Allele frequency range may not be NaN.");
         let af_max = NotNaN::new(af.end).expect("Allele frequency range may not be NaN.");
 
-        for i in 0..self.panels.len() - 1 {
+        (0..self.panels.len() - 1).into_par_iter().map(&|i: usize| {
+            let (fmin, fmax) = (self.panels[i], self.panels[i + 1]);
+            if fmin >= af_max {
+                return 0.0f64.ln();
+            }
+            let fmax = cmp::min(fmax, af_max);
+            let p = if fmin >= af_min {
+                // add density(fmin) because it contains the discrete peak
+                density(*fmin)
+            } else {
+                0.0f64.ln()
+            };
+            let fmin = cmp::max(fmin, af_min);
+            logprobs::add(p, logprobs::integrate(&density, *fmin, *fmax, self.grid_points))
+        }).reduce_with(&|p, q| logprobs::add(p, q)).unwrap()
+
+        /*for i in 0..self.panels.len() - 1 {
             let (fmin, fmax) = (self.panels[i], self.panels[i + 1]);
             if fmin >= af_max {
                 break;
@@ -266,7 +284,7 @@ impl Model<ContinousAlleleFreq> for TumorModel {
             let fmin = cmp::max(fmin, af_min);
             summands.push(logprobs::integrate(&density, *fmin, *fmax, self.grid_points));
         }
-        logprobs::sum(&summands)
+        logprobs::sum(&summands)*/
     }
 
     fn allele_freqs(&self) -> &ContinousAlleleFreq {
