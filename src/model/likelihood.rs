@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 use bio::stats::logprobs;
 use bio::stats::LogProb;
 
@@ -54,8 +56,10 @@ impl LatentVariableModel {
                              allele_freq_case: f64,
                              allele_freq_control: f64) -> LogProb {
         // calculate product of per-read likelihoods in log space
-        let likelihood = pileup.iter().fold(0.0,
-            |prob, obs| prob + self.likelihood_observation(obs, allele_freq_case, allele_freq_control));
+        let likelihood = pileup.par_iter().map(|obs| {
+            self.likelihood_observation(obs, allele_freq_case, allele_freq_control)
+        }).sum();
+        
         likelihood
     }
 }

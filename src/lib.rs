@@ -8,6 +8,7 @@ extern crate itertools;
 extern crate approx;
 extern crate rusty_machine;
 extern crate ordered_float;
+extern crate rayon;
 
 pub mod model;
 pub mod estimation;
