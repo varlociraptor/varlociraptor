@@ -234,7 +234,8 @@ mod tests {
 
         // scenario 1: same pileup -> germline call
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
-        let pileup = Pileup::new(&model, observations.clone(), observations.clone(), marginal_prob, variant);
+        let mut pileup = Pileup::new(&model, observations.clone(), observations.clone(), variant);
+        pileup.marginal_prob = Some(marginal_prob);
         // germline
         assert_relative_eq!(pileup.posterior_prob(&tumor_all, &normal_alt).exp(), 1.0);
         // somatic
@@ -242,7 +243,8 @@ mod tests {
 
         // scenario 2: empty control pileup -> somatic call
         let marginal_prob = model.marginal_prob(&observations, &[], variant);
-        let pileup = Pileup::new(&model, observations.clone(), vec![], marginal_prob, variant);
+        let mut pileup = Pileup::new(&model, observations.clone(), vec![], variant);
+        pileup.marginal_prob = Some(marginal_prob);
         // somatic close to prior for ref in ńormal
         assert_relative_eq!(pileup.posterior_prob(&tumor_alt, &normal_ref).exp(), 0.9985, epsilon=0.01);
         // germline < somatic
@@ -258,7 +260,8 @@ mod tests {
             });
         }
         let marginal_prob = model.marginal_prob(&observations, &[], variant);
-        let pileup = Pileup::new(&model, observations.clone(), vec![], marginal_prob, variant);
+        let mut pileup = Pileup::new(&model, observations.clone(), vec![], variant);
+        pileup.marginal_prob = Some(marginal_prob);
         // somatic
         assert_relative_eq!(pileup.posterior_prob(&tumor_alt, &normal_ref).exp(), 0.9985, epsilon=0.01);
 
@@ -273,7 +276,8 @@ mod tests {
             });
         }
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
-        let pileup = Pileup::new(&model, observations.clone(), observations.clone(), marginal_prob, variant);
+        let mut pileup = Pileup::new(&model, observations.clone(), observations.clone(), variant);
+        pileup.marginal_prob = Some(marginal_prob);
         // germline
         assert_relative_eq!(pileup.posterior_prob(&tumor_all, &normal_alt).exp(), 0.0, epsilon=0.01);
         // somatic
