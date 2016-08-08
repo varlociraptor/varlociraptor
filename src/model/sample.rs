@@ -161,9 +161,9 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
 
 
         // move window to the current variant
-        info!("Filling buffer...");
+        debug!("Filling buffer...");
         try!(self.record_buffer.fill(chrom, start, end));
-        info!("Done.");
+        debug!("Done.");
 
         // iterate over records
         for record in self.record_buffer.iter() {
@@ -184,7 +184,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
                 observations.push(self.fragment_observation(&record, *mate_mapq, variant));
             }
         }
-
+        debug!("Extracted observations.");
         Ok(observations)
     }
 
