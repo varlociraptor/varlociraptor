@@ -177,9 +177,10 @@ impl<'a, A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>,
 
     /// Calculate posterior probability of given allele frequencies.
     pub fn posterior_prob(&mut self, af_case: &A, af_control: &B) -> LogProb {
-        debug!("Calculating posterior probability.");
-        let prob = self.model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant) - self.marginal_prob();
-
+        debug!("Calculating posterior probability. for case={:?} and control={:?}", af_case, af_control);
+        let p = self.model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant);
+        let prob = p - self.marginal_prob();
+        debug!("P={}, Maginal={}", p, self.marginal_prob());
         prob
     }
 }

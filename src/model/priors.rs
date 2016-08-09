@@ -1,6 +1,7 @@
 use std::f64;
 use std::ops::Range;
 use std::cmp;
+use std::fmt::Debug;
 
 use itertools::Itertools;
 use ordered_float::NotNaN;
@@ -13,7 +14,7 @@ pub type DiscreteAlleleFreq = Vec<f64>;
 pub type ContinousAlleleFreq = Range<f64>;
 
 
-pub trait AlleleFreq {}
+pub trait AlleleFreq: Debug {}
 
 
 impl AlleleFreq for DiscreteAlleleFreq {}
