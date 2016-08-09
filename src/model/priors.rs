@@ -255,13 +255,13 @@ impl Model<ContinousAlleleFreq> for TumorModel {
 
         for i in 0..self.panels.len() - 1 {
             let (fmin, fmax) = (self.panels[i], self.panels[i + 1]);
-            if fmin >= af_max {
-                break;
-            }
             let fmax = cmp::min(fmax, af_max);
             if fmin >= af_min {
                 // add density(fmin) because it contains the discrete peak
                 summands.push(density(*fmin));
+            }
+            if fmin >= af_max {
+                break;
             }
             let fmin = cmp::max(fmin, af_min);
             summands.push(logprobs::integrate(&density, *fmin, *fmax, self.grid_points));

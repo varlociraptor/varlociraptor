@@ -286,15 +286,18 @@ mod tests {
                 prob_mismapped: 1.0f64.ln()
             });
         }
+        println!("Absent call.");
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
         let mut pileup = Pileup::new(&model, observations.clone(), observations.clone(), variant);
         pileup.marginal_prob = Some(marginal_prob);
         let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
         let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let p_absent = pileup.posterior_prob(&(0.0..0.0), &vec![0.0]);
         // germline
         assert_relative_eq!(p_germline.exp(), 0.0, epsilon=0.01);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.01);
+        assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.01);
         assert!(logprobs::add(p_germline, p_somatic).exp() <= 1.0);
     }
 }
