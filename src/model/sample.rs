@@ -14,7 +14,7 @@ use model;
 use model::Variant;
 
 
-fn prob_mapping(mapq: u8) -> LogProb {
+pub fn prob_mapping(mapq: u8) -> LogProb {
     logprobs::ln_1m_exp(logprobs::phred_to_log(mapq as f64))
 }
 
@@ -242,5 +242,19 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
             prob_ref: gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd),
             prob_mismapped: 0.0 // if the fragment is mismapped, we assume sampling probability 1.0
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prob_mapping() {
+        assert_relative_eq!(prob_mapping(0).exp(), 0.0);
+        assert_relative_eq!(prob_mapping(10).exp(), 0.9);
+        assert_relative_eq!(prob_mapping(20).exp(), 0.99);
+        assert_relative_eq!(prob_mapping(30).exp(), 0.999);
     }
 }
