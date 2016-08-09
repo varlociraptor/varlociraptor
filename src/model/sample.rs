@@ -206,7 +206,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
             prob_mapping: prob_mapping,
             prob_alt: 1.0f64.ln(),
             prob_ref: 0.0f64.ln(),
-            prob_mismapped: 1.0 // if the read is mismapped, we assume sampling probability 1.0
+            prob_mismapped: 0.0 // if the read is mismapped, we assume sampling probability 1.0
         };
         for c in cigar {
             match c {
@@ -240,7 +240,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
             prob_alt: gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd),
             prob_ref: gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd),
-            prob_mismapped: 1.0 // if the fragment is mismapped, we assume sampling probability 1.0
+            prob_mismapped: 0.0 // if the fragment is mismapped, we assume sampling probability 1.0
         }
     }
 }
