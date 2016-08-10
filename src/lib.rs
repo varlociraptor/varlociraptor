@@ -219,7 +219,7 @@ pub mod case_control {
                                 let total = logprobs::sum(&event_probs);
                                 // total can slightly exceed 1 due to the numerical integration
                                 let p = if total > 0.0 {
-                                    0.0
+                                    0.0f64.ln()
                                 } else {
                                     logprobs::ln_1m_exp(total)
                                 };
