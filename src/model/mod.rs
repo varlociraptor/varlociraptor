@@ -1,8 +1,5 @@
 use std::marker::PhantomData;
 use std::cell::Cell;
-use std::cell::RefCell;
-use std::ops::Deref;
-use std::rc::Rc;
 
 pub mod likelihood;
 pub mod priors;
@@ -54,15 +51,12 @@ pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: prior
     ///
     /// # Returns
     /// The `Pileup`, or an error message.
-    fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<A, B, P, Q, Self>, String> where
-        Self: Sized
-    {
+    fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<A, B, P, Q>, String> {
         let case_pileup = try!(self.case_sample_mut().extract_observations(chrom, start, variant));
         let control_pileup = try!(self.control_sample_mut().extract_observations(chrom, start, variant));
         debug!("Obtained pileup (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         debug!("First 10 case observations: {:?}", &case_pileup[..10]);
         Ok(Pileup::new(
-            Rc::new(*self),
             case_pileup,
             control_pileup,
             variant
@@ -135,14 +129,12 @@ impl<P: Sync + priors::Model<ContinousAlleleFreq>, Q: Sync + priors::Model<Discr
 
 
 /// Pileup of observations associated with marginal probability.
-pub struct Pileup<A, B, P, Q, M> where
+pub struct Pileup<A, B, P, Q> where
     A: AlleleFreq,
     B: AlleleFreq,
     P: priors::Model<A>,
-    Q: priors::Model<B>,
-    M: JointModel<A, B, P, Q>
+    Q: priors::Model<B>
 {
-    model: Rc<M>,
     case: Vec<Observation>,
     control: Vec<Observation>,
     // we use Cell for marginal prob to be able to mutate the field without having mutable access to the whole pileup
@@ -155,11 +147,10 @@ pub struct Pileup<A, B, P, Q, M> where
 }
 
 
-impl<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>, M: JointModel<A, B, P, Q>> Pileup<A, B, P, Q, M> {
+impl<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>> Pileup<A, B, P, Q> {
     /// Create new pileup.
-    fn new(model: Rc<M>, case: Vec<Observation>, control: Vec<Observation>, variant: Variant) -> Self {
+    fn new(case: Vec<Observation>, control: Vec<Observation>, variant: Variant) -> Self {
         Pileup {
-            model: model,
             case: case,
             control: control,
             marginal_prob: Cell::new(None),
@@ -171,22 +162,23 @@ impl<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>, M: 
         }
     }
 
-    fn marginal_prob(&self) -> LogProb {
+    fn marginal_prob<M: JointModel<A, B, P, Q>>(&self, model: &M) -> LogProb {
         if self.marginal_prob.get().is_none() {
             debug!("Calculating marginal probability.");
 
-            self.marginal_prob.set(Some(self.model.marginal_prob(&self.case, &self.control, self.variant)));
+            self.marginal_prob.set(Some(model.marginal_prob(&self.case, &self.control, self.variant)));
         }
 
         self.marginal_prob.get().unwrap()
     }
 
     /// Calculate posterior probability of given allele frequencies.
-    pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
+    pub fn posterior_prob<M: JointModel<A, B, P, Q>>(&self, model: &M, af_case: &A, af_control: &B) -> LogProb {
         debug!("Calculating posterior probability. for case={:?} and control={:?}", af_case, af_control);
-        let p = self.model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant);
-        let prob = p - self.marginal_prob();
-        debug!("P={}, Maginal={}", p, self.marginal_prob());
+        let p = model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant);
+        let marginal = self.marginal_prob(model);
+        let prob = p - marginal;
+        debug!("P={}, Maginal={}", p, marginal);
         prob
     }
 }

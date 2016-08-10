@@ -8,6 +8,8 @@ extern crate itertools;
 extern crate approx;
 extern crate rusty_machine;
 extern crate ordered_float;
+#[macro_use]
+extern crate ndarray;
 
 pub mod model;
 pub mod estimation;
@@ -17,10 +19,25 @@ pub use model::likelihood;
 pub use model::priors;
 pub use model::sample::InsertSize;
 
+use std::ascii::AsciiExt;
+
 
 /// Event to call.
 pub trait Event {
     fn name(&self) -> &str;
+
+    fn tag_name(&self) -> String {
+        format!("PROB_{}", self.name().to_ascii_uppercase())
+    }
+
+    fn header_entry(&self) -> String {
+        format!(
+            "##INFO=<ID={tag_name},Number=A,Type=Float,\
+            Description=\"PHRED-scaled probability for {name} variant\">",
+            name=self.name(),
+            tag_name=&self.tag_name()
+        )
+    }
 }
 
 
@@ -39,10 +56,9 @@ impl Event for ComplementEvent {
 
 
 pub mod case_control {
-    use std::ascii::AsciiExt;
     use std::path::Path;
-    use std::collections::HashMap;
     use itertools::Itertools;
+    use ndarray::prelude::*;
     use rust_htslib::bcf;
     use bio::stats::logprobs;
 
@@ -52,6 +68,11 @@ pub mod case_control {
     use model;
     use ComplementEvent;
     use Event;
+
+
+    fn phred_scale<'a, I: IntoIterator<Item=&'a f64>>(probs: I) -> Vec<f32> {
+        probs.into_iter().map(|p| logprobs::log_to_phred(*p) as f32).collect_vec()
+    }
 
 
     pub struct CaseControlEvent<A: AlleleFreq, B: AlleleFreq> {
@@ -70,7 +91,7 @@ pub mod case_control {
     }
 
 
-    fn pileups<A, B, P, Q, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &mut M) -> Result<Vec<model::Pileup<A, B, P, Q, M>>, String> where
+    fn pileups<A, B, P, Q, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &mut M) -> Result<Vec<model::Pileup<A, B, P, Q>>, String> where
         A: AlleleFreq,
         B: AlleleFreq,
         P: priors::Model<A>,
@@ -138,7 +159,7 @@ pub mod case_control {
         inbcf: &R,
         outbcf: &W,
         events: &[CaseControlEvent<A, B>],
-        complement_event: Option<ComplementEvent>,
+        complement_event: Option<&ComplementEvent>,
         joint_model: &mut M
     ) -> Result<(), String> where
         A: AlleleFreq,
@@ -153,14 +174,13 @@ pub mod case_control {
             let mut header = bcf::Header::with_template(&inbcf.header);
             for event in events {
                 header.push_record(
-                    format!(
-                        "##INFO=<ID=PROB_{name_upper},Number=A,Type=Float,\
-                        Description=\"PHRED-scaled probability for {name} variant\">",
-                        name=event.name(),
-                        name_upper=&event.name().to_ascii_uppercase()
-                    ).as_bytes()
+                    event.header_entry().as_bytes()
                 );
             }
+            if let Some(complement_event) = complement_event {
+                header.push_record(complement_event.header_entry().as_bytes());
+            }
+
 
             if let Ok(mut outbcf) = bcf::Writer::new(outbcf, &header, false, false) {
                 let mut record = bcf::Record::new();
@@ -177,23 +197,35 @@ pub mod case_control {
                     outbcf.translate(&mut record);
                     let pileups = try!(pileups(&inbcf, &mut record, joint_model));
 
-                    let mut posterior_probs = Vec::with_capacity(record.alleles().len() - 1);
-                    for event in events {
-                        posterior_probs.clear();
-                        for pileup in &pileups {
-                            let p = pileup.posterior_prob(&event.af_case, &event.af_control);
-                            posterior_probs.push(logprobs::log_to_phred(p) as f32);
-                        }
-                        if !posterior_probs.is_empty() {
+                    if !pileups.is_empty() {
+                        let mut posterior_probs = Array::zeros((events.len(), pileups.len()));
+                        for (i, event) in events.iter().enumerate() {
+                            for (j, pileup) in pileups.iter().enumerate() {
+                                let p = pileup.posterior_prob(joint_model, &event.af_case, &event.af_control);
+                                posterior_probs[(i, j)] = p;
+                            }
                             if record.push_info_float(
-                                format!("PROB_{}", event.name().to_ascii_uppercase()).as_bytes(),
-                                &posterior_probs
+                                event.tag_name().as_bytes(),
+                                &phred_scale(posterior_probs.row(i).iter())
+                            ).is_err() {
+                                return Err("Error writing INFO tag in BCF.".to_owned());
+                            }
+                        }
+                        if let Some(complement_event) = complement_event {
+                            let mut complement_probs = Vec::with_capacity(pileups.len());
+                            for j in 0..pileups.len() {
+                                let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
+                                let p = logprobs::ln_1m_exp(logprobs::sum(&event_probs));
+                                complement_probs.push(p);
+                            }
+                            if record.push_info_float(
+                                complement_event.tag_name().as_bytes(),
+                                &phred_scale(complement_probs.iter())
                             ).is_err() {
                                 return Err("Error writing INFO tag in BCF.".to_owned());
                             }
                         }
                     }
-                    // TODO handle complement
 
                     if outbcf.write(&record).is_err() {
                         return Err("Error writing BCF record.".to_owned());
