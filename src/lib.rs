@@ -84,6 +84,7 @@ pub mod case_control {
         pub af_control: B
     }
 
+
     impl<A: AlleleFreq, B: AlleleFreq> super::Event for CaseControlEvent<A, B> {
         fn name(&self) -> &str {
             &self.name
@@ -215,7 +216,13 @@ pub mod case_control {
                             let mut complement_probs = Vec::with_capacity(pileups.len());
                             for j in 0..pileups.len() {
                                 let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
-                                let p = logprobs::ln_1m_exp(logprobs::sum(&event_probs));
+                                let total = logprobs::sum(&event_probs);
+                                // total can slightly exceed 1 due to the numerical integration
+                                let p = if total > 0.0 {
+                                    0.0
+                                } else {
+                                    logprobs::ln_1m_exp(total)
+                                };
                                 complement_probs.push(p);
                             }
                             if record.push_info_float(

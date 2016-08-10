@@ -174,7 +174,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
             let pos = record.pos();
             let cigar = record.cigar();
             let end_pos = record.end_pos(&cigar);
-            if pos <= varpos || end_pos >= varpos {
+            if pos <= varpos && end_pos >= varpos {
                 // overlapping alignment
                 observations.push(self.read_observation(&record, &cigar, varpos, variant));
             } else if end_pos <= varpos {
@@ -189,6 +189,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
             }
         }
         debug!("Extracted observations.");
+        debug!("{} pairs", pairs.len());
         Ok(observations)
     }
 
@@ -236,12 +237,15 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
             Variant::Deletion(length)  => length as f64,
             Variant::Insertion(length) => -(length as f64)
         };
-        Observation {
+        let obs = Observation {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
-            prob_alt: gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd),
-            prob_ref: gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd),
+            prob_alt: gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd).ln(),
+            prob_ref: gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd).ln(),
             prob_mismapped: 0.0 // if the fragment is mismapped, we assume sampling probability 1.0
-        }
+        };
+        debug!("{:?}", obs);
+
+        obs
     }
 }
 
