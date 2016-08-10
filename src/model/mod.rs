@@ -235,11 +235,11 @@ mod tests {
 
         // scenario 1: same pileup -> germline call
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
-        let mut pileup = Pileup::new(&model, observations.clone(), observations.clone(), variant);
-        pileup.marginal_prob = Some(marginal_prob);
+        let pileup = Pileup::new(observations.clone(), observations.clone(), variant);
+        pileup.marginal_prob.set(Some(marginal_prob));
         // germline
-        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
-        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         assert_relative_eq!(p_germline.exp(), 1.0);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0);
@@ -247,14 +247,14 @@ mod tests {
 
         // scenario 2: empty control pileup -> somatic call
         let marginal_prob = model.marginal_prob(&observations, &[], variant);
-        let mut pileup = Pileup::new(&model, observations.clone(), vec![], variant);
-        pileup.marginal_prob = Some(marginal_prob);
-        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
-        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let pileup = Pileup::new(observations.clone(), vec![], variant);
+        pileup.marginal_prob.set(Some(marginal_prob));
+        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         // somatic close to prior for ref in ńormal
         assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
         // germline < somatic
-        assert!(p_germline.exp() < pileup.posterior_prob(&tumor_alt, &normal_ref).exp());
+        assert!(p_germline.exp() < pileup.posterior_prob(&model, &tumor_alt, &normal_ref).exp());
         assert!(logprobs::add(p_germline, p_somatic).exp() <= 1.0);
 
         // scenario 3: subclonal variant
@@ -267,10 +267,10 @@ mod tests {
             });
         }
         let marginal_prob = model.marginal_prob(&observations, &[], variant);
-        let mut pileup = Pileup::new(&model, observations.clone(), vec![], variant);
-        pileup.marginal_prob = Some(marginal_prob);
-        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
-        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let pileup = Pileup::new(observations.clone(), vec![], variant);
+        pileup.marginal_prob.set(Some(marginal_prob));
+        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
         assert!(logprobs::add(p_germline, p_somatic).exp() <= 1.0);
@@ -287,11 +287,11 @@ mod tests {
         }
         println!("Absent call.");
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
-        let mut pileup = Pileup::new(&model, observations.clone(), observations.clone(), variant);
-        pileup.marginal_prob = Some(marginal_prob);
-        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
-        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
-        let p_absent = pileup.posterior_prob(&(0.0..0.0), &vec![0.0]);
+        let pileup = Pileup::new(observations.clone(), observations.clone(), variant);
+        pileup.marginal_prob.set(Some(marginal_prob));
+        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
+        let p_absent = pileup.posterior_prob(&model, &(0.0..0.0), &vec![0.0]);
         // germline
         assert_relative_eq!(p_germline.exp(), 0.0, epsilon=0.01);
         // somatic
