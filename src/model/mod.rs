@@ -1,4 +1,7 @@
 use std::marker::PhantomData;
+use std::cell::Cell;
+use std::cell::RefCell;
+use std::ops::Deref;
 
 pub mod likelihood;
 pub mod priors;
@@ -58,7 +61,7 @@ pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: prior
         debug!("Obtained pileup (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         debug!("First 10 case observations: {:?}", &case_pileup[..10]);
         Ok(Pileup::new(
-            self,
+            RefCell::new(&*self),
             case_pileup,
             control_pileup,
             variant
@@ -138,10 +141,11 @@ pub struct Pileup<'a, A, B, P, Q, M> where
     Q: priors::Model<B>,
     M: 'a + JointModel<A, B, P, Q>
 {
-    model: &'a M,
+    model: RefCell<&'a M>,
     case: Vec<Observation>,
     control: Vec<Observation>,
-    marginal_prob: Option<LogProb>,
+    // we use Cell for marginal prob to be able to mutate the field without having mutable access to the whole pileup
+    marginal_prob: Cell<Option<LogProb>>,
     variant: Variant,
     a: PhantomData<A>,
     b: PhantomData<B>,
@@ -152,12 +156,12 @@ pub struct Pileup<'a, A, B, P, Q, M> where
 
 impl<'a, A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>, M: JointModel<A, B, P, Q>> Pileup<'a, A, B, P, Q, M> {
     /// Create new pileup.
-    fn new(model: &'a M, case: Vec<Observation>, control: Vec<Observation>, variant: Variant) -> Self {
+    fn new(model: RefCell<&'a M>, case: Vec<Observation>, control: Vec<Observation>, variant: Variant) -> Self {
         Pileup {
             model: model,
             case: case,
             control: control,
-            marginal_prob: None,
+            marginal_prob: Cell::new(None),
             variant: variant,
             a: PhantomData,
             b: PhantomData,
@@ -166,19 +170,20 @@ impl<'a, A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>,
         }
     }
 
-    fn marginal_prob(&mut self) -> LogProb {
-        if self.marginal_prob.is_none() {
+    fn marginal_prob(&self) -> LogProb {
+        if self.marginal_prob.get().is_none() {
             debug!("Calculating marginal probability.");
-            self.marginal_prob = Some(self.model.marginal_prob(&self.case, &self.control, self.variant));
+
+            self.marginal_prob.set(Some((*self.model.borrow()).marginal_prob(&self.case, &self.control, self.variant)));
         }
 
-        self.marginal_prob.unwrap()
+        self.marginal_prob.get().unwrap()
     }
 
     /// Calculate posterior probability of given allele frequencies.
-    pub fn posterior_prob(&mut self, af_case: &A, af_control: &B) -> LogProb {
+    pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
         debug!("Calculating posterior probability. for case={:?} and control={:?}", af_case, af_control);
-        let p = self.model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant);
+        let p = (*self.model.borrow()).joint_prob(&self.case, &self.control, af_case, af_control, self.variant);
         let prob = p - self.marginal_prob();
         debug!("P={}, Maginal={}", p, self.marginal_prob());
         prob
