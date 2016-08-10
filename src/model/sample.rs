@@ -162,7 +162,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
             Variant::Insertion(length) => (start + length, start as i32)
         };
         let mut pairs = HashMap::new();
-
+        let mut n_overlap = 0;
 
         // move window to the current variant
         debug!("Filling buffer...");
@@ -177,6 +177,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
             if pos <= varpos && end_pos >= varpos {
                 // overlapping alignment
                 observations.push(self.read_observation(&record, &cigar, varpos, variant));
+                n_overlap += 1;
             } else if end_pos <= varpos {
                 // need to check mate
                 // since the bam file is sorted by position, we can't see the mate first
@@ -188,8 +189,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
                 observations.push(self.fragment_observation(&record, *mate_mapq, variant));
             }
         }
-        debug!("Extracted observations.");
-        debug!("{} pairs", pairs.len());
+        debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
         Ok(observations)
     }
 
@@ -243,7 +243,6 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
             prob_ref: gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd).ln(),
             prob_mismapped: 0.0 // if the fragment is mismapped, we assume sampling probability 1.0
         };
-        debug!("{:?}", obs);
 
         obs
     }
