@@ -70,12 +70,12 @@ pub mod case_control {
     }
 
 
-    fn pileups<'a, A, B, P, Q, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &'a mut M) -> Result<Vec<model::Pileup<'a, A, B, P, Q, M>>, String> where
+    fn pileups<A, B, P, Q, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &mut M) -> Result<Vec<model::Pileup<A, B, P, Q, M>>, String> where
         A: AlleleFreq,
         B: AlleleFreq,
         P: priors::Model<A>,
         Q: priors::Model<B>,
-        M: 'a + JointModel<A, B, P, Q>
+        M: JointModel<A, B, P, Q>
     {
         let svlen = record.info(b"SVLEN").integer().ok().map(|svlen| svlen[0]);
         let alleles = record.alleles();
