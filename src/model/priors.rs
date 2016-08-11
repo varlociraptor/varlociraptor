@@ -83,6 +83,7 @@ impl Model<DiscreteAlleleFreq> for InfiniteSitesNeutralVariationModel {
         &self.allele_freqs
     }
 
+    #[cfg_attr(feature="flame_it", flame)]
     fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &DiscreteAlleleFreq, event_prob: &E, variant: Variant) -> LogProb {
         LogProb::ln_sum_exp(&af.iter().map(|&af| self.prior_prob(af, variant) + event_prob(af)).collect_vec())
     }
@@ -173,7 +174,7 @@ impl TumorModel {
             genome_size: genome_size,
             purity: purity,
             normal_model: normal_model,
-            grid_points: 200,
+            grid_points: 50,
             panels: panels,
             allele_freqs: 0.0..1.0
         };
@@ -181,6 +182,7 @@ impl TumorModel {
         model
     }
 
+    #[cfg_attr(feature="flame_it", flame)]
     fn somatic_density(&self, af: f64, variant: Variant) -> LogProb {
         // mu/beta * 1 / (af**2 * n)
         if af == 0.0 {
@@ -197,10 +199,12 @@ impl TumorModel {
         LogProb(self.effective_mutation_rate.ln() + factor - (2.0 * af.ln() + (self.genome_size as f64).ln()))
     }
 
+    #[cfg_attr(feature="flame_it", flame)]
     fn germline_density(&self, af: f64, variant: Variant) -> LogProb {
         self.normal_model.prior_prob(af, variant)
     }
 
+    #[cfg_attr(feature="flame_it", flame)]
     fn tumor_density(&self, af: f64, variant: Variant) -> LogProb {
         let probs = self.normal_model.allele_freqs().iter().filter_map(|&af_germline| {
             if af >= af_germline {
@@ -248,6 +252,7 @@ impl Model<ContinousAlleleFreq> for TumorModel {
         p
     }
 
+    #[cfg_attr(feature="flame_it", flame)]
     fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &ContinousAlleleFreq, event_prob: &E, variant: Variant) -> LogProb {
         let density = |af| self.prior_prob(af, variant) + event_prob(af);
         let mut summands = Vec::with_capacity(self.panels.len());

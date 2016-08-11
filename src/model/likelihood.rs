@@ -51,6 +51,7 @@ impl LatentVariableModel {
     }
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn likelihood_pileup(&self,
                              pileup: &[Observation],
                              allele_freq_case: f64,

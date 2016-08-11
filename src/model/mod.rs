@@ -191,6 +191,10 @@ mod tests {
     use model::sample::Observation;
     use rust_htslib::bam;
     use bio::stats::LogProb;
+    #[cfg(feature="flame_it")]
+    use std::fs::File;
+    #[cfg(feature="flame_it")]
+    use flame;
 
     #[test]
     fn test_joint_prob() {
@@ -298,5 +302,52 @@ mod tests {
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.01);
         assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.01);
         assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
+    }
+
+    #[cfg_attr(feature="flame_it", test)]
+    #[cfg(feature="flame_it")]
+    fn profile() {
+        let variant = Variant::Deletion(3);
+        let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
+        let case_sample = Sample::new(
+            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            5000,
+            true,
+            insert_size,
+            priors::TumorModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, 1.0, 0.001),
+            LatentVariableModel::new(1.0)
+        );
+        let control_sample = Sample::new(
+            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            5000,
+            true,
+            insert_size,
+            priors::InfiniteSitesNeutralVariationModel::new(2, 0.001),
+            LatentVariableModel::new(1.0)
+        );
+
+        let model = ContinuousVsDiscreteModel::new(
+            case_sample,
+            control_sample
+        );
+
+        let mut observations = Vec::new();
+        for _ in 0..1 {
+            observations.push(Observation{
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_one(),
+                prob_ref: LogProb::ln_zero(),
+                prob_mismapped: LogProb::ln_one()
+            });
+        }
+
+        let tumor_all = 0.0..1.0;
+        let tumor_alt = 0.001..1.0;
+        let normal_alt = vec![0.5, 1.0];
+        let normal_ref = vec![0.0];
+
+        let marginal_prob = model.marginal_prob(&observations, &observations, variant);
+
+        flame::dump_html(&mut File::create("flame-graph.html").unwrap(), 0.001).unwrap();
     }
 }
