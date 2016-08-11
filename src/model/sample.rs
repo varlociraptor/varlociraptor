@@ -7,7 +7,7 @@ use rgsl::randist::gaussian::gaussian_pdf;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;
-use bio::stats::{logprobs, LogProb};
+use bio::stats::{LogProb, PHREDProb};
 
 use model::priors::AlleleFreq;
 use model;
@@ -15,7 +15,7 @@ use model::Variant;
 
 
 pub fn prob_mapping(mapq: u8) -> LogProb {
-    logprobs::ln_1m_exp(logprobs::phred_to_log(mapq as f64))
+    LogProb::from(PHREDProb(mapq as f64)).ln_one_minus_exp()
 }
 
 
@@ -205,9 +205,9 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
         let prob_mapping = prob_mapping(record.mapq());
         let mut obs = Observation {
             prob_mapping: prob_mapping,
-            prob_alt: 1.0f64.ln(),
-            prob_ref: 0.0f64.ln(),
-            prob_mismapped: 0.0 // if the read is mismapped, we assume sampling probability 1.0
+            prob_alt: LogProb::ln_one(),
+            prob_ref: LogProb::ln_zero(),
+            prob_mismapped: LogProb::ln_one() // if the read is mismapped, we assume sampling probability 1.0
         };
         for c in cigar {
             match c {
@@ -226,8 +226,8 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
         }
 
         // support ref allele
-        obs.prob_alt = 0.0f64.ln();
-        obs.prob_ref = 1.0f64.ln();
+        obs.prob_alt = LogProb::ln_zero();
+        obs.prob_ref = LogProb::ln_one();
         obs
     }
 
@@ -239,9 +239,9 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
         };
         let obs = Observation {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
-            prob_alt: gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd).ln(),
-            prob_ref: gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd).ln(),
-            prob_mismapped: 0.0 // if the fragment is mismapped, we assume sampling probability 1.0
+            prob_alt: LogProb(gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd).ln()),
+            prob_ref: LogProb(gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd).ln()),
+            prob_mismapped: LogProb::ln_one() // if the fragment is mismapped, we assume sampling probability 1.0
         };
 
         obs

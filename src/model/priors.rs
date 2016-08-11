@@ -5,7 +5,7 @@ use std::fmt::Debug;
 
 use itertools::Itertools;
 use ordered_float::NotNaN;
-use bio::stats::{LogProb, logprobs};
+use bio::stats::LogProb;
 
 use model::Variant;
 
@@ -37,7 +37,7 @@ pub trait Model<A: AlleleFreq> {
 /// The classical population genetic model used for variant calling in e.g. GATK and Samtools.
 pub struct InfiniteSitesNeutralVariationModel {
     ploidy: u32,
-    heterozygosity: f64,
+    heterozygosity: LogProb,
     zero_prob: LogProb,
     allele_freqs: Vec<f64>
 }
@@ -46,10 +46,10 @@ pub struct InfiniteSitesNeutralVariationModel {
 impl InfiniteSitesNeutralVariationModel {
     /// Create new model for given ploidy and heterozygosity.
     pub fn new(ploidy: u32, heterozygosity: f64) -> Self {
-        let zero_prob = logprobs::ln_1m_exp(
-            heterozygosity.ln() +
+        let heterozygosity = LogProb(heterozygosity.ln());
+        let zero_prob = LogProb(*heterozygosity +
             (1..ploidy + 1).fold(0.0, |s, m| s + 1.0 / m as f64).ln()
-        );
+        ).ln_one_minus_exp();
 
         let allele_freqs = (0..ploidy + 1).map(|m| m as f64 / ploidy as f64).collect_vec();
 
@@ -69,10 +69,10 @@ impl Model<DiscreteAlleleFreq> for InfiniteSitesNeutralVariationModel {
             let m = af * self.ploidy as f64;
             if relative_eq!(m % 1.0, 0.0) {
                 // if m is discrete
-                self.heterozygosity.ln() - m.ln()
+                LogProb(*self.heterozygosity - m.ln())
             } else {
                 // invalid allele frequency
-                0.0f64.ln()
+                LogProb::ln_zero()
             }
         } else {
             self.zero_prob
@@ -84,7 +84,7 @@ impl Model<DiscreteAlleleFreq> for InfiniteSitesNeutralVariationModel {
     }
 
     fn joint_prob<E: Fn(f64) -> LogProb>(&self, af: &DiscreteAlleleFreq, event_prob: &E, variant: Variant) -> LogProb {
-        logprobs::sum(&af.iter().map(|&af| self.prior_prob(af, variant) + event_prob(af)).collect_vec())
+        LogProb::ln_sum_exp(&af.iter().map(|&af| self.prior_prob(af, variant) + event_prob(af)).collect_vec())
     }
 }
 
@@ -185,7 +185,7 @@ impl TumorModel {
         // mu/beta * 1 / (af**2 * n)
         if af == 0.0 {
             // undefined for 0, but returning 0 for convenience
-            return 0.0f64.ln()
+            return LogProb::ln_zero()
         }
 
         // adjust effective mutation rate by type-specific factor
@@ -194,7 +194,7 @@ impl TumorModel {
             Variant::Insertion(_) => self.insertion_factor.ln()
         };
 
-        self.effective_mutation_rate.ln() + factor - (2.0 * af.ln() + (self.genome_size as f64).ln())
+        LogProb(self.effective_mutation_rate.ln() + factor - (2.0 * af.ln() + (self.genome_size as f64).ln()))
     }
 
     fn germline_density(&self, af: f64, variant: Variant) -> LogProb {
@@ -212,7 +212,7 @@ impl TumorModel {
                     self.somatic_density(af_somatic, variant)
                 } else {
                     // do not consider somatic density for allele freq = 0
-                    0.0
+                    LogProb::ln_one()
                 };
                 Some(p_germline + p_somatic)
             } else {
@@ -221,7 +221,7 @@ impl TumorModel {
         }).collect_vec();
 
         // summands are disjoint because we go over disjoint germline events
-        logprobs::sum(&probs)
+        LogProb::ln_sum_exp(&probs)
     }
 }
 
@@ -244,7 +244,7 @@ impl Model<ContinousAlleleFreq> for TumorModel {
         }).collect_vec();
 
         // summands are disjoint because we go over disjoint events on the normal sample
-        let p = logprobs::sum(&probs);
+        let p = LogProb::ln_sum_exp(&probs);
         p
     }
 
@@ -265,9 +265,9 @@ impl Model<ContinousAlleleFreq> for TumorModel {
                 break;
             }
             let fmin = cmp::max(fmin, af_min);
-            summands.push(logprobs::integrate(&density, *fmin, *fmax, self.grid_points));
+            summands.push(LogProb::ln_integrate_exp(&density, *fmin, *fmax, self.grid_points));
         }
-        logprobs::sum(&summands)
+        LogProb::ln_sum_exp(&summands)
     }
 
     fn allele_freqs(&self) -> &ContinousAlleleFreq {
@@ -281,6 +281,7 @@ mod tests {
     use super::*;
     use itertools::linspace;
     use model::Variant;
+    use bio::stats::LogProb;
 
     #[test]
     fn test_infinite_sites_neutral_variation() {
@@ -292,8 +293,8 @@ mod tests {
         assert_relative_eq!(model.prior_prob(1.0, variant).exp(), 0.0005);
         assert_relative_eq!(model.prior_prob(0.0, variant).exp(), 0.9985);
 
-        assert_relative_eq!(model.joint_prob(&vec![0.5, 1.0], &|_| 0.0, variant).exp(), 0.0015);
-        assert_relative_eq!(model.joint_prob(&vec![0.0], &|_| 0.0, variant).exp(), 0.9985);
+        assert_relative_eq!(model.joint_prob(&vec![0.5, 1.0], &|_| LogProb::ln_one(), variant).exp(), 0.0015);
+        assert_relative_eq!(model.joint_prob(&vec![0.0], &|_| LogProb::ln_one(), variant).exp(), 0.9985);
     }
 
     #[test]
@@ -302,12 +303,12 @@ mod tests {
         for purity in linspace(0.5, 1.0, 5) {
             println!("purity {}", purity);
             let model = TumorModel::new(2, 300.0, 1.0, 1.0, 3e9 as u64, purity, 0.001);
-            println!("af=0.0 -> {}", model.prior_prob(0.0, variant));
-            let total = model.joint_prob(&(0.0..1.0), &|_| 0.0, variant);
-            println!("total {}", total);
+            println!("af=0.0 -> {}", *model.prior_prob(0.0, variant));
+            let total = model.joint_prob(&(0.0..1.0), &|_| LogProb::ln_one(), variant);
+            println!("total {}", *total);
 
             for af in linspace(0.0, 1.0, 20) {
-                println!("af={} p={}", af, model.prior_prob(af, variant));
+                println!("af={} p={}", af, *model.prior_prob(af, variant));
             }
             assert_relative_eq!(total.exp(), 1.0, epsilon=0.01);
         }

@@ -60,7 +60,7 @@ pub mod case_control {
     use itertools::Itertools;
     use ndarray::prelude::*;
     use rust_htslib::bcf;
-    use bio::stats::logprobs;
+    use bio::stats::{PHREDProb, LogProb};
 
     use model::priors::AlleleFreq;
     use model::priors;
@@ -70,8 +70,8 @@ pub mod case_control {
     use Event;
 
 
-    fn phred_scale<'a, I: IntoIterator<Item=&'a f64>>(probs: I) -> Vec<f32> {
-        probs.into_iter().map(|p| logprobs::log_to_phred(*p) as f32).collect_vec()
+    fn phred_scale<'a, I: IntoIterator<Item=&'a LogProb>>(probs: I) -> Vec<f32> {
+        probs.into_iter().map(|&p| *PHREDProb::from(p) as f32).collect_vec()
     }
 
 
@@ -198,8 +198,9 @@ pub mod case_control {
                     outbcf.translate(&mut record);
                     let pileups = try!(pileups(&inbcf, &mut record, joint_model));
 
+
                     if !pileups.is_empty() {
-                        let mut posterior_probs = Array::zeros((events.len(), pileups.len()));
+                        let mut posterior_probs = Array::default((events.len(), pileups.len()));
                         for (i, event) in events.iter().enumerate() {
                             for (j, pileup) in pileups.iter().enumerate() {
                                 let p = pileup.posterior_prob(joint_model, &event.af_case, &event.af_control);
@@ -216,12 +217,12 @@ pub mod case_control {
                             let mut complement_probs = Vec::with_capacity(pileups.len());
                             for j in 0..pileups.len() {
                                 let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
-                                let total = logprobs::sum(&event_probs);
+                                let total = LogProb::ln_sum_exp(&event_probs);
                                 // total can slightly exceed 1 due to the numerical integration
-                                let p = if total > 0.0 {
-                                    0.0f64.ln()
+                                let p = if total > LogProb::ln_one() {
+                                    LogProb::ln_zero()
                                 } else {
-                                    logprobs::ln_1m_exp(total)
+                                    total.ln_one_minus_exp()
                                 };
                                 complement_probs.push(p);
                             }

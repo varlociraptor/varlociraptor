@@ -190,7 +190,7 @@ mod tests {
     use InsertSize;
     use model::sample::Observation;
     use rust_htslib::bam;
-    use bio::stats::logprobs;
+    use bio::stats::LogProb;
 
     #[test]
     fn test_joint_prob() {
@@ -219,10 +219,10 @@ mod tests {
         let mut observations = Vec::new();
         for _ in 0..5 {
             observations.push(Observation{
-                prob_mapping: 1.0f64.ln(),
-                prob_alt: 1.0f64.ln(),
-                prob_ref: 0.0f64.ln(),
-                prob_mismapped: 1.0f64.ln()
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_one(),
+                prob_ref: LogProb::ln_zero(),
+                prob_mismapped: LogProb::ln_one()
             });
         }
 
@@ -241,7 +241,7 @@ mod tests {
         assert_relative_eq!(p_germline.exp(), 1.0);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0);
-        assert!(logprobs::add(p_germline, p_somatic).exp() <= 1.0);
+        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
 
         // scenario 2: empty control pileup -> somatic call
         let marginal_prob = model.marginal_prob(&observations, &[], variant);
@@ -253,15 +253,15 @@ mod tests {
         assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
         // germline < somatic
         assert!(p_germline.exp() < pileup.posterior_prob(&model, &tumor_alt, &normal_ref).exp());
-        assert!(logprobs::add(p_germline, p_somatic).exp() <= 1.0);
+        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
 
         // scenario 3: subclonal variant
         for _ in 0..50 {
             observations.push(Observation{
-                prob_mapping: 1.0f64.ln(),
-                prob_alt: 0.0f64.ln(),
-                prob_ref: 1.0f64.ln(),
-                prob_mismapped: 1.0f64.ln()
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_zero(),
+                prob_ref: LogProb::ln_one(),
+                prob_mismapped: LogProb::ln_one()
             });
         }
         let marginal_prob = model.marginal_prob(&observations, &[], variant);
@@ -271,16 +271,16 @@ mod tests {
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
-        assert!(logprobs::add(p_germline, p_somatic).exp() <= 1.0);
+        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
 
         // scenario 4: absent variant
         observations.clear();
         for _ in 0..10 {
             observations.push(Observation{
-                prob_mapping: 1.0f64.ln(),
-                prob_alt: 0.0f64.ln(),
-                prob_ref: 1.0f64.ln(),
-                prob_mismapped: 1.0f64.ln()
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_zero(),
+                prob_ref: LogProb::ln_one(),
+                prob_mismapped: LogProb::ln_one()
             });
         }
         println!("Absent call.");
@@ -295,6 +295,6 @@ mod tests {
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.01);
         assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.01);
-        assert!(logprobs::add(p_germline, p_somatic).exp() <= 1.0);
+        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
     }
 }
