@@ -1,3 +1,8 @@
+#![cfg_attr(feature="flame_it", feature(plugin))]
+#![cfg_attr(feature="flame_it", plugin(flamer))]
+// activate flame for the whole crate
+#![cfg_attr(feature="flame_it", flame)]
+
 extern crate bio;
 extern crate rust_htslib;
 #[macro_use]
@@ -10,6 +15,9 @@ extern crate rusty_machine;
 extern crate ordered_float;
 #[macro_use]
 extern crate ndarray;
+
+#[cfg(feature="flame_it")]
+extern crate flame;
 
 pub mod model;
 pub mod estimation;

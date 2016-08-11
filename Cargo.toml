@@ -13,3 +13,9 @@ approx = "0.1.*"
 rusty-machine="0.4.*"
 ordered-float = "0.2.*"
 ndarray = "0.6"
+flame = { version = "^0.1.2", optional = true }
+flamer = { version = "^0.1.2", optional = true }
+
+[features]
+default = []
+flame_it = ["flame", "flamer"]
