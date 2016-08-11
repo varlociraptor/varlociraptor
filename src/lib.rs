@@ -205,7 +205,6 @@ pub mod case_control {
                     outbcf.translate(&mut record);
                     let pileups = try!(pileups(&inbcf, &mut record, joint_model));
 
-
                     if !pileups.is_empty() {
                         let mut posterior_probs = Array::default((events.len(), pileups.len()));
                         for (i, event) in events.iter().enumerate() {
