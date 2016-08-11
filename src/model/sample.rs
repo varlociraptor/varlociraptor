@@ -117,6 +117,7 @@ pub struct InsertSize {
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample<A: AlleleFreq, P: model::priors::Model<A>> {
     record_buffer: RecordBuffer,
+    fragment_evidence: bool,
     insert_size: InsertSize,
     prior_model: P,
     likelihood_model: model::likelihood::LatentVariableModel,
@@ -131,12 +132,14 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
     ///
     /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
     /// * `pileup_window` - Window around the variant that shall be search for evidence (e.g. 5000).
+    /// * `fragment_evidence` - Whether to use read pairs that are left and right of variant.
     /// * `insert_size` - estimated insert size
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
     /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
-    pub fn new(bam: bam::IndexedReader, pileup_window: u32, insert_size: InsertSize, prior_model: P, likelihood_model: model::likelihood::LatentVariableModel) -> Self {
+    pub fn new(bam: bam::IndexedReader, pileup_window: u32, fragment_evidence: bool, insert_size: InsertSize, prior_model: P, likelihood_model: model::likelihood::LatentVariableModel) -> Self {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window),
+            fragment_evidence: fragment_evidence,
             insert_size: insert_size,
             prior_model: prior_model,
             likelihood_model: likelihood_model,
@@ -178,15 +181,17 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
                 // overlapping alignment
                 observations.push(self.read_observation(&record, &cigar, varpos, variant));
                 n_overlap += 1;
-            } else if end_pos <= varpos {
-                // need to check mate
-                // since the bam file is sorted by position, we can't see the mate first
-                if record.mpos() >= varpos {
-                    pairs.insert(record.qname().to_owned(), record.mapq());
+            } else if self.fragment_evidence {
+                if end_pos <= varpos {
+                    // need to check mate
+                    // since the bam file is sorted by position, we can't see the mate first
+                    if record.mpos() >= varpos {
+                        pairs.insert(record.qname().to_owned(), record.mapq());
+                    }
+                } else if let Some(mate_mapq) = pairs.get(record.qname()) {
+                    // mate already visited, and this read maps right of varpos
+                    observations.push(self.fragment_observation(&record, *mate_mapq, variant));
                 }
-            } else if let Some(mate_mapq) = pairs.get(record.qname()) {
-                // mate already visited, and this read maps right of varpos
-                observations.push(self.fragment_observation(&record, *mate_mapq, variant));
             }
         }
         debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
