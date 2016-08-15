@@ -122,7 +122,8 @@ impl TumorModel {
     /// with `n` being the size of the genome and `fmax` is the expected allele frequency of clonal variants
     /// at the beginning of tumor evolution.
     /// From this, we can obtain the cumulative distribution function as `Pr(F <= f) = 1 - Pr(F > f)`.
-    /// Consequently, the density becomes the first derivate, i.e. `Pr(F = f) = - M(f)' / n = mu/beta * 1 / (f²n)`.
+    /// Consequently, the density becomes the first derivative, i.e. `Pr(F = f) = - M(f)' / n = mu/beta * 1/n * 1/f²` for f>=fmin
+    /// with `fmin = sqrt(mu/beta * 1/n)`.
     ///
     /// The prior probability for a germline allele frequency f (e.g. 0.0, 0.5, 1.0) in the tumor is
     /// calculated with an `InfiniteSitesNeutralVariationModel`. This is valid since clonal variants
@@ -148,6 +149,8 @@ impl TumorModel {
         purity: f64,
         heterozygosity: f64) -> Self {
         assert!(purity <= 1.0 && purity >= 0.0);
+        assert!(effective_mutation_rate < genome_size as f64);
+        // TODO improve intregrals by adding fmin environments to the panels.
         let normal_model = InfiniteSitesNeutralVariationModel::new(ploidy, heterozygosity);
 
         // calculate outer panels for integration
@@ -185,10 +188,7 @@ impl TumorModel {
     #[cfg_attr(feature="flame_it", flame)]
     fn somatic_density(&self, af: f64, variant: Variant) -> LogProb {
         // mu/beta * 1 / (af**2 * n)
-        if af == 0.0 {
-            // undefined for 0, but returning 0 for convenience
-            return LogProb::ln_zero()
-        }
+        assert!(af > 0.0); // undefined for 0
 
         // adjust effective mutation rate by type-specific factor
         let factor = match variant {
