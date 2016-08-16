@@ -159,6 +159,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
 
     /// Extract observations for the given variant.
     pub fn extract_observations(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Vec<Observation>, String> {
+        // TODO move chrom and start into variant as new type `Locus`.
         let mut observations = Vec::new();
         let (end, varpos) = match variant {
             Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
@@ -174,6 +175,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
 
         // iterate over records
         for record in self.record_buffer.iter() {
+            // TODO optionally disable the use of secondary alignments
             let pos = record.pos();
             let cigar = record.cigar();
             let end_pos = record.end_pos(&cigar);
@@ -182,6 +184,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
                 observations.push(self.read_observation(&record, &cigar, varpos, variant));
                 n_overlap += 1;
             } else if self.fragment_evidence {
+                // TODO ensure that record is either first or last in template
                 if end_pos <= varpos {
                     // need to check mate
                     // since the bam file is sorted by position, we can't see the mate first
