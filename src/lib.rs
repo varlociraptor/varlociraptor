@@ -64,6 +64,8 @@ impl Event for ComplementEvent {
 
 pub mod case_control {
     use std::path::Path;
+    use std::error::Error;
+
     use itertools::Itertools;
     use ndarray::prelude::*;
     use rust_htslib::bcf;
@@ -99,14 +101,15 @@ pub mod case_control {
     }
 
 
-    fn pileups<A, B, P, Q, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &mut M) -> Result<Vec<model::Pileup<A, B, P, Q>>, String> where
+    fn pileups<A, B, P, Q, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &mut M) -> Result<Vec<model::Pileup<A, B, P, Q>>, Box<Error>> where
         A: AlleleFreq,
         B: AlleleFreq,
         P: priors::Model<A>,
         Q: priors::Model<B>,
         M: JointModel<A, B, P, Q>
     {
-        let svlen = record.info(b"SVLEN").integer().ok().map(|svlen| svlen[0]);
+        // obtain svlen if it is present or store error
+        let svlen = record.info(b"SVLEN").integer().map(|values| values[0]);
         let alleles = record.alleles();
         let mut pileups = Vec::with_capacity(alleles.len() - 1);
         let ref_allele = alleles[0];
@@ -117,17 +120,13 @@ pub mod case_control {
             }
 
             let variant = if alt_allele == b"<DEL>" {
-                if let Some(length) = svlen {
-                    model::Variant::Deletion((length.abs()) as u32)
-                } else {
-                    return Err("Error reading SVLEN of <DEL> variant.".to_owned());
-                }
+                // raise error from svlen
+                let length = try!(svlen);
+                model::Variant::Deletion((length.abs()) as u32)
             } else if alt_allele == b"<INS>" {
-                if let Some(length) = svlen {
-                    model::Variant::Insertion(length as u32)
-                } else {
-                    return Err("Error reading SVLEN of <INS> variant.".to_owned());
-                }
+                // raise error from svlen
+                let length = try!(svlen);
+                model::Variant::Insertion(length as u32)
             } else if alt_allele[0] == b'<' {
                 // other special tag
                 continue;
@@ -136,15 +135,10 @@ pub mod case_control {
             } else {
                 model::Variant::Insertion((alt_allele.len() - ref_allele.len()) as u32)
             };
-
-            if let Some(rid) = record.rid() {
-                let chrom = inbcf.header.rid2name(rid);
-                // obtain pileup and calculate marginal probability
-                let pileup = try!(joint_model.pileup(chrom, record.pos(), variant));
-                pileups.push(pileup);
-            } else {
-                return Err("Error reading BCF/VCF record.".to_owned());
-            }
+            let chrom = inbcf.header.rid2name(record.rid().expect("reference id not found in header"));
+            // obtain pileup and calculate marginal probability
+            let pileup = try!(joint_model.pileup(chrom, record.pos(), variant));
+            pileups.push(pileup);
         }
 
         Ok(pileups)
@@ -169,7 +163,7 @@ pub mod case_control {
         events: &[CaseControlEvent<A, B>],
         complement_event: Option<&ComplementEvent>,
         joint_model: &mut M
-    ) -> Result<(), String> where
+    ) -> Result<(), Box<Error>> where
         A: AlleleFreq,
         B: AlleleFreq,
         P: priors::Model<A>,
@@ -178,82 +172,69 @@ pub mod case_control {
         R: AsRef<Path>,
         W: AsRef<Path>
     {
-        if let Ok(inbcf) = bcf::Reader::new(inbcf) {
-            let mut header = bcf::Header::with_template(&inbcf.header);
-            for event in events {
-                header.push_record(
-                    event.header_entry().as_bytes()
-                );
-            }
-            if let Some(complement_event) = complement_event {
-                header.push_record(complement_event.header_entry().as_bytes());
-            }
+        let inbcf = try!(bcf::Reader::new(inbcf));
+        let mut header = bcf::Header::with_template(&inbcf.header);
+        for event in events {
+            header.push_record(
+                event.header_entry().as_bytes()
+            );
+        }
+        if let Some(complement_event) = complement_event {
+            header.push_record(complement_event.header_entry().as_bytes());
+        }
 
 
-            if let Ok(mut outbcf) = bcf::Writer::new(outbcf, &header, false, false) {
-                let mut record = bcf::Record::new();
-                let mut i = 0;
-                loop {
-                    // Read BCF/VCF record.
-                    match inbcf.read(&mut record) {
-                        Err(bcf::ReadError::NoMoreRecord) => break,
-                        Err(_) => return Err("Error reading BCF/VCF.".to_owned()),
-                        _ => ()
-                    }
-                    i += 1;
-                    // translate to header of the writer
-                    outbcf.translate(&mut record);
-                    let pileups = try!(pileups(&inbcf, &mut record, joint_model));
-
-                    if !pileups.is_empty() {
-                        let mut posterior_probs = Array::default((events.len(), pileups.len()));
-                        for (i, event) in events.iter().enumerate() {
-                            for (j, pileup) in pileups.iter().enumerate() {
-                                let p = pileup.posterior_prob(joint_model, &event.af_case, &event.af_control);
-                                posterior_probs[(i, j)] = p;
-                            }
-                            if record.push_info_float(
-                                event.tag_name().as_bytes(),
-                                &phred_scale(posterior_probs.row(i).iter())
-                            ).is_err() {
-                                return Err("Error writing INFO tag in BCF.".to_owned());
-                            }
-                        }
-                        if let Some(complement_event) = complement_event {
-                            let mut complement_probs = Vec::with_capacity(pileups.len());
-                            for j in 0..pileups.len() {
-                                let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
-                                let total = LogProb::ln_sum_exp(&event_probs);
-                                // total can slightly exceed 1 due to the numerical integration
-                                let p = if total > LogProb::ln_one() {
-                                    LogProb::ln_zero()
-                                } else {
-                                    total.ln_one_minus_exp()
-                                };
-                                complement_probs.push(p);
-                            }
-                            if record.push_info_float(
-                                complement_event.tag_name().as_bytes(),
-                                &phred_scale(complement_probs.iter())
-                            ).is_err() {
-                                return Err("Error writing INFO tag in BCF.".to_owned());
-                            }
-                        }
-                    }
-
-                    if outbcf.write(&record).is_err() {
-                        return Err("Error writing BCF record.".to_owned());
-                    }
-                    if i % 1000 == 0 {
-                        info!("{} records processed.", i);
-                    }
+        let mut outbcf = try!(bcf::Writer::new(outbcf, &header, false, false));
+        let mut record = bcf::Record::new();
+        let mut i = 0;
+        loop {
+            if let Err(e) = inbcf.read(&mut record) {
+                if e.is_eof() {
+                    return Ok(())
+                } else {
+                    return Err(Box::new(e));
                 }
-                Ok(())
-            } else {
-                Err("Error writing BCF record.".to_owned())
             }
-        } else {
-            Err("Error reading BCF/VCF".to_owned())
+            i += 1;
+            // translate to header of the writer
+            outbcf.translate(&mut record);
+            let pileups = try!(pileups(&inbcf, &mut record, joint_model));
+
+            if !pileups.is_empty() {
+                let mut posterior_probs = Array::default((events.len(), pileups.len()));
+                for (i, event) in events.iter().enumerate() {
+                    for (j, pileup) in pileups.iter().enumerate() {
+                        let p = pileup.posterior_prob(joint_model, &event.af_case, &event.af_control);
+                        posterior_probs[(i, j)] = p;
+                    }
+                    record.push_info_float(
+                        event.tag_name().as_bytes(),
+                        &phred_scale(posterior_probs.row(i).iter())
+                    ).unwrap();
+                }
+                if let Some(complement_event) = complement_event {
+                    let mut complement_probs = Vec::with_capacity(pileups.len());
+                    for j in 0..pileups.len() {
+                        let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
+                        let total = LogProb::ln_sum_exp(&event_probs);
+                        // total can slightly exceed 1 due to the numerical integration
+                        let p = if total > LogProb::ln_one() {
+                            LogProb::ln_zero()
+                        } else {
+                            total.ln_one_minus_exp()
+                        };
+                        complement_probs.push(p);
+                    }
+                    record.push_info_float(
+                        complement_event.tag_name().as_bytes(),
+                        &phred_scale(complement_probs.iter())
+                    ).unwrap();
+                }
+            }
+            try!(outbcf.write(&record));
+            if i % 1000 == 0 {
+                info!("{} records processed.", i);
+            }
         }
     }
 }

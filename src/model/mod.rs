@@ -204,6 +204,7 @@ mod tests {
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
+            true,
             insert_size,
             priors::TumorModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, 1.0, 0.001),
             LatentVariableModel::new(1.0)
@@ -211,6 +212,7 @@ mod tests {
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
+            true,
             true,
             insert_size,
             priors::InfiniteSitesNeutralVariationModel::new(2, 0.001),

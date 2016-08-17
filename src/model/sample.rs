@@ -24,7 +24,8 @@ pub fn prob_mapping(mapq: u8) -> LogProb {
 pub struct RecordBuffer {
     reader: bam::IndexedReader,
     inner: VecDeque<bam::Record>,
-    window: u32
+    window: u32,
+    use_secondary: bool
 }
 
 
@@ -34,11 +35,12 @@ unsafe impl Send for RecordBuffer {}
 
 impl RecordBuffer {
     /// Create a new `RecordBuffer`.
-    pub fn new(bam: bam::IndexedReader, window: u32) -> Self {
+    pub fn new(bam: bam::IndexedReader, window: u32, use_secondary: bool) -> Self {
         RecordBuffer {
             reader: bam,
             inner: VecDeque::with_capacity(window as usize * 2),
-            window: window as u32
+            window: window as u32,
+            use_secondary: use_secondary
         }
     }
 
@@ -71,6 +73,9 @@ impl RecordBuffer {
                 };
                 let pos = record.pos();
                 if record.is_duplicate() || record.is_unmapped() {
+                    continue;
+                }
+                if self.use_secondary && record.is_secondary() {
                     continue;
                 }
                 self.inner.push_back(record);
@@ -117,7 +122,7 @@ pub struct InsertSize {
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample<A: AlleleFreq, P: model::priors::Model<A>> {
     record_buffer: RecordBuffer,
-    fragment_evidence: bool,
+    use_fragment_evidence: bool,
     insert_size: InsertSize,
     prior_model: P,
     likelihood_model: model::likelihood::LatentVariableModel,
@@ -132,14 +137,15 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
     ///
     /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
     /// * `pileup_window` - Window around the variant that shall be search for evidence (e.g. 5000).
-    /// * `fragment_evidence` - Whether to use read pairs that are left and right of variant.
+    /// * `use_fragment_evidence` - Whether to use read pairs that are left and right of variant.
+    /// * `use_secondary` - Whether to use secondary alignments.
     /// * `insert_size` - estimated insert size
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
     /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
-    pub fn new(bam: bam::IndexedReader, pileup_window: u32, fragment_evidence: bool, insert_size: InsertSize, prior_model: P, likelihood_model: model::likelihood::LatentVariableModel) -> Self {
+    pub fn new(bam: bam::IndexedReader, pileup_window: u32, use_fragment_evidence: bool, use_secondary: bool, insert_size: InsertSize, prior_model: P, likelihood_model: model::likelihood::LatentVariableModel) -> Self {
         Sample {
-            record_buffer: RecordBuffer::new(bam, pileup_window),
-            fragment_evidence: fragment_evidence,
+            record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
+            use_fragment_evidence: use_fragment_evidence,
             insert_size: insert_size,
             prior_model: prior_model,
             likelihood_model: likelihood_model,
@@ -159,7 +165,6 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
 
     /// Extract observations for the given variant.
     pub fn extract_observations(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Vec<Observation>, String> {
-        // TODO move chrom and start into variant as new type `Locus`.
         let mut observations = Vec::new();
         let (end, varpos) = match variant {
             Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
@@ -183,8 +188,7 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
                 // overlapping alignment
                 observations.push(self.read_observation(&record, &cigar, varpos, variant));
                 n_overlap += 1;
-            } else if self.fragment_evidence {
-                // TODO ensure that record is either first or last in template
+            } else if self.use_fragment_evidence && (record.is_first_in_template() || record.is_last_in_template()) {
                 if end_pos <= varpos {
                     // need to check mate
                     // since the bam file is sorted by position, we can't see the mate first

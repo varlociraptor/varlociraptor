@@ -16,8 +16,6 @@ pub struct LatentVariableModel {
 impl LatentVariableModel {
 
     /// Create new model.
-    ///
-    ///
     pub fn new(purity: f64) -> Self {
         assert!(purity > 0.0 && purity <= 1.0);
         LatentVariableModel { purity: LogProb(purity.ln()) }

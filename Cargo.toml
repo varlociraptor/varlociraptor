@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>"]
 
 [dependencies]
-bio = { git="https://github.com/rust-bio/rust-bio.git", branch="logprob-newtype"}
+bio = { git="https://github.com/rust-bio/rust-bio.git" }
 log = "0.3.*"
 rust-htslib = { git="https://github.com/rust-bio/rust-htslib.git" }
 GSL = "0.4.*"
