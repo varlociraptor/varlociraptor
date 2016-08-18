@@ -6,6 +6,7 @@ rust:
 matrix:
   allow_failures:
     - rust: nightly
+    - rust: beta
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y libgsl0-dev
