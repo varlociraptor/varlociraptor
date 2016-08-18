@@ -6,7 +6,7 @@ authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>"]
 [dependencies]
 bio = { git="https://github.com/rust-bio/rust-bio.git" }
 log = "0.3.*"
-rust-htslib = { git="https://github.com/rust-bio/rust-htslib.git" }
+rust-htslib = "0.8.*"
 GSL = "0.4.*"
 itertools = "0.4.*"
 approx = "0.1.*"
@@ -15,6 +15,7 @@ ordered-float = "0.2.*"
 ndarray = "0.6"
 flame = { version = "^0.1.2", optional = true }
 flamer = { version = "^0.1.2", optional = true }
+rustc-serialize = "0.3.*"
 
 [features]
 default = []

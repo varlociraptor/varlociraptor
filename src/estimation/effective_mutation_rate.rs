@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::collections::btree_map;
 
 use rusty_machine::learning::lin_reg::LinRegressor;
 use rusty_machine::linalg::{Matrix, Vector};
@@ -8,53 +7,46 @@ use ordered_float::NotNaN;
 use itertools::Itertools;
 
 
-#[derive(Debug)]
-pub struct Estimator {
-    observations: BTreeMap<NotNaN<f64>, u64>,
-    model: LinRegressor
+#[derive(Debug, RustcDecodable, RustcEncodable)]
+pub struct Estimate {
+    pub observations: Vec<(f64, u64)>,
+    pub intercept: f64,
+    pub slope: f64
 }
 
 
-impl Estimator {
-    pub fn train<F: IntoIterator<Item=f64>>(allele_frequencies: F) -> Self {
-        let mut observations = BTreeMap::new();
-        for f in allele_frequencies {
-            // count occurrences of 1 / f
-            *observations.entry(NotNaN::new(1.0 / f).unwrap()).or_insert(0) += 1;
-        }
-        let freqs = observations.keys().map(|f| **f).collect_vec();
-        // calculate the cumulative sum
-        let counts = observations.values().scan(0.0, |s, c| {
-            *s += *c as f64;
-            Some(*s)
-        }).collect_vec();
-
-        let freqs = Matrix::new(freqs.len(), 1, freqs);
-        let counts = Vector::new(counts);
-
-        let mut lin_mod = LinRegressor::default();
-        lin_mod.train(&freqs, &counts);
-
-        Estimator {
-            observations: observations,
-            model: lin_mod
-        }
-    }
-
+impl Estimate {
     pub fn effective_mutation_rate(&self) -> f64 {
-        self.slope()
+        self.slope
     }
+}
 
-    pub fn slope(&self) -> f64 {
-        self.model.parameters().unwrap()[1]
+
+pub fn estimate<F: IntoIterator<Item=f64>>(allele_frequencies: F) -> Estimate {
+    let mut observations = BTreeMap::new();
+    for f in allele_frequencies {
+        // count occurrences of 1 / f
+        *observations.entry(NotNaN::new(1.0 / f).unwrap()).or_insert(0) += 1u64;
     }
+    let reciprocal_freqs = observations.keys().map(|f| **f).collect_vec();
+    // calculate the cumulative sum
+    let _counts = observations.values().scan(0.0, |s, c| {
+        *s += *c as f64;
+        Some(*s)
+    }).collect_vec();
 
-    pub fn intercept(&self) -> f64 {
-        self.model.parameters().unwrap()[0]
-    }
+    let observations = reciprocal_freqs.iter().cloned().zip(_counts.iter().map(|c| *c as u64)).collect_vec();
 
-    pub fn observations(&self) -> btree_map::Iter<NotNaN<f64>, u64> {
-        self.observations.iter()
+    let freqs = Matrix::new(reciprocal_freqs.len(), 1, reciprocal_freqs);
+    let counts = Vector::new(_counts);
+
+    let mut lin_mod = LinRegressor::default();
+    lin_mod.train(&freqs, &counts);
+
+    Estimate {
+        observations: observations,
+        intercept: lin_mod.parameters().unwrap()[0],
+        slope: lin_mod.parameters().unwrap()[1]
     }
 }
 
@@ -68,7 +60,7 @@ mod tests {
     fn test_estimate() {
         // example from Williams et al. Nature Genetics 2016.
         let freqs = linspace(0.12, 0.25, 2539);
-        let estimator = Estimator::train(freqs);
-        assert_relative_eq!(estimator.effective_mutation_rate(), 596.16, epsilon=0.01);
+        let estimate = estimate(freqs);
+        assert_relative_eq!(estimate.effective_mutation_rate(), 596.16, epsilon=0.01);
     }
 }
