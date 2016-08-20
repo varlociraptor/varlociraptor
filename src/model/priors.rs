@@ -18,6 +18,19 @@ pub trait Model<A: AlleleFreqs> {
 pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
     fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, variant: Variant) -> LogProb;
 
+    fn joint_prob<L, O>(
+        &self,
+        af1: &A,
+        af2: &B,
+        likelihood1: &L,
+        likelihood2: &O,
+        variant: Variant
+    ) -> LogProb where
+        A: AlleleFreqs,
+        B: AlleleFreqs,
+        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+
     fn allele_freqs_case(&self) -> &A;
 
     fn allele_freqs_control(&self) -> &B;
@@ -107,7 +120,8 @@ pub struct TumorNormalModel {
     insertion_factor: f64,
     genome_size: u64,
     purity: NotNaN<f64>,
-    allele_freqs_tumor: ContinousAlleleFreqs
+    allele_freqs_tumor: ContinousAlleleFreqs,
+    grid_points: usize
 }
 
 
@@ -140,7 +154,8 @@ impl TumorNormalModel {
             insertion_factor: insertion_factor,
             genome_size: genome_size,
             purity: NotNaN::new(purity).expect("Purity cannot be NaN."),
-            allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0)
+            allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
+            grid_points: 50
         }
     }
 
@@ -180,6 +195,36 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         self.normal_model.prior_prob(af_normal, variant)
     }
 
+    fn joint_prob<L, O>(
+        &self,
+        af_tumor: &ContinousAlleleFreqs,
+        af_normal: &DiscreteAlleleFreqs,
+        likelihood_tumor: &L,
+        likelihood_normal: &O,
+        variant: Variant
+    ) -> LogProb where
+        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        O: Fn(AlleleFreq, AlleleFreq) -> LogProb
+    {
+        let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
+            let density = |af_tumor| {
+                let af_tumor = AlleleFreq(af_tumor);
+                self.prior_prob(af_tumor, af_normal, variant) +
+                likelihood_tumor(af_tumor, af_normal)
+            };
+
+            let mut prob = LogProb::ln_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points) +
+                           likelihood_normal(af_normal, AlleleFreq(0.0));
+            if af_normal >= af_tumor.start {
+                // add the prob for no somatic mutation (af_case=af_control) because the prior is not continuous at that point
+                prob = prob.ln_add_exp(density(*af_normal))
+            }
+            prob
+        }).collect_vec());
+
+        prob
+    }
+
     fn allele_freqs_case(&self) -> &ContinousAlleleFreqs {
         &self.allele_freqs_tumor
     }
@@ -195,7 +240,6 @@ mod tests {
     use super::*;
     use itertools::linspace;
     use model::Variant;
-    use bio::stats::LogProb;
     use model::AlleleFreq;
 
     #[test]

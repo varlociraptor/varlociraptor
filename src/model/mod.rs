@@ -4,7 +4,6 @@ use std::ops::Range;
 use std::fmt::Debug;
 
 use ordered_float::NotNaN;
-use itertools::Itertools;
 
 pub mod likelihood;
 pub mod priors;
@@ -90,8 +89,7 @@ pub trait JointModel<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>>
 pub struct ContinuousVsDiscreteModel<P: priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> {
     case_sample: Sample,
     control_sample: Sample,
-    prior_model: P,
-    grid_points: usize
+    prior_model: P
 }
 
 impl<P: priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> ContinuousVsDiscreteModel<P> {
@@ -105,8 +103,7 @@ impl<P: priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> Continuous
         ContinuousVsDiscreteModel {
             case_sample: case_sample,
             control_sample: control_sample,
-            prior_model: prior_model,
-            grid_points: 50
+            prior_model: prior_model
         }
     }
 }
@@ -142,24 +139,14 @@ impl<P: Sync + priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> Joi
         af_control: &DiscreteAlleleFreqs,
         variant: Variant
     ) -> LogProb {
-        // TODO move computation into the prior models!!
-        let prob = LogProb::ln_sum_exp(&af_control.iter().map(|&af_control| {
-            let density = |af_case| {
-                let af_case = AlleleFreq(af_case);
-                self.prior_model.prior_prob(af_case, af_control, variant) +
-                self.case_sample.likelihood_model().likelihood_pileup(case_pileup, *af_case, *af_control)
-            };
+        let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
+            self.case_sample.likelihood_model().likelihood_pileup(case_pileup, *af_case, *af_control)
+        };
+        let control_likelihood = |af_control: AlleleFreq, _| {
+            self.control_sample.likelihood_model().likelihood_pileup(control_pileup, *af_control, 0.0)
+        };
 
-            let mut prob = LogProb::ln_integrate_exp(&density, *af_case.start, *af_case.end, self.grid_points) +
-                           self.control_sample.likelihood_model().likelihood_pileup(control_pileup, *af_control, 0.0);
-            if af_control >= af_case.start {
-                // add the prob for no somatic mutation (af_case=af_control) because the prior is not continuous at that point
-                prob = prob.ln_add_exp(density(*af_control))
-            }
-            prob
-        }).collect_vec());
-
-        prob
+        self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, variant)
     }
 }
 
@@ -273,7 +260,7 @@ mod tests {
         let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.001);
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
-        
+
         // scenario 1: same pileup -> germline call
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
         let pileup = Pileup::new(observations.clone(), observations.clone(), variant);
@@ -295,6 +282,7 @@ mod tests {
         let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
         // without knowledge about germline, the germline prior dominates
         assert!(p_germline > p_somatic);
+        assert!(p_germline > p_absent);
         // germline < somatic
         assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
 
