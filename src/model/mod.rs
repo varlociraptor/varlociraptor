@@ -273,7 +273,7 @@ mod tests {
         let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.001);
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
-        /*
+        
         // scenario 1: same pileup -> germline call
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
         let pileup = Pileup::new(observations.clone(), observations.clone(), variant);
@@ -314,7 +314,7 @@ mod tests {
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
-        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);*/
+        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
 
         // scenario 4: absent variant
         observations.clear();
