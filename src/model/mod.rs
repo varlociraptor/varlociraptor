@@ -1,5 +1,10 @@
 use std::marker::PhantomData;
 use std::cell::Cell;
+use std::ops::Range;
+use std::fmt::Debug;
+
+use ordered_float::NotNaN;
+use itertools::Itertools;
 
 pub mod likelihood;
 pub mod priors;
@@ -8,7 +13,22 @@ pub mod sample;
 use bio::stats::LogProb;
 
 use model::sample::{Sample, Observation};
-use model::priors::{AlleleFreq, ContinousAlleleFreq, DiscreteAlleleFreq};
+
+
+pub type AlleleFreq = NotNaN<f64>;
+pub type DiscreteAlleleFreqs = Vec<AlleleFreq>;
+pub type ContinousAlleleFreqs = Range<AlleleFreq>;
+
+
+#[allow(non_snake_case)]
+pub fn AlleleFreq(af: f64) -> AlleleFreq {
+    NotNaN::new(af).unwrap()
+}
+
+
+pub trait AlleleFreqs: Debug {}
+impl AlleleFreqs for DiscreteAlleleFreqs {}
+impl AlleleFreqs for ContinousAlleleFreqs {}
 
 
 #[derive(Copy, Clone)]
@@ -18,26 +38,28 @@ pub enum Variant {
 }
 
 
-pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>> {
+pub trait JointModel<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> {
     /// Return case sample.
-    fn case_sample(&self) -> &Sample<A, P>;
+    fn case_sample(&self) -> &Sample;
 
     /// Return control sample.
-    fn control_sample(&self) -> &Sample<B, Q>;
+    fn control_sample(&self) -> &Sample;
 
     /// Return case sample.
-    fn case_sample_mut(&mut self) -> &mut Sample<A, P>;
+    fn case_sample_mut(&mut self) -> &mut Sample;
 
     /// Return control sample.
-    fn control_sample_mut(&mut self) -> &mut Sample<B, Q>;
+    fn control_sample_mut(&mut self) -> &mut Sample;
+
+    fn prior_model(&self) -> &P;
 
     /// Calculate joint probability of given pileups and allele frequencies.
     fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &A, af_control: &B, variant: Variant) -> LogProb;
 
     /// Calculate marginal probability of given pileups.
     fn marginal_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], variant: Variant) -> LogProb {
-        let af_case = self.case_sample().prior_model().allele_freqs();
-        let af_control = self.control_sample().prior_model().allele_freqs();
+        let af_case = self.prior_model().allele_freqs_case();
+        let af_control = self.prior_model().allele_freqs_control();
         self.joint_prob(case_pileup, control_pileup, af_case, af_control, variant)
     }
 
@@ -51,7 +73,7 @@ pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: prior
     ///
     /// # Returns
     /// The `Pileup`, or an error message.
-    fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<A, B, P, Q>, String> {
+    fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<A, B, P>, String> {
         let case_pileup = try!(self.case_sample_mut().extract_observations(chrom, start, variant));
         let control_pileup = try!(self.control_sample_mut().extract_observations(chrom, start, variant));
         debug!("Obtained pileup (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
@@ -65,62 +87,77 @@ pub trait JointModel<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: prior
 
 
 /// Joint variant calling model, combining two latent variable models.
-pub struct ContinuousVsDiscreteModel<P: priors::Model<ContinousAlleleFreq>, Q: priors::Model<DiscreteAlleleFreq>> {
-    case_sample: Sample<ContinousAlleleFreq, P>,
-    control_sample: Sample<DiscreteAlleleFreq, Q>
+pub struct ContinuousVsDiscreteModel<P: priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> {
+    case_sample: Sample,
+    control_sample: Sample,
+    prior_model: P,
+    grid_points: usize
 }
 
-impl<P: priors::Model<ContinousAlleleFreq>, Q: priors::Model<DiscreteAlleleFreq>> ContinuousVsDiscreteModel<P, Q> {
+impl<P: priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> ContinuousVsDiscreteModel<P> {
     /// Create new `JointModel`.
     ///
     /// # Arguments
     ///
     /// * `case_sample` - case sample
     /// * `control_sample` - control sample
-    pub fn new(case_sample: Sample<ContinousAlleleFreq, P>, control_sample: Sample<DiscreteAlleleFreq, Q>) -> Self {
+    pub fn new(case_sample: Sample, control_sample: Sample, prior_model: P) -> Self {
         ContinuousVsDiscreteModel {
             case_sample: case_sample,
-            control_sample: control_sample
+            control_sample: control_sample,
+            prior_model: prior_model,
+            grid_points: 50
         }
     }
 }
 
 
-impl<P: Sync + priors::Model<ContinousAlleleFreq>, Q: Sync + priors::Model<DiscreteAlleleFreq>> JointModel<ContinousAlleleFreq, DiscreteAlleleFreq, P, Q> for ContinuousVsDiscreteModel<P, Q> {
+impl<P: Sync + priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> JointModel<ContinousAlleleFreqs, DiscreteAlleleFreqs, P> for ContinuousVsDiscreteModel<P> {
 
-    fn case_sample(&self) -> &Sample<ContinousAlleleFreq, P> {
+    fn case_sample(&self) -> &Sample {
         &self.case_sample
     }
 
-    fn control_sample(&self) -> &Sample<DiscreteAlleleFreq, Q> {
+    fn control_sample(&self) -> &Sample {
         &self.control_sample
     }
 
-    fn case_sample_mut(&mut self) -> &mut Sample<ContinousAlleleFreq, P> {
+    fn case_sample_mut(&mut self) -> &mut Sample {
         &mut self.case_sample
     }
 
-    fn control_sample_mut(&mut self) -> &mut Sample<DiscreteAlleleFreq, Q> {
+    fn control_sample_mut(&mut self) -> &mut Sample {
         &mut self.control_sample
+    }
+
+    fn prior_model(&self) -> &P {
+        &self.prior_model
     }
 
     fn joint_prob(
         &self,
         case_pileup: &[Observation],
         control_pileup: &[Observation],
-        af_case: &priors::ContinousAlleleFreq,
-        af_control: &priors::DiscreteAlleleFreq,
+        af_case: &ContinousAlleleFreqs,
+        af_control: &DiscreteAlleleFreqs,
         variant: Variant
     ) -> LogProb {
-        let control_event_prob = |af_control| {
-            let case_likelihood = |af| self.case_sample.likelihood_model().likelihood_pileup(case_pileup, af, af_control);
-            let p_case = self.case_sample.prior_model().joint_prob(af_case, &case_likelihood, variant);
-            let l_control = self.control_sample.likelihood_model().likelihood_pileup(control_pileup, af_control, 0.0);
+        // TODO move computation into the prior models!!
+        let prob = LogProb::ln_sum_exp(&af_control.iter().map(|&af_control| {
+            let density = |af_case| {
+                let af_case = AlleleFreq(af_case);
+                self.prior_model.prior_prob(af_case, af_control, variant) +
+                self.case_sample.likelihood_model().likelihood_pileup(case_pileup, *af_case, *af_control)
+            };
 
-            p_case + l_control
-        };
-
-        let prob = self.control_sample.prior_model().joint_prob(af_control, &control_event_prob, variant);
+            let mut prob = LogProb::ln_integrate_exp(&density, *af_case.start, *af_case.end, self.grid_points) +
+                           self.control_sample.likelihood_model().likelihood_pileup(control_pileup, *af_control, 0.0);
+            if af_control >= af_case.start {
+                // add the prob for no somatic mutation (af_case=af_control) because the prior is not continuous at that point
+                prob = prob.ln_add_exp(density(*af_control))
+            }
+            prob
+        }).collect_vec());
 
         prob
     }
@@ -128,11 +165,10 @@ impl<P: Sync + priors::Model<ContinousAlleleFreq>, Q: Sync + priors::Model<Discr
 
 
 /// Pileup of observations associated with marginal probability.
-pub struct Pileup<A, B, P, Q> where
-    A: AlleleFreq,
-    B: AlleleFreq,
-    P: priors::Model<A>,
-    Q: priors::Model<B>
+pub struct Pileup<A, B, P> where
+    A: AlleleFreqs,
+    B: AlleleFreqs,
+    P: priors::PairModel<A, B>
 {
     case: Vec<Observation>,
     control: Vec<Observation>,
@@ -141,12 +177,11 @@ pub struct Pileup<A, B, P, Q> where
     variant: Variant,
     a: PhantomData<A>,
     b: PhantomData<B>,
-    p: PhantomData<P>,
-    q: PhantomData<Q>
+    p: PhantomData<P>
 }
 
 
-impl<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>> Pileup<A, B, P, Q> {
+impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> Pileup<A, B, P> {
     /// Create new pileup.
     fn new(case: Vec<Observation>, control: Vec<Observation>, variant: Variant) -> Self {
         Pileup {
@@ -156,12 +191,11 @@ impl<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>> Pil
             variant: variant,
             a: PhantomData,
             b: PhantomData,
-            p: PhantomData,
-            q: PhantomData
+            p: PhantomData
         }
     }
 
-    fn marginal_prob<M: JointModel<A, B, P, Q>>(&self, model: &M) -> LogProb {
+    fn marginal_prob<M: JointModel<A, B, P>>(&self, model: &M) -> LogProb {
         if self.marginal_prob.get().is_none() {
             debug!("Calculating marginal probability.");
 
@@ -172,7 +206,7 @@ impl<A: AlleleFreq, B: AlleleFreq, P: priors::Model<A>, Q: priors::Model<B>> Pil
     }
 
     /// Calculate posterior probability of given allele frequencies.
-    pub fn posterior_prob<M: JointModel<A, B, P, Q>>(&self, model: &M, af_case: &A, af_control: &B) -> LogProb {
+    pub fn posterior_prob<M: JointModel<A, B, P>>(&self, model: &M, af_case: &A, af_control: &B) -> LogProb {
         debug!("Calculating posterior probability. for case={:?} and control={:?}", af_case, af_control);
         let p = model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant);
         let marginal = self.marginal_prob(model);
@@ -200,13 +234,13 @@ mod tests {
     fn test_joint_prob() {
         let variant = Variant::Deletion(3);
         let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
+        let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, 1.0, 0.001);
         let case_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
             insert_size,
-            priors::TumorModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, 1.0, 0.001),
             LatentVariableModel::new(1.0)
         );
         let control_sample = Sample::new(
@@ -215,13 +249,13 @@ mod tests {
             true,
             true,
             insert_size,
-            priors::InfiniteSitesNeutralVariationModel::new(2, 0.001),
             LatentVariableModel::new(1.0)
         );
 
         let model = ContinuousVsDiscreteModel::new(
             case_sample,
-            control_sample
+            control_sample,
+            prior_model
         );
 
         let mut observations = Vec::new();
@@ -234,11 +268,12 @@ mod tests {
             });
         }
 
-        let tumor_all = 0.0..1.0;
-        let tumor_alt = 0.001..1.0;
-        let normal_alt = vec![0.5, 1.0];
-        let normal_ref = vec![0.0];
-
+        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_alt = AlleleFreq(0.001)..AlleleFreq(1.0);
+        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.001);
+        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
+        let normal_ref = vec![AlleleFreq(0.0)];
+        /*
         // scenario 1: same pileup -> germline call
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
         let pileup = Pileup::new(observations.clone(), observations.clone(), variant);
@@ -257,10 +292,10 @@ mod tests {
         pileup.marginal_prob.set(Some(marginal_prob));
         let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        // somatic close to prior for ref in ńormal
-        assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
+        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
+        // without knowledge about germline, the germline prior dominates
+        assert!(p_germline > p_somatic);
         // germline < somatic
-        assert!(p_germline.exp() < pileup.posterior_prob(&model, &tumor_alt, &normal_ref).exp());
         assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
 
         // scenario 3: subclonal variant
@@ -279,7 +314,7 @@ mod tests {
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
-        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
+        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);*/
 
         // scenario 4: absent variant
         observations.clear();
@@ -295,15 +330,15 @@ mod tests {
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
         let pileup = Pileup::new(observations.clone(), observations.clone(), variant);
         pileup.marginal_prob.set(Some(marginal_prob));
-        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        let p_absent = pileup.posterior_prob(&model, &(0.0..0.0), &vec![0.0]);
+        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+
         // germline
         assert_relative_eq!(p_germline.exp(), 0.0, epsilon=0.01);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.01);
         assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.01);
-        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
     }
 
     #[cfg_attr(feature="flame_it", test)]
@@ -349,7 +384,5 @@ mod tests {
         let normal_ref = vec![0.0];
 
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
-
-        flame::dump_html(&mut File::create("flame-graph.html").unwrap(), 0.001).unwrap();
     }
 }

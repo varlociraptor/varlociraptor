@@ -34,16 +34,17 @@ use std::ascii::AsciiExt;
 pub trait Event {
     fn name(&self) -> &str;
 
-    fn tag_name(&self) -> String {
-        format!("PROB_{}", self.name().to_ascii_uppercase())
+    fn tag_name(&self, prefix: &str) -> String {
+        format!("{}_{}", prefix, self.name().to_ascii_uppercase())
     }
 
-    fn header_entry(&self) -> String {
+    fn header_entry(&self, prefix: &str, desc: &str) -> String {
         format!(
             "##INFO=<ID={tag_name},Number=A,Type=Float,\
-            Description=\"PHRED-scaled probability for {name} variant\">",
+            Description=\"{desc} {name} variant\">",
             name=self.name(),
-            tag_name=&self.tag_name()
+            desc=desc,
+            tag_name=&self.tag_name(prefix)
         )
     }
 }
@@ -72,7 +73,7 @@ pub mod case_control {
     use rust_htslib::bcf;
     use bio::stats::{PHREDProb, LogProb};
 
-    use model::priors::AlleleFreq;
+    use model::AlleleFreqs;
     use model::priors;
     use model::JointModel;
     use model;
@@ -85,7 +86,7 @@ pub mod case_control {
     }
 
 
-    pub struct CaseControlEvent<A: AlleleFreq, B: AlleleFreq> {
+    pub struct CaseControlEvent<A: AlleleFreqs, B: AlleleFreqs> {
         /// event name
         pub name: String,
         /// allele frequencies for case sample
@@ -95,19 +96,18 @@ pub mod case_control {
     }
 
 
-    impl<A: AlleleFreq, B: AlleleFreq> super::Event for CaseControlEvent<A, B> {
+    impl<A: AlleleFreqs, B: AlleleFreqs> super::Event for CaseControlEvent<A, B> {
         fn name(&self) -> &str {
             &self.name
         }
     }
 
 
-    fn pileups<A, B, P, Q, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &mut M) -> Result<Vec<model::Pileup<A, B, P, Q>>, Box<Error>> where
-        A: AlleleFreq,
-        B: AlleleFreq,
-        P: priors::Model<A>,
-        Q: priors::Model<B>,
-        M: JointModel<A, B, P, Q>
+    fn pileups<A, B, P, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &mut M) -> Result<Vec<model::Pileup<A, B, P>>, Box<Error>> where
+        A: AlleleFreqs,
+        B: AlleleFreqs,
+        P: priors::PairModel<A, B>,
+        M: JointModel<A, B, P>
     {
         // obtain svlen if it is present or store error
         let svlen = record.info(b"SVLEN").integer().map(|values| values[0]);
@@ -158,18 +158,17 @@ pub mod case_control {
     /// # Returns
     ///
     /// `Result` object with eventual error message.
-    pub fn call<A, B, P, Q, M, R, W>(
+    pub fn call<A, B, P, M, R, W>(
         inbcf: &R,
         outbcf: &W,
         events: &[CaseControlEvent<A, B>],
         complement_event: Option<&ComplementEvent>,
         joint_model: &mut M
     ) -> Result<(), Box<Error>> where
-        A: AlleleFreq,
-        B: AlleleFreq,
-        P: priors::Model<A>,
-        Q: priors::Model<B>,
-        M: JointModel<A, B, P, Q>,
+        A: AlleleFreqs,
+        B: AlleleFreqs,
+        P: priors::PairModel<A, B>,
+        M: JointModel<A, B, P>,
         R: AsRef<Path>,
         W: AsRef<Path>
     {
@@ -177,11 +176,11 @@ pub mod case_control {
         let mut header = bcf::Header::with_template(&inbcf.header);
         for event in events {
             header.push_record(
-                event.header_entry().as_bytes()
+                event.header_entry("PROB", "PHRED-scaled probability for").as_bytes()
             );
         }
         if let Some(complement_event) = complement_event {
-            header.push_record(complement_event.header_entry().as_bytes());
+            header.push_record(complement_event.header_entry("PROB", "PHRED-scaled probability for").as_bytes());
         }
 
 
@@ -209,7 +208,7 @@ pub mod case_control {
                         posterior_probs[(i, j)] = p;
                     }
                     record.push_info_float(
-                        event.tag_name().as_bytes(),
+                        event.tag_name("PROB").as_bytes(),
                         &phred_scale(posterior_probs.row(i).iter())
                     ).unwrap();
                 }
@@ -227,7 +226,7 @@ pub mod case_control {
                         complement_probs.push(p);
                     }
                     record.push_info_float(
-                        complement_event.tag_name().as_bytes(),
+                        complement_event.tag_name("PROB").as_bytes(),
                         &phred_scale(complement_probs.iter())
                     ).unwrap();
                 }

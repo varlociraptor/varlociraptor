@@ -6,6 +6,8 @@ use rusty_machine::learning::SupModel;
 use ordered_float::NotNaN;
 use itertools::Itertools;
 
+use model::AlleleFreq;
+
 
 #[derive(Debug, RustcDecodable, RustcEncodable)]
 pub struct Estimate {
@@ -22,11 +24,11 @@ impl Estimate {
 }
 
 
-pub fn estimate<F: IntoIterator<Item=f64>>(allele_frequencies: F) -> Estimate {
+pub fn estimate<F: IntoIterator<Item=AlleleFreq>>(allele_frequencies: F) -> Estimate {
     let mut observations = BTreeMap::new();
     for f in allele_frequencies {
         // count occurrences of 1 / f
-        *observations.entry(NotNaN::new(1.0 / f).unwrap()).or_insert(0) += 1u64;
+        *observations.entry(NotNaN::new(1.0).unwrap() / f).or_insert(0) += 1u64;
     }
     let reciprocal_freqs = observations.keys().map(|f| **f).collect_vec();
     // calculate the cumulative sum
@@ -54,12 +56,13 @@ pub fn estimate<F: IntoIterator<Item=f64>>(allele_frequencies: F) -> Estimate {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use model::AlleleFreq;
     use itertools::linspace;
 
     #[test]
     fn test_estimate() {
         // example from Williams et al. Nature Genetics 2016.
-        let freqs = linspace(0.12, 0.25, 2539);
+        let freqs = linspace(0.12, 0.25, 2539).map(|af| AlleleFreq(af));
         let estimate = estimate(freqs);
         assert_relative_eq!(estimate.effective_mutation_rate(), 596.16, epsilon=0.01);
     }

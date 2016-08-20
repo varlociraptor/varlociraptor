@@ -1,6 +1,5 @@
 use std::str;
 use std::collections::{HashMap, VecDeque, vec_deque};
-use std::marker::PhantomData;
 use std::cmp;
 
 use rgsl::randist::gaussian::gaussian_pdf;
@@ -9,7 +8,6 @@ use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;
 use bio::stats::{LogProb, PHREDProb};
 
-use model::priors::AlleleFreq;
 use model;
 use model::Variant;
 
@@ -120,17 +118,15 @@ pub struct InsertSize {
 
 
 /// A sequenced sample, e.g., a tumor or a normal sample.
-pub struct Sample<A: AlleleFreq, P: model::priors::Model<A>> {
+pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
     insert_size: InsertSize,
-    prior_model: P,
-    likelihood_model: model::likelihood::LatentVariableModel,
-    a: PhantomData<A>
+    likelihood_model: model::likelihood::LatentVariableModel
 }
 
 
-impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
+impl Sample {
     /// Create a new `Sample`.
     ///
     /// # Arguments
@@ -142,20 +138,13 @@ impl<A: AlleleFreq, P: model::priors::Model<A>> Sample<A, P> {
     /// * `insert_size` - estimated insert size
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
     /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
-    pub fn new(bam: bam::IndexedReader, pileup_window: u32, use_fragment_evidence: bool, use_secondary: bool, insert_size: InsertSize, prior_model: P, likelihood_model: model::likelihood::LatentVariableModel) -> Self {
+    pub fn new(bam: bam::IndexedReader, pileup_window: u32, use_fragment_evidence: bool, use_secondary: bool, insert_size: InsertSize, likelihood_model: model::likelihood::LatentVariableModel) -> Self {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
             insert_size: insert_size,
-            prior_model: prior_model,
-            likelihood_model: likelihood_model,
-            a: PhantomData
+            likelihood_model: likelihood_model
         }
-    }
-
-    /// Return prior model.
-    pub fn prior_model(&self) -> &P {
-        &self.prior_model
     }
 
     /// Return likelihood model.
