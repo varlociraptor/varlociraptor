@@ -67,6 +67,7 @@ impl Event for ComplementEvent {
 pub mod case_control {
     use std::path::Path;
     use std::error::Error;
+    use std::{f64, f32};
 
     use itertools::Itertools;
     use ndarray::prelude::*;
@@ -103,7 +104,7 @@ pub mod case_control {
     }
 
 
-    fn pileups<A, B, P, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &mut M) -> Result<Vec<model::Pileup<A, B, P>>, Box<Error>> where
+    fn pileups<A, B, P, M>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &mut M, omit_snvs: bool, omit_indels: bool) -> Result<Vec<Option<model::Pileup<A, B, P>>>, Box<Error>> where
         A: AlleleFreqs,
         B: AlleleFreqs,
         P: priors::PairModel<A, B>,
@@ -118,8 +119,10 @@ pub mod case_control {
         let variants = if let Ok(svtypes) = svtypes {
             // obtain svlen if it is present or store error
             let svlens = record.info(b"SVLEN").integer().map(|values| values.to_owned());
-            svtypes.iter().zip(try!(svlens)).filter_map(|(svtype, svlen)| {
-                if svtype == b"INS" {
+            svtypes.iter().zip(try!(svlens)).map(|(svtype, svlen)| {
+                if omit_indels {
+                    None
+                } else if svtype == b"INS" {
                     Some(model::Variant::Insertion(svlen.abs() as u32))
                 } else if svtype == b"DEL" {
                     Some(model::Variant::Deletion(svlen.abs() as u32))
@@ -131,11 +134,17 @@ pub mod case_control {
             let alleles = record.alleles();
             let ref_allele = alleles[0];
 
-            alleles.iter().filter_map(|alt_allele| {
+            alleles.iter().map(|alt_allele| {
                 if alt_allele.len() == 1 && ref_allele.len() == 1 {
-                    Some(model::Variant::SNV(alt_allele[0]))
+                    if omit_snvs {
+                        None
+                    } else {
+                        Some(model::Variant::SNV(alt_allele[0]))
+                    }
                 } else if alt_allele.len() == ref_allele.len() {
                     // neither indel nor SNV
+                    None
+                } else if omit_indels {
                     None
                 } else if alt_allele.len() < ref_allele.len() {
                     Some(model::Variant::Deletion((ref_allele.len() - alt_allele.len()) as u32))
@@ -145,10 +154,14 @@ pub mod case_control {
             }).collect_vec()
         };
 
-        let pileups = try!(variants.into_iter().map(|variant| {
-            // obtain pileup and calculate marginal probability
-            joint_model.pileup(chrom, record.pos(), variant)
-        }).collect::<Result<Vec<_>, _>>());
+        let mut pileups = Vec::with_capacity(variants.len());
+        for variant in variants {
+            pileups.push(if let Some(variant) = variant {
+                Some(try!(joint_model.pileup(chrom, record.pos(), variant)))
+            } else {
+                None
+            });
+        }
 
         Ok(pileups)
     }
@@ -171,7 +184,9 @@ pub mod case_control {
         outbcf: &W,
         events: &[CaseControlEvent<A, B>],
         complement_event: Option<&ComplementEvent>,
-        joint_model: &mut M
+        joint_model: &mut M,
+        omit_snvs: bool,
+        omit_indels: bool
     ) -> Result<(), Box<Error>> where
         A: AlleleFreqs,
         B: AlleleFreqs,
@@ -210,13 +225,19 @@ pub mod case_control {
             i += 1;
             // translate to header of the writer
             outbcf.translate(&mut record);
-            let pileups = try!(pileups(&inbcf, &mut record, joint_model));
+            let pileups = try!(pileups(&inbcf, &mut record, joint_model, omit_snvs, omit_indels));
 
             if !pileups.is_empty() {
                 let mut posterior_probs = Array::default((events.len(), pileups.len()));
                 for (i, event) in events.iter().enumerate() {
                     for (j, pileup) in pileups.iter().enumerate() {
-                        let p = pileup.posterior_prob(joint_model, &event.af_case, &event.af_control);
+                        let p = if let &Some(ref pileup) = pileup {
+                            pileup.posterior_prob(joint_model, &event.af_case, &event.af_control)
+                        } else {
+                            // indicate missing value
+                            LogProb(f64::NAN)
+                        };
+
                         posterior_probs[(i, j)] = p;
                     }
                     try!(record.push_info_float(
@@ -244,7 +265,12 @@ pub mod case_control {
                 }
                 try!(record.push_info_float(
                     b"CASE_AF", &pileups.iter().map(|pileup| {
-                        *pileup.expected_case_allele_freq(joint_model) as f32
+                        if let &Some(ref pileup) = pileup {
+                            *pileup.expected_case_allele_freq(joint_model) as f32
+                        } else {
+                            // indicate missing value
+                            f32::NAN
+                        }
                     }).collect_vec()
                 ));
             }
