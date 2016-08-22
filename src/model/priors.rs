@@ -1,7 +1,6 @@
 use std::f64;
 
 use itertools::Itertools;
-use ordered_float::NotNaN;
 use bio::stats::LogProb;
 
 use model::{Variant, AlleleFreqs, ContinousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
@@ -119,7 +118,6 @@ pub struct TumorNormalModel {
     deletion_factor: f64,
     insertion_factor: f64,
     genome_size: u64,
-    purity: NotNaN<f64>,
     allele_freqs_tumor: ContinousAlleleFreqs,
     grid_points: usize
 }
@@ -133,7 +131,6 @@ impl TumorNormalModel {
     /// * `ploidy` - the ploidy in the corresponding normal sample (e.g. 2 for diploid)
     /// * `effective_mutation_rate` - the mutation rate per effective cell division in the tumor
     /// * `genome_size` - the size of the genome
-    /// * `purity` - tumor purity
     /// * `heterozygosity` - expected heterozygosity in the corresponding normal
     pub fn new(
         ploidy: u32,
@@ -141,10 +138,7 @@ impl TumorNormalModel {
         deletion_factor: f64,
         insertion_factor: f64,
         genome_size: u64,
-        purity: f64,
         heterozygosity: f64) -> Self {
-
-        assert!(purity <= 1.0 && purity >= 0.0);
         assert!(effective_mutation_rate < genome_size as f64);
 
         TumorNormalModel {
@@ -153,21 +147,20 @@ impl TumorNormalModel {
             deletion_factor: deletion_factor,
             insertion_factor: insertion_factor,
             genome_size: genome_size,
-            purity: NotNaN::new(purity).expect("Purity cannot be NaN."),
             allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
             grid_points: 50
         }
     }
 
     fn somatic_prior_prob(&self, af_tumor: AlleleFreq, af_normal: AlleleFreq, variant: Variant) -> LogProb {
-        // af_tumor = purity * (af_normal + af_somatic) + impurity * af_normal
+        // af_tumor = af_normal + af_somatic
         // this yields for af_somatic
-        let af_somatic = (af_tumor - af_normal) / self.purity;
+        let af_somatic = af_tumor - af_normal;
         // af_somatic can become negative, meaning that at some point a variant from normal was lost
         // in one cell (LOH!!). Again, the frequency corresponds to time in tumor evolution since the model
         // assumes that all frequencies stay constant. Hence, we can simply take the absolute value
         // of af_somatic here. This is equivalent to calculating
-        // af_tumor = purity * (af_normal - af_somatic) + impurity * af_normal
+        // af_tumor = af_normal - af_somatic
         // for that case.
         let af_somatic = af_somatic.abs();
 
