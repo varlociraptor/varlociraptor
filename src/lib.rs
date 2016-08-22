@@ -182,7 +182,11 @@ pub mod case_control {
         if let Some(complement_event) = complement_event {
             header.push_record(complement_event.header_entry("PROB", "PHRED-scaled probability for").as_bytes());
         }
-
+        // add tag for expected allele frequency
+        header.push_record(
+            b"##INFO=<ID=CASE_AF,Number=A,Type=Float,\
+            Description=\"Conditional expectation of allele frequency in case sample.\">"
+        );
 
         let mut outbcf = try!(bcf::Writer::new(outbcf, &header, false, false));
         let mut record = bcf::Record::new();
@@ -207,10 +211,10 @@ pub mod case_control {
                         let p = pileup.posterior_prob(joint_model, &event.af_case, &event.af_control);
                         posterior_probs[(i, j)] = p;
                     }
-                    record.push_info_float(
+                    try!(record.push_info_float(
                         event.tag_name("PROB").as_bytes(),
                         &phred_scale(posterior_probs.row(i).iter())
-                    ).unwrap();
+                    ));
                 }
                 if let Some(complement_event) = complement_event {
                     let mut complement_probs = Vec::with_capacity(pileups.len());
@@ -225,11 +229,16 @@ pub mod case_control {
                         };
                         complement_probs.push(p);
                     }
-                    record.push_info_float(
+                    try!(record.push_info_float(
                         complement_event.tag_name("PROB").as_bytes(),
                         &phred_scale(complement_probs.iter())
-                    ).unwrap();
+                    ));
                 }
+                try!(record.push_info_float(
+                    b"CASE_AF", &pileups.iter().map(|pileup| {
+                        *pileup.expected_case_allele_freq(joint_model) as f32
+                    }).collect_vec()
+                ));
             }
             try!(outbcf.write(&record));
             if i % 1000 == 0 {

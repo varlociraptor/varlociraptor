@@ -200,6 +200,28 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> Pileup<A, B, P>
         let prob = p - marginal;
         prob
     }
+
+    pub fn expected_case_allele_freq<M: JointModel<A, B, P>>(&self, model: &M) -> AlleleFreq {
+        let case_summand = |af_case: AlleleFreq, af_control: AlleleFreq| {
+            LogProb(
+                *model.case_sample().likelihood_model().likelihood_pileup(&self.case, *af_case, *af_control) +
+                af_case.ln()
+            )
+        };
+        let control_likelihood = |af_control: AlleleFreq, _| {
+            model.control_sample().likelihood_model().likelihood_pileup(&self.control, *af_control, 0.0)
+        };
+
+        let e = model.prior_model().joint_prob(
+            model.prior_model().allele_freqs_case(),
+            model.prior_model().allele_freqs_control(),
+            &case_summand,
+            &control_likelihood,
+            self.variant
+        ) - self.marginal_prob(model);
+
+        AlleleFreq(e.exp())
+    }
 }
 
 
@@ -272,6 +294,7 @@ mod tests {
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0);
         assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
+        assert!(*pileup.expected_case_allele_freq(&model) >= 0.97);
 
         // scenario 2: empty control pileup -> somatic call
         let marginal_prob = model.marginal_prob(&observations, &[], variant);
@@ -285,6 +308,8 @@ mod tests {
         assert!(p_germline > p_absent);
         // germline < somatic
         assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
+        println!("{}", pileup.expected_case_allele_freq(&model));
+        assert!(*pileup.expected_case_allele_freq(&model) >= 0.97);
 
         // scenario 3: subclonal variant
         for _ in 0..50 {
@@ -303,6 +328,7 @@ mod tests {
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
         assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
+        assert_relative_eq!(*pileup.expected_case_allele_freq(&model), 0.09, epsilon=0.02);
 
         // scenario 4: absent variant
         observations.clear();
