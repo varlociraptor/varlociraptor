@@ -263,7 +263,7 @@ mod tests {
     fn test_joint_prob() {
         let variant = Variant::Deletion(3);
         let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
-        let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, 1.0, 0.001);
+        let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, 0.001);
         let case_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,

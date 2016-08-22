@@ -250,17 +250,14 @@ mod tests {
     #[test]
     fn test_tumor() {
         let variant = Variant::Deletion(3);
-        for purity in linspace(0.5, 1.0, 5) {
-            println!("purity {}", purity);
-            let model = TumorNormalModel::new(2, 300.0, 1.0, 1.0, 3e9 as u64, purity, 0.001);
-            println!("af=0.0,0.0 -> {}", *model.prior_prob(AlleleFreq(0.0), AlleleFreq(0.0), variant));
-            println!("af=0.5,0.5 -> {}", *model.prior_prob(AlleleFreq(0.5), AlleleFreq(0.5), variant));
+        let model = TumorNormalModel::new(2, 300.0, 1.0, 1.0, 3e9 as u64, 0.001);
+        println!("af=0.0,0.0 -> {}", *model.prior_prob(AlleleFreq(0.0), AlleleFreq(0.0), variant));
+        println!("af=0.5,0.5 -> {}", *model.prior_prob(AlleleFreq(0.5), AlleleFreq(0.5), variant));
 
-            for af in linspace(0.0, 1.0, 20) {
-                println!("normal={} af={} p={}", 0.0, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(0.0), variant));
-                println!("normal={} af={} p={}", 0.5, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(0.5), variant));
-                println!("normal={} af={} p={}", 1.0, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(1.0), variant));
-            }
+        for af in linspace(0.0, 1.0, 20) {
+            println!("normal={} af={} p={}", 0.0, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(0.0), variant));
+            println!("normal={} af={} p={}", 0.5, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(0.5), variant));
+            println!("normal={} af={} p={}", 1.0, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(1.0), variant));
         }
     }
 }
