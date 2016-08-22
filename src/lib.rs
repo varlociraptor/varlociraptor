@@ -109,38 +109,46 @@ pub mod case_control {
         P: priors::PairModel<A, B>,
         M: JointModel<A, B, P>
     {
-        // obtain svlen if it is present or store error
-        let svlen = record.info(b"SVLEN").integer().map(|values| values[0]);
-        let alleles = record.alleles();
-        let mut pileups = Vec::with_capacity(alleles.len() - 1);
-        let ref_allele = alleles[0];
-        for alt_allele in &alleles {
-            let variant = if alt_allele.len() == 1 && ref_allele.len() == 1 {
-                model::Variant::SNV(alt_allele[0])
-            } else if alt_allele.len() == ref_allele.len() {
-                // neither indel nor SNV
-                continue;
-            } else if alt_allele == b"<DEL>" {
-                // raise error from svlen
-                let length = try!(svlen);
-                model::Variant::Deletion((length.abs()) as u32)
-            } else if alt_allele == b"<INS>" {
-                // raise error from svlen
-                let length = try!(svlen);
-                model::Variant::Insertion(length as u32)
-            } else if alt_allele[0] == b'<' {
-                // other special tag
-                continue;
-            } else if alt_allele.len() < ref_allele.len() {
-                model::Variant::Deletion((ref_allele.len() - alt_allele.len()) as u32)
-            } else {
-                model::Variant::Insertion((alt_allele.len() - ref_allele.len()) as u32)
-            };
-            let chrom = inbcf.header.rid2name(record.rid().expect("reference id not found in header"));
+        let chrom = inbcf.header.rid2name(record.rid().expect("reference id not found in header"));
+        // TODO avoid cloning svtype
+        let svtypes = record.info(b"SVTYPE").string().map(|values| {
+            values.into_iter().map(|svtype| svtype.to_owned()).collect_vec()
+        });
+
+        let variants = if let Ok(svtypes) = svtypes {
+            // obtain svlen if it is present or store error
+            let svlens = record.info(b"SVLEN").integer().map(|values| values.to_owned());
+            svtypes.iter().zip(try!(svlens)).filter_map(|(svtype, svlen)| {
+                if svtype == b"INS" {
+                    Some(model::Variant::Insertion(svlen.abs() as u32))
+                } else if svtype == b"DEL" {
+                    Some(model::Variant::Deletion(svlen.abs() as u32))
+                } else {
+                    None
+                }
+            }).collect_vec()
+        } else {
+            let alleles = record.alleles();
+            let ref_allele = alleles[0];
+
+            alleles.iter().filter_map(|alt_allele| {
+                if alt_allele.len() == 1 && ref_allele.len() == 1 {
+                    Some(model::Variant::SNV(alt_allele[0]))
+                } else if alt_allele.len() == ref_allele.len() {
+                    // neither indel nor SNV
+                    None
+                } else if alt_allele.len() < ref_allele.len() {
+                    Some(model::Variant::Deletion((ref_allele.len() - alt_allele.len()) as u32))
+                } else {
+                    Some(model::Variant::Insertion((alt_allele.len() - ref_allele.len()) as u32))
+                }
+            }).collect_vec()
+        };
+
+        let pileups = try!(variants.into_iter().map(|variant| {
             // obtain pileup and calculate marginal probability
-            let pileup = try!(joint_model.pileup(chrom, record.pos(), variant));
-            pileups.push(pileup);
-        }
+            joint_model.pileup(chrom, record.pos(), variant)
+        }).collect::<Result<Vec<_>, _>>());
 
         Ok(pileups)
     }
