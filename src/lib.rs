@@ -115,12 +115,12 @@ pub mod case_control {
         let mut pileups = Vec::with_capacity(alleles.len() - 1);
         let ref_allele = alleles[0];
         for alt_allele in &alleles {
-            if alt_allele.len() == ref_allele.len() {
-                // no indel
+            let variant = if alt_allele.len() == 1 && ref_allele.len() == 1 {
+                model::Variant::SNV(alt_allele[0])
+            } else if alt_allele.len() == ref_allele.len() {
+                // neither indel nor SNV
                 continue;
-            }
-
-            let variant = if alt_allele == b"<DEL>" {
+            } else if alt_allele == b"<DEL>" {
                 // raise error from svlen
                 let length = try!(svlen);
                 model::Variant::Deletion((length.abs()) as u32)
