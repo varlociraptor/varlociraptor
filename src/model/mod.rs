@@ -33,7 +33,27 @@ impl AlleleFreqs for ContinousAlleleFreqs {}
 #[derive(Copy, Clone)]
 pub enum Variant {
     Deletion(u32),
-    Insertion(u32)
+    Insertion(u32),
+    SNV(u8)
+}
+
+
+impl Variant {
+    pub fn has_fragment_evidence(&self) -> bool {
+        match self {
+            &Variant::Deletion(_)  => true,
+            &Variant::Insertion(_) => true,
+            &Variant::SNV(_)       => false
+        }
+    }
+
+    pub fn is_indel(&self) -> bool {
+        match self {
+            &Variant::Deletion(_)  => true,
+            &Variant::Insertion(_) => true,
+            &Variant::SNV(_)       => false
+        }
+    }
 }
 
 

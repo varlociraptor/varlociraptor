@@ -157,7 +157,8 @@ impl Sample {
         let mut observations = Vec::new();
         let (end, varpos) = match variant {
             Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
-            Variant::Insertion(length) => (start + length, start as i32)
+            Variant::Insertion(length) => (start + length, start as i32),
+            Variant::SNV(_) => (start, start as i32)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
@@ -177,7 +178,10 @@ impl Sample {
                 // overlapping alignment
                 observations.push(self.read_observation(&record, &cigar, varpos, variant));
                 n_overlap += 1;
-            } else if self.use_fragment_evidence && (record.is_first_in_template() || record.is_last_in_template()) {
+            } else if variant.has_fragment_evidence() &&
+                      self.use_fragment_evidence &&
+                      (record.is_first_in_template() || record.is_last_in_template())
+            {
                 if end_pos <= varpos {
                     // need to check mate
                     // since the bam file is sorted by position, we can't see the mate first
@@ -195,12 +199,19 @@ impl Sample {
     }
 
     fn read_observation(&self, record: &bam::Record, cigar: &[Cigar], varpos: i32, variant: Variant) -> Observation {
-        let (length, is_del) = match variant {
-            Variant::Deletion(length) => (length, true),
-            Variant::Insertion(length) => (length, false)
-        };
         let is_close = |qpos: i32, qlength: u32| (varpos - (qpos + qlength as i32 / 2)).abs() <= 50;
-        let is_similar_length = |qlength: u32| (length as i32 - qlength as i32).abs() <= 20;
+        let is_similar_length = |qlength: u32, varlength: u32| (varlength as i32 - qlength as i32).abs() <= 20;
+        let contains_varpos = |qpos: i32, qlength: u32|  qpos >= varpos && qpos + qlength as i32 <= varpos;
+        let snv_prob_alt = |base: u8| {
+            // position in read
+            let i = (varpos - record.pos()) as usize;
+            let prob_miscall = LogProb::from(PHREDProb::from(record.qual()[i] as f64));
+            if record.seq()[i] == base {
+                prob_miscall.ln_one_minus_exp()
+            } else {
+                prob_miscall
+            }
+        };
 
         let mut qpos = record.pos();
         let prob_mapping = prob_mapping(record.mapq());
@@ -211,17 +222,30 @@ impl Sample {
             prob_mismapped: LogProb::ln_one() // if the read is mismapped, we assume sampling probability 1.0
         };
         for c in cigar {
-            match c {
-                &Cigar::Match(l) | &Cigar::RefSkip(l) | &Cigar::Equal(l) | &Cigar::Diff(l) => qpos += l as i32,
-                &Cigar::Back(l) => qpos -= l as i32,
-                &Cigar::Del(l) if is_del && is_similar_length(l) && is_close(qpos, l) => {
+            match (c, variant) {
+                // potential SNV evidence
+                (&Cigar::Match(l), Variant::SNV(base)) |
+                (&Cigar::Diff(l), Variant::SNV(base))
+                if contains_varpos(qpos, l) => {
+                    obs.prob_alt = snv_prob_alt(base);
+                    obs.prob_ref = obs.prob_alt.ln_one_minus_exp();
+                    return obs;
+                },
+                // potential indel evidence
+                (&Cigar::Del(l), Variant::Deletion(length)) |
+                (&Cigar::Ins(l), Variant::Insertion(length))
+                if is_similar_length(l, length) && is_close(qpos, l) => {
                     // supports alt allele
                     return obs;
                 },
-                &Cigar::Ins(l) if !is_del && is_similar_length(l) && is_close(qpos, l) => {
-                    // supports alt allele
-                    return obs;
-                }
+                // other
+                (&Cigar::Match(l), _) |
+                (&Cigar::RefSkip(l), _) |
+                (&Cigar::Equal(l), _) |
+                (&Cigar::Diff(l), _) |
+                (&Cigar::Del(l), _) |
+                (&Cigar::Ins(l), _) => qpos += l as i32,
+                (&Cigar::Back(l), _) => qpos -= l as i32,
                 _ => ()
             }
         }
@@ -236,12 +260,17 @@ impl Sample {
         let insert_size = record.insert_size();
         let shift = match variant {
             Variant::Deletion(length)  => length as f64,
-            Variant::Insertion(length) => -(length as f64)
+            Variant::Insertion(length) => -(length as f64),
+            Variant::SNV(_) => panic!("no fragment observations for SNV")
         };
         let obs = Observation {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
-            prob_alt: LogProb(gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd).ln()),
-            prob_ref: LogProb(gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd).ln()),
+            prob_alt: LogProb(
+                gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd).ln()
+            ),
+            prob_ref: LogProb(
+                gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd).ln()
+            ),
             prob_mismapped: LogProb::ln_one() // if the fragment is mismapped, we assume sampling probability 1.0
         };
 
