@@ -210,11 +210,12 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
             let p_tumor = LogProb::ln_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points);
             let p_normal = likelihood_normal(af_normal, AlleleFreq(0.0));
             let mut prob = p_tumor + p_normal;
-            if af_normal >= af_tumor.start {
-                // add the prob for no somatic mutation (af_case=af_control) because the prior is not continuous at that point
-                prob = prob.ln_add_exp(density(*af_normal));
+
+            if *af_tumor.start == 0.0 {
+                // add density for af_tumor=0 because the prior is not continuous at that frequency
+                prob = prob.ln_add_exp(density(0.0));
             }
-            debug!("af_normal={}, prob={}, p_tumor*prior={}, l_normal={}, d_aux={}", af_normal, *prob, *p_tumor, *p_normal, *density(*af_normal));
+
             prob
         }).collect_vec());
 

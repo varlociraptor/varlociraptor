@@ -373,59 +373,64 @@ mod tests {
         let marginal_prob = model.marginal_prob(&observations, &observations, variant);
         let pileup = Pileup::new(observations.clone(), observations.clone(), variant);
         pileup.marginal_prob.set(Some(marginal_prob));
-        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
 
         // germline
         assert_relative_eq!(p_germline.exp(), 0.0, epsilon=0.01);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.01);
+        println!("1 - ({} + {}) = {}", p_somatic.exp(), p_germline.exp(), 1.0 - p_somatic.exp() - p_germline.exp());
         assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.01);
     }
 
-    #[cfg_attr(feature="flame_it", test)]
-    #[cfg(feature="flame_it")]
-    fn profile() {
-        let variant = Variant::Deletion(3);
-        let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
+    #[test]
+    fn test_example1() {
+        let variant = Variant::Insertion(2);
+        let case_obs = vec![Observation { prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0025150465111820103), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.007974998278512672), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0031723009285603327), prob_alt: LogProb(-111.18254428986242), prob_ref: LogProb(-109.23587762319576), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.003994511005101995), prob_alt: LogProb(-113.14698873430689), prob_ref: LogProb(-111.18254428986242), prob_mismapped: LogProb::ln_one() }];
+        let control_obs = vec![Observation { prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.00025122019630215495), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0001585018800054507), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0006311564818346603), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.003989017266406586), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }];
+
+        let insert_size = InsertSize{ mean: 112.0, sd: 15.0 };
+        let prior_model = priors::TumorNormalModel::new(2, 40000.0, 0.5, 0.5, 3e9 as u64, 1.25E-4);
         let case_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
+            true,
             insert_size,
-            priors::TumorModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, 1.0, 0.001),
-            LatentVariableModel::new(1.0)
+            LatentVariableModel::new(0.75)
         );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
+            true,
             insert_size,
-            priors::InfiniteSitesNeutralVariationModel::new(2, 0.001),
             LatentVariableModel::new(1.0)
         );
 
         let model = ContinuousVsDiscreteModel::new(
             case_sample,
-            control_sample
+            control_sample,
+            prior_model
         );
 
-        let mut observations = Vec::new();
-        for _ in 0..1 {
-            observations.push(Observation{
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_one(),
-                prob_ref: LogProb::ln_zero(),
-                prob_mismapped: LogProb::ln_one()
-            });
-        }
+        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_alt = AlleleFreq(0.05)..AlleleFreq(1.0);
+        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.001);
+        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
+        let normal_ref = vec![AlleleFreq(0.0)];
 
-        let tumor_all = 0.0..1.0;
-        let tumor_alt = 0.001..1.0;
-        let normal_alt = vec![0.5, 1.0];
-        let normal_ref = vec![0.0];
+        let pileup = Pileup::new(case_obs, control_obs, variant);
 
-        let marginal_prob = model.marginal_prob(&observations, &observations, variant);
+        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
+        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+        println!("{} {} {}", p_absent.exp(), p_somatic.exp(), p_germline.exp());
+
+        assert!(p_somatic.exp() > 0.9);
+        assert!(p_somatic > p_germline);
+        assert!(p_somatic > p_absent);
     }
 }
