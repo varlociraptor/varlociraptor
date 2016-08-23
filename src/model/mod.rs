@@ -173,7 +173,9 @@ impl<P: Sync + priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> Joi
             p
         };
 
-        self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, variant)
+        let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, variant);
+        debug!("Pr(D, f_case={:?}, f_control={:?}) = {}", af_case, af_control, p.exp());
+        p
     }
 }
 
