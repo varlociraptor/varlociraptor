@@ -163,10 +163,14 @@ impl<P: Sync + priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> Joi
         variant: Variant
     ) -> LogProb {
         let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
-            self.case_sample.likelihood_model().likelihood_pileup(case_pileup, *af_case, *af_control)
+            let p = self.case_sample.likelihood_model().likelihood_pileup(case_pileup, *af_case, *af_control);
+            debug!("Pr(D_case | f_case={}, f_control={})={}", af_case, af_control, p.exp());
+            p
         };
         let control_likelihood = |af_control: AlleleFreq, _| {
-            self.control_sample.likelihood_model().likelihood_pileup(control_pileup, *af_control, 0.0)
+            let p = self.control_sample.likelihood_model().likelihood_pileup(control_pileup, *af_control, 0.0);
+            debug!("Pr(D_control | f_control={})={}", af_control, p.exp());
+            p
         };
 
         self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, variant)
