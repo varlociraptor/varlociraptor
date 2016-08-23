@@ -2,7 +2,7 @@ use std::str;
 use std::collections::{HashMap, VecDeque, vec_deque};
 use std::cmp;
 
-use rgsl::randist::gaussian::gaussian_pdf;
+use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;
@@ -265,18 +265,29 @@ impl Sample {
         };
         let obs = Observation {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
-            prob_alt: LogProb(
-                gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd).ln()
-            ),
-            prob_ref: LogProb(
-                gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd).ln()
-            ),
+            prob_alt: isize_density(insert_size as f64, self.insert_size.mean + shift, self.insert_size.sd),
+            prob_ref: isize_density(insert_size as f64, self.insert_size.mean, self.insert_size.sd),
             prob_mismapped: LogProb::ln_one() // if the fragment is mismapped, we assume sampling probability 1.0
         };
 
         obs
     }
 }
+
+fn isize_density(value: f64, mean: f64, sd: f64) -> LogProb {
+    LogProb(gaussian_pdf(value - mean, sd).ln())
+}
+
+/*
+// TODO density from the paper does not yield a probability (something is missing...)
+fn isize_density(value: f64, mean: f64, sd: f64) -> LogProb {
+    LogProb(
+        (
+            ugaussian_P((value - mean - 1.0) / sd) -
+            ugaussian_P((value - mean) / sd)
+        ).ln() - ugaussian_P(-mean / sd).ln()
+    )
+}*/
 
 
 #[cfg(test)]
@@ -365,18 +376,19 @@ mod tests {
 
     #[test]
     fn test_fragment_observation_evidence() {
-        let sample = setup_sample(200.0);
+        let sample = setup_sample(100.0);
         let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
 
         let variant = model::Variant::Deletion(50);
         for record in &records {
             let obs = sample.fragment_observation(record, 60u8, variant);
+            println!("{:?}", obs);
             assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
             assert!(obs.prob_alt > obs.prob_ref);
         }
 
-        let sample = setup_sample(100.0);
+        let sample = setup_sample(200.0);
         let variant = model::Variant::Insertion(50);
         for record in &records {
             let obs = sample.fragment_observation(record, 60u8, variant);
