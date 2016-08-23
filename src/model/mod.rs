@@ -381,7 +381,6 @@ mod tests {
         assert_relative_eq!(p_germline.exp(), 0.0, epsilon=0.01);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.01);
-        println!("1 - ({} + {}) = {}", p_somatic.exp(), p_germline.exp(), 1.0 - p_somatic.exp() - p_germline.exp());
         assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.01);
     }
 
