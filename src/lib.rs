@@ -15,6 +15,8 @@ extern crate ordered_float;
 #[macro_use]
 extern crate ndarray;
 extern crate rustc_serialize;
+#[macro_use]
+extern crate quick_error;
 
 #[cfg(feature="flame_it")]
 extern crate flame;

@@ -1,8 +1,9 @@
 use std::str;
 use std::collections::{HashMap, VecDeque, vec_deque};
 use std::cmp;
+use std::error::Error;
 
-use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
+use rgsl::randist::gaussian::gaussian_pdf;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;
@@ -14,6 +15,17 @@ use model::Variant;
 
 pub fn prob_mapping(mapq: u8) -> LogProb {
     LogProb::from(PHREDProb(mapq as f64)).ln_one_minus_exp()
+}
+
+
+quick_error! {
+    #[derive(Debug)]
+    pub enum RecordBufferError {
+        UnknownSequence(chrom: String) {
+            description("unknown sequence")
+            display("sequence {} cannot be found in BAM", chrom)
+        }
+    }
 }
 
 
@@ -48,14 +60,12 @@ impl RecordBuffer {
     }
 
     /// Fill buffer around the given interval.
-    pub fn fill(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<(), String> {
+    pub fn fill(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<(), Box<Error>> {
         if let Some(tid) = self.reader.header.tid(chrom) {
             let window_start = cmp::max(start as i32 - self.window as i32 - 1, 0) as u32;
             if self.inner.is_empty() || self.end().unwrap() < window_start {
                 let end = self.reader.header.target_len(tid).unwrap();
-                if self.reader.seek(tid, window_start, end).is_err() {
-                    return Err(format!("Unable to seek to variant at {}:{}", str::from_utf8(chrom).unwrap(), start));
-                }
+                try!(self.reader.seek(tid, window_start, end));
                 self.inner.clear();
             } else {
                 // remove records too far left
@@ -65,10 +75,7 @@ impl RecordBuffer {
 
             // extend to the right
             for record in self.reader.records() {
-                let record = match record {
-                    Err(_) => return Err("Error reading BAM record.".to_owned()),
-                    Ok(rec) => rec
-                };
+                let record = try!(record);
                 let pos = record.pos();
                 if record.is_duplicate() || record.is_unmapped() {
                     continue;
@@ -84,7 +91,7 @@ impl RecordBuffer {
 
             Ok(())
         } else {
-            Err(format!("Sequence {} cannot be found in BAM", str::from_utf8(chrom).unwrap()))
+            Err(Box::new(RecordBufferError::UnknownSequence(str::from_utf8(chrom).unwrap().to_owned())))
         }
     }
 
@@ -153,7 +160,7 @@ impl Sample {
     }
 
     /// Extract observations for the given variant.
-    pub fn extract_observations(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Vec<Observation>, String> {
+    pub fn extract_observations(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Vec<Observation>, Box<Error>> {
         let mut observations = Vec::new();
         let (end, varpos) = match variant {
             Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
