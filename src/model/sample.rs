@@ -282,6 +282,13 @@ impl Sample {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use model;
+    use likelihood;
+
+    use itertools::Itertools;
+    use rust_htslib::bam;
+    use rust_htslib::bam::Read;
+    use bio::stats::{LogProb, PHREDProb};
 
     #[test]
     fn test_prob_mapping() {
@@ -289,5 +296,35 @@ mod tests {
         assert_relative_eq!(prob_mapping(10).exp(), 0.9);
         assert_relative_eq!(prob_mapping(20).exp(), 0.99);
         assert_relative_eq!(prob_mapping(30).exp(), 0.999);
+    }
+
+    #[test]
+    fn test_read_observation_indel() {
+        let variant = model::Variant::Insertion(10);
+        // insertion starts at 528 + 20 and has length 10
+        let varpos = 528 + 20 + 5;
+        let mut bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let records = bam.records().collect_vec();
+
+        let sample = Sample::new(
+            bam::IndexedReader::new(&"tests/indels.bam").unwrap(),
+            2500,
+            true,
+            true,
+            InsertSize { mean: 250.0, sd: 60.0 },
+            likelihood::LatentVariableModel::new(1.0)
+        );
+
+        let true_alt_probs = [LogProb::ln_one(), LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_one(), LogProb::ln_zero()];
+
+        for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
+            let record = record.unwrap();
+            let cigar = record.cigar();
+            let obs = sample.read_observation(&record, &cigar, varpos, variant);
+            assert_relative_eq!(*obs.prob_alt, **true_alt_prob);
+            assert_relative_eq!(*obs.prob_ref, *obs.prob_alt.ln_one_minus_exp());
+            assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
+            assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
+        }
     }
 }
