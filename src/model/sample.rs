@@ -257,7 +257,7 @@ impl Sample {
     }
 
     fn fragment_observation(&self, record: &bam::Record, mate_mapq: u8, variant: Variant) -> Observation {
-        let insert_size = record.insert_size();
+        let insert_size = record.insert_size().abs();
         let shift = match variant {
             Variant::Deletion(length)  => length as f64,
             Variant::Insertion(length) => -(length as f64),
@@ -266,10 +266,10 @@ impl Sample {
         let obs = Observation {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
             prob_alt: LogProb(
-                gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd).ln()
+                gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd).ln()
             ),
             prob_ref: LogProb(
-                gaussian_pdf(insert_size as f64 - self.insert_size.mean + shift, self.insert_size.sd).ln()
+                gaussian_pdf(insert_size as f64 - self.insert_size.mean, self.insert_size.sd).ln()
             ),
             prob_mismapped: LogProb::ln_one() // if the fragment is mismapped, we assume sampling probability 1.0
         };
@@ -298,22 +298,26 @@ mod tests {
         assert_relative_eq!(prob_mapping(30).exp(), 0.999);
     }
 
+    fn setup_sample(isize_mean: f64) -> Sample {
+        Sample::new(
+            bam::IndexedReader::new(&"tests/indels.bam").unwrap(),
+            2500,
+            true,
+            true,
+            InsertSize { mean: isize_mean, sd: 20.0 },
+            likelihood::LatentVariableModel::new(1.0)
+        )
+    }
+
     #[test]
     fn test_read_observation_indel() {
         let variant = model::Variant::Insertion(10);
         // insertion starts at 528 + 20 and has length 10
         let varpos = 528 + 20 + 5;
-        let mut bam = bam::Reader::new(&"tests/indels.bam").unwrap();
-        let records = bam.records().collect_vec();
 
-        let sample = Sample::new(
-            bam::IndexedReader::new(&"tests/indels.bam").unwrap(),
-            2500,
-            true,
-            true,
-            InsertSize { mean: 250.0, sd: 60.0 },
-            likelihood::LatentVariableModel::new(1.0)
-        );
+        let sample = setup_sample(150.0);
+        let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let records = bam.records().collect_vec();
 
         let true_alt_probs = [LogProb::ln_one(), LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_one(), LogProb::ln_zero()];
 
@@ -325,6 +329,59 @@ mod tests {
             assert_relative_eq!(*obs.prob_ref, *obs.prob_alt.ln_one_minus_exp());
             assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
             assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
+        }
+    }
+
+    #[test]
+    fn test_fragment_observation_no_evidence() {
+        let sample = setup_sample(150.0);
+        let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
+
+        for varlen in &[0, 5, 10, 100] {
+            let variant = model::Variant::Insertion(*varlen);
+            for record in &records {
+                let obs = sample.fragment_observation(record, 60u8, variant);
+                println!("{:?}", obs);
+                if *varlen == 0 {
+                    assert_relative_eq!(*obs.prob_ref, *obs.prob_alt);
+                } else {
+                    assert!(obs.prob_ref > obs.prob_alt);
+                }
+            }
+
+            let variant = model::Variant::Deletion(*varlen);
+            for record in &records {
+                let obs = sample.fragment_observation(record, 60u8, variant);
+                println!("{:?}", obs);
+                if *varlen == 0 {
+                    assert_relative_eq!(*obs.prob_ref, *obs.prob_alt);
+                } else {
+                    assert!(obs.prob_ref > obs.prob_alt);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_fragment_observation_evidence() {
+        let sample = setup_sample(200.0);
+        let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
+
+        let variant = model::Variant::Deletion(50);
+        for record in &records {
+            let obs = sample.fragment_observation(record, 60u8, variant);
+            assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
+            assert!(obs.prob_alt > obs.prob_ref);
+        }
+
+        let sample = setup_sample(100.0);
+        let variant = model::Variant::Insertion(50);
+        for record in &records {
+            let obs = sample.fragment_observation(record, 60u8, variant);
+            assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
+            assert!(obs.prob_alt > obs.prob_ref);
         }
     }
 }
