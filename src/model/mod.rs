@@ -94,9 +94,11 @@ pub trait JointModel<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>>
     /// # Returns
     /// The `Pileup`, or an error message.
     fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<A, B, P>, Box<Error>> {
+        debug!("Case pileup");
         let case_pileup = try!(self.case_sample_mut().extract_observations(chrom, start, variant));
+        debug!("Control pileup");
         let control_pileup = try!(self.control_sample_mut().extract_observations(chrom, start, variant));
-        debug!("Obtained pileup (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
+        debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         Ok(Pileup::new(
             case_pileup,
             control_pileup,

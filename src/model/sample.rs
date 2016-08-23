@@ -202,6 +202,7 @@ impl Sample {
             }
         }
         debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
+        debug!("{:?}", observations);
         Ok(observations)
     }
 
@@ -243,6 +244,7 @@ impl Sample {
                 (&Cigar::Ins(l), Variant::Insertion(length))
                 if is_similar_length(l, length) && is_close(qpos, l) => {
                     // supports alt allele
+                    debug!("Observation supports alt allele.");
                     return obs;
                 },
                 // other
@@ -256,6 +258,8 @@ impl Sample {
                 _ => ()
             }
         }
+
+        debug!("Observation supports ref allele.");
 
         // support ref allele
         obs.prob_alt = LogProb::ln_zero();
