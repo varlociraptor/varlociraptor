@@ -156,6 +156,7 @@ impl TumorNormalModel {
         genome_size: u64,
         heterozygosity: f64) -> Self {
         assert!(effective_mutation_rate < genome_size as f64);
+        let af_min = AlleleFreq((effective_mutation_rate / genome_size as f64).sqrt());
 
         TumorNormalModel {
             normal_model: InfiniteSitesNeutralVariationModel::new(ploidy, heterozygosity),
@@ -165,7 +166,7 @@ impl TumorNormalModel {
             genome_size: genome_size,
             allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
             grid_points: 50,
-            af_min: AlleleFreq((effective_mutation_rate / genome_size as f64).sqrt())
+            af_min: af_min
         }
     }
 
@@ -252,7 +253,7 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
                 let p = self.prior_prob(af_tumor, af_normal, variant) +
                         likelihood_tumor(af_tumor, af_normal) +
                         likelihood_normal(af_normal, AlleleFreq(0.0));
-                println!("af {} vs {} = {} (prior={} tumor={} normal={})", *af_tumor, af_normal, *p, *self.prior_prob(af_tumor, af_normal, variant), *likelihood_tumor(af_tumor, af_normal), *likelihood_normal(af_normal, AlleleFreq(0.0)));
+                //println!("af {} vs {} = {} (prior={} tumor={} normal={})", *af_tumor, af_normal, *p, *self.prior_prob(af_tumor, af_normal, variant), *likelihood_tumor(af_tumor, af_normal), *likelihood_normal(af_normal, AlleleFreq(0.0)));
                 NotNaN::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
