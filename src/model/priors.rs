@@ -134,7 +134,8 @@ pub struct TumorNormalModel {
     insertion_factor: f64,
     genome_size: u64,
     allele_freqs_tumor: ContinousAlleleFreqs,
-    grid_points: usize
+    grid_points: usize,
+    af_min: AlleleFreq
 }
 
 
@@ -163,7 +164,8 @@ impl TumorNormalModel {
             insertion_factor: insertion_factor,
             genome_size: genome_size,
             allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
-            grid_points: 50
+            grid_points: 50,
+            af_min: AlleleFreq((effective_mutation_rate / genome_size as f64).sqrt())
         }
     }
 
@@ -180,7 +182,7 @@ impl TumorNormalModel {
         let af_somatic = af_somatic.abs();
 
         // mu/beta * 1 / (af**2 * n)
-        if af_somatic == 0.0 {
+        if af_somatic <= *self.af_min {
             // TODO fmin
             return LogProb::ln_one();
         }
@@ -200,8 +202,10 @@ impl TumorNormalModel {
 impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
 
     fn prior_prob(&self, af_tumor: AlleleFreq, af_normal: AlleleFreq, variant: Variant) -> LogProb {
-        self.somatic_prior_prob(af_tumor, af_normal, variant) +
-        self.normal_model.prior_prob(af_normal, variant)
+        let p = self.somatic_prior_prob(af_tumor, af_normal, variant) +
+                self.normal_model.prior_prob(af_normal, variant);
+        assert!(*p <= 0.0);
+        p
     }
 
     fn joint_prob<L, O>(
@@ -248,6 +252,7 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
                 let p = self.prior_prob(af_tumor, af_normal, variant) +
                         likelihood_tumor(af_tumor, af_normal) +
                         likelihood_normal(af_normal, AlleleFreq(0.0));
+                println!("af {} vs {} = {} (prior={} tumor={} normal={})", *af_tumor, af_normal, *p, *self.prior_prob(af_tumor, af_normal, variant), *likelihood_tumor(af_tumor, af_normal), *likelihood_normal(af_normal, AlleleFreq(0.0)));
                 NotNaN::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
