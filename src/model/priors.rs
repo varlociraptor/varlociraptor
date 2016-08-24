@@ -248,7 +248,6 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
                 let p = self.prior_prob(af_tumor, af_normal, variant) +
                         likelihood_tumor(af_tumor, af_normal) +
                         likelihood_normal(af_normal, AlleleFreq(0.0));
-                println!("af {} vs {} = {}", *af_tumor, af_normal, *p);
                 NotNaN::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
