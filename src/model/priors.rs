@@ -224,12 +224,7 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
 
             let p_tumor = LogProb::ln_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points);
             let p_normal = likelihood_normal(af_normal, AlleleFreq(0.0));
-            let mut prob = p_tumor + p_normal;
-
-            if *af_tumor.start == 0.0 {
-                // add density for af_tumor=0 because the prior is not continuous at that frequency
-                prob = prob.ln_add_exp(density(0.0));
-            }
+            let prob = p_tumor + p_normal;
 
             prob
         }).collect_vec());
@@ -250,11 +245,11 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         let (_, (map_normal, map_tumor)) = self.normal_model.allele_freqs().iter().cartesian_product(af_case).minmax_by_key(
             |&(&af_normal, af_tumor)| {
                 let af_tumor = AlleleFreq(af_tumor);
-                NotNaN::new(
-                    *(self.prior_prob(af_tumor, af_normal, variant) +
-                    likelihood_tumor(af_tumor, af_normal) +
-                    likelihood_normal(af_normal, AlleleFreq(0.0)))
-                ).expect("posterior probability is NaN")
+                let p = self.prior_prob(af_tumor, af_normal, variant) +
+                        likelihood_tumor(af_tumor, af_normal) +
+                        likelihood_normal(af_normal, AlleleFreq(0.0));
+                println!("af {} vs {} = {}", *af_tumor, af_normal, *p);
+                NotNaN::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
 

@@ -285,6 +285,8 @@ mod tests {
     use std::fs::File;
     #[cfg(feature="flame_it")]
     use flame;
+    use csv;
+    use itertools::Itertools;
 
     #[test]
     fn test_joint_prob() {
@@ -350,10 +352,8 @@ mod tests {
         pileup.marginal_prob.set(Some(marginal_prob));
         let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
         // without knowledge about germline, the germline prior dominates
         assert!(p_germline > p_somatic);
-        assert!(p_germline > p_absent);
         // germline < somatic
         assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
         assert!(*pileup.map_allele_freqs(&model).0 >= 0.97);
@@ -395,13 +395,11 @@ mod tests {
         pileup.marginal_prob.set(Some(marginal_prob));
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
-        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
 
         // germline
         assert_relative_eq!(p_germline.exp(), 0.0, epsilon=0.01);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.01);
-        assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.01);
     }
 
     #[test]
@@ -451,5 +449,59 @@ mod tests {
         assert!(p_somatic.exp() > 0.9);
         assert!(p_somatic > p_germline);
         assert!(p_somatic > p_absent);
+    }
+
+    #[test]
+    fn test_example2() {
+        let mut reader = csv::Reader::from_file("tests/example2.obs.txt").expect("error reading example").delimiter(b'\t');
+        let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
+        let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
+            sample == "case"
+        });
+        let case_obs = groups.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        let control_obs = groups.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+
+
+        let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
+        let prior_model = priors::TumorNormalModel::new(2, 40000.0, 0.01, 0.03, 3e9 as u64, 1.25E-4);
+        let case_sample = Sample::new(
+            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            5000,
+            true,
+            true,
+            insert_size,
+            LatentVariableModel::new(0.75)
+        );
+        let control_sample = Sample::new(
+            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            5000,
+            true,
+            true,
+            insert_size,
+            LatentVariableModel::new(1.0)
+        );
+
+        let model = ContinuousVsDiscreteModel::new(
+            case_sample,
+            control_sample,
+            prior_model
+        );
+
+        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_alt = AlleleFreq(0.05)..AlleleFreq(1.0);
+        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.001);
+        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
+        let normal_ref = vec![AlleleFreq(0.0)];
+
+        let variant = Variant::Insertion(4);
+        let pileup = Pileup::new(case_obs, control_obs, variant);
+
+        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+        let (af_case, af_control) = pileup.map_allele_freqs(&model);
+        println!("{} {}", p_somatic.exp(), p_germline.exp());
+
+        assert!(p_somatic > p_germline);
+        assert_relative_eq!(*af_case, 0.1, epsilon = 0.005);
     }
 }
