@@ -71,8 +71,7 @@ pub mod case_control {
     use std::path::Path;
     use std::error::Error;
     use std::{f64, f32};
-
-    use rustc_serialize::json;
+    use std::str;
 
     use itertools::Itertools;
     use ndarray::prelude::*;
@@ -116,7 +115,7 @@ pub mod case_control {
         P: priors::PairModel<A, B>,
         M: JointModel<A, B, P>
     {
-        let chrom = inbcf.header.rid2name(record.rid().expect("reference id not found in header"));
+        let chrom = chrom(&inbcf, &record);
         // TODO avoid cloning svtype
         let svtypes = record.info(b"SVTYPE").string().map(|values| {
             values.into_iter().map(|svtype| svtype.to_owned()).collect_vec()
@@ -229,7 +228,10 @@ pub mod case_control {
 
         let mut outbcf = try!(bcf::Writer::new(outbcf, &header, false, false));
         let mut outobs = if let Some(f) = outobs {
-            Some(try!(csv::Writer::from_file(f)))
+            let mut writer = try!(csv::Writer::from_file(f)).delimiter(b'\t');
+            // write header for observations
+            try!(writer.write(["chrom", "pos", "allele", "sample", "prob_mapping", "prob_alt", "prob_ref", "prob_mismapped"].iter()));
+            Some(writer)
         } else { None };
         let mut record = bcf::Record::new();
         let mut i = 0;
@@ -298,16 +300,17 @@ pub mod case_control {
                 try!(record.push_info_float(b"CONTROL_AF", &control_afs));
 
                 if let Some(ref mut outobs) = outobs {
-                    let mut items = Vec::with_capacity(pileups.len());
-                    for pileup in &pileups {
+                    let chrom = str::from_utf8(chrom(&inbcf, &record)).unwrap();
+                    for (i, pileup) in pileups.iter().enumerate() {
                         if let &Some(ref pileup) = pileup {
-                            let case_obs = try!(json::encode(&pileup.case_observations()));
-                            let control_obs = try!(json::encode(&pileup.case_observations()));
-                            items.push(case_obs);
-                            items.push(control_obs);
+                            for obs in pileup.case_observations() {
+                                try!(outobs.encode((chrom, record.pos(), i, "case", obs)));
+                            }
+                            for obs in pileup.control_observations() {
+                                try!(outobs.encode((chrom, record.pos(), i, "control", obs)));
+                            }
                         }
                     }
-                    try!(outobs.write(items.iter()));
                 }
             }
             try!(outbcf.write(&record));
@@ -315,5 +318,9 @@ pub mod case_control {
                 info!("{} records processed.", i);
             }
         }
+    }
+
+    fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
+        inbcf.header.rid2name(record.rid().unwrap())
     }
 }
