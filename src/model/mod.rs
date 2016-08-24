@@ -261,6 +261,14 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> Pileup<A, B, P>
     pub fn map_allele_freqs<M: JointModel<A, B, P>>(&self, model: &M) -> (AlleleFreq, AlleleFreq) {
         model.map_allele_freqs(&self.case, &self.control, self.variant)
     }
+
+    pub fn case_observations(&self) -> &[Observation] {
+        &self.case
+    }
+
+    pub fn control_observations(&self) -> &[Observation] {
+        &self.control
+    }
 }
 
 

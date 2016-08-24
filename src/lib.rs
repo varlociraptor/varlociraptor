@@ -17,6 +17,7 @@ extern crate ndarray;
 extern crate rustc_serialize;
 #[macro_use]
 extern crate quick_error;
+extern crate csv;
 
 #[cfg(feature="flame_it")]
 extern crate flame;
@@ -71,8 +72,11 @@ pub mod case_control {
     use std::error::Error;
     use std::{f64, f32};
 
+    use rustc_serialize::json;
+
     use itertools::Itertools;
     use ndarray::prelude::*;
+    use csv;
     use rust_htslib::bcf;
     use bio::stats::{PHREDProb, LogProb};
 
@@ -175,27 +179,33 @@ pub mod case_control {
     ///
     /// * `inbcf` - path to BCF/VCF with preprocessed variant calls (`"-"` for STDIN).
     /// * `outbcf` - path to BCF/VCF with results (`"-"` for STDOUT).
-    /// * `events` - Events to call.
-    /// * `joint_model` - Calling model to use.
+    /// * `events` - events to call
+    /// * `complement_event` - optional complementary event to call (e.g. absent)
+    /// * `joint_model` - calling model to use
+    /// * `omit_snvs` - omit single nucleotide variants
+    /// * `omit_indels` - omit indels
+    /// * `outobs` - optional path where to store observations as JSON
     ///
     /// # Returns
     ///
     /// `Result` object with eventual error message.
-    pub fn call<A, B, P, M, R, W>(
+    pub fn call<A, B, P, M, R, W, X>(
         inbcf: &R,
         outbcf: &W,
         events: &[CaseControlEvent<A, B>],
         complement_event: Option<&ComplementEvent>,
         joint_model: &mut M,
         omit_snvs: bool,
-        omit_indels: bool
+        omit_indels: bool,
+        outobs: Option<&X>
     ) -> Result<(), Box<Error>> where
         A: AlleleFreqs,
         B: AlleleFreqs,
         P: priors::PairModel<A, B>,
         M: JointModel<A, B, P>,
         R: AsRef<Path>,
-        W: AsRef<Path>
+        W: AsRef<Path>,
+        X: AsRef<Path>
     {
         let inbcf = try!(bcf::Reader::new(inbcf));
         let mut header = bcf::Header::with_template(&inbcf.header);
@@ -218,6 +228,9 @@ pub mod case_control {
         );
 
         let mut outbcf = try!(bcf::Writer::new(outbcf, &header, false, false));
+        let mut outobs = if let Some(f) = outobs {
+            Some(try!(csv::Writer::from_file(f)))
+        } else { None };
         let mut record = bcf::Record::new();
         let mut i = 0;
         loop {
@@ -283,6 +296,19 @@ pub mod case_control {
                 }
                 try!(record.push_info_float(b"CASE_AF", &case_afs));
                 try!(record.push_info_float(b"CONTROL_AF", &control_afs));
+
+                if let Some(ref mut outobs) = outobs {
+                    let mut items = Vec::with_capacity(pileups.len());
+                    for pileup in &pileups {
+                        if let &Some(ref pileup) = pileup {
+                            let case_obs = try!(json::encode(&pileup.case_observations()));
+                            let control_obs = try!(json::encode(&pileup.case_observations()));
+                            items.push(case_obs);
+                            items.push(control_obs);
+                        }
+                    }
+                    try!(outobs.write(items.iter()));
+                }
             }
             try!(outbcf.write(&record));
             if i % 1000 == 0 {
