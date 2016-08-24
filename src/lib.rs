@@ -88,7 +88,7 @@ pub mod case_control {
 
 
     fn phred_scale<'a, I: IntoIterator<Item=&'a LogProb>>(probs: I) -> Vec<f32> {
-        probs.into_iter().map(|&p| *PHREDProb::from(p) as f32).collect_vec()
+        probs.into_iter().map(|&p| PHREDProb::from(p).abs() as f32).collect_vec()
     }
 
 
