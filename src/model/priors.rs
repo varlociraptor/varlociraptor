@@ -1,6 +1,7 @@
 use std::f64;
 
-use itertools::Itertools;
+use itertools::{Itertools, linspace};
+use ordered_float::NotNaN;
 use bio::stats::LogProb;
 
 use model::{Variant, AlleleFreqs, ContinousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
@@ -8,15 +9,19 @@ use model::{Variant, AlleleFreqs, ContinousAlleleFreqs, DiscreteAlleleFreqs, All
 
 /// A prior model of the allele frequency spectrum.
 pub trait Model<A: AlleleFreqs> {
+    /// Calculate prior probability of given allele frequency.
     fn prior_prob(&self, af: AlleleFreq, variant: Variant) -> LogProb;
 
+    /// Return allele frequency spectrum.
     fn allele_freqs(&self) -> &A;
 }
 
 
 pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
+    /// Calculate prior probability of given combination of allele frequencies.
     fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, variant: Variant) -> LogProb;
 
+    /// Calculate joint probability of prior with likelihoods for given allele frequency ranges.
     fn joint_prob<L, O>(
         &self,
         af1: &A,
@@ -25,13 +30,23 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         likelihood2: &O,
         variant: Variant
     ) -> LogProb where
-        A: AlleleFreqs,
-        B: AlleleFreqs,
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
 
+    /// Calculate maximum a posteriori probability estimate of allele frequencies.
+    fn map<L, O>(
+        &self,
+        likelihood1: &L,
+        likelihood2: &O,
+        variant: Variant
+    ) -> (AlleleFreq, AlleleFreq) where
+        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+
+    /// Return allele frequency spectrum of case sample.
     fn allele_freqs_case(&self) -> &A;
 
+    /// Return allele frequency spectrum of control sample.
     fn allele_freqs_control(&self) -> &B;
 }
 
@@ -220,6 +235,30 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         }).collect_vec());
 
         prob
+    }
+
+    fn map<L, O>(
+        &self,
+        likelihood_tumor: &L,
+        likelihood_normal: &O,
+        variant: Variant
+    ) -> (AlleleFreq, AlleleFreq) where
+        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        O: Fn(AlleleFreq, AlleleFreq) -> LogProb
+    {
+        let af_case = linspace(*self.allele_freqs_tumor.start, *self.allele_freqs_tumor.end, self.grid_points);
+        let (_, (map_normal, map_tumor)) = self.normal_model.allele_freqs().iter().cartesian_product(af_case).minmax_by_key(
+            |&(&af_normal, af_tumor)| {
+                let af_tumor = AlleleFreq(af_tumor);
+                NotNaN::new(
+                    *(self.prior_prob(af_tumor, af_normal, variant) +
+                    likelihood_tumor(af_tumor, af_normal) +
+                    likelihood_normal(af_normal, AlleleFreq(0.0)))
+                ).expect("posterior probability is NaN")
+            }
+        ).into_option().expect("prior has empty allele frequency spectrum");
+
+        (AlleleFreq(map_tumor), *map_normal)
     }
 
     fn allele_freqs_case(&self) -> &ContinousAlleleFreqs {

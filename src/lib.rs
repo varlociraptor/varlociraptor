@@ -207,10 +207,14 @@ pub mod case_control {
         if let Some(complement_event) = complement_event {
             header.push_record(complement_event.header_entry("PROB", "PHRED-scaled probability for").as_bytes());
         }
-        // add tag for expected allele frequency
+        // add tags for expected allele frequency
         header.push_record(
             b"##INFO=<ID=CASE_AF,Number=A,Type=Float,\
-            Description=\"Conditional expectation of allele frequency in case sample.\">"
+            Description=\"Maximum a posteriori probability estimate of allele frequency in case sample.\">"
+        );
+        header.push_record(
+            b"##INFO=<ID=CONTROL_AF,Number=A,Type=Float,\
+            Description=\"Maximum a posteriori probability estimate of allele frequency in control sample.\">"
         );
 
         let mut outbcf = try!(bcf::Writer::new(outbcf, &header, false, false));
@@ -265,16 +269,20 @@ pub mod case_control {
                         &phred_scale(complement_probs.iter())
                     ));
                 }
-                try!(record.push_info_float(
-                    b"CASE_AF", &pileups.iter().map(|pileup| {
-                        if let &Some(ref pileup) = pileup {
-                            *pileup.expected_case_allele_freq(joint_model) as f32
-                        } else {
-                            // indicate missing value
-                            f32::NAN
-                        }
-                    }).collect_vec()
-                ));
+                let mut case_afs = Vec::with_capacity(pileups.len());
+                let mut control_afs = Vec::with_capacity(pileups.len());
+                for pileup in &pileups {
+                    if let &Some(ref pileup) = pileup {
+                        let (case_af, control_af) = pileup.map_allele_freqs(joint_model);
+                        case_afs.push(*case_af as f32);
+                        control_afs.push(*control_af as f32);
+                    } else {
+                        case_afs.push(f32::NAN);
+                        control_afs.push(f32::NAN);
+                    }
+                }
+                try!(record.push_info_float(b"CASE_AF", &case_afs));
+                try!(record.push_info_float(b"CONTROL_AF", &control_afs));
             }
             try!(outbcf.write(&record));
             if i % 1000 == 0 {
