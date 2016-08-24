@@ -278,7 +278,7 @@ mod tests {
     use likelihood::LatentVariableModel;
     use Sample;
     use InsertSize;
-    use model::sample::Observation;
+    use model::sample::{Observation, Evidence};
     use rust_htslib::bam;
     use bio::stats::LogProb;
     #[cfg(feature="flame_it")]
@@ -320,7 +320,8 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
-                prob_mismapped: LogProb::ln_one()
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
             });
         }
 
@@ -363,7 +364,8 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one()
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
             });
         }
         let marginal_prob = model.marginal_prob(&observations, &[], variant);
@@ -383,7 +385,8 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one()
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
             });
         }
         println!("Absent call.");
@@ -404,8 +407,8 @@ mod tests {
     #[test]
     fn test_example1() {
         let variant = Variant::Insertion(2);
-        let case_obs = vec![Observation { prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0025150465111820103), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.007974998278512672), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0031723009285603327), prob_alt: LogProb(-111.18254428986242), prob_ref: LogProb(-109.23587762319576), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.003994511005101995), prob_alt: LogProb(-113.14698873430689), prob_ref: LogProb(-111.18254428986242), prob_mismapped: LogProb::ln_one() }];
-        let control_obs = vec![Observation { prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.00025122019630215495), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0001585018800054507), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0006311564818346603), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { prob_mapping: LogProb(-0.003989017266406586), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }];
+        let case_obs = vec![Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0025150465111820103), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.007974998278512672), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0031723009285603327), prob_alt: LogProb(-111.18254428986242), prob_ref: LogProb(-109.23587762319576), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.003994511005101995), prob_alt: LogProb(-113.14698873430689), prob_ref: LogProb(-111.18254428986242), prob_mismapped: LogProb::ln_one() }];
+        let control_obs = vec![Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00025122019630215495), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0001585018800054507), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0006311564818346603), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.003989017266406586), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }];
 
         let insert_size = InsertSize{ mean: 112.0, sd: 15.0 };
         let prior_model = priors::TumorNormalModel::new(2, 40000.0, 0.5, 0.5, 3e9 as u64, 1.25E-4);

@@ -66,7 +66,7 @@ impl LatentVariableModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use model::sample::Observation;
+    use model::sample::{Observation, Evidence};
     use itertools::linspace;
     use bio::stats::LogProb;
 
@@ -77,7 +77,8 @@ mod tests {
             prob_mapping: LogProb::ln_one(),
             prob_alt: LogProb::ln_one(),
             prob_ref: LogProb::ln_zero(),
-            prob_mismapped: LogProb::ln_one()
+            prob_mismapped: LogProb::ln_one(),
+            evidence: Evidence::Alignment
         };
 
         let lh = model.likelihood_observation(&observation, LogProb::ln_one(), LogProb::ln_zero());
@@ -111,7 +112,8 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
-                prob_mismapped: LogProb::ln_one()
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
             });
         }
         for _ in 0..5 {
@@ -119,7 +121,8 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one()
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
             });
         }
         let lh = model.likelihood_pileup(&observations, 0.5, 0.0);

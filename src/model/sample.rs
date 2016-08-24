@@ -111,7 +111,18 @@ pub struct Observation {
     /// Probability that the read/read-pair comes from the reference allele.
     pub prob_ref: LogProb,
     /// Probability of the read/read-pair given that it has been mismapped.
-    pub prob_mismapped: LogProb
+    pub prob_mismapped: LogProb,
+    /// Type of evidence.
+    pub evidence: Evidence
+}
+
+
+#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+pub enum Evidence {
+    /// Insert size of fragment
+    InsertSize(u32),
+    /// Alignment of a single read
+    Alignment
 }
 
 
@@ -227,7 +238,8 @@ impl Sample {
             prob_mapping: prob_mapping,
             prob_alt: LogProb::ln_one(),
             prob_ref: LogProb::ln_zero(),
-            prob_mismapped: LogProb::ln_one() // if the read is mismapped, we assume sampling probability 1.0
+            prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+            evidence: Evidence::Alignment
         };
         for c in cigar {
             match (c, variant) {
@@ -278,7 +290,8 @@ impl Sample {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
             prob_alt: isize_density(insert_size as f64, self.insert_size.mean + shift, self.insert_size.sd),
             prob_ref: isize_density(insert_size as f64, self.insert_size.mean, self.insert_size.sd),
-            prob_mismapped: LogProb::ln_one() // if the fragment is mismapped, we assume sampling probability 1.0
+            prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
+            evidence: Evidence::InsertSize(insert_size as u32)
         };
 
         obs
