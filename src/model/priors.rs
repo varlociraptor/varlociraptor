@@ -33,6 +33,16 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
 
+    /// Calculate marginal probability.
+    fn marginal_prob<L, O>(
+        &self,
+        likelihood1: &L,
+        likelihood2: &O,
+        variant: Variant
+    ) -> LogProb where
+        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+
     /// Calculate maximum a posteriori probability estimate of allele frequencies.
     fn map<L, O>(
         &self,
@@ -165,7 +175,7 @@ impl TumorNormalModel {
             insertion_factor: insertion_factor,
             genome_size: genome_size,
             allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
-            grid_points: 50,
+            grid_points: 100,
             af_min: af_min
         }
     }
@@ -184,7 +194,6 @@ impl TumorNormalModel {
 
         // mu/beta * 1 / (af**2 * n)
         if af_somatic <= *self.af_min {
-            // TODO fmin
             return LogProb::ln_one();
         }
 
@@ -227,7 +236,11 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
                 likelihood_tumor(af_tumor, af_normal)
             };
 
-            let p_tumor = LogProb::ln_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points);
+            let p_tumor = if af_tumor.start == af_tumor.end {
+                density(*af_tumor.start)
+            } else {
+                LogProb::ln_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points)
+            };
             let p_normal = likelihood_normal(af_normal, AlleleFreq(0.0));
             let prob = p_tumor + p_normal;
 
@@ -235,6 +248,33 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         }).collect_vec());
 
         prob
+    }
+
+    fn marginal_prob<L, O>(
+        &self,
+        likelihood_tumor: &L,
+        likelihood_normal: &O,
+        variant: Variant
+    ) -> LogProb where
+        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        O: Fn(AlleleFreq, AlleleFreq) -> LogProb
+    {
+        let p = self.joint_prob(
+            self.allele_freqs_case(),
+            self.allele_freqs_control(),
+            likelihood_tumor,
+            likelihood_normal,
+            variant
+        )/*.ln_add_exp(
+            self.joint_prob(
+                &(AlleleFreq(0.0)..AlleleFreq(0.0)),
+                &vec![AlleleFreq(0.0)],
+                likelihood_tumor,
+                likelihood_normal,
+                variant
+            )
+        )*/;
+        p
     }
 
     fn map<L, O>(
