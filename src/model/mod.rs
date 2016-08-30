@@ -343,7 +343,7 @@ mod tests {
         }
 
         let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.001)..AlleleFreq(1.0);
+        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
         let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.0);
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
@@ -358,7 +358,7 @@ mod tests {
         assert_relative_eq!(p_germline.exp(), 1.0);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0);
-        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
+        assert_relative_eq!(p_germline.ln_add_exp(p_somatic).exp(), 1.0, epsilon=0.0000001);
         assert!(*pileup.map_allele_freqs(&model).0 >= 0.97);
 
         // scenario 2: empty control pileup -> somatic call
@@ -367,11 +367,13 @@ mod tests {
         pileup.marginal_prob.set(Some(marginal_prob));
         let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        // without knowledge about germline, the germline prior dominates
+        let (af_case, af_control) = pileup.map_allele_freqs(&model);
+        // we have no evidence for germline, but an allele frequency of 1 is most likely with a germline variant!
         assert!(p_germline > p_somatic);
         // germline < somatic
-        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
-        assert!(*pileup.map_allele_freqs(&model).0 >= 0.97);
+        assert_relative_eq!(p_germline.ln_add_exp(p_somatic).exp(), 1.0, epsilon=0.0000001);
+        assert!(*af_case >= 0.97);
+        assert!(*af_control >= 0.97);
 
         // scenario 3: subclonal variant
         for _ in 0..50 {
@@ -390,7 +392,7 @@ mod tests {
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
-        assert!(p_germline.ln_add_exp(p_somatic).exp() <= 1.0);
+        assert_relative_eq!(p_germline.ln_add_exp(p_somatic).exp(), 1.0, epsilon=0.0000001);
         assert_relative_eq!(*pileup.map_allele_freqs(&model).0, 0.09, epsilon=0.03);
 
         // scenario 4: absent variant
@@ -416,8 +418,8 @@ mod tests {
         assert_relative_eq!(p_germline.exp(), 0.0, epsilon=0.02);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.02);
-        // TODO re-enable
-        //assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.02);
+        // absent
+        assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.02);
     }
 
     #[test]
@@ -510,6 +512,7 @@ mod tests {
         (case_obs, control_obs, model)
     }
 
+    /// Test example where variant is subclonal and mapping quality is good
     #[test]
     fn test_example2() {
         let (case_obs, control_obs, model) = setup_example("tests/example2.obs.txt", 0.01, 0.03);
@@ -532,6 +535,7 @@ mod tests {
         assert_relative_eq!(*af_case, 0.1, epsilon = 0.01);
     }
 
+    /// Test example where variant is subclonal, but mapping quality is too bad
     #[test]
     fn test_example3() {
         let (case_obs, control_obs, model) = setup_example("tests/example3.obs.txt", 0.01, 0.03);
@@ -553,12 +557,13 @@ mod tests {
         assert_relative_eq!(*af_control, 0.0);
     }
 
+    /// Test example where variant is subclonal, but mapping quality is too bad
     #[test]
     fn test_example4() {
         let (mut case_obs, control_obs, model) = setup_example("tests/example4.obs.txt", 0.5, 0.5);
-        for obs in case_obs.iter_mut() {
-            //obs.prob_mapping = LogProb(0.99f64.ln());
-        }
+        /*for obs in case_obs.iter_mut() {
+            obs.prob_mapping = LogProb(0.999f64.ln());
+        }*/
 
         let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
         let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
@@ -567,23 +572,22 @@ mod tests {
         let normal_ref = vec![AlleleFreq(0.0)];
         //let lh = model.case_sample().likelihood_model().likelihood_pileup(&case_obs[..100], 0.07, 0.0);
         let variant = Variant::Insertion(1);
-        let p_absent = model.joint_prob(&case_obs, &control_obs, &tumor_ref, &normal_ref, variant);
+        /*let p_absent = model.joint_prob(&case_obs, &control_obs, &tumor_ref, &normal_ref, variant);
         let p_somatic = model.joint_prob(&case_obs, &control_obs, &tumor_alt, &normal_ref, variant);
         let p_germline = model.joint_prob(&case_obs, &control_obs, &tumor_all, &normal_alt, variant);
         let p_marginal = model.marginal_prob(&case_obs, &control_obs, variant);
         let norm = LogProb::ln_sum_exp(&[p_absent, p_somatic, p_germline]);
 
         println!("marginal={:e}, absent={}, somatic={}, germline={:e}, sum={:e}", p_marginal.exp(), (p_absent - norm).exp(), (p_somatic - norm).exp(), (p_germline - norm).exp(), norm.exp());
-        assert!(false);
+        assert!(false);*/
 
-        let pileup = Pileup::new(case_obs, control_obs, variant);
+        let pileup = Pileup::new(case_obs[..50].to_owned(), control_obs, variant);
 
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
-        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_alt);
+        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
         let (af_case, af_control) = pileup.map_allele_freqs(&model);
         println!("{} {} {} {} {}", p_somatic.exp(), p_germline.exp(), p_absent.exp(), af_case, af_control);
-        assert!(false);
         assert!(p_somatic >= p_germline);
         assert!(*af_case <= 0.1);
         assert_relative_eq!(*af_control, 0.0);

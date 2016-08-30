@@ -6,6 +6,8 @@ use bio::stats::LogProb;
 
 use model::{Variant, AlleleFreqs, ContinousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
+use rgsl::integration::{qng,qk15};
+
 
 /// A prior model of the allele frequency spectrum.
 pub trait Model<A: AlleleFreqs> {
@@ -229,8 +231,12 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
     {
+        fn qng_density<D: Fn(f64) -> LogProb>(af: f64, density: &mut D) -> f64 {
+            density(af).exp()
+        }
+
         let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
-            let density = |af_tumor| {
+            let mut density = |af_tumor| {
                 let af_tumor = AlleleFreq(af_tumor);
                 self.prior_prob(af_tumor, af_normal, variant) +
                 likelihood_tumor(af_tumor, af_normal)
@@ -239,7 +245,14 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
             let p_tumor = if af_tumor.start == af_tumor.end {
                 density(*af_tumor.start)
             } else {
-                LogProb::ln_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points)
+                //let p = LogProb::ln_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points);
+                let mut res = 0.0;
+                let mut err = 0.0;
+                let mut n = 0;
+                qng(qng_density, &mut density, *af_tumor.start, *af_tumor.end, 0.5, 0.5, &mut res, &mut err, &mut n);
+                //println!("{}=?{} {} {}", p.exp(), res, err, n);
+                //p
+                LogProb(res.ln())
             };
             let p_normal = likelihood_normal(af_normal, AlleleFreq(0.0));
             let prob = p_tumor + p_normal;
@@ -265,7 +278,8 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
             likelihood_tumor,
             likelihood_normal,
             variant
-        )/*.ln_add_exp(
+        ).ln_add_exp(
+            // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
                 &(AlleleFreq(0.0)..AlleleFreq(0.0)),
                 &vec![AlleleFreq(0.0)],
@@ -273,7 +287,7 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
                 likelihood_normal,
                 variant
             )
-        )*/;
+        );
         p
     }
 
