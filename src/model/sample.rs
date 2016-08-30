@@ -59,11 +59,15 @@ impl RecordBuffer {
         self.inner.back().map(|rec| rec.pos() as u32)
     }
 
+    fn tid(&self) -> Option<i32> {
+        self.inner.back().map(|rec| rec.tid())
+    }
+
     /// Fill buffer around the given interval.
     pub fn fill(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<(), Box<Error>> {
         if let Some(tid) = self.reader.header.tid(chrom) {
             let window_start = cmp::max(start as i32 - self.window as i32 - 1, 0) as u32;
-            if self.inner.is_empty() || self.end().unwrap() < window_start {
+            if self.inner.is_empty() || self.end().unwrap() < window_start || self.tid().unwrap() != tid as i32 {
                 let end = self.reader.header.target_len(tid).unwrap();
                 try!(self.reader.seek(tid, window_start, end));
                 self.inner.clear();
