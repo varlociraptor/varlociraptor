@@ -10,7 +10,7 @@ An experimental implementation of PROSIC as a library.
 ### Model
 
 * [Louis Dijkstra](https://github.com/louisdijkstra) (likelihoods)
-* [Johannes Köster](https://github.com/johanneskoester) (priors)
+* [Johannes Köster](https://github.com/johanneskoester) (prior probabilities)
 
 ### Implementation
 
