@@ -581,7 +581,7 @@ mod tests {
         println!("marginal={:e}, absent={}, somatic={}, germline={:e}, sum={:e}", p_marginal.exp(), (p_absent - norm).exp(), (p_somatic - norm).exp(), (p_germline - norm).exp(), norm.exp());
         assert!(false);*/
 
-        let pileup = Pileup::new(case_obs[..50].to_owned(), control_obs, variant);
+        let pileup = Pileup::new(case_obs.to_owned(), control_obs, variant);
 
         let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
         let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);

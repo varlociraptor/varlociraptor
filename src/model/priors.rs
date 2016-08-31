@@ -6,7 +6,7 @@ use bio::stats::LogProb;
 
 use model::{Variant, AlleleFreqs, ContinousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
-use rgsl::integration::{qng,qk15};
+//use rgsl::integration::{qng};
 
 
 /// A prior model of the allele frequency spectrum.
@@ -177,7 +177,7 @@ impl TumorNormalModel {
             insertion_factor: insertion_factor,
             genome_size: genome_size,
             allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
-            grid_points: 100,
+            grid_points: 51,
             af_min: af_min
         }
     }
@@ -231,12 +231,12 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
     {
-        fn qng_density<D: Fn(f64) -> LogProb>(af: f64, density: &mut D) -> f64 {
+        /*fn qng_density<D: Fn(f64) -> LogProb>(af: f64, density: &mut D) -> f64 {
             density(af).exp()
-        }
+        }*/
 
         let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
-            let mut density = |af_tumor| {
+            let density = |af_tumor| {
                 let af_tumor = AlleleFreq(af_tumor);
                 self.prior_prob(af_tumor, af_normal, variant) +
                 likelihood_tumor(af_tumor, af_normal)
@@ -245,14 +245,15 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
             let p_tumor = if af_tumor.start == af_tumor.end {
                 density(*af_tumor.start)
             } else {
-                //let p = LogProb::ln_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points);
-                let mut res = 0.0;
+                LogProb::ln_simpsons_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points)
+                //let p = LogProb::ln_trapezoidal_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points);
+                /*let mut res = 0.0;
                 let mut err = 0.0;
                 let mut n = 0;
                 qng(qng_density, &mut density, *af_tumor.start, *af_tumor.end, 0.5, 0.5, &mut res, &mut err, &mut n);
-                //println!("{}=?{} {} {}", p.exp(), res, err, n);
+                println!("{}=?{}=?{} {} {}", p.exp(), res, p2.exp(), err, n);
                 //p
-                LogProb(res.ln())
+                LogProb(res.ln())*/
             };
             let p_normal = likelihood_normal(af_normal, AlleleFreq(0.0));
             let prob = p_tumor + p_normal;
