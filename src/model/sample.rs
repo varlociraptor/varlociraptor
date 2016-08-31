@@ -378,6 +378,8 @@ mod tests {
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
 
         for varlen in &[0, 5, 10, 100] {
+            println!("varlen {}", varlen);
+            println!("insertion");
             let variant = model::Variant::Insertion(*varlen);
             for record in &records {
                 let obs = sample.fragment_observation(record, 60u8, variant);
@@ -388,7 +390,7 @@ mod tests {
                     assert!(obs.prob_ref > obs.prob_alt);
                 }
             }
-
+            println!("deletion");
             let variant = model::Variant::Deletion(*varlen);
             for record in &records {
                 let obs = sample.fragment_observation(record, 60u8, variant);
@@ -404,10 +406,11 @@ mod tests {
 
     #[test]
     fn test_fragment_observation_evidence() {
-        let sample = setup_sample(100.0);
         let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
 
+        println!("deletion");
+        let sample = setup_sample(100.0);
         let variant = model::Variant::Deletion(50);
         for record in &records {
             let obs = sample.fragment_observation(record, 60u8, variant);
@@ -416,10 +419,12 @@ mod tests {
             assert!(obs.prob_alt > obs.prob_ref);
         }
 
+        println!("insertion");
         let sample = setup_sample(200.0);
         let variant = model::Variant::Insertion(50);
         for record in &records {
             let obs = sample.fragment_observation(record, 60u8, variant);
+            println!("{:?}", obs);
             assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
             assert!(obs.prob_alt > obs.prob_ref);
         }
