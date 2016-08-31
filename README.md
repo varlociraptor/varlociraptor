@@ -9,8 +9,9 @@ An experimental implementation of PROSIC as a library.
 
 ### Model
 
-[Louis Dijkstra](https://github.com/louisdijkstra)
-[Johannes Köster](https://github.com/johanneskoester)
+Likelihoods: [Louis Dijkstra](https://github.com/louisdijkstra)
+
+Priors: [Johannes Köster](https://github.com/johanneskoester)
 
 ### Implementation
 
