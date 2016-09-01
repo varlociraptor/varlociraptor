@@ -84,7 +84,7 @@ impl RecordBuffer {
                 if record.is_duplicate() || record.is_unmapped() {
                     continue;
                 }
-                if self.use_secondary && record.is_secondary() {
+                if !self.use_secondary && record.is_secondary() {
                     continue;
                 }
                 self.inner.push_back(record);
