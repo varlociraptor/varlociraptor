@@ -3,6 +3,7 @@ use std::cell::Cell;
 use std::ops::Range;
 use std::fmt::Debug;
 use std::error::Error;
+use std::cell::{RefCell, Ref};
 
 use ordered_float::NotNaN;
 
@@ -58,29 +59,31 @@ impl Variant {
 }
 
 
-pub trait JointModel<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> {
-    /// Return case sample.
-    fn case_sample(&self) -> &Sample;
+/// Joint variant calling model, combining two latent variable models.
+pub struct PairModel<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> {
+    case_sample: RefCell<Sample>,
+    control_sample: RefCell<Sample>,
+    prior_model: P,
+    a: PhantomData<A>,
+    b: PhantomData<B>
+}
 
-    /// Return control sample.
-    fn control_sample(&self) -> &Sample;
-
-    /// Return case sample.
-    fn case_sample_mut(&mut self) -> &mut Sample;
-
-    /// Return control sample.
-    fn control_sample_mut(&mut self) -> &mut Sample;
-
-    fn prior_model(&self) -> &P;
-
-    /// Calculate joint probability of given pileups and allele frequencies.
-    fn joint_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], af_case: &A, af_control: &B, variant: Variant) -> LogProb;
-
-    /// Calculate marginal probability of given pileups.
-    fn marginal_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], variant: Variant) -> LogProb {
-        let af_case = self.prior_model().allele_freqs_case();
-        let af_control = self.prior_model().allele_freqs_control();
-        self.joint_prob(case_pileup, control_pileup, af_case, af_control, variant)
+impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairModel<A, B, P> {
+    /// Create new `JointModel`.
+    ///
+    /// # Arguments
+    ///
+    /// * `case_sample` - case sample
+    /// * `control_sample` - control sample
+    /// * `prior_model` - prior model
+    pub fn new(case_sample: Sample, control_sample: Sample, prior_model: P) -> Self {
+        PairModel {
+            case_sample: RefCell::new(case_sample),
+            control_sample: RefCell::new(control_sample),
+            prior_model: prior_model,
+            a: PhantomData,
+            b: PhantomData
+        }
     }
 
     /// Calculate pileup and marginal probability for given variant.
@@ -92,189 +95,122 @@ pub trait JointModel<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>>
     /// * `variant` - the variant
     ///
     /// # Returns
-    /// The `Pileup`, or an error message.
-    fn pileup(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Pileup<A, B, P>, Box<Error>> {
+    /// The `PairPileup`, or an error message.
+    pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant) -> Result<PairPileup<A, B, P>, Box<Error>> {
         debug!("Case pileup");
-        let case_pileup = try!(self.case_sample_mut().extract_observations(chrom, start, variant));
+        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, variant));
         debug!("Control pileup");
-        let control_pileup = try!(self.control_sample_mut().extract_observations(chrom, start, variant));
+        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, variant));
         debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
-        Ok(Pileup::new(
+        Ok(PairPileup::new(
             case_pileup,
             control_pileup,
-            variant
+            variant,
+            &self.prior_model,
+            self.case_sample.borrow(),
+            self.control_sample.borrow()
         ))
-    }
-
-    fn map_allele_freqs(
-        &self,
-        case_pileup: &[Observation],
-        control_pileup: &[Observation],
-        variant: Variant
-    ) -> (AlleleFreq, AlleleFreq);
-}
-
-
-/// Joint variant calling model, combining two latent variable models.
-pub struct ContinuousVsDiscreteModel<P: priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> {
-    case_sample: Sample,
-    control_sample: Sample,
-    prior_model: P
-}
-
-impl<P: priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> ContinuousVsDiscreteModel<P> {
-    /// Create new `JointModel`.
-    ///
-    /// # Arguments
-    ///
-    /// * `case_sample` - case sample
-    /// * `control_sample` - control sample
-    pub fn new(case_sample: Sample, control_sample: Sample, prior_model: P) -> Self {
-        ContinuousVsDiscreteModel {
-            case_sample: case_sample,
-            control_sample: control_sample,
-            prior_model: prior_model
-        }
-    }
-}
-
-
-impl<P: Sync + priors::PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs>> JointModel<ContinousAlleleFreqs, DiscreteAlleleFreqs, P> for ContinuousVsDiscreteModel<P> {
-
-    fn case_sample(&self) -> &Sample {
-        &self.case_sample
-    }
-
-    fn control_sample(&self) -> &Sample {
-        &self.control_sample
-    }
-
-    fn case_sample_mut(&mut self) -> &mut Sample {
-        &mut self.case_sample
-    }
-
-    fn control_sample_mut(&mut self) -> &mut Sample {
-        &mut self.control_sample
-    }
-
-    fn prior_model(&self) -> &P {
-        &self.prior_model
-    }
-
-    /// Calculate marginal probability of given pileups.
-    fn marginal_prob(&self, case_pileup: &[Observation], control_pileup: &[Observation], variant: Variant) -> LogProb {
-        let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
-            let p = self.case_sample.likelihood_model().likelihood_pileup(case_pileup, *af_case, *af_control);
-            debug!("Pr(D_case | f_case={}, f_control={})={}", af_case, af_control, p.exp());
-            p
-        };
-        let control_likelihood = |af_control: AlleleFreq, _| {
-            let p = self.control_sample.likelihood_model().likelihood_pileup(control_pileup, *af_control, 0.0);
-            debug!("Pr(D_control | f_control={})={}", af_control, p.exp());
-            p
-        };
-        self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, variant)
-    }
-
-    fn joint_prob(
-        &self,
-        case_pileup: &[Observation],
-        control_pileup: &[Observation],
-        af_case: &ContinousAlleleFreqs,
-        af_control: &DiscreteAlleleFreqs,
-        variant: Variant
-    ) -> LogProb {
-        let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
-            let p = self.case_sample.likelihood_model().likelihood_pileup(case_pileup, *af_case, *af_control);
-            debug!("Pr(D_case | f_case={}, f_control={})={}", af_case, af_control, p.exp());
-            p
-        };
-        let control_likelihood = |af_control: AlleleFreq, _| {
-            let p = self.control_sample.likelihood_model().likelihood_pileup(control_pileup, *af_control, 0.0);
-            debug!("Pr(D_control | f_control={})={}", af_control, p.exp());
-            p
-        };
-
-        let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, variant);
-        debug!("Pr(D, f_case={:?}, f_control={:?}) = {}", af_case, af_control, p.exp());
-        p
-    }
-
-    fn map_allele_freqs(
-        &self,
-        case_pileup: &[Observation],
-        control_pileup: &[Observation],
-        variant: Variant
-    ) -> (AlleleFreq, AlleleFreq)
-    {
-        let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
-            let p = self.case_sample.likelihood_model().likelihood_pileup(case_pileup, *af_case, *af_control);
-            debug!("Pr(D_case | f_case={}, f_control={})={}", af_case, af_control, p.exp());
-            p
-        };
-        let control_likelihood = |af_control: AlleleFreq, _| {
-            let p = self.control_sample.likelihood_model().likelihood_pileup(control_pileup, *af_control, 0.0);
-            debug!("Pr(D_control | f_control={})={}", af_control, p.exp());
-            p
-        };
-
-        self.prior_model.map(&case_likelihood, &control_likelihood, variant)
     }
 }
 
 
 /// Pileup of observations associated with marginal probability.
-pub struct Pileup<A, B, P> where
+pub struct PairPileup<'a, A, B, P> where
     A: AlleleFreqs,
     B: AlleleFreqs,
-    P: priors::PairModel<A, B>
+    P: 'a + priors::PairModel<A, B>
 {
     case: Vec<Observation>,
     control: Vec<Observation>,
     // we use Cell for marginal prob to be able to mutate the field without having mutable access to the whole pileup
     marginal_prob: Cell<Option<LogProb>>,
+    prior_model: &'a P,
+    case_sample: Ref<'a, Sample>,
+    control_sample: Ref<'a, Sample>,
     variant: Variant,
     a: PhantomData<A>,
-    b: PhantomData<B>,
-    p: PhantomData<P>
+    b: PhantomData<B>
 }
 
 
-impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> Pileup<A, B, P> {
+impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<'a, A, B, P> {
     /// Create new pileup.
-    fn new(case: Vec<Observation>, control: Vec<Observation>, variant: Variant) -> Self {
-        Pileup {
+    fn new(case: Vec<Observation>, control: Vec<Observation>, variant: Variant, prior_model: &'a P, case_sample: Ref<'a, Sample>, control_sample: Ref<'a, Sample>) -> Self {
+        PairPileup {
             case: case,
             control: control,
             marginal_prob: Cell::new(None),
             variant: variant,
+            prior_model: prior_model,
+            case_sample: case_sample,
+            control_sample: control_sample,
             a: PhantomData,
-            b: PhantomData,
-            p: PhantomData
+            b: PhantomData
         }
     }
 
-    fn marginal_prob<M: JointModel<A, B, P>>(&self, model: &M) -> LogProb {
+    fn marginal_prob(&self) -> LogProb {
         if self.marginal_prob.get().is_none() {
             debug!("Calculating marginal probability.");
 
-            self.marginal_prob.set(Some(model.marginal_prob(&self.case, &self.control, self.variant)));
+            let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
+                self.case_likelihood(af_case, af_control)
+            };
+            let control_likelihood = |af_control: AlleleFreq, af_case: AlleleFreq| {
+                self.control_likelihood(af_control, af_case)
+            };
+            let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, self.variant);
+
+            self.marginal_prob.set(Some(p));
         }
 
         self.marginal_prob.get().unwrap()
     }
 
+    fn joint_prob(&self, af_case: &A, af_control: &B) -> LogProb {
+        let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
+            self.case_likelihood(af_case, af_control)
+        };
+        let control_likelihood = |af_control: AlleleFreq, af_case: AlleleFreq| {
+            self.control_likelihood(af_control, af_case)
+        };
+
+        let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, self.variant);
+        debug!("Pr(D, f_case={:?}, f_control={:?}) = {}", af_case, af_control, p.exp());
+        p
+    }
+
     /// Calculate posterior probability of given allele frequencies.
-    pub fn posterior_prob<M: JointModel<A, B, P>>(&self, model: &M, af_case: &A, af_control: &B) -> LogProb {
+    pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
         debug!("Calculating posterior probability. for case={:?} and control={:?}", af_case, af_control);
-        let p = model.joint_prob(&self.case, &self.control, af_case, af_control, self.variant);
-        let marginal = self.marginal_prob(model);
+        let p = self.joint_prob(af_case, af_control);
+        let marginal = self.marginal_prob();
         let prob = p - marginal;
         prob
     }
 
-    pub fn map_allele_freqs<M: JointModel<A, B, P>>(&self, model: &M) -> (AlleleFreq, AlleleFreq) {
-        model.map_allele_freqs(&self.case, &self.control, self.variant)
+    pub fn map_allele_freqs(&self) -> (AlleleFreq, AlleleFreq) {
+        let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
+            self.case_likelihood(af_case, af_control)
+        };
+        let control_likelihood = |af_control: AlleleFreq, af_case: AlleleFreq| {
+            self.control_likelihood(af_control, af_case)
+        };
+
+        self.prior_model.map(&case_likelihood, &control_likelihood, self.variant)
+    }
+
+    fn case_likelihood(&self, af_case: AlleleFreq, af_control: AlleleFreq) -> LogProb {
+        Self::likelihood(&self.case_sample, &self.case, af_case, af_control)
+    }
+
+    fn control_likelihood(&self, af_control: AlleleFreq, af_case: AlleleFreq) -> LogProb {
+        Self::likelihood(&self.control_sample, &self.control, af_control, af_case)
+    }
+
+    fn likelihood(sample: &Ref<Sample>, pileup: &[Observation], af_case: AlleleFreq, af_control: AlleleFreq) -> LogProb {
+        let p = sample.likelihood_model().likelihood_pileup(&pileup, *af_case, *af_control);
+        p
     }
 
     pub fn case_observations(&self) -> &[Observation] {
@@ -303,9 +239,7 @@ mod tests {
     use csv;
     use itertools::Itertools;
 
-    #[test]
-    fn test_joint_prob() {
-        let variant = Variant::Deletion(3);
+    fn setup_pairwise_test<'a>() -> PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
         let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
         let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, 0.001);
         let case_sample = Sample::new(
@@ -325,11 +259,23 @@ mod tests {
             LatentVariableModel::new(1.0)
         );
 
-        let model = ContinuousVsDiscreteModel::new(
+        let model = PairModel::new(
             case_sample,
             control_sample,
             prior_model
         );
+
+        model
+    }
+
+    /// scenario 1: same pileup -> germline call
+    #[test]
+    fn test_same_pileup() {
+        let variant = Variant::Deletion(3);
+        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
+        let normal_ref = vec![AlleleFreq(0.0)];
 
         let mut observations = Vec::new();
         for _ in 0..5 {
@@ -342,40 +288,84 @@ mod tests {
             });
         }
 
-        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.0);
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
+        let model = setup_pairwise_test();
+        let pileup = PairPileup::new(
+            observations.clone(), observations.clone(),
+            variant,
+            &model.prior_model,
+            model.case_sample.borrow(),
+            model.control_sample.borrow()
+        );
 
-        // scenario 1: same pileup -> germline call
-        let marginal_prob = model.marginal_prob(&observations, &observations, variant);
-        let pileup = Pileup::new(observations.clone(), observations.clone(), variant);
-        pileup.marginal_prob.set(Some(marginal_prob));
         // germline
-        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
-        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
+        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
         assert_relative_eq!(p_germline.exp(), 1.0);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.0);
         assert_relative_eq!(p_germline.ln_add_exp(p_somatic).exp(), 1.0, epsilon=0.0000001);
-        assert!(*pileup.map_allele_freqs(&model).0 >= 0.97);
+        assert!(*pileup.map_allele_freqs().0 >= 0.97);
+    }
 
-        // scenario 2: empty control pileup -> somatic call
-        let marginal_prob = model.marginal_prob(&observations, &[], variant);
-        let pileup = Pileup::new(observations.clone(), vec![], variant);
-        pileup.marginal_prob.set(Some(marginal_prob));
-        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
-        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        let (af_case, af_control) = pileup.map_allele_freqs(&model);
+    /// scenario 2: empty control pileup -> somatic call
+    #[test]
+    fn test_empty_control_pileup() {
+        let variant = Variant::Deletion(3);
+        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
+        let normal_ref = vec![AlleleFreq(0.0)];
+
+        let mut observations = Vec::new();
+        for _ in 0..5 {
+            observations.push(Observation{
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_one(),
+                prob_ref: LogProb::ln_zero(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
+            });
+        }
+
+        let model = setup_pairwise_test();
+        let pileup = PairPileup::new(
+            observations.clone(), vec![],
+            variant,
+            &model.prior_model,
+            model.case_sample.borrow(),
+            model.control_sample.borrow()
+        );
+
+        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
+        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let (af_case, af_control) = pileup.map_allele_freqs();
         // we have no evidence for germline, but an allele frequency of 1 is most likely with a germline variant!
         assert!(p_germline > p_somatic);
         // germline < somatic
         assert_relative_eq!(p_germline.ln_add_exp(p_somatic).exp(), 1.0, epsilon=0.0000001);
         assert!(*af_case >= 0.97);
         assert!(*af_control >= 0.97);
+    }
 
-        // scenario 3: subclonal variant
+    /// scenario 3: subclonal variant
+    #[test]
+    fn test_subclonal() {
+        let variant = Variant::Deletion(3);
+        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
+        let normal_ref = vec![AlleleFreq(0.0)];
+
+        let mut observations = Vec::new();
+        for _ in 0..5 {
+            observations.push(Observation{
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_one(),
+                prob_ref: LogProb::ln_zero(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
+            });
+        }
         for _ in 0..50 {
             observations.push(Observation{
                 prob_mapping: LogProb::ln_one(),
@@ -385,18 +375,35 @@ mod tests {
                 evidence: Evidence::Alignment
             });
         }
-        let marginal_prob = model.marginal_prob(&observations, &[], variant);
-        let pileup = Pileup::new(observations.clone(), vec![], variant);
-        pileup.marginal_prob.set(Some(marginal_prob));
-        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
-        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
+
+        let model = setup_pairwise_test();
+        let pileup = PairPileup::new(
+            observations.clone(), vec![],
+            variant,
+            &model.prior_model,
+            model.case_sample.borrow(),
+            model.control_sample.borrow()
+        );
+
+        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
+        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
         // somatic
         assert_relative_eq!(p_somatic.exp(), 0.9985, epsilon=0.01);
         assert_relative_eq!(p_germline.ln_add_exp(p_somatic).exp(), 1.0, epsilon=0.0000001);
-        assert_relative_eq!(*pileup.map_allele_freqs(&model).0, 0.09, epsilon=0.03);
+        assert_relative_eq!(*pileup.map_allele_freqs().0, 0.09, epsilon=0.03);
+    }
 
-        // scenario 4: absent variant
-        observations.clear();
+    /// scenario 4: absent variant
+    #[test]
+    fn test_absent() {
+        let variant = Variant::Deletion(3);
+        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.0);
+        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
+        let normal_ref = vec![AlleleFreq(0.0)];
+
+        let mut observations = Vec::new();
         for _ in 0..10 {
             observations.push(Observation{
                 prob_mapping: LogProb::ln_one(),
@@ -406,13 +413,19 @@ mod tests {
                 evidence: Evidence::Alignment
             });
         }
-        println!("Absent call.");
-        let marginal_prob = model.marginal_prob(&observations, &observations, variant);
-        let pileup = Pileup::new(observations.clone(), observations.clone(), variant);
-        pileup.marginal_prob.set(Some(marginal_prob));
-        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
-        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
+
+        let model = setup_pairwise_test();
+        let pileup = PairPileup::new(
+            observations.clone(), observations.clone(),
+            variant,
+            &model.prior_model,
+            model.case_sample.borrow(),
+            model.control_sample.borrow()
+        );
+
+        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
+        let p_absent = pileup.posterior_prob(&tumor_ref, &normal_ref);
 
         // germline
         assert_relative_eq!(p_germline.exp(), 0.0, epsilon=0.02);
@@ -447,7 +460,7 @@ mod tests {
             LatentVariableModel::new(1.0)
         );
 
-        let model = ContinuousVsDiscreteModel::new(
+        let model = PairModel::new(
             case_sample,
             control_sample,
             prior_model
@@ -459,11 +472,11 @@ mod tests {
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
-        let pileup = Pileup::new(case_obs, control_obs, variant);
+        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
 
-        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
-        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
+        let p_absent = pileup.posterior_prob(&tumor_ref, &normal_ref);
+        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
         println!("{} {} {}", p_absent.exp(), p_somatic.exp(), p_germline.exp());
 
         assert!(p_somatic.exp() > 0.9);
@@ -471,7 +484,7 @@ mod tests {
         assert!(p_somatic > p_absent);
     }
 
-    fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, ContinuousVsDiscreteModel<priors::TumorNormalModel>) {
+    fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel>) {
         let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
         let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
         let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
@@ -503,7 +516,7 @@ mod tests {
             LatentVariableModel::new(1.0)
         );
 
-        let model = ContinuousVsDiscreteModel::new(
+        let model = PairModel::new(
             case_sample,
             control_sample,
             prior_model
@@ -519,16 +532,15 @@ mod tests {
 
         let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
         let tumor_alt = AlleleFreq(0.05)..AlleleFreq(1.0);
-        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.001);
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
         let variant = Variant::Insertion(4);
-        let pileup = Pileup::new(case_obs, control_obs, variant);
+        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
 
-        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
-        let (af_case, af_control) = pileup.map_allele_freqs(&model);
+        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
+        let (af_case, _) = pileup.map_allele_freqs();
         println!("{} {}", p_somatic.exp(), p_germline.exp());
 
         assert!(p_somatic > p_germline);
@@ -546,11 +558,11 @@ mod tests {
         let normal_ref = vec![AlleleFreq(0.0)];
 
         let variant = Variant::Insertion(1);
-        let pileup = Pileup::new(case_obs, control_obs, variant);
+        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
 
-        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
-        let (af_case, af_control) = pileup.map_allele_freqs(&model);
+        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
+        let (af_case, af_control) = pileup.map_allele_freqs();
         println!("{} {} {} {}", p_somatic.exp(), p_germline.exp(), af_case, af_control);
         assert!(p_somatic >= p_germline);
         assert!(*af_case <= 0.1);
@@ -560,7 +572,7 @@ mod tests {
     /// Test example where variant is subclonal, but mapping quality is too bad
     #[test]
     fn test_example4() {
-        let (mut case_obs, control_obs, model) = setup_example("tests/example4.obs.txt", 0.5, 0.5);
+        let (case_obs, control_obs, model) = setup_example("tests/example4.obs.txt", 0.5, 0.5);
         /*for obs in case_obs.iter_mut() {
             obs.prob_mapping = LogProb(0.999f64.ln());
         }*/
@@ -581,12 +593,12 @@ mod tests {
         println!("marginal={:e}, absent={}, somatic={}, germline={:e}, sum={:e}", p_marginal.exp(), (p_absent - norm).exp(), (p_somatic - norm).exp(), (p_germline - norm).exp(), norm.exp());
         assert!(false);*/
 
-        let pileup = Pileup::new(case_obs.to_owned(), control_obs, variant);
+        let pileup = PairPileup::new(case_obs.to_owned(), control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
 
-        let p_somatic = pileup.posterior_prob(&model, &tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&model, &tumor_all, &normal_alt);
-        let p_absent = pileup.posterior_prob(&model, &tumor_ref, &normal_ref);
-        let (af_case, af_control) = pileup.map_allele_freqs(&model);
+        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
+        let p_absent = pileup.posterior_prob(&tumor_ref, &normal_ref);
+        let (af_case, af_control) = pileup.map_allele_freqs();
         println!("{} {} {} {} {}", p_somatic.exp(), p_germline.exp(), p_absent.exp(), af_case, af_control);
         assert!(p_somatic >= p_germline);
         assert!(*af_case <= 0.1);

@@ -16,6 +16,12 @@ pub trait Model<A: AlleleFreqs> {
 
     /// Return allele frequency spectrum.
     fn allele_freqs(&self) -> &A;
+
+    fn marginal_prob<L>(&self, likelihood: &L, variant: Variant) -> LogProb where
+        L: Fn(AlleleFreq) -> LogProb;
+
+    fn joint_prob<L>(&self, af: &A, likelihood: &L, variant: Variant) -> LogProb where
+        L: Fn(AlleleFreq) -> LogProb;
 }
 
 
@@ -106,6 +112,19 @@ impl Model<DiscreteAlleleFreqs> for InfiniteSitesNeutralVariationModel {
         } else {
             self.zero_prob
         }
+    }
+
+    fn joint_prob<L>(&self, afs: &DiscreteAlleleFreqs, likelihood: &L, variant: Variant) -> LogProb where
+        L: Fn(AlleleFreq) -> LogProb
+    {
+        let summands = afs.iter().map(|af| self.prior_prob(*af, variant) + likelihood(*af)).collect_vec();
+        LogProb::ln_sum_exp(&summands)
+    }
+
+    fn marginal_prob<L>(&self, likelihood: &L, variant: Variant) -> LogProb where
+        L: Fn(AlleleFreq) -> LogProb
+    {
+        self.joint_prob(self.allele_freqs(), likelihood, variant)
     }
 
     fn allele_freqs(&self) -> &DiscreteAlleleFreqs {
