@@ -2,12 +2,14 @@ use std::str;
 use std::collections::{HashMap, VecDeque, vec_deque};
 use std::cmp;
 use std::error::Error;
+use std::f64::consts;
 
-use rgsl::randist::gaussian::gaussian_pdf;
+use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
+use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;
-use bio::stats::{LogProb, PHREDProb};
+use bio::stats::{LogProb, PHREDProb, Prob};
 
 use model;
 use model::Variant;
@@ -144,7 +146,11 @@ pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
     insert_size: InsertSize,
-    likelihood_model: model::likelihood::LatentVariableModel
+    likelihood_model: model::likelihood::LatentVariableModel,
+    insert_size_error_rate: LogProb,
+    present_insertion_error_rate: LogProb,
+    present_deletion_error_rate: LogProb,
+    absent_indel_error_rate: LogProb
 }
 
 
@@ -160,13 +166,32 @@ impl Sample {
     /// * `insert_size` - estimated insert size
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
     /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
-    pub fn new(bam: bam::IndexedReader, pileup_window: u32, use_fragment_evidence: bool, use_secondary: bool, insert_size: InsertSize, likelihood_model: model::likelihood::LatentVariableModel) -> Self {
-        Sample {
+    /// * `insert_size_error_rate` - rate of wrongly reported insert size abberations (mapper dependent, BWA: 0.01332338, LASER: 0.05922201)
+    /// * `present_insertion_error_rate` - rate of missed insertion alignments if insertion is present (mapper dependent, BWA: 0.2138, LASER: 0.3460)
+    /// * `present_deletion_error_rate` - rate of missed deletion alignments if deletion is present (mapper dependent, BWA: 0.0310, LASER: 0.0964)
+    /// * `absent_indel_error_rate` - rate of wrongly reported indel alignments if indel is absent (mapper dependent)
+    pub fn new(
+        bam: bam::IndexedReader,
+        pileup_window: u32,
+        use_fragment_evidence: bool,
+        use_secondary: bool,
+        insert_size: InsertSize,
+        likelihood_model: model::likelihood::LatentVariableModel,
+        insert_size_error_rate: f64,
+        present_insertion_error_rate: f64,
+        present_deletion_error_rate: f64,
+        absent_indel_error_rate: f64
+    ) -> Result<Self, Box<Error>> {
+        Ok(Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
             insert_size: insert_size,
-            likelihood_model: likelihood_model
-        }
+            likelihood_model: likelihood_model,
+            insert_size_error_rate: LogProb::from(try!(Prob::checked(insert_size_error_rate))),
+            present_insertion_error_rate: LogProb::from(try!(Prob::checked(present_insertion_error_rate))),
+            present_deletion_error_rate: LogProb::from(try!(Prob::checked(present_deletion_error_rate))),
+            absent_indel_error_rate: LogProb::from(try!(Prob::checked(absent_indel_error_rate))),
+        })
     }
 
     /// Return likelihood model.
@@ -175,7 +200,12 @@ impl Sample {
     }
 
     /// Extract observations for the given variant.
-    pub fn extract_observations(&mut self, chrom: &[u8], start: u32, variant: Variant) -> Result<Vec<Observation>, Box<Error>> {
+    pub fn extract_observations(
+        &mut self,
+        chrom: &[u8],
+        start: u32,
+        variant: Variant
+    ) -> Result<Vec<Observation>, Box<Error>> {
         let mut observations = Vec::new();
         let (end, varpos) = match variant {
             Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
@@ -221,7 +251,13 @@ impl Sample {
         Ok(observations)
     }
 
-    fn read_observation(&self, record: &bam::Record, cigar: &[Cigar], varpos: i32, variant: Variant) -> Observation {
+    fn read_observation(
+        &self,
+        record: &bam::Record,
+        cigar: &[Cigar],
+        varpos: i32,
+        variant: Variant
+    ) -> Observation {
         let is_close = |qpos: i32, qlength: u32| (varpos - (qpos + qlength as i32 / 2)).abs() <= 50;
         let is_similar_length = |qlength: u32, varlength: u32| (varlength as i32 - qlength as i32).abs() <= 20;
         let contains_varpos = |qpos: i32, qlength: u32|  qpos >= varpos && qpos + qlength as i32 <= varpos;
@@ -238,30 +274,42 @@ impl Sample {
 
         let mut qpos = record.pos();
         let prob_mapping = prob_mapping(record.mapq());
-        let mut obs = Observation {
-            prob_mapping: prob_mapping,
-            prob_alt: LogProb::ln_one(),
-            prob_ref: LogProb::ln_zero(),
-            prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::Alignment
-        };
         for c in cigar {
             match (c, variant) {
                 // potential SNV evidence
                 (&Cigar::Match(l), Variant::SNV(base)) |
                 (&Cigar::Diff(l), Variant::SNV(base))
                 if contains_varpos(qpos, l) => {
-                    obs.prob_alt = snv_prob_alt(base);
-                    obs.prob_ref = obs.prob_alt.ln_one_minus_exp();
-                    return obs;
+                    let p = snv_prob_alt(base);
+                    return Observation {
+                        prob_mapping: prob_mapping,
+                        prob_alt: p,
+                        prob_ref: p.ln_one_minus_exp(),
+                        prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                        evidence: Evidence::Alignment
+                    };
                 },
                 // potential indel evidence
-                (&Cigar::Del(l), Variant::Deletion(length)) |
+                (&Cigar::Del(l), Variant::Deletion(length))
+                if is_similar_length(l, length) && is_close(qpos, l) => {
+                    return Observation {
+                        prob_mapping: prob_mapping,
+                        prob_alt: self.present_deletion_error_rate.ln_one_minus_exp(),
+                        prob_ref: self.absent_indel_error_rate,
+                        prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                        evidence: Evidence::Alignment
+                    };
+                },
                 (&Cigar::Ins(l), Variant::Insertion(length))
                 if is_similar_length(l, length) && is_close(qpos, l) => {
                     // supports alt allele
-                    debug!("Observation supports alt allele.");
-                    return obs;
+                    return Observation {
+                        prob_mapping: prob_mapping,
+                        prob_alt: self.present_insertion_error_rate.ln_one_minus_exp(),
+                        prob_ref: self.absent_indel_error_rate,
+                        prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                        evidence: Evidence::Alignment
+                    };
                 },
                 // other
                 (&Cigar::Match(l), _) |
@@ -275,25 +323,65 @@ impl Sample {
             }
         }
 
-        debug!("Observation supports ref allele.");
-
         // support ref allele
-        obs.prob_alt = LogProb::ln_zero();
-        obs.prob_ref = LogProb::ln_one();
-        obs
+        match variant {
+            Variant::SNV(_) => {
+                panic!("not yet implemented")
+            },
+            Variant::Deletion(_) => {
+                Observation {
+                    prob_mapping: prob_mapping,
+                    prob_alt: self.present_deletion_error_rate,
+                    prob_ref: self.absent_indel_error_rate.ln_one_minus_exp(),
+                    prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                    evidence: Evidence::Alignment
+                }
+            },
+            Variant::Insertion(_) => {
+                Observation {
+                    prob_mapping: prob_mapping,
+                    prob_alt: self.present_insertion_error_rate,
+                    prob_ref: self.absent_indel_error_rate.ln_one_minus_exp(),
+                    prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                    evidence: Evidence::Alignment
+                }
+            }
+        }
     }
 
-    fn fragment_observation(&self, record: &bam::Record, mate_mapq: u8, variant: Variant) -> Observation {
+    fn fragment_observation(
+        &self,
+        record: &bam::Record,
+        mate_mapq: u8,
+        variant: Variant
+    ) -> Observation {
         let insert_size = record.insert_size().abs();
         let shift = match variant {
             Variant::Deletion(length)  => length as f64,
             Variant::Insertion(length) => -(length as f64),
             Variant::SNV(_) => panic!("no fragment observations for SNV")
         };
+        let p_alt = (
+            // case: correctly called indel
+            self.insert_size_error_rate.ln_one_minus_exp() + isize_pmf(
+                insert_size as f64,
+                self.insert_size.mean + shift,
+                self.insert_size.sd
+            )
+        ).ln_add_exp(
+            // case: no indel, false positive call
+            self.insert_size_error_rate +
+            isize_pmf(
+                insert_size as f64,
+                self.insert_size.mean,
+                self.insert_size.sd
+            )
+        );
+
         let obs = Observation {
             prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
-            prob_alt: isize_density(insert_size as f64, self.insert_size.mean + shift, self.insert_size.sd),
-            prob_ref: isize_density(insert_size as f64, self.insert_size.mean, self.insert_size.sd),
+            prob_alt: p_alt,
+            prob_ref: isize_pmf(insert_size as f64, self.insert_size.mean, self.insert_size.sd),
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
             evidence: Evidence::InsertSize(insert_size as u32)
         };
@@ -302,20 +390,32 @@ impl Sample {
     }
 }
 
-fn isize_density(value: f64, mean: f64, sd: f64) -> LogProb {
+
+/// as shown in http://www.milefoot.com/math/stat/pdfc-normaldisc.htm
+pub fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
+    // TODO fix density in paper
+    LogProb(
+        (
+            ugaussian_P((value + 0.5 - mean) / sd) -
+            ugaussian_P((value - 0.5 - mean) / sd)
+        ).ln()// - ugaussian_P(-mean / sd).ln()
+    )
+}
+
+
+/// Continuous normal density (obsolete).
+pub fn isize_density(value: f64, mean: f64, sd: f64) -> LogProb {
     LogProb(gaussian_pdf(value - mean, sd).ln())
 }
 
-/*
-// TODO density from the paper does not yield a probability (something is missing...)
-fn isize_density(value: f64, mean: f64, sd: f64) -> LogProb {
-    LogProb(
-        (
-            ugaussian_P((value - mean - 1.0) / sd) -
-            ugaussian_P((value - mean) / sd)
-        ).ln() - ugaussian_P(-mean / sd).ln()
-    )
-}*/
+
+/// Manual normal density (obsolete, we can use GSL (see above)).
+pub fn isize_density_louis(value: f64, mean: f64, sd: f64) -> LogProb {
+    let mut p = 0.5 / (1.0 - 0.5 * erfc((mean + 0.5) / sd * consts::FRAC_1_SQRT_2));
+    p *= erfc((-value - 0.5 + mean)/sd * consts::FRAC_1_SQRT_2) - erfc((-value + 0.5 + mean)/sd * consts::FRAC_1_SQRT_2);
+
+    LogProb(p.ln())
+}
 
 
 #[cfg(test)]
@@ -328,6 +428,15 @@ mod tests {
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
     use bio::stats::{LogProb, PHREDProb};
+
+    #[test]
+    fn test_isize_density() {
+        let d1 = isize_density(300.0, 312.0, 15.0);
+        let d2 = isize_pmf(300.0, 312.0, 15.0);
+        let d3 = isize_density_louis(300.0, 312.0, 15.0);
+        println!("{} {} {}", *d1, *d2, *d3);
+        assert!(false);
+    }
 
     #[test]
     fn test_prob_mapping() {
@@ -344,8 +453,12 @@ mod tests {
             true,
             true,
             InsertSize { mean: isize_mean, sd: 20.0 },
-            likelihood::LatentVariableModel::new(1.0)
-        )
+            likelihood::LatentVariableModel::new(1.0),
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ).unwrap()
     }
 
     #[test]

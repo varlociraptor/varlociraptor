@@ -248,16 +248,24 @@ mod tests {
             true,
             true,
             insert_size,
-            LatentVariableModel::new(1.0)
-        );
+            LatentVariableModel::new(1.0),
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ).unwrap();
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
             insert_size,
-            LatentVariableModel::new(1.0)
-        );
+            LatentVariableModel::new(1.0),
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ).unwrap();
 
         let model = PairModel::new(
             case_sample,
@@ -449,16 +457,24 @@ mod tests {
             true,
             true,
             insert_size,
-            LatentVariableModel::new(0.75)
-        );
+            LatentVariableModel::new(0.75),
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ).unwrap();
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
             insert_size,
-            LatentVariableModel::new(1.0)
-        );
+            LatentVariableModel::new(1.0),
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ).unwrap();
 
         let model = PairModel::new(
             case_sample,
@@ -505,16 +521,24 @@ mod tests {
             true,
             true,
             insert_size,
-            LatentVariableModel::new(0.75)
-        );
+            LatentVariableModel::new(0.75),
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ).unwrap();
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
             insert_size,
-            LatentVariableModel::new(1.0)
-        );
+            LatentVariableModel::new(1.0),
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ).unwrap();
 
         let model = PairModel::new(
             case_sample,
