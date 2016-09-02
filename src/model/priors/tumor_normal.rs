@@ -36,13 +36,13 @@ use priors::{PairModel, Model};
 /// For the final prior, we consider a given tumor purity and calculate the combined prior
 /// for all possible allele frequency combinations satisfying `af = purity * af_tumor + (1-purity) * af_normal`.
 pub struct TumorNormalModel {
-    normal_model: InfiniteSitesNeutralVariationModel,
+    pub normal_model: InfiniteSitesNeutralVariationModel,
     effective_mutation_rate: f64,
     deletion_factor: f64,
     insertion_factor: f64,
     genome_size: u64,
-    allele_freqs_tumor: ContinousAlleleFreqs,
-    grid_points: usize,
+    pub allele_freqs_tumor: ContinousAlleleFreqs,
+    pub grid_points: usize,
     af_min: AlleleFreq
 }
 
@@ -53,7 +53,9 @@ impl TumorNormalModel {
     /// # Arguments
     ///
     /// * `ploidy` - the ploidy in the corresponding normal sample (e.g. 2 for diploid)
-    /// * `effective_mutation_rate` - the mutation rate per effective cell division in the tumor
+    /// * `effective_mutation_rate` - the SNV mutation rate per effective cell division in the tumor
+    /// * `deletion_factor` - ratio of deletions compared to SNV mutation rate
+    /// * `insertion_factor` - ratio of insertions compared to SNV mutation rate
     /// * `genome_size` - the size of the genome
     /// * `heterozygosity` - expected heterozygosity in the corresponding normal
     pub fn new(
@@ -78,10 +80,7 @@ impl TumorNormalModel {
         }
     }
 
-    fn somatic_prior_prob(&self, af_tumor: AlleleFreq, af_normal: AlleleFreq, variant: Variant) -> LogProb {
-        // af_tumor = af_normal + af_somatic
-        // this yields for af_somatic
-        let af_somatic = af_tumor - af_normal;
+    pub fn somatic_prior_prob(&self, af_somatic: AlleleFreq, variant: Variant) -> LogProb {
         // af_somatic can become negative, meaning that at some point a variant from normal was lost
         // in one cell (LOH!!). Again, the frequency corresponds to time in tumor evolution since the model
         // assumes that all frequencies stay constant. Hence, we can simply take the absolute value
@@ -104,14 +103,20 @@ impl TumorNormalModel {
 
         LogProb(self.effective_mutation_rate.ln() + factor - (2.0 * af_somatic.ln() + (self.genome_size as f64).ln()))
     }
+
+    pub fn normal_prior_prob(&self, af_normal: AlleleFreq, variant: Variant) -> LogProb {
+        self.normal_model.prior_prob(af_normal, variant)
+    }
 }
 
 
 impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
 
     fn prior_prob(&self, af_tumor: AlleleFreq, af_normal: AlleleFreq, variant: Variant) -> LogProb {
-        let p = self.somatic_prior_prob(af_tumor, af_normal, variant) +
-                self.normal_model.prior_prob(af_normal, variant);
+        // af_tumor = af_normal + af_somatic
+        let af_somatic =  af_tumor - af_normal;
+        let p = self.somatic_prior_prob(af_somatic, variant) +
+                self.normal_prior_prob(af_normal, variant);
         assert!(*p <= 0.0);
         p
     }
@@ -127,10 +132,6 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
     {
-        /*fn qng_density<D: Fn(f64) -> LogProb>(af: f64, density: &mut D) -> f64 {
-            density(af).exp()
-        }*/
-
         let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
             let density = |af_tumor| {
                 let af_tumor = AlleleFreq(af_tumor);
@@ -142,14 +143,6 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
                 density(*af_tumor.start)
             } else {
                 LogProb::ln_simpsons_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points)
-                //let p = LogProb::ln_trapezoidal_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points);
-                /*let mut res = 0.0;
-                let mut err = 0.0;
-                let mut n = 0;
-                qng(qng_density, &mut density, *af_tumor.start, *af_tumor.end, 0.5, 0.5, &mut res, &mut err, &mut n);
-                println!("{}=?{}=?{} {} {}", p.exp(), res, p2.exp(), err, n);
-                //p
-                LogProb(res.ln())*/
             };
             let p_normal = likelihood_normal(af_normal, AlleleFreq(0.0));
             let prob = p_tumor + p_normal;
@@ -170,8 +163,8 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
     {
         let p = self.joint_prob(
-            self.allele_freqs_case(),
-            self.allele_freqs_control(),
+            self.allele_freqs().0,
+            self.allele_freqs().1,
             likelihood_tumor,
             likelihood_normal,
             variant
@@ -212,11 +205,7 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         (AlleleFreq(map_tumor), *map_normal)
     }
 
-    fn allele_freqs_case(&self) -> &ContinousAlleleFreqs {
-        &self.allele_freqs_tumor
-    }
-
-    fn allele_freqs_control(&self) -> &DiscreteAlleleFreqs {
-        self.normal_model.allele_freqs()
+    fn allele_freqs(&self) -> (&ContinousAlleleFreqs, &DiscreteAlleleFreqs) {
+        (&self.allele_freqs_tumor, self.normal_model.allele_freqs())
     }
 }

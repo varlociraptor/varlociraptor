@@ -21,7 +21,7 @@ impl InfiniteSitesNeutralVariationModel {
     pub fn new(ploidy: u32, heterozygosity: f64) -> Self {
         let heterozygosity = LogProb(heterozygosity.ln());
         let zero_prob = LogProb(*heterozygosity +
-            (1..ploidy + 1).fold(0.0, |s, m| s + 1.0 / m as f64).ln()
+            Self::allele_freq_sum(ploidy).ln()
         ).ln_one_minus_exp();
 
         let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
@@ -32,6 +32,10 @@ impl InfiniteSitesNeutralVariationModel {
             zero_prob: zero_prob,
             allele_freqs: allele_freqs
         }
+    }
+
+    pub fn allele_freq_sum(ploidy: u32) -> f64 {
+        (1..ploidy + 1).fold(0.0, |s, m| s + 1.0 / m as f64)
     }
 }
 

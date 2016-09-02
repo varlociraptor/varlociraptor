@@ -1,12 +1,14 @@
+pub mod infinite_sites_neutral_variation;
+pub mod tumor_normal;
+pub mod tumor_normal_relapse;
+
 use bio::stats::LogProb;
 
 use model::{Variant, AlleleFreqs, AlleleFreq};
 
-pub mod infinite_sites_neutral_variation;
-pub mod tumor_normal;
-
 pub use priors::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel;
 pub use priors::tumor_normal::TumorNormalModel;
+pub use priors::tumor_normal_relapse::TumorNormalRelapseModel;
 
 
 /// A prior model of the allele frequency spectrum.
@@ -61,12 +63,58 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
 
-    /// Return allele frequency spectrum of case sample.
-    fn allele_freqs_case(&self) -> &A;
-
-    /// Return allele frequency spectrum of control sample.
-    fn allele_freqs_control(&self) -> &B;
+    /// Return allele frequency spectra.
+    fn allele_freqs(&self) -> (&A, &B);
 }
+
+
+pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
+    /// Calculate prior probability of given combination of allele frequencies.
+    fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, af3: AlleleFreq, variant: Variant) -> LogProb;
+
+    /// Calculate joint probability of prior with likelihoods for given allele frequency ranges.
+    fn joint_prob<L, O, Q>(
+        &self,
+        af1: &A,
+        af2: &B,
+        af3: &C,
+        likelihood1: &L,
+        likelihood2: &O,
+        likelihood3: &Q,
+        variant: Variant
+    ) -> LogProb where
+        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        Q: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+
+    /// Calculate marginal probability.
+    fn marginal_prob<L, O, Q>(
+        &self,
+        likelihood1: &L,
+        likelihood2: &O,
+        likelihood3: &Q,
+        variant: Variant
+    ) -> LogProb where
+        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        Q: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+
+    /// Calculate maximum a posteriori probability estimate of allele frequencies.
+    fn map<L, O, Q>(
+        &self,
+        likelihood1: &L,
+        likelihood2: &O,
+        likelihood3: &Q,
+        variant: Variant
+    ) -> (AlleleFreq, AlleleFreq, AlleleFreq) where
+        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
+        Q: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+
+    /// Return allele frequency spectra.
+    fn allele_freqs(&self) -> (&A, &B, &C);
+}
+
 
 
 #[cfg(test)]
