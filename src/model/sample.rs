@@ -147,10 +147,10 @@ pub struct Sample {
     use_fragment_evidence: bool,
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
-    insert_size_error_rate: LogProb,
-    present_insertion_error_rate: LogProb,
-    present_deletion_error_rate: LogProb,
-    absent_indel_error_rate: LogProb
+    prob_spurious_isize: LogProb,
+    prob_missed_insertion_alignment: LogProb,
+    prob_missed_deletion_alignment: LogProb,
+    prob_spurious_indel_alignment: LogProb
 }
 
 
@@ -166,10 +166,10 @@ impl Sample {
     /// * `insert_size` - estimated insert size
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
     /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
-    /// * `insert_size_error_rate` - rate of wrongly reported insert size abberations (mapper dependent, BWA: 0.01332338, LASER: 0.05922201)
-    /// * `present_insertion_error_rate` - rate of missed insertion alignments if insertion is present (mapper dependent, BWA: 0.2138, LASER: 0.3460)
-    /// * `present_deletion_error_rate` - rate of missed deletion alignments if deletion is present (mapper dependent, BWA: 0.0310, LASER: 0.0964)
-    /// * `absent_indel_error_rate` - rate of wrongly reported indel alignments if indel is absent (mapper dependent)
+    /// * `prob_spurious_isize` - rate of wrongly reported insert size abberations (mapper dependent, BWA: 0.01332338, LASER: 0.05922201)
+    /// * `prob_missed_insertion_alignment` - rate of missed insertion alignments if insertion is present (mapper dependent, BWA: 0.2138, LASER: 0.3460)
+    /// * `prob_missed_deletion_alignment` - rate of missed deletion alignments if deletion is present (mapper dependent, BWA: 0.0310, LASER: 0.0964)
+    /// * `prob_spurious_indel_alignment` - rate of wrongly reported indel alignments if indel is absent (mapper dependent)
     pub fn new(
         bam: bam::IndexedReader,
         pileup_window: u32,
@@ -177,20 +177,20 @@ impl Sample {
         use_secondary: bool,
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
-        insert_size_error_rate: f64,
-        present_insertion_error_rate: f64,
-        present_deletion_error_rate: f64,
-        absent_indel_error_rate: f64
+        prob_spurious_isize: f64,
+        prob_missed_insertion_alignment: f64,
+        prob_missed_deletion_alignment: f64,
+        prob_spurious_indel_alignment: f64
     ) -> Result<Self, Box<Error>> {
         Ok(Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
             insert_size: insert_size,
             likelihood_model: likelihood_model,
-            insert_size_error_rate: LogProb::from(try!(Prob::checked(insert_size_error_rate))),
-            present_insertion_error_rate: LogProb::from(try!(Prob::checked(present_insertion_error_rate))),
-            present_deletion_error_rate: LogProb::from(try!(Prob::checked(present_deletion_error_rate))),
-            absent_indel_error_rate: LogProb::from(try!(Prob::checked(absent_indel_error_rate))),
+            prob_spurious_isize: LogProb::from(try!(Prob::checked(prob_spurious_isize))),
+            prob_missed_insertion_alignment: LogProb::from(try!(Prob::checked(prob_missed_insertion_alignment))),
+            prob_missed_deletion_alignment: LogProb::from(try!(Prob::checked(prob_missed_deletion_alignment))),
+            prob_spurious_indel_alignment: LogProb::from(try!(Prob::checked(prob_spurious_indel_alignment))),
         })
     }
 
@@ -294,8 +294,8 @@ impl Sample {
                 if is_similar_length(l, length) && is_close(qpos, l) => {
                     return Observation {
                         prob_mapping: prob_mapping,
-                        prob_alt: self.present_deletion_error_rate.ln_one_minus_exp(),
-                        prob_ref: self.absent_indel_error_rate,
+                        prob_alt: self.prob_missed_deletion_alignment.ln_one_minus_exp(),
+                        prob_ref: self.prob_spurious_indel_alignment,
                         prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
                         evidence: Evidence::Alignment
                     };
@@ -305,8 +305,8 @@ impl Sample {
                     // supports alt allele
                     return Observation {
                         prob_mapping: prob_mapping,
-                        prob_alt: self.present_insertion_error_rate.ln_one_minus_exp(),
-                        prob_ref: self.absent_indel_error_rate,
+                        prob_alt: self.prob_missed_insertion_alignment.ln_one_minus_exp(),
+                        prob_ref: self.prob_spurious_indel_alignment,
                         prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
                         evidence: Evidence::Alignment
                     };
@@ -331,8 +331,8 @@ impl Sample {
             Variant::Deletion(_) => {
                 Observation {
                     prob_mapping: prob_mapping,
-                    prob_alt: self.present_deletion_error_rate,
-                    prob_ref: self.absent_indel_error_rate.ln_one_minus_exp(),
+                    prob_alt: self.prob_missed_deletion_alignment,
+                    prob_ref: self.prob_spurious_indel_alignment.ln_one_minus_exp(),
                     prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
                     evidence: Evidence::Alignment
                 }
@@ -340,8 +340,8 @@ impl Sample {
             Variant::Insertion(_) => {
                 Observation {
                     prob_mapping: prob_mapping,
-                    prob_alt: self.present_insertion_error_rate,
-                    prob_ref: self.absent_indel_error_rate.ln_one_minus_exp(),
+                    prob_alt: self.prob_missed_insertion_alignment,
+                    prob_ref: self.prob_spurious_indel_alignment.ln_one_minus_exp(),
                     prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
                     evidence: Evidence::Alignment
                 }
@@ -363,14 +363,14 @@ impl Sample {
         };
         let p_alt = (
             // case: correctly called indel
-            self.insert_size_error_rate.ln_one_minus_exp() + isize_pmf(
+            self.prob_spurious_isize.ln_one_minus_exp() + isize_pmf(
                 insert_size as f64,
                 self.insert_size.mean + shift,
                 self.insert_size.sd
             )
         ).ln_add_exp(
             // case: no indel, false positive call
-            self.insert_size_error_rate +
+            self.prob_spurious_isize +
             isize_pmf(
                 insert_size as f64,
                 self.insert_size.mean,
