@@ -19,7 +19,7 @@ impl FlatTumorNormalModel {
         FlatTumorNormalModel {
             allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
             allele_freqs_normal: allele_freqs,
-            grid_points: 200
+            grid_points: 201
         }
     }
 }
