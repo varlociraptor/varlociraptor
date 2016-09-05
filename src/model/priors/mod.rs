@@ -1,6 +1,7 @@
 pub mod infinite_sites_neutral_variation;
 pub mod tumor_normal;
 pub mod tumor_normal_relapse;
+pub mod flat;
 
 use bio::stats::LogProb;
 

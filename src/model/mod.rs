@@ -522,10 +522,10 @@ mod tests {
             true,
             insert_size,
             LatentVariableModel::new(0.75),
-            Prob(0.0),
-            Prob(0.0),
-            Prob(0.0),
-            Prob(0.0)
+            Prob(0.05922201),
+            Prob(0.3460),
+            Prob(0.0964),
+            Prob(0.00001)
         );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
@@ -534,10 +534,10 @@ mod tests {
             true,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.0),
-            Prob(0.0),
-            Prob(0.0),
-            Prob(0.0)
+            Prob(0.05922201),
+            Prob(0.3460),
+            Prob(0.0964),
+            Prob(0.00001)
         );
 
         let model = PairModel::new(
