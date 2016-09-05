@@ -463,7 +463,6 @@ mod tests {
         );
 
         println!("{} {}", d_mix.exp(), p_alt.exp());
-        assert!(false);
     }
 
     #[test]
