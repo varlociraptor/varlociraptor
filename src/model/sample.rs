@@ -222,11 +222,10 @@ impl Sample {
 
         // iterate over records
         for record in self.record_buffer.iter() {
-            // TODO optionally disable the use of secondary alignments
             let pos = record.pos();
             let cigar = record.cigar();
             let end_pos = record.end_pos(&cigar);
-            if pos <= varpos && end_pos >= varpos {
+            if pos < varpos && end_pos > varpos {
                 // overlapping alignment
                 observations.push(self.read_observation(&record, &cigar, varpos, variant));
                 n_overlap += 1;
