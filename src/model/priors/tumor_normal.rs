@@ -2,7 +2,7 @@ use std::f64;
 
 use itertools::{Itertools, linspace};
 use ordered_float::NotNaN;
-use bio::stats::LogProb;
+use bio::stats::{LogProb, Prob};
 
 use model::{Variant, ContinousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
@@ -64,7 +64,7 @@ impl TumorNormalModel {
         deletion_factor: f64,
         insertion_factor: f64,
         genome_size: u64,
-        heterozygosity: f64) -> Self {
+        heterozygosity: Prob) -> Self {
         assert!(effective_mutation_rate < genome_size as f64);
         let af_min = AlleleFreq((effective_mutation_rate / genome_size as f64).sqrt());
 

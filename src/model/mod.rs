@@ -231,7 +231,7 @@ mod tests {
     use InsertSize;
     use model::sample::{Observation, Evidence};
     use rust_htslib::bam;
-    use bio::stats::LogProb;
+    use bio::stats::{LogProb, Prob};
     #[cfg(feature="flame_it")]
     use std::fs::File;
     #[cfg(feature="flame_it")]
@@ -241,7 +241,7 @@ mod tests {
 
     fn setup_pairwise_test<'a>() -> PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
         let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
-        let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, 0.001);
+        let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, Prob(0.001));
         let case_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
@@ -249,11 +249,11 @@ mod tests {
             true,
             insert_size,
             LatentVariableModel::new(1.0),
-            0.0,
-            0.0,
-            0.0,
-            0.0
-        ).unwrap();
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0)
+        );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
@@ -261,11 +261,11 @@ mod tests {
             true,
             insert_size,
             LatentVariableModel::new(1.0),
-            0.0,
-            0.0,
-            0.0,
-            0.0
-        ).unwrap();
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0)
+        );
 
         let model = PairModel::new(
             case_sample,
@@ -450,7 +450,7 @@ mod tests {
         let control_obs = vec![Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00025122019630215495), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0001585018800054507), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0006311564818346603), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.003989017266406586), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }];
 
         let insert_size = InsertSize{ mean: 112.0, sd: 15.0 };
-        let prior_model = priors::TumorNormalModel::new(2, 40000.0, 0.5, 0.5, 3e9 as u64, 1.25E-4);
+        let prior_model = priors::TumorNormalModel::new(2, 40000.0, 0.5, 0.5, 3e9 as u64, Prob(1.25E-4));
         let case_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
@@ -458,11 +458,11 @@ mod tests {
             true,
             insert_size,
             LatentVariableModel::new(0.75),
-            0.0,
-            0.0,
-            0.0,
-            0.0
-        ).unwrap();
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0)
+        );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
@@ -470,11 +470,11 @@ mod tests {
             true,
             insert_size,
             LatentVariableModel::new(1.0),
-            0.0,
-            0.0,
-            0.0,
-            0.0
-        ).unwrap();
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0)
+        );
 
         let model = PairModel::new(
             case_sample,
@@ -514,7 +514,7 @@ mod tests {
         };
 
         let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
-        let prior_model = priors::TumorNormalModel::new(2, 40000.0, deletion_factor, insertion_factor, 3e9 as u64, 1.25E-4);
+        let prior_model = priors::TumorNormalModel::new(2, 40000.0, deletion_factor, insertion_factor, 3e9 as u64, Prob(1.25E-4));
         let case_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
@@ -522,11 +522,11 @@ mod tests {
             true,
             insert_size,
             LatentVariableModel::new(0.75),
-            0.0,
-            0.0,
-            0.0,
-            0.0
-        ).unwrap();
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0)
+        );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
@@ -534,11 +534,11 @@ mod tests {
             true,
             insert_size,
             LatentVariableModel::new(1.0),
-            0.0,
-            0.0,
-            0.0,
-            0.0
-        ).unwrap();
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0)
+        );
 
         let model = PairModel::new(
             case_sample,

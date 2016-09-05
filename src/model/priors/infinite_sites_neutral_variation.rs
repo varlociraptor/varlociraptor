@@ -1,7 +1,7 @@
 use std::f64;
 
 use itertools::Itertools;
-use bio::stats::LogProb;
+use bio::stats::{LogProb, Prob};
 
 use model::{Variant, DiscreteAlleleFreqs, AlleleFreq};
 use priors::Model;
@@ -18,8 +18,8 @@ pub struct InfiniteSitesNeutralVariationModel {
 
 impl InfiniteSitesNeutralVariationModel {
     /// Create new model for given ploidy and heterozygosity.
-    pub fn new(ploidy: u32, heterozygosity: f64) -> Self {
-        let heterozygosity = LogProb(heterozygosity.ln());
+    pub fn new(ploidy: u32, heterozygosity: Prob) -> Self {
+        let heterozygosity = LogProb::from(heterozygosity);
         let zero_prob = LogProb(*heterozygosity +
             Self::allele_freq_sum(ploidy).ln()
         ).ln_one_minus_exp();

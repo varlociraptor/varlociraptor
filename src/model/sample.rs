@@ -177,21 +177,21 @@ impl Sample {
         use_secondary: bool,
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
-        prob_spurious_isize: f64,
-        prob_missed_insertion_alignment: f64,
-        prob_missed_deletion_alignment: f64,
-        prob_spurious_indel_alignment: f64
-    ) -> Result<Self, Box<Error>> {
-        Ok(Sample {
+        prob_spurious_isize: Prob,
+        prob_missed_insertion_alignment: Prob,
+        prob_missed_deletion_alignment: Prob,
+        prob_spurious_indel_alignment: Prob
+    ) -> Self {
+        Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
             insert_size: insert_size,
             likelihood_model: likelihood_model,
-            prob_spurious_isize: LogProb::from(try!(Prob::checked(prob_spurious_isize))),
-            prob_missed_insertion_alignment: LogProb::from(try!(Prob::checked(prob_missed_insertion_alignment))),
-            prob_missed_deletion_alignment: LogProb::from(try!(Prob::checked(prob_missed_deletion_alignment))),
-            prob_spurious_indel_alignment: LogProb::from(try!(Prob::checked(prob_spurious_indel_alignment))),
-        })
+            prob_spurious_isize: LogProb::from(prob_spurious_isize),
+            prob_missed_insertion_alignment: LogProb::from(prob_missed_insertion_alignment),
+            prob_missed_deletion_alignment: LogProb::from(prob_missed_deletion_alignment),
+            prob_spurious_indel_alignment: LogProb::from(prob_spurious_indel_alignment)
+        }
     }
 
     /// Return likelihood model.
@@ -427,7 +427,7 @@ mod tests {
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
-    use bio::stats::{LogProb, PHREDProb};
+    use bio::stats::{LogProb, PHREDProb, Prob};
 
     #[test]
     fn test_isize_density() {
@@ -435,7 +435,6 @@ mod tests {
         let d2 = isize_pmf(300.0, 312.0, 15.0);
         let d3 = isize_density_louis(300.0, 312.0, 15.0);
         println!("{} {} {}", *d1, *d2, *d3);
-        assert!(false);
     }
 
     #[test]
@@ -454,11 +453,11 @@ mod tests {
             true,
             InsertSize { mean: isize_mean, sd: 20.0 },
             likelihood::LatentVariableModel::new(1.0),
-            0.0,
-            0.0,
-            0.0,
-            0.0
-        ).unwrap()
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0),
+            Prob(0.0)
+        )
     }
 
     #[test]

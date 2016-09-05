@@ -1,5 +1,5 @@
 
-use bio::stats::LogProb;
+use bio::stats::{LogProb, Prob};
 use itertools::{Itertools, linspace};
 use ordered_float::NotNaN;
 
@@ -30,7 +30,7 @@ impl TumorNormalRelapseModel {
         deletion_factor: f64,
         insertion_factor: f64,
         genome_size: u64,
-        heterozygosity: f64) -> Self {
+        heterozygosity: Prob) -> Self {
 
         TumorNormalRelapseModel {
             primary_model: TumorNormalModel::new(
@@ -49,7 +49,7 @@ impl TumorNormalRelapseModel {
                 genome_size,
                 // this heterozygosity is for the case that we have a variant in the surviving subclone
                 // hence, we assume 0 = 1.0 - het * sum_i 1/i and calculate het below
-                1.0 / InfiniteSitesNeutralVariationModel::allele_freq_sum(ploidy)
+                Prob(1.0 / InfiniteSitesNeutralVariationModel::allele_freq_sum(ploidy))
             )
         }
     }

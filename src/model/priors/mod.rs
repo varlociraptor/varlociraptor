@@ -123,12 +123,13 @@ mod tests {
     use itertools::linspace;
     use model::Variant;
     use model::AlleleFreq;
+    use bio::stats::Prob;
 
     #[test]
     fn test_infinite_sites_neutral_variation() {
         let variant = Variant::Deletion(3);
         let ploidy = 2;
-        let het = 0.001;
+        let het = Prob(0.001);
         let model = InfiniteSitesNeutralVariationModel::new(ploidy, het);
         assert_relative_eq!(model.prior_prob(AlleleFreq(0.5), variant).exp(), 0.001);
         assert_relative_eq!(model.prior_prob(AlleleFreq(1.0), variant).exp(), 0.0005);
@@ -138,7 +139,7 @@ mod tests {
     #[test]
     fn test_tumor() {
         let variant = Variant::Deletion(3);
-        let model = TumorNormalModel::new(2, 300.0, 1.0, 1.0, 3e9 as u64, 0.001);
+        let model = TumorNormalModel::new(2, 300.0, 1.0, 1.0, 3e9 as u64, Prob(0.001));
         println!("af=0.0,0.0 -> {}", *model.prior_prob(AlleleFreq(0.0), AlleleFreq(0.0), variant));
         println!("af=0.5,0.5 -> {}", *model.prior_prob(AlleleFreq(0.5), AlleleFreq(0.5), variant));
 
