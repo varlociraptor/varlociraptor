@@ -13,6 +13,18 @@ pub struct FlatTumorNormalModel {
 }
 
 
+impl FlatTumorNormalModel {
+    pub fn new(ploidy: u32) -> Self {
+        let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
+        FlatTumorNormalModel {
+            allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
+            allele_freqs_normal: allele_freqs,
+            grid_points: 200
+        }
+    }
+}
+
+
 impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalModel {
 
     fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: Variant) -> LogProb {
