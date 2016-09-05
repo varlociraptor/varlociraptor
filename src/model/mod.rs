@@ -514,7 +514,6 @@ mod tests {
         };
 
         let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
-        let prior_model = priors::TumorNormalModel::new(2, 40000.0, deletion_factor, insertion_factor, 3e9 as u64, Prob(1.25E-4));
         let case_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
@@ -540,6 +539,59 @@ mod tests {
             Prob(0.00001)
         );
 
+
+        let prior_model = priors::TumorNormalModel::new(2, 40000.0, deletion_factor, insertion_factor, 3e9 as u64, Prob(1.25E-4));
+        let model = PairModel::new(
+            case_sample,
+            control_sample,
+            prior_model
+        );
+
+        (case_obs, control_obs, model)
+    }
+
+
+    fn setup_example_flat(path: &str) -> (Vec<Observation>, Vec<Observation>, PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::FlatTumorNormalModel>) {
+        let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
+        let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
+        let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
+            sample == "case"
+        });
+        let case_obs = groups.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        let control_obs = if let Some(o) = groups.next() {
+            o.1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec()
+        } else {
+            vec![]
+        };
+
+        let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
+        let case_sample = Sample::new(
+            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            5000,
+            true,
+            true,
+            insert_size,
+            LatentVariableModel::new(0.75),
+            Prob(0.05922201),
+            Prob(0.3460),
+            Prob(0.0964),
+            Prob(0.00001)
+        );
+        let control_sample = Sample::new(
+            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            5000,
+            true,
+            true,
+            insert_size,
+            LatentVariableModel::new(1.0),
+            Prob(0.05922201),
+            Prob(0.3460),
+            Prob(0.0964),
+            Prob(0.00001)
+        );
+
+
+        let prior_model = priors::FlatTumorNormalModel::new(2);
         let model = PairModel::new(
             case_sample,
             control_sample,
@@ -624,6 +676,57 @@ mod tests {
         let p_absent = pileup.posterior_prob(&tumor_ref, &normal_ref);
         let (af_case, af_control) = pileup.map_allele_freqs();
         println!("{} {} {} {} {}", p_somatic.exp(), p_germline.exp(), p_absent.exp(), af_case, af_control);
+        assert!(p_somatic >= p_germline);
+        assert!(*af_case <= 0.1);
+        assert_relative_eq!(*af_control, 0.0);
+    }
+
+    /// Test example where variant is absent
+    fn test_example5() {
+        let (case_obs, control_obs, model) = setup_example_flat("tests/example6.obs.txt");
+        //for obs in case_obs.iter_mut() {
+        //    obs.prob_mapping = LogProb(0.999f64.ln());
+        //}
+
+        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.0);
+        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
+        let normal_ref = vec![AlleleFreq(0.0)];
+        //let lh = model.case_sample().likelihood_model().likelihood_pileup(&case_obs[..100], 0.07, 0.0);
+        let variant = Variant::Insertion(1);
+        /*let p_absent = model.joint_prob(&case_obs, &control_obs, &tumor_ref, &normal_ref, variant);
+        let p_somatic = model.joint_prob(&case_obs, &control_obs, &tumor_alt, &normal_ref, variant);
+        let p_germline = model.joint_prob(&case_obs, &control_obs, &tumor_all, &normal_alt, variant);
+        let p_marginal = model.marginal_prob(&case_obs, &control_obs, variant);
+        let norm = LogProb::ln_sum_exp(&[p_absent, p_somatic, p_germline]);
+
+        println!("marginal={:e}, absent={}, somatic={}, germline={:e}, sum={:e}", p_marginal.exp(), (p_absent - norm).exp(), (p_somatic - norm).exp(), (p_germline - norm).exp(), norm.exp());
+        assert!(false);*/
+
+        /*let mut case_obs = control_obs.into_iter().filter(|obs| {
+            match obs.evidence {
+                sample::Evidence::Alignment => true,
+                _ => false
+            }
+        }).collect_vec();*/
+        //for obs in case_obs.iter_mut() {
+        //    obs.prob_mapping = LogProb::ln_one();
+        //}
+        for af in &[0.0, 0.01, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 1.0] {
+            println!("{}:: {:?}", af, model.control_sample.borrow().likelihood_model().likelihood_pileup(&case_obs, *af, 0.0));
+        }
+        assert!(false);
+
+        let pileup = PairPileup::new(case_obs.to_owned(), control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
+
+
+        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
+        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
+        let p_absent = pileup.posterior_prob(&tumor_ref, &normal_ref);
+        let (af_case, af_control) = pileup.map_allele_freqs();
+        println!("{} {} {} {} {}", p_somatic.exp(), p_germline.exp(), p_absent.exp(), af_case, af_control);
+        assert!(false);
         assert!(p_somatic >= p_germline);
         assert!(*af_case <= 0.1);
         assert_relative_eq!(*af_control, 0.0);

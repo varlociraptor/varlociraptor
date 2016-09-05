@@ -56,10 +56,6 @@ impl LatentVariableModel {
                              allele_freq_control: f64) -> LogProb {
         let allele_freq_case = LogProb(allele_freq_case.ln());
         let allele_freq_control = LogProb(allele_freq_control.ln());
-        //println!("likelihood summands");
-        /*println!("afcase {} afcontrol {} {:?}", *allele_freq_case, *allele_freq_control, pileup.iter().map(|obs| {
-            self.likelihood_observation(obs, allele_freq_case, allele_freq_control)
-        }).collect_vec());*/
         // calculate product of per-read likelihoods in log space
         let likelihood = pileup.iter().fold(LogProb::ln_one(),
             |prob, obs| prob + self.likelihood_observation(obs, allele_freq_case, allele_freq_control));
