@@ -4,7 +4,7 @@ use itertools::{Itertools, linspace};
 use ordered_float::NotNaN;
 use bio::stats::{LogProb, Prob};
 
-use model::{Variant, ContinousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
+use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 use priors::InfiniteSitesNeutralVariationModel;
 use priors::{PairModel, Model};
@@ -41,7 +41,7 @@ pub struct TumorNormalModel {
     deletion_factor: f64,
     insertion_factor: f64,
     genome_size: u64,
-    pub allele_freqs_tumor: ContinousAlleleFreqs,
+    pub allele_freqs_tumor: ContinuousAlleleFreqs,
     pub grid_points: usize,
     af_min: AlleleFreq
 }
@@ -110,7 +110,7 @@ impl TumorNormalModel {
 }
 
 
-impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
+impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
 
     fn prior_prob(&self, af_tumor: AlleleFreq, af_normal: AlleleFreq, variant: Variant) -> LogProb {
         // af_tumor = af_normal + af_somatic
@@ -123,7 +123,7 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
 
     fn joint_prob<L, O>(
         &self,
-        af_tumor: &ContinousAlleleFreqs,
+        af_tumor: &ContinuousAlleleFreqs,
         af_normal: &DiscreteAlleleFreqs,
         likelihood_tumor: &L,
         likelihood_normal: &O,
@@ -205,7 +205,7 @@ impl PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
         (AlleleFreq(map_tumor), *map_normal)
     }
 
-    fn allele_freqs(&self) -> (&ContinousAlleleFreqs, &DiscreteAlleleFreqs) {
+    fn allele_freqs(&self) -> (&ContinuousAlleleFreqs, &DiscreteAlleleFreqs) {
         (&self.allele_freqs_tumor, self.normal_model.allele_freqs())
     }
 }

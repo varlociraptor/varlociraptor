@@ -18,7 +18,7 @@ use model::sample::{Sample, Observation};
 
 pub type AlleleFreq = NotNaN<f64>;
 pub type DiscreteAlleleFreqs = Vec<AlleleFreq>;
-pub type ContinousAlleleFreqs = Range<AlleleFreq>;
+pub type ContinuousAlleleFreqs = Range<AlleleFreq>;
 
 
 #[allow(non_snake_case)]
@@ -29,7 +29,7 @@ pub fn AlleleFreq(af: f64) -> AlleleFreq {
 
 pub trait AlleleFreqs: Debug {}
 impl AlleleFreqs for DiscreteAlleleFreqs {}
-impl AlleleFreqs for ContinousAlleleFreqs {}
+impl AlleleFreqs for ContinuousAlleleFreqs {}
 
 
 #[derive(Copy, Clone)]
@@ -239,7 +239,7 @@ mod tests {
     use csv;
     use itertools::Itertools;
 
-    fn setup_pairwise_test<'a>() -> PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
+    fn setup_pairwise_test<'a>() -> PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
         let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
         let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, Prob(0.001));
         let case_sample = Sample::new(
@@ -500,7 +500,7 @@ mod tests {
         assert!(p_somatic > p_absent);
     }
 
-    fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, PairModel<ContinousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel>) {
+    fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel>) {
         let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
         let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
         let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {

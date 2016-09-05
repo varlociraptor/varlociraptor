@@ -5,7 +5,7 @@ use ordered_float::NotNaN;
 
 use priors::{PairModel, TumorNormalModel, InfiniteSitesNeutralVariationModel};
 use priors::TrioModel;
-use model::{Variant, ContinousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
+use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 pub struct TumorNormalRelapseModel {
     primary_model: TumorNormalModel,
@@ -56,7 +56,7 @@ impl TumorNormalRelapseModel {
 }
 
 
-impl TrioModel<ContinousAlleleFreqs, ContinousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalRelapseModel {
+impl TrioModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalRelapseModel {
     fn prior_prob(&self, af_tumor: AlleleFreq, af_relapse: AlleleFreq, af_normal: AlleleFreq, variant: Variant) -> LogProb {
         let p_tumor_normal = self.primary_model.prior_prob(af_tumor, af_normal, variant);
         // af_tumor = 1 or 0
@@ -77,8 +77,8 @@ impl TrioModel<ContinousAlleleFreqs, ContinousAlleleFreqs, DiscreteAlleleFreqs> 
 
     fn joint_prob<L, O, Q>(
         &self,
-        af_tumor: &ContinousAlleleFreqs,
-        af_relapse: &ContinousAlleleFreqs,
+        af_tumor: &ContinuousAlleleFreqs,
+        af_relapse: &ContinuousAlleleFreqs,
         af_normal: &DiscreteAlleleFreqs,
         likelihood_tumor: &L,
         likelihood_relapse: &O,
@@ -180,7 +180,7 @@ impl TrioModel<ContinousAlleleFreqs, ContinousAlleleFreqs, DiscreteAlleleFreqs> 
         (AlleleFreq(map_tumor), AlleleFreq(map_relapse), *map_normal)
     }
 
-    fn allele_freqs(&self) -> (&ContinousAlleleFreqs, &ContinousAlleleFreqs, &DiscreteAlleleFreqs) {
+    fn allele_freqs(&self) -> (&ContinuousAlleleFreqs, &ContinuousAlleleFreqs, &DiscreteAlleleFreqs) {
         (self.primary_model.allele_freqs().0, self.relapse_model.allele_freqs().0, self.primary_model.allele_freqs().1)
     }
 }
