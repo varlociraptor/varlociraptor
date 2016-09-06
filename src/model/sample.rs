@@ -198,12 +198,12 @@ impl Sample {
         }
     }
 
-    pub fn max_indel_dist(&mut self, dist: u32) -> &mut Self {
+    pub fn max_indel_dist(mut self, dist: u32) -> Self {
         self.max_indel_dist = dist;
         self
     }
 
-    pub fn max_indel_len_diff(&mut self, diff: u32) -> &mut Self {
+    pub fn max_indel_len_diff(mut self, diff: u32) -> Self {
         self.max_indel_len_diff = diff;
         self
     }
