@@ -150,7 +150,9 @@ pub struct Sample {
     prob_spurious_isize: LogProb,
     prob_missed_insertion_alignment: LogProb,
     prob_missed_deletion_alignment: LogProb,
-    prob_spurious_indel_alignment: LogProb
+    prob_spurious_indel_alignment: LogProb,
+    max_indel_dist: u32,
+    max_indel_len_diff: u32
 }
 
 
@@ -190,8 +192,20 @@ impl Sample {
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
             prob_missed_insertion_alignment: LogProb::from(prob_missed_insertion_alignment),
             prob_missed_deletion_alignment: LogProb::from(prob_missed_deletion_alignment),
-            prob_spurious_indel_alignment: LogProb::from(prob_spurious_indel_alignment)
+            prob_spurious_indel_alignment: LogProb::from(prob_spurious_indel_alignment),
+            max_indel_dist: 50,
+            max_indel_len_diff: 20
         }
+    }
+
+    pub fn max_indel_dist(&mut self, dist: u32) -> &mut Self {
+        self.max_indel_dist = dist;
+        self
+    }
+
+    pub fn max_indel_len_diff(&mut self, diff: u32) -> &mut Self {
+        self.max_indel_len_diff = diff;
+        self
     }
 
     /// Return likelihood model.
@@ -257,8 +271,8 @@ impl Sample {
         varpos: i32,
         variant: Variant
     ) -> Observation {
-        let is_close = |qpos: i32, qlength: u32| (varpos - (qpos + qlength as i32 / 2)).abs() <= 50;
-        let is_similar_length = |qlength: u32, varlength: u32| (varlength as i32 - qlength as i32).abs() <= 20;
+        let is_close = |qpos: i32, qlength: u32| (varpos - (qpos + qlength as i32 / 2)).abs() as u32 <= self.max_indel_dist;
+        let is_similar_length = |qlength: u32, varlength: u32| (varlength as i32 - qlength as i32).abs() as u32 <= self.max_indel_len_diff;
         let contains_varpos = |qpos: i32, qlength: u32|  qpos >= varpos && qpos + qlength as i32 <= varpos;
         let snv_prob_alt = |base: u8| {
             // position in read
