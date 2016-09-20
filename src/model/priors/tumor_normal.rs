@@ -209,3 +209,27 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         (&self.allele_freqs_tumor, self.normal_model.allele_freqs())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use itertools::linspace;
+    use bio::stats::Prob;
+    use model::Variant;
+    use model::priors::PairModel;
+    use model::AlleleFreq;
+
+    #[test]
+    fn print_priors() {
+        let variant = Variant::SNV(b'A');
+        let model = TumorNormalModel::new(2, 30000.0, 0.5, 0.5, 3e9 as u64, Prob(1.25E-4));
+        for af_normal in &[0.0, 0.5, 1.0] {
+            println!("af_normal={}:", af_normal);
+            print!("[");
+            for p in linspace(0.0, 1.0, 20).map(|af_tumor| model.prior_prob(AlleleFreq(af_tumor), AlleleFreq(*af_normal), variant)) {
+                print!("{}, ", p.exp());
+            }
+            println!("]");
+        }
+    }
+}
