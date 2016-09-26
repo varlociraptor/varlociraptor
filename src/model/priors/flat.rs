@@ -42,7 +42,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
     {
-        let mut prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
+        let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
             let density = |af_tumor| {
                 let af_tumor = AlleleFreq(af_tumor);
                 likelihood_tumor(af_tumor, af_normal)
@@ -58,16 +58,6 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
 
             prob
         }).collect_vec());
-
-        // TODO this is reverse engineered from Louis code. Find an explanation, and fix the paper.
-        if *af_tumor.start == 0.0 && *af_tumor.end == 1.0 {
-            prob = LogProb(*prob - 9.0f64.ln());
-        } else if *af_tumor.start == 0.0 && *af_tumor.end == 0.0 {
-            prob = LogProb(*prob - 3.0f64.ln());
-        } else {
-            // TODO get rid of above and remove the panic.
-            panic!("Unsupported allele frequency combination.");
-        }
 
         prob
     }
