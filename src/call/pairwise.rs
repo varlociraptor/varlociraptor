@@ -189,6 +189,7 @@ pub fn call<A, B, P, M, R, W, X>(
                         }
                     }
                 }
+                try!(outobs.flush());
             }
 
             let mut posterior_probs = Array::default((events.len(), pileups.len()));
