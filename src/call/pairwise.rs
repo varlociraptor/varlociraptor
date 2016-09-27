@@ -177,6 +177,20 @@ pub fn call<A, B, P, M, R, W, X>(
         let pileups = try!(pileups(&inbcf, &mut record, pair_model, omit_snvs, omit_indels));
 
         if !pileups.is_empty() {
+            if let Some(ref mut outobs) = outobs {
+                let chrom = str::from_utf8(chrom(&inbcf, &record)).unwrap();
+                for (i, pileup) in pileups.iter().enumerate() {
+                    if let &Some(ref pileup) = pileup {
+                        for obs in pileup.case_observations() {
+                            try!(outobs.encode((chrom, record.pos(), i, "case", obs)));
+                        }
+                        for obs in pileup.control_observations() {
+                            try!(outobs.encode((chrom, record.pos(), i, "control", obs)));
+                        }
+                    }
+                }
+            }
+
             let mut posterior_probs = Array::default((events.len(), pileups.len()));
             for (i, event) in events.iter().enumerate() {
                 for (j, pileup) in pileups.iter().enumerate() {
@@ -228,19 +242,7 @@ pub fn call<A, B, P, M, R, W, X>(
             try!(record.push_info_float(b"CASE_AF", &case_afs));
             try!(record.push_info_float(b"CONTROL_AF", &control_afs));
 
-            if let Some(ref mut outobs) = outobs {
-                let chrom = str::from_utf8(chrom(&inbcf, &record)).unwrap();
-                for (i, pileup) in pileups.iter().enumerate() {
-                    if let &Some(ref pileup) = pileup {
-                        for obs in pileup.case_observations() {
-                            try!(outobs.encode((chrom, record.pos(), i, "case", obs)));
-                        }
-                        for obs in pileup.control_observations() {
-                            try!(outobs.encode((chrom, record.pos(), i, "control", obs)));
-                        }
-                    }
-                }
-            }
+            
         }
         try!(outbcf.write(&record));
         if i % 1000 == 0 {
