@@ -17,7 +17,7 @@ use ComplementEvent;
 use Event;
 
 
-const MISSING_VALUE: f32 = 0b01111111100000000000000000000001 as f32;
+const MISSING_VALUE: f32 = f32::NAN;
 
 
 fn phred_scale<'a, I: IntoIterator<Item=&'a LogProb>>(probs: I) -> Vec<f32> {
