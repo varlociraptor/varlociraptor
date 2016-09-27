@@ -200,6 +200,7 @@ pub fn call<A, B, P, M, R, W, X>(
                     let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
                     let total = LogProb::ln_sum_exp(&event_probs);
                     // total can slightly exceed 1 due to the numerical integration
+                    debug!("somatic+germline={}", total);
                     let p = if total > LogProb::ln_one() {
                         LogProb::ln_zero()
                     } else {
