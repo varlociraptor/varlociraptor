@@ -21,7 +21,13 @@ const MISSING_VALUE: f64 = 0x7F800001 as f64;
 
 
 fn phred_scale<'a, I: IntoIterator<Item=&'a LogProb>>(probs: I) -> Vec<f32> {
-    probs.into_iter().map(|&p| PHREDProb::from(p).abs() as f32).collect_vec()
+    probs.into_iter().map(|&p| {
+        if *p == MISSING_VALUE {
+            MISSING_VALUE as f32
+        } else {
+            PHREDProb::from(p).abs() as f32
+        }
+    }).collect_vec()
 }
 
 
