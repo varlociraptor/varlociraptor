@@ -178,7 +178,6 @@ pub fn call<A, B, P, M, R, W, X>(
 
         if !pileups.is_empty() {
             if let Some(ref mut outobs) = outobs {
-                debug!("Pileups: {:?}", pileups);
                 let chrom = str::from_utf8(chrom(&inbcf, &record)).unwrap();
                 for (i, pileup) in pileups.iter().enumerate() {
                     if let &Some(ref pileup) = pileup {
@@ -191,7 +190,6 @@ pub fn call<A, B, P, M, R, W, X>(
                     }
                 }
                 try!(outobs.flush());
-                debug!("Observations written.")
             }
 
             let mut posterior_probs = Array::default((events.len(), pileups.len()));
@@ -213,15 +211,19 @@ pub fn call<A, B, P, M, R, W, X>(
             }
             if let Some(complement_event) = complement_event {
                 let mut complement_probs = Vec::with_capacity(pileups.len());
-                for j in 0..pileups.len() {
-                    let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
-                    let total = LogProb::ln_sum_exp(&event_probs);
-                    // total can slightly exceed 1 due to the numerical integration
-                    debug!("somatic+germline={}", *total);
-                    let p = if total > LogProb::ln_one() {
-                        LogProb::ln_zero()
+                for (j, pileup) in pileups.iter().enumerate() {
+                    let p = if pileup.is_some() {
+                        let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
+                        let total = LogProb::ln_sum_exp(&event_probs);
+                        // total can slightly exceed 1 due to the numerical integration
+                        if total > LogProb::ln_one() {
+                            LogProb::ln_zero()
+                        } else {
+                            total.ln_one_minus_exp()
+                        }
                     } else {
-                        total.ln_one_minus_exp()
+                        // indicate missing value
+                        LogProb(f64::NAN)
                     };
                     complement_probs.push(p);
                 }
@@ -245,7 +247,7 @@ pub fn call<A, B, P, M, R, W, X>(
             try!(record.push_info_float(b"CASE_AF", &case_afs));
             try!(record.push_info_float(b"CONTROL_AF", &control_afs));
 
-            
+
         }
         try!(outbcf.write(&record));
         if i % 1000 == 0 {
