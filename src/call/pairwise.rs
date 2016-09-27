@@ -17,12 +17,12 @@ use ComplementEvent;
 use Event;
 
 
-const MISSING_VALUE: f64 = 0x7F800001 as f64;
+const MISSING_VALUE: f32 = 0b01111111100000000000000000000001 as f32;
 
 
 fn phred_scale<'a, I: IntoIterator<Item=&'a LogProb>>(probs: I) -> Vec<f32> {
     probs.into_iter().map(|&p| {
-        if *p == MISSING_VALUE {
+        if *p as f32 == MISSING_VALUE {
             MISSING_VALUE as f32
         } else {
             PHREDProb::from(p).abs() as f32
@@ -208,7 +208,7 @@ pub fn call<A, B, P, M, R, W, X>(
                         pileup.posterior_prob(&event.af_case, &event.af_control)
                     } else {
                         // indicate missing value
-                        LogProb(MISSING_VALUE)
+                        LogProb(MISSING_VALUE as f64)
                     };
 
                     posterior_probs[(i, j)] = p;
@@ -232,7 +232,7 @@ pub fn call<A, B, P, M, R, W, X>(
                         }
                     } else {
                         // indicate missing value
-                        LogProb(MISSING_VALUE)
+                        LogProb(MISSING_VALUE as f64)
                     };
                     complement_probs.push(p);
                 }
@@ -249,8 +249,8 @@ pub fn call<A, B, P, M, R, W, X>(
                     case_afs.push(*case_af as f32);
                     control_afs.push(*control_af as f32);
                 } else {
-                    case_afs.push(MISSING_VALUE as f32);
-                    control_afs.push(MISSING_VALUE as f32);
+                    case_afs.push(MISSING_VALUE);
+                    control_afs.push(MISSING_VALUE);
                 }
             }
             try!(record.push_info_float(b"CASE_AF", &case_afs));
