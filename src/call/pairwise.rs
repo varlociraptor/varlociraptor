@@ -17,6 +17,9 @@ use ComplementEvent;
 use Event;
 
 
+const MISSING_VALUE: f64 = 0x7F800001 as f64;
+
+
 fn phred_scale<'a, I: IntoIterator<Item=&'a LogProb>>(probs: I) -> Vec<f32> {
     probs.into_iter().map(|&p| PHREDProb::from(p).abs() as f32).collect_vec()
 }
@@ -68,7 +71,7 @@ fn pileups<'a, A, B, P>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_mod
         let alleles = record.alleles();
         let ref_allele = alleles[0];
 
-        alleles.iter().map(|alt_allele| {
+        alleles.iter().skip(1).map(|alt_allele| {
             if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 if omit_snvs {
                     None
@@ -199,7 +202,7 @@ pub fn call<A, B, P, M, R, W, X>(
                         pileup.posterior_prob(&event.af_case, &event.af_control)
                     } else {
                         // indicate missing value
-                        LogProb(f64::NAN)
+                        LogProb(MISSING_VALUE)
                     };
 
                     posterior_probs[(i, j)] = p;
@@ -223,7 +226,7 @@ pub fn call<A, B, P, M, R, W, X>(
                         }
                     } else {
                         // indicate missing value
-                        LogProb(f64::NAN)
+                        LogProb(MISSING_VALUE)
                     };
                     complement_probs.push(p);
                 }
@@ -240,8 +243,8 @@ pub fn call<A, B, P, M, R, W, X>(
                     case_afs.push(*case_af as f32);
                     control_afs.push(*control_af as f32);
                 } else {
-                    case_afs.push(f32::NAN);
-                    control_afs.push(f32::NAN);
+                    case_afs.push(MISSING_VALUE as f32);
+                    control_afs.push(MISSING_VALUE as f32);
                 }
             }
             try!(record.push_info_float(b"CASE_AF", &case_afs));
