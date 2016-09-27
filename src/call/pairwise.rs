@@ -178,6 +178,7 @@ pub fn call<A, B, P, M, R, W, X>(
 
         if !pileups.is_empty() {
             if let Some(ref mut outobs) = outobs {
+                debug!("Pileups: {:?}", pileups);
                 let chrom = str::from_utf8(chrom(&inbcf, &record)).unwrap();
                 for (i, pileup) in pileups.iter().enumerate() {
                     if let &Some(ref pileup) = pileup {
@@ -190,6 +191,7 @@ pub fn call<A, B, P, M, R, W, X>(
                     }
                 }
                 try!(outobs.flush());
+                debug!("Observations written.")
             }
 
             let mut posterior_probs = Array::default((events.len(), pileups.len()));
