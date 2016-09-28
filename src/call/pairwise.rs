@@ -1,12 +1,13 @@
 use std::path::Path;
 use std::error::Error;
-use std::{f64, f32};
+use std::f32;
 use std::str;
 
 use itertools::Itertools;
 use ndarray::prelude::*;
 use csv;
 use rust_htslib::bcf;
+use rust_htslib::bcf::record::Numeric;
 use bio::stats::{PHREDProb, LogProb};
 
 use model::AlleleFreqs;
@@ -15,17 +16,14 @@ use model::PairModel;
 use model;
 use ComplementEvent;
 use Event;
+use BCFError;
 
 
-const MISSING_VALUE: f32 = f32::NAN;
-
-
-fn phred_scale<'a, I: IntoIterator<Item=&'a LogProb>>(probs: I) -> Vec<f32> {
+fn phred_scale<'a, I: IntoIterator<Item=&'a Option<LogProb>>>(probs: I) -> Vec<f32> {
     probs.into_iter().map(|&p| {
-        if *p as f32 == MISSING_VALUE {
-            MISSING_VALUE as f32
-        } else {
-            PHREDProb::from(p).abs() as f32
+        match p {
+            Some(p) => PHREDProb::from(p).abs() as f32,
+            None    => f32::missing()
         }
     }).collect_vec()
 }
@@ -56,23 +54,31 @@ fn pileups<'a, A, B, P>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_mod
     let chrom = chrom(&inbcf, &record);
     // TODO avoid cloning svtype
     let svtypes = record.info(b"SVTYPE").string().map(|values| {
-        values.into_iter().map(|svtype| svtype.to_owned()).collect_vec()
+        values.map(|values| values.into_iter().map(|svtype| svtype.to_owned()).collect_vec())
     });
 
-    let variants = if let Ok(svtypes) = svtypes {
-        // obtain svlen if it is present or store error
-        let svlens = record.info(b"SVLEN").integer().map(|values| values.to_owned());
-        svtypes.iter().zip(try!(svlens)).map(|(svtype, svlen)| {
-            if omit_indels {
-                None
-            } else if svtype == b"INS" {
-                Some(model::Variant::Insertion(svlen.abs() as u32))
-            } else if svtype == b"DEL" {
-                Some(model::Variant::Deletion(svlen.abs() as u32))
-            } else {
-                None
+    let variants = if let Ok(Some(svtypes)) = svtypes {
+        // obtain svlen if it is present or raise error
+        let svlens = try!(record.info(b"SVLEN").integer());
+        match svlens {
+            Some(svlens) => {
+                svtypes.iter().zip(svlens).map(|(svtype, svlen)| {
+                    if omit_indels {
+                        None
+                    } else if svtype == b"INS" {
+                        Some(model::Variant::Insertion(svlen.abs() as u32))
+                    } else if svtype == b"DEL" {
+                        Some(model::Variant::Deletion(svlen.abs() as u32))
+                    } else {
+                        None
+                    }
+                }).collect_vec()
+            },
+            None => {
+                // if SVTYPE is given, SVLEN has to be present in the record
+                return Err(Box::new(BCFError::MissingTag("SVLEN".to_owned())));
             }
-        }).collect_vec()
+        }
     } else {
         let alleles = record.alleles();
         let ref_allele = alleles[0];
@@ -205,10 +211,10 @@ pub fn call<A, B, P, M, R, W, X>(
             for (i, event) in events.iter().enumerate() {
                 for (j, pileup) in pileups.iter().enumerate() {
                     let p = if let &Some(ref pileup) = pileup {
-                        pileup.posterior_prob(&event.af_case, &event.af_control)
+                        Some(pileup.posterior_prob(&event.af_case, &event.af_control))
                     } else {
                         // indicate missing value
-                        LogProb(MISSING_VALUE as f64)
+                        None
                     };
 
                     posterior_probs[(i, j)] = p;
@@ -223,16 +229,18 @@ pub fn call<A, B, P, M, R, W, X>(
                 for (j, pileup) in pileups.iter().enumerate() {
                     let p = if pileup.is_some() {
                         let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
-                        let total = LogProb::ln_sum_exp(&event_probs);
+                        let total = LogProb::ln_sum_exp(&event_probs.iter().map(|v| v.unwrap()).collect_vec());
                         // total can slightly exceed 1 due to the numerical integration
-                        if total > LogProb::ln_one() {
-                            LogProb::ln_zero()
-                        } else {
-                            total.ln_one_minus_exp()
-                        }
+                        Some(
+                            if total > LogProb::ln_one() {
+                                LogProb::ln_zero()
+                            } else {
+                                total.ln_one_minus_exp()
+                            }
+                        )
                     } else {
                         // indicate missing value
-                        LogProb(MISSING_VALUE as f64)
+                        None
                     };
                     complement_probs.push(p);
                 }
@@ -249,8 +257,8 @@ pub fn call<A, B, P, M, R, W, X>(
                     case_afs.push(*case_af as f32);
                     control_afs.push(*control_af as f32);
                 } else {
-                    case_afs.push(MISSING_VALUE);
-                    control_afs.push(MISSING_VALUE);
+                    case_afs.push(f32::missing());
+                    control_afs.push(f32::missing());
                 }
             }
             try!(record.push_info_float(b"CASE_AF", &case_afs));

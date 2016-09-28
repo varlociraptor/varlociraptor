@@ -6,6 +6,7 @@ use itertools::Itertools;
 use rust_htslib::bcf;
 
 use Event;
+use BCFError;
 
 
 /// Annotate a given VCF/BCF file with FDR estimates for the given events.
@@ -39,11 +40,21 @@ pub fn annotate<R, W, E>(inbcf: &R, outbcf: &W, events: &[E]) -> Result<(), Box<
         }
 
         for (event, peps) in events.iter().zip(event_peps.iter_mut()) {
-            for &p in try!(record.info(event.tag_name("PROB").as_bytes()).float()).iter() {
-                // posterior error probability
-                let pep = LogProb::from(PHREDProb(p as f64)).ln_one_minus_exp();
-                peps.push(pep);
+            let tag_name = event.tag_name("PROB");
+            let rec_peps = try!(record.info(tag_name.as_bytes()).float());
+            match rec_peps {
+                Some(rec_peps) => {
+                    for &p in rec_peps.iter() {
+                        // posterior error probability
+                        let pep = LogProb::from(PHREDProb(p as f64)).ln_one_minus_exp();
+                        peps.push(pep);
+                    }
+                },
+                None => {
+                    return Err(Box::new(BCFError::MissingTag(tag_name.clone())));
+                }
             }
+
         }
     }
 

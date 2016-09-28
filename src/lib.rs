@@ -34,6 +34,17 @@ pub use model::sample::InsertSize;
 use std::ascii::AsciiExt;
 
 
+quick_error! {
+    #[derive(Debug)]
+    pub enum BCFError {
+        MissingTag(name: String) {
+            description("unexpected missing tag")
+            display("expected tag {} missing from BCF record", name)
+        }
+    }
+}
+
+
 /// Event to call.
 pub trait Event {
     fn name(&self) -> &str;
