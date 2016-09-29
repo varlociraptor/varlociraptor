@@ -76,6 +76,7 @@ impl RecordBuffer {
             } else {
                 // remove records too far left
                 let to_remove = self.inner.iter().take_while(|rec| rec.pos() < window_start as i32).count();
+                debug!("Removing {} records", to_remove);
                 for _ in 0..to_remove {
                     self.inner.pop_front();
                 }
