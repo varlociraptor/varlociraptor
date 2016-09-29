@@ -72,6 +72,7 @@ impl RecordBuffer {
             if self.inner.is_empty() || self.end().unwrap() < window_start || self.tid().unwrap() != tid as i32 {
                 let end = self.reader.header.target_len(tid).unwrap();
                 try!(self.reader.seek(tid, window_start, end));
+                debug!("Clearing ringbuffer");
                 self.inner.clear();
             } else {
                 // remove records too far left
@@ -83,8 +84,9 @@ impl RecordBuffer {
             }
 
             // extend to the right
-            for record in self.reader.records() {
-                let record = try!(record);
+            loop {
+                let mut record = bam::Record::new();
+                try!(self.reader.read(&mut record));
                 let pos = record.pos();
                 if record.is_duplicate() || record.is_unmapped() {
                     continue;
@@ -97,6 +99,8 @@ impl RecordBuffer {
                     break;
                 }
             }
+
+            debug!("New buffer length: {}", self.inner.len());
 
             Ok(())
         } else {
@@ -584,5 +588,16 @@ mod tests {
             assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
             assert!(obs.prob_alt > obs.prob_ref);
         }
+    }
+
+    #[test]
+    fn test_record_buffer() {
+        let bam = bam::IndexedReader::new(&"tests/indels.bam").unwrap();
+        let mut buffer = RecordBuffer::new(bam, 10, true);
+
+        buffer.fill(b"17", 10, 20).unwrap();
+        buffer.fill(b"17", 478, 500).unwrap();
+        buffer.fill(b"17", 1000, 1700);
+        // TODO add assertions
     }
 }
