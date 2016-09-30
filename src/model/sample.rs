@@ -86,7 +86,13 @@ impl RecordBuffer {
             // extend to the right
             loop {
                 let mut record = bam::Record::new();
-                try!(self.reader.read(&mut record));
+                if let Err(e) = self.reader.read(&mut record) {
+                    if e.is_eof() {
+                        break;
+                    }
+                    return Err(Box::new(e));
+                }
+
                 let pos = record.pos();
                 if record.is_duplicate() || record.is_unmapped() {
                     continue;
