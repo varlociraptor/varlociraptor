@@ -7,6 +7,7 @@ pub type AlleleFreq = f64;
 
 
 /// Variant calling model, taking purity and allele frequencies into account.
+#[derive(Clone, Copy, Debug)]
 pub struct LatentVariableModel {
     /// Purity of the case sample.
     purity: LogProb

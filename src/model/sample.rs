@@ -222,8 +222,8 @@ impl Sample {
     }
 
     /// Return likelihood model.
-    pub fn likelihood_model(&self) -> &model::likelihood::LatentVariableModel {
-        &self.likelihood_model
+    pub fn likelihood_model(&self) -> model::likelihood::LatentVariableModel {
+        self.likelihood_model
     }
 
     /// Extract observations for the given variant.

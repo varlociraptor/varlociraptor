@@ -3,7 +3,7 @@ use std::cell::Cell;
 use std::ops::Range;
 use std::fmt::Debug;
 use std::error::Error;
-use std::cell::{RefCell, Ref};
+use std::cell::RefCell;
 
 use ordered_float::NotNaN;
 
@@ -107,8 +107,8 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairModel<A, B,
             control_pileup,
             variant,
             &self.prior_model,
-            self.case_sample.borrow(),
-            self.control_sample.borrow()
+            self.case_sample.borrow().likelihood_model(),
+            self.control_sample.borrow().likelihood_model()
         ))
     }
 }
@@ -125,8 +125,8 @@ pub struct PairPileup<'a, A, B, P> where
     // we use Cell for marginal prob to be able to mutate the field without having mutable access to the whole pileup
     marginal_prob: Cell<Option<LogProb>>,
     prior_model: &'a P,
-    case_sample: Ref<'a, Sample>,
-    control_sample: Ref<'a, Sample>,
+    case_sample_model: likelihood::LatentVariableModel,
+    control_sample_model: likelihood::LatentVariableModel,
     variant: Variant,
     a: PhantomData<A>,
     b: PhantomData<B>
@@ -135,15 +135,15 @@ pub struct PairPileup<'a, A, B, P> where
 
 impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<'a, A, B, P> {
     /// Create new pileup.
-    fn new(case: Vec<Observation>, control: Vec<Observation>, variant: Variant, prior_model: &'a P, case_sample: Ref<'a, Sample>, control_sample: Ref<'a, Sample>) -> Self {
+    fn new(case: Vec<Observation>, control: Vec<Observation>, variant: Variant, prior_model: &'a P, case_sample_model: likelihood::LatentVariableModel, control_sample_model: likelihood::LatentVariableModel) -> Self {
         PairPileup {
             case: case,
             control: control,
             marginal_prob: Cell::new(None),
             variant: variant,
             prior_model: prior_model,
-            case_sample: case_sample,
-            control_sample: control_sample,
+            case_sample_model: case_sample_model,
+            control_sample_model: control_sample_model,
             a: PhantomData,
             b: PhantomData
         }
@@ -201,16 +201,11 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     }
 
     fn case_likelihood(&self, af_case: AlleleFreq, af_control: AlleleFreq) -> LogProb {
-        Self::likelihood(&self.case_sample, &self.case, af_case, af_control)
+        self.case_sample_model.likelihood_pileup(&self.case, *af_case, *af_control)
     }
 
     fn control_likelihood(&self, af_control: AlleleFreq, af_case: AlleleFreq) -> LogProb {
-        Self::likelihood(&self.control_sample, &self.control, af_control, af_case)
-    }
-
-    fn likelihood(sample: &Ref<Sample>, pileup: &[Observation], af_case: AlleleFreq, af_control: AlleleFreq) -> LogProb {
-        let p = sample.likelihood_model().likelihood_pileup(&pileup, *af_case, *af_control);
-        p
+        self.control_sample_model.likelihood_pileup(&self.control, *af_control, *af_case)
     }
 
     pub fn case_observations(&self) -> &[Observation] {
@@ -301,8 +296,8 @@ mod tests {
             observations.clone(), observations.clone(),
             variant,
             &model.prior_model,
-            model.case_sample.borrow(),
-            model.control_sample.borrow()
+            model.case_sample.borrow().likelihood_model(),
+            model.control_sample.borrow().likelihood_model()
         );
 
         // germline
@@ -340,8 +335,8 @@ mod tests {
             observations.clone(), vec![],
             variant,
             &model.prior_model,
-            model.case_sample.borrow(),
-            model.control_sample.borrow()
+            model.case_sample.borrow().likelihood_model(),
+            model.control_sample.borrow().likelihood_model()
         );
 
         let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
@@ -389,8 +384,8 @@ mod tests {
             observations.clone(), vec![],
             variant,
             &model.prior_model,
-            model.case_sample.borrow(),
-            model.control_sample.borrow()
+            model.case_sample.borrow().likelihood_model(),
+            model.control_sample.borrow().likelihood_model()
         );
 
         let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
@@ -427,8 +422,8 @@ mod tests {
             observations.clone(), observations.clone(),
             variant,
             &model.prior_model,
-            model.case_sample.borrow(),
-            model.control_sample.borrow()
+            model.case_sample.borrow().likelihood_model(),
+            model.control_sample.borrow().likelihood_model()
         );
 
         let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
@@ -488,7 +483,7 @@ mod tests {
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
-        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
+        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
 
         let p_absent = pileup.posterior_prob(&tumor_ref, &normal_ref);
         let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
@@ -612,7 +607,7 @@ mod tests {
         let normal_ref = vec![AlleleFreq(0.0)];
 
         let variant = Variant::Insertion(4);
-        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
+        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
 
         let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
         let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
@@ -634,7 +629,7 @@ mod tests {
         let normal_ref = vec![AlleleFreq(0.0)];
 
         let variant = Variant::Insertion(1);
-        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
+        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
 
         let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
         let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
@@ -669,7 +664,7 @@ mod tests {
         println!("marginal={:e}, absent={}, somatic={}, germline={:e}, sum={:e}", p_marginal.exp(), (p_absent - norm).exp(), (p_somatic - norm).exp(), (p_germline - norm).exp(), norm.exp());
         assert!(false);*/
 
-        let pileup = PairPileup::new(case_obs.to_owned(), control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
+        let pileup = PairPileup::new(case_obs.to_owned(), control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
 
         let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
         let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
@@ -718,7 +713,7 @@ mod tests {
         }
         assert!(false);
 
-        let pileup = PairPileup::new(case_obs.to_owned(), control_obs, variant, &model.prior_model, model.case_sample.borrow(), model.control_sample.borrow());
+        let pileup = PairPileup::new(case_obs.to_owned(), control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
 
 
         let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
