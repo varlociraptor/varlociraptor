@@ -46,7 +46,14 @@ impl<A: AlleleFreqs, B: AlleleFreqs> Event for PairEvent<A, B> {
 }
 
 
-fn pileups<'a, A, B, P>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_model: &'a mut PairModel<A, B, P>, omit_snvs: bool, omit_indels: bool) -> Result<Vec<Option<model::PairPileup<'a, A, B, P>>>, Box<Error>> where
+fn pileups<'a, A, B, P>(
+    inbcf: &bcf::Reader,
+    record: &mut bcf::Record,
+    joint_model: &'a mut PairModel<A, B, P>,
+    omit_snvs: bool,
+    omit_indels: bool,
+    max_indel_len: Option<u32>
+) -> Result<Vec<Option<model::PairPileup<'a, A, B, P>>>, Box<Error>> where
     A: AlleleFreqs,
     B: AlleleFreqs,
     P: priors::PairModel<A, B>
@@ -63,12 +70,19 @@ fn pileups<'a, A, B, P>(inbcf: &bcf::Reader, record: &mut bcf::Record, joint_mod
         match svlens {
             Some(svlens) => {
                 svtypes.iter().zip(svlens).map(|(svtype, svlen)| {
+                    let svlen = svlen.abs() as u32;
+                    if let Some(l) = max_indel_len {
+                        if svlen > l {
+                            return None;
+                        }
+                    }
+
                     if omit_indels {
                         None
                     } else if svtype == b"INS" {
-                        Some(model::Variant::Insertion(svlen.abs() as u32))
+                        Some(model::Variant::Insertion(svlen))
                     } else if svtype == b"DEL" {
-                        Some(model::Variant::Deletion(svlen.abs() as u32))
+                        Some(model::Variant::Deletion(svlen))
                     } else {
                         None
                     }
@@ -140,6 +154,7 @@ pub fn call<A, B, P, M, R, W, X>(
     pair_model: &mut PairModel<A, B, P>,
     omit_snvs: bool,
     omit_indels: bool,
+    max_indel_len: Option<u32>,
     outobs: Option<&X>
 ) -> Result<(), Box<Error>> where
     A: AlleleFreqs,
@@ -189,7 +204,7 @@ pub fn call<A, B, P, M, R, W, X>(
         i += 1;
         // translate to header of the writer
         outbcf.translate(&mut record);
-        let pileups = try!(pileups(&inbcf, &mut record, pair_model, omit_snvs, omit_indels));
+        let pileups = try!(pileups(&inbcf, &mut record, pair_model, omit_snvs, omit_indels, max_indel_len));
 
         if !pileups.is_empty() {
             if let Some(ref mut outobs) = outobs {

@@ -603,7 +603,7 @@ mod tests {
 
         buffer.fill(b"17", 10, 20).unwrap();
         buffer.fill(b"17", 478, 500).unwrap();
-        buffer.fill(b"17", 1000, 1700);
+        buffer.fill(b"17", 1000, 1700).unwrap();
         // TODO add assertions
     }
 }
