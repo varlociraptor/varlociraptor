@@ -158,6 +158,7 @@ pub struct InsertSize {
 pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
+    use_mapq: bool,
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
     prob_spurious_isize: LogProb,
@@ -190,6 +191,7 @@ impl Sample {
         pileup_window: u32,
         use_fragment_evidence: bool,
         use_secondary: bool,
+        use_mapq: bool,
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_spurious_isize: Prob,
@@ -200,6 +202,7 @@ impl Sample {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
+            use_mapq: use_mapq,
             insert_size: insert_size,
             likelihood_model: likelihood_model,
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
@@ -277,6 +280,14 @@ impl Sample {
         Ok(observations)
     }
 
+    fn prob_mapping(&self, mapq: u8) -> LogProb {
+        if self.use_mapq {
+            prob_mapping(mapq)
+        } else {
+            LogProb::ln_one()
+        }
+    }
+
     fn read_observation(
         &self,
         record: &bam::Record,
@@ -299,7 +310,7 @@ impl Sample {
         };
 
         let mut qpos = record.pos();
-        let prob_mapping = prob_mapping(record.mapq());
+        let prob_mapping = self.prob_mapping(record.mapq());
         for c in cigar {
             match (c, variant) {
                 // potential SNV evidence
@@ -405,7 +416,7 @@ impl Sample {
         );
 
         let obs = Observation {
-            prob_mapping: prob_mapping(record.mapq()) + prob_mapping(mate_mapq),
+            prob_mapping: self.prob_mapping(record.mapq()) + self.prob_mapping(mate_mapq),
             prob_alt: p_alt,
             prob_ref: isize_pmf(insert_size as f64, self.insert_size.mean, self.insert_size.sd),
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
@@ -503,6 +514,7 @@ mod tests {
         Sample::new(
             bam::IndexedReader::new(&"tests/indels.bam").unwrap(),
             2500,
+            true,
             true,
             true,
             InsertSize { mean: isize_mean, sd: 20.0 },

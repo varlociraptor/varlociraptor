@@ -242,6 +242,7 @@ mod tests {
             5000,
             true,
             true,
+            true,
             insert_size,
             LatentVariableModel::new(1.0),
             Prob(0.0),
@@ -252,6 +253,7 @@ mod tests {
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
+            true,
             true,
             true,
             insert_size,
@@ -451,6 +453,7 @@ mod tests {
             5000,
             true,
             true,
+            true,
             insert_size,
             LatentVariableModel::new(0.75),
             Prob(0.0),
@@ -461,6 +464,7 @@ mod tests {
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
+            true,
             true,
             true,
             insert_size,
@@ -514,6 +518,7 @@ mod tests {
             5000,
             true,
             true,
+            true,
             insert_size,
             LatentVariableModel::new(0.75),
             Prob(0.05922201),
@@ -524,6 +529,7 @@ mod tests {
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
+            true,
             true,
             true,
             insert_size,
@@ -565,6 +571,7 @@ mod tests {
             5000,
             true,
             true,
+            true,
             insert_size,
             LatentVariableModel::new(0.75),
             Prob(0.05922201),
@@ -575,6 +582,7 @@ mod tests {
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
             5000,
+            true,
             true,
             true,
             insert_size,
