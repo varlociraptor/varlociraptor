@@ -247,7 +247,7 @@ pub fn call<A, B, P, M, R, W, X>(
                         let total = LogProb::ln_sum_exp(&event_probs.iter().map(|v| v.unwrap()).collect_vec());
                         // total can slightly exceed 1 due to the numerical integration
                         Some(
-                            if total > LogProb::ln_one() {
+                            if *total >= 0.0 {
                                 LogProb::ln_zero()
                             } else {
                                 total.ln_one_minus_exp()
