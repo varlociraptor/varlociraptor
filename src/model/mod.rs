@@ -32,6 +32,13 @@ impl AlleleFreqs for DiscreteAlleleFreqs {}
 impl AlleleFreqs for ContinuousAlleleFreqs {}
 
 
+pub enum VariantType {
+    Insertion(Range<u32>),
+    Deletion(Range<u32>),
+    SNV
+}
+
+
 #[derive(Copy, Clone)]
 pub enum Variant {
     Deletion(u32),
@@ -54,6 +61,15 @@ impl Variant {
             &Variant::Deletion(_)  => true,
             &Variant::Insertion(_) => true,
             &Variant::SNV(_)       => false
+        }
+    }
+
+    pub fn is_type(&self, vartype: &VariantType) -> bool {
+        match (self, vartype) {
+            (&Variant::Deletion(l), &VariantType::Deletion(ref range)) => l >= range.start && l < range.end,
+            (&Variant::Insertion(l), &VariantType::Insertion(ref range)) => l >= range.start && l < range.end,
+            (&Variant::SNV(_), &VariantType::SNV) => true,
+            _ => false
         }
     }
 }

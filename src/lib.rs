@@ -25,6 +25,7 @@ extern crate flame;
 pub mod model;
 pub mod estimation;
 pub mod call;
+pub mod utils;
 
 pub use model::sample::Sample;
 pub use model::likelihood;
