@@ -85,7 +85,6 @@ pub fn control_fdr<E: Event, W: io::Write>(
     let m = pvals.len() as f64;
     let mk_pvals = pvals.iter().enumerate().map(|(k, &p)| (*p) + m - (m - k as f64 + 1.0).ln()).collect_vec();
 
-
     try!(writer.write(["FDR", "max-prob"].into_iter()));
 
     for &alpha in &ALPHAS {
