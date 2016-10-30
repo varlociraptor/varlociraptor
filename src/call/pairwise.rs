@@ -16,7 +16,7 @@ use model::PairModel;
 use model;
 use ComplementEvent;
 use Event;
-use BCFError;
+use utils;
 
 
 fn phred_scale<'a, I: IntoIterator<Item=&'a Option<LogProb>>>(probs: I) -> Vec<f32> {
@@ -59,63 +59,7 @@ fn pileups<'a, A, B, P>(
     P: priors::PairModel<A, B>
 {
     let chrom = chrom(&inbcf, &record);
-    // TODO avoid cloning svtype
-    let svtypes = record.info(b"SVTYPE").string().map(|values| {
-        values.map(|values| values.into_iter().map(|svtype| svtype.to_owned()).collect_vec())
-    });
-
-    let variants = if let Ok(Some(svtypes)) = svtypes {
-        // obtain svlen if it is present or raise error
-        let svlens = try!(record.info(b"SVLEN").integer());
-        match svlens {
-            Some(svlens) => {
-                svtypes.iter().zip(svlens).map(|(svtype, svlen)| {
-                    let svlen = svlen.abs() as u32;
-                    if let Some(l) = max_indel_len {
-                        if svlen > l {
-                            return None;
-                        }
-                    }
-
-                    if omit_indels {
-                        None
-                    } else if svtype == b"INS" {
-                        Some(model::Variant::Insertion(svlen))
-                    } else if svtype == b"DEL" {
-                        Some(model::Variant::Deletion(svlen))
-                    } else {
-                        None
-                    }
-                }).collect_vec()
-            },
-            None => {
-                // if SVTYPE is given, SVLEN has to be present in the record
-                return Err(Box::new(BCFError::MissingTag("SVLEN".to_owned())));
-            }
-        }
-    } else {
-        let alleles = record.alleles();
-        let ref_allele = alleles[0];
-
-        alleles.iter().skip(1).map(|alt_allele| {
-            if alt_allele.len() == 1 && ref_allele.len() == 1 {
-                if omit_snvs {
-                    None
-                } else {
-                    Some(model::Variant::SNV(alt_allele[0]))
-                }
-            } else if alt_allele.len() == ref_allele.len() {
-                // neither indel nor SNV
-                None
-            } else if omit_indels {
-                None
-            } else if alt_allele.len() < ref_allele.len() {
-                Some(model::Variant::Deletion((ref_allele.len() - alt_allele.len()) as u32))
-            } else {
-                Some(model::Variant::Insertion((alt_allele.len() - ref_allele.len()) as u32))
-            }
-        }).collect_vec()
-    };
+    let variants = try!(utils::collect_variants(record, omit_snvs, omit_indels, max_indel_len.map(|l| 0..l)));
 
     let mut pileups = Vec::with_capacity(variants.len());
     for variant in variants {

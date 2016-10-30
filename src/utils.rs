@@ -22,34 +22,37 @@ pub fn collect_variants(
 
     let variants = if let Ok(Some(svtypes)) = svtypes {
         // obtain svlen if it is present or raise error
-        let svlens = try!(record.info(b"SVLEN").integer());
-        match svlens {
-            Some(svlens) => {
-                svtypes.iter().zip(svlens).map(|(svtype, svlen)| {
-                    let svlen = svlen.abs() as u32;
-                    if let Some(ref len_range) = indel_len_range {
-                        // TODO replace with Range::contains once stabilized
-                        if svlen < len_range.start && svlen >= len_range.end {
-                            return None;
-                        }
-                    }
-
-                    if omit_indels {
-                        None
-                    } else if svtype == b"INS" {
-                        Some(model::Variant::Insertion(svlen))
-                    } else if svtype == b"DEL" {
-                        Some(model::Variant::Deletion(svlen))
-                    } else {
-                        None
-                    }
-                }).collect_vec()
-            },
-            None => {
-                // if SVTYPE is given, SVLEN has to be present in the record
-                return Err(Box::new(BCFError::MissingTag("SVLEN".to_owned())));
+        let svlens = record.info(b"SVLEN").integer().map(|values| values.map(|values| values.to_owned()));
+        let pos = record.pos() as i32;
+        let svlens = match svlens {
+            Ok(Some(svlens)) => svlens,
+            _ => {
+                match record.info(b"END").integer() {
+                    Ok(Some(ends)) => ends.into_iter().map(|end| end - 1 - pos).collect_vec(),
+                    Err(e) => return Err(Box::new(e)),
+                    Ok(None) => return Err(Box::new(BCFError::MissingTag("SVLEN".to_owned())))
+                }
             }
-        }
+        };
+        svtypes.iter().zip(svlens).map(|(svtype, svlen)| {
+            let svlen = svlen.abs() as u32;
+            if let Some(ref len_range) = indel_len_range {
+                // TODO replace with Range::contains once stabilized
+                if svlen < len_range.start && svlen >= len_range.end {
+                    return None;
+                }
+            }
+
+            if omit_indels {
+                None
+            } else if svtype == b"INS" {
+                Some(model::Variant::Insertion(svlen))
+            } else if svtype == b"DEL" {
+                Some(model::Variant::Deletion(svlen))
+            } else {
+                None
+            }
+        }).collect_vec()
     } else {
         let alleles = record.alleles();
         let ref_allele = alleles[0];
