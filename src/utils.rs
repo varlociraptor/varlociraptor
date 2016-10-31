@@ -37,8 +37,8 @@ pub fn collect_variants(
     // check if len is within the given range
     let is_valid_len = |svlen| {
         if let Some(ref len_range) = indel_len_range {
-        // TODO replace with Range::contains once stabilized
-            if svlen < len_range.start && svlen >= len_range.end {
+            // TODO replace with Range::contains once stabilized
+            if svlen < len_range.start || svlen >= len_range.end {
                 return false;
             }
         }
