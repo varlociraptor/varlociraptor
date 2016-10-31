@@ -81,6 +81,8 @@ pub fn control_fdr<E: Event, W: io::Write>(
 
     let null_dist = try!(collect_dist(null_calls, event, vartype));
     let prob_dist = try!(collect_dist(calls, event, vartype));
+    info!("{} observations in null distribution.", null_dist.len());
+    info!("{} observations in call distribution.", prob_dist.len());
     let pvals = prob_dist.iter().map(|&p| pval(p, &null_dist)).collect_vec();
     let m = pvals.len() as f64;
     let mk_pvals = pvals.iter().enumerate().map(|(k, &p)| (*p) + m.ln() - (m - k as f64 + 1.0).ln()).collect_vec(); // p * m / (m - k + 1)
