@@ -90,6 +90,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
     try!(writer.write(["FDR", "max-prob"].into_iter()));
 
     for &alpha in &ALPHAS {
+        let alpha = alpha.ln();
         let mut record = Record { alpha: alpha, gamma: PHREDProb::from(Prob(1.0)) };
         for (&mkp, &event_prob) in mk_pvals.iter().zip(prob_dist.iter()) {
             // the pvalues will be monotolically decreasing
