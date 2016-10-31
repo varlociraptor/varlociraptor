@@ -99,7 +99,7 @@ pub fn collect_variants(
 
                 if omit_indels {
                     None
-                } else if is_valid_len(indel_len) {
+                } else if !is_valid_len(indel_len) {
                     None
                 } else if alt_allele.len() < ref_allele.len() {
                     Some(model::Variant::Deletion((ref_allele.len() - alt_allele.len()) as u32))
