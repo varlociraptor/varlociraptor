@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `bessel` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, bessel">
+
+    <title>rgsl::bessel - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'bessel', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>bessel</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-14345' class='srclink' href='../../src/rgsl/bessel.rs.html#5-659' title='goto source code'>[src]</a></span></h1>
+<h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.I0.html'
+                                  title='rgsl::bessel::I0'>I0</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular modified cylindrical Bessel function of zeroth order, I_0(x)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.I0_e.html'
+                                  title='rgsl::bessel::I0_e'>I0_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular modified cylindrical Bessel function of zeroth order, I_0(x)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.I0_scaled.html'
+                                  title='rgsl::bessel::I0_scaled'>I0_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified cylindrical Bessel function of zeroth order \exp(-|x|) I_0(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.I0_scaled_e.html'
+                                  title='rgsl::bessel::I0_scaled_e'>I0_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified cylindrical Bessel function of zeroth order \exp(-|x|) I_0(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.I1.html'
+                                  title='rgsl::bessel::I1'>I1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular modified cylindrical Bessel function of first order, I_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.I1_e.html'
+                                  title='rgsl::bessel::I1_e'>I1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular modified cylindrical Bessel function of first order, I_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.I1_scaled.html'
+                                  title='rgsl::bessel::I1_scaled'>I1_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified cylindrical Bessel function of first order \exp(-|x|) I_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.I1_scaled_e.html'
+                                  title='rgsl::bessel::I1_scaled_e'>I1_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified cylindrical Bessel function of first order \exp(-|x|) I_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.In.html'
+                                  title='rgsl::bessel::In'>In</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular modified cylindrical Bessel function of order n, I_n(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.In_array.html'
+                                  title='rgsl::bessel::In_array'>In_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the regular modified cylindrical Bessel functions I_n(x) for n from nmin to nmax inclusive, storing the results in the array result_array.
+The start of the range nmin must be positive or zero.
+The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.In_e.html'
+                                  title='rgsl::bessel::In_e'>In_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular modified cylindrical Bessel function of order n, I_n(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.In_scaled.html'
+                                  title='rgsl::bessel::In_scaled'>In_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified cylindrical Bessel function of order n, \exp(-|x|) I_n(x)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.In_scaled_array.html'
+                                  title='rgsl::bessel::In_scaled_array'>In_scaled_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the scaled regular cylindrical Bessel functions \exp(-|x|) I_n(x) for n from nmin to nmax inclusive, storing the results in the array result_array.
+The start of the range nmin must be positive or zero.
+The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.In_scaled_e.html'
+                                  title='rgsl::bessel::In_scaled_e'>In_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified cylindrical Bessel function of order n, \exp(-|x|) I_n(x)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Inu.html'
+                                  title='rgsl::bessel::Inu'>Inu</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular modified Bessel function of fractional order \nu, I_\nu(x) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Inu_e.html'
+                                  title='rgsl::bessel::Inu_e'>Inu_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular modified Bessel function of fractional order \nu, I_\nu(x) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Inu_scaled.html'
+                                  title='rgsl::bessel::Inu_scaled'>Inu_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified Bessel function of fractional order \nu, \exp(-|x|)I_\nu(x) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Inu_scaled_e.html'
+                                  title='rgsl::bessel::Inu_scaled_e'>Inu_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified Bessel function of fractional order \nu, \exp(-|x|)I_\nu(x) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.J0.html'
+                                  title='rgsl::bessel::J0'>J0</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular cylindrical Bessel function of zeroth order, J_0(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.J0_e.html'
+                                  title='rgsl::bessel::J0_e'>J0_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular cylindrical Bessel function of zeroth order, J_0(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.J1.html'
+                                  title='rgsl::bessel::J1'>J1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular cylindrical Bessel function of first order, J_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.J1_e.html'
+                                  title='rgsl::bessel::J1_e'>J1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular cylindrical Bessel function of first order, J_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Jn.html'
+                                  title='rgsl::bessel::Jn'>Jn</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular cylindrical Bessel function of order n, J_n(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Jn_array.html'
+                                  title='rgsl::bessel::Jn_array'>Jn_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the regular cylindrical Bessel functions J_n(x) for n from nmin to nmax inclusive, storing the results in the array result_array.
+The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Jn_e.html'
+                                  title='rgsl::bessel::Jn_e'>Jn_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular cylindrical Bessel function of order n, J_n(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Jnu.html'
+                                  title='rgsl::bessel::Jnu'>Jnu</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular cylindrical Bessel function of fractional order \nu, J_\nu(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Jnu_e.html'
+                                  title='rgsl::bessel::Jnu_e'>Jnu_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular cylindrical Bessel function of fractional order \nu, J_\nu(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.K0.html'
+                                  title='rgsl::bessel::K0'>K0</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular modified cylindrical Bessel function of zeroth order, K_0(x), for x &gt; 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.K0_e.html'
+                                  title='rgsl::bessel::K0_e'>K0_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular modified cylindrical Bessel function of zeroth order, K_0(x), for x &gt; 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.K0_scaled.html'
+                                  title='rgsl::bessel::K0_scaled'>K0_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified cylindrical Bessel function of zeroth order \exp(x) K_0(x) for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.K0_scaled_e.html'
+                                  title='rgsl::bessel::K0_scaled_e'>K0_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified cylindrical Bessel function of zeroth order \exp(x) K_0(x) for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.K1.html'
+                                  title='rgsl::bessel::K1'>K1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular modified cylindrical Bessel function of first order, K_1(x), for x &gt; 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.K1_e.html'
+                                  title='rgsl::bessel::K1_e'>K1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular modified cylindrical Bessel function of first order, K_1(x), for x &gt; 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.K1_scaled.html'
+                                  title='rgsl::bessel::K1_scaled'>K1_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified cylindrical Bessel function of first order \exp(x) K_1(x) for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.K1_scaled_e.html'
+                                  title='rgsl::bessel::K1_scaled_e'>K1_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified cylindrical Bessel function of first order \exp(x) K_1(x) for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Kn.html'
+                                  title='rgsl::bessel::Kn'>Kn</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular modified cylindrical Bessel function of order n, K_n(x), for x &gt; 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Kn_array.html'
+                                  title='rgsl::bessel::Kn_array'>Kn_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the irregular modified cylindrical Bessel functions K_n(x) for n from nmin to nmax inclusive, storing the results in the array result_array.
+The start of the range nmin must be positive or zero. The domain of the function is x&gt;0.
+The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Kn_e.html'
+                                  title='rgsl::bessel::Kn_e'>Kn_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular modified cylindrical Bessel function of order n, K_n(x), for x &gt; 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Kn_scaled.html'
+                                  title='rgsl::bessel::Kn_scaled'>Kn_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified cylindrical Bessel function of order n, \exp(x) K_n(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Kn_scaled_array.html'
+                                  title='rgsl::bessel::Kn_scaled_array'>Kn_scaled_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the scaled irregular cylindrical Bessel functions \exp(x) K_n(x) for n from nmin to nmax inclusive, storing the results in the array result_array.
+The start of the range nmin must be positive or zero. The domain of the function is x&gt;0.
+The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Kn_scaled_e.html'
+                                  title='rgsl::bessel::Kn_scaled_e'>Kn_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified cylindrical Bessel function of order n, \exp(x) K_n(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Knu.html'
+                                  title='rgsl::bessel::Knu'>Knu</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular modified Bessel function of fractional order \nu, K_\nu(x) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Knu_e.html'
+                                  title='rgsl::bessel::Knu_e'>Knu_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular modified Bessel function of fractional order \nu, K_\nu(x) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Knu_scaled.html'
+                                  title='rgsl::bessel::Knu_scaled'>Knu_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified Bessel function of fractional order \nu, \exp(+|x|) K_\nu(x) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Knu_scaled_e.html'
+                                  title='rgsl::bessel::Knu_scaled_e'>Knu_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified Bessel function of fractional order \nu, \exp(+|x|) K_\nu(x) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Y0.html'
+                                  title='rgsl::bessel::Y0'>Y0</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular cylindrical Bessel function of zeroth order, Y_0(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Y0_e.html'
+                                  title='rgsl::bessel::Y0_e'>Y0_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular cylindrical Bessel function of zeroth order, Y_0(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Y1.html'
+                                  title='rgsl::bessel::Y1'>Y1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular cylindrical Bessel function of first order, Y_1(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Y1_e.html'
+                                  title='rgsl::bessel::Y1_e'>Y1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular cylindrical Bessel function of first order, Y_1(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Yn.html'
+                                  title='rgsl::bessel::Yn'>Yn</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular cylindrical Bessel function of order n, Y_n(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Yn_array.html'
+                                  title='rgsl::bessel::Yn_array'>Yn_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the irregular cylindrical Bessel functions Y_n(x) for n from nmin to nmax inclusive, storing the results in the array result_array.
+The domain of the function is x&gt;0.
+The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Yn_e.html'
+                                  title='rgsl::bessel::Yn_e'>Yn_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular cylindrical Bessel function of order n, Y_n(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Ynu.html'
+                                  title='rgsl::bessel::Ynu'>Ynu</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular cylindrical Bessel function of fractional order \nu, Y_\nu(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.Ynu_e.html'
+                                  title='rgsl::bessel::Ynu_e'>Ynu_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular cylindrical Bessel function of fractional order \nu, Y_\nu(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.i0_scaled.html'
+                                  title='rgsl::bessel::i0_scaled'>i0_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified spherical Bessel function of zeroth order, \exp(-|x|) i_0(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.i0_scaled_e.html'
+                                  title='rgsl::bessel::i0_scaled_e'>i0_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified spherical Bessel function of zeroth order, \exp(-|x|) i_0(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.i1_scaled.html'
+                                  title='rgsl::bessel::i1_scaled'>i1_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified spherical Bessel function of first order, \exp(-|x|) i_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.i1_scaled_e.html'
+                                  title='rgsl::bessel::i1_scaled_e'>i1_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified spherical Bessel function of first order, \exp(-|x|) i_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.i2_scaled.html'
+                                  title='rgsl::bessel::i2_scaled'>i2_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified spherical Bessel function of second order, \exp(-|x|) i_2(x)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.i2_scaled_e.html'
+                                  title='rgsl::bessel::i2_scaled_e'>i2_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified spherical Bessel function of second order, \exp(-|x|) i_2(x)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.il_scaled.html'
+                                  title='rgsl::bessel::il_scaled'>il_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified spherical Bessel function of order l, \exp(-|x|) i_l(x)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.il_scaled_array.html'
+                                  title='rgsl::bessel::il_scaled_array'>il_scaled_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the scaled regular modified cylindrical Bessel functions \exp(-|x|) i_l(x) for l from 0 to lmax inclusive for lmax &gt;= 0, storing the results in the array result_array. The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.il_scaled_e.html'
+                                  title='rgsl::bessel::il_scaled_e'>il_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled regular modified spherical Bessel function of order l, \exp(-|x|) i_l(x)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.j0.html'
+                                  title='rgsl::bessel::j0'>j0</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular spherical Bessel function of zeroth order, j_0(x) = \sin(x)/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.j0_e.html'
+                                  title='rgsl::bessel::j0_e'>j0_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular spherical Bessel function of zeroth order, j_0(x) = \sin(x)/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.j1.html'
+                                  title='rgsl::bessel::j1'>j1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular spherical Bessel function of first order, j_1(x) = (\sin(x)/x - \cos(x))/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.j1_e.html'
+                                  title='rgsl::bessel::j1_e'>j1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular spherical Bessel function of first order, j_1(x) = (\sin(x)/x - \cos(x))/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.j2.html'
+                                  title='rgsl::bessel::j2'>j2</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular spherical Bessel function of second order, j_2(x) = ((3/x<sup>2</sup> - 1)\sin(x) - 3\cos(x)/x)/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.j2_e.html'
+                                  title='rgsl::bessel::j2_e'>j2_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular spherical Bessel function of second order, j_2(x) = ((3/x<sup>2</sup> - 1)\sin(x) - 3\cos(x)/x)/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.jl.html'
+                                  title='rgsl::bessel::jl'>jl</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular spherical Bessel function of order l, j_l(x), for l &gt;= 0 and x &gt;= 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.jl_array.html'
+                                  title='rgsl::bessel::jl_array'>jl_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the regular spherical Bessel functions j_l(x) for l from 0 to lmax inclusive for lmax &gt;= 0 and x &gt;= 0, storing the results in the array result_array.
+The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.jl_e.html'
+                                  title='rgsl::bessel::jl_e'>jl_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the regular spherical Bessel function of order l, j_l(x), for l &gt;= 0 and x &gt;= 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.jl_steed_array.html'
+                                  title='rgsl::bessel::jl_steed_array'>jl_steed_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine uses Steed’s method to compute the values of the regular spherical Bessel functions j_l(x) for l from 0 to lmax inclusive for lmax &gt;= 0 and x &gt;= 0, storing the results in the array result_array.
+The Steed/Barnett algorithm is described in Comp. Phys. Comm. 21, 297 (1981). Steed’s method is more stable than the recurrence used in the other functions but is also slower.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.k0_scaled.html'
+                                  title='rgsl::bessel::k0_scaled'>k0_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>The irregular modified spherical Bessel functions k_l(x) are related to the irregular modified Bessel functions of fractional order, k_l(x) = \sqrt{\pi/(2x)} K_{l+1/2}(x).
+This routine computes the scaled irregular modified spherical Bessel function of zeroth order, \exp(x) k_0(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.k0_scaled_e.html'
+                                  title='rgsl::bessel::k0_scaled_e'>k0_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>The irregular modified spherical Bessel functions k_l(x) are related to the irregular modified Bessel functions of fractional order, k_l(x) = \sqrt{\pi/(2x)} K_{l+1/2}(x).
+This routine computes the scaled irregular modified spherical Bessel function of zeroth order, \exp(x) k_0(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.k1_scaled.html'
+                                  title='rgsl::bessel::k1_scaled'>k1_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified spherical Bessel function of first order, \exp(x) k_1(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.k1_scaled_e.html'
+                                  title='rgsl::bessel::k1_scaled_e'>k1_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified spherical Bessel function of first order, \exp(x) k_1(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.k2_scaled.html'
+                                  title='rgsl::bessel::k2_scaled'>k2_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified spherical Bessel function of second order, \exp(x) k_2(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.k2_scaled_e.html'
+                                  title='rgsl::bessel::k2_scaled_e'>k2_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified spherical Bessel function of second order, \exp(x) k_2(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.kl_scaled.html'
+                                  title='rgsl::bessel::kl_scaled'>kl_scaled</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified spherical Bessel function of order l, \exp(x) k_l(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.kl_scaled_array.html'
+                                  title='rgsl::bessel::kl_scaled_array'>kl_scaled_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the scaled irregular modified spherical Bessel functions \exp(x) k_l(x) for l from 0 to lmax inclusive for lmax &gt;= 0 and x&gt;0, storing the results in the array result_array.
+The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.kl_scaled_e.html'
+                                  title='rgsl::bessel::kl_scaled_e'>kl_scaled_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the scaled irregular modified spherical Bessel function of order l, \exp(x) k_l(x), for x&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.lnKnu.html'
+                                  title='rgsl::bessel::lnKnu'>lnKnu</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the logarithm of the irregular modified Bessel function of fractional order \nu, \ln(K_\nu(x)) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.lnKnu_e.html'
+                                  title='rgsl::bessel::lnKnu_e'>lnKnu_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the logarithm of the irregular modified Bessel function of fractional order \nu, \ln(K_\nu(x)) for x&gt;0, \nu&gt;0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sequence_Jnu.html'
+                                  title='rgsl::bessel::sequence_Jnu'>sequence_Jnu</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the regular cylindrical Bessel function of fractional order \nu, J_\nu(x), evaluated at a series of x values. The array v of length size contains the x values.
+They are assumed to be strictly ordered and positive. The array is over-written with the values of J_\nu(x_i).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.y0.html'
+                                  title='rgsl::bessel::y0'>y0</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular spherical Bessel function of zeroth order, y_0(x) = -\cos(x)/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.y0_e.html'
+                                  title='rgsl::bessel::y0_e'>y0_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular spherical Bessel function of zeroth order, y_0(x) = -\cos(x)/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.y1.html'
+                                  title='rgsl::bessel::y1'>y1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular spherical Bessel function of first order, y_1(x) = -(\cos(x)/x + \sin(x))/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.y1_e.html'
+                                  title='rgsl::bessel::y1_e'>y1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular spherical Bessel function of first order, y_1(x) = -(\cos(x)/x + \sin(x))/x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.y2.html'
+                                  title='rgsl::bessel::y2'>y2</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular spherical Bessel function of second order, y_2(x) = (-3/x<sup>3</sup> + 1/x)\cos(x) - (3/x<sup>2)\sin(x).</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.y2_e.html'
+                                  title='rgsl::bessel::y2_e'>y2_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular spherical Bessel function of second order, y_2(x) = (-3/x<sup>3</sup> + 1/x)\cos(x) - (3/x<sup>2)\sin(x).</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.yl.html'
+                                  title='rgsl::bessel::yl'>yl</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular spherical Bessel function of order l, y_l(x), for l &gt;= 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.yl_array.html'
+                                  title='rgsl::bessel::yl_array'>yl_array</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the values of the irregular spherical Bessel functions y_l(x) for l from 0 to lmax inclusive for lmax &gt;= 0, storing the results in the array result_array.
+The values are computed using recurrence relations for efficiency, and therefore may differ slightly from the exact values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.yl_e.html'
+                                  title='rgsl::bessel::yl_e'>yl_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the irregular spherical Bessel function of order l, y_l(x), for l &gt;= 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zero_J0.html'
+                                  title='rgsl::bessel::zero_J0'>zero_J0</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the location of the s-th positive zero of the Bessel function J_0(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zero_J0_e.html'
+                                  title='rgsl::bessel::zero_J0_e'>zero_J0_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the location of the s-th positive zero of the Bessel function J_0(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zero_J1.html'
+                                  title='rgsl::bessel::zero_J1'>zero_J1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the location of the s-th positive zero of the Bessel function J_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zero_J1_e.html'
+                                  title='rgsl::bessel::zero_J1_e'>zero_J1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the location of the s-th positive zero of the Bessel function J_1(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zero_Jnu.html'
+                                  title='rgsl::bessel::zero_Jnu'>zero_Jnu</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the location of the s-th positive zero of the Bessel function J_\nu(x).
+The current implementation does not support negative values of nu.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zero_Jnu_e.html'
+                                  title='rgsl::bessel::zero_Jnu_e'>zero_Jnu_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the location of the s-th positive zero of the Bessel function J_\nu(x).
+The current implementation does not support negative values of nu.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

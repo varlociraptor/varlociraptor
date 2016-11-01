@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["bayesian","Utilities for Bayesian statistics."],["combinatorics","Combinations with and without replacement."],["probs","Handling log-probabilities."]]});

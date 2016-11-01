@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `discrete_hankel` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, discrete_hankel">
+
+    <title>rgsl::types::discrete_hankel - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a></p><script>window.sidebarCurrent = {name: 'discrete_hankel', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a class='mod' href=''>discrete_hankel</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-9415' class='srclink' href='../../../src/rgsl/types/discrete_hankel.rs.html#5-124' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='discrete-hankel-transforms' class='section-header'><a href='#discrete-hankel-transforms'>Discrete Hankel Transforms</a></h1>
+<p>This chapter describes functions for performing Discrete Hankel Transforms (DHTs).</p>
+
+<h2 id='definitions' class='section-header'><a href='#definitions'>Definitions</a></h2>
+<p>The discrete Hankel transform acts on a vector of sampled data, where the samples are assumed to have been taken at points related to the zeroes 
+of a Bessel function of fixed order; compare this to the case of the discrete Fourier transform, where samples are taken at points related to 
+the zeroes of the sine or cosine function.</p>
+
+<p>Specifically, let f(t) be a function on the unit interval and j_(\nu,m) the m-th zero of the Bessel function J_\nu(x). Then the finite \nu-Hankel 
+transform of f(t) is defined to be the set of numbers g_m given by,</p>
+
+<p>g_m = \int_0<sup>1</sup> t dt J_\nu(j_(\nu,m)t) f(t),</p>
+
+<p>so that,</p>
+
+<p>f(t) = \sum_{m=1}<sup>\infty</sup> (2 J_\nu(j_(\nu,m)t) / J_(\nu+1)(j_(\nu,m))<sup>2)</sup> g_m.</p>
+
+<p>Suppose that f is band-limited in the sense that g_m=0 for m &gt; M. Then we have the following fundamental sampling theorem.</p>
+
+<p>g_m = (2 / j_(\nu,M)<sup>2)</sup>
+      \sum_{k=1}<sup>{M-1}</sup> f(j_(\nu,k)/j_(\nu,M))
+          (J_\nu(j_(\nu,m) j_(\nu,k) / j_(\nu,M)) / J_(\nu+1)(j_(\nu,k))<sup>2).</sup></p>
+
+<p>It is this discrete expression which defines the discrete Hankel transform. The kernel in the summation above defines the matrix of the \nu-Hankel 
+transform of size M-1. The coefficients of this matrix, being dependent on \nu and M, must be precomputed and stored; the gsl_dht object encapsulates 
+this data. The allocation function gsl_dht_alloc returns a gsl_dht object which must be properly initialized with gsl_dht_init before it can be 
+used to perform transforms on data sample vectors, for fixed \nu and M, using the gsl_dht_apply function. The implementation allows a scaling of 
+the fundamental interval, for convenience, so that one can assume the function is defined on the interval [0,X], rather than the unit interval.</p>
+
+<p>Notice that by assumption f(t) vanishes at the endpoints of the interval, consistent with the inversion formula and the sampling formula given above. 
+Therefore, this transform corresponds to an orthogonal expansion in eigenfunctions of the Dirichlet problem for the Bessel differential equation.</p>
+
+<h2 id='references-and-further-reading' class='section-header'><a href='#references-and-further-reading'>References and Further Reading</a></h2>
+<p>The algorithms used by these functions are described in the following papers,</p>
+
+<p>H. Fisk Johnson, Comp. Phys. Comm. 43, 181 (1987).
+D. Lemoine, J. Chem. Phys. 101, 3936 (1994).</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.DiscreteHankel.html'
+                                  title='rgsl::types::discrete_hankel::DiscreteHankel'>DiscreteHankel</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

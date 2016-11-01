@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ODEiv2Step` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ODEiv2Step">
+
+    <title>rgsl::types::ordinary_differential_equations::ODEiv2Step - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>ordinary_differential_equations</a></p><script>window.sidebarCurrent = {name: 'ODEiv2Step', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>ordinary_differential_equations</a>::<wbr><a class='struct' href=''>ODEiv2Step</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13094' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#149-151' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct ODEiv2Step {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Step.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Step'>ODEiv2Step</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13096' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#153-226' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(t: &amp;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2StepType.html' title='rgsl::types::ordinary_differential_equations::ODEiv2StepType'>ODEiv2StepType</a>, dim: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Step.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Step'>ODEiv2Step</a>&gt;</code></h4>
+<div class='docblock'><p>This function returns a pointer to a newly allocated instance of a stepping function of type T for a system of dim dimensions.
+Please note that if you use a stepper method that requires access to a driver object, it is advisable to use a driver allocation
+method, which automatically allocates a stepper, too.</p>
+</div><h4 id='method.reset' class='method'><code>fn <a href='#method.reset' class='fnname'>reset</a>(&amp;mut self) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>This function resets the stepping function s. It should be used whenever the next use of s will not be a continuation of a previous
+step.</p>
+</div><h4 id='method.name' class='method'><code>fn <a href='#method.name' class='fnname'>name</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>&gt;</code></h4>
+<div class='docblock'><p>This function returns a pointer to the name of the stepping function. For example,</p>
+
+<pre><code class="language-Rust">println!(&quot;step method is &#39;{}&#39;&quot;, s.name().unwrap());
+</code></pre>
+
+<p>would print something like step method is &#39;rkf45&#39;.</p>
+</div><h4 id='method.order' class='method'><code>fn <a href='#method.order' class='fnname'>order</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a></code></h4>
+<div class='docblock'><p>This function returns the order of the stepping function on the previous step. The order can vary if the stepping function itself is
+adaptive.</p>
+</div><h4 id='method.set_driver' class='method'><code>fn <a href='#method.set_driver' class='fnname'>set_driver</a>(&amp;mut self, d: &amp;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>This function sets a pointer of the driver object d for stepper s, to allow the stepper to access control (and evolve) object through
+the driver object. This is a requirement for some steppers, to get the desired error level for internal iteration of stepper.
+Allocation of a driver object calls this function automatically.</p>
+</div><h4 id='method.apply' class='method'><code>fn <a href='#method.apply' class='fnname'>apply</a>(&amp;mut self, t: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, h: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, yerr: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, dydt_in: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, dydt_out: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, sys: &amp;mut <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2System.html' title='rgsl::types::ordinary_differential_equations::ODEiv2System'>ODEiv2System</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>This function applies the stepping function s to the system of equations defined by sys, using the step-size h to advance the system
+from time t and state y to time t+h. The new state of the system is stored in y on output, with an estimate of the absolute error
+in each component stored in yerr. If the argument dydt_in is not null it should point an array containing the derivatives for the
+system at time t on input. This is optional as the derivatives will be computed internally if they are not provided, but allows
+the reuse of existing derivative information. On output the new derivatives of the system at time t+h will be stored in dydt_out
+if it is not null.</p>
+
+<p>The stepping function returns enums::value::Failure if it is unable to compute the requested step. Also, if the user-supplied functions defined
+in the system sys return a status other than ::Value::Success the step will be aborted. In that case, the elements of y will be restored
+to their pre-step values and the error code from the user-supplied function will be returned. Failure may be due to a singularity in
+the system or too large step-size h. In that case the step should be attempted again with a smaller step-size, e.g. h/2.</p>
+
+<p>If the driver object is not appropriately set via gsl_odeiv2_step_set_driver for those steppers that need it, the stepping function
+returns ::Fault. If the user-supplied functions defined in the system sys returns enums::value::BadFunc, the function returns
+immediately with the same return code. In this case the user must call gsl_odeiv2_step_reset before calling this function again.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Step.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Step'>ODEiv2Step</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13122' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#228-233' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

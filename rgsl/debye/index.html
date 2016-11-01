@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `debye` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, debye">
+
+    <title>rgsl::debye - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'debye', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>debye</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-17021' class='srclink' href='../../src/rgsl/debye.rs.html#5-92' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The Debye functions D_n(x) are defined by the following integral,</p>
+
+<p>D_n(x) = n/x<sup>n</sup> \int_0<sup>x</sup> dt (t<sup>n/(e<sup>t</sup></sup> - 1))</p>
+
+<p>For further information see Abramowitz &amp; Stegun, Section 27.1.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._1.html'
+                                  title='rgsl::debye::_1'>_1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the first-order Debye function D_1(x) = (1/x) \int_0<sup>x</sup> dt (t/(e<sup>t</sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._1_e.html'
+                                  title='rgsl::debye::_1_e'>_1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the first-order Debye function D_1(x) = (1/x) \int_0<sup>x</sup> dt (t/(e<sup>t</sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._2.html'
+                                  title='rgsl::debye::_2'>_2</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the second-order Debye function D_2(x) = (2/x<sup>2)</sup> \int_0<sup>x</sup> dt (t<sup>2/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._2_e.html'
+                                  title='rgsl::debye::_2_e'>_2_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the second-order Debye function D_2(x) = (2/x<sup>2)</sup> \int_0<sup>x</sup> dt (t<sup>2/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._3.html'
+                                  title='rgsl::debye::_3'>_3</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the third-order Debye function D_3(x) = (3/x<sup>3)</sup> \int_0<sup>x</sup> dt (t<sup>3/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._3_e.html'
+                                  title='rgsl::debye::_3_e'>_3_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the third-order Debye function D_3(x) = (3/x<sup>3)</sup> \int_0<sup>x</sup> dt (t<sup>3/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._4.html'
+                                  title='rgsl::debye::_4'>_4</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the fourth-order Debye function D_4(x) = (4/x<sup>4)</sup> \int_0<sup>x</sup> dt (t<sup>4/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._4_e.html'
+                                  title='rgsl::debye::_4_e'>_4_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the fourth-order Debye function D_4(x) = (4/x<sup>4)</sup> \int_0<sup>x</sup> dt (t<sup>4/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._5.html'
+                                  title='rgsl::debye::_5'>_5</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the fifth-order Debye function D_5(x) = (5/x<sup>5)</sup> \int_0<sup>x</sup> dt (t<sup>5/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._5_e.html'
+                                  title='rgsl::debye::_5_e'>_5_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the fifth-order Debye function D_5(x) = (5/x<sup>5)</sup> \int_0<sup>x</sup> dt (t<sup>5/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._6.html'
+                                  title='rgsl::debye::_6'>_6</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the sixth-order Debye function D_6(x) = (6/x<sup>6)</sup> \int_0<sup>x</sup> dt (t<sup>6/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn._6_e.html'
+                                  title='rgsl::debye::_6_e'>_6_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the sixth-order Debye function D_6(x) = (6/x<sup>6)</sup> \int_0<sup>x</sup> dt (t<sup>6/(e<sup>t</sup></sup> - 1)).</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

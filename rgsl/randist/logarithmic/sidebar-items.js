@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["logarithmic","This function returns a random integer from the logarithmic distribution. The probability distribution for logarithmic random variates is,"],["logarithmic_pdf","This function computes the probability p(k) of obtaining k from a logarithmic distribution with probability parameter p, using the formula given above."]]});

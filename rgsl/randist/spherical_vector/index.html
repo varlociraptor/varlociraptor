@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `spherical_vector` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, spherical_vector">
+
+    <title>rgsl::randist::spherical_vector - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>randist</a></p><script>window.sidebarCurrent = {name: 'spherical_vector', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>randist</a>::<wbr><a class='mod' href=''>spherical_vector</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-8941' class='srclink' href='../../../src/rgsl/randist/spherical_vector.rs.html#5-49' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The spherical distributions generate random vectors, located on a spherical surface.
+They can be used as random directions, for example in the steps of a random walk.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dir_2d.html'
+                                  title='rgsl::randist::spherical_vector::dir_2d'>dir_2d</a></td>
+                           <td class='docblock short'>
+                                <p>This function returns a random direction vector v = (x,y) in two dimensions. The vector is normalized such that |v|<sup>2</sup> = x<sup>2</sup> + y<sup>2</sup> = 1.
+The obvious way to do this is to take a uniform random number between 0 and 2\pi and let x and y be the sine and cosine respectively.
+Two trig functions would have been expensive in the old days, but with modern hardware implementations, this is sometimes the fastest way to go.
+This is the case for the Pentium (but not the case for the Sun Sparcstation).
+One can avoid the trig evaluations by choosing x and y in the interior of a unit circle (choose them at random from the interior of the enclosing square,
+and then reject those that are outside the unit circle), and then dividing by \sqrt{x<sup>2</sup> + y<sup>2}.</sup> A much cleverer approach, attributed to von Neumann
+(See Knuth, v2, 3rd ed, p140, exercise 23), requires neither trig nor a square root. In this approach, u and v are chosen at random from the interior of
+a unit circle, and then x=(u<sup>2-v<sup>2)/(u<sup>2+v<sup>2)</sup></sup></sup></sup> and y=2uv/(u<sup>2+v<sup>2).</sup></sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dir_2d_trig_method.html'
+                                  title='rgsl::randist::spherical_vector::dir_2d_trig_method'>dir_2d_trig_method</a></td>
+                           <td class='docblock short'>
+                                <p>This function returns a random direction vector v = (x,y) in two dimensions. The vector is normalized such that |v|<sup>2</sup> = x<sup>2</sup> + y<sup>2</sup> = 1.
+The obvious way to do this is to take a uniform random number between 0 and 2\pi and let x and y be the sine and cosine respectively.
+Two trig functions would have been expensive in the old days, but with modern hardware implementations, this is sometimes the fastest way to go.
+This is the case for the Pentium (but not the case for the Sun Sparcstation).
+One can avoid the trig evaluations by choosing x and y in the interior of a unit circle (choose them at random from the interior of the enclosing square,
+and then reject those that are outside the unit circle), and then dividing by \sqrt{x<sup>2</sup> + y<sup>2}.</sup> A much cleverer approach, attributed to von Neumann
+(See Knuth, v2, 3rd ed, p140, exercise 23), requires neither trig nor a square root. In this approach, u and v are chosen at random from the interior of
+a unit circle, and then x=(u<sup>2-v<sup>2)/(u<sup>2+v<sup>2)</sup></sup></sup></sup> and y=2uv/(u<sup>2+v<sup>2).</sup></sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dir_3d.html'
+                                  title='rgsl::randist::spherical_vector::dir_3d'>dir_3d</a></td>
+                           <td class='docblock short'>
+                                <p>This function returns a random direction vector v = (x,y,z) in three dimensions. The vector is normalized such that |v|<sup>2</sup> = x<sup>2</sup> + y<sup>2</sup> + z<sup>2</sup> = 1.
+The method employed is due to Robert E. Knop (CACM 13, 326 (1970)), and explained in Knuth, v2, 3rd ed, p136. It uses the surprising fact that the
+distribution projected along any axis is actually uniform (this is only true for 3 dimensions).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dir_nd.html'
+                                  title='rgsl::randist::spherical_vector::dir_nd'>dir_nd</a></td>
+                           <td class='docblock short'>
+                                <p>This function returns a random direction vector v = (x_1,x_2,...,x_n) in n dimensions. The vector is normalized such that |v|<sup>2</sup> = x_1<sup>2</sup> + x_2<sup>2</sup> + ... + x_n<sup>2</sup> = 1.
+The method uses the fact that a multivariate Gaussian distribution is spherically symmetric. Each component is generated to have a Gaussian distribution, and then
+the components are normalized. The method is described by Knuth, v2, 3rd ed, p135–136, and attributed to G. W. Brown, Modern Mathematics for the Engineer (1956).</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

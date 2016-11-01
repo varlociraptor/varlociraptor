@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Index","A FASTA index as created by SAMtools (.fai)."],["IndexedReader","A FASTA reader with an index as created by SAMtools (.fai)."],["Reader","A FASTA reader."],["Record","A FASTA record."],["Records","An iterator over the records of a Fasta file."],["Sequence","A sequence record returned by the FASTA index."],["Writer","A Fasta writer."]]});

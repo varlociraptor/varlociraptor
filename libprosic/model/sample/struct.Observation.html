@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Observation` struct in crate `libprosic`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Observation">
+
+    <title>libprosic::model::sample::Observation - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>libprosic</a>::<wbr><a href='../index.html'>model</a>::<wbr><a href='index.html'>sample</a></p><script>window.sidebarCurrent = {name: 'Observation', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>libprosic</a>::<wbr><a href='../index.html'>model</a>::<wbr><a href='index.html'>sample</a>::<wbr><a class='struct' href=''>Observation</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-608' class='srclink' href='../../../src/libprosic/src/model/sample.rs.html#125-136' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Observation {
+    pub prob_mapping: <a class='struct' href='../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a>,
+    pub prob_alt: <a class='struct' href='../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a>,
+    pub prob_ref: <a class='struct' href='../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a>,
+    pub prob_mismapped: <a class='struct' href='../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a>,
+    pub evidence: <a class='enum' href='../../../libprosic/model/sample/enum.Evidence.html' title='libprosic::model::sample::Evidence'>Evidence</a>,
+}</pre><div class='docblock'><p>An observation for or against a variant.</p>
+</div><h2 class='fields'>Fields</h2><span id='structfield.prob_mapping' class='structfield'><code>prob_mapping: <a class='struct' href='../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).</p>
+</div><span id='structfield.prob_alt' class='structfield'><code>prob_alt: <a class='struct' href='../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>Probability that the read/read-pair comes from the alternative allele.</p>
+</div><span id='structfield.prob_ref' class='structfield'><code>prob_ref: <a class='struct' href='../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>Probability that the read/read-pair comes from the reference allele.</p>
+</div><span id='structfield.prob_mismapped' class='structfield'><code>prob_mismapped: <a class='struct' href='../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>Probability of the read/read-pair given that it has been mismapped.</p>
+</div><span id='structfield.evidence' class='structfield'><code>evidence: <a class='enum' href='../../../libprosic/model/sample/enum.Evidence.html' title='libprosic::model::sample::Evidence'>Evidence</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>Type of evidence.</p>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='../../../rustc_serialize/serialize/trait.Encodable.html' title='rustc_serialize::serialize::Encodable'>Encodable</a> for <a class='struct' href='../../../libprosic/model/sample/struct.Observation.html' title='libprosic::model::sample::Observation'>Observation</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-544' class='srclink' href='../../../src/libprosic/src/model/sample.rs.html#124' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.encode' class='method'><code>fn <a href='../../../rustc_serialize/serialize/trait.Encodable.html#tymethod.encode' class='fnname'>encode</a>&lt;__S:&nbsp;<a class='trait' href='../../../rustc_serialize/serialize/trait.Encoder.html' title='rustc_serialize::serialize::Encoder'>Encoder</a>&gt;(&amp;self, __arg_0: &amp;mut __S) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>,&nbsp;__S::Error&gt;</code></h4>
+</div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='../../../rustc_serialize/serialize/trait.Decodable.html' title='rustc_serialize::serialize::Decodable'>Decodable</a> for <a class='struct' href='../../../libprosic/model/sample/struct.Observation.html' title='libprosic::model::sample::Observation'>Observation</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-574' class='srclink' href='../../../src/libprosic/src/model/sample.rs.html#124' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.decode' class='method'><code>fn <a href='../../../rustc_serialize/serialize/trait.Decodable.html#tymethod.decode' class='fnname'>decode</a>&lt;__D:&nbsp;<a class='trait' href='../../../rustc_serialize/serialize/trait.Decoder.html' title='rustc_serialize::serialize::Decoder'>Decoder</a>&gt;(__arg_0: &amp;mut __D) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='../../../libprosic/model/sample/struct.Observation.html' title='libprosic::model::sample::Observation'>Observation</a>,&nbsp;__D::Error&gt;</code></h4>
+</div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../../../libprosic/model/sample/struct.Observation.html' title='libprosic::model::sample::Observation'>Observation</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-590' class='srclink' href='../../../src/libprosic/src/model/sample.rs.html#124' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../../../libprosic/model/sample/struct.Observation.html' title='libprosic::model::sample::Observation'>Observation</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-600' class='srclink' href='../../../src/libprosic/src/model/sample.rs.html#124' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../../../libprosic/model/sample/struct.Observation.html' title='libprosic::model::sample::Observation'>Observation</a></code></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "libprosic";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

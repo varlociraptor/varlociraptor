@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ODEiv2Driver` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ODEiv2Driver">
+
+    <title>rgsl::types::ordinary_differential_equations::ODEiv2Driver - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>ordinary_differential_equations</a></p><script>window.sidebarCurrent = {name: 'ODEiv2Driver', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>ordinary_differential_equations</a>::<wbr><a class='struct' href=''>ODEiv2Driver</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13270' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#632-640' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct ODEiv2Driver&lt;'a&gt; {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>&lt;'a&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13275' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#642-765' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.alloc_y_new' class='method'><code>fn <a href='#method.alloc_y_new' class='fnname'>alloc_y_new</a>(sys: &amp;'a mut <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2System.html' title='rgsl::types::ordinary_differential_equations::ODEiv2System'>ODEiv2System</a>, t: &amp;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2StepType.html' title='rgsl::types::ordinary_differential_equations::ODEiv2StepType'>ODEiv2StepType</a>, hstart: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsabs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsrel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>&lt;'a&gt;&gt;</code></h4>
+<div class='docblock'><p>These functions return a pointer to a newly allocated instance of a driver object. The functions automatically allocate and initialise
+the evolve, control and stepper objects for ODE system sys using stepper type T. The initial step size is given in hstart. The rest
+of the arguments follow the syntax and semantics of the control functions with same name (gsl_odeiv2_control_*_new).</p>
+</div><h4 id='method.alloc_yp_new' class='method'><code>fn <a href='#method.alloc_yp_new' class='fnname'>alloc_yp_new</a>(sys: &amp;'a mut <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2System.html' title='rgsl::types::ordinary_differential_equations::ODEiv2System'>ODEiv2System</a>, t: &amp;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2StepType.html' title='rgsl::types::ordinary_differential_equations::ODEiv2StepType'>ODEiv2StepType</a>, hstart: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsabs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsrel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>&lt;'a&gt;&gt;</code></h4>
+<div class='docblock'><p>These functions return a pointer to a newly allocated instance of a driver object. The functions automatically allocate and initialise
+the evolve, control and stepper objects for ODE system sys using stepper type T. The initial step size is given in hstart. The rest
+of the arguments follow the syntax and semantics of the control functions with same name (gsl_odeiv2_control_*_new).</p>
+</div><h4 id='method.alloc_standard_new' class='method'><code>fn <a href='#method.alloc_standard_new' class='fnname'>alloc_standard_new</a>(sys: &amp;'a mut <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2System.html' title='rgsl::types::ordinary_differential_equations::ODEiv2System'>ODEiv2System</a>, t: &amp;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2StepType.html' title='rgsl::types::ordinary_differential_equations::ODEiv2StepType'>ODEiv2StepType</a>, hstart: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsabs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsrel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_dydt: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>&lt;'a&gt;&gt;</code></h4>
+<div class='docblock'><p>These functions return a pointer to a newly allocated instance of a driver object. The functions automatically allocate and initialise
+the evolve, control and stepper objects for ODE system sys using stepper type T. The initial step size is given in hstart. The rest
+of the arguments follow the syntax and semantics of the control functions with same name (gsl_odeiv2_control_*_new).</p>
+</div><h4 id='method.alloc_scaled_new' class='method'><code>fn <a href='#method.alloc_scaled_new' class='fnname'>alloc_scaled_new</a>(sys: &amp;'a mut <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2System.html' title='rgsl::types::ordinary_differential_equations::ODEiv2System'>ODEiv2System</a>, t: &amp;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2StepType.html' title='rgsl::types::ordinary_differential_equations::ODEiv2StepType'>ODEiv2StepType</a>, hstart: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsabs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsrel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_dydt: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, scale_abs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>&lt;'a&gt;&gt;</code></h4>
+<div class='docblock'><p>These functions return a pointer to a newly allocated instance of a driver object. The functions automatically allocate and initialise
+the evolve, control and stepper objects for ODE system sys using stepper type T. The initial step size is given in hstart. The rest
+of the arguments follow the syntax and semantics of the control functions with same name (gsl_odeiv2_control_*_new).</p>
+</div><h4 id='method.set_hmin' class='method'><code>fn <a href='#method.set_hmin' class='fnname'>set_hmin</a>(&amp;mut self, hmin: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>The function sets a minimum for allowed step size hmin for driver self. Default value is 0.</p>
+</div><h4 id='method.set_hmax' class='method'><code>fn <a href='#method.set_hmax' class='fnname'>set_hmax</a>(&amp;mut self, hmax: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>The function sets a maximum for allowed step size hmax for driver self. Default value is ::DBL_MAX.</p>
+</div><h4 id='method.set_nmax' class='method'><code>fn <a href='#method.set_nmax' class='fnname'>set_nmax</a>(&amp;mut self, nmax: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>The function sets a maximum for allowed number of steps nmax for driver self. Default value of 0 sets no limit for steps.</p>
+</div><h4 id='method.apply' class='method'><code>fn <a href='#method.apply' class='fnname'>apply</a>(&amp;mut self, t: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, t1: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>This function evolves the driver system d from t to t1. Initially vector y should contain the values of dependent variables at
+point t. If the function is unable to complete the calculation, an error code from gsl_odeiv2_evolve_apply is returned, and t and
+y contain the values from last successful step.</p>
+
+<p>If maximum number of steps is reached, a value of enums::Value::MaxIteration is returned. If the step size drops below minimum value, the
+function returns with ::NoProg. If the user-supplied functions defined in the system sys returns enums::value::BadFunc, the function
+returns immediately with the same return code. In this case the user must call gsl_odeiv2_driver_reset before calling this
+function again.</p>
+</div><h4 id='method.apply_fixed_step' class='method'><code>fn <a href='#method.apply_fixed_step' class='fnname'>apply_fixed_step</a>(&amp;mut self, t: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, h: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>This function evolves the driver system d from t with n steps of size h. If the function is unable to complete the calculation, an
+error code from gsl_odeiv2_evolve_apply_fixed_step is returned, and t and y contain the values from last successful step.</p>
+</div><h4 id='method.reset' class='method'><code>fn <a href='#method.reset' class='fnname'>reset</a>(&amp;mut self) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>This function resets the evolution and stepper objects.</p>
+</div><h4 id='method.reset_hstart' class='method'><code>fn <a href='#method.reset_hstart' class='fnname'>reset_hstart</a>(&amp;mut self, hstart: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>The routine resets the evolution and stepper objects and sets new initial step size to hstart. This function can be used e.g. to
+change the direction of integration.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>&lt;'a&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13343' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#767-772' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

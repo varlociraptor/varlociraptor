@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `VegasMonteCarlo` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, VegasMonteCarlo">
+
+    <title>rgsl::types::monte_carlo::VegasMonteCarlo - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>monte_carlo</a></p><script>window.sidebarCurrent = {name: 'VegasMonteCarlo', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>monte_carlo</a>::<wbr><a class='struct' href=''>VegasMonteCarlo</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-12445' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#384-386' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct VegasMonteCarlo {
+    // some fields omitted
+}</pre><div class='docblock'><p>The VEGAS algorithm of Lepage is based on importance sampling. It samples points from the probability
+distribution described by the function |f|, so that the points are concentrated in the regions that
+make the largest contribution to the integral.</p>
+
+<p>In general, if the Monte Carlo integral of f is sampled with points distributed according to a
+probability distribution described by the function g, we obtain an estimate E_g(f; N),</p>
+
+<p>E_g(f; N) = E(f/g; N)</p>
+
+<p>with a corresponding variance,</p>
+
+<p>\Var_g(f; N) = \Var(f/g; N).</p>
+
+<p>If the probability distribution is chosen as g = |f|/I(|f|) then it can be shown that the variance
+V_g(f; N) vanishes, and the error in the estimate will be zero. In practice it is not possible to
+sample from the exact distribution g for an arbitrary function, so importance sampling algorithms
+aim to produce efficient approximations to the desired distribution.</p>
+
+<p>The VEGAS algorithm approximates the exact distribution by making a number of passes over the
+integration region while histogramming the function f. Each histogram is used to define a sampling
+distribution for the next pass. Asymptotically this procedure converges to the desired distribution.
+In order to avoid the number of histogram bins growing like K<sup>d</sup> the probability distribution is
+approximated by a separable function: g(x_1, x_2, ...) = g_1(x_1) g_2(x_2) ... so that the number
+of bins required is only Kd. This is equivalent to locating the peaks of the function from the
+projections of the integrand onto the coordinate axes. The efficiency of VEGAS depends on the
+validity of this assumption. It is most efficient when the peaks of the integrand are well-localized.
+If an integrand can be rewritten in a form which is approximately separable this will increase
+the efficiency of integration with VEGAS.</p>
+
+<p>VEGAS incorporates a number of additional features, and combines both stratified sampling and
+importance sampling. The integration region is divided into a number of “boxes”, with each box
+getting a fixed number of points (the goal is 2). Each box can then have a fractional number of
+bins, but if the ratio of bins-per-box is less than two, Vegas switches to a kind variance reduction
+(rather than importance sampling).</p>
+
+<p>The VEGAS algorithm computes a number of independent estimates of the integral internally, according
+to the iterations parameter described below, and returns their weighted average. Random sampling of
+the integrand can occasionally produce an estimate where the error is zero, particularly if the function
+is constant in some regions. An estimate with zero error causes the weighted average to break down and
+must be handled separately. In the original Fortran implementations of VEGAS the error estimate is made
+non-zero by substituting a small value (typically 1e-30). The implementation in GSL differs from this
+and avoids the use of an arbitrary constant—it either assigns the value a weight which is the average
+weight of the preceding estimates or discards it according to the following procedure,</p>
+
+<p>current estimate has zero error, weighted average has finite error</p>
+
+<ul>
+<li><p>The current estimate is assigned a weight which is the average weight of the preceding estimates.
+current estimate has finite error, previous estimates had zero error</p></li>
+<li><p>The previous estimates are discarded and the weighted averaging procedure begins with the current estimate.
+current estimate has zero error, previous estimates had zero error</p></li>
+<li><p>The estimates are averaged using the arithmetic mean, but no error is computed.</p></li>
+</ul>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/monte_carlo/struct.VegasMonteCarlo.html' title='rgsl::types::monte_carlo::VegasMonteCarlo'>VegasMonteCarlo</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12447' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#388-474' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(dim: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/monte_carlo/struct.VegasMonteCarlo.html' title='rgsl::types::monte_carlo::VegasMonteCarlo'>VegasMonteCarlo</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates and initializes a workspace for Monte Carlo integration in dim dimensions.
+The workspace is used to maintain the state of the integration.</p>
+</div><h4 id='method.init' class='method'><code>fn <a href='#method.init' class='fnname'>init</a>(&amp;self) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function initializes a previously allocated integration state. This allows an existing workspace
+to be reused for different integrations.</p>
+</div><h4 id='method.integrate' class='method'><code>fn <a href='#method.integrate' class='fnname'>integrate</a>&lt;F:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnMut.html' title='core::ops::FnMut'>FnMut</a>(<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>&gt;(&amp;self, dim: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F, xl: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, xu: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, t_calls: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, r: &amp;<a class='struct' href='../../../rgsl/types/rng/struct.Rng.html' title='rgsl::types::rng::Rng'>Rng</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a>,&nbsp;<a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a>&gt;</code></h4>
+<div class='docblock'><p>This routines uses the VEGAS Monte Carlo algorithm to integrate the function f over the dim-dimensional
+hypercubic region defined by the lower and upper limits in the arrays xl and xu, each of size dim.
+The integration uses a fixed number of function calls calls, and obtains random sampling points using
+the random number generator r. A previously allocated workspace s must be supplied. The result of the
+integration is returned in result, with an estimated absolute error abserr. The result and its error
+estimate are based on a weighted average of independent samples. The chi-squared per degree of freedom
+for the weighted average is returned via the state struct component, s-&gt;chisq, and must be consistent
+with 1 for the weighted average to be reliable.</p>
+
+<p>In C, the function takes a <code>gsl_monte_function</code> as first argument. In here, you have to
+pass the <code>dim</code> argument and the function pointer (which became a closure) directly to the
+function.</p>
+
+<p>It returns either Ok((result, abserr)) or Err(enums::Value).</p>
+</div><h4 id='method.chisq' class='method'><code>fn <a href='#method.chisq' class='fnname'>chisq</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the chi-squared per degree of freedom for the weighted estimate of the integral.
+The returned value should be close to 1. A value which differs significantly from 1 indicates that
+the values from different iterations are inconsistent. In this case the weighted error will be
+under-estimated, and further iterations of the algorithm are needed to obtain reliable results.</p>
+</div><h4 id='method.runval' class='method'><code>fn <a href='#method.runval' class='fnname'>runval</a>(&amp;self, result: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, sigma: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>)</code></h4>
+<div class='docblock'><p>This function returns the raw (unaveraged) values of the integral result and its error sigma from
+the most recent iteration of the algorithm.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/monte_carlo/struct.VegasMonteCarlo.html' title='rgsl::types::monte_carlo::VegasMonteCarlo'>VegasMonteCarlo</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12474' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#476-481' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

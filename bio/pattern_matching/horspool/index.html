@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `horspool` mod in crate `bio`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, horspool">
+
+    <title>bio::pattern_matching::horspool - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>bio</a>::<wbr><a href='../index.html'>pattern_matching</a></p><script>window.sidebarCurrent = {name: 'horspool', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>bio</a>::<wbr><a href='../index.html'>pattern_matching</a>::<wbr><a class='mod' href=''>horspool</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-394' class='srclink' href='../../../src/bio/pattern_matching/horspool.rs.html#6-136' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Algorithm of Horspool.
+Window-based, similar to but faster than Boyer-Moore.</p>
+
+<h1 id='idea' class='section-header'><a href='#idea'>Idea</a></h1>
+<p>Look at a search window m, match pattern backwards.
+In case of a mismatch, you can jump behind that.
+Best case time complexity: O(n / m)
+Worst case time complexity: O(n * m)
+With a large alphabet, you are likely
+around the best case, and faster than the rather
+complicated Boyer-Moore.</p>
+
+<p>The algorithm has two phases (let a be the last symbol in the window):</p>
+
+<ol>
+<li>test phase: compare the last symbol of the window.
+If it matches, compare the whole pattern.
+If it does not match, continue with the shift phase.</li>
+<li>shift phase: let l[a] be the rightmost position of a in
+the pattern without the last symbol. If it does not occur
+let l[a] be -1. Shift the window by m - 1 - l[a]. I.e.
+we shift the window such that the rightmost a matches
+the a at the end of the last window.
+If a does not occur in the pattern, we shift by the whole length.</li>
+</ol>
+
+<h1 id='example' class='section-header'><a href='#example'>Example</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>bio</span>::<span class='ident'>pattern_matching</span>::<span class='ident'>horspool</span>::<span class='ident'>Horspool</span>;
+<span class='kw'>let</span> <span class='ident'>text</span> <span class='op'>=</span> <span class='string'>b&quot;ACGGCTAGGAAAAAGACTGAGGACTGAAAA&quot;</span>;
+<span class='kw'>let</span> <span class='ident'>pattern</span> <span class='op'>=</span> <span class='string'>b&quot;GAAAA&quot;</span>;
+<span class='kw'>let</span> <span class='ident'>horspool</span> <span class='op'>=</span> <span class='ident'>Horspool</span>::<span class='ident'>new</span>(<span class='ident'>pattern</span>);
+<span class='kw'>let</span> <span class='ident'>occ</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>usize</span><span class='op'>&gt;</span> <span class='op'>=</span> <span class='ident'>horspool</span>.<span class='ident'>find_all</span>(<span class='ident'>text</span>).<span class='ident'>collect</span>();
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>occ</span>, [<span class='number'>8</span>, <span class='number'>25</span>]);</pre>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Horspool.html'
+                                  title='bio::pattern_matching::horspool::Horspool'>Horspool</a></td>
+                           <td class='docblock short'>
+                                <p>Algorithm of Horspool.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Matches.html'
+                                  title='bio::pattern_matching::horspool::Matches'>Matches</a></td>
+                           <td class='docblock short'>
+                                <p>Iterator over start positions of matches.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "bio";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

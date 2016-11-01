@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["annotate","Annotate a given VCF/BCF file with FDR estimates for the given events."]]});

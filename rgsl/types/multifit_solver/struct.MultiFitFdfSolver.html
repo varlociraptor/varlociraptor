@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `MultiFitFdfSolver` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, MultiFitFdfSolver">
+
+    <title>rgsl::types::multifit_solver::MultiFitFdfSolver - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>multifit_solver</a></p><script>window.sidebarCurrent = {name: 'MultiFitFdfSolver', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>multifit_solver</a>::<wbr><a class='struct' href=''>MultiFitFdfSolver</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-12500' class='srclink' href='../../../src/rgsl/types/multifit_solver.rs.html#54-62' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct MultiFitFdfSolver&lt;'r,&nbsp;T:&nbsp;'r&gt; {
+    pub x: <a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>,
+    pub f: <a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>,
+    pub j: <a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>,
+    pub dx: <a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>,
+    // some fields omitted
+}</pre><h2 class='fields'>Fields</h2><span id='structfield.x' class='structfield'><code>x: <a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a></code>
+                           </span><span class='stab '></span><span id='structfield.f' class='structfield'><code>f: <a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a></code>
+                           </span><span class='stab '></span><span id='structfield.j' class='structfield'><code>j: <a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a></code>
+                           </span><span class='stab '></span><span id='structfield.dx' class='structfield'><code>dx: <a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a></code>
+                           </span><span class='stab '></span><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;'r,&nbsp;T&gt; <a class='struct' href='../../../rgsl/types/multifit_solver/struct.MultiFitFdfSolver.html' title='rgsl::types::multifit_solver::MultiFitFdfSolver'>MultiFitFdfSolver</a>&lt;'r,&nbsp;T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12510' class='srclink' href='../../../src/rgsl/types/multifit_solver.rs.html#64-145' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(_type: &amp;'r <a class='struct' href='../../../rgsl/types/multifit_solver/struct.MultiFitFdfSolverType.html' title='rgsl::types::multifit_solver::MultiFitFdfSolverType'>MultiFitFdfSolverType</a>&lt;T&gt;, n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, p: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/multifit_solver/struct.MultiFitFdfSolver.html' title='rgsl::types::multifit_solver::MultiFitFdfSolver'>MultiFitFdfSolver</a>&lt;'r,&nbsp;T&gt;&gt;</code></h4>
+<div class='docblock'><p>This function returns a pointer to a newly allocated instance of a solver of type T for n observations and p parameters. The number
+of observations n must be greater than or equal to parameters p.</p>
+</div><h4 id='method.set' class='method'><code>fn <a href='#method.set' class='fnname'>set</a>(&amp;mut self, f: &amp;mut <a class='struct' href='../../../rgsl/types/multifit_solver/struct.MultiFitFunctionFdf.html' title='rgsl::types::multifit_solver::MultiFitFunctionFdf'>MultiFitFunctionFdf</a>&lt;'r,&nbsp;T&gt;, x: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function initializes, or reinitializes, an existing solver s to use the function f and the initial guess x.</p>
+</div><h4 id='method.name' class='method'><code>fn <a href='#method.name' class='fnname'>name</a>(&amp;self) -&gt; &amp;'static <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.str.html'>str</a></code></h4>
+<h4 id='method.iterate' class='method'><code>fn <a href='#method.iterate' class='fnname'>iterate</a>(&amp;mut self) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function performs a single iteration of the solver s. If the iteration encounters an unexpected problem then an error code
+will be returned. The solver maintains a current estimate of the best-fit parameters at all times.</p>
+</div><h4 id='method.position' class='method'><code>fn <a href='#method.position' class='fnname'>position</a>(&amp;'r self) -&gt; &amp;'r <a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a></code></h4>
+<div class='docblock'><p>This function returns the current position (i.e. best-fit parameters) s-&gt;x of the solver s.</p>
+</div><h4 id='method.driver' class='method'><code>fn <a href='#method.driver' class='fnname'>driver</a>(&amp;mut self, max_iter: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, epsabs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsrel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>These functions iterate the solver s for a maximum of maxiter iterations. After each iteration, the system is tested for convergence
+using gsl_multifit_test_delta with the error tolerances epsabs and epsrel.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl&lt;'r,&nbsp;T&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/multifit_solver/struct.MultiFitFdfSolver.html' title='rgsl::types::multifit_solver::MultiFitFdfSolver'>MultiFitFdfSolver</a>&lt;'r,&nbsp;T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12541' class='srclink' href='../../../src/rgsl/types/multifit_solver.rs.html#147-151' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

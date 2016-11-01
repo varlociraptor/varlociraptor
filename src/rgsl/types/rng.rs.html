@@ -1,0 +1,1879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/GSL-0.4.28/src/types/rng.rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang">
+
+    <title>rng.rs.html -- source</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content source"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
+<span id="882">882</span>
+<span id="883">883</span>
+<span id="884">884</span>
+<span id="885">885</span>
+</pre><pre class='rust '>
+<span class='comment'>//</span>
+<span class='comment'>// A rust binding for the GSL library by Guillaume Gomez (guillaume1.gomez@gmail.com)</span>
+<span class='comment'>//</span>
+
+<span class='doccomment'>/*!
+#Random Number Generation
+
+The library provides a large collection of random number generators which can be accessed through a uniform interface. 
+Environment variables allow you to select different generators and seeds at runtime, so that you can easily switch between generators without needing to recompile your program.
+Each instance of a generator keeps track of its own state, allowing the generators to be used in multi-threaded programs.
+Additional functions are available for transforming uniform random numbers into samples from continuous or discrete probability distributions such as the Gaussian, log-normal or Poisson distributions.
+
+##General comments on random numbers
+
+In 1988, Park and Miller wrote a paper entitled “Random number generators: good ones are hard to find.” [Commun. ACM, 31, 1192–1201]. Fortunately, some excellent random number generators are available, though poor ones are still in common use. You may be happy with the system-supplied random number generator on your computer, but you should be aware that as computers get faster, requirements on random number generators increase. Nowadays, a simulation that calls a random number generator millions of times can often finish before you can make it down the hall to the coffee machine and back.
+
+A very nice review of random number generators was written by Pierre L’Ecuyer, as Chapter 4 of the book: Handbook on Simulation, Jerry Banks, ed. (Wiley, 1997). The chapter is available in postscript from L’Ecuyer’s ftp site (see references). Knuth’s volume on Seminumerical Algorithms (originally published in 1968) devotes 170 pages to random number generators, and has recently been updated in its 3rd edition (1997). It is brilliant, a classic. If you don’t own it, you should stop reading right now, run to the nearest bookstore, and buy it.
+
+A good random number generator will satisfy both theoretical and statistical properties. Theoretical properties are often hard to obtain (they require real math!), but one prefers a random number generator with a long period, low serial correlation, and a tendency not to “fall mainly on the planes.” Statistical tests are performed with numerical simulations. Generally, a random number generator is used to estimate some quantity for which the theory of probability provides an exact answer. Comparison to this exact answer provides a measure of “randomness”.
+
+##The Random Number Generator Interface
+
+It is important to remember that a random number generator is not a “real” function like sine or cosine. Unlike real functions, successive calls to a random number generator yield different return values. Of course that is just what you want for a random number generator, but to achieve this effect, the generator must keep track of some kind of “state” variable.
+Sometimes this state is just an integer (sometimes just the value of the previously generated random number), but often it is more complicated than that and may involve a whole array of numbers, possibly with some indices thrown in. To use the random number generators, you do not need to know the details of what comprises the state, and besides that varies from algorithm to algorithm.
+
+The random number generator library uses two special structs, RngType which holds static information about each type of generator and Rng which describes an instance of a generator created from a given RngType.
+
+##Performance
+
+The following table shows the relative performance of a selection the available random number generators. The fastest simulation quality generators are taus, gfsr4 and mt19937. The generators which offer the best mathematically-proven quality are those based on the RANLUX algorithm.
+
+ * 1754 k ints/sec,    870 k doubles/sec, taus
+ * 1613 k ints/sec,    855 k doubles/sec, gfsr4
+ * 1370 k ints/sec,    769 k doubles/sec, mt19937
+ *  565 k ints/sec,    571 k doubles/sec, ranlxs0
+ *  400 k ints/sec,    405 k doubles/sec, ranlxs1
+ *  490 k ints/sec,    389 k doubles/sec, mrg
+ *  407 k ints/sec,    297 k doubles/sec, ranlux
+ *  243 k ints/sec,    254 k doubles/sec, ranlxd1
+ *  251 k ints/sec,    253 k doubles/sec, ranlxs2
+ *  238 k ints/sec,    215 k doubles/sec, cmrg
+ *  247 k ints/sec,    198 k doubles/sec, ranlux389
+ *  141 k ints/sec,    140 k doubles/sec, ranlxd2
+
+##Random number environment variables
+
+The library allows you to choose a default generator and seed from the environment variables GSL_RNG_TYPE and GSL_RNG_SEED and the function gsl_rng_env_setup. This makes it easy try out different generators and seeds without having to recompile your program.
+
+##References and Further Reading
+
+The subject of random number generation and testing is reviewed extensively in Knuth’s Seminumerical Algorithms.
+
+Donald E. Knuth, The Art of Computer Programming: Seminumerical Algorithms (Vol 2, 3rd Ed, 1997), Addison-Wesley, ISBN 0201896842.
+Further information is available in the review paper written by Pierre L’Ecuyer,
+
+P. L’Ecuyer, “Random Number Generation”, Chapter 4 of the Handbook on Simulation, Jerry Banks Ed., Wiley, 1998, 93–137.
+http://www.iro.umontreal.ca/~lecuyer/papers.html
+
+The source code for the DIEHARD random number generator tests is also available online,
+
+DIEHARD source code G. Marsaglia,
+http://stat.fsu.edu/pub/diehard/
+A comprehensive set of random number generator tests is available from NIST,
+
+NIST Special Publication 800-22, “A Statistical Test Suite for the Validation of Random Number Generators and Pseudo Random Number Generators for Cryptographic Applications”.
+http://csrc.nist.gov/rng/
+
+##Acknowledgements
+
+Thanks to Makoto Matsumoto, Takuji Nishimura and Yoshiharu Kurita for making the source code to their generators (MT19937, MM&amp;TN; TT800, MM&amp;YK) available under the GNU General Public License. Thanks to Martin Lüscher for providing notes and source code for the RANLXS and RANLXD generators.
+!*/</span>
+
+<span class='kw'>use</span> <span class='ident'>ffi</span>;
+<span class='kw'>use</span> <span class='ident'>enums</span>;
+
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Rng</span> {
+    <span class='ident'>r</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng</span>
+}
+
+<span class='kw'>impl</span> <span class='ident'>Rng</span> {
+    <span class='doccomment'>/// This function returns a pointer to a newly-created instance of a random number generator of type T. For example, the following code creates an instance of the Tausworthe generator,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// ```Rust</span>
+    <span class='doccomment'>/// let r = Rng::new(gsl_rng_taus);</span>
+    <span class='doccomment'>/// ```</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// If there is insufficient memory to create the generator then the function returns a null pointer and the error handler is invoked with an error code of GSL_ENOMEM.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The generator is automatically initialized with the default seed, gsl_rng_default_seed. This is zero by default but can be changed either directly or by using the environment variable</span>
+    <span class='doccomment'>/// GSL_RNG_SEED (see [`Random number environment variables`](https://www.gnu.org/software/gsl/manual/html_node/Random-number-environment-variables.html#Random-number-environment-variables)).</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>new</span>(<span class='ident'>T</span>: <span class='kw-2'>&amp;</span><span class='ident'>RngType</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Rng</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='ident'>tmp</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_alloc</span>(<span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>unwrap</span>(<span class='ident'>T</span>)) };
+
+        <span class='kw'>if</span> <span class='ident'>tmp</span>.<span class='ident'>is_null</span>() {
+            <span class='prelude-val'>None</span>
+        } <span class='kw'>else</span> {
+            <span class='prelude-val'>Some</span>(<span class='ident'>Rng</span> {
+                <span class='ident'>r</span>: <span class='ident'>tmp</span>
+            })
+        }
+    }
+
+    <span class='doccomment'>/// This function initializes (or ‘seeds’) the random number generator. If the generator is seeded with the same value of s on two different runs, the same stream of random numbers will be generated by successive calls to the routines below.</span>
+    <span class='doccomment'>/// If different values of s &gt;= 1 are supplied, then the generated streams of random numbers should be completely different. If the seed s is zero then the standard seed from the original implementation is used instead.</span>
+    <span class='doccomment'>/// For example, the original Fortran source code for the ranlux generator used a seed of 314159265, and so choosing s equal to zero reproduces this when using gsl_rng_ranlux.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// When using multiple seeds with the same generator, choose seed values greater than zero to avoid collisions with the default setting.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Note that the most generators only accept 32-bit seeds, with higher values being reduced modulo 2^32. For generators with smaller ranges the maximum seed value will typically be lower.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>s</span>: <span class='ident'>usize</span>) {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_set</span>(<span class='self'>self</span>.<span class='ident'>r</span>, <span class='ident'>s</span> <span class='kw'>as</span> <span class='ident'>u64</span>) }
+    }
+
+    <span class='doccomment'>/// This function returns a random integer from the generator r. The minimum and maximum values depend on the algorithm used, but all integers in the range [min,max] are equally likely.</span>
+    <span class='doccomment'>/// The values of min and max can be determined using the auxiliary functions gsl_rng_max (r) and gsl_rng_min (r).</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_get</span>(<span class='self'>self</span>.<span class='ident'>r</span>) <span class='kw'>as</span> <span class='ident'>usize</span> }
+    }
+
+    <span class='doccomment'>/// This function returns a double precision floating point number uniformly distributed in the range [0,1). The range includes 0.0 but excludes 1.0.</span>
+    <span class='doccomment'>/// The value is typically obtained by dividing the result of gsl_rng_get(r) by gsl_rng_max(r) + 1.0 in double precision.</span>
+    <span class='doccomment'>/// Some generators compute this ratio internally so that they can provide floating point numbers with more than 32 bits of randomness (the maximum number of bits that can be portably represented in a single unsigned long int).</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>uniform</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>f64</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_uniform</span>(<span class='self'>self</span>.<span class='ident'>r</span>) }
+    }
+
+    <span class='doccomment'>/// This function returns a positive double precision floating point number uniformly distributed in the range (0,1), excluding both 0.0 and 1.0.</span>
+    <span class='doccomment'>/// The number is obtained by sampling the generator with the algorithm of gsl_rng_uniform until a non-zero value is obtained.</span>
+    <span class='doccomment'>/// You can use this function if you need to avoid a singularity at 0.0.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>uniform_pos</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>f64</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_uniform_pos</span>(<span class='self'>self</span>.<span class='ident'>r</span>) }
+    }
+
+    <span class='doccomment'>/// This function returns a random integer from 0 to n-1 inclusive by scaling down and/or discarding samples from the generator r.</span>
+    <span class='doccomment'>/// All integers in the range [0,n-1] are produced with equal probability. For generators with a non-zero minimum value an offset is applied so that zero is returned with the correct probability.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Note that this function is designed for sampling from ranges smaller than the range of the underlying generator. The parameter n must be less than or equal to the range of the generator r.</span>
+    <span class='doccomment'>/// If n is larger than the range of the generator then the function calls the error handler with an error code of GSL_EINVAL and returns zero.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// In particular, this function is not intended for generating the full range of unsigned integer values [0,2^32-1].</span>
+    <span class='doccomment'>/// Instead choose a generator with the maximal integer range and zero minimum value, such as gsl_rng_ranlxd1, gsl_rng_mt19937 or gsl_rng_taus, and sample it directly using gsl_rng_get. The range of each generator can be found using the auxiliary functions described in the next section.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>uniform_int</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>n</span>: <span class='ident'>usize</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_uniform_int</span>(<span class='self'>self</span>.<span class='ident'>r</span>, <span class='ident'>n</span> <span class='kw'>as</span> <span class='ident'>u64</span>) <span class='kw'>as</span> <span class='ident'>usize</span> }
+    }
+
+    <span class='doccomment'>/// This function returns a pointer to the name of the generator. For example,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// ```Rust</span>
+    <span class='doccomment'>/// println!(&quot;r is a &#39;{}&#39; generator&quot;, r.get_name());</span>
+    <span class='doccomment'>/// ```</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// would print something like &quot;r is a &#39;taus&#39; generator&quot;.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get_name</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
+        <span class='kw'>unsafe</span> {
+            <span class='kw'>let</span> <span class='ident'>tmp</span> <span class='op'>=</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_name</span>(<span class='self'>self</span>.<span class='ident'>r</span>);
+
+            <span class='ident'>String</span>::<span class='ident'>from_utf8_lossy</span>(::<span class='ident'>std</span>::<span class='ident'>ffi</span>::<span class='ident'>CStr</span>::<span class='ident'>from_ptr</span>(<span class='ident'>tmp</span>).<span class='ident'>to_bytes</span>()).<span class='ident'>to_string</span>()
+        }
+    }
+
+    <span class='doccomment'>/// This function returns the largest value that the get function can return.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>max</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_max</span>(<span class='self'>self</span>.<span class='ident'>r</span>) <span class='kw'>as</span> <span class='ident'>usize</span> }
+    }
+
+    <span class='doccomment'>/// This function returns the smallest value that gsl_rng_get can return. Usually this value is zero.</span>
+    <span class='doccomment'>/// There are some generators with algorithms that cannot return zero, and for these generators the minimum value is 1.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>min</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_min</span>(<span class='self'>self</span>.<span class='ident'>r</span>) <span class='kw'>as</span> <span class='ident'>usize</span> }
+    }
+
+    <span class='doccomment'>/// This function returns a pointer to the state of generator r. You can use this information to access the state directly. For example, the following code will write the state of a generator to a stream,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// ```C</span>
+    <span class='doccomment'>/// void * state = gsl_rng_state (r);</span>
+    <span class='doccomment'>/// size_t n = gsl_rng_size (r);</span>
+    <span class='doccomment'>/// fwrite (state, n, 1, stream);</span>
+    <span class='doccomment'>/// ```</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>state</span><span class='op'>&lt;</span><span class='lifetime'>&#39;r</span>, <span class='ident'>T</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;r</span> <span class='kw-2'>mut</span> <span class='ident'>T</span> {
+        <span class='kw'>unsafe</span> { ::<span class='ident'>std</span>::<span class='ident'>mem</span>::<span class='ident'>transmute</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_state</span>(<span class='self'>self</span>.<span class='ident'>r</span>)) }
+    }
+
+    <span class='doccomment'>/// This function copies the random number generator src into the pre-existing generator dest, making dest into an exact copy of src. The two generators must be of the same type.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>copy</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>other</span>: <span class='kw-2'>&amp;</span><span class='ident'>Rng</span>) <span class='op'>-&gt;</span> <span class='ident'>enums</span>::<span class='ident'>Value</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_memcpy</span>(<span class='ident'>other</span>.<span class='ident'>r</span>, <span class='self'>self</span>.<span class='ident'>r</span>) }
+    }
+
+    <span class='doccomment'>/// This function returns the size of the state of generator r. You can use this information to access the state directly. For example, the following code will write the state of a generator to a stream,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// ```C</span>
+    <span class='doccomment'>/// void * state = gsl_rng_state (r);</span>
+    <span class='doccomment'>/// size_t n = gsl_rng_size (r);</span>
+    <span class='doccomment'>/// fwrite (state, n, 1, stream);</span>
+    <span class='doccomment'>/// ```</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>size</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_size</span>(<span class='self'>self</span>.<span class='ident'>r</span>) }
+    }
+
+    <span class='doccomment'>/// Equivalent to DefaultRngSeed</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>default_seed</span>() <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_default_seed</span> <span class='kw'>as</span> <span class='ident'>usize</span>
+    }
+}
+
+<span class='kw'>impl</span> <span class='ident'>Clone</span> <span class='kw'>for</span> <span class='ident'>Rng</span> {
+    <span class='doccomment'>/// This function returns a pointer to a newly created generator which is an exact copy of the generator r.</span>
+    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Rng</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_clone</span>(<span class='self'>self</span>.<span class='ident'>r</span>)) }
+    }
+}
+
+<span class='kw'>impl</span> <span class='ident'>Drop</span> <span class='kw'>for</span> <span class='ident'>Rng</span> {
+    <span class='kw'>fn</span> <span class='ident'>drop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_free</span>(<span class='self'>self</span>.<span class='ident'>r</span>) };
+        <span class='self'>self</span>.<span class='ident'>r</span> <span class='op'>=</span> ::<span class='ident'>std</span>::<span class='ident'>ptr</span>::<span class='ident'>null_mut</span>();
+    }
+}
+
+<span class='kw'>impl</span> <span class='ident'>ffi</span>::<span class='ident'>FFI</span><span class='op'>&lt;</span><span class='ident'>ffi</span>::<span class='ident'>gsl_rng</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Rng</span> {
+    <span class='kw'>fn</span> <span class='ident'>wrap</span>(<span class='ident'>r</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng</span>) <span class='op'>-&gt;</span> <span class='ident'>Rng</span> {
+        <span class='ident'>Rng</span> {
+            <span class='ident'>r</span>: <span class='ident'>r</span>
+        }
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>unwrap</span>(<span class='ident'>m</span>: <span class='kw-2'>&amp;</span><span class='ident'>Rng</span>) <span class='op'>-&gt;</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng</span> {
+        <span class='ident'>m</span>.<span class='ident'>r</span>
+    }
+}
+
+<span class='attribute'>#[<span class='ident'>derive</span>(<span class='ident'>Clone</span>, <span class='ident'>Copy</span>)]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>RngType</span> {
+    <span class='ident'>ptr</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>
+}
+
+<span class='kw'>impl</span> <span class='ident'>RngType</span> {
+    <span class='doccomment'>/// wrapper for name element</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>name</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>String</span> {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>() {
+            <span class='ident'>String</span>::<span class='ident'>new</span>()
+        } <span class='kw'>else</span> {
+            <span class='kw'>unsafe</span> { <span class='ident'>String</span>::<span class='ident'>from_utf8_lossy</span>(::<span class='ident'>std</span>::<span class='ident'>ffi</span>::<span class='ident'>CStr</span>::<span class='ident'>from_ptr</span>((<span class='op'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>).<span class='ident'>name</span>).<span class='ident'>to_bytes</span>()).<span class='ident'>to_string</span>() }
+        }
+    }
+
+    <span class='doccomment'>/// wrapper for max element</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>max</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>() {
+            <span class='number'>0usize</span>
+        } <span class='kw'>else</span> {
+            <span class='kw'>unsafe</span> { (<span class='op'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>).<span class='ident'>max</span> <span class='kw'>as</span> <span class='ident'>usize</span> }
+        }
+    }
+
+    <span class='doccomment'>/// wrapper for min element</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>min</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>() {
+            <span class='number'>0usize</span>
+        } <span class='kw'>else</span> {
+            <span class='kw'>unsafe</span> { (<span class='op'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>).<span class='ident'>min</span> <span class='kw'>as</span> <span class='ident'>usize</span> }
+        }
+    }
+
+    <span class='doccomment'>/// wrapper for size element</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>size</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>usize</span> {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>is_null</span>() {
+            <span class='number'>0usize</span>
+        } <span class='kw'>else</span> {
+            <span class='kw'>unsafe</span> { (<span class='op'>*</span><span class='self'>self</span>.<span class='ident'>ptr</span>).<span class='ident'>size</span> }
+        }
+    }
+
+    <span class='doccomment'>/// This function returns a pointer to an array of all the available generator types, terminated by a null pointer.</span>
+    <span class='doccomment'>/// The function should be called once at the start of the program, if needed. The following code fragment shows how to iterate over the array of generator types to print the names of the available algorithms,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// ```Rust</span>
+    <span class='doccomment'>/// let t = RngType::types_setup ();</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// println!(&quot;Available generators:&quot;);</span>
+    <span class='doccomment'>/// for tmp in t.iter() {</span>
+    <span class='doccomment'>///     println!(&quot;{}&quot;, tmp.name);</span>
+    <span class='doccomment'>/// }</span>
+    <span class='doccomment'>/// ```</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>types_setup</span>() <span class='op'>-&gt;</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>RngType</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='ident'>ptr</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_types_setup</span>() };
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>ret</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
+
+        <span class='kw'>if</span> <span class='op'>!</span><span class='ident'>ptr</span>.<span class='ident'>is_null</span>() {
+            <span class='kw'>unsafe</span> {
+                <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>it</span> <span class='op'>=</span> <span class='number'>0</span>;
+                <span class='kw'>loop</span> {
+                    <span class='kw'>let</span> <span class='ident'>tmp</span> <span class='op'>=</span> <span class='ident'>ptr</span>.<span class='ident'>offset</span>(<span class='ident'>it</span>);
+
+                    <span class='kw'>if</span> (<span class='op'>*</span><span class='ident'>tmp</span>).<span class='ident'>is_null</span>() {
+                        <span class='kw'>break</span>;
+                    }
+                    <span class='ident'>ret</span>.<span class='ident'>push</span>(<span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='op'>*</span><span class='ident'>tmp</span>));
+                    <span class='ident'>it</span> <span class='op'>+=</span> <span class='number'>1</span>;
+                }
+            }
+        }
+        <span class='ident'>ret</span>
+    }
+
+    <span class='doccomment'>/// This function reads the environment variables GSL_RNG_TYPE and GSL_RNG_SEED and uses their values to set the corresponding library variables gsl_rng_default and gsl_rng_default_seed. These global variables are defined as follows,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// ```C</span>
+    <span class='doccomment'>/// extern const gsl_rng_type *gsl_rng_default</span>
+    <span class='doccomment'>/// extern unsigned long int gsl_rng_default_seed</span>
+    <span class='doccomment'>/// ```</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The environment variable GSL_RNG_TYPE should be the name of a generator, such as taus or mt19937. The environment variable GSL_RNG_SEED should contain the desired seed value.</span>
+    <span class='doccomment'>/// It is converted to an unsigned long int using the C library function strtoul.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// If you don’t specify a generator for GSL_RNG_TYPE then gsl_rng_mt19937 is used as the default. The initial value of gsl_rng_default_seed is zero.</span>
+    <span class='doccomment'>/// See rng example in examples folder for more details.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>env_setup</span>() <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>RngType</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='ident'>tmp</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_env_setup</span>() };
+
+        <span class='kw'>if</span> <span class='ident'>tmp</span>.<span class='ident'>is_null</span>() {
+            <span class='prelude-val'>None</span>
+        } <span class='kw'>else</span> {
+            <span class='prelude-val'>Some</span>(<span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>tmp</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>))
+        }
+    }
+}
+
+<span class='kw'>impl</span> <span class='ident'>ffi</span>::<span class='ident'>FFI</span><span class='op'>&lt;</span><span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>RngType</span> {
+    <span class='kw'>fn</span> <span class='ident'>wrap</span>(<span class='ident'>r</span>: <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>) <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>RngType</span> {
+            <span class='ident'>ptr</span>: <span class='ident'>r</span>
+        }
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>unwrap</span>(<span class='ident'>m</span>: <span class='kw-2'>&amp;</span><span class='ident'>RngType</span>) <span class='op'>-&gt;</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span> {
+        <span class='ident'>m</span>.<span class='ident'>ptr</span>
+    }
+}
+
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>default</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+    <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_default</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+}
+
+<span class='doccomment'>/// The functions described above make no reference to the actual algorithm used. This is deliberate so that you can switch algorithms without having</span>
+<span class='doccomment'>/// to change any of your application source code. The library provides a large number of generators of different types, including simulation quality</span>
+<span class='doccomment'>/// generators, generators provided for compatibility with other libraries and historical generators from the past.</span>
+<span class='doccomment'>/// </span>
+<span class='doccomment'>/// The following generators are recommended for use in simulation. They have extremely long periods, low correlation and pass most statistical tests.</span>
+<span class='doccomment'>/// For the most reliable source of uncorrelated numbers, the second-generation RANLUX generators have the strongest proof of randomness.</span>
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>algorithms</span> {
+    <span class='kw'>use</span> <span class='ident'>ffi</span>;
+    <span class='kw'>use</span> <span class='ident'>types</span>::<span class='ident'>RngType</span>;
+
+    <span class='doccomment'>/// The MT19937 generator of Makoto Matsumoto and Takuji Nishimura is a variant of the twisted generalized feedback shift-register algorithm, and</span>
+    <span class='doccomment'>/// is known as the “Mersenne Twister” generator. It has a Mersenne prime period of 2^19937 - 1 (about 10^6000) and is equi-distributed in 623 dimensions.</span>
+    <span class='doccomment'>/// It has passed the DIEHARD statistical tests. It uses 624 words of state per generator and is comparable in speed to the other generators. The original</span>
+    <span class='doccomment'>/// generator used a default seed of 4357 and choosing s equal to zero in gsl_rng_set reproduces this. Later versions switched to 5489 as the default seed,</span>
+    <span class='doccomment'>/// you can choose this explicitly via gsl_rng_set instead if you require it.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Makoto Matsumoto and Takuji Nishimura, “Mersenne Twister: A 623-dimensionally equidistributed uniform pseudorandom number generator”. ACM Transactions</span>
+    <span class='doccomment'>/// on Modeling and Computer Simulation, Vol. 8, No. 1 (Jan. 1998), Pages 3–30</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The generator gsl_rng_mt19937 uses the second revision of the seeding procedure published by the two authors above in 2002. The original seeding</span>
+    <span class='doccomment'>/// procedures could cause spurious artifacts for some seed values. They are still available through the alternative generators gsl_rng_mt19937_1999 and</span>
+    <span class='doccomment'>/// gsl_rng_mt19937_1998.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>mt19937</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_mt19937</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// The generator ranlxs0 is a second-generation version of the RANLUX algorithm of Lüscher, which produces “luxury random numbers”. This generator</span>
+    <span class='doccomment'>/// provides single precision output (24 bits) at three luxury levels ranlxs0, ranlxs1 and ranlxs2, in increasing order of strength. It uses double-precision</span>
+    <span class='doccomment'>/// floating point arithmetic internally and can be significantly faster than the integer version of ranlux, particularly on 64-bit architectures. The period</span>
+    <span class='doccomment'>/// of the generator is about 10^171. The algorithm has mathematically proven properties and can provide truly decorrelated numbers at a known level of</span>
+    <span class='doccomment'>/// randomness. The higher luxury levels provide increased decorrelation between samples as an additional safety margin.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Note that the range of allowed seeds for this generator is [0,2^31-1]. Higher seed values are wrapped modulo 2^31.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ranlxs0</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_ranlxs0</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// The generator ranlxs0 is a second-generation version of the RANLUX algorithm of Lüscher, which produces “luxury random numbers”. This generator</span>
+    <span class='doccomment'>/// provides single precision output (24 bits) at three luxury levels ranlxs0, ranlxs1 and ranlxs2, in increasing order of strength. It uses double-precision</span>
+    <span class='doccomment'>/// floating point arithmetic internally and can be significantly faster than the integer version of ranlux, particularly on 64-bit architectures. The period</span>
+    <span class='doccomment'>/// of the generator is about 10^171. The algorithm has mathematically proven properties and can provide truly decorrelated numbers at a known level of</span>
+    <span class='doccomment'>/// randomness. The higher luxury levels provide increased decorrelation between samples as an additional safety margin.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Note that the range of allowed seeds for this generator is [0,2^31-1]. Higher seed values are wrapped modulo 2^31.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ranlxs1</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_ranlxs1</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// The generator ranlxs0 is a second-generation version of the RANLUX algorithm of Lüscher, which produces “luxury random numbers”. This generator</span>
+    <span class='doccomment'>/// provides single precision output (24 bits) at three luxury levels ranlxs0, ranlxs1 and ranlxs2, in increasing order of strength. It uses double-precision</span>
+    <span class='doccomment'>/// floating point arithmetic internally and can be significantly faster than the integer version of ranlux, particularly on 64-bit architectures. The period</span>
+    <span class='doccomment'>/// of the generator is about 10^171. The algorithm has mathematically proven properties and can provide truly decorrelated numbers at a known level of</span>
+    <span class='doccomment'>/// randomness. The higher luxury levels provide increased decorrelation between samples as an additional safety margin.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Note that the range of allowed seeds for this generator is [0,2^31-1]. Higher seed values are wrapped modulo 2^31.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ranlxs2</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_ranlxs2</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This generator produces double precision output (48 bits) from the RANLXS generator. The library provides two luxury levels ranlxd1 and ranlxd2,</span>
+    <span class='doccomment'>/// in increasing order of strength.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ranlxd1</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_ranlxd1</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This generator produces double precision output (48 bits) from the RANLXS generator. The library provides two luxury levels ranlxd1 and ranlxd2,</span>
+    <span class='doccomment'>/// in increasing order of strength.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ranlxd2</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_ranlxd2</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// The ranlux generator is an implementation of the original algorithm developed by Lüscher. It uses a lagged-fibonacci-with-skipping algorithm to</span>
+    <span class='doccomment'>/// produce “luxury random numbers”. It is a 24-bit generator, originally designed for single-precision IEEE floating point numbers. This</span>
+    <span class='doccomment'>/// implementation is based on integer arithmetic, while the second-generation versions RANLXS and RANLXD described above provide floating-point</span>
+    <span class='doccomment'>/// implementations which will be faster on many platforms. The period of the generator is about 10^171. The algorithm has mathematically proven</span>
+    <span class='doccomment'>/// properties and it can provide truly decorrelated numbers at a known level of randomness. The default level of decorrelation recommended by</span>
+    <span class='doccomment'>/// Lüscher is provided by gsl_rng_ranlux, while gsl_rng_ranlux389 gives the highest level of randomness, with all 24 bits decorrelated. Both</span>
+    <span class='doccomment'>/// types of generator use 24 words of state per generator.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// M. Lüscher, “A portable high-quality random number generator for lattice field theory calculations”, Computer Physics Communications, 79 (1994) 100–110.</span>
+    <span class='doccomment'>/// F. James, “RANLUX: A Fortran implementation of the high-quality pseudo-random number generator of Lüscher”, Computer Physics Communications, 79 (1994) 111–114</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ranlux</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_ranlux</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// The ranlux generator is an implementation of the original algorithm developed by Lüscher. It uses a lagged-fibonacci-with-skipping algorithm to</span>
+    <span class='doccomment'>/// produce “luxury random numbers”. It is a 24-bit generator, originally designed for single-precision IEEE floating point numbers. This</span>
+    <span class='doccomment'>/// implementation is based on integer arithmetic, while the second-generation versions RANLXS and RANLXD described above provide floating-point</span>
+    <span class='doccomment'>/// implementations which will be faster on many platforms. The period of the generator is about 10^171. The algorithm has mathematically proven</span>
+    <span class='doccomment'>/// properties and it can provide truly decorrelated numbers at a known level of randomness. The default level of decorrelation recommended by</span>
+    <span class='doccomment'>/// Lüscher is provided by gsl_rng_ranlux, while gsl_rng_ranlux389 gives the highest level of randomness, with all 24 bits decorrelated. Both</span>
+    <span class='doccomment'>/// types of generator use 24 words of state per generator.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// M. Lüscher, “A portable high-quality random number generator for lattice field theory calculations”, Computer Physics Communications, 79 (1994) 100–110.</span>
+    <span class='doccomment'>/// F. James, “RANLUX: A Fortran implementation of the high-quality pseudo-random number generator of Lüscher”, Computer Physics Communications, 79 (1994) 111–114</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ranlux389</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_ranlux389</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is a combined multiple recursive generator by L’Ecuyer. Its sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// z_n = (x_n - y_n) mod m_1</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where the two underlying generators x_n and y_n are,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_n = (a_1 x_{n-1} + a_2 x_{n-2} + a_3 x_{n-3}) mod m_1</span>
+    <span class='doccomment'>/// y_n = (b_1 y_{n-1} + b_2 y_{n-2} + b_3 y_{n-3}) mod m_2</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with coefficients a_1 = 0, a_2 = 63308, a_3 = -183326, b_1 = 86098, b_2 = 0, b_3 = -539608, and moduli m_1 = 2^31 - 1 = 2147483647 and m_2 = 2145483479.</span>
+    <span class='doccomment'>/// </span>
+    <span class='comment'>//// The period of this generator is lcm(m_1^3-1, m_2^3-1), which is approximately 2^185 (about 10^56). It uses 6 words of state per generator. For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// P. L’Ecuyer, “Combined Multiple Recursive Random Number Generators”, Operations Research, 44, 5 (1996), 816–822.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>cmrg</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_cmrg</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is a fifth-order multiple recursive generator by L’Ecuyer, Blouin and Coutre. Its sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_n = (a_1 x_{n-1} + a_5 x_{n-5}) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with a_1 = 107374182, a_2 = a_3 = a_4 = 0, a_5 = 104480 and m = 2^31 - 1.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The period of this generator is about 10^46. It uses 5 words of state per generator. More information can be found in the following paper,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// P. L’Ecuyer, F. Blouin, and R. Coutre, “A search for good multiple recursive random number generators”, ACM Transactions on Modeling and Computer Simulation 3, 87–98 (1993).</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>mrg</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_mrg</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is a maximally equidistributed combined Tausworthe generator by L’Ecuyer. The sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_n = (s1_n ^^ s2_n ^^ s3_n) </span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// s1_{n+1} = (((s1_n&amp;4294967294)&lt;&lt;12)^^(((s1_n&lt;&lt;13)^^s1_n)&gt;&gt;19))</span>
+    <span class='doccomment'>/// s2_{n+1} = (((s2_n&amp;4294967288)&lt;&lt; 4)^^(((s2_n&lt;&lt; 2)^^s2_n)&gt;&gt;25))</span>
+    <span class='doccomment'>/// s3_{n+1} = (((s3_n&amp;4294967280)&lt;&lt;17)^^(((s3_n&lt;&lt; 3)^^s3_n)&gt;&gt;11))</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// computed modulo 2^32. In the formulas above ^^ denotes “exclusive-or”. Note that the algorithm relies on the properties of 32-bit</span>
+    <span class='doccomment'>/// unsigned integers and has been implemented using a bitmask of 0xFFFFFFFF to make it work on 64 bit machines.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The period of this generator is 2^88 (about 10^26). It uses 3 words of state per generator. For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// P. L’Ecuyer, “Maximally Equidistributed Combined Tausworthe Generators”, Mathematics of Computation, 65, 213 (1996), 203–213.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The generator gsl_rng_taus2 uses the same algorithm as gsl_rng_taus but with an improved seeding procedure described in the paper,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// P. L’Ecuyer, “Tables of Maximally Equidistributed Combined LFSR Generators”, Mathematics of Computation, 68, 225 (1999), 261–269</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The generator gsl_rng_taus2 should now be used in preference to gsl_rng_taus.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>taus</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_taus</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is a maximally equidistributed combined Tausworthe generator by L’Ecuyer. The sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_n = (s1_n ^^ s2_n ^^ s3_n) </span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// s1_{n+1} = (((s1_n&amp;4294967294)&lt;&lt;12)^^(((s1_n&lt;&lt;13)^^s1_n)&gt;&gt;19))</span>
+    <span class='doccomment'>/// s2_{n+1} = (((s2_n&amp;4294967288)&lt;&lt; 4)^^(((s2_n&lt;&lt; 2)^^s2_n)&gt;&gt;25))</span>
+    <span class='doccomment'>/// s3_{n+1} = (((s3_n&amp;4294967280)&lt;&lt;17)^^(((s3_n&lt;&lt; 3)^^s3_n)&gt;&gt;11))</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// computed modulo 2^32. In the formulas above ^^ denotes “exclusive-or”. Note that the algorithm relies on the properties of 32-bit</span>
+    <span class='doccomment'>/// unsigned integers and has been implemented using a bitmask of 0xFFFFFFFF to make it work on 64 bit machines.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The period of this generator is 2^88 (about 10^26). It uses 3 words of state per generator. For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// P. L’Ecuyer, “Maximally Equidistributed Combined Tausworthe Generators”, Mathematics of Computation, 65, 213 (1996), 203–213.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The generator gsl_rng_taus2 uses the same algorithm as gsl_rng_taus but with an improved seeding procedure described in the paper,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// P. L’Ecuyer, “Tables of Maximally Equidistributed Combined LFSR Generators”, Mathematics of Computation, 68, 225 (1999), 261–269</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The generator gsl_rng_taus2 should now be used in preference to gsl_rng_taus.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>taus2</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_taus2</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// The gfsr4 generator is like a lagged-fibonacci generator, and produces each number as an xor’d sum of four previous values.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// r_n = r_{n-A} ^^ r_{n-B} ^^ r_{n-C} ^^ r_{n-D}</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Ziff (ref below) notes that “it is now widely known” that two-tap registers (such as R250, which is described below) have serious</span>
+    <span class='doccomment'>/// flaws, the most obvious one being the three-point correlation that comes from the definition of the generator. Nice mathematical</span>
+    <span class='doccomment'>/// properties can be derived for GFSR’s, and numerics bears out the claim that 4-tap GFSR’s with appropriately chosen offsets are as</span>
+    <span class='doccomment'>/// random as can be measured, using the author’s test.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// This implementation uses the values suggested the example on p392 of Ziff’s article: A=471, B=1586, C=6988, D=9689.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// If the offsets are appropriately chosen (such as the one ones in this implementation), then the sequence is said to be maximal;</span>
+    <span class='doccomment'>/// that means that the period is 2^D - 1, where D is the longest lag. (It is one less than 2^D because it is not permitted to have all</span>
+        <span class='doccomment'>/// zeros in the ra[] array.) For this implementation with D=9689 that works out to about 10^2917.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Note that the implementation of this generator using a 32-bit integer amounts to 32 parallel implementations of one-bit generators.</span>
+    <span class='doccomment'>/// One consequence of this is that the period of this 32-bit generator is the same as for the one-bit generator. Moreover, this</span>
+    <span class='doccomment'>/// independence means that all 32-bit patterns are equally likely, and in particular that 0 is an allowed random value. (We are grateful</span>
+        <span class='doccomment'>/// to Heiko Bauke for clarifying for us these properties of GFSR random number generators.)</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Robert M. Ziff, “Four-tap shift-register-sequence random-number generators”, Computers in Physics, 12(4), Jul/Aug 1998, pp 385–392.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>gfsr4</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_gfsr4</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+}
+
+<span class='doccomment'>/// The standard Unix random number generators rand, random and rand48 are provided as part of GSL. Although these generators are widely</span>
+<span class='doccomment'>/// available individually often they aren’t all available on the same platform. This makes it difficult to write portable code using them</span>
+<span class='doccomment'>/// and so we have included the complete set of Unix generators in GSL for convenience. Note that these generators don’t produce high-quality</span>
+<span class='doccomment'>/// randomness and aren’t suitable for work requiring accurate statistics. However, if you won’t be measuring statistical quantities and just</span>
+<span class='doccomment'>/// want to introduce some variation into your program then these generators are quite acceptable.</span>
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>unix</span> {
+    <span class='kw'>use</span> <span class='ident'>ffi</span>;
+    <span class='kw'>use</span> <span class='ident'>types</span>::<span class='ident'>RngType</span>;
+
+    <span class='doccomment'>/// This is the BSD rand generator. Its sequence is</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n + c) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with a = 1103515245, c = 12345 and m = 2^31. The seed specifies the initial value, x_1. The period of this generator is 2^31, and it</span>
+    <span class='doccomment'>/// uses 1 word of storage per generator.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>rand</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_rand</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// These generators implement the random family of functions, a set of linear feedback shift register generators originally used in BSD</span>
+    <span class='doccomment'>/// Unix. There are several versions of random in use today: the original BSD version (e.g. on SunOS4), a libc5 version (found on older</span>
+    <span class='doccomment'>/// GNU/Linux systems) and a glibc2 version. Each version uses a different seeding procedure, and thus produces different sequences.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The original BSD routines accepted a variable length buffer for the generator state, with longer buffers providing higher-quality</span>
+    <span class='doccomment'>/// randomness. The random function implemented algorithms for buffer lengths of 8, 32, 64, 128 and 256 bytes, and the algorithm with the</span>
+    <span class='doccomment'>/// largest length that would fit into the user-supplied buffer was used. To support these algorithms additional generators are available</span>
+    <span class='doccomment'>/// with the following names,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// * gsl_rng_random8_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random32_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random64_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random128_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random256_bsd</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where the numeric suffix indicates the buffer length. The original BSD random function used a 128-byte default buffer and so</span>
+    <span class='doccomment'>/// gsl_rng_random_bsd has been made equivalent to gsl_rng_random128_bsd. Corresponding versions of the libc5 and glibc2 generators are</span>
+    <span class='doccomment'>/// also available, with the names gsl_rng_random8_libc5, gsl_rng_random8_glibc2, etc.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>random_bsd</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_random_bsd</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// These generators implement the random family of functions, a set of linear feedback shift register generators originally used in BSD</span>
+    <span class='doccomment'>/// Unix. There are several versions of random in use today: the original BSD version (e.g. on SunOS4), a libc5 version (found on older</span>
+    <span class='doccomment'>/// GNU/Linux systems) and a glibc2 version. Each version uses a different seeding procedure, and thus produces different sequences.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The original BSD routines accepted a variable length buffer for the generator state, with longer buffers providing higher-quality</span>
+    <span class='doccomment'>/// randomness. The random function implemented algorithms for buffer lengths of 8, 32, 64, 128 and 256 bytes, and the algorithm with the</span>
+    <span class='doccomment'>/// largest length that would fit into the user-supplied buffer was used. To support these algorithms additional generators are available</span>
+    <span class='doccomment'>/// with the following names,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// * gsl_rng_random8_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random32_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random64_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random128_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random256_bsd</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where the numeric suffix indicates the buffer length. The original BSD random function used a 128-byte default buffer and so</span>
+    <span class='doccomment'>/// gsl_rng_random_bsd has been made equivalent to gsl_rng_random128_bsd. Corresponding versions of the libc5 and glibc2 generators are</span>
+    <span class='doccomment'>/// also available, with the names gsl_rng_random8_libc5, gsl_rng_random8_glibc2, etc.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>random_libc5</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_random_libc5</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// These generators implement the random family of functions, a set of linear feedback shift register generators originally used in BSD</span>
+    <span class='doccomment'>/// Unix. There are several versions of random in use today: the original BSD version (e.g. on SunOS4), a libc5 version (found on older</span>
+    <span class='doccomment'>/// GNU/Linux systems) and a glibc2 version. Each version uses a different seeding procedure, and thus produces different sequences.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The original BSD routines accepted a variable length buffer for the generator state, with longer buffers providing higher-quality</span>
+    <span class='doccomment'>/// randomness. The random function implemented algorithms for buffer lengths of 8, 32, 64, 128 and 256 bytes, and the algorithm with the</span>
+    <span class='doccomment'>/// largest length that would fit into the user-supplied buffer was used. To support these algorithms additional generators are available</span>
+    <span class='doccomment'>/// with the following names,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// * gsl_rng_random8_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random32_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random64_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random128_bsd</span>
+    <span class='doccomment'>/// * gsl_rng_random256_bsd</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where the numeric suffix indicates the buffer length. The original BSD random function used a 128-byte default buffer and so</span>
+    <span class='doccomment'>/// gsl_rng_random_bsd has been made equivalent to gsl_rng_random128_bsd. Corresponding versions of the libc5 and glibc2 generators are</span>
+    <span class='doccomment'>/// also available, with the names gsl_rng_random8_libc5, gsl_rng_random8_glibc2, etc.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>random_glic2</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_random_glibc2</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the Unix rand48 generator. Its sequence is</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n + c) mod m</span>
+    <span class='doccomment'>/// defined on 48-bit unsigned integers with a = 25214903917, c = 11 and m = 2^48. The seed specifies the upper 32 bits of the initial</span>
+    <span class='doccomment'>/// value, x_1, with the lower 16 bits set to 0x330E. The function gsl_rng_get returns the upper 32 bits from each term of the sequence.</span>
+    <span class='doccomment'>/// This does not have a direct parallel in the original rand48 functions, but forcing the result to type long int reproduces the output</span>
+    <span class='doccomment'>/// of mrand48. The function gsl_rng_uniform uses the full 48 bits of internal state to return the double precision number x_n/m, which</span>
+    <span class='doccomment'>/// is equivalent to the function drand48. Note that some versions of the GNU C Library contained a bug in mrand48 function which caused</span>
+    <span class='doccomment'>/// it to produce different results (only the lower 16-bits of the return value were set).</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>rand48</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_rand48</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+}
+
+<span class='doccomment'>/// ##Other random number generators</span>
+<span class='doccomment'>/// </span>
+<span class='doccomment'>/// The generators in this section are provided for compatibility with existing libraries. If you are converting an existing program to use GSL then </span>
+<span class='doccomment'>/// you can select these generators to check your new implementation against the original one, using the same random number generator. After verifying </span>
+<span class='doccomment'>/// that your new program reproduces the original results you can then switch to a higher-quality generator.</span>
+<span class='doccomment'>/// </span>
+<span class='doccomment'>/// Note that most of the generators in this section are based on single linear congruence relations, which are the least sophisticated type of generator. </span>
+<span class='doccomment'>/// In particular, linear congruences have poor properties when used with a non-prime modulus, as several of these routines do (e.g. with a power of two modulus, </span>
+<span class='doccomment'>/// 2^31 or 2^32). This leads to periodicity in the least significant bits of each number, with only the higher bits having any randomness. </span>
+<span class='doccomment'>/// Thus if you want to produce a random bitstream it is best to avoid using the least significant bits.</span>
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>other</span> {
+    <span class='kw'>use</span> <span class='ident'>ffi</span>;
+    <span class='kw'>use</span> <span class='ident'>types</span>::<span class='ident'>RngType</span>;
+
+    <span class='doccomment'>/// This is the CRAY random number generator RANF. Its sequence is</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n) mod m</span>
+    <span class='doccomment'>/// defined on 48-bit unsigned integers with a = 44485709377909 and m = 2^48. The seed specifies the lower 32 bits of the initial value, x_1, with the lowest bit set to prevent the seed taking an even value. The upper 16 bits of x_1 are set to 0. A consequence of this procedure is that the pairs of seeds 2 and 3, 4 and 5, etc. produce the same sequences.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The generator compatible with the CRAY MATHLIB routine RANF. It produces double precision floating point numbers which should be identical to those from the original RANF.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// There is a subtlety in the implementation of the seeding. The initial state is reversed through one step, by multiplying by the modular inverse of a mod m. This is done for compatibility with the original CRAY implementation.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Note that you can only seed the generator with integers up to 2^32, while the original CRAY implementation uses non-portable wide integers which can cover all 2^48 states of the generator.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The function gsl_rng_get returns the upper 32 bits from each term of the sequence. The function gsl_rng_uniform uses the full 48 bits to return the double precision number x_n/m.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The period of this generator is 2^46.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ranf</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_ranf</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the RANMAR lagged-fibonacci generator of Marsaglia, Zaman and Tsang. It is a 24-bit generator, originally designed for single-precision IEEE floating point numbers. </span>
+    <span class='doccomment'>/// It was included in the CERNLIB high-energy physics library.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>ranmar</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_ranmar</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the shift-register generator of Kirkpatrick and Stoll. The sequence is based on the recurrence</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_n = x_{n-103} ^^ x_{n-250}</span>
+    <span class='doccomment'>/// where ^^ denotes “exclusive-or”, defined on 32-bit words. The period of this generator is about 2^250 and it uses 250 words of state per generator.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// S. Kirkpatrick and E. Stoll, “A very fast shift-register sequence random number generator”, Journal of Computational Physics, 40, 517–526 (1981)</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>r250</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_r250</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is an earlier version of the twisted generalized feedback shift-register generator, and has been superseded by the development of MT19937. However, it is</span>
+    <span class='doccomment'>/// still an acceptable generator in its own right. It has a period of 2^800 and uses 33 words of storage per generator.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Makoto Matsumoto and Yoshiharu Kurita, “Twisted GFSR Generators II”, ACM Transactions on Modelling and Computer Simulation, Vol. 4, No. 3, 1994, pages 254–266.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>tt800</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_tt800</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the VAX generator MTH$RANDOM. Its sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n + c) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with a = 69069, c = 1 and m = 2^32. The seed specifies the initial value, x_1. The period of this generator is 2^32 and it uses 1 word of storage per generator.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>vax</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_vax</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the random number generator from the INMOS Transputer Development system. Its sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with a = 1664525 and m = 2^32. The seed specifies the initial value, x_1.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>transputer</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_transputer</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the IBM RANDU generator. Its sequence is</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with a = 65539 and m = 2^31. The seed specifies the initial value, x_1. The period of this generator was only 2^29. It has become a textbook example of a poor generator.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>randu</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_randu</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is Park and Miller’s “minimal standard” MINSTD generator, a simple linear congruence which takes care to avoid the major pitfalls of such algorithms. Its sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with a = 16807 and m = 2^31 - 1 = 2147483647. The seed specifies the initial value, x_1. The period of this generator is about 2^31.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// This generator was used in the IMSL Library (subroutine RNUN) and in MATLAB (the RAND function) in the past. It is also sometimes known by the acronym &quot;GGL&quot; (I&#39;m not sure what that stands for).</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// Park and Miller, &quot;Random Number Generators: Good ones are hard to find&quot;, Communications of the ACM, October 1988, Volume 31, No 10, pages 1192–1201.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>minstd</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_minstd</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is a reimplementation of the 16-bit SLATEC random number generator RUNIF. A generalization of the generator to 32 bits is provided by gsl_rng_uni32.</span>
+    <span class='doccomment'>/// The original source code is available from NETLIB.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>uni</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_uni</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is a reimplementation of the 16-bit SLATEC random number generator RUNIF. A generalization of the generator to 32 bits is provided by gsl_rng_uni32.</span>
+    <span class='doccomment'>/// The original source code is available from NETLIB.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>uni32</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_uni32</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the SLATEC random number generator RAND. It is ancient. The original source code is available from NETLIB.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>slatec</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_slatec</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the ZUFALL lagged Fibonacci series generator of Peterson. Its sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// t = u_{n-273} + u_{n-607}</span>
+    <span class='doccomment'>/// u_n  = t - floor(t)</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The original source code is available from NETLIB. For more information see,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// W. Petersen, “Lagged Fibonacci Random Number Generators for the NEC SX-3”, International Journal of High Speed Computing (1994).</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>zuf</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_zuf</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is a second-order multiple recursive generator described by Knuth in Seminumerical Algorithms, 3rd Ed., page 108. Its sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_n = (a_1 x_{n-1} + a_2 x_{n-2}) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with a_1 = 271828183, a_2 = 314159269, and m = 2^31 - 1.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>knuthran2</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_knuthran2</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is a second-order multiple recursive generator described by Knuth in Seminumerical Algorithms, 3rd Ed., Section 3.6. Knuth provides</span>
+    <span class='doccomment'>/// its C code. The updated routine gsl_rng_knuthran2002 is from the revised 9th printing and corrects some weaknesses in the earlier version,</span>
+    <span class='doccomment'>/// which is implemented as gsl_rng_knuthran.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>knuthran2002</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_knuthran2002</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is a second-order multiple recursive generator described by Knuth in Seminumerical Algorithms, 3rd Ed., Section 3.6. Knuth provides</span>
+    <span class='doccomment'>/// its C code. The updated routine gsl_rng_knuthran2002 is from the revised 9th printing and corrects some weaknesses in the earlier version,</span>
+    <span class='doccomment'>/// which is implemented as gsl_rng_knuthran.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>knuthran</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_knuthran</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where the seed specifies the initial value, x_1. The parameters a and m are as follows, Borosh-Niederreiter: a = 1812433253,</span>
+    <span class='doccomment'>/// m = 2^32, Fishman18: a = 62089911, m = 2^31 - 1, Fishman20: a = 48271, m = 2^31 - 1, L’Ecuyer: a = 40692, m = 2^31 - 249,</span>
+    <span class='doccomment'>/// Waterman: a = 1566083941, m = 2^32.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>borosh13</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_borosh13</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where the seed specifies the initial value, x_1. The parameters a and m are as follows, Borosh-Niederreiter: a = 1812433253,</span>
+    <span class='doccomment'>/// m = 2^32, Fishman18: a = 62089911, m = 2^31 - 1, Fishman20: a = 48271, m = 2^31 - 1, L’Ecuyer: a = 40692, m = 2^31 - 249,</span>
+    <span class='doccomment'>/// Waterman: a = 1566083941, m = 2^32.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>fishman18</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_fishman18</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where the seed specifies the initial value, x_1. The parameters a and m are as follows, Borosh-Niederreiter: a = 1812433253,</span>
+    <span class='doccomment'>/// m = 2^32, Fishman18: a = 62089911, m = 2^31 - 1, Fishman20: a = 48271, m = 2^31 - 1, L’Ecuyer: a = 40692, m = 2^31 - 249,</span>
+    <span class='doccomment'>/// Waterman: a = 1566083941, m = 2^32.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>fishman20</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_fishman20</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where the seed specifies the initial value, x_1. The parameters a and m are as follows, Borosh-Niederreiter: a = 1812433253,</span>
+    <span class='doccomment'>/// m = 2^32, Fishman18: a = 62089911, m = 2^31 - 1, Fishman20: a = 48271, m = 2^31 - 1, L’Ecuyer: a = 40692, m = 2^31 - 249,</span>
+    <span class='doccomment'>/// Waterman: a = 1566083941, m = 2^32.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>lecuyer21</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_lecuyer21</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (a x_n) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// where the seed specifies the initial value, x_1. The parameters a and m are as follows, Borosh-Niederreiter: a = 1812433253,</span>
+    <span class='doccomment'>/// m = 2^32, Fishman18: a = 62089911, m = 2^31 - 1, Fishman20: a = 48271, m = 2^31 - 1, L’Ecuyer: a = 40692, m = 2^31 - 249,</span>
+    <span class='doccomment'>/// Waterman: a = 1566083941, m = 2^32.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>waterman14</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_waterman14</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the L’Ecuyer–Fishman random number generator. It is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., page 108. Its sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// z_{n+1} = (x_n - y_n) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with m = 2^31 - 1. x_n and y_n are given by the fishman20 and lecuyer21 algorithms. The seed specifies the initial value, x_1.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>fishman2x</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_fishman2x</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+
+    <span class='doccomment'>/// This is the Coveyou random number generator. It is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., Section 3.2.2. Its sequence is,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x_{n+1} = (x_n (x_n + 1)) mod m</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with m = 2^32. The seed specifies the initial value, x_1.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>coveyou</span>() <span class='op'>-&gt;</span> <span class='ident'>RngType</span> {
+        <span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>wrap</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_rng_coveyou</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>ffi</span>::<span class='ident'>gsl_rng_type</span>)
+    }
+}</pre>
+</section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `MiserMonteCarlo` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, MiserMonteCarlo">
+
+    <title>rgsl::types::monte_carlo::MiserMonteCarlo - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>monte_carlo</a></p><script>window.sidebarCurrent = {name: 'MiserMonteCarlo', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>monte_carlo</a>::<wbr><a class='struct' href=''>MiserMonteCarlo</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-12402' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#195-197' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct MiserMonteCarlo {
+    // some fields omitted
+}</pre><div class='docblock'><p>The MISER algorithm of Press and Farrar is based on recursive stratified sampling. This technique aims to reduce the overall integration error
+by concentrating integration points in the regions of highest variance.</p>
+
+<p>The idea of stratified sampling begins with the observation that for two disjoint regions a and b with Monte Carlo estimates of the integral 
+E_a(f) and E_b(f) and variances \sigma_a<sup>2(f)</sup> and \sigma_b<sup>2(f),</sup> the variance \Var(f) of the combined estimate E(f) = (1/2) (E_a(f) + E_b(f)) 
+is given by,</p>
+
+<p>\Var(f) = (\sigma_a<sup>2(f)</sup> / 4 N_a) + (\sigma_b<sup>2(f)</sup> / 4 N_b).</p>
+
+<p>It can be shown that this variance is minimized by distributing the points such that,</p>
+
+<p>N_a / (N_a + N_b) = \sigma_a / (\sigma_a + \sigma_b).</p>
+
+<p>Hence the smallest error estimate is obtained by allocating sample points in proportion to the standard deviation of the function in each 
+sub-region.</p>
+
+<p>The MISER algorithm proceeds by bisecting the integration region along one coordinate axis to give two sub-regions at each step. The direction 
+is chosen by examining all d possible bisections and selecting the one which will minimize the combined variance of the two sub-regions. The 
+variance in the sub-regions is estimated by sampling with a fraction of the total number of points available to the current step. The same 
+procedure is then repeated recursively for each of the two half-spaces from the best bisection. The remaining sample points are allocated to 
+the sub-regions using the formula for N_a and N_b. This recursive allocation of integration points continues down to a user-specified depth 
+where each sub-region is integrated using a plain Monte Carlo estimate. These individual values and their error estimates are then combined 
+upwards to give an overall result and an estimate of its error.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/monte_carlo/struct.MiserMonteCarlo.html' title='rgsl::types::monte_carlo::MiserMonteCarlo'>MiserMonteCarlo</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12404' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#199-277' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(dim: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/monte_carlo/struct.MiserMonteCarlo.html' title='rgsl::types::monte_carlo::MiserMonteCarlo'>MiserMonteCarlo</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates and initializes a workspace for Monte Carlo integration in dim dimensions. The workspace is used to maintain
+the state of the integration.</p>
+</div><h4 id='method.init' class='method'><code>fn <a href='#method.init' class='fnname'>init</a>(&amp;self) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function initializes a previously allocated integration state. This allows an existing workspace to be reused for different integrations.</p>
+</div><h4 id='method.integrate' class='method'><code>fn <a href='#method.integrate' class='fnname'>integrate</a>&lt;F:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnMut.html' title='core::ops::FnMut'>FnMut</a>(<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>&gt;(&amp;self, dim: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F, xl: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, xu: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, t_calls: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, r: &amp;<a class='struct' href='../../../rgsl/types/rng/struct.Rng.html' title='rgsl::types::rng::Rng'>Rng</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a>,&nbsp;<a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a>&gt;</code></h4>
+<div class='docblock'><p>This routines uses the MISER Monte Carlo algorithm to integrate the function f over the dim-dimensional hypercubic region defined by
+the lower and upper limits in the arrays xl and xu, each of size dim. The integration uses a fixed number of function calls calls,
+and obtains random sampling points using the random number generator r. A previously allocated workspace s must be supplied. The result
+of the integration is returned in result, with an estimated absolute error abserr.</p>
+
+<p>In C, the function takes a <code>gsl_monte_function</code> as first argument. In here, you have to
+pass the <code>dim</code> argument and the function pointer (which became a closure) directly to the
+function.</p>
+
+<p>It returns either Ok((result, abserr)) or Err(enums::Value).</p>
+</div><h4 id='method.get_params' class='method'><code>fn <a href='#method.get_params' class='fnname'>get_params</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/monte_carlo/struct.MiserParams.html' title='rgsl::types::monte_carlo::MiserParams'>MiserParams</a></code></h4>
+<div class='docblock'><p>This function copies the parameters of the integrator state into the user-supplied params structure.</p>
+</div><h4 id='method.set_params' class='method'><code>fn <a href='#method.set_params' class='fnname'>set_params</a>(&amp;self, params: &amp;<a class='struct' href='../../../rgsl/types/monte_carlo/struct.MiserParams.html' title='rgsl::types::monte_carlo::MiserParams'>MiserParams</a>)</code></h4>
+<div class='docblock'><p>This function sets the integrator parameters based on values provided in the params structure.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/monte_carlo/struct.MiserMonteCarlo.html' title='rgsl::types::monte_carlo::MiserMonteCarlo'>MiserMonteCarlo</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12431' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#279-284' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

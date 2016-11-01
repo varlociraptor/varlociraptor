@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `level2` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, level2">
+
+    <title>rgsl::blas::level2 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>blas</a></p><script>window.sidebarCurrent = {name: 'level2', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>blas</a>::<wbr><a class='mod' href=''>level2</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-14861' class='srclink' href='../../../src/rgsl/blas.rs.html#272-498' title='goto source code'>[src]</a></span></h1>
+<h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cgemv.html'
+                                  title='rgsl::blas::level2::cgemv'>cgemv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-vector product and sum y = \alpha op(A) x + \beta y, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cgerc.html'
+                                  title='rgsl::blas::level2::cgerc'>cgerc</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the conjugate rank-1 update A = \alpha x y<sup>H</sup> + A of the matrix A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cgeru.html'
+                                  title='rgsl::blas::level2::cgeru'>cgeru</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the rank-1 update A = \alpha x y<sup>T</sup> + A of the matrix A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.chemv.html'
+                                  title='rgsl::blas::level2::chemv'>chemv</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the matrix-vector product and sum y = \alpha A x + \beta y for the hermitian matrix A.
+Since the matrix A is hermitian only its upper half or lower half need to be stored. When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.
+The imaginary elements of the diagonal are automatically assumed to be zero and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cher.html'
+                                  title='rgsl::blas::level2::cher'>cher</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the hermitian rank-1 update A = \alpha x x<sup>H</sup> + A of the hermitian matrix A.
+Since the matrix A is hermitian only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cher2.html'
+                                  title='rgsl::blas::level2::cher2'>cher2</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the hermitian rank-2 update A = \alpha x y<sup>H</sup> + \alpha<sup>*</sup> y x<sup>H</sup> + A of the hermitian matrix A.
+Since the matrix A is hermitian only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ctrmv.html'
+                                  title='rgsl::blas::level2::ctrmv'>ctrmv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-vector product x = op(A) x for the triangular matrix A, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.
+When Uplo is CblasUpper then the upper triangle of A is used, and when Uplo is CblasLower then the lower triangle of A is used.
+If Diag is CblasNonUnit then the diagonal of the matrix is used, but if Diag is CblasUnit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ctrsv.html'
+                                  title='rgsl::blas::level2::ctrsv'>ctrsv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes inv(op(A)) x for x, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.
+When Uplo is CblasUpper then the upper triangle of A is used, and when Uplo is CblasLower then the lower triangle of A is used.
+If Diag is CblasNonUnit then the diagonal of the matrix is used, but if Diag is CblasUnit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dgemv.html'
+                                  title='rgsl::blas::level2::dgemv'>dgemv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-vector product and sum y = \alpha op(A) x + \beta y, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dger.html'
+                                  title='rgsl::blas::level2::dger'>dger</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the rank-1 update A = \alpha x y<sup>T</sup> + A of the matrix A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dsymv.html'
+                                  title='rgsl::blas::level2::dsymv'>dsymv</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the matrix-vector product and sum y = \alpha A x + \beta y for the symmetric matrix A.
+Since the matrix A is symmetric only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dsyr.html'
+                                  title='rgsl::blas::level2::dsyr'>dsyr</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the symmetric rank-1 update A = \alpha x x<sup>T</sup> + A of the symmetric matrix A. Since the matrix A is symmetric only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dsyr2.html'
+                                  title='rgsl::blas::level2::dsyr2'>dsyr2</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the symmetric rank-2 update A = \alpha x y<sup>T</sup> + \alpha y x<sup>T</sup> + A of the symmetric matrix A.
+Since the matrix A is symmetric only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dtrmv.html'
+                                  title='rgsl::blas::level2::dtrmv'>dtrmv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-vector product x = op(A) x for the triangular matrix A, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.
+When Uplo is CblasUpper then the upper triangle of A is used, and when Uplo is CblasLower then the lower triangle of A is used.
+If Diag is CblasNonUnit then the diagonal of the matrix is used, but if Diag is CblasUnit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dtrsv.html'
+                                  title='rgsl::blas::level2::dtrsv'>dtrsv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes inv(op(A)) x for x, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.
+When Uplo is CblasUpper then the upper triangle of A is used, and when Uplo is CblasLower then the lower triangle of A is used.
+If Diag is CblasNonUnit then the diagonal of the matrix is used, but if Diag is CblasUnit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sgemv.html'
+                                  title='rgsl::blas::level2::sgemv'>sgemv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-vector product and sum y = \alpha op(A) x + \beta y, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sger.html'
+                                  title='rgsl::blas::level2::sger'>sger</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the rank-1 update A = \alpha x y<sup>T</sup> + A of the matrix A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ssymv.html'
+                                  title='rgsl::blas::level2::ssymv'>ssymv</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the matrix-vector product and sum y = \alpha A x + \beta y for the symmetric matrix A.
+Since the matrix A is symmetric only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ssyr.html'
+                                  title='rgsl::blas::level2::ssyr'>ssyr</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the symmetric rank-1 update A = \alpha x x<sup>T</sup> + A of the symmetric matrix A. Since the matrix A is symmetric only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ssyr2.html'
+                                  title='rgsl::blas::level2::ssyr2'>ssyr2</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the symmetric rank-2 update A = \alpha x y<sup>T</sup> + \alpha y x<sup>T</sup> + A of the symmetric matrix A.
+Since the matrix A is symmetric only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.strmv.html'
+                                  title='rgsl::blas::level2::strmv'>strmv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-vector product x = op(A) x for the triangular matrix A, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.
+When Uplo is CblasUpper then the upper triangle of A is used, and when Uplo is CblasLower then the lower triangle of A is used.
+If Diag is CblasNonUnit then the diagonal of the matrix is used, but if Diag is CblasUnit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.strsv.html'
+                                  title='rgsl::blas::level2::strsv'>strsv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes inv(op(A)) x for x, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.
+When Uplo is CblasUpper then the upper triangle of A is used, and when Uplo is CblasLower then the lower triangle of A is used.
+If Diag is CblasNonUnit then the diagonal of the matrix is used, but if Diag is CblasUnit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zgemv.html'
+                                  title='rgsl::blas::level2::zgemv'>zgemv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-vector product and sum y = \alpha op(A) x + \beta y, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zgerc.html'
+                                  title='rgsl::blas::level2::zgerc'>zgerc</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the conjugate rank-1 update A = \alpha x y<sup>H</sup> + A of the matrix A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zgeru.html'
+                                  title='rgsl::blas::level2::zgeru'>zgeru</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the rank-1 update A = \alpha x y<sup>T</sup> + A of the matrix A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zhemv.html'
+                                  title='rgsl::blas::level2::zhemv'>zhemv</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the matrix-vector product and sum y = \alpha A x + \beta y for the hermitian matrix A.
+Since the matrix A is hermitian only its upper half or lower half need to be stored. When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.
+The imaginary elements of the diagonal are automatically assumed to be zero and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zher.html'
+                                  title='rgsl::blas::level2::zher'>zher</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the hermitian rank-1 update A = \alpha x x<sup>H</sup> + A of the hermitian matrix A.
+Since the matrix A is hermitian only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zher2.html'
+                                  title='rgsl::blas::level2::zher2'>zher2</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the hermitian rank-2 update A = \alpha x y<sup>H</sup> + \alpha<sup>*</sup> y x<sup>H</sup> + A of the hermitian matrix A.
+Since the matrix A is hermitian only its upper half or lower half need to be stored.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ztrmv.html'
+                                  title='rgsl::blas::level2::ztrmv'>ztrmv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-vector product x = op(A) x for the triangular matrix A, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.
+When Uplo is CblasUpper then the upper triangle of A is used, and when Uplo is CblasLower then the lower triangle of A is used.
+If Diag is CblasNonUnit then the diagonal of the matrix is used, but if Diag is CblasUnit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ztrsv.html'
+                                  title='rgsl::blas::level2::ztrsv'>ztrsv</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes inv(op(A)) x for x, where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans.
+When Uplo is CblasUpper then the upper triangle of A is used, and when Uplo is CblasLower then the lower triangle of A is used.
+If Diag is CblasNonUnit then the diagonal of the matrix is used, but if Diag is CblasUnit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

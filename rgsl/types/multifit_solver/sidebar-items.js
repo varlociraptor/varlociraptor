@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["MultiFitFdfSolver",""],["MultiFitFdfSolverType",""],["MultiFitFunction",""],["MultiFitFunctionFdf",""]]});

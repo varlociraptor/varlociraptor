@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `pattern_matching` mod in crate `bio`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, pattern_matching">
+
+    <title>bio::pattern_matching - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>bio</a></p><script>window.sidebarCurrent = {name: 'pattern_matching', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>bio</a>::<wbr><a class='mod' href=''>pattern_matching</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-252' class='srclink' href='../../src/bio/pattern_matching/mod.rs.html#6-27' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>This module contains various useful pattern matching algorithms.
+The implementations are based on the lecture notes
+&quot;Algorithmen auf Sequenzen&quot;, Kopczynski, Marschall, Martin and Rahmann, 2008 - 2015.</p>
+
+<ul>
+<li>Algorithm of Horspool: fastest for a sufficiently large alphabet</li>
+<li>Shift And algorithm: fast for patterns with less than 64 symbols and very small alphabets.</li>
+<li>BNDM algorithm: fast for patterns with less than 64 symbols.</li>
+<li>BOM algorithm: fast for long patterns and small alphabet.</li>
+<li>KMP algorithm: the classical ancestor.</li>
+<li>Ukkonens algorithm: approximate pattern matching with dynamic programming.</li>
+<li>Myers algorithm: linear-time approximate pattern matching with edit distance for small patterns</li>
+</ul>
+
+<p>Another fast pattern matching algorithm is available in the twoway crate: <a href="https://crates.io/crates/twoway">https://crates.io/crates/twoway</a></p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='bndm/index.html'
+                                  title='bio::pattern_matching::bndm'>bndm</a></td>
+                           <td class='docblock short'>
+                                <p>Backward nondeterministic DAWG matching (BNDM).
+Best-case complexity: O(n / m) with pattern of length m &lt;= 64 and text of length n.
+Worst case complexity: O(n * m).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='bom/index.html'
+                                  title='bio::pattern_matching::bom'>bom</a></td>
+                           <td class='docblock short'>
+                                <p>Backward oracle matching algorithm.
+Best-case complexity: O(n / m) with pattern of length m and text of length n.
+Worst case complexity: O(n * m).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='horspool/index.html'
+                                  title='bio::pattern_matching::horspool'>horspool</a></td>
+                           <td class='docblock short'>
+                                <p>Algorithm of Horspool.
+Window-based, similar to but faster than Boyer-Moore.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='kmp/index.html'
+                                  title='bio::pattern_matching::kmp'>kmp</a></td>
+                           <td class='docblock short'>
+                                <p>Algorithm of Knuth Morris and Pratt.
+Constructs an automaton recognizing the pattern, and scans linearly over
+a text of length n. Complexity: O(n).
+The transition function delta is simulated via the lps-function, that assigns to each position
+q in the pattern the longest prefix of the pattern that is suffix of pattern[..q+1].
+Then, in the NFA for the pattern, active states after reading position q are
+{q, lps(q), lps(lps(q)), ... 0}.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='myers/index.html'
+                                  title='bio::pattern_matching::myers'>myers</a></td>
+                           <td class='docblock short'>
+                                <p>Myers bit-parallel approximate pattern matching algorithm.
+Finds all matches up to a given edit distance. The pattern has to fit into a bitvector,
+and is here limited to 64 symbols.
+Complexity: O(n)</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='shift_and/index.html'
+                                  title='bio::pattern_matching::shift_and'>shift_and</a></td>
+                           <td class='docblock short'>
+                                <p><code>ShiftAnd</code> algorithm for pattern matching.
+Patterns may contain at most 64 symbols.
+Complexity: O(n) with text length n.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='ukkonen/index.html'
+                                  title='bio::pattern_matching::ukkonen'>ukkonen</a></td>
+                           <td class='docblock short'>
+                                <p>Bounded version of Ukkonens DP algorithm for approximate pattern matching.
+Complexity: O(n * k) on random texts.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "bio";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

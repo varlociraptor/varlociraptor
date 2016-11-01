@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `divided_difference_representation` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, divided_difference_representation">
+
+    <title>rgsl::polynomials::divided_difference_representation - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>polynomials</a></p><script>window.sidebarCurrent = {name: 'divided_difference_representation', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>polynomials</a>::<wbr><a class='mod' href=''>divided_difference_representation</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-19302' class='srclink' href='../../../src/rgsl/polynomials.rs.html#76-108' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The functions described here manipulate polynomials stored in Newton’s divided-difference representation. The use of divided-differences
+is described in Abramowitz &amp; Stegun sections 25.1.4 and 25.2.26, and Burden and Faires, chapter 3, and discussed briefly below.</p>
+
+<p>Given a function f(x), an nth degree interpolating polynomial P_{n}(x) can be constructed which agrees with f at n+1 distinct points x_0,
+x_1,...,x_{n}. This polynomial can be written in a form known as Newton’s divided-difference representation:</p>
+
+<p>P_n(x) = f(x_0) + \sum_(k=1)<sup>n</sup> <a href="x-x_0">x_0,x_1,...,x_k</a>(x-x_1)...(x-x_(k-1))</p>
+
+<p>where the divided differences [x_0,x_1,...,x_k] are defined in section 25.1.4 of Abramowitz and Stegun. Additionally, it is possible to
+construct an interpolating polynomial of degree 2n+1 which also matches the first derivatives of f at the points x_0,x_1,...,x_n. This is
+called the Hermite interpolating polynomial and is defined as</p>
+
+<p>H_(2n+1)(x) = f(z_0) + \sum_(k=1)<sup>2n+1</sup> <a href="x-z_0">z_0,z_1,...,z_k</a>(x-z_1)...(x-z_(k-1))</p>
+
+<p>where the elements of z = {x_0,x_0,x_1,x_1,...,x_n,x_n} are defined by z_{2k} = z_{2k+1} = x_k. The divided-differences [z_0,z_1,...,z_k]
+are discussed in Burden and Faires, section 3.4.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.poly_dd_eval.html'
+                                  title='rgsl::polynomials::divided_difference_representation::poly_dd_eval'>poly_dd_eval</a></td>
+                           <td class='docblock short'>
+                                <p>This function evaluates the polynomial stored in divided-difference form in the arrays dd and xa of length size at the point x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.poly_dd_hermite_init.html'
+                                  title='rgsl::polynomials::divided_difference_representation::poly_dd_hermite_init'>poly_dd_hermite_init</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a divided-difference representation of the interpolating Hermite polynomial for the points (x, y) stored in the
+arrays xa and ya of length size. Hermite interpolation constructs polynomials which also match first derivatives dy/dx which are provided
+in the array dya also of length size. The first derivatives can be incorported into the usual divided-difference algorithm by forming a
+new dataset z = {x_0,x_0,x_1,x_1,...}, which is stored in the array za of length 2*size on output. On output the divided-differences
+of the Hermite representation are stored in the array dd, also of length 2*size. Using the notation above, dd[k] = [z_0,z_1,...,z_k].
+The resulting Hermite polynomial can be evaluated by calling gsl_poly_dd_eval and using za for the input argument xa.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.poly_dd_init.html'
+                                  title='rgsl::polynomials::divided_difference_representation::poly_dd_init'>poly_dd_init</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a divided-difference representation of the interpolating polynomial for the points (x, y) stored in the arrays
+xa and ya of length size. On output the divided-differences of (xa,ya) are stored in the array dd, also of length size. Using the
+notation above, dd[k] = [x_0,x_1,...,x_k].</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.poly_dd_taylor.html'
+                                  title='rgsl::polynomials::divided_difference_representation::poly_dd_taylor'>poly_dd_taylor</a></td>
+                           <td class='docblock short'>
+                                <p>This function converts the divided-difference representation of a polynomial to a Taylor expansion. The divided-difference representation
+is supplied in the arrays dd and xa of length size. On output the Taylor coefficients of the polynomial expanded about the point xp are
+stored in the array c also of length size. A workspace of length size must be provided in the array w.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

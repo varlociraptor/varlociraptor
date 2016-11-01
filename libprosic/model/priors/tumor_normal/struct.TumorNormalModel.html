@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `TumorNormalModel` struct in crate `libprosic`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, TumorNormalModel">
+
+    <title>libprosic::model::priors::tumor_normal::TumorNormalModel - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../../index.html'>libprosic</a>::<wbr><a href='../../index.html'>model</a>::<wbr><a href='../index.html'>priors</a>::<wbr><a href='index.html'>tumor_normal</a></p><script>window.sidebarCurrent = {name: 'TumorNormalModel', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../../index.html'>libprosic</a>::<wbr><a href='../../index.html'>model</a>::<wbr><a href='../index.html'>priors</a>::<wbr><a href='index.html'>tumor_normal</a>::<wbr><a class='struct' href=''>TumorNormalModel</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-121' class='srclink' href='../../../../src/libprosic/src/model/priors/tumor_normal.rs.html#38-47' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct TumorNormalModel {
+    pub normal_model: <a class='struct' href='../../../../libprosic/model/priors/infinite_sites_neutral_variation/struct.InfiniteSitesNeutralVariationModel.html' title='libprosic::model::priors::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel'>InfiniteSitesNeutralVariationModel</a>,
+    pub allele_freqs_tumor: <a class='type' href='../../../../libprosic/model/type.ContinuousAlleleFreqs.html' title='libprosic::model::ContinuousAlleleFreqs'>ContinuousAlleleFreqs</a>,
+    pub grid_points: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,
+    // some fields omitted
+}</pre><div class='docblock'><p>Tumor-normal prior model using ploidy, heterozygosity (in normal tissue) and tumor mutation rate
+per effective cell division.
+The latter is the quotient mu/beta, with mu being the mutation rate and beta being the fraction
+of effective cell divisions (both lineages survive). Alone, the parameters are not observable.
+However, mu/beta can be estimated from e.g. SNV calls. It is the slope of the linear model
+<code>y = mu/beta * (x - 1 / fmax)</code><code>, with</code>x` being the reciprocal of the observed allele frequencies
+and y being the number of observed mutations corresponding to each frequency
+(see Williams et al. Nature Genetics 2016).</p>
+
+<p>Based on the Williams model, the tail probability of a somatic allele frequency F &gt; f can be expressed
+as
+<code>Pr(F &gt; f) = M(f) / n = mu/beta (1 / f - 1 / fmax) / n</code>
+with <code>n</code> being the size of the genome and <code>fmax</code> is the expected allele frequency of clonal variants
+at the beginning of tumor evolution.
+From this, we can obtain the cumulative distribution function as <code>Pr(F &lt;= f) = 1 - Pr(F &gt; f)</code>.
+Consequently, the density becomes the first derivative, i.e. <code>Pr(F = f) = - M(f)&#39; / n = mu/beta * 1/n * 1/f²</code> for f&gt;=fmin
+with <code>fmin = sqrt(mu/beta * 1/n)</code>.</p>
+
+<p>The prior probability for a germline allele frequency f (e.g. 0.0, 0.5, 1.0) in the tumor is
+calculated with an <code>InfiniteSitesNeutralVariationModel</code>. This is valid since clonal variants
+come from the underlying normal tissue and Williams model assumes that allele frequencies
+do not change during tumor evolution (no genetic drift, no selection).</p>
+
+<p>For the final prior, we consider a given tumor purity and calculate the combined prior
+for all possible allele frequency combinations satisfying <code>af = purity * af_tumor + (1-purity) * af_normal</code>.</p>
+</div><h2 class='fields'>Fields</h2><span id='structfield.normal_model' class='structfield'><code>normal_model: <a class='struct' href='../../../../libprosic/model/priors/infinite_sites_neutral_variation/struct.InfiniteSitesNeutralVariationModel.html' title='libprosic::model::priors::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel'>InfiniteSitesNeutralVariationModel</a></code>
+                           </span><span class='stab '></span><span id='structfield.allele_freqs_tumor' class='structfield'><code>allele_freqs_tumor: <a class='type' href='../../../../libprosic/model/type.ContinuousAlleleFreqs.html' title='libprosic::model::ContinuousAlleleFreqs'>ContinuousAlleleFreqs</a></code>
+                           </span><span class='stab '></span><span id='structfield.grid_points' class='structfield'><code>grid_points: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code>
+                           </span><span class='stab '></span><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../../libprosic/model/priors/tumor_normal/struct.TumorNormalModel.html' title='libprosic::model::priors::tumor_normal::TumorNormalModel'>TumorNormalModel</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-130' class='srclink' href='../../../../src/libprosic/src/model/priors/tumor_normal.rs.html#50-110' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(ploidy: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, effective_mutation_rate: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, deletion_factor: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, insertion_factor: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, genome_size: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u64.html'>u64</a>, heterozygosity: <a class='struct' href='../../../../bio/stats/probs/struct.Prob.html' title='bio::stats::probs::Prob'>Prob</a>) -&gt; Self</code></h4>
+<div class='docblock'><p>Create new model.</p>
+
+<h1 id='arguments' class='section-header'><a href='#arguments'>Arguments</a></h1>
+<ul>
+<li><code>ploidy</code> - the ploidy in the corresponding normal sample (e.g. 2 for diploid)</li>
+<li><code>effective_mutation_rate</code> - the SNV mutation rate per effective cell division in the tumor</li>
+<li><code>deletion_factor</code> - ratio of deletions compared to SNV mutation rate</li>
+<li><code>insertion_factor</code> - ratio of insertions compared to SNV mutation rate</li>
+<li><code>genome_size</code> - the size of the genome</li>
+<li><code>heterozygosity</code> - expected heterozygosity in the corresponding normal</li>
+</ul>
+</div><h4 id='method.somatic_prior_prob' class='method'><code>fn <a href='#method.somatic_prior_prob' class='fnname'>somatic_prior_prob</a>(&amp;self, af_somatic: <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, variant: <a class='enum' href='../../../../libprosic/model/enum.Variant.html' title='libprosic::model::Variant'>Variant</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></code></h4>
+<h4 id='method.normal_prior_prob' class='method'><code>fn <a href='#method.normal_prior_prob' class='fnname'>normal_prior_prob</a>(&amp;self, af_normal: <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, variant: <a class='enum' href='../../../../libprosic/model/enum.Variant.html' title='libprosic::model::Variant'>Variant</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></code></h4>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='../../../../libprosic/model/priors/trait.PairModel.html' title='libprosic::model::priors::PairModel'>PairModel</a>&lt;<a class='type' href='../../../../libprosic/model/type.ContinuousAlleleFreqs.html' title='libprosic::model::ContinuousAlleleFreqs'>ContinuousAlleleFreqs</a>,&nbsp;<a class='type' href='../../../../libprosic/model/type.DiscreteAlleleFreqs.html' title='libprosic::model::DiscreteAlleleFreqs'>DiscreteAlleleFreqs</a>&gt; for <a class='struct' href='../../../../libprosic/model/priors/tumor_normal/struct.TumorNormalModel.html' title='libprosic::model::priors::tumor_normal::TumorNormalModel'>TumorNormalModel</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-150' class='srclink' href='../../../../src/libprosic/src/model/priors/tumor_normal.rs.html#113-211' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.prior_prob' class='method'><code>fn <a href='../../../../libprosic/model/priors/trait.PairModel.html#tymethod.prior_prob' class='fnname'>prior_prob</a>(&amp;self, af_tumor: <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, af_normal: <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, variant: <a class='enum' href='../../../../libprosic/model/enum.Variant.html' title='libprosic::model::Variant'>Variant</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></code></h4>
+<div class='docblock'><p>Calculate prior probability of given combination of allele frequencies.</p>
+</div><h4 id='method.joint_prob' class='method'><code>fn <a href='../../../../libprosic/model/priors/trait.PairModel.html#tymethod.joint_prob' class='fnname'>joint_prob</a>&lt;L,&nbsp;O&gt;(&amp;self, af_tumor: &amp;<a class='type' href='../../../../libprosic/model/type.ContinuousAlleleFreqs.html' title='libprosic::model::ContinuousAlleleFreqs'>ContinuousAlleleFreqs</a>, af_normal: &amp;<a class='type' href='../../../../libprosic/model/type.DiscreteAlleleFreqs.html' title='libprosic::model::DiscreteAlleleFreqs'>DiscreteAlleleFreqs</a>, likelihood_tumor: &amp;L, likelihood_normal: &amp;O, variant: <a class='enum' href='../../../../libprosic/model/enum.Variant.html' title='libprosic::model::Variant'>Variant</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a> <span class='where'>where L: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(<a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a>, O: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(<a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></span></code></h4>
+<div class='docblock'><p>Calculate joint probability of prior with likelihoods for given allele frequency ranges.</p>
+</div><h4 id='method.marginal_prob' class='method'><code>fn <a href='../../../../libprosic/model/priors/trait.PairModel.html#tymethod.marginal_prob' class='fnname'>marginal_prob</a>&lt;L,&nbsp;O&gt;(&amp;self, likelihood_tumor: &amp;L, likelihood_normal: &amp;O, variant: <a class='enum' href='../../../../libprosic/model/enum.Variant.html' title='libprosic::model::Variant'>Variant</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a> <span class='where'>where L: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(<a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a>, O: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(<a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></span></code></h4>
+<div class='docblock'><p>Calculate marginal probability.</p>
+</div><h4 id='method.map' class='method'><code>fn <a href='../../../../libprosic/model/priors/trait.PairModel.html#tymethod.map' class='fnname'>map</a>&lt;L,&nbsp;O&gt;(&amp;self, likelihood_tumor: &amp;L, likelihood_normal: &amp;O, variant: <a class='enum' href='../../../../libprosic/model/enum.Variant.html' title='libprosic::model::Variant'>Variant</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a> <span class='where'>where L: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(<a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a>, O: <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Fn.html' title='core::ops::Fn'>Fn</a>(<a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>, <a class='type' href='../../../../libprosic/model/type.AlleleFreq.html' title='libprosic::model::AlleleFreq'>AlleleFreq</a>) -&gt; <a class='struct' href='../../../../bio/stats/probs/struct.LogProb.html' title='bio::stats::probs::LogProb'>LogProb</a></span></code></h4>
+<div class='docblock'><p>Calculate maximum a posteriori probability estimate of allele frequencies.</p>
+</div><h4 id='method.allele_freqs' class='method'><code>fn <a href='../../../../libprosic/model/priors/trait.PairModel.html#tymethod.allele_freqs' class='fnname'>allele_freqs</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a>&amp;<a class='type' href='../../../../libprosic/model/type.ContinuousAlleleFreqs.html' title='libprosic::model::ContinuousAlleleFreqs'>ContinuousAlleleFreqs</a>, &amp;<a class='type' href='../../../../libprosic/model/type.DiscreteAlleleFreqs.html' title='libprosic::model::DiscreteAlleleFreqs'>DiscreteAlleleFreqs</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a></code></h4>
+<div class='docblock'><p>Return allele frequency spectra.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../../";
+        window.currentCrate = "libprosic";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../../jquery.js"></script>
+    <script src="../../../../main.js"></script>
+    
+    <script defer src="../../../../search-index.js"></script>
+</body>
+</html>

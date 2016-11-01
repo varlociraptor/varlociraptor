@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["masks","Calculate ShiftAnd masks. This function is called automatically when instantiating a new ShiftAnd for a given pattern."]],"struct":[["Matches","Iterator over start positions of matches."],["ShiftAnd","`ShiftAnd` algorithm."]]});

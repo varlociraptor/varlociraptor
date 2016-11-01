@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `fit` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, fit">
+
+    <title>rgsl::fit - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'fit', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>fit</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-17640' class='srclink' href='../../src/rgsl/fit.rs.html#5-59' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Linear Regression</p>
+
+<p>The functions described in this section can be used to perform least-squares fits to a straight line model, Y(c,x) = c_0 + c_1 x.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.linear.html'
+                                  title='rgsl::fit::linear'>linear</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the best-fit linear regression coefficients (c0,c1) of the model Y = c_0 + c_1 X for the dataset (x, y), two vectors of length n with strides xstride and ystride.
+The errors on y are assumed unknown so the variance-covariance matrix for the parameters (c0, c1) is estimated from the scatter of the points around the best-fit line and returned via the parameters (cov00, cov01, cov11).
+The sum of squares of the residuals from the best-fit line is returned in sumsq. Note: the correlation coefficient of the data can be computed using gsl_stats_correlation (see <a href="http://www.gnu.org/software/gsl/manual/html_node/Correlation.html#Correlation"><code>Correlation</code></a>), it does not depend on the fit.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.linear_est.html'
+                                  title='rgsl::fit::linear_est'>linear_est</a></td>
+                           <td class='docblock short'>
+                                <p>This function uses the best-fit linear regression coefficients c0, c1 and their covariance cov00, cov01, cov11 to compute the fitted function y and its standard deviation y_err for the model Y = c_0 + c_1 X at the point x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.mul.html'
+                                  title='rgsl::fit::mul'>mul</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the best-fit linear regression coefficient c1 of the model Y = c_1 X for the datasets (x, y), two vectors of length n with strides xstride and ystride.
+The errors on y are assumed unknown so the variance of the parameter c1 is estimated from the scatter of the points around the best-fit line and returned via the parameter cov11.
+The sum of squares of the residuals from the best-fit line is returned in sumsq.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.mul_est.html'
+                                  title='rgsl::fit::mul_est'>mul_est</a></td>
+                           <td class='docblock short'>
+                                <p>This function uses the best-fit linear regression coefficient c1 and its covariance cov11 to compute the fitted function y and its standard deviation y_err for the model Y = c_1 X at the point x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.wlinear.html'
+                                  title='rgsl::fit::wlinear'>wlinear</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the best-fit linear regression coefficients (c0,c1) of the model Y = c_0 + c_1 X for the weighted dataset (x, y), two vectors of length n with strides xstride and ystride.
+The vector w, of length n and stride wstride, specifies the weight of each datapoint.
+The weight is the reciprocal of the variance for each datapoint in y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.wmul.html'
+                                  title='rgsl::fit::wmul'>wmul</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the best-fit linear regression coefficient c1 of the model Y = c_1 X for the weighted datasets (x, y), two vectors of length n with strides xstride and ystride.
+The vector w, of length n and stride wstride, specifies the weight of each datapoint.
+The weight is the reciprocal of the variance for each datapoint in y.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

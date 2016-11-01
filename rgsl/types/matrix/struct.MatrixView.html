@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `MatrixView` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, MatrixView">
+
+    <title>rgsl::types::matrix::MatrixView - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>matrix</a></p><script>window.sidebarCurrent = {name: 'MatrixView', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>matrix</a>::<wbr><a class='struct' href=''>MatrixView</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-11520' class='srclink' href='../../../src/rgsl/types/matrix.rs.html#59-61' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct MatrixView {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/matrix/struct.MatrixView.html' title='rgsl::types::matrix::MatrixView'>MatrixView</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-11522' class='srclink' href='../../../src/rgsl/types/matrix.rs.html#63-181' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from_matrix' class='method'><code>fn <a href='#method.from_matrix' class='fnname'>from_matrix</a>(m: &amp;<a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>, k1: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, k2: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, n1: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, n2: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rgsl/types/matrix/struct.MatrixView.html' title='rgsl::types::matrix::MatrixView'>MatrixView</a></code></h4>
+<div class='docblock'><p>These functions return a matrix view of a submatrix of the matrix m. The upper-left element of the submatrix is the element (k1,k2)
+of the original matrix. The submatrix has n1 rows and n2 columns. The physical number of columns in memory given by tda is unchanged.
+Mathematically, the (i,j)-th element of the new matrix is given by,</p>
+
+<p>m&#39;(i,j) = m-&gt;data[(k1*m-&gt;tda + k2) + i*m-&gt;tda + j]</p>
+
+<p>where the index i runs from 0 to n1-1 and the index j runs from 0 to n2-1.</p>
+
+<p>The data pointer of the returned matrix struct is set to null if the combined parameters (i,j,n1,n2,tda) overrun the ends of the original
+matrix.</p>
+
+<p>The new matrix view is only a view of the block underlying the existing matrix, m. The block containing the elements of m is not
+owned by the new matrix view. When the view goes out of scope the original matrix m and its block will continue to exist. The original
+memory can only be deallocated by freeing the original matrix. Of course, the original matrix should not be deallocated while the view
+is still in use.</p>
+
+<p>The function gsl_matrix_const_submatrix is equivalent to gsl_matrix_submatrix but can be used for matrices which are declared const.</p>
+</div><h4 id='method.from_array' class='method'><code>fn <a href='#method.from_array' class='fnname'>from_array</a>(base: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, n1: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, n2: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rgsl/types/matrix/struct.MatrixView.html' title='rgsl::types::matrix::MatrixView'>MatrixView</a></code></h4>
+<div class='docblock'><p>These functions return a matrix view of the array base. The matrix has n1 rows and n2 columns. The physical number of columns in memory
+is also given by n2. Mathematically, the (i,j)-th element of the new matrix is given by,</p>
+
+<p>m&#39;(i,j) = base[i*n2 + j]</p>
+
+<p>where the index i runs from 0 to n1-1 and the index j runs from 0 to n2-1.</p>
+
+<p>The new matrix is only a view of the array base. When the view goes out of scope the original array base will continue to exist. The
+original memory can only be deallocated by freeing the original array. Of course, the original array should not be deallocated while
+the view is still in use.</p>
+
+<p>The function gsl_matrix_const_view_array is equivalent to gsl_matrix_view_array but can be used for matrices which are declared const.</p>
+</div><h4 id='method.from_array_with_tda' class='method'><code>fn <a href='#method.from_array_with_tda' class='fnname'>from_array_with_tda</a>(base: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, n1: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, n2: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, tda: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rgsl/types/matrix/struct.MatrixView.html' title='rgsl::types::matrix::MatrixView'>MatrixView</a></code></h4>
+<div class='docblock'><p>These functions return a matrix view of the array base with a physical number of columns tda which may differ from the corresponding
+dimension of the matrix. The matrix has n1 rows and n2 columns, and the physical number of columns in memory is given by tda.
+Mathematically, the (i,j)-th element of the new matrix is given by,</p>
+
+<p>m&#39;(i,j) = base[i*tda + j]</p>
+
+<p>where the index i runs from 0 to n1-1 and the index j runs from 0 to n2-1.</p>
+
+<p>The new matrix is only a view of the array base. When the view goes out of scope the original array base will continue to exist. The
+original memory can only be deallocated by freeing the original array. Of course, the original array should not be deallocated while
+the view is still in use.</p>
+
+<p>The function gsl_matrix_const_view_array_with_tda is equivalent to gsl_matrix_view_array_with_tda but can be used for matrices which
+are declared const.</p>
+</div><h4 id='method.from_vector' class='method'><code>fn <a href='#method.from_vector' class='fnname'>from_vector</a>(v: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>, n1: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, n2: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rgsl/types/matrix/struct.MatrixView.html' title='rgsl::types::matrix::MatrixView'>MatrixView</a></code></h4>
+<div class='docblock'><p>These functions return a matrix view of the vector v. The matrix has n1 rows and n2 columns. The vector must have unit stride. The
+physical number of columns in memory is also given by n2. Mathematically, the (i,j)-th element of the new matrix is given by,</p>
+
+<p>m&#39;(i,j) = v-&gt;data[i*n2 + j]</p>
+
+<p>where the index i runs from 0 to n1-1 and the index j runs from 0 to n2-1.</p>
+
+<p>The new matrix is only a view of the vector v. When the view goes out of scope the original vector v will continue to exist. The original
+memory can only be deallocated by freeing the original vector. Of course, the original vector should not be deallocated while the view
+is still in use.</p>
+
+<p>The function gsl_matrix_const_view_vector is equivalent to gsl_matrix_view_vector but can be used for matrices which are declared const.</p>
+</div><h4 id='method.from_vector_with_tda' class='method'><code>fn <a href='#method.from_vector_with_tda' class='fnname'>from_vector_with_tda</a>(v: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>, n1: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, n2: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, tda: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rgsl/types/matrix/struct.MatrixView.html' title='rgsl::types::matrix::MatrixView'>MatrixView</a></code></h4>
+<div class='docblock'><p>These functions return a matrix view of the vector v with a physical number of columns tda which may differ from the corresponding
+matrix dimension. The vector must have unit stride. The matrix has n1 rows and n2 columns, and the physical number of columns in
+memory is given by tda. Mathematically, the (i,j)-th element of the new matrix is given by,</p>
+
+<p>m&#39;(i,j) = v-&gt;data[i*tda + j]</p>
+
+<p>where the index i runs from 0 to n1-1 and the index j runs from 0 to n2-1.</p>
+
+<p>The new matrix is only a view of the vector v. When the view goes out of scope the original vector v will continue to exist. The original
+memory can only be deallocated by freeing the original vector. Of course, the original vector should not be deallocated while the view
+is still in use.</p>
+
+<p>The function gsl_matrix_const_view_vector_with_tda is equivalent to gsl_matrix_view_vector_with_tda but can be used for matrices which
+are declared const.</p>
+</div><h4 id='method.matrix' class='method'><code>fn <a href='#method.matrix' class='fnname'>matrix</a>(&amp;mut self) -&gt; <a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a></code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

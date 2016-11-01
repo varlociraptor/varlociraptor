@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `PlainMonteCarlo` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, PlainMonteCarlo">
+
+    <title>rgsl::types::monte_carlo::PlainMonteCarlo - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>monte_carlo</a></p><script>window.sidebarCurrent = {name: 'PlainMonteCarlo', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>monte_carlo</a>::<wbr><a class='struct' href=''>PlainMonteCarlo</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-12371' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#92-94' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct PlainMonteCarlo {
+    // some fields omitted
+}</pre><div class='docblock'><p>The plain Monte Carlo algorithm samples points randomly from the integration region to estimate the integral and its error. Using this algorithm
+the estimate of the integral E(f; N) for N randomly distributed points x_i is given by,</p>
+
+<p>E(f; N) = =  V <f> = (V / N) \sum_i<sup>N</sup> f(x_i)
+where V is the volume of the integration region. The error on this estimate \sigma(E;N) is calculated from the estimated variance of the mean,</p>
+
+<p>\sigma<sup>2</sup> (E; N) = (V<sup>2</sup> / N<sup>2)</sup> \sum_i<sup>N</sup> (f(x_i) -  <f>)<sup>2.</sup></p>
+
+<p>For large N this variance decreases asymptotically as \Var(f)/N, where \Var(f) is the true variance of the function over the integration region. 
+The error estimate itself should decrease as \sigma(f)/\sqrt{N}. The familiar law of errors decreasing as 1/\sqrt{N} applies—to reduce the 
+error by a factor of 10 requires a 100-fold increase in the number of sample points.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/monte_carlo/struct.PlainMonteCarlo.html' title='rgsl::types::monte_carlo::PlainMonteCarlo'>PlainMonteCarlo</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12373' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#96-151' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(dim: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/monte_carlo/struct.PlainMonteCarlo.html' title='rgsl::types::monte_carlo::PlainMonteCarlo'>PlainMonteCarlo</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates and initializes a workspace for Monte Carlo integration in dim dimensions.</p>
+</div><h4 id='method.init' class='method'><code>fn <a href='#method.init' class='fnname'>init</a>(&amp;self) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function initializes a previously allocated integration state. This allows an existing workspace to be reused for different
+integrations.</p>
+</div><h4 id='method.integrate' class='method'><code>fn <a href='#method.integrate' class='fnname'>integrate</a>&lt;F:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.FnMut.html' title='core::ops::FnMut'>FnMut</a>(<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>&gt;(&amp;self, dim: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, f: F, xl: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, xu: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, t_calls: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, r: &amp;<a class='struct' href='../../../rgsl/types/rng/struct.Rng.html' title='rgsl::types::rng::Rng'>Rng</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>(</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>)</a>,&nbsp;<a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a>&gt;</code></h4>
+<div class='docblock'><p>This routines uses the plain Monte Carlo algorithm to integrate the function f over the dim-dimensional hypercubic region defined
+by the lower and upper limits in the arrays xl and xu, each of the same size. The integration uses a fixed number of function calls
+calls, and obtains random sampling points using the random number generator r. A previously allocated workspace s must be supplied.
+The result of the integration is returned in result, with an estimated absolute error abserr.</p>
+
+<p>In C, the function takes a <code>gsl_monte_function</code> as first argument. In here, you have to
+pass the <code>dim</code> argument and the function pointer (which became a closure) directly to the
+function.</p>
+
+<p>It returns either Ok((result, abserr)) or Err(enums::Value).</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/monte_carlo/struct.PlainMonteCarlo.html' title='rgsl::types::monte_carlo::PlainMonteCarlo'>PlainMonteCarlo</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12394' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#153-158' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

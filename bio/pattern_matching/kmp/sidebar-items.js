@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["KMP","KMP algorithm."],["Matches","Iterator over start positions of matches."]]});

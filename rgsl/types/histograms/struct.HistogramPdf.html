@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `HistogramPdf` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, HistogramPdf">
+
+    <title>rgsl::types::histograms::HistogramPdf - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>histograms</a></p><script>window.sidebarCurrent = {name: 'HistogramPdf', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>histograms</a>::<wbr><a class='struct' href=''>HistogramPdf</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-9869' class='srclink' href='../../../src/rgsl/types/histograms.rs.html#294-296' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct HistogramPdf {
+    // some fields omitted
+}</pre><div class='docblock'><p>The probability distribution function for a histogram consists of a set of bins which measure the probability of an event falling into a
+given range of a continuous variable x. A probability distribution function is defined by the following struct, which actually stores the
+cumulative probability distribution function. This is the natural quantity for generating samples via the inverse transform method, because
+there is a one-to-one mapping between the cumulative probability distribution and the range [0,1]. It can be shown that by taking a uniform
+random number in this range and finding its corresponding coordinate in the cumulative probability distribution we obtain samples with the
+desired probability distribution.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/histograms/struct.HistogramPdf.html' title='rgsl::types::histograms::HistogramPdf'>HistogramPdf</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9871' class='srclink' href='../../../src/rgsl/types/histograms.rs.html#298-328' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/histograms/struct.HistogramPdf.html' title='rgsl::types::histograms::HistogramPdf'>HistogramPdf</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates memory for a probability distribution with n bins and returns a pointer to a newly initialized gsl_histogram_pdf
+struct. If insufficient memory is available a null pointer is returned and the error handler is invoked with an error code of Value::NoMem.</p>
+</div><h4 id='method.init' class='method'><code>fn <a href='#method.init' class='fnname'>init</a>(&amp;self, h: &amp;<a class='struct' href='../../../rgsl/types/histograms/struct.Histogram.html' title='rgsl::types::histograms::Histogram'>Histogram</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function initializes the probability distribution self with the contents of the histogram h. If any of the bins of h are negative then
+the error handler is invoked with an error code of Value::Dom because a probability distribution cannot contain negative values.</p>
+</div><h4 id='method.sample' class='method'><code>fn <a href='#method.sample' class='fnname'>sample</a>(&amp;self, r: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function uses r, a uniform random number between zero and one, to compute a single random sample from the probability distribution
+self. The algorithm used to compute the sample s is given by the following formula,</p>
+
+<p>s = range[i] + delta * (range[i+1] - range[i])</p>
+
+<p>where i is the index which satisfies sum[i] &lt;= r &lt; sum[i+1] and delta is (r - sum[i])/(sum[i+1] - sum[i]).</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/histograms/struct.HistogramPdf.html' title='rgsl::types::histograms::HistogramPdf'>HistogramPdf</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9881' class='srclink' href='../../../src/rgsl/types/histograms.rs.html#330-335' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

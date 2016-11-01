@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `complete_integrals` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, complete_integrals">
+
+    <title>rgsl::fermi_dirac::complete_integrals - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>fermi_dirac</a></p><script>window.sidebarCurrent = {name: 'complete_integrals', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>fermi_dirac</a>::<wbr><a class='mod' href=''>complete_integrals</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-17487' class='srclink' href='../../../src/rgsl/fermi_dirac.rs.html#10-122' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The complete Fermi-Dirac integral F_j(x) is given by,</p>
+
+<p>F_j(x)   := (1/\Gamma(j+1)) \int_0<sup>\infty</sup> dt (t<sup>j</sup> / (\exp(t-x) + 1))</p>
+
+<p>Note that the Fermi-Dirac integral is sometimes defined without the normalisation factor in other texts.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_0.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_0'>fermi_dirac_0</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an index of 0.
+This integral is given by F_0(x) = \ln(1 + e<sup>x).</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_0_e.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_0_e'>fermi_dirac_0_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an index of 0.
+This integral is given by F_0(x) = \ln(1 + e<sup>x).</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_1.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_1'>fermi_dirac_1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an index of 1, F_1(x) = \int_0<sup>\infty</sup> dt (t /(\exp(t-x)+1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_1_e.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_1_e'>fermi_dirac_1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an index of 1, F_1(x) = \int_0<sup>\infty</sup> dt (t /(\exp(t-x)+1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_2.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_2'>fermi_dirac_2</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an index of 2, F_2(x) = (1/2) \int_0<sup>\infty</sup> dt (t<sup>2</sup> /(\exp(t-x)+1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_2_e.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_2_e'>fermi_dirac_2_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an index of 2, F_2(x) = (1/2) \int_0<sup>\infty</sup> dt (t<sup>2</sup> /(\exp(t-x)+1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_3half.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_3half'>fermi_dirac_3half</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral F_{3/2}(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_3half_e.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_3half_e'>fermi_dirac_3half_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral F_{3/2}(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_half.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_half'>fermi_dirac_half</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral F_{1/2}(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_half_e.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_half_e'>fermi_dirac_half_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral F_{1/2}(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_int.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_int'>fermi_dirac_int</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an integer index of j, F_j(x) = (1/\Gamma(j+1)) \int_0<sup>\infty</sup> dt (t<sup>j</sup> /(\exp(t-x)+1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_int_e.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_int_e'>fermi_dirac_int_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an integer index of j, F_j(x) = (1/\Gamma(j+1)) \int_0<sup>\infty</sup> dt (t<sup>j</sup> /(\exp(t-x)+1)).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_m1.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_m1'>fermi_dirac_m1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an index of -1.
+This integral is given by F_{-1}(x) = e<sup>x</sup> / (1 + e<sup>x).</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_m1_e.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_m1_e'>fermi_dirac_m1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral with an index of -1.
+This integral is given by F_{-1}(x) = e<sup>x</sup> / (1 + e<sup>x).</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_mhalf.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_mhalf'>fermi_dirac_mhalf</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral F_{-1/2}(x).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fermi_dirac_mhalf_e.html'
+                                  title='rgsl::fermi_dirac::complete_integrals::fermi_dirac_mhalf_e'>fermi_dirac_mhalf_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the complete Fermi-Dirac integral F_{-1/2}(x).</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

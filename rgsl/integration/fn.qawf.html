@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `qawf` fn in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, qawf">
+
+    <title>rgsl::integration::qawf - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a>::<wbr><a href='index.html'>integration</a></p><script>window.sidebarCurrent = {name: 'qawf', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content fn">
+<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>rgsl</a>::<wbr><a href='index.html'>integration</a>::<wbr><a class='fn' href=''>qawf</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-18321' class='srclink' href='../../src/rgsl/integration.rs.html#930-1108' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn qawf&lt;T&gt;(f: <a class='type' href='../../rgsl/type.function.html' title='rgsl::function'>function</a>&lt;T&gt;, arg: &amp;mut T, a: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsabs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, limit: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, workspace: &amp;<a class='struct' href='../../rgsl/types/integration/struct.IntegrationWorkspace.html' title='rgsl::types::integration::IntegrationWorkspace'>IntegrationWorkspace</a>, cycle_workspace: &amp;<a class='struct' href='../../rgsl/types/integration/struct.IntegrationWorkspace.html' title='rgsl::types::integration::IntegrationWorkspace'>IntegrationWorkspace</a>, wf: &amp;<a class='struct' href='../../rgsl/types/integration/struct.IntegrationQawoTable.html' title='rgsl::types::integration::IntegrationQawoTable'>IntegrationQawoTable</a>, result: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, abserr: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></pre><div class='docblock'><p>This function attempts to compute a Fourier integral of the function f over the semi-infinite interval [a,+\infty).</p>
+
+<p>I = \int_a<sup>{+\infty}</sup> dx f(x) sin(omega x)
+I = \int_a<sup>{+\infty}</sup> dx f(x) cos(omega x)</p>
+
+<p>The parameter \omega and choice of \sin or \cos is taken from the table wf (the length L can take any value, since it is overridden by
+this function to a value appropriate for the Fourier integration). The integral is computed using the QAWO algorithm over each of the
+subintervals,</p>
+
+<p>C_1 = [a, a + c]
+C_2 = [a + c, a + 2 c]
+... = ...
+C_k = [a + (k-1) c, a + k c]</p>
+
+<p>where c = (2 floor(|\omega|) + 1) \pi/|\omega|. The width c is chosen to cover an odd number of periods so that the contributions from
+the intervals alternate in sign and are monotonically decreasing when f is positive and monotonically decreasing. The sum of this sequence
+of contributions is accelerated using the epsilon-algorithm.</p>
+
+<p>This function works to an overall absolute tolerance of abserr. The following strategy is used: on each interval C_k the algorithm tries
+to achieve the tolerance</p>
+
+<p>TOL_k = u_k abserr</p>
+
+<p>where u_k = (1 - p)p<sup>{k-1}</sup> and p = 9/10. The sum of the geometric series of contributions from each interval gives an overall tolerance
+of abserr.</p>
+
+<p>If the integration of a subinterval leads to difficulties then the accuracy requirement for subsequent intervals is relaxed,</p>
+
+<p>TOL_k = u_k max(abserr, max_{i&lt;k}{E_i})</p>
+
+<p>where E_k is the estimated error on the interval C_k.</p>
+
+<p>The subintervals and their results are stored in the memory provided by workspace. The maximum number of subintervals is given by limit,
+which may not exceed the allocated size of the workspace. The integration over each subinterval uses the memory provided by cycle_workspace
+as workspace for the QAWO algorithm.</p>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

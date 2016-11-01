@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["levy_skew","This function returns a random variate from the Levy skew stable distribution with scale c, exponent alpha and skewness parameter beta. The skewness parameter must lie in the range [-1,1]. The Levy skew stable probability distribution is defined by a Fourier transform,"]]});

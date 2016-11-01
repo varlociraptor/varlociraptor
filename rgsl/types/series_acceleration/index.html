@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `series_acceleration` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, series_acceleration">
+
+    <title>rgsl::types::series_acceleration - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a></p><script>window.sidebarCurrent = {name: 'series_acceleration', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a class='mod' href=''>series_acceleration</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13571' class='srclink' href='../../../src/rgsl/types/series_acceleration.rs.html#5-176' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='series-acceleration' class='section-header'><a href='#series-acceleration'>Series Acceleration</a></h1>
+<p>The functions described in this chapter accelerate the convergence of a series using the Levin u-transform. This method takes a small 
+number of terms from the start of a series and uses a systematic approximation to compute an extrapolated value and an estimate of its 
+error. The u-transform works for both convergent and divergent series, including asymptotic series.</p>
+
+<h2 id='acceleration-functions' class='section-header'><a href='#acceleration-functions'>Acceleration functions</a></h2>
+<p>The following functions compute the full Levin u-transform of a series with its error estimate. The error estimate is computed by 
+propagating rounding errors from each term through to the final extrapolation.</p>
+
+<p>These functions are intended for summing analytic series where each term is known to high accuracy, and the rounding errors are assumed 
+to originate from finite precision. They are taken to be relative errors of order GSL_DBL_EPSILON for each term.</p>
+
+<p>The calculation of the error in the extrapolated value is an O(N<sup>2)</sup> process, which is expensive in time and memory. A faster but less 
+reliable method which estimates the error from the convergence of the extrapolated value is described in the next section. For the method 
+described here a full table of intermediate values and derivatives through to O(N) must be computed and stored, but this does give a 
+reliable error estimate.</p>
+
+<h2 id='acceleration-functions-without-error-estimation' class='section-header'><a href='#acceleration-functions-without-error-estimation'>Acceleration functions without error estimation</a></h2>
+<p>The functions described in this section compute the Levin u-transform of series and attempt to estimate the error from the “truncation 
+error” in the extrapolation, the difference between the final two approximations. Using this method avoids the need to compute an 
+intermediate table of derivatives because the error is estimated from the behavior of the extrapolated value itself. Consequently this 
+algorithm is an O(N) process and only requires O(N) terms of storage. If the series converges sufficiently fast then this procedure can 
+be acceptable. It is appropriate to use this method when there is a need to compute many extrapolations of series with similar convergence 
+properties at high-speed. For example, when numerically integrating a function defined by a parameterized series where the parameter 
+varies only slightly. A reliable error estimate should be computed first using the full algorithm described above in order to verify the 
+consistency of the results.</p>
+
+<h2 id='references-and-further-reading' class='section-header'><a href='#references-and-further-reading'>References and Further Reading</a></h2>
+<p>The algorithms used by these functions are described in the following papers,</p>
+
+<p>T. Fessler, W.F. Ford, D.A. Smith, HURRY: An acceleration algorithm for scalar sequences and series ACM Transactions on Mathematical 
+Software, 9(3):346–354, 1983. and Algorithm 602 9(3):355–357, 1983.</p>
+
+<p>The theory of the u-transform was presented by Levin,</p>
+
+<p>D. Levin, Development of Non-Linear Transformations for Improving Convergence of Sequences, Intern. J. Computer Math. B3:371–388, 1973.</p>
+
+<p>A review paper on the Levin Transform is available online,</p>
+
+<p>Herbert H. H. Homeier, Scalar Levin-Type Sequence Transformations, <a href="http://arxiv.org/abs/math/0005209">http://arxiv.org/abs/math/0005209</a>.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.LevinUTruncWorkspace.html'
+                                  title='rgsl::types::series_acceleration::LevinUTruncWorkspace'>LevinUTruncWorkspace</a></td>
+                           <td class='docblock short'>
+                                <p>The following functions perform the same calculation without estimating the errors. They require O(N) storage instead of O(N<sup>2).</sup>
+This may be useful for summing many similar series where the size of the error has already been estimated reliably and is not
+expected to change.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.LevinUWorkspace.html'
+                                  title='rgsl::types::series_acceleration::LevinUWorkspace'>LevinUWorkspace</a></td>
+                           <td class='docblock short'>
+                                <p>Workspace for Levin U Transform with error estimation</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

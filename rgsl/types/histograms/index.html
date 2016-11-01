@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `histograms` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, histograms">
+
+    <title>rgsl::types::histograms - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a></p><script>window.sidebarCurrent = {name: 'histograms', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a class='mod' href=''>histograms</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-9762' class='srclink' href='../../../src/rgsl/types/histograms.rs.html#5-674' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='histograms' class='section-header'><a href='#histograms'>Histograms</a></h1>
+<p>This chapter describes functions for creating histograms. Histograms provide a convenient way of summarizing the distribution of a set of data. 
+A histogram consists of a set of bins which count the number of events falling into a given range of a continuous variable x. In GSL the bins 
+of a histogram contain floating-point numbers, so they can be used to record both integer and non-integer distributions. The bins can use arbitrary 
+sets of ranges (uniformly spaced bins are the default). Both one and two-dimensional histograms are supported.</p>
+
+<p>Once a histogram has been created it can also be converted into a probability distribution function. The library provides efficient routines 
+for selecting random samples from probability distributions. This can be useful for generating simulations based on real data.</p>
+
+<h2 id='resampling-from-histograms' class='section-header'><a href='#resampling-from-histograms'>Resampling from histograms</a></h2>
+<p>A histogram made by counting events can be regarded as a measurement of a probability distribution. Allowing for statistical error, the height 
+of each bin represents the probability of an event where the value of x falls in the range of that bin. The probability distribution function 
+has the one-dimensional form p(x)dx where,</p>
+
+<p>p(x) = n_i/ (N w_i)
+In this equation n_i is the number of events in the bin which contains x, w_i is the width of the bin and N is the total number of events. 
+The distribution of events within each bin is assumed to be uniform.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Histogram.html'
+                                  title='rgsl::types::histograms::Histogram'>Histogram</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Histogram2D.html'
+                                  title='rgsl::types::histograms::Histogram2D'>Histogram2D</a></td>
+                           <td class='docblock short'>
+                                <p>A two dimensional histogram consists of a set of bins which count the number of events falling in a given area of the (x,y) plane. The simplest
+way to use a two dimensional histogram is to record two-dimensional position information, n(x,y). Another possibility is to form a joint
+distribution by recording related variables. For example a detector might record both the position of an event (x) and the amount of energy
+it deposited E. These could be histogrammed as the joint distribution n(x,E).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Histogram2DPdf.html'
+                                  title='rgsl::types::histograms::Histogram2DPdf'>Histogram2DPdf</a></td>
+                           <td class='docblock short'>
+                                <p>As in the one-dimensional case, a two-dimensional histogram made by counting events can be regarded as a measurement of a probability distribution.
+Allowing for statistical error, the height of each bin represents the probability of an event where (x,y) falls in the range of that bin. For a
+two-dimensional histogram the probability distribution takes the form p(x,y) dx dy where,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.HistogramPdf.html'
+                                  title='rgsl::types::histograms::HistogramPdf'>HistogramPdf</a></td>
+                           <td class='docblock short'>
+                                <p>The probability distribution function for a histogram consists of a set of bins which measure the probability of an event falling into a
+given range of a continuous variable x. A probability distribution function is defined by the following struct, which actually stores the
+cumulative probability distribution function. This is the natural quantity for generating samples via the inverse transform method, because
+there is a one-to-one mapping between the cumulative probability distribution and the range [0,1]. It can be shown that by taking a uniform
+random number in this range and finding its corresponding coordinate in the cumulative probability distribution we obtain samples with the
+desired probability distribution.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

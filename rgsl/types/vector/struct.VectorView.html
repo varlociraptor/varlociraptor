@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `VectorView` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, VectorView">
+
+    <title>rgsl::types::vector::VectorView - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>vector</a></p><script>window.sidebarCurrent = {name: 'VectorView', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>vector</a>::<wbr><a class='struct' href=''>VectorView</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13756' class='srclink' href='../../../src/rgsl/types/vector.rs.html#38-40' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct VectorView {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/vector/struct.VectorView.html' title='rgsl::types::vector::VectorView'>VectorView</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13758' class='srclink' href='../../../src/rgsl/types/vector.rs.html#42-149' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from_vector' class='method'><code>fn <a href='#method.from_vector' class='fnname'>from_vector</a>(v: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>, offset: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rgsl/types/vector/struct.VectorView.html' title='rgsl::types::vector::VectorView'>VectorView</a></code></h4>
+<div class='docblock'><p>These functions return a vector view of a subvector of another vector v. The start of the new vector is offset by offset elements
+from the start of the original vector. The new vector has n elements. Mathematically, the i-th element of the new vector v’ is given by,</p>
+
+<p>v&#39;(i) = v-&gt;data[(offset + i)*v-&gt;stride]</p>
+
+<p>where the index i runs from 0 to n-1.</p>
+
+<p>The data pointer of the returned vector struct is set to null if the combined parameters (offset,n) overrun the end of the original
+vector.</p>
+
+<p>The new vector is only a view of the block underlying the original vector, v. The block containing the elements of v is not owned by
+the new vector. When the view goes out of scope the original vector v and its block will continue to exist. The original memory can
+only be deallocated by freeing the original vector. Of course, the original vector should not be deallocated while the view is still
+in use.</p>
+
+<p>The function gsl_vector_const_subvector is equivalent to gsl_vector_subvector but can be used for vectors which are declared const.</p>
+</div><h4 id='method.from_vector_with_stride' class='method'><code>fn <a href='#method.from_vector_with_stride' class='fnname'>from_vector_with_stride</a>(v: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>, offset: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, stride: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rgsl/types/vector/struct.VectorView.html' title='rgsl::types::vector::VectorView'>VectorView</a></code></h4>
+<div class='docblock'><p>These functions return a vector view of a subvector of another vector v with an additional stride argument. The subvector is formed
+in the same way as for gsl_vector_subvector but the new vector has n elements with a step-size of stride from one element to the
+next in the original vector. Mathematically, the i-th element of the new vector v’ is given by,</p>
+
+<p>v&#39;(i) = v-&gt;data[(offset + i*stride)*v-&gt;stride]
+where the index i runs from 0 to n-1.</p>
+
+<p>Note that subvector views give direct access to the underlying elements of the original vector. For example, the following code will
+zero the even elements of the vector v of length n, while leaving the odd elements untouched,</p>
+
+<pre><code class="language-C">gsl_vector_view v_even 
+  = gsl_vector_subvector_with_stride (v, 0, 2, n/2);
+gsl_vector_set_zero (&amp;v_even.vector);
+</code></pre>
+
+<p>A vector view can be passed to any subroutine which takes a vector argument just as a directly allocated vector would be, using &amp;view.vector.
+For example, the following code computes the norm of the odd elements of v using the BLAS routine DNRM2,</p>
+
+<pre><code class="language-C">gsl_vector_view v_odd 
+  = gsl_vector_subvector_with_stride (v, 1, 2, n/2);
+double r = gsl_blas_dnrm2 (&amp;v_odd.vector);
+</code></pre>
+
+<p>The function gsl_vector_const_subvector_with_stride is equivalent to gsl_vector_subvector_with_stride but can be used for vectors which
+are declared const.</p>
+</div><h4 id='method.from_array' class='method'><code>fn <a href='#method.from_array' class='fnname'>from_array</a>(base: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='struct' href='../../../rgsl/types/vector/struct.VectorView.html' title='rgsl::types::vector::VectorView'>VectorView</a></code></h4>
+<div class='docblock'><p>These functions return a vector view of an array. The start of the new vector is given by base and has n elements. Mathematically,
+the i-th element of the new vector v’ is given by,</p>
+
+<p>v&#39;(i) = base[i]</p>
+
+<p>where the index i runs from 0 to n-1.</p>
+
+<p>The array containing the elements of v is not owned by the new vector view. When the view goes out of scope the original array will
+continue to exist. The original memory can only be deallocated by freeing the original pointer base. Of course, the original array
+should not be deallocated while the view is still in use.</p>
+
+<p>The function gsl_vector_const_view_array is equivalent to gsl_vector_view_array but can be used for arrays which are declared const.</p>
+</div><h4 id='method.from_array_with_stride' class='method'><code>fn <a href='#method.from_array_with_stride' class='fnname'>from_array_with_stride</a>(base: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, stride: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rgsl/types/vector/struct.VectorView.html' title='rgsl::types::vector::VectorView'>VectorView</a></code></h4>
+<div class='docblock'><p>These functions return a vector view of an array base with an additional stride argument. The subvector is formed in the same way as
+for gsl_vector_view_array but the new vector has n elements with a step-size of stride from one element to the next in the original
+array. Mathematically, the i-th element of the new vector v’ is given by,</p>
+
+<p>v&#39;(i) = base[i*stride]</p>
+
+<p>where the index i runs from 0 to n-1.</p>
+
+<p>Note that the view gives direct access to the underlying elements of the original array. A vector view can be passed to any subroutine
+which takes a vector argument just as a directly allocated vector would be, using &amp;view.vector.</p>
+
+<p>The function gsl_vector_const_view_array_with_stride is equivalent to gsl_vector_view_array_with_stride but can be used for arrays
+which are declared const.</p>
+</div><h4 id='method.vector' class='method'><code>fn <a href='#method.vector' class='fnname'>vector</a>(&amp;mut self) -&gt; <a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a></code></h4>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

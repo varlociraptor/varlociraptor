@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `algorithms` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, algorithms">
+
+    <title>rgsl::types::rng::algorithms - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../../index.html'>rgsl</a>::<wbr><a href='../../index.html'>types</a>::<wbr><a href='../index.html'>rng</a></p><script>window.sidebarCurrent = {name: 'algorithms', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../../index.html'>rgsl</a>::<wbr><a href='../../index.html'>types</a>::<wbr><a href='../index.html'>rng</a>::<wbr><a class='mod' href=''>algorithms</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13702' class='srclink' href='../../../../src/rgsl/types/rng.rs.html#350-558' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The functions described above make no reference to the actual algorithm used. This is deliberate so that you can switch algorithms without having
+to change any of your application source code. The library provides a large number of generators of different types, including simulation quality
+generators, generators provided for compatibility with other libraries and historical generators from the past.</p>
+
+<p>The following generators are recommended for use in simulation. They have extremely long periods, low correlation and pass most statistical tests.
+For the most reliable source of uncorrelated numbers, the second-generation RANLUX generators have the strongest proof of randomness.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cmrg.html'
+                                  title='rgsl::types::rng::algorithms::cmrg'>cmrg</a></td>
+                           <td class='docblock short'>
+                                <p>This is a combined multiple recursive generator by L’Ecuyer. Its sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.gfsr4.html'
+                                  title='rgsl::types::rng::algorithms::gfsr4'>gfsr4</a></td>
+                           <td class='docblock short'>
+                                <p>The gfsr4 generator is like a lagged-fibonacci generator, and produces each number as an xor’d sum of four previous values.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.mrg.html'
+                                  title='rgsl::types::rng::algorithms::mrg'>mrg</a></td>
+                           <td class='docblock short'>
+                                <p>This is a fifth-order multiple recursive generator by L’Ecuyer, Blouin and Coutre. Its sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.mt19937.html'
+                                  title='rgsl::types::rng::algorithms::mt19937'>mt19937</a></td>
+                           <td class='docblock short'>
+                                <p>The MT19937 generator of Makoto Matsumoto and Takuji Nishimura is a variant of the twisted generalized feedback shift-register algorithm, and
+is known as the “Mersenne Twister” generator. It has a Mersenne prime period of 2<sup>19937</sup> - 1 (about 10<sup>6000)</sup> and is equi-distributed in 623 dimensions.
+It has passed the DIEHARD statistical tests. It uses 624 words of state per generator and is comparable in speed to the other generators. The original
+generator used a default seed of 4357 and choosing s equal to zero in gsl_rng_set reproduces this. Later versions switched to 5489 as the default seed,
+you can choose this explicitly via gsl_rng_set instead if you require it.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ranlux.html'
+                                  title='rgsl::types::rng::algorithms::ranlux'>ranlux</a></td>
+                           <td class='docblock short'>
+                                <p>The ranlux generator is an implementation of the original algorithm developed by Lüscher. It uses a lagged-fibonacci-with-skipping algorithm to
+produce “luxury random numbers”. It is a 24-bit generator, originally designed for single-precision IEEE floating point numbers. This
+implementation is based on integer arithmetic, while the second-generation versions RANLXS and RANLXD described above provide floating-point
+implementations which will be faster on many platforms. The period of the generator is about 10<sup>171.</sup> The algorithm has mathematically proven
+properties and it can provide truly decorrelated numbers at a known level of randomness. The default level of decorrelation recommended by
+Lüscher is provided by gsl_rng_ranlux, while gsl_rng_ranlux389 gives the highest level of randomness, with all 24 bits decorrelated. Both
+types of generator use 24 words of state per generator.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ranlux389.html'
+                                  title='rgsl::types::rng::algorithms::ranlux389'>ranlux389</a></td>
+                           <td class='docblock short'>
+                                <p>The ranlux generator is an implementation of the original algorithm developed by Lüscher. It uses a lagged-fibonacci-with-skipping algorithm to
+produce “luxury random numbers”. It is a 24-bit generator, originally designed for single-precision IEEE floating point numbers. This
+implementation is based on integer arithmetic, while the second-generation versions RANLXS and RANLXD described above provide floating-point
+implementations which will be faster on many platforms. The period of the generator is about 10<sup>171.</sup> The algorithm has mathematically proven
+properties and it can provide truly decorrelated numbers at a known level of randomness. The default level of decorrelation recommended by
+Lüscher is provided by gsl_rng_ranlux, while gsl_rng_ranlux389 gives the highest level of randomness, with all 24 bits decorrelated. Both
+types of generator use 24 words of state per generator.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ranlxd1.html'
+                                  title='rgsl::types::rng::algorithms::ranlxd1'>ranlxd1</a></td>
+                           <td class='docblock short'>
+                                <p>This generator produces double precision output (48 bits) from the RANLXS generator. The library provides two luxury levels ranlxd1 and ranlxd2,
+in increasing order of strength.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ranlxd2.html'
+                                  title='rgsl::types::rng::algorithms::ranlxd2'>ranlxd2</a></td>
+                           <td class='docblock short'>
+                                <p>This generator produces double precision output (48 bits) from the RANLXS generator. The library provides two luxury levels ranlxd1 and ranlxd2,
+in increasing order of strength.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ranlxs0.html'
+                                  title='rgsl::types::rng::algorithms::ranlxs0'>ranlxs0</a></td>
+                           <td class='docblock short'>
+                                <p>The generator ranlxs0 is a second-generation version of the RANLUX algorithm of Lüscher, which produces “luxury random numbers”. This generator
+provides single precision output (24 bits) at three luxury levels ranlxs0, ranlxs1 and ranlxs2, in increasing order of strength. It uses double-precision
+floating point arithmetic internally and can be significantly faster than the integer version of ranlux, particularly on 64-bit architectures. The period
+of the generator is about 10<sup>171.</sup> The algorithm has mathematically proven properties and can provide truly decorrelated numbers at a known level of
+randomness. The higher luxury levels provide increased decorrelation between samples as an additional safety margin.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ranlxs1.html'
+                                  title='rgsl::types::rng::algorithms::ranlxs1'>ranlxs1</a></td>
+                           <td class='docblock short'>
+                                <p>The generator ranlxs0 is a second-generation version of the RANLUX algorithm of Lüscher, which produces “luxury random numbers”. This generator
+provides single precision output (24 bits) at three luxury levels ranlxs0, ranlxs1 and ranlxs2, in increasing order of strength. It uses double-precision
+floating point arithmetic internally and can be significantly faster than the integer version of ranlux, particularly on 64-bit architectures. The period
+of the generator is about 10<sup>171.</sup> The algorithm has mathematically proven properties and can provide truly decorrelated numbers at a known level of
+randomness. The higher luxury levels provide increased decorrelation between samples as an additional safety margin.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ranlxs2.html'
+                                  title='rgsl::types::rng::algorithms::ranlxs2'>ranlxs2</a></td>
+                           <td class='docblock short'>
+                                <p>The generator ranlxs0 is a second-generation version of the RANLUX algorithm of Lüscher, which produces “luxury random numbers”. This generator
+provides single precision output (24 bits) at three luxury levels ranlxs0, ranlxs1 and ranlxs2, in increasing order of strength. It uses double-precision
+floating point arithmetic internally and can be significantly faster than the integer version of ranlux, particularly on 64-bit architectures. The period
+of the generator is about 10<sup>171.</sup> The algorithm has mathematically proven properties and can provide truly decorrelated numbers at a known level of
+randomness. The higher luxury levels provide increased decorrelation between samples as an additional safety margin.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.taus.html'
+                                  title='rgsl::types::rng::algorithms::taus'>taus</a></td>
+                           <td class='docblock short'>
+                                <p>This is a maximally equidistributed combined Tausworthe generator by L’Ecuyer. The sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.taus2.html'
+                                  title='rgsl::types::rng::algorithms::taus2'>taus2</a></td>
+                           <td class='docblock short'>
+                                <p>This is a maximally equidistributed combined Tausworthe generator by L’Ecuyer. The sequence is,</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../../jquery.js"></script>
+    <script src="../../../../main.js"></script>
+    
+    <script defer src="../../../../search-index.js"></script>
+</body>
+</html>

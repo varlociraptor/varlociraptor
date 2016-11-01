@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["BNDM","BNDM algorithm."],["Matches","Iterator over start positions of matches."]]});

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `VectorComplexF32` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, VectorComplexF32">
+
+    <title>rgsl::types::vector_complex::VectorComplexF32 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>vector_complex</a></p><script>window.sidebarCurrent = {name: 'VectorComplexF32', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>vector_complex</a>::<wbr><a class='struct' href=''>VectorComplexF32</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-14107' class='srclink' href='../../../src/rgsl/types/vector_complex.rs.html#256-258' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct VectorComplexF32 {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-14109' class='srclink' href='../../../src/rgsl/types/vector_complex.rs.html#260-464' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(size: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>&gt;</code></h4>
+<div class='docblock'><p>create a new VectorComplexF32 with all elements set to zero</p>
+</div><h4 id='method.from_slice' class='method'><code>fn <a href='#method.from_slice' class='fnname'>from_slice</a>(slice: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='struct' href='../../../rgsl/types/complex/struct.ComplexF32.html' title='rgsl::types::complex::ComplexF32'>ComplexF32</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>&gt;</code></h4>
+<h4 id='method.len' class='method'><code>fn <a href='#method.len' class='fnname'>len</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<h4 id='method.get' class='method'><code>fn <a href='#method.get' class='fnname'>get</a>(&amp;self, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF32.html' title='rgsl::types::complex::ComplexF32'>ComplexF32</a></code></h4>
+<div class='docblock'><p>This function returns the i-th element of a vector v. If i lies outside the allowed range of 0 to n-1 then the error handler is invoked and 0 is returned.</p>
+</div><h4 id='method.set' class='method'><code>fn <a href='#method.set' class='fnname'>set</a>(&amp;self, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, x: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF32.html' title='rgsl::types::complex::ComplexF32'>ComplexF32</a>) -&gt; &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a></code></h4>
+<div class='docblock'><p>This function sets the value of the i-th element of a vector v to x. If i lies outside the allowed range of 0 to n-1 then the error handler is invoked.</p>
+</div><h4 id='method.set_all' class='method'><code>fn <a href='#method.set_all' class='fnname'>set_all</a>(&amp;self, x: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF32.html' title='rgsl::types::complex::ComplexF32'>ComplexF32</a>) -&gt; &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a></code></h4>
+<div class='docblock'><p>This function sets all the elements of the vector v to the value x.</p>
+</div><h4 id='method.set_zero' class='method'><code>fn <a href='#method.set_zero' class='fnname'>set_zero</a>(&amp;self) -&gt; &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a></code></h4>
+<div class='docblock'><p>This function sets all the elements of the vector v to zero.</p>
+</div><h4 id='method.set_basis' class='method'><code>fn <a href='#method.set_basis' class='fnname'>set_basis</a>(&amp;self, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a></code></h4>
+<div class='docblock'><p>This function makes a basis vector by setting all the elements of the vector v to zero except for the i-th element which is set to one.</p>
+</div><h4 id='method.copy_from' class='method'><code>fn <a href='#method.copy_from' class='fnname'>copy_from</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function copies the elements of the other vector into the self vector. The two vectors must have the same length.</p>
+</div><h4 id='method.copy_to' class='method'><code>fn <a href='#method.copy_to' class='fnname'>copy_to</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function copies the elements of the self vector into the other vector. The two vectors must have the same length.</p>
+</div><h4 id='method.swap' class='method'><code>fn <a href='#method.swap' class='fnname'>swap</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function exchanges the elements of the vectors by copying. The two vectors must have the same length.</p>
+</div><h4 id='method.swap_elements' class='method'><code>fn <a href='#method.swap_elements' class='fnname'>swap_elements</a>(&amp;self, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, j: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function exchanges the i-th and j-th elements of the vector v in-place.</p>
+</div><h4 id='method.reverse' class='method'><code>fn <a href='#method.reverse' class='fnname'>reverse</a>(&amp;self) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function reverses the order of the elements of the vector v.</p>
+</div><h4 id='method.add' class='method'><code>fn <a href='#method.add' class='fnname'>add</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function adds the elements of the other vector to the elements of the self vector.
+The result a_i &lt;- a_i + b_i is stored in self and other remains unchanged. The two vectors must have the same length.</p>
+</div><h4 id='method.sub' class='method'><code>fn <a href='#method.sub' class='fnname'>sub</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function subtracts the elements of the self vector from the elements of the other vector.
+The result a_i &lt;- a_i - b_i is stored in self and other remains unchanged. The two vectors must have the same length.</p>
+</div><h4 id='method.mul' class='method'><code>fn <a href='#method.mul' class='fnname'>mul</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function multiplies the elements of the self vector a by the elements of the other vector.
+The result a_i &lt;- a_i * b_i is stored in self and other remains unchanged. The two vectors must have the same length.</p>
+</div><h4 id='method.div' class='method'><code>fn <a href='#method.div' class='fnname'>div</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function divides the elements of the self vector by the elements of the other vector.
+The result a_i &lt;- a_i / b_i is stored in self and other remains unchanged. The two vectors must have the same length.</p>
+</div><h4 id='method.scale' class='method'><code>fn <a href='#method.scale' class='fnname'>scale</a>(&amp;self, x: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF32.html' title='rgsl::types::complex::ComplexF32'>ComplexF32</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function multiplies the elements of the self vector by the constant factor x. The result a_i &lt;- a_i is stored in self.</p>
+</div><h4 id='method.add_constant' class='method'><code>fn <a href='#method.add_constant' class='fnname'>add_constant</a>(&amp;self, x: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF32.html' title='rgsl::types::complex::ComplexF32'>ComplexF32</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function adds the constant value x to the elements of the self vector. The result a_i &lt;- a_i + x is stored in self.</p>
+</div><h4 id='method.is_null' class='method'><code>fn <a href='#method.is_null' class='fnname'>is_null</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>This function returns true if all the elements of the self vector are equal to 0.</p>
+</div><h4 id='method.is_pos' class='method'><code>fn <a href='#method.is_pos' class='fnname'>is_pos</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>This function returns true if all the elements of the self vector are stricly positive.</p>
+</div><h4 id='method.is_neg' class='method'><code>fn <a href='#method.is_neg' class='fnname'>is_neg</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>This function returns true if all the elements of the self vector are stricly negative.</p>
+</div><h4 id='method.is_non_neg' class='method'><code>fn <a href='#method.is_non_neg' class='fnname'>is_non_neg</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>This function returns true if all the elements of the self vector are stricly non-negative.</p>
+</div><h4 id='method.equal' class='method'><code>fn <a href='#method.equal' class='fnname'>equal</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<h4 id='method.clone' class='method'><code>fn <a href='#method.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>&gt;</code></h4>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-14186' class='srclink' href='../../../src/rgsl/types/vector_complex.rs.html#466-471' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-14189' class='srclink' href='../../../src/rgsl/types/vector_complex.rs.html#473-488' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

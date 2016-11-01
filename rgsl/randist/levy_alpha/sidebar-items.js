@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["levy","This function returns a random variate from the Levy symmetric stable distribution with scale c and exponent alpha. The symmetric stable probability distribution is defined by a Fourier transform,"]]});

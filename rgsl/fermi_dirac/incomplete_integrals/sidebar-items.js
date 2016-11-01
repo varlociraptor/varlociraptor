@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["fermi_dirac_inc_0","This routine computes the incomplete Fermi-Dirac integral with an index of zero, F_0(x,b) = \\ln(1 + e^{b-x}) - (b-x)."],["fermi_dirac_inc_0_e","This routine computes the incomplete Fermi-Dirac integral with an index of zero, F_0(x,b) = \\ln(1 + e^{b-x}) - (b-x)."]]});

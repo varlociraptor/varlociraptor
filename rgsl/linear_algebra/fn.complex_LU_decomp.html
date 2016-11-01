@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `complex_LU_decomp` fn in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, complex_LU_decomp">
+
+    <title>rgsl::linear_algebra::complex_LU_decomp - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a>::<wbr><a href='index.html'>linear_algebra</a></p><script>window.sidebarCurrent = {name: 'complex_LU_decomp', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content fn">
+<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>rgsl</a>::<wbr><a href='index.html'>linear_algebra</a>::<wbr><a class='fn' href=''>complex_LU_decomp</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-18688' class='srclink' href='../../src/rgsl/linear_algebra.rs.html#201-203' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn complex_LU_decomp(a: &amp;<a class='struct' href='../../rgsl/types/matrix_complex/struct.MatrixComplexF64.html' title='rgsl::types::matrix_complex::MatrixComplexF64'>MatrixComplexF64</a>, p: &amp;<a class='struct' href='../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>, signum: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>) -&gt; <a class='enum' href='../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></pre><div class='docblock'><p>Factorise a general N x N complex matrix A into,</p>
+
+<p>P A = L U</p>
+
+<p>where P is a permutation matrix, L is unit lower triangular and U is upper triangular.</p>
+
+<p>L is stored in the strict lower triangular part of the input matrix. The diagonal elements of L are unity and are not stored.</p>
+
+<p>U is stored in the diagonal and upper triangular part of the input matrix.  </p>
+
+<p>P is stored in the permutation p. Column j of P is column k of the identity matrix, where k = permutation-&gt;data[j]</p>
+
+<p>signum gives the sign of the permutation, (-1)<sup>n,</sup> where n is the number of interchanges in the permutation. </p>
+
+<p>See Golub &amp; Van Loan, Matrix Computations, Algorithm 3.4.1 (Gauss Elimination with Partial Pivoting).</p>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `MiserParams` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, MiserParams">
+
+    <title>rgsl::types::monte_carlo::MiserParams - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>monte_carlo</a></p><script>window.sidebarCurrent = {name: 'MiserParams', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>monte_carlo</a>::<wbr><a class='struct' href=''>MiserParams</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-12439' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#299-329' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct MiserParams {
+    pub estimate_frac: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>,
+    pub min_calls: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,
+    pub min_calls_per_bisection: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>,
+    pub alpha: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>,
+    pub dither: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>,
+}</pre><h2 class='fields'>Fields</h2><span id='structfield.estimate_frac' class='structfield'><code>estimate_frac: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>This parameter specifies the fraction of the currently available number of function calls which
+are allocated to estimating the variance at each recursive step. The default value is 0.1.</p>
+</div><span id='structfield.min_calls' class='structfield'><code>min_calls: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>This parameter specifies the minimum number of function calls required for each estimate of the
+variance. If the number of function calls allocated to the estimate using estimate_frac falls
+below min_calls then min_calls are used instead. This ensures that each estimate maintains a
+reasonable level of accuracy. The default value of min_calls is 16 * dim.</p>
+</div><span id='structfield.min_calls_per_bisection' class='structfield'><code>min_calls_per_bisection: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>This parameter specifies the minimum number of function calls required to proceed with a bisection
+step. When a recursive step has fewer calls available than min_calls_per_bisection it performs
+a plain Monte Carlo estimate of the current sub-region and terminates its branch of the recursion.
+The default value of this parameter is 32 * min_calls.</p>
+</div><span id='structfield.alpha' class='structfield'><code>alpha: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>This parameter controls how the estimated variances for the two sub-regions of a bisection are
+combined when allocating points. With recursive sampling the overall variance should scale better
+than 1/N, since the values from the sub-regions will be obtained using a procedure which explicitly
+minimizes their variance. To accommodate this behavior the MISER algorithm allows the total variance
+to depend on a scaling parameter \alpha,</p>
+
+<p>\Var(f) = {\sigma_a \over N_a<sup>\alpha}</sup> + {\sigma_b \over N_b<sup>\alpha}.</sup></p>
+
+<p>The authors of the original paper describing MISER recommend the value \alpha = 2 as a good choice,
+obtained from numerical experiments, and this is used as the default value in this implementation.</p>
+</div><span id='structfield.dither' class='structfield'><code>dither: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code>
+                           </span><span class='stab '></span><div class='docblock'><p>This parameter introduces a random fractional variation of size dither into each bisection, which
+can be used to break the symmetry of integrands which are concentrated near the exact center of
+the hypercubic integration region. The default value of dither is zero, so no variation is introduced.
+If needed, a typical value of dither is 0.1.</p>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/GSL-0.4.28/src/polynomials.rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang">
+
+    <title>polynomials.rs.html -- source</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content source"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+</pre><pre class='rust '>
+<span class='comment'>//</span>
+<span class='comment'>// A rust binding for the GSL library by Guillaume Gomez (guillaume1.gomez@gmail.com)</span>
+<span class='comment'>//</span>
+
+<span class='doccomment'>/*!
+#Polynomials
+
+This chapter describes functions for evaluating and solving polynomials. There are routines for finding real and complex roots of quadratic 
+and cubic equations using analytic methods. An iterative polynomial solver is also available for finding the roots of general polynomials 
+with real coefficients (of any order).
+
+##References and Further Reading
+
+The balanced-QR method and its error analysis are described in the following papers,
+
+R.S. Martin, G. Peters and J.H. Wilkinson, “The QR Algorithm for Real Hessenberg Matrices”, Numerische Mathematik, 14 (1970), 219–231.
+B.N. Parlett and C. Reinsch, “Balancing a Matrix for Calculation of Eigenvalues and Eigenvectors”, Numerische Mathematik, 13 (1969), 293–304.
+A. Edelman and H. Murakami, “Polynomial roots from companion matrix eigenvalues”, Mathematics of Computation, Vol. 64, No. 210 (1995), 763–776.
+The formulas for divided differences are given in the following texts,
+
+Abramowitz and Stegun, Handbook of Mathematical Functions, Sections 25.1.4 and 25.2.26.
+R. L. Burden and J. D. Faires, Numerical Analysis, 9th edition, ISBN 0-538-73351-9, 2011.
+!*/</span>
+
+<span class='doccomment'>/// The functions described here evaluate the polynomial P(x) = c[0] + c[1] x + c[2] x^2 + \dots + c[len-1] x^{len-1} using Horner’s method</span>
+<span class='doccomment'>/// for stability.</span>
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>evaluation</span> {
+    <span class='kw'>use</span> <span class='ident'>ffi</span>;
+    <span class='kw'>use</span> <span class='ident'>enums</span>;
+    <span class='kw'>use</span> <span class='ident'>types</span>::<span class='ident'>ComplexF64</span>;
+    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>::<span class='ident'>transmute</span>;
+
+    <span class='doccomment'>/// This function evaluates a polynomial with real coefficients for the real variable x.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_eval</span>(<span class='ident'>c</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>x</span>: <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='ident'>f64</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_eval</span>(<span class='ident'>c</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>c</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>i32</span>, <span class='ident'>x</span>) }
+    }
+
+    <span class='doccomment'>/// This function evaluates a polynomial with real coefficients for the complex variable z.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_complex_eval</span>(<span class='ident'>c</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>z</span>: <span class='kw-2'>&amp;</span><span class='ident'>ComplexF64</span>) <span class='op'>-&gt;</span> <span class='ident'>ComplexF64</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>transmute</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_poly_complex_eval</span>(<span class='ident'>c</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>c</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>i32</span>, <span class='ident'>transmute</span>(<span class='op'>*</span><span class='ident'>z</span>))) }
+    }
+
+    <span class='doccomment'>/// This function evaluates a polynomial with complex coefficients for the complex variable z.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>complex_poly_complex_eval</span>(<span class='ident'>c</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>ComplexF64</span>], <span class='ident'>z</span>: <span class='kw-2'>&amp;</span><span class='ident'>ComplexF64</span>) <span class='op'>-&gt;</span> <span class='ident'>ComplexF64</span> {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>tmp</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
+
+        <span class='kw'>for</span> <span class='ident'>it</span> <span class='kw'>in</span> <span class='ident'>c</span>.<span class='ident'>iter</span>() {
+            <span class='kw'>unsafe</span> { <span class='ident'>tmp</span>.<span class='ident'>push</span>(<span class='ident'>transmute</span>(<span class='op'>*</span><span class='ident'>it</span>)) };
+        }
+        <span class='kw'>unsafe</span> { <span class='ident'>transmute</span>(<span class='ident'>ffi</span>::<span class='ident'>gsl_complex_poly_complex_eval</span>(<span class='ident'>tmp</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>tmp</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>i32</span>, <span class='ident'>transmute</span>(<span class='op'>*</span><span class='ident'>z</span>))) }
+    }
+
+    <span class='doccomment'>/// This function evaluates a polynomial and its derivatives storing the results in the array res of size lenres. The output array contains</span>
+    <span class='doccomment'>/// the values of d^k P/d x^k for the specified value of x starting with k = 0.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_eval_derivs</span>(<span class='ident'>c</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>x</span>: <span class='ident'>f64</span>, <span class='ident'>res</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>f64</span>]) <span class='op'>-&gt;</span> <span class='ident'>enums</span>::<span class='ident'>Value</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_eval_derivs</span>(<span class='ident'>c</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>c</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>usize</span>, <span class='ident'>x</span>, <span class='ident'>res</span>.<span class='ident'>as_mut_ptr</span>(), <span class='ident'>res</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>usize</span>) }
+    }
+}
+
+<span class='doccomment'>/// The functions described here manipulate polynomials stored in Newton’s divided-difference representation. The use of divided-differences</span>
+<span class='doccomment'>/// is described in Abramowitz &amp; Stegun sections 25.1.4 and 25.2.26, and Burden and Faires, chapter 3, and discussed briefly below.</span>
+<span class='doccomment'>/// </span>
+<span class='doccomment'>/// Given a function f(x), an nth degree interpolating polynomial P_{n}(x) can be constructed which agrees with f at n+1 distinct points x_0,</span>
+<span class='doccomment'>/// x_1,...,x_{n}. This polynomial can be written in a form known as Newton’s divided-difference representation:</span>
+<span class='doccomment'>/// </span>
+<span class='doccomment'>/// P_n(x) = f(x_0) + \sum_(k=1)^n [x_0,x_1,...,x_k] (x-x_0)(x-x_1)...(x-x_(k-1))</span>
+<span class='doccomment'>/// </span>
+<span class='doccomment'>/// where the divided differences [x_0,x_1,...,x_k] are defined in section 25.1.4 of Abramowitz and Stegun. Additionally, it is possible to</span>
+<span class='doccomment'>/// construct an interpolating polynomial of degree 2n+1 which also matches the first derivatives of f at the points x_0,x_1,...,x_n. This is</span>
+<span class='doccomment'>/// called the Hermite interpolating polynomial and is defined as</span>
+<span class='doccomment'>/// </span>
+<span class='doccomment'>/// H_(2n+1)(x) = f(z_0) + \sum_(k=1)^(2n+1) [z_0,z_1,...,z_k] (x-z_0)(x-z_1)...(x-z_(k-1))</span>
+<span class='doccomment'>/// </span>
+<span class='doccomment'>/// where the elements of z = \{x_0,x_0,x_1,x_1,...,x_n,x_n\} are defined by z_{2k} = z_{2k+1} = x_k. The divided-differences [z_0,z_1,...,z_k]</span>
+<span class='doccomment'>/// are discussed in Burden and Faires, section 3.4.</span>
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>divided_difference_representation</span> {
+    <span class='kw'>use</span> <span class='ident'>ffi</span>;
+    <span class='kw'>use</span> <span class='ident'>enums</span>;
+
+    <span class='doccomment'>/// This function computes a divided-difference representation of the interpolating polynomial for the points (x, y) stored in the arrays</span>
+    <span class='doccomment'>/// xa and ya of length size. On output the divided-differences of (xa,ya) are stored in the array dd, also of length size. Using the</span>
+    <span class='doccomment'>/// notation above, dd[k] = [x_0,x_1,...,x_k].</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_dd_init</span>(<span class='ident'>dd</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>f64</span>], <span class='ident'>xa</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>ya</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>]) <span class='op'>-&gt;</span> <span class='ident'>enums</span>::<span class='ident'>Value</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_dd_init</span>(<span class='ident'>dd</span>.<span class='ident'>as_mut_ptr</span>(), <span class='ident'>xa</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>ya</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>dd</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>usize</span>) }
+    }
+
+    <span class='doccomment'>/// This function evaluates the polynomial stored in divided-difference form in the arrays dd and xa of length size at the point x.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_dd_eval</span>(<span class='ident'>dd</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>xa</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>x</span>: <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='ident'>f64</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_dd_eval</span>(<span class='ident'>dd</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>xa</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>dd</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>usize</span>, <span class='ident'>x</span>) }
+    }
+
+    <span class='doccomment'>/// This function converts the divided-difference representation of a polynomial to a Taylor expansion. The divided-difference representation</span>
+    <span class='doccomment'>/// is supplied in the arrays dd and xa of length size. On output the Taylor coefficients of the polynomial expanded about the point xp are</span>
+    <span class='doccomment'>/// stored in the array c also of length size. A workspace of length size must be provided in the array w.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_dd_taylor</span>(<span class='ident'>c</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>f64</span>], <span class='ident'>xp</span>: <span class='ident'>f64</span>, <span class='ident'>dd</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>xa</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>w</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>f64</span>]) <span class='op'>-&gt;</span> <span class='ident'>enums</span>::<span class='ident'>Value</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_dd_taylor</span>(<span class='ident'>c</span>.<span class='ident'>as_mut_ptr</span>(), <span class='ident'>xp</span>, <span class='ident'>dd</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>xa</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>dd</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>usize</span>, <span class='ident'>w</span>.<span class='ident'>as_mut_ptr</span>()) }
+    }
+
+    <span class='doccomment'>/// This function computes a divided-difference representation of the interpolating Hermite polynomial for the points (x, y) stored in the</span>
+    <span class='doccomment'>/// arrays xa and ya of length size. Hermite interpolation constructs polynomials which also match first derivatives dy/dx which are provided</span>
+    <span class='doccomment'>/// in the array dya also of length size. The first derivatives can be incorported into the usual divided-difference algorithm by forming a</span>
+    <span class='doccomment'>/// new dataset z = \{x_0,x_0,x_1,x_1,...\}, which is stored in the array za of length 2*size on output. On output the divided-differences</span>
+    <span class='doccomment'>/// of the Hermite representation are stored in the array dd, also of length 2*size. Using the notation above, dd[k] = [z_0,z_1,...,z_k].</span>
+    <span class='doccomment'>/// The resulting Hermite polynomial can be evaluated by calling gsl_poly_dd_eval and using za for the input argument xa.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_dd_hermite_init</span>(<span class='ident'>dd</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>f64</span>], <span class='ident'>za</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>f64</span>], <span class='ident'>xa</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>ya</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>dya</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>]) <span class='op'>-&gt;</span> <span class='ident'>enums</span>::<span class='ident'>Value</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_dd_hermite_init</span>(<span class='ident'>dd</span>.<span class='ident'>as_mut_ptr</span>(), <span class='ident'>za</span>.<span class='ident'>as_mut_ptr</span>(), <span class='ident'>xa</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>ya</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>dya</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>dd</span>.<span class='ident'>len</span>() <span class='kw'>as</span> <span class='ident'>usize</span>) }
+    }
+}
+
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>quadratic_equations</span> {
+    <span class='kw'>use</span> <span class='ident'>ffi</span>;
+    <span class='kw'>use</span> <span class='ident'>types</span>::<span class='ident'>ComplexF64</span>;
+    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>::<span class='ident'>transmute</span>;
+
+    <span class='doccomment'>/// This function finds the real roots of the quadratic equation,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// a x^2 + b x + c = 0</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The number of real roots (either zero, one or two) is returned, and their locations are stored in x0 and x1. If no real roots are found</span>
+    <span class='doccomment'>/// then x0 and x1 are not modified. If one real root is found (i.e. if a=0) then it is stored in x0. When two real roots are found they</span>
+    <span class='doccomment'>/// are stored in x0 and x1 in ascending order. The case of coincident roots is not considered special. For example (x-1)^2=0 will have</span>
+    <span class='doccomment'>/// two roots, which happen to have exactly equal values.</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The number of roots found depends on the sign of the discriminant b^2 - 4 a c. This will be subject to rounding and cancellation errors</span>
+    <span class='doccomment'>/// when computed in double precision, and will also be subject to errors if the coefficients of the polynomial are inexact. These errors</span>
+    <span class='doccomment'>/// may cause a discrete change in the number of roots. However, for polynomials with small integer coefficients the discriminant can always</span>
+    <span class='doccomment'>/// be computed exactly.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_solve_quadratic</span>(<span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>c</span>: <span class='ident'>f64</span>, <span class='ident'>x0</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>x1</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='ident'>i32</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_solve_quadratic</span>(<span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>c</span>, <span class='ident'>x0</span>, <span class='ident'>x1</span>) }
+    }
+
+    <span class='doccomment'>/// This function finds the complex roots of the quadratic equation,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// a z^2 + b z + c = 0</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The number of complex roots is returned (either one or two) and the locations of the roots are stored in z0 and z1. The roots are returned</span>
+    <span class='doccomment'>/// in ascending order, sorted first by their real components and then by their imaginary components. If only one real root is found (i.e. if</span>
+    <span class='doccomment'>/// a=0) then it is stored in z0.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_complex_solve_quadratic</span>(<span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>c</span>: <span class='ident'>f64</span>, <span class='ident'>z0</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ComplexF64</span>, <span class='ident'>z1</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ComplexF64</span>) <span class='op'>-&gt;</span> <span class='ident'>i32</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_complex_solve_quadratic</span>(<span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>c</span>, <span class='ident'>transmute</span>(<span class='ident'>z0</span>), <span class='ident'>transmute</span>(<span class='ident'>z1</span>)) }
+    }
+}
+
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>cubic_equations</span> {
+    <span class='kw'>use</span> <span class='ident'>ffi</span>;
+    <span class='kw'>use</span> <span class='ident'>types</span>::<span class='ident'>ComplexF64</span>;
+    <span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>mem</span>::<span class='ident'>transmute</span>;
+
+    <span class='doccomment'>/// This function finds the real roots of the cubic equation,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// x^3 + a x^2 + b x + c = 0</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// with a leading coefficient of unity. The number of real roots (either one or three) is returned, and their locations are stored in x0,</span>
+    <span class='doccomment'>/// x1 and x2. If one real root is found then only x0 is modified. When three real roots are found they are stored in x0, x1 and x2 in</span>
+    <span class='doccomment'>/// ascending order. The case of coincident roots is not considered special. For example, the equation (x-1)^3=0 will have three roots</span>
+    <span class='doccomment'>/// with exactly equal values. As in the quadratic case, finite precision may cause equal or closely-spaced real roots to move off the</span>
+    <span class='doccomment'>/// real axis into the complex plane, leading to a discrete change in the number of real roots.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_solve_cubic</span>(<span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>c</span>: <span class='ident'>f64</span>, <span class='ident'>x0</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>x1</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>x2</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='ident'>i32</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_solve_cubic</span>(<span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>c</span>, <span class='ident'>x0</span>, <span class='ident'>x1</span>, <span class='ident'>x2</span>) }
+    }
+
+    <span class='doccomment'>/// This function finds the complex roots of the cubic equation,</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// z^3 + a z^2 + b z + c = 0</span>
+    <span class='doccomment'>/// </span>
+    <span class='doccomment'>/// The number of complex roots is returned (always three) and the locations of the roots are stored in z0, z1 and z2. The roots are returned</span>
+    <span class='doccomment'>/// in ascending order, sorted first by their real components and then by their imaginary components.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>poly_complex_solve_cubic</span>(<span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>c</span>: <span class='ident'>f64</span>, <span class='ident'>z0</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ComplexF64</span>, <span class='ident'>z1</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ComplexF64</span>, <span class='ident'>z2</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>ComplexF64</span>) <span class='op'>-&gt;</span> <span class='ident'>i32</span> {
+        <span class='kw'>unsafe</span> { <span class='ident'>ffi</span>::<span class='ident'>gsl_poly_complex_solve_cubic</span>(<span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>c</span>, <span class='ident'>transmute</span>(<span class='ident'>z0</span>), <span class='ident'>transmute</span>(<span class='ident'>z1</span>), <span class='ident'>transmute</span>(<span class='ident'>z2</span>)) }
+    }
+}</pre>
+</section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["CSlice","The type representing an 'unsafe' foreign chunk of memory"],["CVec","The type representing a foreign chunk of memory"]]});

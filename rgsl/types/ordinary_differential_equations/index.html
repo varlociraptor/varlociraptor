@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ordinary_differential_equations` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ordinary_differential_equations">
+
+    <title>rgsl::types::ordinary_differential_equations - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a></p><script>window.sidebarCurrent = {name: 'ordinary_differential_equations', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a class='mod' href=''>ordinary_differential_equations</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13050' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#5-772' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Numerical ODE solvers.</p>
+
+<h1 id='ordinary-differential-equations' class='section-header'><a href='#ordinary-differential-equations'>Ordinary Differential Equations</a></h1>
+<p>This chapter describes functions for solving ordinary differential equation (ODE) initial value problems. The library provides a variety of
+low-level methods, such as Runge-Kutta and Bulirsch-Stoer routines, and higher-level components for adaptive step-size control. The
+components can be combined by the user to achieve the desired solution, with full access to any intermediate steps. A driver object can be
+used as a high level wrapper for easy use of low level functions.</p>
+
+<h2 id='defining-the-ode-system' class='section-header'><a href='#defining-the-ode-system'>Defining the ODE System</a></h2>
+<p>The routines solve the general n-dimensional first-order system,</p>
+
+<p>dy_i(t)/dt = f_i(t, y_1(t), ..., y_n(t))
+for i = 1, \dots, n. The stepping functions rely on the vector of derivatives f_i and the Jacobian matrix, J_{ij} = df_i(t,y(t)) / dy_j. A
+system of equations is defined using the gsl_odeiv2_system datatype.</p>
+
+<h2 id='stepping-functions' class='section-header'><a href='#stepping-functions'>Stepping Functions</a></h2>
+<p>The lowest level components are the stepping functions which advance a solution from time t to t+h for a fixed step-size h and estimate
+the resulting local error.</p>
+
+<h2 id='adaptive-step-size-control' class='section-header'><a href='#adaptive-step-size-control'>Adaptive Step-size Control</a></h2>
+<p>The control function examines the proposed change to the solution produced by a stepping function and attempts to determine the optimal
+step-size for a user-specified level of error.</p>
+
+<h2 id='evolution' class='section-header'><a href='#evolution'>Evolution</a></h2>
+<p>The evolution function combines the results of a stepping function and control function to reliably advance the solution forward one
+step using an acceptable step-size.</p>
+
+<h2 id='driver' class='section-header'><a href='#driver'>Driver</a></h2>
+<p>The driver object is a high level wrapper that combines the evolution, control and stepper objects for easy use.</p>
+
+<h2 id='references-and-further-reading' class='section-header'><a href='#references-and-further-reading'>References and Further Reading</a></h2>
+<p>Ascher, U.M., Petzold, L.R., Computer Methods for Ordinary Differential and Differential-Algebraic Equations, SIAM, Philadelphia, 1998.
+Hairer, E., Norsett, S. P., Wanner, G., Solving Ordinary Differential Equations I: Nonstiff Problems, Springer, Berlin, 1993.
+Hairer, E., Wanner, G., Solving Ordinary Differential Equations II: Stiff and Differential-Algebraic Problems, Springer, Berlin, 1996.
+Many of the basic Runge-Kutta formulas can be found in the Handbook of Mathematical Functions,</p>
+
+<p>Abramowitz &amp; Stegun (eds.), Handbook of Mathematical Functions, Section 25.5.
+The implicit Bulirsch-Stoer algorithm bsimp is described in the following paper,</p>
+
+<p>G. Bader and P. Deuflhard, “A Semi-Implicit Mid-Point Rule for Stiff Systems of Ordinary Differential Equations.”, Numer. Math. 41,
+373–398, 1983.
+The Adams and BDF multistep methods msadams and msbdf are based on the following articles,</p>
+
+<p>G. D. Byrne and A. C. Hindmarsh, “A Polyalgorithm for the Numerical Solution of Ordinary Differential Equations.”, ACM Trans. Math.
+Software, 1, 71–96, 1975.
+P. N. Brown, G. D. Byrne and A. C. Hindmarsh, “VODE: A Variable-coefficient ODE Solver.”, SIAM J. Sci. Stat. Comput. 10, 1038–1051, 1989.
+A. C. Hindmarsh, P. N. Brown, K. E. Grant, S. L. Lee, R. Serban, D. E. Shumaker and C. S. Woodward, “SUNDIALS: Suite of Nonlinear and
+Differential/Algebraic Equation Solvers.”, ACM Trans. Math. Software 31, 363–396, 2005.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ODEiv2Control.html'
+                                  title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ODEiv2ControlType.html'
+                                  title='rgsl::types::ordinary_differential_equations::ODEiv2ControlType'>ODEiv2ControlType</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ODEiv2Driver.html'
+                                  title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ODEiv2Evolve.html'
+                                  title='rgsl::types::ordinary_differential_equations::ODEiv2Evolve'>ODEiv2Evolve</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ODEiv2Step.html'
+                                  title='rgsl::types::ordinary_differential_equations::ODEiv2Step'>ODEiv2Step</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ODEiv2StepType.html'
+                                  title='rgsl::types::ordinary_differential_equations::ODEiv2StepType'>ODEiv2StepType</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.ODEiv2System.html'
+                                  title='rgsl::types::ordinary_differential_equations::ODEiv2System'>ODEiv2System</a></td>
+                           <td class='docblock short'>
+                                <p>Description of a system of ODEs.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

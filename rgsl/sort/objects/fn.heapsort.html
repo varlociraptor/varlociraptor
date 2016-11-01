@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `heapsort` fn in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, heapsort">
+
+    <title>rgsl::sort::objects::heapsort - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>sort</a>::<wbr><a href='index.html'>objects</a></p><script>window.sidebarCurrent = {name: 'heapsort', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content fn">
+<h1 class='fqn'><span class='in-band'>Function <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>sort</a>::<wbr><a href='index.html'>objects</a>::<wbr><a class='fn' href=''>heapsort</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-19471' class='srclink' href='../../../src/rgsl/sort.rs.html#62-78' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn heapsort&lt;T&gt;(array: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a>T<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, compare: <a class='type' href='../../../rgsl/type.comparison_fn.html' title='rgsl::comparison_fn'>comparison_fn</a>&lt;T&gt;)</pre><div class='docblock'><p>This function sorts the count elements of the array array, each of size size, into ascending order using the comparison function compare.
+The type of the comparison function is defined by,</p>
+
+<pre><code class="language-Rust">i32 (*comparison_fn&lt;T&gt;) (a: &amp;[T], b: &amp;[T])
+</code></pre>
+
+<p>A comparison function should return a negative integer if the first argument is less than the second argument, 0 if the two arguments
+are equal and a positive integer if the first argumentis greater than the second argument.</p>
+
+<p>For example, the following function can be used to sort doubles into ascending numerical order.</p>
+
+<pre><code class="language-Rust">fn compare_doubles(a: &amp;[f64], b: &amp;[f64]) -&gt; i32 {
+   if (a[0] &gt; b[0])
+      return 1;
+   else if (a[0] &lt; b[0])
+      return -1;
+   else
+      return 0;
+}
+</code></pre>
+
+<p>The appropriate function call to perform the sort is,</p>
+
+<pre><code class="language-Rust">heapsort(array, compare_doubles);
+</code></pre>
+
+<p>Note that unlike qsort the heapsort algorithm cannot be made into a stable sort by pointer arithmetic. The trick of comparing pointers
+for equal elements in the comparison function does not work for the heapsort algorithm. The heapsort algorithm performs an internal
+rearrangement of the data which destroys its initial ordering.</p>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

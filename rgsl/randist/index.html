@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `randist` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, randist">
+
+    <title>rgsl::randist - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'randist', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>randist</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-8293' class='srclink' href='../../src/rgsl/randist/mod.rs.html#5-90' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='random-number-distributions' class='section-header'><a href='#random-number-distributions'>Random Number Distributions</a></h1>
+<p>This chapter describes functions for generating random variates and computing their probability distributions.
+Samples from the distributions described in this chapter can be obtained using any of the random number generators in the library as an underlying source of randomness.</p>
+
+<p>In the simplest cases a non-uniform distribution can be obtained analytically from the uniform distribution of a random number generator by applying an appropriate transformation.
+This method uses one call to the random number generator. More complicated distributions are created by the acceptance-rejection method, which compares the desired distribution against a distribution which is similar and known analytically.
+This usually requires several samples from the generator.</p>
+
+<p>The library also provides cumulative distribution functions and inverse cumulative distribution functions, sometimes referred to as quantile functions.
+The cumulative distribution functions and their inverses are computed separately for the upper and lower tails of the distribution, allowing full accuracy to be retained for small results.</p>
+
+<p>Note that the discrete random variate functions always return a value of type unsigned int, and on most platforms this has a maximum value of 2<sup>32-1</sup> ~=~ 4.29e9. They should only be called with a safe range of parameters (where there is a negligible probability of a variate exceeding this limit) to prevent incorrect results due to overflow.</p>
+
+<h2 id='introduction' class='section-header'><a href='#introduction'>Introduction</a></h2>
+<p>Continuous random number distributions are defined by a probability density function, p(x), such that the probability of x occurring in the infinitesimal range x to x+dx is p dx.</p>
+
+<p>The cumulative distribution function for the lower tail P(x) is defined by the integral,</p>
+
+<p>P(x) = \int_{-\infty}<sup>{x}</sup> dx&#39; p(x&#39;)</p>
+
+<p>and gives the probability of a variate taking a value less than x.</p>
+
+<p>The cumulative distribution function for the upper tail Q(x) is defined by the integral,</p>
+
+<p>Q(x) = \int_{x}<sup>{+\infty}</sup> dx&#39; p(x&#39;)</p>
+
+<p>and gives the probability of a variate taking a value greater than x.</p>
+
+<p>The upper and lower cumulative distribution functions are related by P(x) + Q(x) = 1 and satisfy 0 &lt;= P(x) &lt;= 1, 0 &lt;= Q(x) &lt;= 1.</p>
+
+<p>The inverse cumulative distributions, x=P<sup>{-1}(P)</sup> and x=Q<sup>{-1}(Q)</sup> give the values of x which correspond to a specific value of P or Q. They can be used to find confidence limits from probability values.</p>
+
+<p>For discrete distributions the probability of sampling the integer value k is given by p(k), where \sum_k p(k) = 1. The cumulative distribution for the lower tail P(k) of a discrete distribution is defined as,</p>
+
+<p>P(k) = \sum_{i &lt;= k} p(i)</p>
+
+<p>where the sum is over the allowed range of the distribution less than or equal to k.</p>
+
+<p>The cumulative distribution for the upper tail of a discrete distribution Q(k) is defined as</p>
+
+<p>Q(k) = \sum_{i &gt; k} p(i)</p>
+
+<p>giving the sum of probabilities for all values greater than k. These two definitions satisfy the identity P(k)+Q(k)=1.</p>
+
+<p>If the range of the distribution is 1 to n inclusive then P(n)=1, Q(n)=0 while P(1) = p(1), Q(1)=1-p(1).</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='bernoulli/index.html'
+                                  title='rgsl::randist::bernoulli'>bernoulli</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='beta/index.html'
+                                  title='rgsl::randist::beta'>beta</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='binomial/index.html'
+                                  title='rgsl::randist::binomial'>binomial</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='bivariate_gaussian/index.html'
+                                  title='rgsl::randist::bivariate_gaussian'>bivariate_gaussian</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='cauchy/index.html'
+                                  title='rgsl::randist::cauchy'>cauchy</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='chi_squared/index.html'
+                                  title='rgsl::randist::chi_squared'>chi_squared</a></td>
+                           <td class='docblock short'>
+                                <p>The chi-squared distribution arises in statistics. If Y_i are n independent Gaussian random variates with unit variance then the sum-of-squares,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='dirichlet/index.html'
+                                  title='rgsl::randist::dirichlet'>dirichlet</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='exponential/index.html'
+                                  title='rgsl::randist::exponential'>exponential</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='exponential_power/index.html'
+                                  title='rgsl::randist::exponential_power'>exponential_power</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='f_distribution/index.html'
+                                  title='rgsl::randist::f_distribution'>f_distribution</a></td>
+                           <td class='docblock short'>
+                                <p>The F-distribution arises in statistics. If Y_1 and Y_2 are chi-squared deviates with \nu_1 and \nu_2 degrees of freedom then the ratio,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='flat/index.html'
+                                  title='rgsl::randist::flat'>flat</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='gamma/index.html'
+                                  title='rgsl::randist::gamma'>gamma</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='gaussian/index.html'
+                                  title='rgsl::randist::gaussian'>gaussian</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='gaussian_tail/index.html'
+                                  title='rgsl::randist::gaussian_tail'>gaussian_tail</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='geometric/index.html'
+                                  title='rgsl::randist::geometric'>geometric</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='gumbel/index.html'
+                                  title='rgsl::randist::gumbel'>gumbel</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='hypergeometric/index.html'
+                                  title='rgsl::randist::hypergeometric'>hypergeometric</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='landau/index.html'
+                                  title='rgsl::randist::landau'>landau</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='laplace/index.html'
+                                  title='rgsl::randist::laplace'>laplace</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='levy_alpha/index.html'
+                                  title='rgsl::randist::levy_alpha'>levy_alpha</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='levy_skew/index.html'
+                                  title='rgsl::randist::levy_skew'>levy_skew</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='logarithmic/index.html'
+                                  title='rgsl::randist::logarithmic'>logarithmic</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='logistic/index.html'
+                                  title='rgsl::randist::logistic'>logistic</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='lognormal/index.html'
+                                  title='rgsl::randist::lognormal'>lognormal</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='multinomial/index.html'
+                                  title='rgsl::randist::multinomial'>multinomial</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='negative_binomial/index.html'
+                                  title='rgsl::randist::negative_binomial'>negative_binomial</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='pareto/index.html'
+                                  title='rgsl::randist::pareto'>pareto</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='pascal/index.html'
+                                  title='rgsl::randist::pascal'>pascal</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='poisson/index.html'
+                                  title='rgsl::randist::poisson'>poisson</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='rayleigh/index.html'
+                                  title='rgsl::randist::rayleigh'>rayleigh</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='rayleigh_tail/index.html'
+                                  title='rgsl::randist::rayleigh_tail'>rayleigh_tail</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='shuffling_sampling/index.html'
+                                  title='rgsl::randist::shuffling_sampling'>shuffling_sampling</a></td>
+                           <td class='docblock short'>
+                                <p>The following functions allow the shuffling and sampling of a set of objects.
+The algorithms rely on a random number generator as a source of randomness and a poor quality generator can lead to correlations in the output.
+In particular it is important to avoid generators with a short period. For more information see Knuth, v2, 3rd ed, Section 3.4.2, “Random Sampling and Shuffling”.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='spherical_vector/index.html'
+                                  title='rgsl::randist::spherical_vector'>spherical_vector</a></td>
+                           <td class='docblock short'>
+                                <p>The spherical distributions generate random vectors, located on a spherical surface.
+They can be used as random directions, for example in the steps of a random walk.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='t_distribution/index.html'
+                                  title='rgsl::randist::t_distribution'>t_distribution</a></td>
+                           <td class='docblock short'>
+                                <p>The t-distribution arises in statistics. If Y_1 has a normal distribution and Y_2 has a chi-squared distribution with \nu degrees of freedom then the ratio,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='weibull/index.html'
+                                  title='rgsl::randist::weibull'>weibull</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

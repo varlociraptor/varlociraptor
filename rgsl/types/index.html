@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `types` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, types">
+
+    <title>rgsl::types - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'types', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>types</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-9008' class='srclink' href='../../src/rgsl/types/mod.rs.html#5-65' title='goto source code'>[src]</a></span></h1>
+<h2 id='reexports' class='section-header'><a href="#reexports">Reexports</a></h2>
+<table><tr><td><code>pub use self::basis_spline::{<a class='struct' href='../../rgsl/types/basis_spline/struct.BSpLineWorkspace.html' title='rgsl::types::basis_spline::BSpLineWorkspace'>BSpLineWorkspace</a>, <a class='struct' href='../../rgsl/types/basis_spline/struct.BSpLineDerivWorkspace.html' title='rgsl::types::basis_spline::BSpLineDerivWorkspace'>BSpLineDerivWorkspace</a>};</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./chebyshev/index.html'>chebyshev</a>::<a class='struct' href='../../rgsl/types/chebyshev/struct.ChebSeries.html' title='rgsl::types::chebyshev::ChebSeries'>ChebSeries</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./combination/index.html'>combination</a>::<a class='struct' href='../../rgsl/types/combination/struct.Combination.html' title='rgsl::types::combination::Combination'>Combination</a>;</code></td></tr><tr><td><code>pub use self::complex::{<a class='struct' href='../../rgsl/types/complex/struct.ComplexF32.html' title='rgsl::types::complex::ComplexF32'>ComplexF32</a>, <a class='struct' href='../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a>};</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./discrete_hankel/index.html'>discrete_hankel</a>::<a class='struct' href='../../rgsl/types/discrete_hankel/struct.DiscreteHankel.html' title='rgsl::types::discrete_hankel::DiscreteHankel'>DiscreteHankel</a>;</code></td></tr><tr><td><code>pub use self::eigen_symmetric_workspace::{<a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenSymmetricWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenSymmetricWorkspace'>EigenSymmetricWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenSymmetricVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenSymmetricVWorkspace'>EigenSymmetricVWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenHermitianWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenHermitianWorkspace'>EigenHermitianWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenHermitianVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenHermitianVWorkspace'>EigenHermitianVWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenNonSymmWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenNonSymmWorkspace'>EigenNonSymmWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenNonSymmVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenNonSymmVWorkspace'>EigenNonSymmVWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenGenSymmWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenSymmWorkspace'>EigenGenSymmWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenGenSymmVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenSymmVWorkspace'>EigenGenSymmVWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenGenHermWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenHermWorkspace'>EigenGenHermWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenGenHermVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenHermVWorkspace'>EigenGenHermVWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenGenWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenWorkspace'>EigenGenWorkspace</a>, <a class='struct' href='../../rgsl/types/eigen_symmetric_workspace/struct.EigenGenVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenVWorkspace'>EigenGenVWorkspace</a>};</code></td></tr><tr><td><code>pub use self::fast_fourier_transforms::{<a class='struct' href='../../rgsl/types/fast_fourier_transforms/struct.FftComplexWaveTable.html' title='rgsl::types::fast_fourier_transforms::FftComplexWaveTable'>FftComplexWaveTable</a>, <a class='struct' href='../../rgsl/types/fast_fourier_transforms/struct.FftComplexWorkspace.html' title='rgsl::types::fast_fourier_transforms::FftComplexWorkspace'>FftComplexWorkspace</a>};</code></td></tr><tr><td><code>pub use self::histograms::{<a class='struct' href='../../rgsl/types/histograms/struct.Histogram.html' title='rgsl::types::histograms::Histogram'>Histogram</a>, <a class='struct' href='../../rgsl/types/histograms/struct.HistogramPdf.html' title='rgsl::types::histograms::HistogramPdf'>HistogramPdf</a>, <a class='struct' href='../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>, <a class='struct' href='../../rgsl/types/histograms/struct.Histogram2DPdf.html' title='rgsl::types::histograms::Histogram2DPdf'>Histogram2DPdf</a>};</code></td></tr><tr><td><code>pub use self::integration::{<a class='struct' href='../../rgsl/types/integration/struct.IntegrationWorkspace.html' title='rgsl::types::integration::IntegrationWorkspace'>IntegrationWorkspace</a>, <a class='struct' href='../../rgsl/types/integration/struct.IntegrationQawsTable.html' title='rgsl::types::integration::IntegrationQawsTable'>IntegrationQawsTable</a>, <a class='struct' href='../../rgsl/types/integration/struct.IntegrationQawoTable.html' title='rgsl::types::integration::IntegrationQawoTable'>IntegrationQawoTable</a>, <a class='struct' href='../../rgsl/types/integration/struct.CquadWorkspace.html' title='rgsl::types::integration::CquadWorkspace'>CquadWorkspace</a>, <a class='struct' href='../../rgsl/types/integration/struct.GLFixedTable.html' title='rgsl::types::integration::GLFixedTable'>GLFixedTable</a>};</code></td></tr><tr><td><code>pub use self::interpolation::{<a class='struct' href='../../rgsl/types/interpolation/struct.InterpAccel.html' title='rgsl::types::interpolation::InterpAccel'>InterpAccel</a>, <a class='struct' href='../../rgsl/types/interpolation/struct.Interp.html' title='rgsl::types::interpolation::Interp'>Interp</a>, <a class='struct' href='../../rgsl/types/interpolation/struct.InterpType.html' title='rgsl::types::interpolation::InterpType'>InterpType</a>, <a class='struct' href='../../rgsl/types/interpolation/struct.Spline.html' title='rgsl::types::interpolation::Spline'>Spline</a>};</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./mathieu/index.html'>mathieu</a>::<a class='struct' href='../../rgsl/types/mathieu/struct.MathieuWorkspace.html' title='rgsl::types::mathieu::MathieuWorkspace'>MathieuWorkspace</a>;</code></td></tr><tr><td><code>pub use self::matrix::{<a class='struct' href='../../rgsl/types/matrix/struct.MatrixF32.html' title='rgsl::types::matrix::MatrixF32'>MatrixF32</a>, <a class='struct' href='../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>, <a class='struct' href='../../rgsl/types/matrix/struct.MatrixView.html' title='rgsl::types::matrix::MatrixView'>MatrixView</a>};</code></td></tr><tr><td><code>pub use self::matrix_complex::{<a class='struct' href='../../rgsl/types/matrix_complex/struct.MatrixComplexF32.html' title='rgsl::types::matrix_complex::MatrixComplexF32'>MatrixComplexF32</a>, <a class='struct' href='../../rgsl/types/matrix_complex/struct.MatrixComplexF64.html' title='rgsl::types::matrix_complex::MatrixComplexF64'>MatrixComplexF64</a>};</code></td></tr><tr><td><code>pub use self::minimizer::{<a class='struct' href='../../rgsl/types/minimizer/struct.Minimizer.html' title='rgsl::types::minimizer::Minimizer'>Minimizer</a>, <a class='struct' href='../../rgsl/types/minimizer/struct.MinimizerType.html' title='rgsl::types::minimizer::MinimizerType'>MinimizerType</a>};</code></td></tr><tr><td><code>pub use self::monte_carlo::{<a class='struct' href='../../rgsl/types/monte_carlo/struct.PlainMonteCarlo.html' title='rgsl::types::monte_carlo::PlainMonteCarlo'>PlainMonteCarlo</a>, <a class='struct' href='../../rgsl/types/monte_carlo/struct.MiserMonteCarlo.html' title='rgsl::types::monte_carlo::MiserMonteCarlo'>MiserMonteCarlo</a>, <a class='struct' href='../../rgsl/types/monte_carlo/struct.MiserParams.html' title='rgsl::types::monte_carlo::MiserParams'>MiserParams</a>, <a class='struct' href='../../rgsl/types/monte_carlo/struct.VegasMonteCarlo.html' title='rgsl::types::monte_carlo::VegasMonteCarlo'>VegasMonteCarlo</a>};</code></td></tr><tr><td><code>pub use self::multifit_solver::{<a class='struct' href='../../rgsl/types/multifit_solver/struct.MultiFitFdfSolver.html' title='rgsl::types::multifit_solver::MultiFitFdfSolver'>MultiFitFdfSolver</a>, <a class='struct' href='../../rgsl/types/multifit_solver/struct.MultiFitFunction.html' title='rgsl::types::multifit_solver::MultiFitFunction'>MultiFitFunction</a>, <a class='struct' href='../../rgsl/types/multifit_solver/struct.MultiFitFdfSolverType.html' title='rgsl::types::multifit_solver::MultiFitFdfSolverType'>MultiFitFdfSolverType</a>, <a class='struct' href='../../rgsl/types/multifit_solver/struct.MultiFitFunctionFdf.html' title='rgsl::types::multifit_solver::MultiFitFunctionFdf'>MultiFitFunctionFdf</a>};</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./multiset/index.html'>multiset</a>::<a class='struct' href='../../rgsl/types/multiset/struct.MultiSet.html' title='rgsl::types::multiset::MultiSet'>MultiSet</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./n_tuples/index.html'>n_tuples</a>::<a class='struct' href='../../rgsl/types/n_tuples/struct.NTuples.html' title='rgsl::types::n_tuples::NTuples'>NTuples</a>;</code></td></tr><tr><td><code>pub use self::ordinary_differential_equations::{<a class='struct' href='../../rgsl/types/ordinary_differential_equations/struct.ODEiv2System.html' title='rgsl::types::ordinary_differential_equations::ODEiv2System'>ODEiv2System</a>, <a class='struct' href='../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Step.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Step'>ODEiv2Step</a>, <a class='struct' href='../../rgsl/types/ordinary_differential_equations/struct.ODEiv2StepType.html' title='rgsl::types::ordinary_differential_equations::ODEiv2StepType'>ODEiv2StepType</a>, <a class='struct' href='../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Control.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a>, <a class='struct' href='../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Evolve.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Evolve'>ODEiv2Evolve</a>, <a class='struct' href='../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>};</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./permutation/index.html'>permutation</a>::<a class='struct' href='../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>;</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./polynomial/index.html'>polynomial</a>::<a class='struct' href='../../rgsl/types/polynomial/struct.PolyComplex.html' title='rgsl::types::polynomial::PolyComplex'>PolyComplex</a>;</code></td></tr><tr><td><code>pub use self::qrng::{<a class='struct' href='../../rgsl/types/qrng/struct.QRng.html' title='rgsl::types::qrng::QRng'>QRng</a>, <a class='struct' href='../../rgsl/types/qrng/struct.QRngType.html' title='rgsl::types::qrng::QRngType'>QRngType</a>};</code></td></tr><tr><td><code>pub use self::<a class='mod'
+                                       href='./ran_discrete/index.html'>ran_discrete</a>::<a class='struct' href='../../rgsl/types/ran_discrete/struct.RanDiscrete.html' title='rgsl::types::ran_discrete::RanDiscrete'>RanDiscrete</a>;</code></td></tr><tr><td><code>pub use self::result::{<a class='struct' href='../../rgsl/types/result/struct.Result.html' title='rgsl::types::result::Result'>Result</a>, <a class='struct' href='../../rgsl/types/result/struct.ResultE10.html' title='rgsl::types::result::ResultE10'>ResultE10</a>};</code></td></tr><tr><td><code>pub use self::rng::{<a class='struct' href='../../rgsl/types/rng/struct.Rng.html' title='rgsl::types::rng::Rng'>Rng</a>, <a class='struct' href='../../rgsl/types/rng/struct.RngType.html' title='rgsl::types::rng::RngType'>RngType</a>};</code></td></tr><tr><td><code>pub use self::series_acceleration::{<a class='struct' href='../../rgsl/types/series_acceleration/struct.LevinUWorkspace.html' title='rgsl::types::series_acceleration::LevinUWorkspace'>LevinUWorkspace</a>, <a class='struct' href='../../rgsl/types/series_acceleration/struct.LevinUTruncWorkspace.html' title='rgsl::types::series_acceleration::LevinUTruncWorkspace'>LevinUTruncWorkspace</a>};</code></td></tr><tr><td><code>pub use self::vector::{<a class='struct' href='../../rgsl/types/vector/struct.VectorF32.html' title='rgsl::types::vector::VectorF32'>VectorF32</a>, <a class='struct' href='../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>, <a class='struct' href='../../rgsl/types/vector/struct.VectorView.html' title='rgsl::types::vector::VectorView'>VectorView</a>};</code></td></tr><tr><td><code>pub use self::vector_complex::{<a class='struct' href='../../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>, <a class='struct' href='../../rgsl/types/vector_complex/struct.VectorComplexF64.html' title='rgsl::types::vector_complex::VectorComplexF64'>VectorComplexF64</a>};</code></td></tr><tr><td><code>pub use self::wavelet_transforms::{<a class='struct' href='../../rgsl/types/wavelet_transforms/struct.Wavelet.html' title='rgsl::types::wavelet_transforms::Wavelet'>Wavelet</a>, <a class='struct' href='../../rgsl/types/wavelet_transforms/struct.WaveletType.html' title='rgsl::types::wavelet_transforms::WaveletType'>WaveletType</a>, <a class='struct' href='../../rgsl/types/wavelet_transforms/struct.WaveletWorkspace.html' title='rgsl::types::wavelet_transforms::WaveletWorkspace'>WaveletWorkspace</a>};</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='basis_spline/index.html'
+                                  title='rgsl::types::basis_spline'>basis_spline</a></td>
+                           <td class='docblock short'>
+                                <p>B-splines are commonly used as basis functions to fit smoothing curves to large data sets.
+ To do this, the abscissa axis is broken up into some number of intervals, where the endpoints of each interval are called breakpoints.
+ These breakpoints are then converted to knots by imposing various continuity and smoothness conditions at each interface. Given a nondecreasing knot vector t = {t_0, t_1, …, t_{n+k-1}}, the n basis splines of order k are defined by</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='chebyshev/index.html'
+                                  title='rgsl::types::chebyshev'>chebyshev</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='combination/index.html'
+                                  title='rgsl::types::combination'>combination</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='complex/index.html'
+                                  title='rgsl::types::complex'>complex</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='discrete_hankel/index.html'
+                                  title='rgsl::types::discrete_hankel'>discrete_hankel</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='eigen_symmetric_workspace/index.html'
+                                  title='rgsl::types::eigen_symmetric_workspace'>eigen_symmetric_workspace</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='fast_fourier_transforms/index.html'
+                                  title='rgsl::types::fast_fourier_transforms'>fast_fourier_transforms</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='histograms/index.html'
+                                  title='rgsl::types::histograms'>histograms</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='integration/index.html'
+                                  title='rgsl::types::integration'>integration</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='interpolation/index.html'
+                                  title='rgsl::types::interpolation'>interpolation</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='mathieu/index.html'
+                                  title='rgsl::types::mathieu'>mathieu</a></td>
+                           <td class='docblock short'>
+                                <p>The routines described in this section compute the angular and radial Mathieu functions, and their characteristic values. Mathieu functions are the solutions of the following two differential equations:</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='matrix/index.html'
+                                  title='rgsl::types::matrix'>matrix</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='matrix_complex/index.html'
+                                  title='rgsl::types::matrix_complex'>matrix_complex</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='minimizer/index.html'
+                                  title='rgsl::types::minimizer'>minimizer</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='monte_carlo/index.html'
+                                  title='rgsl::types::monte_carlo'>monte_carlo</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='multifit_solver/index.html'
+                                  title='rgsl::types::multifit_solver'>multifit_solver</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='multiset/index.html'
+                                  title='rgsl::types::multiset'>multiset</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='n_tuples/index.html'
+                                  title='rgsl::types::n_tuples'>n_tuples</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='ordinary_differential_equations/index.html'
+                                  title='rgsl::types::ordinary_differential_equations'>ordinary_differential_equations</a></td>
+                           <td class='docblock short'>
+                                <p>Numerical ODE solvers.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='permutation/index.html'
+                                  title='rgsl::types::permutation'>permutation</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='polynomial/index.html'
+                                  title='rgsl::types::polynomial'>polynomial</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='qrng/index.html'
+                                  title='rgsl::types::qrng'>qrng</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='ran_discrete/index.html'
+                                  title='rgsl::types::ran_discrete'>ran_discrete</a></td>
+                           <td class='docblock short'>
+                                <p>Given K discrete events with different probabilities P[k], produce a random value k consistent with its probability.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='result/index.html'
+                                  title='rgsl::types::result'>result</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='rng/index.html'
+                                  title='rgsl::types::rng'>rng</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='series_acceleration/index.html'
+                                  title='rgsl::types::series_acceleration'>series_acceleration</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='vector/index.html'
+                                  title='rgsl::types::vector'>vector</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='vector_complex/index.html'
+                                  title='rgsl::types::vector_complex'>vector_complex</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='wavelet_transforms/index.html'
+                                  title='rgsl::types::wavelet_transforms'>wavelet_transforms</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

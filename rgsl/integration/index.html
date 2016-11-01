@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `integration` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, integration">
+
+    <title>rgsl::integration - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'integration', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>integration</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-18055' class='srclink' href='../../src/rgsl/integration.rs.html#5-1108' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h2 id='introduction' class='section-header'><a href='#introduction'>Introduction</a></h2>
+<p>Each algorithm computes an approximation to a definite integral of the form,</p>
+
+<p>I = \int_a<sup>b</sup> f(x) w(x) dx
+where w(x) is a weight function (for general integrands w(x)=1). The user provides absolute and relative error bounds (epsabs, epsrel) which
+specify the following accuracy requirement,</p>
+
+<p>|RESULT - I|  &lt;= max(epsabs, epsrel |I|)</p>
+
+<p>where RESULT is the numerical approximation obtained by the algorithm. The algorithms attempt to estimate the absolute error ABSERR = |RESULT
+- I| in such a way that the following inequality holds,</p>
+
+<p>|RESULT - I| &lt;= ABSERR &lt;= max(epsabs, epsrel |I|)</p>
+
+<p>In short, the routines return the first approximation which has an absolute error smaller than epsabs or a relative error smaller than epsrel.</p>
+
+<p>Note that this is an either-or constraint, not simultaneous. To compute to a specified absolute error, set epsrel to zero. To compute to a
+specified relative error, set epsabs to zero. The routines will fail to converge if the error bounds are too stringent, but always return the
+best approximation obtained up to that stage.</p>
+
+<p>The algorithms in QUADPACK use a naming convention based on the following letters,</p>
+
+<p>Q - quadrature routine</p>
+
+<p>N - non-adaptive integrator
+A - adaptive integrator</p>
+
+<p>G - general integrand (user-defined)
+W - weight function with integrand</p>
+
+<p>S - singularities can be more readily integrated
+P - points of special difficulty can be supplied
+I - infinite range of integration
+O - oscillatory weight function, cos or sin
+F - Fourier integral
+C - Cauchy principal value
+The algorithms are built on pairs of quadrature rules, a higher order rule and a lower order rule. The higher order rule is used to compute the
+best approximation to an integral over a small range. The difference between the results of the higher order rule and the lower order rule gives
+an estimate of the error in the approximation.</p>
+
+<ul>
+<li><a href="http://www.gnu.org/software/gsl/manual/html_node/Integrands-without-weight-functions.html#Integrands-without-weight-functions">Integrands without weight functions</a></li>
+<li><a href="http://www.gnu.org/software/gsl/manual/html_node/Integrands-with-weight-functions.html#Integrands-with-weight-functions">Integrands with weight functions</a></li>
+<li><a href="http://www.gnu.org/software/gsl/manual/html_node/Integrands-with-singular-weight-functions.html#Integrands-with-singular-weight-functions">Integrands with singular weight functions</a></li>
+</ul>
+
+<h2 id='qng-non-adaptive-gauss-kronrod-integration' class='section-header'><a href='#qng-non-adaptive-gauss-kronrod-integration'>QNG non-adaptive Gauss-Kronrod integration</a></h2>
+<p>The QNG algorithm is a non-adaptive procedure which uses fixed Gauss-Kronrod-Patterson abscissae to sample the integrand at a maximum of 87
+points. It is provided for fast integration of smooth functions.</p>
+
+<h2 id='qag-adaptive-integration' class='section-header'><a href='#qag-adaptive-integration'>QAG adaptive integration</a></h2>
+<p>The QAG algorithm is a simple adaptive integration procedure. The integration region is divided into subintervals, and on each iteration the
+subinterval with the largest estimated error is bisected. This reduces the overall error rapidly, as the subintervals become concentrated
+around local difficulties in the integrand. These subintervals are managed by a gsl_integration_workspace struct, which handles the memory
+for the subinterval ranges, results and error estimates.</p>
+
+<h2 id='qags-adaptive-integration-with-singularities' class='section-header'><a href='#qags-adaptive-integration-with-singularities'>QAGS adaptive integration with singularities</a></h2>
+<p>The presence of an integrable singularity in the integration region causes an adaptive routine to concentrate new subintervals around the
+singularity. As the subintervals decrease in size the successive approximations to the integral converge in a limiting fashion. This
+approach to the limit can be accelerated using an extrapolation procedure. The QAGS algorithm combines adaptive bisection with the Wynn
+epsilon-algorithm to speed up the integration of many types of integrable singularities.</p>
+
+<h2 id='references-and-further-reading' class='section-header'><a href='#references-and-further-reading'>References and Further Reading</a></h2>
+<p>The following book is the definitive reference for QUADPACK, and was written by the original authors. It provides descriptions of the
+algorithms, program listings, test programs and examples. It also includes useful advice on numerical integration and many references
+to the numerical integration literature used in developing QUADPACK.</p>
+
+<p>R. Piessens, E. de Doncker-Kapenga, C.W. Ueberhuber, D.K. Kahaner. QUADPACK A subroutine package for automatic integration Springer Verlag, 1983.
+The CQUAD integration algorithm is described in the following paper:</p>
+
+<p>P. Gonnet, “Increasing the Reliability of Adaptive Quadrature Using Explicit Interpolants”, ACM Transactions on Mathematical Software, Volume 37
+(2010), Issue 3, Article 26.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.qawf.html'
+                                  title='rgsl::integration::qawf'>qawf</a></td>
+                           <td class='docblock short'>
+                                <p>This function attempts to compute a Fourier integral of the function f over the semi-infinite interval [a,+\infty).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.qk.html'
+                                  title='rgsl::integration::qk'>qk</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.qk15.html'
+                                  title='rgsl::integration::qk15'>qk15</a></td>
+                           <td class='docblock short'>
+                                <p>Gauss quadrature weights and kronrod quadrature abscissae and weights as evaluated with 80 decimal digit arithmetic by L. W.
+Fullerton, Bell Labs, Nov. 1981.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.qk21.html'
+                                  title='rgsl::integration::qk21'>qk21</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.qk31.html'
+                                  title='rgsl::integration::qk31'>qk31</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.qk41.html'
+                                  title='rgsl::integration::qk41'>qk41</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.qk51.html'
+                                  title='rgsl::integration::qk51'>qk51</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.qk61.html'
+                                  title='rgsl::integration::qk61'>qk61</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.qng.html'
+                                  title='rgsl::integration::qng'>qng</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the Gauss-Kronrod 10-point, 21-point, 43-point and 87-point integration rules in succession until an estimate of the
+integral of f over (a,b) is achieved within the desired absolute and relative error limits, eps_abs and eps_rel. The function returns the final
+approximation, result, an estimate of the absolute error, abserr and the number of function evaluations used, neval. The Gauss-Kronrod rules
+are designed in such a way that each rule uses all the results of its predecessors, in order to minimize the total number of function
+evaluations.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

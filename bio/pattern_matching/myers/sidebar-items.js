@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Matches","Iterator over pairs of end positions and distance of matches."],["Myers","Myers algorithm."]]});

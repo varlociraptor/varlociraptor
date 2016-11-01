@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `coulomb` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, coulomb">
+
+    <title>rgsl::coulomb - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'coulomb', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>coulomb</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-16880' class='srclink' href='../../src/rgsl/coulomb.rs.html#5-102' title='goto source code'>[src]</a></span></h1>
+<h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.CL_array.html'
+                                  title='rgsl::coulomb::CL_array'>CL_array</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Coulomb wave function normalization constant C_L(\eta) for L = Lmin \dots Lmin + kmax, Lmin &gt; -1.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.CL_e.html'
+                                  title='rgsl::coulomb::CL_e'>CL_e</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Coulomb wave function normalization constant C_L(\eta) for L &gt; -1.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hydrogenicR.html'
+                                  title='rgsl::coulomb::hydrogenicR'>hydrogenicR</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the n-th normalized hydrogenic bound state radial wavefunction,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hydrogenicR_1.html'
+                                  title='rgsl::coulomb::hydrogenicR_1'>hydrogenicR_1</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the lowest-order normalized hydrogenic bound state radial wavefunction R_1 := 2Z \sqrt{Z} \exp(-Z r).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hydrogenicR_1_e.html'
+                                  title='rgsl::coulomb::hydrogenicR_1_e'>hydrogenicR_1_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the lowest-order normalized hydrogenic bound state radial wavefunction R_1 := 2Z \sqrt{Z} \exp(-Z r).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hydrogenicR_e.html'
+                                  title='rgsl::coulomb::hydrogenicR_e'>hydrogenicR_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the n-th normalized hydrogenic bound state radial wavefunction,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.wave_FG_array.html'
+                                  title='rgsl::coulomb::wave_FG_array'>wave_FG_array</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the functions F_L(\eta,x), G_L(\eta,x) for L = Lmin \dots Lmin + kmax storing the results in fc_array and gc_array.
+In the case of overflow the exponents are stored in F_exponent and G_exponent.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.wave_FG_e.html'
+                                  title='rgsl::coulomb::wave_FG_e'>wave_FG_e</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Coulomb wave functions F_L(\eta,x), G_{L-k}(\eta,x) and their derivatives F&#39;_L(\eta,x), G&#39;_{L-k}(\eta,x) with respect to x. The parameters are restricted to L, L-k &gt; -1/2, x &gt; 0 and integer k. Note that L itself is not restricted to being an integer. The results are stored in the parameters F, G for the function values and Fp, Gp for the derivative values.
+If an overflow occurs, GSL_EOVRFLW is returned and scaling exponents are stored in the modifiable parameters exp_F, exp_G.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.wave_FGp_array.html'
+                                  title='rgsl::coulomb::wave_FGp_array'>wave_FGp_array</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the functions F_L(\eta,x), G_L(\eta,x) and their derivatives F&#39;_L(\eta,x), G&#39;_L(\eta,x) for L = Lmin \dots Lmin + kmax storing the results in fc_array, gc_array, fcp_array and gcp_array.
+In the case of overflow the exponents are stored in F_exponent and G_exponent.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.wave_F_array.html'
+                                  title='rgsl::coulomb::wave_F_array'>wave_F_array</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Coulomb wave function F_L(\eta,x) for L = Lmin \dots Lmin + kmax, storing the results in fc_array.
+In the case of overflow the exponent is stored in F_exponent.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.wave_sphF_array.html'
+                                  title='rgsl::coulomb::wave_sphF_array'>wave_sphF_array</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Coulomb wave function divided by the argument F_L(\eta, x)/x for L = Lmin \dots Lmin + kmax, storing the results in fc_array.
+In the case of overflow the exponent is stored in F_exponent. This function reduces to spherical Bessel functions in the limit \eta \to 0.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

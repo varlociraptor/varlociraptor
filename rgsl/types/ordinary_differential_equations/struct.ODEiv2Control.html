@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ODEiv2Control` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ODEiv2Control">
+
+    <title>rgsl::types::ordinary_differential_equations::ODEiv2Control - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>ordinary_differential_equations</a></p><script>window.sidebarCurrent = {name: 'ODEiv2Control', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>ordinary_differential_equations</a>::<wbr><a class='struct' href=''>ODEiv2Control</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13154' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#353-355' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct ODEiv2Control {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Control.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13156' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#357-492' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.standard_new' class='method'><code>fn <a href='#method.standard_new' class='fnname'>standard_new</a>(eps_abs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, eps_rel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_dydt: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Control.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a>&gt;</code></h4>
+<div class='docblock'><p>The standard control object is a four parameter heuristic based on absolute and relative errors eps_abs and eps_rel, and scaling
+factors a_y and a_dydt for the system state y(t) and derivatives y&#39;(t) respectively.</p>
+
+<p>The step-size adjustment procedure for this method begins by computing the desired error level D_i for each component,</p>
+
+<p>D_i = eps_abs + eps_rel * (a_y |y_i| + a_dydt h |y\prime_i|)
+and comparing it with the observed error E_i = |yerr_i|. If the observed error E exceeds the desired error level D by more than
+10% for any component then the method reduces the step-size by an appropriate factor,</p>
+
+<p>h_new = h_old * S * (E/D)<sup>-1/q</sup>
+where q is the consistency order of the method (e.g. q=4 for 4(5) embedded RK), and S is a safety factor of 0.9. The ratio E/D is
+taken to be the maximum of the ratios E_i/D_i.</p>
+
+<p>If the observed error E is less than 50% of the desired error level D for the maximum ratio E_i/D_i then the algorithm takes the
+opportunity to increase the step-size to bring the error in line with the desired level,</p>
+
+<p>h_new = h_old * S * (E/D)<sup>-1/(q+1</sup>)</p>
+
+<p>This encompasses all the standard error scaling methods. To avoid uncontrolled changes in the stepsize, the overall scaling factor
+is limited to the range 1/5 to 5.</p>
+</div><h4 id='method.y_new' class='method'><code>fn <a href='#method.y_new' class='fnname'>y_new</a>(eps_abs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, eps_rel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Control.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a>&gt;</code></h4>
+<div class='docblock'><p>This function creates a new control object which will keep the local error on each step within an absolute error of eps_abs and relative
+error of eps_rel with respect to the solution y_i(t). This is equivalent to the standard control object with a_y=1 and a_dydt=0.</p>
+</div><h4 id='method.yp_new' class='method'><code>fn <a href='#method.yp_new' class='fnname'>yp_new</a>(eps_abs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, eps_rel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Control.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a>&gt;</code></h4>
+<div class='docblock'><p>This function creates a new control object which will keep the local error on each step within an absolute error of eps_abs and relative
+error of eps_rel with respect to the derivatives of the solution y&#39;_i(t). This is equivalent to the standard control object with
+a_y=0 and a_dydt=1.</p>
+</div><h4 id='method.scaled_new' class='method'><code>fn <a href='#method.scaled_new' class='fnname'>scaled_new</a>(eps_abs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, eps_rel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_dydt: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, scale_abs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Control.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a>&gt;</code></h4>
+<div class='docblock'><p>This function creates a new control object which uses the same algorithm as gsl_odeiv2_control_standard_new but with an absolute error
+which is scaled for each component by the array scale_abs. The formula for D_i for this control object is,</p>
+
+<p>D_i = eps_abs * s_i + eps_rel * (a_y |y_i| + a_dydt h |y\prime_i|)</p>
+
+<p>where s_i is the i-th component of the array scale_abs. The same error control heuristic is used by the Matlab ODE suite.</p>
+</div><h4 id='method.alloc' class='method'><code>fn <a href='#method.alloc' class='fnname'>alloc</a>(t: &amp;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2ControlType.html' title='rgsl::types::ordinary_differential_equations::ODEiv2ControlType'>ODEiv2ControlType</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Control.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a>&gt;</code></h4>
+<div class='docblock'><p>This function returns a pointer to a newly allocated instance of a control function of type T. This function is only needed for
+defining new types of control functions. For most purposes the standard control functions described above should be sufficient.</p>
+</div><h4 id='method.init' class='method'><code>fn <a href='#method.init' class='fnname'>init</a>(&amp;mut self, eps_abs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, eps_rel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, a_dydt: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>This function initializes the control function c with the parameters eps_abs (absolute error), eps_rel (relative error), a_y
+(scaling factor for y) and a_dydt (scaling factor for derivatives).</p>
+</div><h4 id='method.hadjust' class='method'><code>fn <a href='#method.hadjust' class='fnname'>hadjust</a>(&amp;mut self, s: &amp;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Step.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Step'>ODEiv2Step</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, yerr: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, dydt: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, h: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.ODEiv.html' title='rgsl::ODEiv'>ODEiv</a></code></h4>
+<div class='docblock'><p>This function adjusts the step-size h using the control function c, and the current values of y, yerr and dydt. The stepping function
+step is also needed to determine the order of the method. If the error in the y-values yerr is found to be too large then the step-size
+h is reduced and the function returns ODEiv::Dec. If the error is sufficiently small then h may be increased and
+ODEiv::Inc is returned. The function returns ODEiv::Nil if the step-size is unchanged. The goal of the function is to estimate
+the largest step-size which satisfies the user-specified accuracy requirements for the current point.</p>
+</div><h4 id='method.name' class='method'><code>fn <a href='#method.name' class='fnname'>name</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a>&gt;</code></h4>
+<div class='docblock'><p>This function returns a pointer to the name of the control function. For example,</p>
+
+<pre><code class="language-Rust">println!(&quot;control method is &#39;{}&#39;&quot;, c.name());
+</code></pre>
+
+<p>would print something like control method is &#39;standard&#39;</p>
+</div><h4 id='method.errlevel' class='method'><code>fn <a href='#method.errlevel' class='fnname'>errlevel</a>(&amp;mut self, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, dydt: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, h: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, ind: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, errlev: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>This function calculates the desired error level of the ind-th component to errlev. It requires the value (y) and value of the derivative
+(dydt) of the component, and the current step size h.</p>
+</div><h4 id='method.set_driver' class='method'><code>fn <a href='#method.set_driver' class='fnname'>set_driver</a>(&amp;mut self, d: &amp;<a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>) -&gt; <a class='type' href='../../../rgsl/type.GSLResult.html' title='rgsl::GSLResult'>GSLResult</a>&lt;<a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.tuple.html'>()</a>&gt;</code></h4>
+<div class='docblock'><p>This function sets a pointer of the driver object d for control object c.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/ordinary_differential_equations/struct.ODEiv2Control.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13207' class='srclink' href='../../../src/rgsl/types/ordinary_differential_equations.rs.html#494-499' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

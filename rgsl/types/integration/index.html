@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `integration` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, integration">
+
+    <title>rgsl::types::integration - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a></p><script>window.sidebarCurrent = {name: 'integration', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a class='mod' href=''>integration</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-10032' class='srclink' href='../../../src/rgsl/types/integration.rs.html#5-4891' title='goto source code'>[src]</a></span></h1>
+<h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.CquadWorkspace.html'
+                                  title='rgsl::types::integration::CquadWorkspace'>CquadWorkspace</a></td>
+                           <td class='docblock short'>
+                                <p>CQUAD is a new doubly-adaptive general-purpose quadrature routine which can handle most types of singularities, non-numerical function
+values such as Inf or NaN, as well as some divergent integrals. It generally requires more function evaluations than the integration
+routines in QUADPACK, yet fails less often for difficult integrands.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.GLFixedTable.html'
+                                  title='rgsl::types::integration::GLFixedTable'>GLFixedTable</a></td>
+                           <td class='docblock short'>
+                                <p>The fixed-order Gauss-Legendre integration routines are provided for fast integration of smooth functions with known polynomial order.
+The n-point Gauss-Legendre rule is exact for polynomials of order 2*n-1 or less. For example, these rules are useful when integrating
+basis functions to form mass matrices for the Galerkin method. Unlike other numerical integration routines within the library, these
+routines do not accept absolute or relative error bounds.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.IntegrationQawoTable.html'
+                                  title='rgsl::types::integration::IntegrationQawoTable'>IntegrationQawoTable</a></td>
+                           <td class='docblock short'>
+                                <p>The QAWO algorithm is designed for integrands with an oscillatory factor, \sin(\omega x) or \cos(\omega x). In order to work efficiently
+the algorithm requires a table of Chebyshev moments which must be pre-computed with calls to the functions below.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.IntegrationQawsTable.html'
+                                  title='rgsl::types::integration::IntegrationQawsTable'>IntegrationQawsTable</a></td>
+                           <td class='docblock short'>
+                                <p>The QAWS algorithm is designed for integrands with algebraic-logarithmic singularities at the end-points of an integration region. In order
+to work efficiently the algorithm requires a precomputed table of Chebyshev moments.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.IntegrationWorkspace.html'
+                                  title='rgsl::types::integration::IntegrationWorkspace'>IntegrationWorkspace</a></td>
+                           <td class='docblock short'>
+                                <p>The QAG algorithm is a simple adaptive integration procedure. The integration region is divided into subintervals, and on each iteration
+the subinterval with the largest estimated error is bisected. This reduces the overall error rapidly, as the subintervals become concentrated
+around local difficulties in the integrand. These subintervals are managed by a gsl_integration_workspace struct, which handles the memory
+for the subinterval ranges, results and error estimates.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

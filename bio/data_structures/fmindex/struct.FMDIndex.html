@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `FMDIndex` struct in crate `bio`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, FMDIndex">
+
+    <title>bio::data_structures::fmindex::FMDIndex - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>bio</a>::<wbr><a href='../index.html'>data_structures</a>::<wbr><a href='index.html'>fmindex</a></p><script>window.sidebarCurrent = {name: 'FMDIndex', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>bio</a>::<wbr><a href='../index.html'>data_structures</a>::<wbr><a href='index.html'>fmindex</a>::<wbr><a class='struct' href=''>FMDIndex</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-1134' class='srclink' href='../../../src/bio/data_structures/fmindex.rs.html#181-187' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct FMDIndex&lt;DBWT:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefBWT.html' title='bio::data_structures::bwt::DerefBWT'>DerefBWT</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DLess:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefLess.html' title='bio::data_structures::bwt::DerefLess'>DerefLess</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DOcc:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefOcc.html' title='bio::data_structures::bwt::DerefOcc'>DerefOcc</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>&gt; {
+    // some fields omitted
+}</pre><div class='docblock'><p>The FMD-Index for linear time search of supermaximal exact matches on forward and reverse
+strand of DNA texts (Li, 2012).</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;DBWT:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefBWT.html' title='bio::data_structures::bwt::DerefBWT'>DerefBWT</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DLess:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefLess.html' title='bio::data_structures::bwt::DerefLess'>DerefLess</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DOcc:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefOcc.html' title='bio::data_structures::bwt::DerefOcc'>DerefOcc</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>&gt; <a class='struct' href='../../../bio/data_structures/fmindex/struct.FMDIndex.html' title='bio::data_structures::fmindex::FMDIndex'>FMDIndex</a>&lt;DBWT,&nbsp;DLess,&nbsp;DOcc&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-1160' class='srclink' href='../../../src/bio/data_structures/fmindex.rs.html#232-383' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.smems' class='method'><code>fn <a href='#method.smems' class='fnname'>smems</a>(&amp;self, pattern: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='../../../bio/data_structures/fmindex/struct.BiInterval.html' title='bio::data_structures::fmindex::BiInterval'>BiInterval</a>&gt;</code></h4>
+<div class='docblock'><p>Find supermaximal exact matches of given pattern that overlap position i in the pattern.
+Complexity O(m) with pattern of length m.</p>
+
+<h1 id='example' class='section-header'><a href='#example'>Example</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>use</span> <span class='ident'>bio</span>::<span class='ident'>alphabets</span>::<span class='ident'>dna</span>;
+<span class='kw'>use</span> <span class='ident'>bio</span>::<span class='ident'>data_structures</span>::<span class='ident'>fmindex</span>::{<span class='ident'>FMIndex</span>, <span class='ident'>FMDIndex</span>};
+<span class='kw'>use</span> <span class='ident'>bio</span>::<span class='ident'>data_structures</span>::<span class='ident'>suffix_array</span>::<span class='ident'>suffix_array</span>;
+<span class='kw'>use</span> <span class='ident'>bio</span>::<span class='ident'>data_structures</span>::<span class='ident'>bwt</span>::{<span class='ident'>bwt</span>, <span class='ident'>less</span>, <span class='ident'>Occ</span>};
+
+<span class='kw'>let</span> <span class='ident'>text</span> <span class='op'>=</span> <span class='string'>b&quot;ATTC$GAAT$&quot;</span>;
+<span class='kw'>let</span> <span class='ident'>alphabet</span> <span class='op'>=</span> <span class='ident'>dna</span>::<span class='ident'>n_alphabet</span>();
+<span class='kw'>let</span> <span class='ident'>sa</span> <span class='op'>=</span> <span class='ident'>suffix_array</span>(<span class='ident'>text</span>);
+<span class='kw'>let</span> <span class='ident'>bwt</span> <span class='op'>=</span> <span class='ident'>bwt</span>(<span class='ident'>text</span>, <span class='kw-2'>&amp;</span><span class='ident'>sa</span>);
+<span class='kw'>let</span> <span class='ident'>less</span> <span class='op'>=</span> <span class='ident'>less</span>(<span class='kw-2'>&amp;</span><span class='ident'>bwt</span>, <span class='kw-2'>&amp;</span><span class='ident'>alphabet</span>);
+<span class='kw'>let</span> <span class='ident'>occ</span> <span class='op'>=</span> <span class='ident'>Occ</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>bwt</span>, <span class='number'>3</span>, <span class='kw-2'>&amp;</span><span class='ident'>alphabet</span>);
+<span class='kw'>let</span> <span class='ident'>fm</span> <span class='op'>=</span> <span class='ident'>FMIndex</span>::<span class='ident'>new</span>(<span class='kw-2'>&amp;</span><span class='ident'>bwt</span>, <span class='kw-2'>&amp;</span><span class='ident'>less</span>, <span class='kw-2'>&amp;</span><span class='ident'>occ</span>);
+<span class='kw'>let</span> <span class='ident'>fmdindex</span> <span class='op'>=</span> <span class='ident'>FMDIndex</span>::<span class='ident'>from</span>(<span class='ident'>fm</span>);
+
+<span class='kw'>let</span> <span class='ident'>pattern</span> <span class='op'>=</span> <span class='string'>b&quot;ATT&quot;</span>;
+<span class='kw'>let</span> <span class='ident'>intervals</span> <span class='op'>=</span> <span class='ident'>fmdindex</span>.<span class='ident'>smems</span>(<span class='ident'>pattern</span>, <span class='number'>2</span>);
+
+<span class='kw'>let</span> <span class='ident'>forward_positions</span> <span class='op'>=</span> <span class='ident'>intervals</span>[<span class='number'>0</span>].<span class='ident'>forward</span>().<span class='ident'>occ</span>(<span class='kw-2'>&amp;</span><span class='ident'>sa</span>);
+
+<span class='kw'>let</span> <span class='ident'>revcomp_positions</span> <span class='op'>=</span> <span class='ident'>intervals</span>[<span class='number'>0</span>].<span class='ident'>revcomp</span>().<span class='ident'>occ</span>(<span class='kw-2'>&amp;</span><span class='ident'>sa</span>);
+
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>forward_positions</span>, [<span class='number'>0</span>]);
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='ident'>revcomp_positions</span>, [<span class='number'>6</span>]);</pre>
+</div><h4 id='method.backward_ext' class='method'><code>fn <a href='#method.backward_ext' class='fnname'>backward_ext</a>(&amp;self, interval: &amp;<a class='struct' href='../../../bio/data_structures/fmindex/struct.BiInterval.html' title='bio::data_structures::fmindex::BiInterval'>BiInterval</a>, a: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='struct' href='../../../bio/data_structures/fmindex/struct.BiInterval.html' title='bio::data_structures::fmindex::BiInterval'>BiInterval</a></code></h4>
+<h4 id='method.forward_ext' class='method'><code>fn <a href='#method.forward_ext' class='fnname'>forward_ext</a>(&amp;self, interval: &amp;<a class='struct' href='../../../bio/data_structures/fmindex/struct.BiInterval.html' title='bio::data_structures::fmindex::BiInterval'>BiInterval</a>, a: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='struct' href='../../../bio/data_structures/fmindex/struct.BiInterval.html' title='bio::data_structures::fmindex::BiInterval'>BiInterval</a></code></h4>
+</div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl&lt;DBWT:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefBWT.html' title='bio::data_structures::bwt::DerefBWT'>DerefBWT</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DLess:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefLess.html' title='bio::data_structures::bwt::DerefLess'>DerefLess</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DOcc:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefOcc.html' title='bio::data_structures::bwt::DerefOcc'>DerefOcc</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>&gt; <a class='trait' href='../../../bio/data_structures/fmindex/trait.FMIndexable.html' title='bio::data_structures::fmindex::FMIndexable'>FMIndexable</a> for <a class='struct' href='../../../bio/data_structures/fmindex/struct.FMDIndex.html' title='bio::data_structures::fmindex::FMDIndex'>FMDIndex</a>&lt;DBWT,&nbsp;DLess,&nbsp;DOcc&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-1139' class='srclink' href='../../../src/bio/data_structures/fmindex.rs.html#189-206' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.occ' class='method'><code>fn <a href='../../../bio/data_structures/fmindex/trait.FMIndexable.html#tymethod.occ' class='fnname'>occ</a>(&amp;self, r: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, a: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>Get occurrence count of symbol a in BWT[..r+1].</p>
+</div><h4 id='method.less' class='method'><code>fn <a href='../../../bio/data_structures/fmindex/trait.FMIndexable.html#tymethod.less' class='fnname'>less</a>(&amp;self, a: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>Also known as</p>
+</div><h4 id='method.bwt' class='method'><code>fn <a href='../../../bio/data_structures/fmindex/trait.FMIndexable.html#tymethod.bwt' class='fnname'>bwt</a>(&amp;self) -&gt; &amp;<a class='type' href='../../../bio/data_structures/bwt/type.BWT.html' title='bio::data_structures::bwt::BWT'>BWT</a></code></h4>
+<div class='docblock'><p>Provide a reference to the underlying BWT.</p>
+</div><h4 id='method.backward_search' class='method'><code>fn <a href='../../../bio/data_structures/fmindex/trait.FMIndexable.html#method.backward_search' class='fnname'>backward_search</a>&lt;'b,&nbsp;P:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html' title='core::iter::iterator::Iterator'>Iterator</a>&lt;Item=&amp;'b <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt; + <a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.DoubleEndedIterator.html' title='core::iter::traits::DoubleEndedIterator'>DoubleEndedIterator</a>&gt;(&amp;self, pattern: P) -&gt; <a class='struct' href='../../../bio/data_structures/fmindex/struct.Interval.html' title='bio::data_structures::fmindex::Interval'>Interval</a></code></h4>
+<div class='docblock'><p>Perform backward search, yielding suffix array interval denoting exact occurrences of the given pattern of length m in the text. Complexity: O(m). <a href="../../../bio/data_structures/fmindex/trait.FMIndexable.html#method.backward_search">Read more</a></p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl&lt;DBWT:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefBWT.html' title='bio::data_structures::bwt::DerefBWT'>DerefBWT</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DLess:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefLess.html' title='bio::data_structures::bwt::DerefLess'>DerefLess</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DOcc:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefOcc.html' title='bio::data_structures::bwt::DerefOcc'>DerefOcc</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/convert/trait.From.html' title='core::convert::From'>From</a>&lt;<a class='struct' href='../../../bio/data_structures/fmindex/struct.FMIndex.html' title='bio::data_structures::fmindex::FMIndex'>FMIndex</a>&lt;DBWT,&nbsp;DLess,&nbsp;DOcc&gt;&gt; for <a class='struct' href='../../../bio/data_structures/fmindex/struct.FMDIndex.html' title='bio::data_structures::fmindex::FMDIndex'>FMDIndex</a>&lt;DBWT,&nbsp;DLess,&nbsp;DOcc&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-1152' class='srclink' href='../../../src/bio/data_structures/fmindex.rs.html#208-230' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.from' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/convert/trait.From.html#tymethod.from' class='fnname'>from</a>(fmindex: <a class='struct' href='../../../bio/data_structures/fmindex/struct.FMIndex.html' title='bio::data_structures::fmindex::FMIndex'>FMIndex</a>&lt;DBWT,&nbsp;DLess,&nbsp;DOcc&gt;) -&gt; <a class='struct' href='../../../bio/data_structures/fmindex/struct.FMDIndex.html' title='bio::data_structures::fmindex::FMDIndex'>FMDIndex</a>&lt;DBWT,&nbsp;DLess,&nbsp;DOcc&gt;</code></h4>
+<div class='docblock'><p>Construct a new instance of the FMD index (see Heng Li (2012) Bioinformatics).
+This expects a BWT that was created from a text over the DNA alphabet with N
+(<code>alphabets::dna::n_alphabet()</code>) consisting of the
+concatenation with its reverse complement, separated by the sentinel symbol <code>$</code>.
+I.e., let T be the original text and R be its reverse complement.
+Then, the expected text is T$R$. Further, multiple concatenated texts are allowed, e.g.
+T1$R1$T2$R2$T3$R3$.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "bio";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

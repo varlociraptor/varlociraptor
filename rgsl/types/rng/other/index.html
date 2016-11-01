@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `other` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, other">
+
+    <title>rgsl::types::rng::other - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../../index.html'>rgsl</a>::<wbr><a href='../../index.html'>types</a>::<wbr><a href='../index.html'>rng</a></p><script>window.sidebarCurrent = {name: 'other', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../../index.html'>rgsl</a>::<wbr><a href='../../index.html'>types</a>::<wbr><a href='../index.html'>rng</a>::<wbr><a class='mod' href=''>other</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13726' class='srclink' href='../../../../src/rgsl/types/rng.rs.html#669-885' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h2 id='other-random-number-generators' class='section-header'><a href='#other-random-number-generators'>Other random number generators</a></h2>
+<p>The generators in this section are provided for compatibility with existing libraries. If you are converting an existing program to use GSL then 
+you can select these generators to check your new implementation against the original one, using the same random number generator. After verifying 
+that your new program reproduces the original results you can then switch to a higher-quality generator.</p>
+
+<p>Note that most of the generators in this section are based on single linear congruence relations, which are the least sophisticated type of generator. 
+In particular, linear congruences have poor properties when used with a non-prime modulus, as several of these routines do (e.g. with a power of two modulus, 
+2<sup>31</sup> or 2<sup>32).</sup> This leads to periodicity in the least significant bits of each number, with only the higher bits having any randomness. 
+Thus if you want to produce a random bitstream it is best to avoid using the least significant bits.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.borosh13.html'
+                                  title='rgsl::types::rng::other::borosh13'>borosh13</a></td>
+                           <td class='docblock short'>
+                                <p>This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.coveyou.html'
+                                  title='rgsl::types::rng::other::coveyou'>coveyou</a></td>
+                           <td class='docblock short'>
+                                <p>This is the Coveyou random number generator. It is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., Section 3.2.2. Its sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fishman18.html'
+                                  title='rgsl::types::rng::other::fishman18'>fishman18</a></td>
+                           <td class='docblock short'>
+                                <p>This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fishman20.html'
+                                  title='rgsl::types::rng::other::fishman20'>fishman20</a></td>
+                           <td class='docblock short'>
+                                <p>This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.fishman2x.html'
+                                  title='rgsl::types::rng::other::fishman2x'>fishman2x</a></td>
+                           <td class='docblock short'>
+                                <p>This is the L’Ecuyer–Fishman random number generator. It is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., page 108. Its sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.knuthran.html'
+                                  title='rgsl::types::rng::other::knuthran'>knuthran</a></td>
+                           <td class='docblock short'>
+                                <p>This is a second-order multiple recursive generator described by Knuth in Seminumerical Algorithms, 3rd Ed., Section 3.6. Knuth provides
+its C code. The updated routine gsl_rng_knuthran2002 is from the revised 9th printing and corrects some weaknesses in the earlier version,
+which is implemented as gsl_rng_knuthran.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.knuthran2.html'
+                                  title='rgsl::types::rng::other::knuthran2'>knuthran2</a></td>
+                           <td class='docblock short'>
+                                <p>This is a second-order multiple recursive generator described by Knuth in Seminumerical Algorithms, 3rd Ed., page 108. Its sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.knuthran2002.html'
+                                  title='rgsl::types::rng::other::knuthran2002'>knuthran2002</a></td>
+                           <td class='docblock short'>
+                                <p>This is a second-order multiple recursive generator described by Knuth in Seminumerical Algorithms, 3rd Ed., Section 3.6. Knuth provides
+its C code. The updated routine gsl_rng_knuthran2002 is from the revised 9th printing and corrects some weaknesses in the earlier version,
+which is implemented as gsl_rng_knuthran.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.lecuyer21.html'
+                                  title='rgsl::types::rng::other::lecuyer21'>lecuyer21</a></td>
+                           <td class='docblock short'>
+                                <p>This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.minstd.html'
+                                  title='rgsl::types::rng::other::minstd'>minstd</a></td>
+                           <td class='docblock short'>
+                                <p>This is Park and Miller’s “minimal standard” MINSTD generator, a simple linear congruence which takes care to avoid the major pitfalls of such algorithms. Its sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.r250.html'
+                                  title='rgsl::types::rng::other::r250'>r250</a></td>
+                           <td class='docblock short'>
+                                <p>This is the shift-register generator of Kirkpatrick and Stoll. The sequence is based on the recurrence</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.randu.html'
+                                  title='rgsl::types::rng::other::randu'>randu</a></td>
+                           <td class='docblock short'>
+                                <p>This is the IBM RANDU generator. Its sequence is</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ranf.html'
+                                  title='rgsl::types::rng::other::ranf'>ranf</a></td>
+                           <td class='docblock short'>
+                                <p>This is the CRAY random number generator RANF. Its sequence is</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ranmar.html'
+                                  title='rgsl::types::rng::other::ranmar'>ranmar</a></td>
+                           <td class='docblock short'>
+                                <p>This is the RANMAR lagged-fibonacci generator of Marsaglia, Zaman and Tsang. It is a 24-bit generator, originally designed for single-precision IEEE floating point numbers.
+It was included in the CERNLIB high-energy physics library.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.slatec.html'
+                                  title='rgsl::types::rng::other::slatec'>slatec</a></td>
+                           <td class='docblock short'>
+                                <p>This is the SLATEC random number generator RAND. It is ancient. The original source code is available from NETLIB.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.transputer.html'
+                                  title='rgsl::types::rng::other::transputer'>transputer</a></td>
+                           <td class='docblock short'>
+                                <p>This is the random number generator from the INMOS Transputer Development system. Its sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.tt800.html'
+                                  title='rgsl::types::rng::other::tt800'>tt800</a></td>
+                           <td class='docblock short'>
+                                <p>This is an earlier version of the twisted generalized feedback shift-register generator, and has been superseded by the development of MT19937. However, it is
+still an acceptable generator in its own right. It has a period of 2<sup>800</sup> and uses 33 words of storage per generator.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.uni.html'
+                                  title='rgsl::types::rng::other::uni'>uni</a></td>
+                           <td class='docblock short'>
+                                <p>This is a reimplementation of the 16-bit SLATEC random number generator RUNIF. A generalization of the generator to 32 bits is provided by gsl_rng_uni32.
+The original source code is available from NETLIB.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.uni32.html'
+                                  title='rgsl::types::rng::other::uni32'>uni32</a></td>
+                           <td class='docblock short'>
+                                <p>This is a reimplementation of the 16-bit SLATEC random number generator RUNIF. A generalization of the generator to 32 bits is provided by gsl_rng_uni32.
+The original source code is available from NETLIB.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.vax.html'
+                                  title='rgsl::types::rng::other::vax'>vax</a></td>
+                           <td class='docblock short'>
+                                <p>This is the VAX generator MTH$RANDOM. Its sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.waterman14.html'
+                                  title='rgsl::types::rng::other::waterman14'>waterman14</a></td>
+                           <td class='docblock short'>
+                                <p>This multiplicative generator is taken from Knuth’s Seminumerical Algorithms, 3rd Ed., pages 106–108. Their sequence is,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zuf.html'
+                                  title='rgsl::types::rng::other::zuf'>zuf</a></td>
+                           <td class='docblock short'>
+                                <p>This is the ZUFALL lagged Fibonacci series generator of Peterson. Its sequence is,</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../../jquery.js"></script>
+    <script src="../../../../main.js"></script>
+    
+    <script defer src="../../../../search-index.js"></script>
+</body>
+</html>

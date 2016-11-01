@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Permutation` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Permutation">
+
+    <title>rgsl::types::permutation::Permutation - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>permutation</a></p><script>window.sidebarCurrent = {name: 'Permutation', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>permutation</a>::<wbr><a class='struct' href=''>Permutation</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13354' class='srclink' href='../../../src/rgsl/types/permutation.rs.html#12-15' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Permutation {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13357' class='srclink' href='../../../src/rgsl/types/permutation.rs.html#42-195' title='goto source code'>[src]</a></span></h3>
+<div class='docblock'>
+<h2 id='permutations-in-cyclic-form' class='section-header'><a href='#permutations-in-cyclic-form'>Permutations in cyclic form</a></h2>
+<p>A permutation can be represented in both linear and cyclic notations. The functions described in this section convert between the two forms.
+ The linear notation is an index mapping, and has already been described above. The cyclic notation expresses a permutation as a series of
+ circular rearrangements of groups of elements, or cycles.</p>
+
+<p>For example, under the cycle (1 2 3), 1 is replaced by 2, 2 is replaced by 3 and 3 is replaced by 1 in a circular fashion. Cycles of different
+ sets of elements can be combined independently, for example (1 2 3) (4 5) combines the cycle (1 2 3) with the cycle (4 5), which is an exchange
+ of elements 4 and 5. A cycle of length one represents an element which is unchanged by the permutation and is referred to as a singleton.</p>
+
+<p>It can be shown that every permutation can be decomposed into combinations of cycles. The decomposition is not unique, but can always be
+ rearranged into a standard canonical form by a reordering of elements. The library uses the canonical form defined in Knuth’s Art of Computer
+ Programming (Vol 1, 3rd Ed, 1997) Section 1.3.3, p.178.</p>
+
+<p>The procedure for obtaining the canonical form given by Knuth is,</p>
+
+<p>Write all singleton cycles explicitly
+ Within each cycle, put the smallest number first
+ Order the cycles in decreasing order of the first number in the cycle.
+ For example, the linear representation (2 4 3 0 1) is represented as (1 4) (0 2 3) in canonical form. The permutation corresponds to an exchange
+ of elements 1 and 4, and rotation of elements 0, 2 and 3.</p>
+
+<p>The important property of the canonical form is that it can be reconstructed from the contents of each cycle without the brackets. In addition,
+ by removing the brackets it can be considered as a linear representation of a different permutation. In the example given above the permutation
+ (2 4 3 0 1) would become (1 4 0 2 3). This mapping has many applications in the theory of permutations.</p>
+</div><div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates memory for a new permutation of size n. The permutation is not initialized and its elements are undefined.
+Use the function gsl_permutation_calloc if you want to create a permutation which is initialized to the identity. A null pointer is
+returned if insufficient memory is available to create the permutation.</p>
+</div><h4 id='method.new_with_init' class='method'><code>fn <a href='#method.new_with_init' class='fnname'>new_with_init</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates memory for a new permutation of size n and initializes it to the identity. A null pointer is returned if
+insufficient memory is available to create the permutation.</p>
+</div><h4 id='method.init' class='method'><code>fn <a href='#method.init' class='fnname'>init</a>(&amp;self)</code></h4>
+<div class='docblock'><p>This function initializes the permutation p to the identity, i.e. (0,1,2,…,n-1).</p>
+</div><h4 id='method.copy' class='method'><code>fn <a href='#method.copy' class='fnname'>copy</a>(&amp;self, dest: &amp;<a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function copies the elements of the permutation src into the permutation dest. The two permutations must have the same size.</p>
+</div><h4 id='method.get' class='method'><code>fn <a href='#method.get' class='fnname'>get</a>(&amp;self, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>This function returns the value of the i-th element of the permutation p. If i lies outside the allowed range of 0 to n-1 then
+the error handler is invoked and 0 is returned.</p>
+</div><h4 id='method.swap' class='method'><code>fn <a href='#method.swap' class='fnname'>swap</a>(&amp;self, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, j: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function exchanges the i-th and j-th elements of the permutation p.</p>
+</div><h4 id='method.size' class='method'><code>fn <a href='#method.size' class='fnname'>size</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>This function returns the size of the permutation p.</p>
+</div><h4 id='method.data' class='method'><code>fn <a href='#method.data' class='fnname'>data</a>&lt;'r&gt;(&amp;'r mut self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;'r mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a></code></h4>
+<div class='docblock'><p>This function returns a pointer to the array of elements in the permutation p.</p>
+</div><h4 id='method.is_valid' class='method'><code>fn <a href='#method.is_valid' class='fnname'>is_valid</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>This function checks that the permutation p is valid. The n elements should contain each of the numbers 0 to n-1 once and only once.</p>
+</div><h4 id='method.reverse' class='method'><code>fn <a href='#method.reverse' class='fnname'>reverse</a>(&amp;self)</code></h4>
+<div class='docblock'><p>This function reverses the elements of the permutation p.</p>
+</div><h4 id='method.inverse' class='method'><code>fn <a href='#method.inverse' class='fnname'>inverse</a>(&amp;self, inv: &amp;<a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function computes the inverse of the permutation p, storing the result in inv.</p>
+</div><h4 id='method.next' class='method'><code>fn <a href='#method.next' class='fnname'>next</a>(&amp;self) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function advances the permutation p to the next permutation in lexicographic order and returns GSL_SUCCESS. If no further
+permutations are available it returns GSL_FAILURE and leaves p unmodified. Starting with the identity permutation and repeatedly
+applying this function will iterate through all possible permutations of a given order.</p>
+</div><h4 id='method.prev' class='method'><code>fn <a href='#method.prev' class='fnname'>prev</a>(&amp;self) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function steps backwards from the permutation p to the previous permutation in lexicographic order, returning GSL_SUCCESS.
+If no previous permutation is available it returns GSL_FAILURE and leaves p unmodified.</p>
+</div><h4 id='method.permute' class='method'><code>fn <a href='#method.permute' class='fnname'>permute</a>(&amp;self, data: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, stride: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function applies the permutation to the array data of size n with stride stride.</p>
+</div><h4 id='method.permute_inverse' class='method'><code>fn <a href='#method.permute_inverse' class='fnname'>permute_inverse</a>(&amp;self, data: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;mut [</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, stride: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function applies the inverse of the permutation p to the array data of size n with stride stride.</p>
+</div><h4 id='method.permute_vector' class='method'><code>fn <a href='#method.permute_vector' class='fnname'>permute_vector</a>(&amp;self, v: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function applies the permutation p to the elements of the vector v, considered as a row-vector acted on by a permutation
+matrix from the right, v&#39; = v P. The j-th column of the permutation matrix P is given by the p_j-th column of the identity matrix.
+The permutation p and the vector v must have the same length.</p>
+</div><h4 id='method.permute_vector_inverse' class='method'><code>fn <a href='#method.permute_vector_inverse' class='fnname'>permute_vector_inverse</a>(&amp;self, v: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function applies the inverse of the permutation p to the elements of the vector v, considered as a row-vector acted on by an inverse permutation
+matrix from the right, v&#39; = v P<sup>T.</sup> Note that for permutation matrices the inverse is the same as the transpose. The j-th column of the permutation
+matrix P is given by the p_j-th column of the identity matrix. The permutation p and the vector v must have the same length.</p>
+</div><h4 id='method.mul' class='method'><code>fn <a href='#method.mul' class='fnname'>mul</a>(&amp;self, pa: &amp;<a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>, pb: &amp;<a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function combines the two permutations pa and pb into a single permutation p, where p = pa * pb. The permutation p is equivalent to applying pb
+first and then pa.</p>
+</div><h4 id='method.linear_to_canonical' class='method'><code>fn <a href='#method.linear_to_canonical' class='fnname'>linear_to_canonical</a>(&amp;self, q: &amp;<a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function computes the canonical form of the permutation self and stores it in the output argument q.</p>
+</div><h4 id='method.canonical_to_linear' class='method'><code>fn <a href='#method.canonical_to_linear' class='fnname'>canonical_to_linear</a>(&amp;self, p: &amp;<a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function converts the self permutation in canonical form back into linear form storing it in the output argument p.</p>
+</div><h4 id='method.inversions' class='method'><code>fn <a href='#method.inversions' class='fnname'>inversions</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>This function counts the number of inversions in the self permutation. An inversion is any pair of elements that are not in order. For example, the
+permutation 2031 has three inversions, corresponding to the pairs (2,0) (2,1) and (3,1). The identity permutation has no inversions.</p>
+</div><h4 id='method.linear_cycles' class='method'><code>fn <a href='#method.linear_cycles' class='fnname'>linear_cycles</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>This function counts the number of cycles in the self permutation, given in linear form.</p>
+</div><h4 id='method.canonical_cycles' class='method'><code>fn <a href='#method.canonical_cycles' class='fnname'>canonical_cycles</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>This function counts the number of cycles in the self permutation, given in canonical form.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13422' class='srclink' href='../../../src/rgsl/types/permutation.rs.html#197-202' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../../../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-13430' class='srclink' href='../../../src/rgsl/types/permutation.rs.html#219-232' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

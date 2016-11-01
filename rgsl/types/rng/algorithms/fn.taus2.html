@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `taus2` fn in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, taus2">
+
+    <title>rgsl::types::rng::algorithms::taus2 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../../index.html'>rgsl</a>::<wbr><a href='../../index.html'>types</a>::<wbr><a href='../index.html'>rng</a>::<wbr><a href='index.html'>algorithms</a></p><script>window.sidebarCurrent = {name: 'taus2', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content fn">
+<h1 class='fqn'><span class='in-band'>Function <a href='../../../index.html'>rgsl</a>::<wbr><a href='../../index.html'>types</a>::<wbr><a href='../index.html'>rng</a>::<wbr><a href='index.html'>algorithms</a>::<wbr><a class='fn' href=''>taus2</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-13716' class='srclink' href='../../../../src/rgsl/types/rng.rs.html#528-530' title='goto source code'>[src]</a></span></h1>
+<pre class='rust fn'>pub fn taus2() -&gt; <a class='struct' href='../../../../rgsl/types/rng/struct.RngType.html' title='rgsl::types::rng::RngType'>RngType</a></pre><div class='docblock'><p>This is a maximally equidistributed combined Tausworthe generator by L’Ecuyer. The sequence is,</p>
+
+<p>x_n = (s1_n <sup>^</sup> s2_n <sup>^</sup> s3_n) </p>
+
+<p>where,</p>
+
+<p>s1_{n+1} = (((s1_n&amp;4294967294)&lt;<12)^^(((s1_n<<13)^^s1_n)>&gt;19))
+s2_{n+1} = (((s2_n&amp;4294967288)&lt;&lt; 4)<sup>(s2_n&lt;&lt;</sup> 2)<sup><sup>s2_n)&gt;&gt;25))</sup></sup>
+s3_{n+1} = (((s3_n&amp;4294967280)&lt;<17)^^(((s3_n<< 3)^^s3_n)>&gt;11))</p>
+
+<p>computed modulo 2<sup>32.</sup> In the formulas above <sup>^</sup> denotes “exclusive-or”. Note that the algorithm relies on the properties of 32-bit
+unsigned integers and has been implemented using a bitmask of 0xFFFFFFFF to make it work on 64 bit machines.</p>
+
+<p>The period of this generator is 2<sup>88</sup> (about 10<sup>26).</sup> It uses 3 words of state per generator. For more information see,</p>
+
+<p>P. L’Ecuyer, “Maximally Equidistributed Combined Tausworthe Generators”, Mathematics of Computation, 65, 213 (1996), 203–213.</p>
+
+<p>The generator gsl_rng_taus2 uses the same algorithm as gsl_rng_taus but with an improved seeding procedure described in the paper,</p>
+
+<p>P. L’Ecuyer, “Tables of Maximally Equidistributed Combined LFSR Generators”, Mathematics of Computation, 68, 225 (1999), 261–269</p>
+
+<p>The generator gsl_rng_taus2 should now be used in preference to gsl_rng_taus.</p>
+</div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../../jquery.js"></script>
+    <script src="../../../../main.js"></script>
+    
+    <script defer src="../../../../search-index.js"></script>
+</body>
+</html>

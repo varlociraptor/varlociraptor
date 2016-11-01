@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Minimizer` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Minimizer">
+
+    <title>rgsl::types::minimizer::Minimizer - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>minimizer</a></p><script>window.sidebarCurrent = {name: 'Minimizer', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>minimizer</a>::<wbr><a class='struct' href=''>Minimizer</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-12119' class='srclink' href='../../../src/rgsl/types/minimizer.rs.html#107-118' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Minimizer&lt;T&gt; {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class='struct' href='../../../rgsl/types/minimizer/struct.Minimizer.html' title='rgsl::types::minimizer::Minimizer'>Minimizer</a>&lt;T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12131' class='srclink' href='../../../src/rgsl/types/minimizer.rs.html#120-265' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(t: &amp;<a class='struct' href='../../../rgsl/types/minimizer/struct.MinimizerType.html' title='rgsl::types::minimizer::MinimizerType'>MinimizerType</a>&lt;T&gt;) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/minimizer/struct.Minimizer.html' title='rgsl::types::minimizer::Minimizer'>Minimizer</a>&lt;T&gt;&gt;</code></h4>
+<div class='docblock'><p>This function returns a pointer to a newly allocated instance of a minimizer of type T. For example, the following code creates an
+instance of a golden section minimizer,</p>
+
+<pre><code class="language-C">const gsl_min_fminimizer_type * T
+  = gsl_min_fminimizer_goldensection;
+gsl_min_fminimizer * s
+  = gsl_min_fminimizer_alloc (T);
+</code></pre>
+
+<p>If there is insufficient memory to create the minimizer then the function returns a null pointer and the error handler is invoked
+with an error code of ::NoMem.</p>
+</div><h4 id='method.set' class='method'><code>fn <a href='#method.set' class='fnname'>set</a>(&amp;mut self, f: <a class='type' href='../../../rgsl/type.function.html' title='rgsl::function'>function</a>&lt;T&gt;, arg: &amp;mut T, x_minimum: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, x_lower: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, x_upper: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function sets, or resets, an existing minimizer s to use the function f and the initial search interval [x_lower, x_upper], with
+a guess for the location of the minimum x_minimum.</p>
+
+<p>If the interval given does not contain a minimum, then the function returns an error code of ::Value::Invalid.</p>
+</div><h4 id='method.set_with_values' class='method'><code>fn <a href='#method.set_with_values' class='fnname'>set_with_values</a>(&amp;mut self, f: <a class='type' href='../../../rgsl/type.function.html' title='rgsl::function'>function</a>&lt;T&gt;, arg: &amp;mut T, x_minimum: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, f_minimum: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, x_lower: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, f_lower: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, x_upper: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, f_upper: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function is equivalent to gsl_min_fminimizer_set but uses the values f_minimum, f_lower and f_upper instead of computing
+f(x_minimum), f(x_lower) and f(x_upper).</p>
+</div><h4 id='method.name' class='method'><code>fn <a href='#method.name' class='fnname'>name</a>(&amp;self) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/string/struct.String.html' title='collections::string::String'>String</a></code></h4>
+<div class='docblock'><p>This function returns a pointer to the name of the minimizer. For example,</p>
+
+<pre><code class="language-C">printf(&quot;s is a &#39;%s&#39; minimizer\n&quot;, gsl_min_fminimizer_name (s));
+</code></pre>
+
+<p>would print something like s is a &#39;brent&#39; minimizer.</p>
+</div><h4 id='method.x_minimum' class='method'><code>fn <a href='#method.x_minimum' class='fnname'>x_minimum</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the current estimate of the position of the minimum for the minimizer s.</p>
+</div><h4 id='method.x_lower' class='method'><code>fn <a href='#method.x_lower' class='fnname'>x_lower</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the current upper and lower bound of the interval for the minimizer s.</p>
+</div><h4 id='method.x_upper' class='method'><code>fn <a href='#method.x_upper' class='fnname'>x_upper</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>/// This function returns the current upper and lower bound of the interval for the minimizer s.</p>
+</div><h4 id='method.f_minimum' class='method'><code>fn <a href='#method.f_minimum' class='fnname'>f_minimum</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the value of the function at the current estimate of the minimum and at the upper and lower bounds of the
+interval for the minimizer s.</p>
+</div><h4 id='method.f_lower' class='method'><code>fn <a href='#method.f_lower' class='fnname'>f_lower</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the value of the function at the current estimate of the minimum and at the upper and lower bounds of the
+interval for the minimizer s.</p>
+</div><h4 id='method.f_upper' class='method'><code>fn <a href='#method.f_upper' class='fnname'>f_upper</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the value of the function at the current estimate of the minimum and at the upper and lower bounds of the
+interval for the minimizer s.</p>
+</div><h4 id='method.iterate' class='method'><code>fn <a href='#method.iterate' class='fnname'>iterate</a>(&amp;mut self) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function performs a single iteration of the minimizer s. If the iteration encounters an unexpected problem then an error code
+will be returned,</p>
+
+<p>::Value::BadFunc
+the iteration encountered a singular point where the function evaluated to Inf or NaN.</p>
+
+<p>::Value::Failure
+the algorithm could not improve the current best approximation or bounding interval.</p>
+
+<p>The minimizer maintains a current best estimate of the position of the minimum at all times, and the current interval bounding the
+minimum. This information can be accessed with the following auxiliary functions,</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl&lt;T&gt; <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/minimizer/struct.Minimizer.html' title='rgsl::types::minimizer::Minimizer'>Minimizer</a>&lt;T&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-12182' class='srclink' href='../../../src/rgsl/types/minimizer.rs.html#267-272' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

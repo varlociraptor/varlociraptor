@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["bernoulli","This function returns either 0 or 1, the result of a Bernoulli trial with probability p. The probability distribution for a Bernoulli trial is,"],["bernoulli_pdf","This function computes the probability p(k) of obtaining k from a Bernoulli distribution with probability parameter p, using the formula given above."]]});

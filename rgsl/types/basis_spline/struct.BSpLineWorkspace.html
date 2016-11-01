@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `BSpLineWorkspace` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, BSpLineWorkspace">
+
+    <title>rgsl::types::basis_spline::BSpLineWorkspace - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>basis_spline</a></p><script>window.sidebarCurrent = {name: 'BSpLineWorkspace', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>basis_spline</a>::<wbr><a class='struct' href=''>BSpLineWorkspace</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-9042' class='srclink' href='../../../src/rgsl/types/basis_spline.rs.html#43-45' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct BSpLineWorkspace {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/basis_spline/struct.BSpLineWorkspace.html' title='rgsl::types::basis_spline::BSpLineWorkspace'>BSpLineWorkspace</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9044' class='srclink' href='../../../src/rgsl/types/basis_spline.rs.html#47-102' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(k: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, nbreak: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/basis_spline/struct.BSpLineWorkspace.html' title='rgsl::types::basis_spline::BSpLineWorkspace'>BSpLineWorkspace</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates a workspace for computing B-splines of order k.
+The number of breakpoints is given by nbreak. This leads to n = nbreak + k - 2 basis functions.
+Cubic B-splines are specified by k = 4. The size of the workspace is O(5k + nbreak).</p>
+</div><h4 id='method.knots' class='method'><code>fn <a href='#method.knots' class='fnname'>knots</a>(&amp;self, breakpts: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function computes the knots associated with the given breakpoints and stores them internally in w-&gt;knots.</p>
+</div><h4 id='method.knots_uniform' class='method'><code>fn <a href='#method.knots_uniform' class='fnname'>knots_uniform</a>(&amp;self, a: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, b: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function assumes uniformly spaced breakpoints on [a,b] and constructs the corresponding knot vector using the previously specified nbreak parameter.
+The knots are stored in w-&gt;knots.</p>
+</div><h4 id='method.eval' class='method'><code>fn <a href='#method.eval' class='fnname'>eval</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, B: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function evaluates all B-spline basis functions at the position x and stores them in the vector B, so that the i-th element is B_i(x).
+The vector B must be of length n = nbreak + k - 2. This value may also be obtained by calling gsl_bspline_ncoeffs.
+Computing all the basis functions at once is more efficient than computing them individually, due to the nature of the defining recurrence relation.</p>
+</div><h4 id='method.eval_non_zero' class='method'><code>fn <a href='#method.eval_non_zero' class='fnname'>eval_non_zero</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, Bk: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>, istart: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, iend: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function evaluates all potentially nonzero B-spline basis functions at the position x and stores them in the vector Bk, so that the i-th element is B_(istart+i)(x).
+The last element of Bk is B_(iend)(x). The vector Bk must be of length k.
+By returning only the nonzero basis functions, this function allows quantities involving linear combinations of the B_i(x) to be computed without unnecessary terms (such linear combinations occur, for example, when evaluating an interpolated function).</p>
+</div><h4 id='method.ncoeffs' class='method'><code>fn <a href='#method.ncoeffs' class='fnname'>ncoeffs</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>This function returns the number of B-spline coefficients given by n = nbreak + k - 2.</p>
+</div><h4 id='method.greville_abscissa' class='method'><code>fn <a href='#method.greville_abscissa' class='fnname'>greville_abscissa</a>(&amp;self, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>The Greville abscissae are defined to be the mean location of k-1 consecutive knots in the knot vector for each basis spline function of order k.
+With the first and last knots in the gsl_bspline_workspace knot vector excluded, there are gsl_bspline_ncoeffs Greville abscissae for any given B-spline basis.
+These values are often used in B-spline collocation applications and may also be called Marsden-Schoenberg points.</p>
+
+<p>Returns the location of the i-th Greville abscissa for the given B-spline basis.
+For the ill-defined case when k=1, the implementation chooses to return breakpoint interval midpoints.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/basis_spline/struct.BSpLineWorkspace.html' title='rgsl::types::basis_spline::BSpLineWorkspace'>BSpLineWorkspace</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9071' class='srclink' href='../../../src/rgsl/types/basis_spline.rs.html#104-109' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

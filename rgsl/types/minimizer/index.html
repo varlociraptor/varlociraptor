@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `minimizer` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, minimizer">
+
+    <title>rgsl::types::minimizer - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a></p><script>window.sidebarCurrent = {name: 'minimizer', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a class='mod' href=''>minimizer</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-12094' class='srclink' href='../../../src/rgsl/types/minimizer.rs.html#5-771' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='one-dimensional-minimization' class='section-header'><a href='#one-dimensional-minimization'>One dimensional Minimization</a></h1>
+<p>This chapter describes routines for finding minima of arbitrary one-dimensional functions. The library provides low level components for a
+variety of iterative minimizers and convergence tests. These can be combined by the user to achieve the desired solution, with full access
+to the intermediate steps of the algorithms. Each class of methods uses the same framework, so that you can switch between minimizers at
+runtime without needing to recompile your program. Each instance of a minimizer keeps track of its own state, allowing the minimizers to be
+used in multi-threaded programs.</p>
+
+<h2 id='overview' class='section-header'><a href='#overview'>Overview</a></h2>
+<p>The minimization algorithms begin with a bounded region known to contain a minimum. The region is described by a lower bound a and an upper
+bound b, with an estimate of the location of the minimum x.</p>
+
+<p>The value of the function at x must be less than the value of the function at the ends of the interval,</p>
+
+<p>f(a) &gt; f(x) &lt; f(b)
+This condition guarantees that a minimum is contained somewhere within the interval. On each iteration a new point x&#39; is selected using one
+of the available algorithms. If the new point is a better estimate of the minimum, i.e. where f(x&#39;) &lt; f(x), then the current estimate of
+the minimum x is updated. The new point also allows the size of the bounded interval to be reduced, by choosing the most compact set of
+points which satisfies the constraint f(a) &gt; f(x) &lt; f(b). The interval is reduced until it encloses the true minimum to a desired tolerance.
+This provides a best estimate of the location of the minimum and a rigorous error estimate.</p>
+
+<p>Several bracketing algorithms are available within a single framework. The user provides a high-level driver for the algorithm, and the library
+provides the individual functions necessary for each of the steps. There are three main phases of the iteration. The steps are,</p>
+
+<ul>
+<li>initialize minimizer state, s, for algorithm T</li>
+<li>update s using the iteration T</li>
+<li>test s for convergence, and repeat iteration if necessary</li>
+</ul>
+
+<p>The state for the minimizers is held in a gsl_min_fminimizer struct. The updating procedure uses only function evaluations (not derivatives).</p>
+
+<h2 id='caveats' class='section-header'><a href='#caveats'>Caveats</a></h2>
+<p>Note that minimization functions can only search for one minimum at a time. When there are several minima in the search area, the first minimum
+to be found will be returned; however it is difficult to predict which of the minima this will be. In most cases, no error will be reported if
+you try to find a minimum in an area where there is more than one.</p>
+
+<p>With all minimization algorithms it can be difficult to determine the location of the minimum to full numerical precision. The behavior of the
+function in the region of the minimum x<sup>*</sup> can be approximated by a Taylor expansion,</p>
+
+<p>y = f(x<sup>*)</sup> + (1/2) f&#39;&#39;(x<sup>*)</sup> (x - x<sup>*)<sup>2</sup></sup></p>
+
+<p>and the second term of this expansion can be lost when added to the first term at finite precision. This magnifies the error in locating x<sup>*,</sup>
+making it proportional to \sqrt \epsilon (where \epsilon is the relative accuracy of the floating point numbers). For functions with higher
+order minima, such as x<sup>4,</sup> the magnification of the error is correspondingly worse. The best that can be achieved is to converge to the limit
+of numerical accuracy in the function values, rather than the location of the minimum itself.</p>
+
+<h2 id='providing-the-function-to-minimize' class='section-header'><a href='#providing-the-function-to-minimize'>Providing the function to minimize</a></h2>
+<p>You must provide a continuous function of one variable for the minimizers to operate on. In order to allow for general parameters the functions
+are defined by a gsl_function data type (see <a href="http://www.gnu.org/software/gsl/manual/html_node/Providing-the-function-to-solve.html#Providing-the-function-to-solve">Providing the function to solve</a>).</p>
+
+<h2 id='iteration' class='section-header'><a href='#iteration'>Iteration</a></h2>
+<p>The following functions drive the iteration of each algorithm. Each function performs one iteration to update the state of any minimizer of
+the corresponding type. The same functions work for all minimizers so that different methods can be substituted at runtime without modifications
+to the code.</p>
+
+<h2 id='stopping-parameters' class='section-header'><a href='#stopping-parameters'>Stopping Parameters</a></h2>
+<p>A minimization procedure should stop when one of the following conditions is true:</p>
+
+<ul>
+<li>A minimum has been found to within the user-specified precision.</li>
+<li>A user-specified maximum number of iterations has been reached.</li>
+<li>An error has occurred.</li>
+</ul>
+
+<p>The handling of these conditions is under user control. The function below allows the user to test the precision of the current result.</p>
+
+<h2 id='minimization-algorithms' class='section-header'><a href='#minimization-algorithms'>Minimization Algorithms</a></h2>
+<p>The minimization algorithms described in this section require an initial interval which is guaranteed to contain a minimum—if a and b are the
+endpoints of the interval and x is an estimate of the minimum then f(a) &gt; f(x) &lt; f(b). This ensures that the function has at least one minimum
+somewhere in the interval. If a valid initial interval is used then these algorithm cannot fail, provided the function is well-behaved.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.Minimizer.html'
+                                  title='rgsl::types::minimizer::Minimizer'>Minimizer</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MinimizerType.html'
+                                  title='rgsl::types::minimizer::MinimizerType'>MinimizerType</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

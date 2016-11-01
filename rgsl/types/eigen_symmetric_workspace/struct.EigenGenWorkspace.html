@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `EigenGenWorkspace` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, EigenGenWorkspace">
+
+    <title>rgsl::types::eigen_symmetric_workspace::EigenGenWorkspace - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>eigen_symmetric_workspace</a></p><script>window.sidebarCurrent = {name: 'EigenGenWorkspace', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>eigen_symmetric_workspace</a>::<wbr><a class='struct' href=''>EigenGenWorkspace</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-9664' class='srclink' href='../../../src/rgsl/types/eigen_symmetric_workspace.rs.html#590-592' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct EigenGenWorkspace {
+    // some fields omitted
+}</pre><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/eigen_symmetric_workspace/struct.EigenGenWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenWorkspace'>EigenGenWorkspace</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9666' class='srclink' href='../../../src/rgsl/types/eigen_symmetric_workspace.rs.html#594-642' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/eigen_symmetric_workspace/struct.EigenGenWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenWorkspace'>EigenGenWorkspace</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates a workspace for computing eigenvalues of n-by-n real generalized nonsymmetric eigensystems. The size of the
+workspace is O(n).</p>
+</div><h4 id='method.params' class='method'><code>fn <a href='#method.params' class='fnname'>params</a>(&amp;self, compute_s: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>, compute_t: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>, balance: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.i32.html'>i32</a>)</code></h4>
+<div class='docblock'><p>This function sets some parameters which determine how the eigenvalue problem is solved in subsequent calls to gsl_eigen_gen.</p>
+
+<p>If compute_s is set to 1, the full Schur form S will be computed by gsl_eigen_gen. If it is set to 0, S will not be computed (this is
+the default setting). S is a quasi upper triangular matrix with 1-by-1 and 2-by-2 blocks on its diagonal. 1-by-1 blocks correspond to
+real eigenvalues, and 2-by-2 blocks correspond to complex eigenvalues.</p>
+
+<p>If compute_t is set to 1, the full Schur form T will be computed by gsl_eigen_gen. If it is set to 0, T will not be computed (this is
+the default setting). T is an upper triangular matrix with non-negative elements on its diagonal. Any 2-by-2 blocks in S will correspond
+to a 2-by-2 diagonal block in T.</p>
+
+<p>The balance parameter is currently ignored, since generalized balancing is not yet implemented.</p>
+</div><h4 id='method.gen' class='method'><code>fn <a href='#method.gen' class='fnname'>gen</a>(&amp;self, A: &amp;<a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>, B: &amp;<a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>, alpha: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF64.html' title='rgsl::types::vector_complex::VectorComplexF64'>VectorComplexF64</a>, beta: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function computes the eigenvalues of the real generalized nonsymmetric matrix pair (A, B), and stores them as pairs in (alpha,
+beta), where alpha is complex and beta is real. If \beta_i is non-zero, then \lambda = \alpha_i / \beta_i is an eigenvalue. Likewise,
+if \alpha_i is non-zero, then \mu = \beta_i / \alpha_i is an eigenvalue of the alternate problem \mu A y = B y. The elements of beta
+are normalized to be non-negative.</p>
+
+<p>If S is desired, it is stored in A on output. If T is desired, it is stored in B on output. The ordering of eigenvalues in (alpha, beta)
+follows the ordering of the diagonal blocks in the Schur forms S and T. In rare cases, this function may fail to find all eigenvalues.
+If this occurs, an error code is returned.</p>
+</div><h4 id='method.gen_QZ' class='method'><code>fn <a href='#method.gen_QZ' class='fnname'>gen_QZ</a>(&amp;self, A: &amp;<a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>, B: &amp;<a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>, alpha: &amp;<a class='struct' href='../../../rgsl/types/vector_complex/struct.VectorComplexF64.html' title='rgsl::types::vector_complex::VectorComplexF64'>VectorComplexF64</a>, beta: &amp;<a class='struct' href='../../../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>, Q: &amp;<a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>, Z: &amp;<a class='struct' href='../../../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function is identical to gsl_eigen_gen except that it also computes the left and right Schur vectors and stores them into Q and
+Z respectively.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/eigen_symmetric_workspace/struct.EigenGenWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenWorkspace'>EigenGenWorkspace</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9689' class='srclink' href='../../../src/rgsl/types/eigen_symmetric_workspace.rs.html#644-649' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

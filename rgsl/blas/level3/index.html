@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `level3` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, level3">
+
+    <title>rgsl::blas::level3 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>blas</a></p><script>window.sidebarCurrent = {name: 'level3', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>blas</a>::<wbr><a class='mod' href=''>level3</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-15041' class='srclink' href='../../../src/rgsl/blas.rs.html#500-764' title='goto source code'>[src]</a></span></h1>
+<h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cgemm.html'
+                                  title='rgsl::blas::level3::cgemm'>cgemm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha op(A) op(B) + \beta C where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans and similarly for the parameter TransB.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.chemm.html'
+                                  title='rgsl::blas::level3::chemm'>chemm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha A B + \beta C for Side is Left and C = \alpha B A + \beta C for Side is Right, where the matrix A is hermitian.
+When Uplo is Upper then the upper triangle and diagonal of A are used, and when Uplo is Lower then the lower triangle and diagonal of A are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cher2k.html'
+                                  title='rgsl::blas::level3::cher2k'>cher2k</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-2k update of the hermitian matrix C, C = \alpha A B<sup>H</sup> + \alpha<sup>*</sup> B A<sup>H</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>H</sup> B + \alpha<sup>*</sup> B<sup>H</sup> A + \beta C when Trans is ConjTrans.
+Since the matrix C is hermitian only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cherk.html'
+                                  title='rgsl::blas::level3::cherk'>cherk</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute a rank-k update of the hermitian matrix C, C = \alpha A A<sup>H</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>H</sup> A + \beta C when Trans is ConjTrans.
+Since the matrix C is hermitian only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.csymm.html'
+                                  title='rgsl::blas::level3::csymm'>csymm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha A B + \beta C for Side is CblasLeft and C = \alpha B A + \beta C for Side is CblasRight, where the matrix A is symmetric.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.csyr2k.html'
+                                  title='rgsl::blas::level3::csyr2k'>csyr2k</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-2k update of the symmetric matrix C, C = \alpha A B<sup>T</sup> + \alpha B A<sup>T</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>T</sup> B + \alpha B<sup>T</sup> A + \beta C when Trans is Trans.
+Since the matrix C is symmetric only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.csyrk.html'
+                                  title='rgsl::blas::level3::csyrk'>csyrk</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-k update of the symmetric matrix C, C = \alpha A A<sup>T</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>T</sup> A + \beta C when Trans is Trans.
+Since the matrix C is symmetric only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ctrmm.html'
+                                  title='rgsl::blas::level3::ctrmm'>ctrmm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product B = \alpha op(A) B for Side is Left and B = \alpha B op(A) for Side is CblasRight.
+The matrix A is triangular and op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = NoTrans, Trans, ConjTrans.
+When Uplo is Upper then the upper triangle of A is used, and when Uplo is Lower then the lower triangle of A is used.
+If Diag is NonUnit then the diagonal of A is used, but if Diag is Unit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ctrsm.html'
+                                  title='rgsl::blas::level3::ctrsm'>ctrsm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the inverse-matrix matrix product B = \alpha op(inv(A))B for Side is Left and B = \alpha B op(inv(A)) for Side is Right.
+The matrix A is triangular and op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = NoTrans, Trans, ConjTrans.
+When Uplo is Upper then the upper triangle of A is used, and when Uplo is Lower then the lower triangle of A is used.
+If Diag is NonUnit then the diagonal of A is used, but if Diag is Unit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dgemm.html'
+                                  title='rgsl::blas::level3::dgemm'>dgemm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha op(A) op(B) + \beta C where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans and similarly for the parameter TransB.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dsymm.html'
+                                  title='rgsl::blas::level3::dsymm'>dsymm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha A B + \beta C for Side is CblasLeft and C = \alpha B A + \beta C for Side is CblasRight, where the matrix A is symmetric.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dsyr2k.html'
+                                  title='rgsl::blas::level3::dsyr2k'>dsyr2k</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-2k update of the symmetric matrix C, C = \alpha A B<sup>T</sup> + \alpha B A<sup>T</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>T</sup> B + \alpha B<sup>T</sup> A + \beta C when Trans is Trans.
+Since the matrix C is symmetric only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dsyrk.html'
+                                  title='rgsl::blas::level3::dsyrk'>dsyrk</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-k update of the symmetric matrix C, C = \alpha A A<sup>T</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>T</sup> A + \beta C when Trans is Trans.
+Since the matrix C is symmetric only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dtrmm.html'
+                                  title='rgsl::blas::level3::dtrmm'>dtrmm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product B = \alpha op(A) B for Side is Left and B = \alpha B op(A) for Side is CblasRight.
+The matrix A is triangular and op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = NoTrans, Trans, ConjTrans.
+When Uplo is Upper then the upper triangle of A is used, and when Uplo is Lower then the lower triangle of A is used.
+If Diag is NonUnit then the diagonal of A is used, but if Diag is Unit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dtrsm.html'
+                                  title='rgsl::blas::level3::dtrsm'>dtrsm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the inverse-matrix matrix product B = \alpha op(inv(A))B for Side is Left and B = \alpha B op(inv(A)) for Side is Right.
+The matrix A is triangular and op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = NoTrans, Trans, ConjTrans.
+When Uplo is Upper then the upper triangle of A is used, and when Uplo is Lower then the lower triangle of A is used.
+If Diag is NonUnit then the diagonal of A is used, but if Diag is Unit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sgemm.html'
+                                  title='rgsl::blas::level3::sgemm'>sgemm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha op(A) op(B) + \beta C where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans and similarly for the parameter TransB.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ssymm.html'
+                                  title='rgsl::blas::level3::ssymm'>ssymm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha A B + \beta C for Side is CblasLeft and C = \alpha B A + \beta C for Side is CblasRight, where the matrix A is symmetric.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ssyr2k.html'
+                                  title='rgsl::blas::level3::ssyr2k'>ssyr2k</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-2k update of the symmetric matrix C, C = \alpha A B<sup>T</sup> + \alpha B A<sup>T</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>T</sup> B + \alpha B<sup>T</sup> A + \beta C when Trans is Trans.
+Since the matrix C is symmetric only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ssyrk.html'
+                                  title='rgsl::blas::level3::ssyrk'>ssyrk</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-k update of the symmetric matrix C, C = \alpha A A<sup>T</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>T</sup> A + \beta C when Trans is Trans.
+Since the matrix C is symmetric only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.strmm.html'
+                                  title='rgsl::blas::level3::strmm'>strmm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product B = \alpha op(A) B for Side is Left and B = \alpha B op(A) for Side is CblasRight.
+The matrix A is triangular and op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = NoTrans, Trans, ConjTrans.
+When Uplo is Upper then the upper triangle of A is used, and when Uplo is Lower then the lower triangle of A is used.
+If Diag is NonUnit then the diagonal of A is used, but if Diag is Unit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.strsm.html'
+                                  title='rgsl::blas::level3::strsm'>strsm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the inverse-matrix matrix product B = \alpha op(inv(A))B for Side is Left and B = \alpha B op(inv(A)) for Side is Right.
+The matrix A is triangular and op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = NoTrans, Trans, ConjTrans.
+When Uplo is Upper then the upper triangle of A is used, and when Uplo is Lower then the lower triangle of A is used.
+If Diag is NonUnit then the diagonal of A is used, but if Diag is Unit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zgemm.html'
+                                  title='rgsl::blas::level3::zgemm'>zgemm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha op(A) op(B) + \beta C where op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = CblasNoTrans, CblasTrans, CblasConjTrans and similarly for the parameter TransB.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zhemm.html'
+                                  title='rgsl::blas::level3::zhemm'>zhemm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha A B + \beta C for Side is CblasLeft and C = \alpha B A + \beta C for Side is CblasRight, where the matrix A is hermitian.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zher2k.html'
+                                  title='rgsl::blas::level3::zher2k'>zher2k</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-2k update of the hermitian matrix C, C = \alpha A B<sup>H</sup> + \alpha<sup>*</sup> B A<sup>H</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>H</sup> B + \alpha<sup>*</sup> B<sup>H</sup> A + \beta C when Trans is ConjTrans.
+Since the matrix C is hermitian only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zherk.html'
+                                  title='rgsl::blas::level3::zherk'>zherk</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute a rank-k update of the hermitian matrix C, C = \alpha A A<sup>H</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>H</sup> A + \beta C when Trans is ConjTrans.
+Since the matrix C is hermitian only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.
+The imaginary elements of the diagonal are automatically set to zero.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zsymm.html'
+                                  title='rgsl::blas::level3::zsymm'>zsymm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product and sum C = \alpha A B + \beta C for Side is CblasLeft and C = \alpha B A + \beta C for Side is CblasRight, where the matrix A is symmetric.
+When Uplo is CblasUpper then the upper triangle and diagonal of A are used, and when Uplo is CblasLower then the lower triangle and diagonal of A are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zsyr2k.html'
+                                  title='rgsl::blas::level3::zsyr2k'>zsyr2k</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-2k update of the symmetric matrix C, C = \alpha A B<sup>T</sup> + \alpha B A<sup>T</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>T</sup> B + \alpha B<sup>T</sup> A + \beta C when Trans is Trans.
+Since the matrix C is symmetric only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zsyrk.html'
+                                  title='rgsl::blas::level3::zsyrk'>zsyrk</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a rank-k update of the symmetric matrix C, C = \alpha A A<sup>T</sup> + \beta C when Trans is NoTrans and C = \alpha A<sup>T</sup> A + \beta C when Trans is Trans.
+Since the matrix C is symmetric only its upper half or lower half need to be stored.
+When Uplo is Upper then the upper triangle and diagonal of C are used, and when Uplo is Lower then the lower triangle and diagonal of C are used.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ztrmm.html'
+                                  title='rgsl::blas::level3::ztrmm'>ztrmm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the matrix-matrix product B = \alpha op(A) B for Side is Left and B = \alpha B op(A) for Side is CblasRight.
+The matrix A is triangular and op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = NoTrans, Trans, ConjTrans.
+When Uplo is Upper then the upper triangle of A is used, and when Uplo is Lower then the lower triangle of A is used.
+If Diag is NonUnit then the diagonal of A is used, but if Diag is Unit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ztrsm.html'
+                                  title='rgsl::blas::level3::ztrsm'>ztrsm</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the inverse-matrix matrix product B = \alpha op(inv(A))B for Side is Left and B = \alpha B op(inv(A)) for Side is Right.
+The matrix A is triangular and op(A) = A, A<sup>T,</sup> A<sup>H</sup> for TransA = NoTrans, Trans, ConjTrans.
+When Uplo is Upper then the upper triangle of A is used, and when Uplo is Lower then the lower triangle of A is used.
+If Diag is NonUnit then the diagonal of A is used, but if Diag is Unit then the diagonal elements of the matrix A are taken as unity and are not referenced.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

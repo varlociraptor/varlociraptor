@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["landau","This function returns a random variate from the Landau distribution. The probability distribution for Landau random variates is defined analytically by the complex integral,"],["landau_pdf","This function computes the probability density p(x) at x for the Landau distribution using an approximation to the formula given above."]]});

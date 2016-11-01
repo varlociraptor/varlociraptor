@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `linear_algebra` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, linear_algebra">
+
+    <title>rgsl::linear_algebra - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'linear_algebra', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>linear_algebra</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-18681' class='srclink' href='../../src/rgsl/linear_algebra.rs.html#5-808' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='linear-algebra' class='section-header'><a href='#linear-algebra'>Linear Algebra</a></h1>
+<p>This chapter describes functions for solving linear systems. The library provides linear algebra operations which operate directly on the 
+gsl_vector and gsl_matrix objects. These routines use the standard algorithms from Golub &amp; Van Loan’s Matrix Computations with Level-1 and 
+Level-2 BLAS calls for efficiency.</p>
+
+<h2 id='lu-decomposition' class='section-header'><a href='#lu-decomposition'>LU Decomposition</a></h2>
+<p>A general square matrix A has an LU decomposition into upper and lower triangular matrices,</p>
+
+<p>P A = L U
+where P is a permutation matrix, L is unit lower triangular matrix and U is upper triangular matrix. For square matrices this decomposition 
+can be used to convert the linear system A x = b into a pair of triangular systems (L y = P b, U x = y), which can be solved by forward and 
+back-substitution. Note that the LU decomposition is valid for singular matrices.</p>
+
+<h2 id='qr-decomposition' class='section-header'><a href='#qr-decomposition'>QR Decomposition</a></h2>
+<p>A general rectangular M-by-N matrix A has a QR decomposition into the product of an orthogonal M-by-M square matrix Q (where Q<sup>T</sup> Q = I) and 
+an M-by-N right-triangular matrix R,</p>
+
+<p>A = Q R
+This decomposition can be used to convert the linear system A x = b into the triangular system R x = Q<sup>T</sup> b, which can be solved by back-substitution. 
+Another use of the QR decomposition is to compute an orthonormal basis for a set of vectors. The first N columns of Q form an orthonormal 
+basis for the range of A, ran(A), when A has full column rank.</p>
+
+<h2 id='qr-decomposition-with-column-pivoting' class='section-header'><a href='#qr-decomposition-with-column-pivoting'>QR Decomposition with Column Pivoting</a></h2>
+<p>The QR decomposition can be extended to the rank deficient case by introducing a column permutation P,</p>
+
+<p>A P = Q R
+The first r columns of Q form an orthonormal basis for the range of A for a matrix with column rank r. This decomposition can also be used 
+to convert the linear system A x = b into the triangular system R y = Q<sup>T</sup> b, x = P y, which can be solved by back-substitution and permutation. 
+We denote the QR decomposition with column pivoting by QRP<sup>T</sup> since A = Q R P<sup>T.</sup></p>
+
+<h2 id='singular-value-decomposition' class='section-header'><a href='#singular-value-decomposition'>Singular Value Decomposition</a></h2>
+<p>A general rectangular M-by-N matrix A has a singular value decomposition (SVD) into the product of an M-by-N orthogonal matrix U, an N-by-N 
+diagonal matrix of singular values S and the transpose of an N-by-N orthogonal square matrix V,</p>
+
+<p>A = U S V<sup>T</sup></p>
+
+<p>The singular values \sigma_i = S_{ii} are all non-negative and are generally chosen to form a non-increasing sequence \sigma_1 &gt;= \sigma_2 &gt;= 
+... &gt;= \sigma_N &gt;= 0.</p>
+
+<p>The singular value decomposition of a matrix has many practical uses. The condition number of the matrix is given by the ratio of the largest 
+singular value to the smallest singular value. The presence of a zero singular value indicates that the matrix is singular. The number of 
+non-zero singular values indicates the rank of the matrix. In practice singular value decomposition of a rank-deficient matrix will not produce 
+exact zeroes for singular values, due to finite numerical precision. Small singular values should be edited by choosing a suitable tolerance.</p>
+
+<p>For a rank-deficient matrix, the null space of A is given by the columns of V corresponding to the zero singular values. Similarly, the range 
+of A is given by columns of U corresponding to the non-zero singular values.</p>
+
+<p>Note that the routines here compute the “thin” version of the SVD with U as M-by-N orthogonal matrix. This allows in-place computation and is 
+the most commonly-used form in practice. Mathematically, the “full” SVD is defined with U as an M-by-M orthogonal matrix and S as an M-by-N 
+diagonal matrix (with additional rows of zeros).</p>
+
+<h2 id='cholesky-decomposition' class='section-header'><a href='#cholesky-decomposition'>Cholesky Decomposition</a></h2>
+<p>A symmetric, positive definite square matrix A has a Cholesky decomposition into a product of a lower triangular matrix L and its transpose L<sup>T,</sup></p>
+
+<p>A = L L<sup>T</sup></p>
+
+<p>This is sometimes referred to as taking the square-root of a matrix. The Cholesky decomposition can only be carried out when all the eigenvalues 
+of the matrix are positive. This decomposition can be used to convert the linear system A x = b into a pair of triangular systems (L y = b, 
+L<sup>T</sup> x = y), which can be solved by forward and back-substitution.</p>
+
+<h2 id='tridiagonal-decomposition-of-real-symmetric-matrices' class='section-header'><a href='#tridiagonal-decomposition-of-real-symmetric-matrices'>Tridiagonal Decomposition of Real Symmetric Matrices</a></h2>
+<p>A symmetric matrix A can be factorized by similarity transformations into the form,</p>
+
+<p>A = Q T Q<sup>T</sup></p>
+
+<p>where Q is an orthogonal matrix and T is a symmetric tridiagonal matrix.</p>
+
+<h2 id='tridiagonal-decomposition-of-hermitian-matrices' class='section-header'><a href='#tridiagonal-decomposition-of-hermitian-matrices'>Tridiagonal Decomposition of Hermitian Matrices</a></h2>
+<p>A hermitian matrix A can be factorized by similarity transformations into the form,</p>
+
+<p>A = U T U<sup>T</sup></p>
+
+<p>where U is a unitary matrix and T is a real symmetric tridiagonal matrix.</p>
+
+<h2 id='hessenberg-decomposition-of-real-matrices' class='section-header'><a href='#hessenberg-decomposition-of-real-matrices'>Hessenberg Decomposition of Real Matrices</a></h2>
+<p>A general real matrix A can be decomposed by orthogonal similarity transformations into the form</p>
+
+<p>A = U H U<sup>T</sup></p>
+
+<p>where U is orthogonal and H is an upper Hessenberg matrix, meaning that it has zeros below the first subdiagonal. The Hessenberg reduction 
+is the first step in the Schur decomposition for the nonsymmetric eigenvalue problem, but has applications in other areas as well.</p>
+
+<h2 id='hessenberg-triangular-decomposition-of-real-matrices' class='section-header'><a href='#hessenberg-triangular-decomposition-of-real-matrices'>Hessenberg-Triangular Decomposition of Real Matrices</a></h2>
+<p>A general real matrix pair (A, B) can be decomposed by orthogonal similarity transformations into the form</p>
+
+<p>A = U H V<sup>T</sup>
+B = U R V<sup>T</sup></p>
+
+<p>where U and V are orthogonal, H is an upper Hessenberg matrix, and R is upper triangular. The Hessenberg-Triangular reduction is the first 
+step in the generalized Schur decomposition for the generalized eigenvalue problem.</p>
+
+<h2 id='bidiagonalization' class='section-header'><a href='#bidiagonalization'>Bidiagonalization</a></h2>
+<p>A general matrix A can be factorized by similarity transformations into the form,</p>
+
+<p>A = U B V<sup>T</sup>
+where U and V are orthogonal matrices and B is a N-by-N bidiagonal matrix with non-zero entries only on the diagonal and superdiagonal. The 
+size of U is M-by-N and the size of V is N-by-N.</p>
+
+<h2 id='householder-transformations' class='section-header'><a href='#householder-transformations'>Householder Transformations</a></h2>
+<p>A Householder transformation is a rank-1 modification of the identity matrix which can be used to zero out selected elements of a vector. 
+A Householder matrix P takes the form,</p>
+
+<p>P = I - \tau v v<sup>T</sup></p>
+
+<p>where v is a vector (called the Householder vector) and \tau = 2/(v<sup>T</sup> v). The functions described in this section use the rank-1 structure 
+of the Householder matrix to create and apply Householder transformations efficiently.</p>
+
+<h2 id='tridiagonal-systems' class='section-header'><a href='#tridiagonal-systems'>Tridiagonal Systems</a></h2>
+<p>The functions described in this section efficiently solve symmetric, non-symmetric and cyclic tridiagonal systems with minimal storage. Note 
+that the current implementations of these functions use a variant of Cholesky decomposition, so the tridiagonal matrix must be positive definite. 
+For non-positive definite matrices, the functions return the error code ::Sing.</p>
+
+<h2 id='balancing' class='section-header'><a href='#balancing'>Balancing</a></h2>
+<p>The process of balancing a matrix applies similarity transformations to make the rows and columns have comparable norms. This is useful, for 
+example, to reduce roundoff errors in the solution of eigenvalue problems. Balancing a matrix A consists of replacing A with a similar matrix</p>
+
+<p>A&#39; = D<sup>-1</sup> A D</p>
+
+<p>where D is a diagonal matrix whose entries are powers of the floating point radix.</p>
+
+<h2 id='1416-references-and-further-reading' class='section-header'><a href='#1416-references-and-further-reading'>14.16 References and Further Reading</a></h2>
+<p>Further information on the algorithms described in this section can be found in the following book,</p>
+
+<p>G. H. Golub, C. F. Van Loan, Matrix Computations (3rd Ed, 1996), Johns Hopkins University Press, ISBN 0-8018-5414-8.
+The LAPACK library is described in the following manual,</p>
+
+<p>LAPACK Users’ Guide (Third Edition, 1999), Published by SIAM, ISBN 0-89871-447-8.
+<a href="http://www.netlib.org/lapack">http://www.netlib.org/lapack</a></p>
+
+<p>The LAPACK source code can be found at the website above, along with an online copy of the users guide.</p>
+
+<p>The Modified Golub-Reinsch algorithm is described in the following paper,</p>
+
+<p>T.F. Chan, “An Improved Algorithm for Computing the Singular Value Decomposition”, ACM Transactions on Mathematical Software, 8 (1982), pp 72–83.
+The Jacobi algorithm for singular value decomposition is described in the following papers,</p>
+
+<p>J.C. Nash, “A one-sided transformation method for the singular value decomposition and algebraic eigenproblem”, Computer Journal, Volume 18, Number 
+1 (1975), p 74–76
+J.C. Nash and S. Shlien “Simple algorithms for the partial singular value decomposition”, Computer Journal, Volume 30 (1987), p 268–275.
+James Demmel, Krešimir Veselić, “Jacobi’s Method is more accurate than QR”, Lapack Working Note 15 (LAWN-15), October 1989. Available from netlib, 
+<a href="http://www.netlib.org/lapack/">http://www.netlib.org/lapack/</a> in the lawns or lawnspdf directories.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.HH_solve.html'
+                                  title='rgsl::linear_algebra::HH_solve'>HH_solve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the system A x = b directly using Householder transformations. On output the solution is stored in x and b is not
+modified. The matrix A is destroyed by the Householder transformations.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.HH_svx.html'
+                                  title='rgsl::linear_algebra::HH_svx'>HH_svx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the system A x = b in-place using Householder transformations. On input x should contain the right-hand side b,
+which is replaced by the solution on output. The matrix A is destroyed by the Householder transformations.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.LU_decomp.html'
+                                  title='rgsl::linear_algebra::LU_decomp'>LU_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>Factorise a general N x N matrix A into,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.LU_det.html'
+                                  title='rgsl::linear_algebra::LU_det'>LU_det</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the determinant of a matrix A from its LU decomposition, LU. The determinant is computed as the product of the
+diagonal elements of U and the sign of the row permutation signum.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.LU_invert.html'
+                                  title='rgsl::linear_algebra::LU_invert'>LU_invert</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the inverse of a matrix A from its LU decomposition (LU,p), storing the result in the matrix inverse. The inverse
+is computed by solving the system A x = b for each column of the identity matrix. It is preferable to avoid direct use of the inverse
+whenever possible, as the linear solver functions can obtain the same result more efficiently and reliably (consult any introductory
+textbook on numerical linear algebra for details).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.LU_lndet.html'
+                                  title='rgsl::linear_algebra::LU_lndet'>LU_lndet</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the logarithm of the absolute value of the determinant of a matrix A, \ln|\det(A)|, from its LU decomposition,
+LU. This function may be useful if the direct computation of the determinant would overflow or underflow.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.LU_refine.html'
+                                  title='rgsl::linear_algebra::LU_refine'>LU_refine</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies an iterative improvement to x, the solution of A x = b, from the precomputed LU decomposition of A into (LU,p). The
+initial residual r = A x - b is also computed and stored in residual.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.LU_sgndet.html'
+                                  title='rgsl::linear_algebra::LU_sgndet'>LU_sgndet</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the sign or phase factor of the determinant of a matrix A, \det(A)/|\det(A)|, from its LU decomposition, LU.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.LU_solve.html'
+                                  title='rgsl::linear_algebra::LU_solve'>LU_solve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the square system A x = b using the LU decomposition of A into (LU, p) given by LU_decomp or LU_decomp as input.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.LU_svx.html'
+                                  title='rgsl::linear_algebra::LU_svx'>LU_svx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the square system A x = b in-place using the precomputed LU decomposition of A into (LU,p). On input x should contain
+the right-hand side b, which is replaced by the solution on output.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QRPT_QRsolve.html'
+                                  title='rgsl::linear_algebra::QRPT_QRsolve'>QRPT_QRsolve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the square system R P<sup>T</sup> x = Q<sup>T</sup> b for x. It can be used when the QR decomposition of a matrix is available in unpacked
+form as (Q, R).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QRPT_Rsolve.html'
+                                  title='rgsl::linear_algebra::QRPT_Rsolve'>QRPT_Rsolve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the triangular system R P<sup>T</sup> x = b for the N-by-N matrix R contained in QR.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QRPT_Rsvx.html'
+                                  title='rgsl::linear_algebra::QRPT_Rsvx'>QRPT_Rsvx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the triangular system R P<sup>T</sup> x = b in-place for the N-by-N matrix R contained in QR. On input x should contain the
+right-hand side b, which is replaced by the solution on output.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QRPT_decomp.html'
+                                  title='rgsl::linear_algebra::QRPT_decomp'>QRPT_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function factorizes the M-by-N matrix A into the QRP<sup>T</sup> decomposition A = Q R P<sup>T.</sup> On output the diagonal and upper triangular part
+of the input matrix contain the matrix R. The permutation matrix P is stored in the permutation p. The sign of the permutation is given
+by signum. It has the value (-1)<sup>n,</sup> where n is the number of interchanges in the permutation. The vector tau and the columns of the lower
+triangular part of the matrix A contain the Householder coefficients and vectors which encode the orthogonal matrix Q. The vector tau must
+be of length k=\min(M,N). The matrix Q is related to these components by, Q = Q_k ... Q_2 Q_1 where Q_i = I - \tau_i v_i v_i<sup>T</sup> and v_i is
+the Householder vector v_i = (0,...,1,A(i+1,i),A(i+2,i),...,A(m,i)). This is the same storage scheme as used by LAPACK. The vector norm is
+a workspace of length N used for column pivoting.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QRPT_decomp2.html'
+                                  title='rgsl::linear_algebra::QRPT_decomp2'>QRPT_decomp2</a></td>
+                           <td class='docblock short'>
+                                <p>This function factorizes the matrix A into the decomposition A = Q R P<sup>T</sup> without modifying A itself and storing the output in the separate
+matrices q and r.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QRPT_solve.html'
+                                  title='rgsl::linear_algebra::QRPT_solve'>QRPT_solve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the square system A x = b using the QRP<sup>T</sup> decomposition of A held in (QR, tau, p) which must have been computed previously
+by QRPT_decomp.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QRPT_svx.html'
+                                  title='rgsl::linear_algebra::QRPT_svx'>QRPT_svx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the square system A x = b in-place using the QRP<sup>T</sup> decomposition of A held in (QR,tau,p). On input x should contain the
+right-hand side b, which is replaced by the solution on output.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QRPT_update.html'
+                                  title='rgsl::linear_algebra::QRPT_update'>QRPT_update</a></td>
+                           <td class='docblock short'>
+                                <p>This function performs a rank-1 update w v<sup>T</sup> of the QRP<sup>T</sup> decomposition (Q, R, p). The update is given by Q&#39;R&#39; = Q (R + w v<sup>T</sup> P) where the
+output matrices Q&#39; and R&#39; are also orthogonal and right triangular. Note that w is destroyed by the update. The permutation p is not changed.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_QRsolve.html'
+                                  title='rgsl::linear_algebra::QR_QRsolve'>QR_QRsolve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the system R x = Q<sup>T</sup> b for x. It can be used when the QR decomposition of a matrix is available in unpacked
+form as (Q, R).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_QTmat.html'
+                                  title='rgsl::linear_algebra::QR_QTmat'>QR_QTmat</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the matrix Q<sup>T</sup> encoded in the decomposition (QR,tau) to the matrix A, storing the result Q<sup>T</sup> A in A. The matrix
+multiplication is carried out directly using the encoding of the Householder vectors without needing to form the full matrix Q<sup>T.</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_QTvec.html'
+                                  title='rgsl::linear_algebra::QR_QTvec'>QR_QTvec</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the matrix Q<sup>T</sup> encoded in the decomposition (QR,tau) to the vector v, storing the result Q<sup>T</sup> v in v. The matrix
+multiplication is carried out directly using the encoding of the Householder vectors without needing to form the full matrix Q<sup>T.</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_Qvec.html'
+                                  title='rgsl::linear_algebra::QR_Qvec'>QR_Qvec</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the matrix Q encoded in the decomposition (QR,tau) to the vector v, storing the result Q v in v. The matrix
+multiplication is carried out directly using the encoding of the Householder vectors without needing to form the full matrix Q.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_Rsolve.html'
+                                  title='rgsl::linear_algebra::QR_Rsolve'>QR_Rsolve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the triangular system R x = b for x. It may be useful if the product b&#39; = Q<sup>T</sup> b has already been computed using
+gsl_linalg_QR_QTvec.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_Rsvx.html'
+                                  title='rgsl::linear_algebra::QR_Rsvx'>QR_Rsvx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the triangular system R x = b for x in-place. On input x should contain the right-hand side b and is replaced by
+the solution on output. This function may be useful if the product b&#39; = Q<sup>T</sup> b has already been computed using gsl_linalg_QR_QTvec.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_decomp.html'
+                                  title='rgsl::linear_algebra::QR_decomp'>QR_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function factorizes the M-by-N matrix A into the QR decomposition A = Q R. On output the diagonal and upper triangular part of the
+input matrix contain the matrix R. The vector tau and the columns of the lower triangular part of the matrix A contain the Householder
+coefficients and Householder vectors which encode the orthogonal matrix Q. The vector tau must be of length k=\min(M,N). The matrix Q
+is related to these components by, Q = Q_k ... Q_2 Q_1 where Q_i = I - \tau_i v_i v_i<sup>T</sup> and v_i is the Householder vector v_i =
+(0,...,1,A(i+1,i),A(i+2,i),...,A(m,i)). This is the same storage scheme as used by LAPACK.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_lssolve.html'
+                                  title='rgsl::linear_algebra::QR_lssolve'>QR_lssolve</a></td>
+                           <td class='docblock short'>
+                                <p>This function finds the least squares solution to the overdetermined system A x = b where the matrix A has more rows than columns. The
+least squares solution minimizes the Euclidean norm of the residual, ||Ax - b||.The routine requires as input the QR decomposition of
+A into (QR, tau) given by gsl_linalg_QR_decomp. The solution is returned in x. The residual is computed as a by-product and stored in
+residual.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_solve.html'
+                                  title='rgsl::linear_algebra::QR_solve'>QR_solve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the square system A x = b using the QR decomposition of A held in (QR, tau) which must have been computed previously
+with gsl_linalg_QR_decomp. The least-squares solution for rectangular systems can be found using QR_lssolve.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_svx.html'
+                                  title='rgsl::linear_algebra::QR_svx'>QR_svx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the square system A x = b in-place using the QR decomposition of A held in (QR,tau) which must have been computed
+previously by gsl_linalg_QR_decomp. On input x should contain the right-hand side b, which is replaced by the solution on output.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_unpack.html'
+                                  title='rgsl::linear_algebra::QR_unpack'>QR_unpack</a></td>
+                           <td class='docblock short'>
+                                <p>This function unpacks the encoded QR decomposition (QR,tau) into the matrices Q and R, where Q is M-by-M and R is M-by-N.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.QR_update.html'
+                                  title='rgsl::linear_algebra::QR_update'>QR_update</a></td>
+                           <td class='docblock short'>
+                                <p>This function performs a rank-1 update w v<sup>T</sup> of the QR decomposition (Q, R). The update is given by Q&#39;R&#39; = Q (R + w v<sup>T)</sup> where the
+output matrices Q&#39; and R&#39; are also orthogonal and right triangular. Note that w is destroyed by the update.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.R_solve.html'
+                                  title='rgsl::linear_algebra::R_solve'>R_solve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the triangular system R x = b for the N-by-N matrix R.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.R_svx.html'
+                                  title='rgsl::linear_algebra::R_svx'>R_svx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the triangular system R x = b in-place. On input x should contain the right-hand side b, which is replaced by
+the solution on output.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.SV_decomp.html'
+                                  title='rgsl::linear_algebra::SV_decomp'>SV_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function factorizes the M-by-N matrix A into the singular value decomposition A = U S V<sup>T</sup> for M &gt;= N. On output the matrix A is replaced
+by U. The diagonal elements of the singular value matrix S are stored in the vector S. The singular values are non-negative and form a
+non-increasing sequence from S_1 to S_N. The matrix V contains the elements of V in untransposed form. To form the product U S V<sup>T</sup> it is
+necessary to take the transpose of V. A workspace of length N is required in work.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.SV_decomp_jacobi.html'
+                                  title='rgsl::linear_algebra::SV_decomp_jacobi'>SV_decomp_jacobi</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the SVD of the M-by-N matrix A using one-sided Jacobi orthogonalization for M &gt;= N. The Jacobi method can compute
+singular values to higher relative accuracy than Golub-Reinsch algorithms (see references for details).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.SV_decomp_mod.html'
+                                  title='rgsl::linear_algebra::SV_decomp_mod'>SV_decomp_mod</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the SVD using the modified Golub-Reinsch algorithm, which is faster for M&gt;&gt;N. It requires the vector work of length
+N and the N-by-N matrix X as additional working space.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.SV_leverage.html'
+                                  title='rgsl::linear_algebra::SV_leverage'>SV_leverage</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the statistical leverage values h_i of a matrix A using its singular value decomposition (U, S, V) previously computed
+with gsl_linalg_SV_decomp. h_i are the diagonal values of the matrix A (A<sup>T</sup> A)<sup>{-1}</sup> A<sup>T</sup> and depend only on the matrix U which is the input to
+this function.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.SV_solve.html'
+                                  title='rgsl::linear_algebra::SV_solve'>SV_solve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the system A x = b using the singular value decomposition (U, S, V) of A which must have been computed previously
+with gsl_linalg_SV_decomp.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.balance_matrix.html'
+                                  title='rgsl::linear_algebra::balance_matrix'>balance_matrix</a></td>
+                           <td class='docblock short'>
+                                <p>This function replaces the matrix A with its balanced counterpart and stores the diagonal elements of the similarity transformation into
+the vector D.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.bidiag_decomp.html'
+                                  title='rgsl::linear_algebra::bidiag_decomp'>bidiag_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function factorizes the M-by-N matrix A into bidiagonal form U B V<sup>T.</sup> The diagonal and superdiagonal of the matrix B are stored in
+the diagonal and superdiagonal of A. The orthogonal matrices U and V are stored as compressed Householder vectors in the remaining elements
+of A. The Householder coefficients are stored in the vectors tau_U and tau_V. The length of tau_U must equal the number of elements in
+the diagonal of A and the length of tau_V should be one element shorter.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.bidiag_unpack.html'
+                                  title='rgsl::linear_algebra::bidiag_unpack'>bidiag_unpack</a></td>
+                           <td class='docblock short'>
+                                <p>This function unpacks the bidiagonal decomposition of A produced by gsl_linalg_bidiag_decomp, (A, tau_U, tau_V) into the separate orthogonal
+matrices U, V and the diagonal vector diag and superdiagonal superdiag. Note that U is stored as a compact M-by-N orthogonal matrix satisfying
+U<sup>T</sup> U = I for efficiency.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.bidiag_unpack2.html'
+                                  title='rgsl::linear_algebra::bidiag_unpack2'>bidiag_unpack2</a></td>
+                           <td class='docblock short'>
+                                <p>This function unpacks the bidiagonal decomposition of A produced by gsl_linalg_bidiag_decomp, (A, tau_U, tau_V) into the separate orthogonal
+matrices U, V and the diagonal vector diag and superdiagonal superdiag. The matrix U is stored in-place in A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.bidiag_unpack_B.html'
+                                  title='rgsl::linear_algebra::bidiag_unpack_B'>bidiag_unpack_B</a></td>
+                           <td class='docblock short'>
+                                <p>This function unpacks the diagonal and superdiagonal of the bidiagonal decomposition of A from gsl_linalg_bidiag_decomp, into the diagonal
+vector diag and superdiagonal vector superdiag.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cholesky_decomp.html'
+                                  title='rgsl::linear_algebra::cholesky_decomp'>cholesky_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function factorizes the symmetric, positive-definite square matrix A into the Cholesky decomposition A = L L<sup>T</sup> (or A = L L<sup>H</sup> for
+the complex case). On input, the values from the diagonal and lower-triangular part of the matrix A are used (the upper triangular part
+is ignored). On output the diagonal and lower triangular part of the input matrix A contain the matrix L, while the upper triangular part
+of the input matrix is overwritten with L<sup>T</sup> (the diagonal terms being identical for both L and L<sup>T).</sup> If the matrix is not positive-definite
+then the decomposition will fail, returning the error code ::Dom.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cholesky_invert.html'
+                                  title='rgsl::linear_algebra::cholesky_invert'>cholesky_invert</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the inverse of a matrix from its Cholesky decomposition cholesky, which must have been previously computed by
+gsl_linalg_cholesky_decomp or gsl_linalg_complex_cholesky_decomp. On output, the inverse is stored in-place in cholesky.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cholesky_solve.html'
+                                  title='rgsl::linear_algebra::cholesky_solve'>cholesky_solve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the system A x = b using the Cholesky decomposition of A held in the matrix cholesky which must have been previously
+computed by gsl_linalg_cholesky_decomp or gsl_linalg_complex_cholesky_decomp.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cholesky_svx.html'
+                                  title='rgsl::linear_algebra::cholesky_svx'>cholesky_svx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the system A x = b in-place using the Cholesky decomposition of A held in the matrix cholesky which must have been
+previously computed by gsl_linalg_cholesky_decomp or gsl_linalg_complex_cholesky_decomp. On input x should contain the right-hand side
+b, which is replaced by the solution on output.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_LU_decomp.html'
+                                  title='rgsl::linear_algebra::complex_LU_decomp'>complex_LU_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>Factorise a general N x N complex matrix A into,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_LU_det.html'
+                                  title='rgsl::linear_algebra::complex_LU_det'>complex_LU_det</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the determinant of a matrix A from its LU decomposition, LU. The determinant is computed as the product of the
+diagonal elements of U and the sign of the row permutation signum.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_LU_invert.html'
+                                  title='rgsl::linear_algebra::complex_LU_invert'>complex_LU_invert</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the inverse of a matrix A from its LU decomposition (LU,p), storing the result in the matrix inverse. The inverse
+is computed by solving the system A x = b for each column of the identity matrix. It is preferable to avoid direct use of the inverse
+whenever possible, as the linear solver functions can obtain the same result more efficiently and reliably (consult any introductory
+textbook on numerical linear algebra for details).</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_LU_lndet.html'
+                                  title='rgsl::linear_algebra::complex_LU_lndet'>complex_LU_lndet</a></td>
+                           <td class='docblock short'>
+                                <p>These functions compute the logarithm of the absolute value of the determinant of a matrix A, \ln|\det(A)|, from its LU decomposition,
+LU. This function may be useful if the direct computation of the determinant would overflow or underflow.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_LU_refine.html'
+                                  title='rgsl::linear_algebra::complex_LU_refine'>complex_LU_refine</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies an iterative improvement to x, the solution of A x = b, from the precomputed LU decomposition of A into (LU,p). The
+initial residual r = A x - b is also computed and stored in residual.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_LU_sgndet.html'
+                                  title='rgsl::linear_algebra::complex_LU_sgndet'>complex_LU_sgndet</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the sign or phase factor of the determinant of a matrix A, \det(A)/|\det(A)|, from its LU decomposition, LU.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_LU_solve.html'
+                                  title='rgsl::linear_algebra::complex_LU_solve'>complex_LU_solve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the square system A x = b using the LU decomposition of A into (LU, p) given by LU_decomp or LU_decomp as input.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_LU_svx.html'
+                                  title='rgsl::linear_algebra::complex_LU_svx'>complex_LU_svx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the square system A x = b in-place using the precomputed LU decomposition of A into (LU,p). On input x should contain
+the right-hand side b, which is replaced by the solution on output.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_cholesky_decomp.html'
+                                  title='rgsl::linear_algebra::complex_cholesky_decomp'>complex_cholesky_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function factorizes the symmetric, positive-definite square matrix A into the Cholesky decomposition A = L L<sup>T</sup> (or A = L L<sup>H</sup> for
+the complex case). On input, the values from the diagonal and lower-triangular part of the matrix A are used (the upper triangular part
+is ignored). On output the diagonal and lower triangular part of the input matrix A contain the matrix L, while the upper triangular part
+of the input matrix is overwritten with L<sup>T</sup> (the diagonal terms being identical for both L and L<sup>T).</sup> If the matrix is not positive-definite
+then the decomposition will fail, returning the error code ::Dom.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_cholesky_invert.html'
+                                  title='rgsl::linear_algebra::complex_cholesky_invert'>complex_cholesky_invert</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the inverse of a matrix from its Cholesky decomposition cholesky, which must have been previously computed by
+gsl_linalg_cholesky_decomp or gsl_linalg_complex_cholesky_decomp. On output, the inverse is stored in-place in cholesky.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_cholesky_solve.html'
+                                  title='rgsl::linear_algebra::complex_cholesky_solve'>complex_cholesky_solve</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the system A x = b using the Cholesky decomposition of A held in the matrix cholesky which must have been previously
+computed by gsl_linalg_cholesky_decomp or gsl_linalg_complex_cholesky_decomp.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_cholesky_svx.html'
+                                  title='rgsl::linear_algebra::complex_cholesky_svx'>complex_cholesky_svx</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the system A x = b in-place using the Cholesky decomposition of A held in the matrix cholesky which must have been
+previously computed by gsl_linalg_cholesky_decomp or gsl_linalg_complex_cholesky_decomp. On input x should contain the right-hand side
+b, which is replaced by the solution on output.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_householder_hm.html'
+                                  title='rgsl::linear_algebra::complex_householder_hm'>complex_householder_hm</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the Householder matrix P defined by the scalar tau and the vector v to the left-hand side of the matrix A. On output
+the result P A is stored in A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_householder_hv.html'
+                                  title='rgsl::linear_algebra::complex_householder_hv'>complex_householder_hv</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the Householder transformation P defined by the scalar tau and the vector v to the vector w. On output the result P
+w is stored in w.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_householder_mh.html'
+                                  title='rgsl::linear_algebra::complex_householder_mh'>complex_householder_mh</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the Householder matrix P defined by the scalar tau and the vector v to the right-hand side of the matrix A. On output
+the result A P is stored in A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.complex_householder_transform.html'
+                                  title='rgsl::linear_algebra::complex_householder_transform'>complex_householder_transform</a></td>
+                           <td class='docblock short'>
+                                <p>This function prepares a Householder transformation P = I - \tau v v<sup>T</sup> which can be used to zero all the elements of the input vector except
+the first. On output the transformation is stored in the vector v and the scalar \tau is returned.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hermtd_decomp.html'
+                                  title='rgsl::linear_algebra::hermtd_decomp'>hermtd_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function factorizes the hermitian matrix A into the symmetric tridiagonal decomposition U T U<sup>T.</sup> On output the real parts of the
+diagonal and subdiagonal part of the input matrix A contain the tridiagonal matrix T. The remaining lower triangular part of the input
+matrix contains the Householder vectors which, together with the Householder coefficients tau, encode the unitary matrix U. This storage
+scheme is the same as used by LAPACK. The upper triangular part of A and imaginary parts of the diagonal are not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hermtd_unpack.html'
+                                  title='rgsl::linear_algebra::hermtd_unpack'>hermtd_unpack</a></td>
+                           <td class='docblock short'>
+                                <p>This function unpacks the encoded tridiagonal decomposition (A, tau) obtained from gsl_linalg_hermtd_decomp into the unitary matrix U,
+the real vector of diagonal elements diag and the real vector of subdiagonal elements subdiag.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hermtd_unpack_T.html'
+                                  title='rgsl::linear_algebra::hermtd_unpack_T'>hermtd_unpack_T</a></td>
+                           <td class='docblock short'>
+                                <p>This function unpacks the diagonal and subdiagonal of the encoded tridiagonal decomposition (A, tau) obtained from the
+gsl_linalg_hermtd_decomp into the real vectors diag and subdiag.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hessenberg_decomp.html'
+                                  title='rgsl::linear_algebra::hessenberg_decomp'>hessenberg_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Hessenberg decomposition of the matrix A by applying the similarity transformation H = U<sup>T</sup> A U. On output, H
+is stored in the upper portion of A. The information required to construct the matrix U is stored in the lower triangular portion of A.
+U is a product of N - 2 Householder matrices. The Householder vectors are stored in the lower portion of A (below the subdiagonal) and
+the Householder coefficients are stored in the vector tau. tau must be of length N.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hessenberg_set_zero.html'
+                                  title='rgsl::linear_algebra::hessenberg_set_zero'>hessenberg_set_zero</a></td>
+                           <td class='docblock short'>
+                                <p>This function sets the lower triangular portion of H, below the subdiagonal, to zero. It is useful for clearing out the Householder
+vectors after calling gsl_linalg_hessenberg_decomp.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hessenberg_unpack.html'
+                                  title='rgsl::linear_algebra::hessenberg_unpack'>hessenberg_unpack</a></td>
+                           <td class='docblock short'>
+                                <p>This function constructs the orthogonal matrix U from the information stored in the Hessenberg matrix H along with the vector tau. H and
+tau are outputs from gsl_linalg_hessenberg_decomp.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hessenberg_unpack_accum.html'
+                                  title='rgsl::linear_algebra::hessenberg_unpack_accum'>hessenberg_unpack_accum</a></td>
+                           <td class='docblock short'>
+                                <p>This function is similar to gsl_linalg_hessenberg_unpack, except it accumulates the matrix U into V, so that V&#39; = VU. The matrix V must
+be initialized prior to calling this function. Setting V to the identity matrix provides the same result as gsl_linalg_hessenberg_unpack.
+If H is order N, then V must have N columns but may have any number of rows.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.hesstri_decomp.html'
+                                  title='rgsl::linear_algebra::hesstri_decomp'>hesstri_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Hessenberg-Triangular decomposition of the matrix pair (A, B). On output, H is stored in A, and R is stored
+in B. If U and V are provided (they may be null), the similarity transformations are stored in them. Additional workspace of length N
+is needed in work.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.householder_hm.html'
+                                  title='rgsl::linear_algebra::householder_hm'>householder_hm</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the Householder matrix P defined by the scalar tau and the vector v to the left-hand side of the matrix A. On output
+the result P A is stored in A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.householder_hv.html'
+                                  title='rgsl::linear_algebra::householder_hv'>householder_hv</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the Householder transformation P defined by the scalar tau and the vector v to the vector w. On output the result P
+w is stored in w.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.householder_mh.html'
+                                  title='rgsl::linear_algebra::householder_mh'>householder_mh</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies the Householder matrix P defined by the scalar tau and the vector v to the right-hand side of the matrix A. On output
+the result A P is stored in A.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.householder_transform.html'
+                                  title='rgsl::linear_algebra::householder_transform'>householder_transform</a></td>
+                           <td class='docblock short'>
+                                <p>This function prepares a Householder transformation P = I - \tau v v<sup>T</sup> which can be used to zero all the elements of the input vector except
+the first. On output the transformation is stored in the vector v and the scalar \tau is returned.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.solve_cyc_tridiag.html'
+                                  title='rgsl::linear_algebra::solve_cyc_tridiag'>solve_cyc_tridiag</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the general N-by-N system A x = b where A is cyclic tridiagonal (N &gt;= 3). The cyclic super-diagonal and sub-diagonal
+vectors e and f must have the same number of elements as the diagonal vector diag. The form of A for the 4-by-4 case is shown below,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.solve_symm_cyc_tridiag.html'
+                                  title='rgsl::linear_algebra::solve_symm_cyc_tridiag'>solve_symm_cyc_tridiag</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the general N-by-N system A x = b where A is symmetric cyclic tridiagonal (N &gt;= 3). The cyclic off-diagonal vector
+e must have the same number of elements as the diagonal vector diag. The form of A for the 4-by-4 case is shown below,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.solve_symm_tridiag.html'
+                                  title='rgsl::linear_algebra::solve_symm_tridiag'>solve_symm_tridiag</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the general N-by-N system A x = b where A is symmetric tridiagonal (N &gt;= 2). The off-diagonal vector e must be one
+element shorter than the diagonal vector diag. The form of A for the 4-by-4 case is shown below,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.solve_tridiag.html'
+                                  title='rgsl::linear_algebra::solve_tridiag'>solve_tridiag</a></td>
+                           <td class='docblock short'>
+                                <p>This function solves the general N-by-N system A x = b where A is tridiagonal (N &gt;= 2). The super-diagonal and sub-diagonal vectors
+e and f must be one element shorter than the diagonal vector diag. The form of A for the 4-by-4 case is shown below,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.symmtd_decomp.html'
+                                  title='rgsl::linear_algebra::symmtd_decomp'>symmtd_decomp</a></td>
+                           <td class='docblock short'>
+                                <p>This function factorizes the symmetric square matrix A into the symmetric tridiagonal decomposition Q T Q<sup>T.</sup> On output the diagonal and
+subdiagonal part of the input matrix A contain the tridiagonal matrix T. The remaining lower triangular part of the input matrix contains
+the Householder vectors which, together with the Householder coefficients tau, encode the orthogonal matrix Q. This storage scheme is
+the same as used by LAPACK. The upper triangular part of A is not referenced.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.symmtd_unpack.html'
+                                  title='rgsl::linear_algebra::symmtd_unpack'>symmtd_unpack</a></td>
+                           <td class='docblock short'>
+                                <p>This function unpacks the encoded symmetric tridiagonal decomposition (A, tau) obtained from gsl_linalg_symmtd_decomp into the orthogonal
+matrix Q, the vector of diagonal elements diag and the vector of subdiagonal elements subdiag.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.symmtd_unpack_T.html'
+                                  title='rgsl::linear_algebra::symmtd_unpack_T'>symmtd_unpack_T</a></td>
+                           <td class='docblock short'>
+                                <p>This function unpacks the diagonal and subdiagonal of the encoded symmetric tridiagonal decomposition (A, tau) obtained from
+gsl_linalg_symmtd_decomp into the vectors diag and subdiag.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `sort` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, sort">
+
+    <title>rgsl::sort - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'sort', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>sort</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-19469' class='srclink' href='../../src/rgsl/sort.rs.html#5-249' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='sorting' class='section-header'><a href='#sorting'>Sorting</a></h1>
+<p>This chapter describes functions for sorting data, both directly and indirectly (using an index). All the functions use the heapsort algorithm. 
+Heapsort is an O(N \log N) algorithm which operates in-place and does not require any additional storage. It also provides consistent performance, 
+the running time for its worst-case (ordered data) being not significantly longer than the average and best cases. Note that the heapsort algorithm 
+does not preserve the relative ordering of equal elements—it is an unstable sort. However the resulting order of equal elements will be consistent 
+across different platforms when using these functions.</p>
+
+<h2 id='references-and-further-reading' class='section-header'><a href='#references-and-further-reading'>References and Further Reading</a></h2>
+<p>The subject of sorting is covered extensively in Knuth’s Sorting and Searching,</p>
+
+<p>Donald E. Knuth, The Art of Computer Programming: Sorting and Searching (Vol 3, 3rd Ed, 1997), Addison-Wesley, ISBN 0201896850.
+The Heapsort algorithm is described in the following book,</p>
+
+<p>Robert Sedgewick, Algorithms in C, Addison-Wesley, ISBN 0201514257.</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='objects/index.html'
+                                  title='rgsl::sort::objects'>objects</a></td>
+                           <td class='docblock short'>
+                                <p>The following function provides a simple alternative to the standard library function qsort. It is intended for systems lacking qsort, not
+as a replacement for it. The function qsort should be used whenever possible, as it will be faster and can provide stable ordering of equal
+elements. Documentation for qsort is available in the GNU C Library Reference Manual.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='select/index.html'
+                                  title='rgsl::sort::select'>select</a></td>
+                           <td class='docblock short'>
+                                <p>The functions described in this section select the k smallest or largest elements of a data set of size N. The routines use an O(kN) direct insertion
+algorithm which is suited to subsets that are small compared with the total size of the dataset. For example, the routines are useful for selecting the
+10 largest values from one million data points, but not for selecting the largest 100,000 values. If the subset is a significant part of the total dataset
+it may be faster to sort all the elements of the dataset directly with an O(N \log N) algorithm and obtain the smallest or largest values that way.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='vectors/index.html'
+                                  title='rgsl::sort::vectors'>vectors</a></td>
+                           <td class='docblock short'>
+                                <p>The following functions will sort the elements of an array or vector, either directly or indirectly. They are defined for all real and
+integer types using the normal suffix rules. For example, the float versions of the array functions are gsl_sort_float and gsl_sort_float_index.
+The corresponding vector functions are gsl_sort_vector_float and gsl_sort_vector_float_index. The prototypes are available in the header files
+gsl_sort_float.h gsl_sort_vector_float.h. The complete set of prototypes can be included using the header files gsl_sort.h and gsl_sort_vector.h.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `vectors` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, vectors">
+
+    <title>rgsl::sort::vectors - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>sort</a></p><script>window.sidebarCurrent = {name: 'vectors', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>sort</a>::<wbr><a class='mod' href=''>vectors</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-19503' class='srclink' href='../../../src/rgsl/sort.rs.html#154-193' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The following functions will sort the elements of an array or vector, either directly or indirectly. They are defined for all real and
+integer types using the normal suffix rules. For example, the float versions of the array functions are gsl_sort_float and gsl_sort_float_index.
+The corresponding vector functions are gsl_sort_vector_float and gsl_sort_vector_float_index. The prototypes are available in the header files
+gsl_sort_float.h gsl_sort_vector_float.h. The complete set of prototypes can be included using the header files gsl_sort.h and gsl_sort_vector.h.</p>
+
+<p>There are no functions for sorting complex arrays or vectors, since the ordering of complex numbers is not uniquely defined. To sort a complex
+vector by magnitude compute a real vector containing the magnitudes of the complex elements, and sort this vector indirectly. The resulting index
+gives the appropriate ordering of the original complex vector.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sort.html'
+                                  title='rgsl::sort::vectors::sort'>sort</a></td>
+                           <td class='docblock short'>
+                                <p>This function sorts the n elements of the array data with stride stride into ascending numerical order.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sort2.html'
+                                  title='rgsl::sort::vectors::sort2'>sort2</a></td>
+                           <td class='docblock short'>
+                                <p>This function sorts the n elements of the array data1 with stride stride1 into ascending numerical order, while making the same rearrangement
+of the array data2 with stride stride2, also of size n.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sort_index.html'
+                                  title='rgsl::sort::vectors::sort_index'>sort_index</a></td>
+                           <td class='docblock short'>
+                                <p>This function indirectly sorts the n elements of the array data with stride stride into ascending order, storing the resulting
+permutation in p. The array p must be allocated with a sufficient length to store the n elements of the permutation. The elements of p
+give the index of the array element which would have been stored in that position if the array had been sorted in place. The array data is not changed.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sort_vector.html'
+                                  title='rgsl::sort::vectors::sort_vector'>sort_vector</a></td>
+                           <td class='docblock short'>
+                                <p>This function sorts the elements of the vector v into ascending numerical order.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sort_vector2.html'
+                                  title='rgsl::sort::vectors::sort_vector2'>sort_vector2</a></td>
+                           <td class='docblock short'>
+                                <p>This function sorts the elements of the vector v1 into ascending numerical order, while making the same rearrangement of the vector v2.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sort_vector_index.html'
+                                  title='rgsl::sort::vectors::sort_vector_index'>sort_vector_index</a></td>
+                           <td class='docblock short'>
+                                <p>This function indirectly sorts the elements of the vector v into ascending order, storing the resulting permutation in p. The elements of p give the
+index of the vector element which would have been stored in that position if the vector had been sorted in place. The first element of p gives the index
+of the least element in v, and the last element of p gives the index of the greatest element in v. The vector v is not changed.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

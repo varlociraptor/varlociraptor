@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["gc3_content","gc content counter for the nucleotide in 3rd position"],["gc_content","gc content counter for every nucleotide"]]});

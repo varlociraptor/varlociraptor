@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Histogram2D` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Histogram2D">
+
+    <title>rgsl::types::histograms::Histogram2D - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>histograms</a></p><script>window.sidebarCurrent = {name: 'Histogram2D', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>histograms</a>::<wbr><a class='struct' href=''>Histogram2D</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-9889' class='srclink' href='../../../src/rgsl/types/histograms.rs.html#353-355' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Histogram2D {
+    // some fields omitted
+}</pre><div class='docblock'><p>A two dimensional histogram consists of a set of bins which count the number of events falling in a given area of the (x,y) plane. The simplest
+way to use a two dimensional histogram is to record two-dimensional position information, n(x,y). Another possibility is to form a joint
+distribution by recording related variables. For example a detector might record both the position of an event (x) and the amount of energy
+it deposited E. These could be histogrammed as the joint distribution n(x,E).</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9891' class='srclink' href='../../../src/rgsl/types/histograms.rs.html#357-592' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(nx: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, ny: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates memory for a two-dimensional histogram with nx bins in the x direction and ny bins in the y direction. The
+function returns a pointer to a newly created gsl_histogram2d struct. If insufficient memory is available a null pointer is returned
+and the error handler is invoked with an error code of Value::NoMem. The bins and ranges must be initialized with one of the
+functions below before the histogram is ready for use.</p>
+</div><h4 id='method.set_ranges' class='method'><code>fn <a href='#method.set_ranges' class='fnname'>set_ranges</a>(&amp;self, xrange: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, yrange: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function sets the ranges of the existing histogram h using the arrays xrange and yrange of size xsize and ysize respectively.
+The values of the histogram bins are reset to zero.</p>
+</div><h4 id='method.set_ranges_uniform' class='method'><code>fn <a href='#method.set_ranges_uniform' class='fnname'>set_ranges_uniform</a>(&amp;self, xmin: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, xmax: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, ymin: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, ymax: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function sets the ranges of the existing histogram h to cover the ranges xmin to xmax and ymin to ymax uniformly. The values
+of the histogram bins are reset to zero.</p>
+</div><h4 id='method.copy' class='method'><code>fn <a href='#method.copy' class='fnname'>copy</a>(&amp;self, dest: &amp;<a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function copies the histogram src into the pre-existing histogram dest, making dest into an exact copy of src. The two histograms
+must be of the same size.</p>
+</div><h4 id='method.clone' class='method'><code>fn <a href='#method.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>&gt;</code></h4>
+<div class='docblock'><p>his function returns a pointer to a newly created histogram which is an exact copy of the histogram self.</p>
+</div><h4 id='method.increment' class='method'><code>fn <a href='#method.increment' class='fnname'>increment</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function updates the histogram h by adding one (1.0) to the bin whose x and y ranges contain the coordinates (x,y).</p>
+
+<p>If the point (x,y) lies inside the valid ranges of the histogram then the function returns zero to indicate success. If (x,y) lies
+outside the limits of the histogram then the function returns Value::Dom, and none of the bins are modified. The error handler is not
+called, since it is often necessary to compute histograms for a small range of a larger dataset, ignoring any coordinates outside the
+range of interest.</p>
+</div><h4 id='method.accumulate' class='method'><code>fn <a href='#method.accumulate' class='fnname'>accumulate</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, weight: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function is similar to gsl_histogram2d_increment but increases the value of the appropriate bin in the histogram h by the floating-point
+number weight.</p>
+</div><h4 id='method.get' class='method'><code>fn <a href='#method.get' class='fnname'>get</a>(&amp;self, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, j: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the contents of the (i,j)-th bin of the histogram h. If (i,j) lies outside the valid range of indices for the
+histogram then the error handler is called with an error code of Value::Dom and the function returns 0.</p>
+</div><h4 id='method.get_xrange' class='method'><code>fn <a href='#method.get_xrange' class='fnname'>get_xrange</a>(&amp;self, i: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, xlower: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, xupper: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function finds the upper and lower range limits of the i-th and j-th bins in the x and y directions of the histogram h. The range
+limits are stored in xlower and xupper or ylower and yupper. The lower limits are inclusive (i.e. events with these coordinates are included
+in the bin) and the upper limits are exclusive (i.e. events with the value of the upper limit are not included and fall in the neighboring
+higher bin, if it exists). The functions return 0 to indicate success. If i or j lies outside the valid range of indices for the histogram
+then the error handler is called with an error code of Value::Dom.</p>
+</div><h4 id='method.get_yrange' class='method'><code>fn <a href='#method.get_yrange' class='fnname'>get_yrange</a>(&amp;self, j: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, ylower: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, yupper: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function finds the upper and lower range limits of the i-th and j-th bins in the x and y directions of the histogram h. The range
+limits are stored in xlower and xupper or ylower and yupper. The lower limits are inclusive (i.e. events with these coordinates are included
+in the bin) and the upper limits are exclusive (i.e. events with the value of the upper limit are not included and fall in the neighboring
+higher bin, if it exists). The functions return 0 to indicate success. If i or j lies outside the valid range of indices for the histogram
+then the error handler is called with an error code of Value::Dom.</p>
+</div><h4 id='method.xmax' class='method'><code>fn <a href='#method.xmax' class='fnname'>xmax</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the maximum upper and minimum lower range limits and the number of bins for the x and y directions of the histogram h.
+They provide a way of determining these values without accessing the gsl_histogram2d struct directly.</p>
+</div><h4 id='method.xmin' class='method'><code>fn <a href='#method.xmin' class='fnname'>xmin</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the maximum upper and minimum lower range limits and the number of bins for the x and y directions of the histogram h.
+They provide a way of determining these values without accessing the gsl_histogram2d struct directly.</p>
+</div><h4 id='method.nx' class='method'><code>fn <a href='#method.nx' class='fnname'>nx</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>This function returns the maximum upper and minimum lower range limits and the number of bins for the x and y directions of the histogram h.
+They provide a way of determining these values without accessing the gsl_histogram2d struct directly.</p>
+</div><h4 id='method.ymax' class='method'><code>fn <a href='#method.ymax' class='fnname'>ymax</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the maximum upper and minimum lower range limits and the number of bins for the x and y directions of the histogram h.
+They provide a way of determining these values without accessing the gsl_histogram2d struct directly.</p>
+</div><h4 id='method.ymin' class='method'><code>fn <a href='#method.ymin' class='fnname'>ymin</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the maximum upper and minimum lower range limits and the number of bins for the x and y directions of the histogram h.
+They provide a way of determining these values without accessing the gsl_histogram2d struct directly.</p>
+</div><h4 id='method.ny' class='method'><code>fn <a href='#method.ny' class='fnname'>ny</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>This function returns the maximum upper and minimum lower range limits and the number of bins for the x and y directions of the histogram h.
+They provide a way of determining these values without accessing the gsl_histogram2d struct directly.</p>
+</div><h4 id='method.reset' class='method'><code>fn <a href='#method.reset' class='fnname'>reset</a>(&amp;self)</code></h4>
+<div class='docblock'><p>This function resets all the bins of the histogram h to zero.</p>
+</div><h4 id='method.find' class='method'><code>fn <a href='#method.find' class='fnname'>find</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, i: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, j: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function finds and sets the indices i and j to the bin which covers the coordinates (x,y). The bin is located using a binary search.
+The search includes an optimization for histograms with uniform ranges, and will return the correct bin immediately in this case. If
+(x,y) is found then the function sets the indices (i,j) and returns ::Value::Success. If (x,y) lies outside the valid range of the histogram
+then the function returns Value::Dom and the error handler is invoked.</p>
+</div><h4 id='method.max_val' class='method'><code>fn <a href='#method.max_val' class='fnname'>max_val</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the maximum value contained in the histogram bins.</p>
+</div><h4 id='method.max_bin' class='method'><code>fn <a href='#method.max_bin' class='fnname'>max_bin</a>(&amp;self, i: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, j: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>)</code></h4>
+<div class='docblock'><p>This function finds the indices of the bin containing the maximum value in the histogram h and stores the result in (i,j). In the case
+where several bins contain the same maximum value the first bin found is returned.</p>
+</div><h4 id='method.min_val' class='method'><code>fn <a href='#method.min_val' class='fnname'>min_val</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the minimum value contained in the histogram bins.</p>
+</div><h4 id='method.min_bin' class='method'><code>fn <a href='#method.min_bin' class='fnname'>min_bin</a>(&amp;self, i: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, j: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>)</code></h4>
+<div class='docblock'><p>This function finds the indices of the bin containing the minimum value in the histogram h and stores the result in (i,j). In the case
+where several bins contain the same maximum value the first bin found is returned.</p>
+</div><h4 id='method.xmean' class='method'><code>fn <a href='#method.xmean' class='fnname'>xmean</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the mean of the histogrammed x variable, where the histogram is regarded as a probability distribution. Negative
+bin values are ignored for the purposes of this calculation.</p>
+</div><h4 id='method.ymean' class='method'><code>fn <a href='#method.ymean' class='fnname'>ymean</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the mean of the histogrammed y variable, where the histogram is regarded as a probability distribution. Negative
+bin values are ignored for the purposes of this calculation.</p>
+</div><h4 id='method.xsigma' class='method'><code>fn <a href='#method.xsigma' class='fnname'>xsigma</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the standard deviation of the histogrammed x variable, where the histogram is regarded as a probability
+distribution. Negative bin values are ignored for the purposes of this calculation.</p>
+</div><h4 id='method.ysigma' class='method'><code>fn <a href='#method.ysigma' class='fnname'>ysigma</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the standard deviation of the histogrammed y variable, where the histogram is regarded as a probability
+distribution. Negative bin values are ignored for the purposes of this calculation.</p>
+</div><h4 id='method.cov' class='method'><code>fn <a href='#method.cov' class='fnname'>cov</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the covariance of the histogrammed x and y variables, where the histogram is regarded as a probability
+distribution. Negative bin values are ignored for the purposes of this calculation.</p>
+</div><h4 id='method.sum' class='method'><code>fn <a href='#method.sum' class='fnname'>sum</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the sum of all bin values. Negative bin values are included in the sum.</p>
+</div><h4 id='method.equal_bins_p' class='method'><code>fn <a href='#method.equal_bins_p' class='fnname'>equal_bins_p</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a></code></h4>
+<div class='docblock'><p>This function returns 1 if all the individual bin ranges of the two histograms are identical, and 0 otherwise.</p>
+</div><h4 id='method.add' class='method'><code>fn <a href='#method.add' class='fnname'>add</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function adds the contents of the bins in histogram h2 to the corresponding bins of histogram h1, i.e. h&#39;_1(i,j) = h_1(i,j)
++ h_2(i,j). The two histograms must have identical bin ranges.</p>
+</div><h4 id='method.sub' class='method'><code>fn <a href='#method.sub' class='fnname'>sub</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function subtracts the contents of the bins in histogram h2 from the corresponding bins of histogram h1, i.e. h&#39;_1(i,j) = h_1(i,j)
+- h_2(i,j). The two histograms must have identical bin ranges.</p>
+</div><h4 id='method.mul' class='method'><code>fn <a href='#method.mul' class='fnname'>mul</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function multiplies the contents of the bins of histogram h1 by the contents of the corresponding bins in histogram h2, i.e. h&#39;_1(i,j)
+= h_1(i,j) * h_2(i,j). The two histograms must have identical bin ranges.</p>
+</div><h4 id='method.div' class='method'><code>fn <a href='#method.div' class='fnname'>div</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function divides the contents of the bins of histogram h1 by the contents of the corresponding bins in histogram h2, i.e. h&#39;_1(i,j) =
+h_1(i,j) / h_2(i,j). The two histograms must have identical bin ranges.</p>
+</div><h4 id='method.scale' class='method'><code>fn <a href='#method.scale' class='fnname'>scale</a>(&amp;self, scale: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function multiplies the contents of the bins of histogram h by the constant scale, i.e. h&#39;_1(i,j) = h_1(i,j) scale.</p>
+</div><h4 id='method.shift' class='method'><code>fn <a href='#method.shift' class='fnname'>shift</a>(&amp;self, offset: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function shifts the contents of the bins of histogram h by the constant offset, i.e. h&#39;_1(i,j) = h_1(i,j) + offset.</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-10000' class='srclink' href='../../../src/rgsl/types/histograms.rs.html#594-599' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

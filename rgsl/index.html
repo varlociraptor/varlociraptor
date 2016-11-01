@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `rgsl` crate.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, rgsl">
+
+    <title>rgsl - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'></p><script>window.sidebarCurrent = {name: 'rgsl', ty: 'mod', relpath: '../'};</script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Crate <a class='mod' href=''>rgsl</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-0' class='srclink' href='../src/rgsl/rgsl.rs.html#5-256' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>A <strong>Rust</strong> binding for the <a href="http://www.gnu.org/software/gsl/">GSL library</a> (the GNU Scientific Library).</p>
+
+<h2 id='installation' class='section-header'><a href='#installation'>Installation</a></h2>
+<p>This binding requires the <a href="http://www.gnu.org/software/gsl/">GSL library</a> library to be installed.</p>
+
+<p>This crate works with Cargo and is on <a href="https://crates.io/crates/GSL">crates.io</a>.  Just add the
+following to your <code>Cargo.toml</code> file:</p>
+
+<pre><code class="language-toml">[dependencies]
+GSL = &quot;*&quot;
+</code></pre>
+
+<p>Add the following line to your source code:</p>
+
+<pre class='rust rust-example-rendered'>
+<span class='kw'>extern</span> <span class='kw'>crate</span> <span class='ident'>rgsl</span>;</pre>
+
+<h2 id='documentation' class='section-header'><a href='#documentation'>Documentation</a></h2>
+<p>You can access the <strong>rgsl</strong> documentation locally, just build it:</p>
+
+<pre><code class="language-Shell">&gt; cargo doc --open
+</code></pre>
+
+<p>Then open this file with an internet browser:
+<code>file:///{rgsl_location}/target/doc/rgsl/index.html</code></p>
+
+<p>You can also access the latest build of the documentation via the internet
+<a href="http://rust-ci.org/GuillaumeGomez/rust-GSL/doc/rgsl/">here</a>.</p>
+
+<h2 id='license' class='section-header'><a href='#license'>License</a></h2>
+<p><strong>rust-GSL</strong> is a wrapper for <strong>GSL</strong>, therefore inherits the
+<a href="http://www.gnu.org/copyleft/gpl.html">GPL license</a>.</p>
+
+<p>Here is the list of all modules :</p>
+</div><h2 id='reexports' class='section-header'><a href="#reexports">Reexports</a></h2>
+<table><tr><td><code>pub use types::{<a class='struct' href='../rgsl/types/complex/struct.ComplexF32.html' title='rgsl::types::complex::ComplexF32'>ComplexF32</a>, <a class='struct' href='../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a>, <a class='struct' href='../rgsl/types/result/struct.Result.html' title='rgsl::types::result::Result'>Result</a>, <a class='struct' href='../rgsl/types/result/struct.ResultE10.html' title='rgsl::types::result::ResultE10'>ResultE10</a>, <a class='struct' href='../rgsl/types/matrix/struct.MatrixF64.html' title='rgsl::types::matrix::MatrixF64'>MatrixF64</a>, <a class='struct' href='../rgsl/types/matrix/struct.MatrixF32.html' title='rgsl::types::matrix::MatrixF32'>MatrixF32</a>, <a class='struct' href='../rgsl/types/matrix/struct.MatrixView.html' title='rgsl::types::matrix::MatrixView'>MatrixView</a>, <a class='struct' href='../rgsl/types/matrix_complex/struct.MatrixComplexF64.html' title='rgsl::types::matrix_complex::MatrixComplexF64'>MatrixComplexF64</a>, <a class='struct' href='../rgsl/types/matrix_complex/struct.MatrixComplexF32.html' title='rgsl::types::matrix_complex::MatrixComplexF32'>MatrixComplexF32</a>, <a class='struct' href='../rgsl/types/vector/struct.VectorF64.html' title='rgsl::types::vector::VectorF64'>VectorF64</a>, <a class='struct' href='../rgsl/types/vector/struct.VectorF32.html' title='rgsl::types::vector::VectorF32'>VectorF32</a>, <a class='struct' href='../rgsl/types/vector/struct.VectorView.html' title='rgsl::types::vector::VectorView'>VectorView</a>, <a class='struct' href='../rgsl/types/vector_complex/struct.VectorComplexF64.html' title='rgsl::types::vector_complex::VectorComplexF64'>VectorComplexF64</a>, <a class='struct' href='../rgsl/types/vector_complex/struct.VectorComplexF32.html' title='rgsl::types::vector_complex::VectorComplexF32'>VectorComplexF32</a>, <a class='struct' href='../rgsl/types/rng/struct.Rng.html' title='rgsl::types::rng::Rng'>Rng</a>, <a class='struct' href='../rgsl/types/rng/struct.RngType.html' title='rgsl::types::rng::RngType'>RngType</a>, <a class='struct' href='../rgsl/types/permutation/struct.Permutation.html' title='rgsl::types::permutation::Permutation'>Permutation</a>, <a class='struct' href='../rgsl/types/chebyshev/struct.ChebSeries.html' title='rgsl::types::chebyshev::ChebSeries'>ChebSeries</a>, <a class='struct' href='../rgsl/types/combination/struct.Combination.html' title='rgsl::types::combination::Combination'>Combination</a>, <a class='struct' href='../rgsl/types/polynomial/struct.PolyComplex.html' title='rgsl::types::polynomial::PolyComplex'>PolyComplex</a>, <a class='struct' href='../rgsl/types/discrete_hankel/struct.DiscreteHankel.html' title='rgsl::types::discrete_hankel::DiscreteHankel'>DiscreteHankel</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenSymmetricWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenSymmetricWorkspace'>EigenSymmetricWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenSymmetricVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenSymmetricVWorkspace'>EigenSymmetricVWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenHermitianWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenHermitianWorkspace'>EigenHermitianWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenHermitianVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenHermitianVWorkspace'>EigenHermitianVWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenNonSymmWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenNonSymmWorkspace'>EigenNonSymmWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenNonSymmVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenNonSymmVWorkspace'>EigenNonSymmVWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenGenSymmWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenSymmWorkspace'>EigenGenSymmWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenGenSymmVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenSymmVWorkspace'>EigenGenSymmVWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenGenHermWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenHermWorkspace'>EigenGenHermWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenGenHermVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenHermVWorkspace'>EigenGenHermVWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenGenWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenWorkspace'>EigenGenWorkspace</a>, <a class='struct' href='../rgsl/types/eigen_symmetric_workspace/struct.EigenGenVWorkspace.html' title='rgsl::types::eigen_symmetric_workspace::EigenGenVWorkspace'>EigenGenVWorkspace</a>, <a class='struct' href='../rgsl/types/fast_fourier_transforms/struct.FftComplexWaveTable.html' title='rgsl::types::fast_fourier_transforms::FftComplexWaveTable'>FftComplexWaveTable</a>, <a class='struct' href='../rgsl/types/fast_fourier_transforms/struct.FftComplexWorkspace.html' title='rgsl::types::fast_fourier_transforms::FftComplexWorkspace'>FftComplexWorkspace</a>, <a class='struct' href='../rgsl/types/histograms/struct.Histogram.html' title='rgsl::types::histograms::Histogram'>Histogram</a>, <a class='struct' href='../rgsl/types/histograms/struct.HistogramPdf.html' title='rgsl::types::histograms::HistogramPdf'>HistogramPdf</a>, <a class='struct' href='../rgsl/types/histograms/struct.Histogram2D.html' title='rgsl::types::histograms::Histogram2D'>Histogram2D</a>, <a class='struct' href='../rgsl/types/histograms/struct.Histogram2DPdf.html' title='rgsl::types::histograms::Histogram2DPdf'>Histogram2DPdf</a>, <a class='struct' href='../rgsl/types/integration/struct.IntegrationWorkspace.html' title='rgsl::types::integration::IntegrationWorkspace'>IntegrationWorkspace</a>, <a class='struct' href='../rgsl/types/integration/struct.IntegrationQawsTable.html' title='rgsl::types::integration::IntegrationQawsTable'>IntegrationQawsTable</a>, <a class='struct' href='../rgsl/types/integration/struct.IntegrationQawoTable.html' title='rgsl::types::integration::IntegrationQawoTable'>IntegrationQawoTable</a>, <a class='struct' href='../rgsl/types/integration/struct.CquadWorkspace.html' title='rgsl::types::integration::CquadWorkspace'>CquadWorkspace</a>, <a class='struct' href='../rgsl/types/integration/struct.GLFixedTable.html' title='rgsl::types::integration::GLFixedTable'>GLFixedTable</a>, <a class='struct' href='../rgsl/types/interpolation/struct.InterpAccel.html' title='rgsl::types::interpolation::InterpAccel'>InterpAccel</a>, <a class='struct' href='../rgsl/types/interpolation/struct.Interp.html' title='rgsl::types::interpolation::Interp'>Interp</a>, <a class='struct' href='../rgsl/types/interpolation/struct.InterpType.html' title='rgsl::types::interpolation::InterpType'>InterpType</a>, <a class='struct' href='../rgsl/types/interpolation/struct.Spline.html' title='rgsl::types::interpolation::Spline'>Spline</a>, <a class='struct' href='../rgsl/types/minimizer/struct.Minimizer.html' title='rgsl::types::minimizer::Minimizer'>Minimizer</a>, <a class='struct' href='../rgsl/types/minimizer/struct.MinimizerType.html' title='rgsl::types::minimizer::MinimizerType'>MinimizerType</a>, <a class='struct' href='../rgsl/types/monte_carlo/struct.PlainMonteCarlo.html' title='rgsl::types::monte_carlo::PlainMonteCarlo'>PlainMonteCarlo</a>, <a class='struct' href='../rgsl/types/monte_carlo/struct.MiserMonteCarlo.html' title='rgsl::types::monte_carlo::MiserMonteCarlo'>MiserMonteCarlo</a>, <a class='struct' href='../rgsl/types/monte_carlo/struct.MiserParams.html' title='rgsl::types::monte_carlo::MiserParams'>MiserParams</a>, <a class='struct' href='../rgsl/types/monte_carlo/struct.VegasMonteCarlo.html' title='rgsl::types::monte_carlo::VegasMonteCarlo'>VegasMonteCarlo</a>, <a class='struct' href='../rgsl/types/n_tuples/struct.NTuples.html' title='rgsl::types::n_tuples::NTuples'>NTuples</a>, <a class='struct' href='../rgsl/types/multiset/struct.MultiSet.html' title='rgsl::types::multiset::MultiSet'>MultiSet</a>, <a class='struct' href='../rgsl/types/ordinary_differential_equations/struct.ODEiv2System.html' title='rgsl::types::ordinary_differential_equations::ODEiv2System'>ODEiv2System</a>, <a class='struct' href='../rgsl/types/ordinary_differential_equations/struct.ODEiv2Step.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Step'>ODEiv2Step</a>, <a class='struct' href='../rgsl/types/ordinary_differential_equations/struct.ODEiv2StepType.html' title='rgsl::types::ordinary_differential_equations::ODEiv2StepType'>ODEiv2StepType</a>, <a class='struct' href='../rgsl/types/ordinary_differential_equations/struct.ODEiv2Control.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Control'>ODEiv2Control</a>, <a class='struct' href='../rgsl/types/ordinary_differential_equations/struct.ODEiv2Evolve.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Evolve'>ODEiv2Evolve</a>, <a class='struct' href='../rgsl/types/ordinary_differential_equations/struct.ODEiv2Driver.html' title='rgsl::types::ordinary_differential_equations::ODEiv2Driver'>ODEiv2Driver</a>, <a class='struct' href='../rgsl/types/qrng/struct.QRng.html' title='rgsl::types::qrng::QRng'>QRng</a>, <a class='struct' href='../rgsl/types/qrng/struct.QRngType.html' title='rgsl::types::qrng::QRngType'>QRngType</a>, <a class='struct' href='../rgsl/types/series_acceleration/struct.LevinUWorkspace.html' title='rgsl::types::series_acceleration::LevinUWorkspace'>LevinUWorkspace</a>, <a class='struct' href='../rgsl/types/series_acceleration/struct.LevinUTruncWorkspace.html' title='rgsl::types::series_acceleration::LevinUTruncWorkspace'>LevinUTruncWorkspace</a>, <a class='struct' href='../rgsl/types/wavelet_transforms/struct.Wavelet.html' title='rgsl::types::wavelet_transforms::Wavelet'>Wavelet</a>, <a class='struct' href='../rgsl/types/wavelet_transforms/struct.WaveletType.html' title='rgsl::types::wavelet_transforms::WaveletType'>WaveletType</a>, <a class='struct' href='../rgsl/types/wavelet_transforms/struct.WaveletWorkspace.html' title='rgsl::types::wavelet_transforms::WaveletWorkspace'>WaveletWorkspace</a>, <a class='struct' href='../rgsl/types/multifit_solver/struct.MultiFitFdfSolver.html' title='rgsl::types::multifit_solver::MultiFitFdfSolver'>MultiFitFdfSolver</a>, <a class='struct' href='../rgsl/types/multifit_solver/struct.MultiFitFunction.html' title='rgsl::types::multifit_solver::MultiFitFunction'>MultiFitFunction</a>, <a class='struct' href='../rgsl/types/multifit_solver/struct.MultiFitFdfSolverType.html' title='rgsl::types::multifit_solver::MultiFitFdfSolverType'>MultiFitFdfSolverType</a>, <a class='struct' href='../rgsl/types/multifit_solver/struct.MultiFitFunctionFdf.html' title='rgsl::types::multifit_solver::MultiFitFunctionFdf'>MultiFitFunctionFdf</a>};</code></td></tr><tr><td><code>pub use elementary::<a class='trait' href='../rgsl/elementary/trait.Elementary.html' title='rgsl::elementary::Elementary'>Elementary</a>;</code></td></tr><tr><td><code>pub use pow::<a class='trait' href='../rgsl/pow/trait.Pow.html' title='rgsl::pow::Pow'>Pow</a>;</code></td></tr><tr><td><code>pub use trigonometric::<a class='trait' href='../rgsl/trigonometric/trait.Trigonometric.html' title='rgsl::trigonometric::Trigonometric'>Trigonometric</a>;</code></td></tr><tr><td><code>pub use types::<a class='mod' href='../rgsl/types/rng/index.html' title='rgsl::types::rng'>rng</a>;</code></td></tr></table><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='airy/index.html'
+                                  title='rgsl::airy'>airy</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='bessel/index.html'
+                                  title='rgsl::bessel'>bessel</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='blas/index.html'
+                                  title='rgsl::blas'>blas</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='cblas/index.html'
+                                  title='rgsl::cblas'>cblas</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='clausen/index.html'
+                                  title='rgsl::clausen'>clausen</a></td>
+                           <td class='docblock short'>
+                                <p>The Clausen function is defined by the following integral,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='coulomb/index.html'
+                                  title='rgsl::coulomb'>coulomb</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='coupling_coefficients/index.html'
+                                  title='rgsl::coupling_coefficients'>coupling_coefficients</a></td>
+                           <td class='docblock short'>
+                                <p>The Wigner 3-j, 6-j and 9-j symbols give the coupling coefficients for combined angular momentum vectors.
+Since the arguments of the standard coupling coefficient functions are integer or half-integer, the arguments of the following functions
+are, by convention, integers equal to twice the actual spin value.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='dawson/index.html'
+                                  title='rgsl::dawson'>dawson</a></td>
+                           <td class='docblock short'>
+                                <p>The Dawson integral is defined by \exp(-x<sup>2)</sup> \int_0<sup>x</sup> dt \exp(t<sup>2).</sup>
+A table of Dawson’s integral can be found in Abramowitz &amp; Stegun, Table 7.5.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='debye/index.html'
+                                  title='rgsl::debye'>debye</a></td>
+                           <td class='docblock short'>
+                                <p>The Debye functions D_n(x) are defined by the following integral,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='dilogarithm/index.html'
+                                  title='rgsl::dilogarithm'>dilogarithm</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='eigen/index.html'
+                                  title='rgsl::eigen'>eigen</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='elementary/index.html'
+                                  title='rgsl::elementary'>elementary</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='elementary_operations/index.html'
+                                  title='rgsl::elementary_operations'>elementary_operations</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='elliptic/index.html'
+                                  title='rgsl::elliptic'>elliptic</a></td>
+                           <td class='docblock short'>
+                                <p>Further information about the elliptic integrals can be found in Abramowitz &amp; Stegun, Chapter 17.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='error/index.html'
+                                  title='rgsl::error'>error</a></td>
+                           <td class='docblock short'>
+                                <p>The error function is described in Abramowitz &amp; Stegun, Chapter 7.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='exponential/index.html'
+                                  title='rgsl::exponential'>exponential</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='exponential_integrals/index.html'
+                                  title='rgsl::exponential_integrals'>exponential_integrals</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='fermi_dirac/index.html'
+                                  title='rgsl::fermi_dirac'>fermi_dirac</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='fft/index.html'
+                                  title='rgsl::fft'>fft</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='fit/index.html'
+                                  title='rgsl::fit'>fit</a></td>
+                           <td class='docblock short'>
+                                <p>Linear Regression</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='gamma_beta/index.html'
+                                  title='rgsl::gamma_beta'>gamma_beta</a></td>
+                           <td class='docblock short'>
+                                <p>This following routines compute the gamma and beta functions in their full and incomplete forms, as well as various kinds of factorials.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='gegenbauer/index.html'
+                                  title='rgsl::gegenbauer'>gegenbauer</a></td>
+                           <td class='docblock short'>
+                                <p>The Gegenbauer polynomials are defined in Abramowitz &amp; Stegun, Chapter 22, where they are known as Ultraspherical polynomials.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='hypergeometric/index.html'
+                                  title='rgsl::hypergeometric'>hypergeometric</a></td>
+                           <td class='docblock short'>
+                                <p>Hypergeometric functions are described in Abramowitz &amp; Stegun, Chapters 13 and 15.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='integration/index.html'
+                                  title='rgsl::integration'>integration</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='interpolation/index.html'
+                                  title='rgsl::interpolation'>interpolation</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='jacobian_elliptic/index.html'
+                                  title='rgsl::jacobian_elliptic'>jacobian_elliptic</a></td>
+                           <td class='docblock short'>
+                                <p>The Jacobian Elliptic functions are defined in Abramowitz &amp; Stegun, Chapter 16.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='laguerre/index.html'
+                                  title='rgsl::laguerre'>laguerre</a></td>
+                           <td class='docblock short'>
+                                <p>The generalized Laguerre polynomials are defined in terms of confluent hypergeometric functions as L<sup>a_n(x)</sup> = ((a+1)_n / n!) 1F1(-n,a+1,x), and are sometimes referred to as the associated Laguerre polynomials.
+They are related to the plain Laguerre polynomials L_n(x) by L<sup>0_n(x)</sup> = L_n(x) and L<sup>k_n(x)</sup> = (-1)<sup>k</sup> (d<sup>k/dx<sup>k)</sup></sup> L_(n+k)(x). For more information see Abramowitz &amp; Stegun, Chapter 22.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='lambert_w/index.html'
+                                  title='rgsl::lambert_w'>lambert_w</a></td>
+                           <td class='docblock short'>
+                                <p>Lambert’s W functions, W(x), are defined to be solutions of the equation W(x) \exp(W(x)) = x. This function has multiple branches for x &lt; 0; however, it has only two real-valued branches.
+We define W_0(x) to be the principal branch, where W &gt; -1 for x &lt; 0, and W_{-1}(x) to be the other real branch, where W &lt; -1 for x &lt; 0.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='legendre/index.html'
+                                  title='rgsl::legendre'>legendre</a></td>
+                           <td class='docblock short'>
+                                <p>The Legendre Functions and Legendre Polynomials are described in Abramowitz &amp; Stegun, Chapter 8.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='linear_algebra/index.html'
+                                  title='rgsl::linear_algebra'>linear_algebra</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='logarithm/index.html'
+                                  title='rgsl::logarithm'>logarithm</a></td>
+                           <td class='docblock short'>
+                                <p>Information on the properties of the Logarithm function can be found in Abramowitz &amp; Stegun, Chapter 4.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='minimizer/index.html'
+                                  title='rgsl::minimizer'>minimizer</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='multifit/index.html'
+                                  title='rgsl::multifit'>multifit</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='numerical_differentiation/index.html'
+                                  title='rgsl::numerical_differentiation'>numerical_differentiation</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='physical_constant/index.html'
+                                  title='rgsl::physical_constant'>physical_constant</a></td>
+                           <td class='docblock short'>
+                                <p>Physical Constants</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='polynomials/index.html'
+                                  title='rgsl::polynomials'>polynomials</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='pow/index.html'
+                                  title='rgsl::pow'>pow</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='power/index.html'
+                                  title='rgsl::power'>power</a></td>
+                           <td class='docblock short'>
+                                <p>The following functions are equivalent to the function gsl_pow_int (see <a href="Pow.html">1Small integer powers1</a>) with an error estimate.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='psi/index.html'
+                                  title='rgsl::psi'>psi</a></td>
+                           <td class='docblock short'>
+                                <p>The polygamma functions of order n are defined by</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='randist/index.html'
+                                  title='rgsl::randist'>randist</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='sort/index.html'
+                                  title='rgsl::sort'>sort</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='statistics/index.html'
+                                  title='rgsl::statistics'>statistics</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='synchrotron/index.html'
+                                  title='rgsl::synchrotron'>synchrotron</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='transport/index.html'
+                                  title='rgsl::transport'>transport</a></td>
+                           <td class='docblock short'>
+                                <p>The transport functions J(n,x) are defined by the integral representations J(n,x) := \int_0<sup>x</sup> dt t<sup>n</sup> e<sup>t</sup> /(e<sup>t</sup> - 1)<sup>2.</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='trigonometric/index.html'
+                                  title='rgsl::trigonometric'>trigonometric</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='types/index.html'
+                                  title='rgsl::types'>types</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='util/index.html'
+                                  title='rgsl::util'>util</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='wavelet_transforms/index.html'
+                                  title='rgsl::wavelet_transforms'>wavelet_transforms</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='mod' href='zeta/index.html'
+                                  title='rgsl::zeta'>zeta</a></td>
+                           <td class='docblock short'>
+                                <p>The Riemann zeta function is defined in Abramowitz &amp; Stegun, Section 23.2.</p>
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.EigenSort.html'
+                                  title='rgsl::EigenSort'>EigenSort</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.FftDirection.html'
+                                  title='rgsl::FftDirection'>FftDirection</a></td>
+                           <td class='docblock short'>
+                                <p>this gives the sign in the formula</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.GaussKonrodRule.html'
+                                  title='rgsl::GaussKonrodRule'>GaussKonrodRule</a></td>
+                           <td class='docblock short'>
+                                <p>The low-level integration rules in QUADPACK are identified by small integers (1-6). We&#39;ll use symbolic constants to refer to them.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.IntegrationQawo.html'
+                                  title='rgsl::IntegrationQawo'>IntegrationQawo</a></td>
+                           <td class='docblock short'>
+                                <p>Used by workspace for QAWO integrator</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.Mode.html'
+                                  title='rgsl::Mode'>Mode</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.ODEiv.html'
+                                  title='rgsl::ODEiv'>ODEiv</a></td>
+                           <td class='docblock short'>
+                                <p>Possible return values for an hadjust() evolution method for ordinary differential equations</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.Value.html'
+                                  title='rgsl::Value'>Value</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.VegasMode.html'
+                                  title='rgsl::VegasMode'>VegasMode</a></td>
+                           <td class='docblock short'>
+                                <p>Used by VegasMonteCarlo struct</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='enum' href='enum.WaveletDirection.html'
+                                  title='rgsl::WaveletDirection'>WaveletDirection</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr></table><h2 id='statics' class='section-header'><a href="#statics">Statics</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.DBL_EPSILON.html'
+                                  title='rgsl::DBL_EPSILON'>DBL_EPSILON</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.DBL_MAX.html'
+                                  title='rgsl::DBL_MAX'>DBL_MAX</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.DBL_MIN.html'
+                                  title='rgsl::DBL_MIN'>DBL_MIN</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.LOG_DBL_MAX.html'
+                                  title='rgsl::LOG_DBL_MAX'>LOG_DBL_MAX</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NAN.html'
+                                  title='rgsl::NAN'>NAN</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NEGINF.html'
+                                  title='rgsl::NEGINF'>NEGINF</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.POSINF.html'
+                                  title='rgsl::POSINF'>POSINF</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT3_DBL_EPSILON.html'
+                                  title='rgsl::ROOT3_DBL_EPSILON'>ROOT3_DBL_EPSILON</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT3_DBL_MAX.html'
+                                  title='rgsl::ROOT3_DBL_MAX'>ROOT3_DBL_MAX</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT3_DBL_MIN.html'
+                                  title='rgsl::ROOT3_DBL_MIN'>ROOT3_DBL_MIN</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT4_DBL_EPSILON.html'
+                                  title='rgsl::ROOT4_DBL_EPSILON'>ROOT4_DBL_EPSILON</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT4_DBL_MAX.html'
+                                  title='rgsl::ROOT4_DBL_MAX'>ROOT4_DBL_MAX</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT4_DBL_MIN.html'
+                                  title='rgsl::ROOT4_DBL_MIN'>ROOT4_DBL_MIN</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT5_DBL_EPSILON.html'
+                                  title='rgsl::ROOT5_DBL_EPSILON'>ROOT5_DBL_EPSILON</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT5_DBL_MAX.html'
+                                  title='rgsl::ROOT5_DBL_MAX'>ROOT5_DBL_MAX</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT5_DBL_MIN.html'
+                                  title='rgsl::ROOT5_DBL_MIN'>ROOT5_DBL_MIN</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT6_DBL_EPSILON.html'
+                                  title='rgsl::ROOT6_DBL_EPSILON'>ROOT6_DBL_EPSILON</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT6_DBL_MAX.html'
+                                  title='rgsl::ROOT6_DBL_MAX'>ROOT6_DBL_MAX</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.ROOT6_DBL_MIN.html'
+                                  title='rgsl::ROOT6_DBL_MIN'>ROOT6_DBL_MIN</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.SF_DOUBLEFACT_NMAX.html'
+                                  title='rgsl::SF_DOUBLEFACT_NMAX'>SF_DOUBLEFACT_NMAX</a></td>
+                           <td class='docblock short'>
+                                <p>The maximum n such that gsl_sf_doublefact(n) does not give an overflow.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.SF_FACT_NMAX.html'
+                                  title='rgsl::SF_FACT_NMAX'>SF_FACT_NMAX</a></td>
+                           <td class='docblock short'>
+                                <p>The maximum n such that gsl_sf_fact(n) does not give an overflow.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.SF_GAMMA_XMAX.html'
+                                  title='rgsl::SF_GAMMA_XMAX'>SF_GAMMA_XMAX</a></td>
+                           <td class='docblock short'>
+                                <p>The maximum x such that gamma(x) is not considered an overflow.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.SF_MATHIEU_COEFF.html'
+                                  title='rgsl::SF_MATHIEU_COEFF'>SF_MATHIEU_COEFF</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.SQRT_DBL_EPSILON.html'
+                                  title='rgsl::SQRT_DBL_EPSILON'>SQRT_DBL_EPSILON</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.SQRT_DBL_MAX.html'
+                                  title='rgsl::SQRT_DBL_MAX'>SQRT_DBL_MAX</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.SQRT_DBL_MIN.html'
+                                  title='rgsl::SQRT_DBL_MIN'>SQRT_DBL_MIN</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr></table><h2 id='types' class='section-header'><a href="#types">Type Definitions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.GSLResult.html'
+                                  title='rgsl::GSLResult'>GSLResult</a></td>
+                           <td class='docblock short'>
+                                <p>A type for results generated by GSL functions where <code>Err</code> is <code>enums::Value</code>.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.comparison_fn.html'
+                                  title='rgsl::comparison_fn'>comparison_fn</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.function.html'
+                                  title='rgsl::function'>function</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.integration_function.html'
+                                  title='rgsl::integration_function'>integration_function</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.monte_function.html'
+                                  title='rgsl::monte_function'>monte_function</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.select_function.html'
+                                  title='rgsl::select_function'>select_function</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='type' href='type.value_function.html'
+                                  title='rgsl::value_function'>value_function</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../jquery.js"></script>
+    <script src="../main.js"></script>
+    
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

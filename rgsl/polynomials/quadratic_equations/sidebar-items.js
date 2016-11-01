@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["poly_complex_solve_quadratic","This function finds the complex roots of the quadratic equation,"],["poly_solve_quadratic","This function finds the real roots of the quadratic equation,"]]});

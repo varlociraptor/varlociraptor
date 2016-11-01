@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["psi_n","This routine computes the polygamma function \\psi^{(n)}(x) for n >= 0, x > 0."],["psi_n_e","This routine computes the polygamma function \\psi^{(n)}(x) for n >= 0, x > 0."]]});

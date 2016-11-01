@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["BitEnc","A sequence of bitencoded values."],["BitEncIter","Iterator over values of a bitencoded sequence (values will be unpacked into bytes)."]]});

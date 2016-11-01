@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["dawson","This routine computes the value of Dawson’s integral for x."],["dawson_e","This routine computes the value of Dawson’s integral for x."]]});

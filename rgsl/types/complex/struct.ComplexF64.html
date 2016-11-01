@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `ComplexF64` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, ComplexF64">
+
+    <title>rgsl::types::complex::ComplexF64 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>complex</a></p><script>window.sidebarCurrent = {name: 'ComplexF64', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>complex</a>::<wbr><a class='struct' href=''>ComplexF64</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-9248' class='srclink' href='../../../src/rgsl/types/complex.rs.html#13-15' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct ComplexF64 {
+    pub data: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.array.html'>[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.array.html'>; 2]</a>,
+}</pre><h2 class='fields'>Fields</h2><span id='structfield.data' class='structfield'><code>data: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.array.html'>[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.array.html'>; 2]</a></code>
+                           </span><span class='stab '></span><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9251' class='srclink' href='../../../src/rgsl/types/complex.rs.html#17-333' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.rect' class='method'><code>fn <a href='#method.rect' class='fnname'>rect</a>(x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, y: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function uses the rectangular Cartesian components (x,y) to return the complex number z = x + i y.</p>
+</div><h4 id='method.polar' class='method'><code>fn <a href='#method.polar' class='fnname'>polar</a>(r: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, theta: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex number z = r \exp(i \theta) = r (\cos(\theta) + i \sin(\theta)) from the polar representation (r,theta).</p>
+</div><h4 id='method.arg' class='method'><code>fn <a href='#method.arg' class='fnname'>arg</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the argument of the complex number z, \arg(z), where -\pi &lt; \arg(z) &lt;= \pi.</p>
+</div><h4 id='method.abs' class='method'><code>fn <a href='#method.abs' class='fnname'>abs</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the magnitude of the complex number z, |z|.</p>
+</div><h4 id='method.abs2' class='method'><code>fn <a href='#method.abs2' class='fnname'>abs2</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the squared magnitude of the complex number z, |z|<sup>2.</sup></p>
+</div><h4 id='method.logabs' class='method'><code>fn <a href='#method.logabs' class='fnname'>logabs</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a></code></h4>
+<div class='docblock'><p>This function returns the natural logarithm of the magnitude of the complex number z, \log|z|.
+It allows an accurate evaluation of \log|z| when |z| is close to one.
+The direct evaluation of log(gsl_complex_abs(z)) would lead to a loss of precision in this case.</p>
+</div><h4 id='method.add' class='method'><code>fn <a href='#method.add' class='fnname'>add</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the sum of the complex numbers a and b, z=a+b.</p>
+</div><h4 id='method.sub' class='method'><code>fn <a href='#method.sub' class='fnname'>sub</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the difference of the complex numbers a and b, z=a-b.</p>
+</div><h4 id='method.mul' class='method'><code>fn <a href='#method.mul' class='fnname'>mul</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the product of the complex numbers a and b, z=ab.</p>
+</div><h4 id='method.div' class='method'><code>fn <a href='#method.div' class='fnname'>div</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the quotient of the complex numbers a and b, z=a/b.</p>
+</div><h4 id='method.add_real' class='method'><code>fn <a href='#method.add_real' class='fnname'>add_real</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the sum of the complex number a and the real number x, z=a+x.</p>
+</div><h4 id='method.sub_real' class='method'><code>fn <a href='#method.sub_real' class='fnname'>sub_real</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the difference of the complex number a and the real number x, z=a-x.</p>
+</div><h4 id='method.mul_real' class='method'><code>fn <a href='#method.mul_real' class='fnname'>mul_real</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the product of the complex number a and the real number x, z=ax.</p>
+</div><h4 id='method.div_real' class='method'><code>fn <a href='#method.div_real' class='fnname'>div_real</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the quotient of the complex number a and the real number x, z=a/x.</p>
+</div><h4 id='method.add_imag' class='method'><code>fn <a href='#method.add_imag' class='fnname'>add_imag</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the sum of the complex number a and the imaginary number iy, z=a+iy.</p>
+</div><h4 id='method.sub_imag' class='method'><code>fn <a href='#method.sub_imag' class='fnname'>sub_imag</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the difference of the complex number a and the imaginary number iy, z=a-iy.</p>
+</div><h4 id='method.mul_imag' class='method'><code>fn <a href='#method.mul_imag' class='fnname'>mul_imag</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the product of the complex number a and the imaginary number iy, z=a*(iy).</p>
+</div><h4 id='method.div_imag' class='method'><code>fn <a href='#method.div_imag' class='fnname'>div_imag</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the quotient of the complex number a and the imaginary number iy, z=a/(iy).</p>
+</div><h4 id='method.conjugate' class='method'><code>fn <a href='#method.conjugate' class='fnname'>conjugate</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex conjugate of the complex number z, z<sup>*</sup> = x - i y.</p>
+</div><h4 id='method.inverse' class='method'><code>fn <a href='#method.inverse' class='fnname'>inverse</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the inverse, or reciprocal, of the complex number z, 1/z = (x - i y)/(x<sup>2</sup> + y<sup>2).</sup></p>
+</div><h4 id='method.negative' class='method'><code>fn <a href='#method.negative' class='fnname'>negative</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the negative of the complex number z, -z = (-x) + i(-y).</p>
+</div><h4 id='method.sqrt' class='method'><code>fn <a href='#method.sqrt' class='fnname'>sqrt</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the square root of the complex number z, \sqrt z.
+The branch cut is the negative real axis. The result always lies in the right half of the complex plane.</p>
+</div><h4 id='method.sqrt_real' class='method'><code>fn <a href='#method.sqrt_real' class='fnname'>sqrt_real</a>(x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex square root of the real number x, where x may be negative.</p>
+</div><h4 id='method.pow' class='method'><code>fn <a href='#method.pow' class='fnname'>pow</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>The function returns the complex number z raised to the complex power a, z<sup>a.</sup>
+This is computed as \exp(\log(z)*a) using complex logarithms and complex exponentials.</p>
+</div><h4 id='method.pow_real' class='method'><code>fn <a href='#method.pow_real' class='fnname'>pow_real</a>(&amp;self, x: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex number z raised to the real power x, z<sup>x.</sup></p>
+</div><h4 id='method.exp' class='method'><code>fn <a href='#method.exp' class='fnname'>exp</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex exponential of the complex number z, \exp(z).</p>
+</div><h4 id='method.log' class='method'><code>fn <a href='#method.log' class='fnname'>log</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex natural logarithm (base e) of the complex number z, \log(z).
+The branch cut is the negative real axis.</p>
+</div><h4 id='method.log10' class='method'><code>fn <a href='#method.log10' class='fnname'>log10</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex base-10 logarithm of the complex number z, \log_10 (z).</p>
+</div><h4 id='method.log_b' class='method'><code>fn <a href='#method.log_b' class='fnname'>log_b</a>(&amp;self, other: &amp;<a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex base-b logarithm of the complex number z, \log_b(z).
+This quantity is computed as the ratio \log(z)/\log(b).</p>
+</div><h4 id='method.sin' class='method'><code>fn <a href='#method.sin' class='fnname'>sin</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex sine of the complex number z, \sin(z) = (\exp(iz) - \exp(-iz))/(2i).</p>
+</div><h4 id='method.cos' class='method'><code>fn <a href='#method.cos' class='fnname'>cos</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex cosine of the complex number z, \cos(z) = (\exp(iz) + \exp(-iz))/2.</p>
+</div><h4 id='method.tan' class='method'><code>fn <a href='#method.tan' class='fnname'>tan</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex tangent of the complex number z, \tan(z) = \sin(z)/\cos(z).</p>
+</div><h4 id='method.sec' class='method'><code>fn <a href='#method.sec' class='fnname'>sec</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex secant of the complex number z, \sec(z) = 1/\cos(z).</p>
+</div><h4 id='method.csc' class='method'><code>fn <a href='#method.csc' class='fnname'>csc</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex cosecant of the complex number z, \csc(z) = 1/\sin(z).</p>
+</div><h4 id='method.cot' class='method'><code>fn <a href='#method.cot' class='fnname'>cot</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex cotangent of the complex number z, \cot(z) = 1/\tan(z).</p>
+</div><h4 id='method.arcsin' class='method'><code>fn <a href='#method.arcsin' class='fnname'>arcsin</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arcsine of the complex number z, \arcsin(z).
+The branch cuts are on the real axis, less than -1 and greater than 1.</p>
+</div><h4 id='method.arcsin_real' class='method'><code>fn <a href='#method.arcsin_real' class='fnname'>arcsin_real</a>(z: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arcsine of the real number z, \arcsin(z).</p>
+
+<ul>
+<li>For z between -1 and 1, the function returns a real value in the range [-\pi/2,\pi/2].</li>
+<li>For z less than -1 the result has a real part of -\pi/2 and a positive imaginary part.</li>
+<li>For z greater than 1 the result has a real part of \pi/2 and a negative imaginary part.</li>
+</ul>
+</div><h4 id='method.arccos' class='method'><code>fn <a href='#method.arccos' class='fnname'>arccos</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arccosine of the complex number z, \arccos(z).
+The branch cuts are on the real axis, less than -1 and greater than 1.</p>
+</div><h4 id='method.arccos_real' class='method'><code>fn <a href='#method.arccos_real' class='fnname'>arccos_real</a>(z: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arccosine of the real number z, \arccos(z).</p>
+
+<ul>
+<li>For z between -1 and 1, the function returns a real value in the range [0,\pi].</li>
+<li>For z less than -1 the result has a real part of \pi and a negative imaginary part.</li>
+<li>For z greater than 1 the result is purely imaginary and positive.</li>
+</ul>
+</div><h4 id='method.arctan' class='method'><code>fn <a href='#method.arctan' class='fnname'>arctan</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arctangent of the complex number z, \arctan(z).
+The branch cuts are on the imaginary axis, below -i and above i.</p>
+</div><h4 id='method.arcsec' class='method'><code>fn <a href='#method.arcsec' class='fnname'>arcsec</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arcsecant of the complex number z, \arcsec(z) = \arccos(1/z).</p>
+</div><h4 id='method.arcsec_real' class='method'><code>fn <a href='#method.arcsec_real' class='fnname'>arcsec_real</a>(z: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arcsecant of the real number z, \arcsec(z) = \arccos(1/z).</p>
+</div><h4 id='method.arccsc' class='method'><code>fn <a href='#method.arccsc' class='fnname'>arccsc</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arccosecant of the complex number z, \arccsc(z) = \arcsin(1/z).</p>
+</div><h4 id='method.arccsc_real' class='method'><code>fn <a href='#method.arccsc_real' class='fnname'>arccsc_real</a>(z: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arccosecant of the real number z, \arccsc(z) = \arcsin(1/z).</p>
+</div><h4 id='method.arccot' class='method'><code>fn <a href='#method.arccot' class='fnname'>arccot</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex arccotangent of the complex number z, \arccot(z) = \arctan(1/z).</p>
+</div><h4 id='method.sinh' class='method'><code>fn <a href='#method.sinh' class='fnname'>sinh</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic sine of the complex number z, \sinh(z) = (\exp(z) - \exp(-z))/2.</p>
+</div><h4 id='method.cosh' class='method'><code>fn <a href='#method.cosh' class='fnname'>cosh</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic cosine of the complex number z, \cosh(z) = (\exp(z) + \exp(-z))/2.</p>
+</div><h4 id='method.tanh' class='method'><code>fn <a href='#method.tanh' class='fnname'>tanh</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic tangent of the complex number z, \tanh(z) = \sinh(z)/\cosh(z).</p>
+</div><h4 id='method.sech' class='method'><code>fn <a href='#method.sech' class='fnname'>sech</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic secant of the complex number z, \sech(z) = 1/\cosh(z).</p>
+</div><h4 id='method.csch' class='method'><code>fn <a href='#method.csch' class='fnname'>csch</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic cosecant of the complex number z, \csch(z) = 1/\sinh(z).</p>
+</div><h4 id='method.coth' class='method'><code>fn <a href='#method.coth' class='fnname'>coth</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic cotangent of the complex number z, \coth(z) = 1/\tanh(z).</p>
+</div><h4 id='method.arcsinh' class='method'><code>fn <a href='#method.arcsinh' class='fnname'>arcsinh</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic arcsine of the complex number z, \arcsinh(z).
+The branch cuts are on the imaginary axis, below -i and above i.</p>
+</div><h4 id='method.arccosh' class='method'><code>fn <a href='#method.arccosh' class='fnname'>arccosh</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic arccosine of the complex number z, \arccosh(z).
+The branch cut is on the real axis, less than 1.
+Note that in this case we use the negative square root in formula 4.6.21 of Abramowitz &amp; Stegun giving \arccosh(z)=\log(z-\sqrt{z<sup>2-1}).</sup></p>
+</div><h4 id='method.arccosh_real' class='method'><code>fn <a href='#method.arccosh_real' class='fnname'>arccosh_real</a>(z: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic arccosine of the real number z, \arccosh(z).</p>
+</div><h4 id='method.arctanh' class='method'><code>fn <a href='#method.arctanh' class='fnname'>arctanh</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic arctangent of the complex number z, \arctanh(z).
+The branch cuts are on the real axis, less than -1 and greater than 1.</p>
+</div><h4 id='method.arctanh_real' class='method'><code>fn <a href='#method.arctanh_real' class='fnname'>arctanh_real</a>(z: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic arctangent of the real number z, \arctanh(z).</p>
+</div><h4 id='method.arcsech' class='method'><code>fn <a href='#method.arcsech' class='fnname'>arcsech</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic arcsecant of the complex number z, \arcsech(z) = \arccosh(1/z).</p>
+</div><h4 id='method.arccsch' class='method'><code>fn <a href='#method.arccsch' class='fnname'>arccsch</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic arccosecant of the complex number z, \arccsch(z) = \arcsin(1/z).</p>
+</div><h4 id='method.arccoth' class='method'><code>fn <a href='#method.arccoth' class='fnname'>arccoth</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>This function returns the complex hyperbolic arccotangent of the complex number z, \arccoth(z) = \arctanh(1/z).</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html' title='core::marker::Copy'>Copy</a> for <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9247' class='srclink' href='../../../src/rgsl/types/complex.rs.html#12' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html' title='core::fmt::Debug'>Debug</a> for <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9387' class='srclink' href='../../../src/rgsl/types/complex.rs.html#335-339' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class='struct' href='https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html' title='core::fmt::Formatter'>Formatter</a>) -&gt; <a class='type' href='https://doc.rust-lang.org/nightly/core/fmt/type.Result.html' title='core::fmt::Result'>Result</a></code></h4>
+<div class='docblock'><p>Formats the value using the given formatter.</p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a> for <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9394' class='srclink' href='../../../src/rgsl/types/complex.rs.html#341-347' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: &amp;Self)</code><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div></h4>
+<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+</div></div><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/default/trait.Default.html' title='core::default::Default'>Default</a> for <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-9397' class='srclink' href='../../../src/rgsl/types/complex.rs.html#349-355' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.default' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default' class='fnname'>default</a>() -&gt; <a class='struct' href='../../../rgsl/types/complex/struct.ComplexF64.html' title='rgsl::types::complex::ComplexF64'>ComplexF64</a></code></h4>
+<div class='docblock'><p>Returns the &quot;default value&quot; for a type. <a href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html#tymethod.default">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

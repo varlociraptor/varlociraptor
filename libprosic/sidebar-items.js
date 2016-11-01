@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["BCFError",""]],"mod":[["call",""],["estimation",""],["model",""],["utils",""]],"struct":[["ComplementEvent","Complement of other given events (i.e. 1 - Pr(other events))."]],"trait":[["Event","Event to call."]]});

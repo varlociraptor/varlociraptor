@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["multiply_e","This function multiplies x and y storing the product and its associated error in result."],["multiply_err_e","This function multiplies x and y with associated absolute errors dx and dy. The product xy +/- xy \\sqrt((dx/x)^2 +(dy/y)^2) is stored in result."]]});

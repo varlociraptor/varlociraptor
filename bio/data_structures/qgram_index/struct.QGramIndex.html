@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `QGramIndex` struct in crate `bio`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, QGramIndex">
+
+    <title>bio::data_structures::qgram_index::QGramIndex - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>bio</a>::<wbr><a href='../index.html'>data_structures</a>::<wbr><a href='index.html'>qgram_index</a></p><script>window.sidebarCurrent = {name: 'QGramIndex', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>bio</a>::<wbr><a href='../index.html'>data_structures</a>::<wbr><a href='index.html'>qgram_index</a>::<wbr><a class='struct' href=''>QGramIndex</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-1208' class='srclink' href='../../../src/bio/data_structures/qgram_index.rs.html#42-47' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct QGramIndex {
+    // some fields omitted
+}</pre><div class='docblock'><p>A classical, flexible, q-gram index implementation.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../bio/data_structures/qgram_index/struct.QGramIndex.html' title='bio::data_structures::qgram_index::QGramIndex'>QGramIndex</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-1213' class='srclink' href='../../../src/bio/data_structures/qgram_index.rs.html#50-200' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(q: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, text: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, alphabet: &amp;<a class='struct' href='../../../bio/alphabets/struct.Alphabet.html' title='bio::alphabets::Alphabet'>Alphabet</a>) -&gt; Self</code></h4>
+<div class='docblock'><p>Create a new q-gram index.
+The q has to be smaller than b / log2(|A|) with |A| being the alphabet size and b the number
+bits with the <code>usize</code> data type.</p>
+</div><h4 id='method.with_max_count' class='method'><code>fn <a href='#method.with_max_count' class='fnname'>with_max_count</a>(q: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, text: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, alphabet: &amp;<a class='struct' href='../../../bio/alphabets/struct.Alphabet.html' title='bio::alphabets::Alphabet'>Alphabet</a>, max_count: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; Self</code></h4>
+<div class='docblock'><p>Create a new q-gram index, only considering q-grams that occur at most <code>max_count</code> times.
+The q has to be smaller than b / log2(|A|) with |A| being the alphabet size and b the number
+bits with the <code>usize</code> data type.</p>
+</div><h4 id='method.q' class='method'><code>fn <a href='#method.q' class='fnname'>q</a>(&amp;self) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a></code></h4>
+<div class='docblock'><p>The used q.</p>
+</div><h4 id='method.qgram_matches' class='method'><code>fn <a href='#method.qgram_matches' class='fnname'>qgram_matches</a>(&amp;self, qgram: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a></code></h4>
+<div class='docblock'><p>Return text positions with matching q-gram. Complexity O(1).</p>
+</div><h4 id='method.matches' class='method'><code>fn <a href='#method.matches' class='fnname'>matches</a>(&amp;self, pattern: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, min_count: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='../../../bio/data_structures/qgram_index/struct.Match.html' title='bio::data_structures::qgram_index::Match'>Match</a>&gt;</code></h4>
+<div class='docblock'><p>Return matches of the given pattern.
+Complexity O(m + k) for pattern of length m and k being the number of matching q-grams.</p>
+</div><h4 id='method.exact_matches' class='method'><code>fn <a href='#method.exact_matches' class='fnname'>exact_matches</a>(&amp;self, pattern: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>) -&gt; <a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='../../../bio/data_structures/qgram_index/struct.ExactMatch.html' title='bio::data_structures::qgram_index::ExactMatch'>ExactMatch</a>&gt;</code></h4>
+<div class='docblock'><p>Return exact matches (substrings) of the given pattern.
+Complexity O(m + k) for pattern of length m and k being the number of matching q-grams.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "bio";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

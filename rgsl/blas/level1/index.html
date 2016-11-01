@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `level1` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, level1">
+
+    <title>rgsl::blas::level1 - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>blas</a></p><script>window.sidebarCurrent = {name: 'level1', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>blas</a>::<wbr><a class='mod' href=''>level1</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-14704' class='srclink' href='../../../src/rgsl/blas.rs.html#5-270' title='goto source code'>[src]</a></span></h1>
+<h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.caxpy.html'
+                                  title='rgsl::blas::level1::caxpy'>caxpy</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the sum y = \alpha x + y for the vectors x and y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ccopy.html'
+                                  title='rgsl::blas::level1::ccopy'>ccopy</a></td>
+                           <td class='docblock short'>
+                                <p>This function copy the elements of the vector x into the vector y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cdotc.html'
+                                  title='rgsl::blas::level1::cdotc'>cdotc</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the complex conjugate scalar product x<sup>H</sup> y for the vectors x and y, returning the result in dotc.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cdotu.html'
+                                  title='rgsl::blas::level1::cdotu'>cdotu</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the complex scalar product x<sup>T</sup> y for the vectors x and y, returning the result in dotu.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cscal.html'
+                                  title='rgsl::blas::level1::cscal'>cscal</a></td>
+                           <td class='docblock short'>
+                                <p>This function rescales the vector x by the multiplicative factor alpha.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.csscal.html'
+                                  title='rgsl::blas::level1::csscal'>csscal</a></td>
+                           <td class='docblock short'>
+                                <p>This function rescales the vector x by the multiplicative factor alpha.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.cswap.html'
+                                  title='rgsl::blas::level1::cswap'>cswap</a></td>
+                           <td class='docblock short'>
+                                <p>This function exchanges the elements of the vectors x and y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dasum.html'
+                                  title='rgsl::blas::level1::dasum'>dasum</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the absolute sum \sum |x_i| of the elements of the vector x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.daxpy.html'
+                                  title='rgsl::blas::level1::daxpy'>daxpy</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the sum y = \alpha x + y for the vectors x and y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dcopy.html'
+                                  title='rgsl::blas::level1::dcopy'>dcopy</a></td>
+                           <td class='docblock short'>
+                                <p>This function copy the elements of the vector x into the vector y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.ddot.html'
+                                  title='rgsl::blas::level1::ddot'>ddot</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the scalar product x<sup>T</sup> y for the vectors x and y, returning the result in result.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dnrm2.html'
+                                  title='rgsl::blas::level1::dnrm2'>dnrm2</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Euclidean norm ||x||_2 = \sqrt {\sum x_i<sup>2}</sup> of the vector x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.drot.html'
+                                  title='rgsl::blas::level1::drot'>drot</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies a Givens rotation (x&#39;, y&#39;) = (c x + s y, -s x + c y) to the vectors x, y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.drotg.html'
+                                  title='rgsl::blas::level1::drotg'>drotg</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a Givens rotation (c,s) which zeroes the vector (a,b),</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.drotm.html'
+                                  title='rgsl::blas::level1::drotm'>drotm</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies a modified Givens transformation.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.drotmg.html'
+                                  title='rgsl::blas::level1::drotmg'>drotmg</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a modified Givens transformation.
+The modified Givens transformation is defined in the original Level-1 BLAS specification, given in the references.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dscal.html'
+                                  title='rgsl::blas::level1::dscal'>dscal</a></td>
+                           <td class='docblock short'>
+                                <p>This function rescales the vector x by the multiplicative factor alpha.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dsdot.html'
+                                  title='rgsl::blas::level1::dsdot'>dsdot</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the scalar product x<sup>T</sup> y for the vectors x and y, returning the result in result.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dswap.html'
+                                  title='rgsl::blas::level1::dswap'>dswap</a></td>
+                           <td class='docblock short'>
+                                <p>This function exchanges the elements of the vectors x and y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dzasum.html'
+                                  title='rgsl::blas::level1::dzasum'>dzasum</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the sum of the magnitudes of the real and imaginary parts of the complex vector x, \sum |\Re(x_i)| + |\Im(x_i)|.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.dznrm2.html'
+                                  title='rgsl::blas::level1::dznrm2'>dznrm2</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Euclidean norm of the complex vector x,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.icamax.html'
+                                  title='rgsl::blas::level1::icamax'>icamax</a></td>
+                           <td class='docblock short'>
+                                <p>This function returns the index of the largest element of the vector x.
+The largest element is determined by its absolute magnitude for real vectors and by the sum of the magnitudes of the real and imaginary parts |\Re(x_i)| + |\Im(x_i)| for complex vectors.
+If the largest value occurs several times then the index of the first occurrence is returned.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.idamax.html'
+                                  title='rgsl::blas::level1::idamax'>idamax</a></td>
+                           <td class='docblock short'>
+                                <p>This function returns the index of the largest element of the vector x.
+The largest element is determined by its absolute magnitude for real vectors and by the sum of the magnitudes of the real and imaginary parts |\Re(x_i)| + |\Im(x_i)| for complex vectors.
+If the largest value occurs several times then the index of the first occurrence is returned.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.isamax.html'
+                                  title='rgsl::blas::level1::isamax'>isamax</a></td>
+                           <td class='docblock short'>
+                                <p>This function returns the index of the largest element of the vector x.
+The largest element is determined by its absolute magnitude for real vectors and by the sum of the magnitudes of the real and imaginary parts |\Re(x_i)| + |\Im(x_i)| for complex vectors.
+If the largest value occurs several times then the index of the first occurrence is returned.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.izamax.html'
+                                  title='rgsl::blas::level1::izamax'>izamax</a></td>
+                           <td class='docblock short'>
+                                <p>This function returns the index of the largest element of the vector x.
+The largest element is determined by its absolute magnitude for real vectors and by the sum of the magnitudes of the real and imaginary parts |\Re(x_i)| + |\Im(x_i)| for complex vectors.
+If the largest value occurs several times then the index of the first occurrence is returned.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sasum.html'
+                                  title='rgsl::blas::level1::sasum'>sasum</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the absolute sum \sum |x_i| of the elements of the vector x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.saxpy.html'
+                                  title='rgsl::blas::level1::saxpy'>saxpy</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the sum y = \alpha x + y for the vectors x and y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.scasum.html'
+                                  title='rgsl::blas::level1::scasum'>scasum</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the sum of the magnitudes of the real and imaginary parts of the complex vector x, \sum |\Re(x_i)| + |\Im(x_i)|.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.scnrm2.html'
+                                  title='rgsl::blas::level1::scnrm2'>scnrm2</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Euclidean norm of the complex vector x,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.scopy.html'
+                                  title='rgsl::blas::level1::scopy'>scopy</a></td>
+                           <td class='docblock short'>
+                                <p>This function copy the elements of the vector x into the vector y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sdot.html'
+                                  title='rgsl::blas::level1::sdot'>sdot</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the scalar product x<sup>T</sup> y for the vectors x and y, returning the result in result.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sdsdot.html'
+                                  title='rgsl::blas::level1::sdsdot'>sdsdot</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the sum \alpha + x<sup>T</sup> y for the vectors x and y, returning the result in result.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.snrm2.html'
+                                  title='rgsl::blas::level1::snrm2'>snrm2</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the Euclidean norm ||x||_2 = \sqrt {\sum x_i<sup>2}</sup> of the vector x.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.srot.html'
+                                  title='rgsl::blas::level1::srot'>srot</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies a Givens rotation (x&#39;, y&#39;) = (c x + s y, -s x + c y) to the vectors x, y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.srotg.html'
+                                  title='rgsl::blas::level1::srotg'>srotg</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a Givens rotation (c,s) which zeroes the vector (a,b),</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.srotm.html'
+                                  title='rgsl::blas::level1::srotm'>srotm</a></td>
+                           <td class='docblock short'>
+                                <p>This function applies a modified Givens transformation.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.srotmg.html'
+                                  title='rgsl::blas::level1::srotmg'>srotmg</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes a modified Givens transformation.
+The modified Givens transformation is defined in the original Level-1 BLAS specification, given in the references.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sscal.html'
+                                  title='rgsl::blas::level1::sscal'>sscal</a></td>
+                           <td class='docblock short'>
+                                <p>This function rescales the vector x by the multiplicative factor alpha.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.sswap.html'
+                                  title='rgsl::blas::level1::sswap'>sswap</a></td>
+                           <td class='docblock short'>
+                                <p>This function exchanges the elements of the vectors x and y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zaxpy.html'
+                                  title='rgsl::blas::level1::zaxpy'>zaxpy</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the sum y = \alpha x + y for the vectors x and y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zcopy.html'
+                                  title='rgsl::blas::level1::zcopy'>zcopy</a></td>
+                           <td class='docblock short'>
+                                <p>This function copy the elements of the vector x into the vector y.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zdotc.html'
+                                  title='rgsl::blas::level1::zdotc'>zdotc</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the complex conjugate scalar product x<sup>H</sup> y for the vectors x and y, returning the result in dotc.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zdotu.html'
+                                  title='rgsl::blas::level1::zdotu'>zdotu</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes the complex scalar product x<sup>T</sup> y for the vectors x and y, returning the result in dotu.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zdscal.html'
+                                  title='rgsl::blas::level1::zdscal'>zdscal</a></td>
+                           <td class='docblock short'>
+                                <p>This function rescales the vector x by the multiplicative factor alpha.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zscal.html'
+                                  title='rgsl::blas::level1::zscal'>zscal</a></td>
+                           <td class='docblock short'>
+                                <p>This function rescales the vector x by the multiplicative factor alpha.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.zswap.html'
+                                  title='rgsl::blas::level1::zswap'>zswap</a></td>
+                           <td class='docblock short'>
+                                <p>This function exchanges the elements of the vectors x and y.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `associated_polynomials` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, associated_polynomials">
+
+    <title>rgsl::legendre::associated_polynomials - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>legendre</a></p><script>window.sidebarCurrent = {name: 'associated_polynomials', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>legendre</a>::<wbr><a class='mod' href=''>associated_polynomials</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-18546' class='srclink' href='../../../src/rgsl/legendre.rs.html#121-182' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The following functions compute the associated Legendre Polynomials P_l<sup>m(x).</sup>
+Note that this function grows combinatorially with l and can overflow for l larger than about 150.
+There is no trouble for small m, but overflow occurs when m and l are both large.
+Rather than allow overflows, these functions refuse to calculate P_l<sup>m(x)</sup> and return <a href="enums/type.Value.html"><code>OvrFlw</code></a> when they can sense that l and m are too big.</p>
+
+<p>If you want to calculate a spherical harmonic, then do not use these functions. Instead use <a href="fn.legendre_sphPlm.html"><code>legendre_sphPlm</code></a> below, which uses a similar recursion, but with the normalized functions.</p>
+</div><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.legendre_Plm.html'
+                                  title='rgsl::legendre::associated_polynomials::legendre_Plm'>legendre_Plm</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the associated Legendre polynomial P_l<sup>m(x)</sup> for m &gt;= 0, l &gt;= m, |x| &lt;= 1.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.legendre_Plm_array.html'
+                                  title='rgsl::legendre::associated_polynomials::legendre_Plm_array'>legendre_Plm_array</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes arrays of Legendre polynomials P_l<sup>m(x)</sup> and derivatives dP_l<sup>m(x)/dx,</sup> for m &gt;= 0, l = |m|, ..., lmax, |x| &lt;= 1.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.legendre_Plm_deriv_array.html'
+                                  title='rgsl::legendre::associated_polynomials::legendre_Plm_deriv_array'>legendre_Plm_deriv_array</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes arrays of Legendre polynomials P_l<sup>m(x)</sup> and derivatives dP_l<sup>m(x)/dx,</sup> for m &gt;= 0, l = |m|, ..., lmax, |x| &lt;= 1.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.legendre_Plm_e.html'
+                                  title='rgsl::legendre::associated_polynomials::legendre_Plm_e'>legendre_Plm_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the associated Legendre polynomial P_l<sup>m(x)</sup> for m &gt;= 0, l &gt;= m, |x| &lt;= 1.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.legendre_array_size.html'
+                                  title='rgsl::legendre::associated_polynomials::legendre_array_size'>legendre_array_size</a></td>
+                           <td class='docblock short'>
+                                <p>This function returns the size of result_array[] needed for the array versions of P_l<sup>m(x),</sup> lmax - m + 1.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.legendre_sphPlm.html'
+                                  title='rgsl::legendre::associated_polynomials::legendre_sphPlm'>legendre_sphPlm</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the normalized associated Legendre polynomial \sqrt{(2l+1)/(4\pi)} \sqrt{(l-m)!/(l+m)!} P_l<sup>m(x)</sup> suitable for use in spherical harmonics.
+The parameters must satisfy m &gt;= 0, l &gt;= m, |x| &lt;= 1.
+This routine avoids the overflows that occur for the standard normalization of P_l<sup>m(x).</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.legendre_sphPlm_array.html'
+                                  title='rgsl::legendre::associated_polynomials::legendre_sphPlm_array'>legendre_sphPlm_array</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes arrays of normalized associated Legendre functions \sqrt{(2l+1)/(4\pi)} \sqrt{(l-m)!/(l+m)!} P_l<sup>m(x),</sup> and derivatives, for m &gt;= 0, l = |m|, ..., lmax, |x| &lt;= 1.0</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.legendre_sphPlm_deriv_array.html'
+                                  title='rgsl::legendre::associated_polynomials::legendre_sphPlm_deriv_array'>legendre_sphPlm_deriv_array</a></td>
+                           <td class='docblock short'>
+                                <p>This function computes arrays of normalized associated Legendre functions \sqrt{(2l+1)/(4\pi)} \sqrt{(l-m)!/(l+m)!} P_l<sup>m(x),</sup> and derivatives, for m &gt;= 0, l = |m|, ..., lmax, |x| &lt;= 1.0</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='fn' href='fn.legendre_sphPlm_e.html'
+                                  title='rgsl::legendre::associated_polynomials::legendre_sphPlm_e'>legendre_sphPlm_e</a></td>
+                           <td class='docblock short'>
+                                <p>This routine computes the normalized associated Legendre polynomial \sqrt{(2l+1)/(4\pi)} \sqrt{(l-m)!/(l+m)!} P_l<sup>m(x)</sup> suitable for use in spherical harmonics.
+The parameters must satisfy m &gt;= 0, l &gt;= m, |x| &lt;= 1.
+This routine avoids the overflows that occur for the standard normalization of P_l<sup>m(x).</sup></p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

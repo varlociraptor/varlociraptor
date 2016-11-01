@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/GSL-0.4.28/src/types/mod.rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang">
+
+    <title>mod.rs.html -- source</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content source"><pre class="line-numbers"><span id="1"> 1</span>
+<span id="2"> 2</span>
+<span id="3"> 3</span>
+<span id="4"> 4</span>
+<span id="5"> 5</span>
+<span id="6"> 6</span>
+<span id="7"> 7</span>
+<span id="8"> 8</span>
+<span id="9"> 9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+</pre><pre class='rust '>
+<span class='comment'>//</span>
+<span class='comment'>// A rust binding for the GSL library by Guillaume Gomez (guillaume1.gomez@gmail.com)</span>
+<span class='comment'>//</span>
+
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>basis_spline</span>::{<span class='ident'>BSpLineWorkspace</span>, <span class='ident'>BSpLineDerivWorkspace</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>chebyshev</span>::<span class='ident'>ChebSeries</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>combination</span>::<span class='ident'>Combination</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>complex</span>::{<span class='ident'>ComplexF32</span>, <span class='ident'>ComplexF64</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>discrete_hankel</span>::<span class='ident'>DiscreteHankel</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>eigen_symmetric_workspace</span>::{<span class='ident'>EigenSymmetricWorkspace</span>, <span class='ident'>EigenSymmetricVWorkspace</span>, <span class='ident'>EigenHermitianWorkspace</span>,
+    <span class='ident'>EigenHermitianVWorkspace</span>, <span class='ident'>EigenNonSymmWorkspace</span>, <span class='ident'>EigenNonSymmVWorkspace</span>, <span class='ident'>EigenGenSymmWorkspace</span>, <span class='ident'>EigenGenSymmVWorkspace</span>,
+    <span class='ident'>EigenGenHermWorkspace</span>, <span class='ident'>EigenGenHermVWorkspace</span>, <span class='ident'>EigenGenWorkspace</span>, <span class='ident'>EigenGenVWorkspace</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>fast_fourier_transforms</span>::{<span class='ident'>FftComplexWaveTable</span>, <span class='ident'>FftComplexWorkspace</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>histograms</span>::{<span class='ident'>Histogram</span>, <span class='ident'>HistogramPdf</span>, <span class='ident'>Histogram2D</span>, <span class='ident'>Histogram2DPdf</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>integration</span>::{<span class='ident'>IntegrationWorkspace</span>, <span class='ident'>IntegrationQawsTable</span>, <span class='ident'>IntegrationQawoTable</span>, <span class='ident'>CquadWorkspace</span>, <span class='ident'>GLFixedTable</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>interpolation</span>::{<span class='ident'>InterpAccel</span>, <span class='ident'>Interp</span>, <span class='ident'>InterpType</span>, <span class='ident'>Spline</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>mathieu</span>::<span class='ident'>MathieuWorkspace</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>matrix</span>::{<span class='ident'>MatrixF32</span>, <span class='ident'>MatrixF64</span>, <span class='ident'>MatrixView</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>matrix_complex</span>::{<span class='ident'>MatrixComplexF32</span>, <span class='ident'>MatrixComplexF64</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>minimizer</span>::{<span class='ident'>Minimizer</span>, <span class='ident'>MinimizerType</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>monte_carlo</span>::{<span class='ident'>PlainMonteCarlo</span>, <span class='ident'>MiserMonteCarlo</span>, <span class='ident'>MiserParams</span>, <span class='ident'>VegasMonteCarlo</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>multifit_solver</span>::{<span class='ident'>MultiFitFdfSolver</span>, <span class='ident'>MultiFitFunction</span>, <span class='ident'>MultiFitFdfSolverType</span>, <span class='ident'>MultiFitFunctionFdf</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>multiset</span>::<span class='ident'>MultiSet</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>n_tuples</span>::<span class='ident'>NTuples</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>ordinary_differential_equations</span>::{<span class='ident'>ODEiv2System</span>, <span class='ident'>ODEiv2Step</span>, <span class='ident'>ODEiv2StepType</span>, <span class='ident'>ODEiv2Control</span>, <span class='ident'>ODEiv2Evolve</span>, <span class='ident'>ODEiv2Driver</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>permutation</span>::<span class='ident'>Permutation</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>polynomial</span>::<span class='ident'>PolyComplex</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>qrng</span>::{<span class='ident'>QRng</span>, <span class='ident'>QRngType</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>ran_discrete</span>::<span class='ident'>RanDiscrete</span>;
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>result</span>::{<span class='prelude-ty'>Result</span>, <span class='ident'>ResultE10</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>rng</span>::{<span class='ident'>Rng</span>, <span class='ident'>RngType</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>series_acceleration</span>::{<span class='ident'>LevinUWorkspace</span>, <span class='ident'>LevinUTruncWorkspace</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>vector</span>::{<span class='ident'>VectorF32</span>, <span class='ident'>VectorF64</span>, <span class='ident'>VectorView</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>vector_complex</span>::{<span class='ident'>VectorComplexF32</span>, <span class='ident'>VectorComplexF64</span>};
+<span class='kw'>pub</span> <span class='kw'>use</span> <span class='self'>self</span>::<span class='ident'>wavelet_transforms</span>::{<span class='ident'>Wavelet</span>, <span class='ident'>WaveletType</span>, <span class='ident'>WaveletWorkspace</span>};
+
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>basis_spline</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>chebyshev</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>combination</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>complex</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>discrete_hankel</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>eigen_symmetric_workspace</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>fast_fourier_transforms</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>histograms</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>integration</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>interpolation</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>mathieu</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>matrix</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>matrix_complex</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>minimizer</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>monte_carlo</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>multifit_solver</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>multiset</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>n_tuples</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>ordinary_differential_equations</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>permutation</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>polynomial</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>qrng</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>ran_discrete</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>result</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>series_acceleration</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>rng</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vector</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>vector_complex</span>;
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>wavelet_transforms</span>;</pre>
+</section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

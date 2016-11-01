@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Horspool","Algorithm of Horspool."],["Matches","Iterator over start positions of matches."]]});

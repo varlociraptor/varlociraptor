@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["InfiniteSitesNeutralVariationModel","The classical population genetic model used for variant calling in e.g. GATK and Samtools."]]});

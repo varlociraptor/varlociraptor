@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `monte_carlo` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, monte_carlo">
+
+    <title>rgsl::types::monte_carlo - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a></p><script>window.sidebarCurrent = {name: 'monte_carlo', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a class='mod' href=''>monte_carlo</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-12366' class='srclink' href='../../../src/rgsl/types/monte_carlo.rs.html#5-642' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='monte-carlo-integration' class='section-header'><a href='#monte-carlo-integration'>Monte Carlo Integration</a></h1>
+<p>This chapter describes routines for multidimensional Monte Carlo integration. These include the traditional Monte Carlo method and adaptive 
+algorithms such as VEGAS and MISER which use importance sampling and stratified sampling techniques. Each algorithm computes an estimate of 
+a multidimensional definite integral of the form,</p>
+
+<p>I = \int_xl<sup>xu</sup> dx \int_yl<sup>yu</sup>  dy ...  f(x, y, ...)</p>
+
+<p>over a hypercubic region ((x_l,x_u), (y_l,y_u), ...) using a fixed number of function calls. The routines also provide a statistical estimate 
+of the error on the result. This error estimate should be taken as a guide rather than as a strict error bound—random sampling of the region 
+may not uncover all the important features of the function, resulting in an underestimate of the error.</p>
+
+<h2 id='interface' class='section-header'><a href='#interface'>Interface</a></h2>
+<p>All of the Monte Carlo integration routines use the same general form of interface. There is an allocator to allocate memory for control 
+variables and workspace, a routine to initialize those control variables, the integrator itself, and a function to free the space when done.</p>
+
+<p>Each integration function requires a random number generator to be supplied, and returns an estimate of the integral and its standard deviation. 
+The accuracy of the result is determined by the number of function calls specified by the user. If a known level of accuracy is required this 
+can be achieved by calling the integrator several times and averaging the individual results until the desired accuracy is obtained.</p>
+
+<p>Random sample points used within the Monte Carlo routines are always chosen strictly within the integration region, so that endpoint singularities 
+are automatically avoided.</p>
+
+<h2 id='vegas' class='section-header'><a href='#vegas'>VEGAS</a></h2>
+<p>The VEGAS algorithm of Lepage is based on importance sampling. It samples points from the probability distribution described by the function 
+|f|, so that the points are concentrated in the regions that make the largest contribution to the integral.</p>
+
+<p>In general, if the Monte Carlo integral of f is sampled with points distributed according to a probability distribution described by the function 
+g, we obtain an estimate E_g(f; N),</p>
+
+<p>E_g(f; N) = E(f/g; N)
+with a corresponding variance,</p>
+
+<p>\Var_g(f; N) = \Var(f/g; N).
+If the probability distribution is chosen as g = |f|/I(|f|) then it can be shown that the variance V_g(f; N) vanishes, and the error in the 
+estimate will be zero. In practice it is not possible to sample from the exact distribution g for an arbitrary function, so importance sampling 
+algorithms aim to produce efficient approximations to the desired distribution.</p>
+
+<p>The VEGAS algorithm approximates the exact distribution by making a number of passes over the integration region while histogramming the 
+function f. Each histogram is used to define a sampling distribution for the next pass. Asymptotically this procedure converges to the desired 
+distribution. In order to avoid the number of histogram bins growing like K<sup>d</sup> the probability distribution is approximated by a separable 
+function: g(x_1, x_2, ...) = g_1(x_1) g_2(x_2) ... so that the number of bins required is only Kd. This is equivalent to locating the 
+peaks of the function from the projections of the integrand onto the coordinate axes. The efficiency of VEGAS depends on the validity of 
+this assumption. It is most efficient when the peaks of the integrand are well-localized. If an integrand can be rewritten in a form which 
+is approximately separable this will increase the efficiency of integration with VEGAS.</p>
+
+<p>VEGAS incorporates a number of additional features, and combines both stratified sampling and importance sampling. The integration region 
+is divided into a number of “boxes”, with each box getting a fixed number of points (the goal is 2). Each box can then have a fractional 
+number of bins, but if the ratio of bins-per-box is less than two, Vegas switches to a kind variance reduction (rather than importance 
+sampling).</p>
+
+<p>The VEGAS algorithm computes a number of independent estimates of the integral internally, according to the iterations parameter described 
+below, and returns their weighted average. Random sampling of the integrand can occasionally produce an estimate where the error is zero, 
+particularly if the function is constant in some regions. An estimate with zero error causes the weighted average to break down and must 
+be handled separately. In the original Fortran implementations of VEGAS the error estimate is made non-zero by substituting a small value 
+(typically 1e-30). The implementation in GSL differs from this and avoids the use of an arbitrary constant—it either assigns the value a 
+weight which is the average weight of the preceding estimates or discards it according to the following procedure,</p>
+
+<p>current estimate has zero error, weighted average has finite error
+The current estimate is assigned a weight which is the average weight of the preceding estimates.</p>
+
+<p>current estimate has finite error, previous estimates had zero error
+The previous estimates are discarded and the weighted averaging procedure begins with the current estimate.</p>
+
+<p>current estimate has zero error, previous estimates had zero error
+The estimates are averaged using the arithmetic mean, but no error is computed.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MiserMonteCarlo.html'
+                                  title='rgsl::types::monte_carlo::MiserMonteCarlo'>MiserMonteCarlo</a></td>
+                           <td class='docblock short'>
+                                <p>The MISER algorithm of Press and Farrar is based on recursive stratified sampling. This technique aims to reduce the overall integration error
+by concentrating integration points in the regions of highest variance.</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MiserParams.html'
+                                  title='rgsl::types::monte_carlo::MiserParams'>MiserParams</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.PlainMonteCarlo.html'
+                                  title='rgsl::types::monte_carlo::PlainMonteCarlo'>PlainMonteCarlo</a></td>
+                           <td class='docblock short'>
+                                <p>The plain Monte Carlo algorithm samples points randomly from the integration region to estimate the integral and its error. Using this algorithm
+the estimate of the integral E(f; N) for N randomly distributed points x_i is given by,</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.VegasMonteCarlo.html'
+                                  title='rgsl::types::monte_carlo::VegasMonteCarlo'>VegasMonteCarlo</a></td>
+                           <td class='docblock short'>
+                                <p>The VEGAS algorithm of Lepage is based on importance sampling. It samples points from the probability
+distribution described by the function |f|, so that the points are concentrated in the regions that
+make the largest contribution to the integral.</p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

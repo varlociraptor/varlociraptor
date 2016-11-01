@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `FMIndex` struct in crate `bio`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, FMIndex">
+
+    <title>bio::data_structures::fmindex::FMIndex - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>bio</a>::<wbr><a href='../index.html'>data_structures</a>::<wbr><a href='index.html'>fmindex</a></p><script>window.sidebarCurrent = {name: 'FMIndex', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>bio</a>::<wbr><a href='../index.html'>data_structures</a>::<wbr><a href='index.html'>fmindex</a>::<wbr><a class='struct' href=''>FMIndex</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-1077' class='srclink' href='../../../src/bio/data_structures/fmindex.rs.html#95-102' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct FMIndex&lt;DBWT:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefBWT.html' title='bio::data_structures::bwt::DerefBWT'>DerefBWT</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DLess:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefLess.html' title='bio::data_structures::bwt::DerefLess'>DerefLess</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DOcc:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefOcc.html' title='bio::data_structures::bwt::DerefOcc'>DerefOcc</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>&gt; {
+    // some fields omitted
+}</pre><div class='docblock'><p>The Fast Index in Minute space (FM-Index, Ferragina and Manzini, 2000) for finding suffix array
+intervals matching a given pattern.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl&lt;DBWT:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefBWT.html' title='bio::data_structures::bwt::DerefBWT'>DerefBWT</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DLess:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefLess.html' title='bio::data_structures::bwt::DerefLess'>DerefLess</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DOcc:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefOcc.html' title='bio::data_structures::bwt::DerefOcc'>DerefOcc</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>&gt; <a class='struct' href='../../../bio/data_structures/fmindex/struct.FMIndex.html' title='bio::data_structures::fmindex::FMIndex'>FMIndex</a>&lt;DBWT,&nbsp;DLess,&nbsp;DOcc&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-1097' class='srclink' href='../../../src/bio/data_structures/fmindex.rs.html#121-142' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(bwt: DBWT, less: DLess, occ: DOcc) -&gt; Self</code></h4>
+<div class='docblock'><p>Construct a new instance of the FM index.</p>
+
+<h1 id='arguments' class='section-header'><a href='#arguments'>Arguments</a></h1>
+<ul>
+<li><code>sa</code> - the suffix array (or sample)</li>
+<li><code>bwt</code> - the BWT</li>
+<li><code>k</code> - the sampling rate of the occ array: every k-th entry will be stored (higher k means
+less memory usage, but worse performance)</li>
+<li><code>alphabet</code> - the alphabet of the underlying text, omitting the sentinel</li>
+</ul>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl&lt;DBWT:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefBWT.html' title='bio::data_structures::bwt::DerefBWT'>DerefBWT</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DLess:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefLess.html' title='bio::data_structures::bwt::DerefLess'>DerefLess</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>,&nbsp;DOcc:&nbsp;<a class='trait' href='../../../bio/data_structures/bwt/trait.DerefOcc.html' title='bio::data_structures::bwt::DerefOcc'>DerefOcc</a> + <a class='trait' href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html' title='core::clone::Clone'>Clone</a>&gt; <a class='trait' href='../../../bio/data_structures/fmindex/trait.FMIndexable.html' title='bio::data_structures::fmindex::FMIndexable'>FMIndexable</a> for <a class='struct' href='../../../bio/data_structures/fmindex/struct.FMIndex.html' title='bio::data_structures::fmindex::FMIndex'>FMIndex</a>&lt;DBWT,&nbsp;DLess,&nbsp;DOcc&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a id='src-1084' class='srclink' href='../../../src/bio/data_structures/fmindex.rs.html#104-119' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.occ' class='method'><code>fn <a href='../../../bio/data_structures/fmindex/trait.FMIndexable.html#tymethod.occ' class='fnname'>occ</a>(&amp;self, r: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>, a: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>Get occurrence count of symbol a in BWT[..r+1].</p>
+</div><h4 id='method.less' class='method'><code>fn <a href='../../../bio/data_structures/fmindex/trait.FMIndexable.html#tymethod.less' class='fnname'>less</a>(&amp;self, a: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>) -&gt; <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a></code></h4>
+<div class='docblock'><p>Also known as</p>
+</div><h4 id='method.bwt' class='method'><code>fn <a href='../../../bio/data_structures/fmindex/trait.FMIndexable.html#tymethod.bwt' class='fnname'>bwt</a>(&amp;self) -&gt; &amp;<a class='type' href='../../../bio/data_structures/bwt/type.BWT.html' title='bio::data_structures::bwt::BWT'>BWT</a></code></h4>
+<div class='docblock'><p>Provide a reference to the underlying BWT.</p>
+</div><h4 id='method.backward_search' class='method'><code>fn <a href='../../../bio/data_structures/fmindex/trait.FMIndexable.html#method.backward_search' class='fnname'>backward_search</a>&lt;'b,&nbsp;P:&nbsp;<a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html' title='core::iter::iterator::Iterator'>Iterator</a>&lt;Item=&amp;'b <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a>&gt; + <a class='trait' href='https://doc.rust-lang.org/nightly/core/iter/traits/trait.DoubleEndedIterator.html' title='core::iter::traits::DoubleEndedIterator'>DoubleEndedIterator</a>&gt;(&amp;self, pattern: P) -&gt; <a class='struct' href='../../../bio/data_structures/fmindex/struct.Interval.html' title='bio::data_structures::fmindex::Interval'>Interval</a></code></h4>
+<div class='docblock'><p>Perform backward search, yielding suffix array interval denoting exact occurrences of the given pattern of length m in the text. Complexity: O(m). <a href="../../../bio/data_structures/fmindex/trait.FMIndexable.html#method.backward_search">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "bio";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

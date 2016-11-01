@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `physical_constant` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, physical_constant">
+
+    <title>rgsl::physical_constant - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../index.html'>rgsl</a></p><script>window.sidebarCurrent = {name: 'physical_constant', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>rgsl</a>::<wbr><a class='mod' href=''>physical_constant</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-19164' class='srclink' href='../../src/rgsl/physical_constant.rs.html#5-285' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>Physical Constants</p>
+
+<p>This chapter describes macros for the values of physical constants, such as the speed of light, c, and gravitational constant, G. The 
+values are available in different unit systems, including the standard MKSA system (meters, kilograms, seconds, amperes) and the CGSM 
+system (centimeters, grams, seconds, gauss), which is commonly used in Astronomy.</p>
+
+<h2 id='references-and-further-reading' class='section-header'><a href='#references-and-further-reading'>References and Further Reading</a></h2>
+<p>The authoritative sources for physical constants are the 2006 CODATA recommended values, published in the article below. Further 
+information on the values of physical constants is also available from the NIST website.</p>
+
+<p>P.J. Mohr, B.N. Taylor, D.B. Newell, “CODATA Recommended Values of the Fundamental Physical Constants: 2006”, Reviews of Modern Physics, 
+80(2), pp. 633–730 (2008).</p>
+
+<p><a href="http://www.physics.nist.gov/cuu/Constants/index.html">http://www.physics.nist.gov/cuu/Constants/index.html</a>
+<a href="http://physics.nist.gov/Pubs/SP811/appenB9.html">http://physics.nist.gov/Pubs/SP811/appenB9.html</a></p>
+</div><h2 id='statics' class='section-header'><a href="#statics">Statics</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_ACRE.html'
+                                  title='rgsl::physical_constant::MKSA_ACRE'>MKSA_ACRE</a></td>
+                           <td class='docblock short'>
+                                <p>The area of 1 acre. m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_ANGSTROM.html'
+                                  title='rgsl::physical_constant::MKSA_ANGSTROM'>MKSA_ANGSTROM</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 angstrom. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_ASTRONOMICAL_UNIT.html'
+                                  title='rgsl::physical_constant::MKSA_ASTRONOMICAL_UNIT'>MKSA_ASTRONOMICAL_UNIT</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 astronomical unit (mean earth-sun distance), au. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_BAR.html'
+                                  title='rgsl::physical_constant::MKSA_BAR'>MKSA_BAR</a></td>
+                           <td class='docblock short'>
+                                <p>The pressure of 1 bar. kg / m s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_BARN.html'
+                                  title='rgsl::physical_constant::MKSA_BARN'>MKSA_BARN</a></td>
+                           <td class='docblock short'>
+                                <p>The area of 1 barn. m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_BOHR_MAGNETON.html'
+                                  title='rgsl::physical_constant::MKSA_BOHR_MAGNETON'>MKSA_BOHR_MAGNETON</a></td>
+                           <td class='docblock short'>
+                                <p>The Bohr Magneton, \mu_B. A m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_BOHR_RADIUS.html'
+                                  title='rgsl::physical_constant::MKSA_BOHR_RADIUS'>MKSA_BOHR_RADIUS</a></td>
+                           <td class='docblock short'>
+                                <p>The Bohr radius, a_0. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_BOLTZMANN.html'
+                                  title='rgsl::physical_constant::MKSA_BOLTZMANN'>MKSA_BOLTZMANN</a></td>
+                           <td class='docblock short'>
+                                <p>The Boltzmann constant, k. kg m<sup>2</sup> / K s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_BTU.html'
+                                  title='rgsl::physical_constant::MKSA_BTU'>MKSA_BTU</a></td>
+                           <td class='docblock short'>
+                                <p>The energy of 1 British Thermal Unit, btu. kg m<sup>2</sup> / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_CALORIE.html'
+                                  title='rgsl::physical_constant::MKSA_CALORIE'>MKSA_CALORIE</a></td>
+                           <td class='docblock short'>
+                                <p>The energy of 1 calorie. kg m<sup>2</sup> / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_CANADIAN_GALLON.html'
+                                  title='rgsl::physical_constant::MKSA_CANADIAN_GALLON'>MKSA_CANADIAN_GALLON</a></td>
+                           <td class='docblock short'>
+                                <p>The volume of 1 Canadian gallon. m<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_CARAT.html'
+                                  title='rgsl::physical_constant::MKSA_CARAT'>MKSA_CARAT</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of 1 carat. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_CUP.html'
+                                  title='rgsl::physical_constant::MKSA_CUP'>MKSA_CUP</a></td>
+                           <td class='docblock short'>
+                                <p>m<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_CURIE.html'
+                                  title='rgsl::physical_constant::MKSA_CURIE'>MKSA_CURIE</a></td>
+                           <td class='docblock short'>
+                                <p>The activity of 1 curie. 1 / s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_DAY.html'
+                                  title='rgsl::physical_constant::MKSA_DAY'>MKSA_DAY</a></td>
+                           <td class='docblock short'>
+                                <p>The number of seconds in 1 day. s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_DEBYE.html'
+                                  title='rgsl::physical_constant::MKSA_DEBYE'>MKSA_DEBYE</a></td>
+                           <td class='docblock short'>
+                                <p>The electric dipole moment of 1 Debye, D. A s<sup>2</sup> / m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_DYNE.html'
+                                  title='rgsl::physical_constant::MKSA_DYNE'>MKSA_DYNE</a></td>
+                           <td class='docblock short'>
+                                <p>The force of 1 Dyne = 10<sup>-5</sup> Newton. kg m / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_ELECTRON_CHARGE.html'
+                                  title='rgsl::physical_constant::MKSA_ELECTRON_CHARGE'>MKSA_ELECTRON_CHARGE</a></td>
+                           <td class='docblock short'>
+                                <p>The charge of the electron, e. A s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_ELECTRON_MAGNETIC_MOMENT.html'
+                                  title='rgsl::physical_constant::MKSA_ELECTRON_MAGNETIC_MOMENT'>MKSA_ELECTRON_MAGNETIC_MOMENT</a></td>
+                           <td class='docblock short'>
+                                <p>The absolute value of the magnetic moment of the electron, \mu_e. The physical magnetic moment of the electron is negative. A m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_ELECTRON_VOLT.html'
+                                  title='rgsl::physical_constant::MKSA_ELECTRON_VOLT'>MKSA_ELECTRON_VOLT</a></td>
+                           <td class='docblock short'>
+                                <p>The energy of 1 electron volt, eV. kg m<sup>2</sup> / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_ERG.html'
+                                  title='rgsl::physical_constant::MKSA_ERG'>MKSA_ERG</a></td>
+                           <td class='docblock short'>
+                                <p>The energy 1 erg = 10<sup>-7</sup> Joule. kg m<sup>2</sup> / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_FARADAY.html'
+                                  title='rgsl::physical_constant::MKSA_FARADAY'>MKSA_FARADAY</a></td>
+                           <td class='docblock short'>
+                                <p>The molar charge of 1 Faraday. A s / mol</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_FATHOM.html'
+                                  title='rgsl::physical_constant::MKSA_FATHOM'>MKSA_FATHOM</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 fathom. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_FOOT.html'
+                                  title='rgsl::physical_constant::MKSA_FOOT'>MKSA_FOOT</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 foot. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_FOOTCANDLE.html'
+                                  title='rgsl::physical_constant::MKSA_FOOTCANDLE'>MKSA_FOOTCANDLE</a></td>
+                           <td class='docblock short'>
+                                <p>The illuminance of 1 footcandle. cd sr / m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_FOOTLAMBERT.html'
+                                  title='rgsl::physical_constant::MKSA_FOOTLAMBERT'>MKSA_FOOTLAMBERT</a></td>
+                           <td class='docblock short'>
+                                <p>The luminance of 1 footlambert. cd sr / m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_GAUSS.html'
+                                  title='rgsl::physical_constant::MKSA_GAUSS'>MKSA_GAUSS</a></td>
+                           <td class='docblock short'>
+                                <p>The magnetic field of 1 Gauss. kg / A s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_GRAM_FORCE.html'
+                                  title='rgsl::physical_constant::MKSA_GRAM_FORCE'>MKSA_GRAM_FORCE</a></td>
+                           <td class='docblock short'>
+                                <p>The force of 1 gram weight. kg m / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_GRAVITATIONAL_CONSTANT.html'
+                                  title='rgsl::physical_constant::MKSA_GRAVITATIONAL_CONSTANT'>MKSA_GRAVITATIONAL_CONSTANT</a></td>
+                           <td class='docblock short'>
+                                <p>The gravitational constant, G. m<sup>3</sup> / kg s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_GRAV_ACCEL.html'
+                                  title='rgsl::physical_constant::MKSA_GRAV_ACCEL'>MKSA_GRAV_ACCEL</a></td>
+                           <td class='docblock short'>
+                                <p>The standard gravitational acceleration on Earth, g. m / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_HECTARE.html'
+                                  title='rgsl::physical_constant::MKSA_HECTARE'>MKSA_HECTARE</a></td>
+                           <td class='docblock short'>
+                                <p>The area of 1 hectare. m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_HORSEPOWER.html'
+                                  title='rgsl::physical_constant::MKSA_HORSEPOWER'>MKSA_HORSEPOWER</a></td>
+                           <td class='docblock short'>
+                                <p>The power of 1 horsepower. kg m<sup>2</sup> / s<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_HOUR.html'
+                                  title='rgsl::physical_constant::MKSA_HOUR'>MKSA_HOUR</a></td>
+                           <td class='docblock short'>
+                                <p>The number of seconds in 1 hour. s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_INCH.html'
+                                  title='rgsl::physical_constant::MKSA_INCH'>MKSA_INCH</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 inch. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_INCH_OF_MERCURY.html'
+                                  title='rgsl::physical_constant::MKSA_INCH_OF_MERCURY'>MKSA_INCH_OF_MERCURY</a></td>
+                           <td class='docblock short'>
+                                <p>The pressure of 1 inch of mercury. kg / m s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_INCH_OF_WATER.html'
+                                  title='rgsl::physical_constant::MKSA_INCH_OF_WATER'>MKSA_INCH_OF_WATER</a></td>
+                           <td class='docblock short'>
+                                <p>The pressure of 1 inch of water. kg / m s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_JOULE.html'
+                                  title='rgsl::physical_constant::MKSA_JOULE'>MKSA_JOULE</a></td>
+                           <td class='docblock short'>
+                                <p>The SI unit of energy, 1 Joule. kg m<sup>2</sup> / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_KILOMETERS_PER_HOUR.html'
+                                  title='rgsl::physical_constant::MKSA_KILOMETERS_PER_HOUR'>MKSA_KILOMETERS_PER_HOUR</a></td>
+                           <td class='docblock short'>
+                                <p>The speed of 1 kilometer per hour. m / s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_KILOPOUND_FORCE.html'
+                                  title='rgsl::physical_constant::MKSA_KILOPOUND_FORCE'>MKSA_KILOPOUND_FORCE</a></td>
+                           <td class='docblock short'>
+                                <p>The force of 1 kilopound weight. kg m / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_KNOT.html'
+                                  title='rgsl::physical_constant::MKSA_KNOT'>MKSA_KNOT</a></td>
+                           <td class='docblock short'>
+                                <p>The speed of 1 knot. m / s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_LAMBERT.html'
+                                  title='rgsl::physical_constant::MKSA_LAMBERT'>MKSA_LAMBERT</a></td>
+                           <td class='docblock short'>
+                                <p>The luminance of 1 lambert. cd sr / m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_LIGHT_YEAR.html'
+                                  title='rgsl::physical_constant::MKSA_LIGHT_YEAR'>MKSA_LIGHT_YEAR</a></td>
+                           <td class='docblock short'>
+                                <p>The distance of 1 light-year, ly. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_LITER.html'
+                                  title='rgsl::physical_constant::MKSA_LITER'>MKSA_LITER</a></td>
+                           <td class='docblock short'>
+                                <p>The volume of 1 liter. m<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_LUMEN.html'
+                                  title='rgsl::physical_constant::MKSA_LUMEN'>MKSA_LUMEN</a></td>
+                           <td class='docblock short'>
+                                <p>The luminous flux of 1 lumen. cd sr</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_LUX.html'
+                                  title='rgsl::physical_constant::MKSA_LUX'>MKSA_LUX</a></td>
+                           <td class='docblock short'>
+                                <p>The illuminance of 1 lux. cd sr / m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MASS_ELECTRON.html'
+                                  title='rgsl::physical_constant::MKSA_MASS_ELECTRON'>MKSA_MASS_ELECTRON</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of the electron, m_e. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MASS_MUON.html'
+                                  title='rgsl::physical_constant::MKSA_MASS_MUON'>MKSA_MASS_MUON</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of the muon, m_\mu. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MASS_NEUTRON.html'
+                                  title='rgsl::physical_constant::MKSA_MASS_NEUTRON'>MKSA_MASS_NEUTRON</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of the neutron, m_n. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MASS_PROTON.html'
+                                  title='rgsl::physical_constant::MKSA_MASS_PROTON'>MKSA_MASS_PROTON</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of the proton, m_p. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_METER_OF_MERCURY.html'
+                                  title='rgsl::physical_constant::MKSA_METER_OF_MERCURY'>MKSA_METER_OF_MERCURY</a></td>
+                           <td class='docblock short'>
+                                <p>The pressure of 1 meter of mercury. kg / m s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_METRIC_TON.html'
+                                  title='rgsl::physical_constant::MKSA_METRIC_TON'>MKSA_METRIC_TON</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of 1 metric ton (1000 kg). kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MICRON.html'
+                                  title='rgsl::physical_constant::MKSA_MICRON'>MKSA_MICRON</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 micron. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MIL.html'
+                                  title='rgsl::physical_constant::MKSA_MIL'>MKSA_MIL</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 mil (1/1000th of an inch). m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MILE.html'
+                                  title='rgsl::physical_constant::MKSA_MILE'>MKSA_MILE</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 mile. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MILES_PER_HOUR.html'
+                                  title='rgsl::physical_constant::MKSA_MILES_PER_HOUR'>MKSA_MILES_PER_HOUR</a></td>
+                           <td class='docblock short'>
+                                <p>The speed of 1 mile per hour. m / s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MINUTE.html'
+                                  title='rgsl::physical_constant::MKSA_MINUTE'>MKSA_MINUTE</a></td>
+                           <td class='docblock short'>
+                                <p>The number of seconds in 1 minute. s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_MOLAR_GAS.html'
+                                  title='rgsl::physical_constant::MKSA_MOLAR_GAS'>MKSA_MOLAR_GAS</a></td>
+                           <td class='docblock short'>
+                                <p>The molar gas constant, R_0. kg m<sup>2</sup> / K mol s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_NAUTICAL_MILE.html'
+                                  title='rgsl::physical_constant::MKSA_NAUTICAL_MILE'>MKSA_NAUTICAL_MILE</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 nautical mile. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_NEWTON.html'
+                                  title='rgsl::physical_constant::MKSA_NEWTON'>MKSA_NEWTON</a></td>
+                           <td class='docblock short'>
+                                <p>The SI unit of force, 1 Newton. kg m / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_NUCLEAR_MAGNETON.html'
+                                  title='rgsl::physical_constant::MKSA_NUCLEAR_MAGNETON'>MKSA_NUCLEAR_MAGNETON</a></td>
+                           <td class='docblock short'>
+                                <p>The Nuclear Magneton, \mu_N. A m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_OUNCE_MASS.html'
+                                  title='rgsl::physical_constant::MKSA_OUNCE_MASS'>MKSA_OUNCE_MASS</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of 1 ounce. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_PARSEC.html'
+                                  title='rgsl::physical_constant::MKSA_PARSEC'>MKSA_PARSEC</a></td>
+                           <td class='docblock short'>
+                                <p>The distance of 1 parsec, pc. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_PHOT.html'
+                                  title='rgsl::physical_constant::MKSA_PHOT'>MKSA_PHOT</a></td>
+                           <td class='docblock short'>
+                                <p>The illuminance of 1 phot. cd sr / m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_PINT.html'
+                                  title='rgsl::physical_constant::MKSA_PINT'>MKSA_PINT</a></td>
+                           <td class='docblock short'>
+                                <p>The volume of 1 pint. m<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_PLANCKS_CONSTANT_H.html'
+                                  title='rgsl::physical_constant::MKSA_PLANCKS_CONSTANT_H'>MKSA_PLANCKS_CONSTANT_H</a></td>
+                           <td class='docblock short'>
+                                <p>Planck’s constant, h. kg m<sup>2</sup> / s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_PLANCKS_CONSTANT_HBAR.html'
+                                  title='rgsl::physical_constant::MKSA_PLANCKS_CONSTANT_HBAR'>MKSA_PLANCKS_CONSTANT_HBAR</a></td>
+                           <td class='docblock short'>
+                                <p>Planck’s constant divided by 2\pi, \hbar. kg m<sup>2</sup> / s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_POINT.html'
+                                  title='rgsl::physical_constant::MKSA_POINT'>MKSA_POINT</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 printer’s point (1/72 inch). m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_POISE.html'
+                                  title='rgsl::physical_constant::MKSA_POISE'>MKSA_POISE</a></td>
+                           <td class='docblock short'>
+                                <p>The dynamic viscosity of 1 poise. kg m<sup>-1</sup> s<sup>-1</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_POUNDAL.html'
+                                  title='rgsl::physical_constant::MKSA_POUNDAL'>MKSA_POUNDAL</a></td>
+                           <td class='docblock short'>
+                                <p>The force of 1 poundal. kg m / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_POUND_FORCE.html'
+                                  title='rgsl::physical_constant::MKSA_POUND_FORCE'>MKSA_POUND_FORCE</a></td>
+                           <td class='docblock short'>
+                                <p>The force of 1 pound weight. kg m / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_POUND_MASS.html'
+                                  title='rgsl::physical_constant::MKSA_POUND_MASS'>MKSA_POUND_MASS</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of 1 pound. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_PROTON_MAGNETIC_MOMENT.html'
+                                  title='rgsl::physical_constant::MKSA_PROTON_MAGNETIC_MOMENT'>MKSA_PROTON_MAGNETIC_MOMENT</a></td>
+                           <td class='docblock short'>
+                                <p>The magnetic moment of the proton, \mu_p. A m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_PSI.html'
+                                  title='rgsl::physical_constant::MKSA_PSI'>MKSA_PSI</a></td>
+                           <td class='docblock short'>
+                                <p>The pressure of 1 pound per square inch. kg / m s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_QUART.html'
+                                  title='rgsl::physical_constant::MKSA_QUART'>MKSA_QUART</a></td>
+                           <td class='docblock short'>
+                                <p>The volume of 1 quart. m<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_RAD.html'
+                                  title='rgsl::physical_constant::MKSA_RAD'>MKSA_RAD</a></td>
+                           <td class='docblock short'>
+                                <p>The absorbed dose of 1 rad. m<sup>2</sup> / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_ROENTGEN.html'
+                                  title='rgsl::physical_constant::MKSA_ROENTGEN'>MKSA_ROENTGEN</a></td>
+                           <td class='docblock short'>
+                                <p>The exposure of 1 roentgen. A s / kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_RYDBERG.html'
+                                  title='rgsl::physical_constant::MKSA_RYDBERG'>MKSA_RYDBERG</a></td>
+                           <td class='docblock short'>
+                                <p>The Rydberg constant, Ry, in units of energy. This is related to the Rydberg inverse wavelength R_\infty by Ry = h c R_\infty. kg m<sup>2</sup> / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_SOLAR_MASS.html'
+                                  title='rgsl::physical_constant::MKSA_SOLAR_MASS'>MKSA_SOLAR_MASS</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of the Sun. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_SPEED_OF_LIGHT.html'
+                                  title='rgsl::physical_constant::MKSA_SPEED_OF_LIGHT'>MKSA_SPEED_OF_LIGHT</a></td>
+                           <td class='docblock short'>
+                                <p>The speed of light in vacuum, c. m / s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_STANDARD_GAS_VOLUME.html'
+                                  title='rgsl::physical_constant::MKSA_STANDARD_GAS_VOLUME'>MKSA_STANDARD_GAS_VOLUME</a></td>
+                           <td class='docblock short'>
+                                <p>The standard gas volume, V_0. m<sup>3</sup> / mol</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_STD_ATMOSPHERE.html'
+                                  title='rgsl::physical_constant::MKSA_STD_ATMOSPHERE'>MKSA_STD_ATMOSPHERE</a></td>
+                           <td class='docblock short'>
+                                <p>The pressure of 1 standard atmosphere. kg / m s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_STEFAN_BOLTZMANN_CONSTANT.html'
+                                  title='rgsl::physical_constant::MKSA_STEFAN_BOLTZMANN_CONSTANT'>MKSA_STEFAN_BOLTZMANN_CONSTANT</a></td>
+                           <td class='docblock short'>
+                                <p>The Stefan-Boltzmann radiation constant, \sigma. kg / K<sup>4</sup> s<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_STILB.html'
+                                  title='rgsl::physical_constant::MKSA_STILB'>MKSA_STILB</a></td>
+                           <td class='docblock short'>
+                                <p>The luminance of 1 stilb. cd / m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_STOKES.html'
+                                  title='rgsl::physical_constant::MKSA_STOKES'>MKSA_STOKES</a></td>
+                           <td class='docblock short'>
+                                <p>The kinematic viscosity of 1 stokes. m<sup>2</sup> / s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_TEXPOINT.html'
+                                  title='rgsl::physical_constant::MKSA_TEXPOINT'>MKSA_TEXPOINT</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 TeX point (1/72.27 inch). m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_THERM.html'
+                                  title='rgsl::physical_constant::MKSA_THERM'>MKSA_THERM</a></td>
+                           <td class='docblock short'>
+                                <p>The energy of 1 Therm. kg m<sup>2</sup> / s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_THOMSON_CROSS_SECTION.html'
+                                  title='rgsl::physical_constant::MKSA_THOMSON_CROSS_SECTION'>MKSA_THOMSON_CROSS_SECTION</a></td>
+                           <td class='docblock short'>
+                                <p>The Thomson cross section, \sigma_T. m<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_TON.html'
+                                  title='rgsl::physical_constant::MKSA_TON'>MKSA_TON</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of 1 ton. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_TORR.html'
+                                  title='rgsl::physical_constant::MKSA_TORR'>MKSA_TORR</a></td>
+                           <td class='docblock short'>
+                                <p>The pressure of 1 torr. kg / m s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_TROY_OUNCE.html'
+                                  title='rgsl::physical_constant::MKSA_TROY_OUNCE'>MKSA_TROY_OUNCE</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of 1 troy ounce. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_UK_GALLON.html'
+                                  title='rgsl::physical_constant::MKSA_UK_GALLON'>MKSA_UK_GALLON</a></td>
+                           <td class='docblock short'>
+                                <p>The volume of 1 UK gallon. m<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_UK_TON.html'
+                                  title='rgsl::physical_constant::MKSA_UK_TON'>MKSA_UK_TON</a></td>
+                           <td class='docblock short'>
+                                <p>The mass of 1 UK ton. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_UNIFIED_ATOMIC_MASS.html'
+                                  title='rgsl::physical_constant::MKSA_UNIFIED_ATOMIC_MASS'>MKSA_UNIFIED_ATOMIC_MASS</a></td>
+                           <td class='docblock short'>
+                                <p>The unified atomic mass, amu. kg</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_US_GALLON.html'
+                                  title='rgsl::physical_constant::MKSA_US_GALLON'>MKSA_US_GALLON</a></td>
+                           <td class='docblock short'>
+                                <p>The volume of 1 US gallon. m<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_VACUUM_PERMEABILITY.html'
+                                  title='rgsl::physical_constant::MKSA_VACUUM_PERMEABILITY'>MKSA_VACUUM_PERMEABILITY</a></td>
+                           <td class='docblock short'>
+                                <p>The permeability of free space, \mu_0. This constant is defined in the MKSA system only. kg m / A<sup>2</sup> s<sup>2</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_VACUUM_PERMITTIVITY.html'
+                                  title='rgsl::physical_constant::MKSA_VACUUM_PERMITTIVITY'>MKSA_VACUUM_PERMITTIVITY</a></td>
+                           <td class='docblock short'>
+                                <p>The permittivity of free space, \epsilon_0. This constant is defined in the MKSA system only. A<sup>2</sup> s<sup>4</sup> / kg m<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_WEEK.html'
+                                  title='rgsl::physical_constant::MKSA_WEEK'>MKSA_WEEK</a></td>
+                           <td class='docblock short'>
+                                <p>The number of seconds in 1 week. s</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.MKSA_YARD.html'
+                                  title='rgsl::physical_constant::MKSA_YARD'>MKSA_YARD</a></td>
+                           <td class='docblock short'>
+                                <p>The length of 1 yard. m</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_ATTO.html'
+                                  title='rgsl::physical_constant::NUM_ATTO'>NUM_ATTO</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>-18</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_AVOGADRO.html'
+                                  title='rgsl::physical_constant::NUM_AVOGADRO'>NUM_AVOGADRO</a></td>
+                           <td class='docblock short'>
+                                <p>Avogadro’s number, N_a. 1 / mol</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_EXA.html'
+                                  title='rgsl::physical_constant::NUM_EXA'>NUM_EXA</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>18</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_FEMTO.html'
+                                  title='rgsl::physical_constant::NUM_FEMTO'>NUM_FEMTO</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>-15</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_FINE_STRUCTURE.html'
+                                  title='rgsl::physical_constant::NUM_FINE_STRUCTURE'>NUM_FINE_STRUCTURE</a></td>
+                           <td class='docblock short'>
+                                <p>The electromagnetic fine structure constant \alpha. 1</p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_GIGA.html'
+                                  title='rgsl::physical_constant::NUM_GIGA'>NUM_GIGA</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>9</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_KILO.html'
+                                  title='rgsl::physical_constant::NUM_KILO'>NUM_KILO</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_MEGA.html'
+                                  title='rgsl::physical_constant::NUM_MEGA'>NUM_MEGA</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>6</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_MICRO.html'
+                                  title='rgsl::physical_constant::NUM_MICRO'>NUM_MICRO</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>-6</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_MILLI.html'
+                                  title='rgsl::physical_constant::NUM_MILLI'>NUM_MILLI</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>-3</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_NANO.html'
+                                  title='rgsl::physical_constant::NUM_NANO'>NUM_NANO</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>-9</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_PETA.html'
+                                  title='rgsl::physical_constant::NUM_PETA'>NUM_PETA</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>15</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_PICO.html'
+                                  title='rgsl::physical_constant::NUM_PICO'>NUM_PICO</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>-12</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_TERA.html'
+                                  title='rgsl::physical_constant::NUM_TERA'>NUM_TERA</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>12</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_YOCTO.html'
+                                  title='rgsl::physical_constant::NUM_YOCTO'>NUM_YOCTO</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>-24</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_YOTTA.html'
+                                  title='rgsl::physical_constant::NUM_YOTTA'>NUM_YOTTA</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>24</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_ZEPTO.html'
+                                  title='rgsl::physical_constant::NUM_ZEPTO'>NUM_ZEPTO</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>-21</sup></p>
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='static' href='static.NUM_ZETTA.html'
+                                  title='rgsl::physical_constant::NUM_ZETTA'>NUM_ZETTA</a></td>
+                           <td class='docblock short'>
+                                <p>10<sup>21</sup></p>
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

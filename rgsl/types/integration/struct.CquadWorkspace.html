@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `CquadWorkspace` struct in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, CquadWorkspace">
+
+    <title>rgsl::types::integration::CquadWorkspace - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>integration</a></p><script>window.sidebarCurrent = {name: 'CquadWorkspace', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a href='index.html'>integration</a>::<wbr><a class='struct' href=''>CquadWorkspace</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-10518' class='srclink' href='../../../src/rgsl/types/integration.rs.html#2607-2609' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct CquadWorkspace {
+    // some fields omitted
+}</pre><div class='docblock'><p>CQUAD is a new doubly-adaptive general-purpose quadrature routine which can handle most types of singularities, non-numerical function
+values such as Inf or NaN, as well as some divergent integrals. It generally requires more function evaluations than the integration
+routines in QUADPACK, yet fails less often for difficult integrands.</p>
+
+<p>The underlying algorithm uses a doubly-adaptive scheme in which Clenshaw-Curtis quadrature rules of increasing degree are used to compute
+the integral in each interval. The L_2-norm of the difference between the underlying interpolatory polynomials of two successive rules
+is used as an error estimate. The interval is subdivided if the difference between two successive rules is too large or a rule of maximum
+degree has been reached.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../rgsl/types/integration/struct.CquadWorkspace.html' title='rgsl::types::integration::CquadWorkspace'>CquadWorkspace</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-10520' class='srclink' href='../../../src/rgsl/types/integration.rs.html#2611-3118' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(n: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/option/enum.Option.html' title='core::option::Option'>Option</a>&lt;<a class='struct' href='../../../rgsl/types/integration/struct.CquadWorkspace.html' title='rgsl::types::integration::CquadWorkspace'>CquadWorkspace</a>&gt;</code></h4>
+<div class='docblock'><p>This function allocates a workspace sufficient to hold the data for n intervals. The number n is not the maximum number of intervals
+that will be evaluated. If the workspace is full, intervals with smaller error estimates will be discarded. A minimum of 3 intervals
+is required and for most functions, a workspace of size 100 is sufficient.</p>
+</div><h4 id='method.cquad' class='method'><code>fn <a href='#method.cquad' class='fnname'>cquad</a>&lt;T&gt;(&amp;self, f: <a class='type' href='../../../rgsl/type.function.html' title='rgsl::function'>function</a>&lt;T&gt;, arg: &amp;mut T, a: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, b: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsabs: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, epsrel: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, result: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, abserr: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.f64.html'>f64</a>, nevals: &amp;mut <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.usize.html'>usize</a>) -&gt; <a class='enum' href='../../../rgsl/enum.Value.html' title='rgsl::Value'>Value</a></code></h4>
+<div class='docblock'><p>This function computes the integral of f over (a,b) within the desired absolute and relative error limits, epsabs and epsrel using
+the CQUAD algorithm. The function returns the final approximation, result, an estimate of the absolute error, abserr, and the number
+of function evaluations required, nevals.</p>
+
+<p>The CQUAD algorithm divides the integration region into subintervals, and in each iteration, the subinterval with the largest estimated
+error is processed. The algorithm uses Clenshaw-Curits quadrature rules of degree 4, 8, 16 and 32 over 5, 9, 17 and 33 nodes respectively.
+Each interval is initialized with the lowest-degree rule. When an interval is processed, the next-higher degree rule is evaluated and
+an error estimate is computed based on the L_2-norm of the difference between the underlying interpolating polynomials of both rules.
+If the highest-degree rule has already been used, or the interpolatory polynomials differ significantly, the interval is bisected.</p>
+
+<p>The subintervals and their results are stored in the memory provided by workspace. If the error estimate or the number of function
+evaluations is not needed, the pointers abserr and nevals can be set to NULL (not in rgsl).</p>
+</div></div><h2 id='implementations'>Trait Implementations</h2><h3 class='impl'><span class='in-band'><code>impl <a class='trait' href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html' title='core::ops::Drop'>Drop</a> for <a class='struct' href='../../../rgsl/types/integration/struct.CquadWorkspace.html' title='rgsl::types::integration::CquadWorkspace'>CquadWorkspace</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-10611' class='srclink' href='../../../src/rgsl/types/integration.rs.html#3120-3125' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.drop' class='method'><code>fn <a href='https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop' class='fnname'>drop</a>(&amp;mut self)</code></h4>
+<div class='docblock'><p>A method called when the value goes out of scope. <a href="https://doc.rust-lang.org/nightly/core/ops/trait.Drop.html#tymethod.drop">Read more</a></p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Finder","An implementation of a naive algorithm finder"],["Matches","Iterator over offset, start position, end position and sequence of matched orfs."],["Orf","An orf representation with start and end position of said orf, as well as offset of the reading frame (1,2,3) and strand location "]]});

@@ -1,0 +1,2326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/GSL-0.4.28/src/integration.rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang">
+
+    <title>integration.rs.html -- source</title>
+
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content source"><pre class="line-numbers"><span id="1">   1</span>
+<span id="2">   2</span>
+<span id="3">   3</span>
+<span id="4">   4</span>
+<span id="5">   5</span>
+<span id="6">   6</span>
+<span id="7">   7</span>
+<span id="8">   8</span>
+<span id="9">   9</span>
+<span id="10">  10</span>
+<span id="11">  11</span>
+<span id="12">  12</span>
+<span id="13">  13</span>
+<span id="14">  14</span>
+<span id="15">  15</span>
+<span id="16">  16</span>
+<span id="17">  17</span>
+<span id="18">  18</span>
+<span id="19">  19</span>
+<span id="20">  20</span>
+<span id="21">  21</span>
+<span id="22">  22</span>
+<span id="23">  23</span>
+<span id="24">  24</span>
+<span id="25">  25</span>
+<span id="26">  26</span>
+<span id="27">  27</span>
+<span id="28">  28</span>
+<span id="29">  29</span>
+<span id="30">  30</span>
+<span id="31">  31</span>
+<span id="32">  32</span>
+<span id="33">  33</span>
+<span id="34">  34</span>
+<span id="35">  35</span>
+<span id="36">  36</span>
+<span id="37">  37</span>
+<span id="38">  38</span>
+<span id="39">  39</span>
+<span id="40">  40</span>
+<span id="41">  41</span>
+<span id="42">  42</span>
+<span id="43">  43</span>
+<span id="44">  44</span>
+<span id="45">  45</span>
+<span id="46">  46</span>
+<span id="47">  47</span>
+<span id="48">  48</span>
+<span id="49">  49</span>
+<span id="50">  50</span>
+<span id="51">  51</span>
+<span id="52">  52</span>
+<span id="53">  53</span>
+<span id="54">  54</span>
+<span id="55">  55</span>
+<span id="56">  56</span>
+<span id="57">  57</span>
+<span id="58">  58</span>
+<span id="59">  59</span>
+<span id="60">  60</span>
+<span id="61">  61</span>
+<span id="62">  62</span>
+<span id="63">  63</span>
+<span id="64">  64</span>
+<span id="65">  65</span>
+<span id="66">  66</span>
+<span id="67">  67</span>
+<span id="68">  68</span>
+<span id="69">  69</span>
+<span id="70">  70</span>
+<span id="71">  71</span>
+<span id="72">  72</span>
+<span id="73">  73</span>
+<span id="74">  74</span>
+<span id="75">  75</span>
+<span id="76">  76</span>
+<span id="77">  77</span>
+<span id="78">  78</span>
+<span id="79">  79</span>
+<span id="80">  80</span>
+<span id="81">  81</span>
+<span id="82">  82</span>
+<span id="83">  83</span>
+<span id="84">  84</span>
+<span id="85">  85</span>
+<span id="86">  86</span>
+<span id="87">  87</span>
+<span id="88">  88</span>
+<span id="89">  89</span>
+<span id="90">  90</span>
+<span id="91">  91</span>
+<span id="92">  92</span>
+<span id="93">  93</span>
+<span id="94">  94</span>
+<span id="95">  95</span>
+<span id="96">  96</span>
+<span id="97">  97</span>
+<span id="98">  98</span>
+<span id="99">  99</span>
+<span id="100"> 100</span>
+<span id="101"> 101</span>
+<span id="102"> 102</span>
+<span id="103"> 103</span>
+<span id="104"> 104</span>
+<span id="105"> 105</span>
+<span id="106"> 106</span>
+<span id="107"> 107</span>
+<span id="108"> 108</span>
+<span id="109"> 109</span>
+<span id="110"> 110</span>
+<span id="111"> 111</span>
+<span id="112"> 112</span>
+<span id="113"> 113</span>
+<span id="114"> 114</span>
+<span id="115"> 115</span>
+<span id="116"> 116</span>
+<span id="117"> 117</span>
+<span id="118"> 118</span>
+<span id="119"> 119</span>
+<span id="120"> 120</span>
+<span id="121"> 121</span>
+<span id="122"> 122</span>
+<span id="123"> 123</span>
+<span id="124"> 124</span>
+<span id="125"> 125</span>
+<span id="126"> 126</span>
+<span id="127"> 127</span>
+<span id="128"> 128</span>
+<span id="129"> 129</span>
+<span id="130"> 130</span>
+<span id="131"> 131</span>
+<span id="132"> 132</span>
+<span id="133"> 133</span>
+<span id="134"> 134</span>
+<span id="135"> 135</span>
+<span id="136"> 136</span>
+<span id="137"> 137</span>
+<span id="138"> 138</span>
+<span id="139"> 139</span>
+<span id="140"> 140</span>
+<span id="141"> 141</span>
+<span id="142"> 142</span>
+<span id="143"> 143</span>
+<span id="144"> 144</span>
+<span id="145"> 145</span>
+<span id="146"> 146</span>
+<span id="147"> 147</span>
+<span id="148"> 148</span>
+<span id="149"> 149</span>
+<span id="150"> 150</span>
+<span id="151"> 151</span>
+<span id="152"> 152</span>
+<span id="153"> 153</span>
+<span id="154"> 154</span>
+<span id="155"> 155</span>
+<span id="156"> 156</span>
+<span id="157"> 157</span>
+<span id="158"> 158</span>
+<span id="159"> 159</span>
+<span id="160"> 160</span>
+<span id="161"> 161</span>
+<span id="162"> 162</span>
+<span id="163"> 163</span>
+<span id="164"> 164</span>
+<span id="165"> 165</span>
+<span id="166"> 166</span>
+<span id="167"> 167</span>
+<span id="168"> 168</span>
+<span id="169"> 169</span>
+<span id="170"> 170</span>
+<span id="171"> 171</span>
+<span id="172"> 172</span>
+<span id="173"> 173</span>
+<span id="174"> 174</span>
+<span id="175"> 175</span>
+<span id="176"> 176</span>
+<span id="177"> 177</span>
+<span id="178"> 178</span>
+<span id="179"> 179</span>
+<span id="180"> 180</span>
+<span id="181"> 181</span>
+<span id="182"> 182</span>
+<span id="183"> 183</span>
+<span id="184"> 184</span>
+<span id="185"> 185</span>
+<span id="186"> 186</span>
+<span id="187"> 187</span>
+<span id="188"> 188</span>
+<span id="189"> 189</span>
+<span id="190"> 190</span>
+<span id="191"> 191</span>
+<span id="192"> 192</span>
+<span id="193"> 193</span>
+<span id="194"> 194</span>
+<span id="195"> 195</span>
+<span id="196"> 196</span>
+<span id="197"> 197</span>
+<span id="198"> 198</span>
+<span id="199"> 199</span>
+<span id="200"> 200</span>
+<span id="201"> 201</span>
+<span id="202"> 202</span>
+<span id="203"> 203</span>
+<span id="204"> 204</span>
+<span id="205"> 205</span>
+<span id="206"> 206</span>
+<span id="207"> 207</span>
+<span id="208"> 208</span>
+<span id="209"> 209</span>
+<span id="210"> 210</span>
+<span id="211"> 211</span>
+<span id="212"> 212</span>
+<span id="213"> 213</span>
+<span id="214"> 214</span>
+<span id="215"> 215</span>
+<span id="216"> 216</span>
+<span id="217"> 217</span>
+<span id="218"> 218</span>
+<span id="219"> 219</span>
+<span id="220"> 220</span>
+<span id="221"> 221</span>
+<span id="222"> 222</span>
+<span id="223"> 223</span>
+<span id="224"> 224</span>
+<span id="225"> 225</span>
+<span id="226"> 226</span>
+<span id="227"> 227</span>
+<span id="228"> 228</span>
+<span id="229"> 229</span>
+<span id="230"> 230</span>
+<span id="231"> 231</span>
+<span id="232"> 232</span>
+<span id="233"> 233</span>
+<span id="234"> 234</span>
+<span id="235"> 235</span>
+<span id="236"> 236</span>
+<span id="237"> 237</span>
+<span id="238"> 238</span>
+<span id="239"> 239</span>
+<span id="240"> 240</span>
+<span id="241"> 241</span>
+<span id="242"> 242</span>
+<span id="243"> 243</span>
+<span id="244"> 244</span>
+<span id="245"> 245</span>
+<span id="246"> 246</span>
+<span id="247"> 247</span>
+<span id="248"> 248</span>
+<span id="249"> 249</span>
+<span id="250"> 250</span>
+<span id="251"> 251</span>
+<span id="252"> 252</span>
+<span id="253"> 253</span>
+<span id="254"> 254</span>
+<span id="255"> 255</span>
+<span id="256"> 256</span>
+<span id="257"> 257</span>
+<span id="258"> 258</span>
+<span id="259"> 259</span>
+<span id="260"> 260</span>
+<span id="261"> 261</span>
+<span id="262"> 262</span>
+<span id="263"> 263</span>
+<span id="264"> 264</span>
+<span id="265"> 265</span>
+<span id="266"> 266</span>
+<span id="267"> 267</span>
+<span id="268"> 268</span>
+<span id="269"> 269</span>
+<span id="270"> 270</span>
+<span id="271"> 271</span>
+<span id="272"> 272</span>
+<span id="273"> 273</span>
+<span id="274"> 274</span>
+<span id="275"> 275</span>
+<span id="276"> 276</span>
+<span id="277"> 277</span>
+<span id="278"> 278</span>
+<span id="279"> 279</span>
+<span id="280"> 280</span>
+<span id="281"> 281</span>
+<span id="282"> 282</span>
+<span id="283"> 283</span>
+<span id="284"> 284</span>
+<span id="285"> 285</span>
+<span id="286"> 286</span>
+<span id="287"> 287</span>
+<span id="288"> 288</span>
+<span id="289"> 289</span>
+<span id="290"> 290</span>
+<span id="291"> 291</span>
+<span id="292"> 292</span>
+<span id="293"> 293</span>
+<span id="294"> 294</span>
+<span id="295"> 295</span>
+<span id="296"> 296</span>
+<span id="297"> 297</span>
+<span id="298"> 298</span>
+<span id="299"> 299</span>
+<span id="300"> 300</span>
+<span id="301"> 301</span>
+<span id="302"> 302</span>
+<span id="303"> 303</span>
+<span id="304"> 304</span>
+<span id="305"> 305</span>
+<span id="306"> 306</span>
+<span id="307"> 307</span>
+<span id="308"> 308</span>
+<span id="309"> 309</span>
+<span id="310"> 310</span>
+<span id="311"> 311</span>
+<span id="312"> 312</span>
+<span id="313"> 313</span>
+<span id="314"> 314</span>
+<span id="315"> 315</span>
+<span id="316"> 316</span>
+<span id="317"> 317</span>
+<span id="318"> 318</span>
+<span id="319"> 319</span>
+<span id="320"> 320</span>
+<span id="321"> 321</span>
+<span id="322"> 322</span>
+<span id="323"> 323</span>
+<span id="324"> 324</span>
+<span id="325"> 325</span>
+<span id="326"> 326</span>
+<span id="327"> 327</span>
+<span id="328"> 328</span>
+<span id="329"> 329</span>
+<span id="330"> 330</span>
+<span id="331"> 331</span>
+<span id="332"> 332</span>
+<span id="333"> 333</span>
+<span id="334"> 334</span>
+<span id="335"> 335</span>
+<span id="336"> 336</span>
+<span id="337"> 337</span>
+<span id="338"> 338</span>
+<span id="339"> 339</span>
+<span id="340"> 340</span>
+<span id="341"> 341</span>
+<span id="342"> 342</span>
+<span id="343"> 343</span>
+<span id="344"> 344</span>
+<span id="345"> 345</span>
+<span id="346"> 346</span>
+<span id="347"> 347</span>
+<span id="348"> 348</span>
+<span id="349"> 349</span>
+<span id="350"> 350</span>
+<span id="351"> 351</span>
+<span id="352"> 352</span>
+<span id="353"> 353</span>
+<span id="354"> 354</span>
+<span id="355"> 355</span>
+<span id="356"> 356</span>
+<span id="357"> 357</span>
+<span id="358"> 358</span>
+<span id="359"> 359</span>
+<span id="360"> 360</span>
+<span id="361"> 361</span>
+<span id="362"> 362</span>
+<span id="363"> 363</span>
+<span id="364"> 364</span>
+<span id="365"> 365</span>
+<span id="366"> 366</span>
+<span id="367"> 367</span>
+<span id="368"> 368</span>
+<span id="369"> 369</span>
+<span id="370"> 370</span>
+<span id="371"> 371</span>
+<span id="372"> 372</span>
+<span id="373"> 373</span>
+<span id="374"> 374</span>
+<span id="375"> 375</span>
+<span id="376"> 376</span>
+<span id="377"> 377</span>
+<span id="378"> 378</span>
+<span id="379"> 379</span>
+<span id="380"> 380</span>
+<span id="381"> 381</span>
+<span id="382"> 382</span>
+<span id="383"> 383</span>
+<span id="384"> 384</span>
+<span id="385"> 385</span>
+<span id="386"> 386</span>
+<span id="387"> 387</span>
+<span id="388"> 388</span>
+<span id="389"> 389</span>
+<span id="390"> 390</span>
+<span id="391"> 391</span>
+<span id="392"> 392</span>
+<span id="393"> 393</span>
+<span id="394"> 394</span>
+<span id="395"> 395</span>
+<span id="396"> 396</span>
+<span id="397"> 397</span>
+<span id="398"> 398</span>
+<span id="399"> 399</span>
+<span id="400"> 400</span>
+<span id="401"> 401</span>
+<span id="402"> 402</span>
+<span id="403"> 403</span>
+<span id="404"> 404</span>
+<span id="405"> 405</span>
+<span id="406"> 406</span>
+<span id="407"> 407</span>
+<span id="408"> 408</span>
+<span id="409"> 409</span>
+<span id="410"> 410</span>
+<span id="411"> 411</span>
+<span id="412"> 412</span>
+<span id="413"> 413</span>
+<span id="414"> 414</span>
+<span id="415"> 415</span>
+<span id="416"> 416</span>
+<span id="417"> 417</span>
+<span id="418"> 418</span>
+<span id="419"> 419</span>
+<span id="420"> 420</span>
+<span id="421"> 421</span>
+<span id="422"> 422</span>
+<span id="423"> 423</span>
+<span id="424"> 424</span>
+<span id="425"> 425</span>
+<span id="426"> 426</span>
+<span id="427"> 427</span>
+<span id="428"> 428</span>
+<span id="429"> 429</span>
+<span id="430"> 430</span>
+<span id="431"> 431</span>
+<span id="432"> 432</span>
+<span id="433"> 433</span>
+<span id="434"> 434</span>
+<span id="435"> 435</span>
+<span id="436"> 436</span>
+<span id="437"> 437</span>
+<span id="438"> 438</span>
+<span id="439"> 439</span>
+<span id="440"> 440</span>
+<span id="441"> 441</span>
+<span id="442"> 442</span>
+<span id="443"> 443</span>
+<span id="444"> 444</span>
+<span id="445"> 445</span>
+<span id="446"> 446</span>
+<span id="447"> 447</span>
+<span id="448"> 448</span>
+<span id="449"> 449</span>
+<span id="450"> 450</span>
+<span id="451"> 451</span>
+<span id="452"> 452</span>
+<span id="453"> 453</span>
+<span id="454"> 454</span>
+<span id="455"> 455</span>
+<span id="456"> 456</span>
+<span id="457"> 457</span>
+<span id="458"> 458</span>
+<span id="459"> 459</span>
+<span id="460"> 460</span>
+<span id="461"> 461</span>
+<span id="462"> 462</span>
+<span id="463"> 463</span>
+<span id="464"> 464</span>
+<span id="465"> 465</span>
+<span id="466"> 466</span>
+<span id="467"> 467</span>
+<span id="468"> 468</span>
+<span id="469"> 469</span>
+<span id="470"> 470</span>
+<span id="471"> 471</span>
+<span id="472"> 472</span>
+<span id="473"> 473</span>
+<span id="474"> 474</span>
+<span id="475"> 475</span>
+<span id="476"> 476</span>
+<span id="477"> 477</span>
+<span id="478"> 478</span>
+<span id="479"> 479</span>
+<span id="480"> 480</span>
+<span id="481"> 481</span>
+<span id="482"> 482</span>
+<span id="483"> 483</span>
+<span id="484"> 484</span>
+<span id="485"> 485</span>
+<span id="486"> 486</span>
+<span id="487"> 487</span>
+<span id="488"> 488</span>
+<span id="489"> 489</span>
+<span id="490"> 490</span>
+<span id="491"> 491</span>
+<span id="492"> 492</span>
+<span id="493"> 493</span>
+<span id="494"> 494</span>
+<span id="495"> 495</span>
+<span id="496"> 496</span>
+<span id="497"> 497</span>
+<span id="498"> 498</span>
+<span id="499"> 499</span>
+<span id="500"> 500</span>
+<span id="501"> 501</span>
+<span id="502"> 502</span>
+<span id="503"> 503</span>
+<span id="504"> 504</span>
+<span id="505"> 505</span>
+<span id="506"> 506</span>
+<span id="507"> 507</span>
+<span id="508"> 508</span>
+<span id="509"> 509</span>
+<span id="510"> 510</span>
+<span id="511"> 511</span>
+<span id="512"> 512</span>
+<span id="513"> 513</span>
+<span id="514"> 514</span>
+<span id="515"> 515</span>
+<span id="516"> 516</span>
+<span id="517"> 517</span>
+<span id="518"> 518</span>
+<span id="519"> 519</span>
+<span id="520"> 520</span>
+<span id="521"> 521</span>
+<span id="522"> 522</span>
+<span id="523"> 523</span>
+<span id="524"> 524</span>
+<span id="525"> 525</span>
+<span id="526"> 526</span>
+<span id="527"> 527</span>
+<span id="528"> 528</span>
+<span id="529"> 529</span>
+<span id="530"> 530</span>
+<span id="531"> 531</span>
+<span id="532"> 532</span>
+<span id="533"> 533</span>
+<span id="534"> 534</span>
+<span id="535"> 535</span>
+<span id="536"> 536</span>
+<span id="537"> 537</span>
+<span id="538"> 538</span>
+<span id="539"> 539</span>
+<span id="540"> 540</span>
+<span id="541"> 541</span>
+<span id="542"> 542</span>
+<span id="543"> 543</span>
+<span id="544"> 544</span>
+<span id="545"> 545</span>
+<span id="546"> 546</span>
+<span id="547"> 547</span>
+<span id="548"> 548</span>
+<span id="549"> 549</span>
+<span id="550"> 550</span>
+<span id="551"> 551</span>
+<span id="552"> 552</span>
+<span id="553"> 553</span>
+<span id="554"> 554</span>
+<span id="555"> 555</span>
+<span id="556"> 556</span>
+<span id="557"> 557</span>
+<span id="558"> 558</span>
+<span id="559"> 559</span>
+<span id="560"> 560</span>
+<span id="561"> 561</span>
+<span id="562"> 562</span>
+<span id="563"> 563</span>
+<span id="564"> 564</span>
+<span id="565"> 565</span>
+<span id="566"> 566</span>
+<span id="567"> 567</span>
+<span id="568"> 568</span>
+<span id="569"> 569</span>
+<span id="570"> 570</span>
+<span id="571"> 571</span>
+<span id="572"> 572</span>
+<span id="573"> 573</span>
+<span id="574"> 574</span>
+<span id="575"> 575</span>
+<span id="576"> 576</span>
+<span id="577"> 577</span>
+<span id="578"> 578</span>
+<span id="579"> 579</span>
+<span id="580"> 580</span>
+<span id="581"> 581</span>
+<span id="582"> 582</span>
+<span id="583"> 583</span>
+<span id="584"> 584</span>
+<span id="585"> 585</span>
+<span id="586"> 586</span>
+<span id="587"> 587</span>
+<span id="588"> 588</span>
+<span id="589"> 589</span>
+<span id="590"> 590</span>
+<span id="591"> 591</span>
+<span id="592"> 592</span>
+<span id="593"> 593</span>
+<span id="594"> 594</span>
+<span id="595"> 595</span>
+<span id="596"> 596</span>
+<span id="597"> 597</span>
+<span id="598"> 598</span>
+<span id="599"> 599</span>
+<span id="600"> 600</span>
+<span id="601"> 601</span>
+<span id="602"> 602</span>
+<span id="603"> 603</span>
+<span id="604"> 604</span>
+<span id="605"> 605</span>
+<span id="606"> 606</span>
+<span id="607"> 607</span>
+<span id="608"> 608</span>
+<span id="609"> 609</span>
+<span id="610"> 610</span>
+<span id="611"> 611</span>
+<span id="612"> 612</span>
+<span id="613"> 613</span>
+<span id="614"> 614</span>
+<span id="615"> 615</span>
+<span id="616"> 616</span>
+<span id="617"> 617</span>
+<span id="618"> 618</span>
+<span id="619"> 619</span>
+<span id="620"> 620</span>
+<span id="621"> 621</span>
+<span id="622"> 622</span>
+<span id="623"> 623</span>
+<span id="624"> 624</span>
+<span id="625"> 625</span>
+<span id="626"> 626</span>
+<span id="627"> 627</span>
+<span id="628"> 628</span>
+<span id="629"> 629</span>
+<span id="630"> 630</span>
+<span id="631"> 631</span>
+<span id="632"> 632</span>
+<span id="633"> 633</span>
+<span id="634"> 634</span>
+<span id="635"> 635</span>
+<span id="636"> 636</span>
+<span id="637"> 637</span>
+<span id="638"> 638</span>
+<span id="639"> 639</span>
+<span id="640"> 640</span>
+<span id="641"> 641</span>
+<span id="642"> 642</span>
+<span id="643"> 643</span>
+<span id="644"> 644</span>
+<span id="645"> 645</span>
+<span id="646"> 646</span>
+<span id="647"> 647</span>
+<span id="648"> 648</span>
+<span id="649"> 649</span>
+<span id="650"> 650</span>
+<span id="651"> 651</span>
+<span id="652"> 652</span>
+<span id="653"> 653</span>
+<span id="654"> 654</span>
+<span id="655"> 655</span>
+<span id="656"> 656</span>
+<span id="657"> 657</span>
+<span id="658"> 658</span>
+<span id="659"> 659</span>
+<span id="660"> 660</span>
+<span id="661"> 661</span>
+<span id="662"> 662</span>
+<span id="663"> 663</span>
+<span id="664"> 664</span>
+<span id="665"> 665</span>
+<span id="666"> 666</span>
+<span id="667"> 667</span>
+<span id="668"> 668</span>
+<span id="669"> 669</span>
+<span id="670"> 670</span>
+<span id="671"> 671</span>
+<span id="672"> 672</span>
+<span id="673"> 673</span>
+<span id="674"> 674</span>
+<span id="675"> 675</span>
+<span id="676"> 676</span>
+<span id="677"> 677</span>
+<span id="678"> 678</span>
+<span id="679"> 679</span>
+<span id="680"> 680</span>
+<span id="681"> 681</span>
+<span id="682"> 682</span>
+<span id="683"> 683</span>
+<span id="684"> 684</span>
+<span id="685"> 685</span>
+<span id="686"> 686</span>
+<span id="687"> 687</span>
+<span id="688"> 688</span>
+<span id="689"> 689</span>
+<span id="690"> 690</span>
+<span id="691"> 691</span>
+<span id="692"> 692</span>
+<span id="693"> 693</span>
+<span id="694"> 694</span>
+<span id="695"> 695</span>
+<span id="696"> 696</span>
+<span id="697"> 697</span>
+<span id="698"> 698</span>
+<span id="699"> 699</span>
+<span id="700"> 700</span>
+<span id="701"> 701</span>
+<span id="702"> 702</span>
+<span id="703"> 703</span>
+<span id="704"> 704</span>
+<span id="705"> 705</span>
+<span id="706"> 706</span>
+<span id="707"> 707</span>
+<span id="708"> 708</span>
+<span id="709"> 709</span>
+<span id="710"> 710</span>
+<span id="711"> 711</span>
+<span id="712"> 712</span>
+<span id="713"> 713</span>
+<span id="714"> 714</span>
+<span id="715"> 715</span>
+<span id="716"> 716</span>
+<span id="717"> 717</span>
+<span id="718"> 718</span>
+<span id="719"> 719</span>
+<span id="720"> 720</span>
+<span id="721"> 721</span>
+<span id="722"> 722</span>
+<span id="723"> 723</span>
+<span id="724"> 724</span>
+<span id="725"> 725</span>
+<span id="726"> 726</span>
+<span id="727"> 727</span>
+<span id="728"> 728</span>
+<span id="729"> 729</span>
+<span id="730"> 730</span>
+<span id="731"> 731</span>
+<span id="732"> 732</span>
+<span id="733"> 733</span>
+<span id="734"> 734</span>
+<span id="735"> 735</span>
+<span id="736"> 736</span>
+<span id="737"> 737</span>
+<span id="738"> 738</span>
+<span id="739"> 739</span>
+<span id="740"> 740</span>
+<span id="741"> 741</span>
+<span id="742"> 742</span>
+<span id="743"> 743</span>
+<span id="744"> 744</span>
+<span id="745"> 745</span>
+<span id="746"> 746</span>
+<span id="747"> 747</span>
+<span id="748"> 748</span>
+<span id="749"> 749</span>
+<span id="750"> 750</span>
+<span id="751"> 751</span>
+<span id="752"> 752</span>
+<span id="753"> 753</span>
+<span id="754"> 754</span>
+<span id="755"> 755</span>
+<span id="756"> 756</span>
+<span id="757"> 757</span>
+<span id="758"> 758</span>
+<span id="759"> 759</span>
+<span id="760"> 760</span>
+<span id="761"> 761</span>
+<span id="762"> 762</span>
+<span id="763"> 763</span>
+<span id="764"> 764</span>
+<span id="765"> 765</span>
+<span id="766"> 766</span>
+<span id="767"> 767</span>
+<span id="768"> 768</span>
+<span id="769"> 769</span>
+<span id="770"> 770</span>
+<span id="771"> 771</span>
+<span id="772"> 772</span>
+<span id="773"> 773</span>
+<span id="774"> 774</span>
+<span id="775"> 775</span>
+<span id="776"> 776</span>
+<span id="777"> 777</span>
+<span id="778"> 778</span>
+<span id="779"> 779</span>
+<span id="780"> 780</span>
+<span id="781"> 781</span>
+<span id="782"> 782</span>
+<span id="783"> 783</span>
+<span id="784"> 784</span>
+<span id="785"> 785</span>
+<span id="786"> 786</span>
+<span id="787"> 787</span>
+<span id="788"> 788</span>
+<span id="789"> 789</span>
+<span id="790"> 790</span>
+<span id="791"> 791</span>
+<span id="792"> 792</span>
+<span id="793"> 793</span>
+<span id="794"> 794</span>
+<span id="795"> 795</span>
+<span id="796"> 796</span>
+<span id="797"> 797</span>
+<span id="798"> 798</span>
+<span id="799"> 799</span>
+<span id="800"> 800</span>
+<span id="801"> 801</span>
+<span id="802"> 802</span>
+<span id="803"> 803</span>
+<span id="804"> 804</span>
+<span id="805"> 805</span>
+<span id="806"> 806</span>
+<span id="807"> 807</span>
+<span id="808"> 808</span>
+<span id="809"> 809</span>
+<span id="810"> 810</span>
+<span id="811"> 811</span>
+<span id="812"> 812</span>
+<span id="813"> 813</span>
+<span id="814"> 814</span>
+<span id="815"> 815</span>
+<span id="816"> 816</span>
+<span id="817"> 817</span>
+<span id="818"> 818</span>
+<span id="819"> 819</span>
+<span id="820"> 820</span>
+<span id="821"> 821</span>
+<span id="822"> 822</span>
+<span id="823"> 823</span>
+<span id="824"> 824</span>
+<span id="825"> 825</span>
+<span id="826"> 826</span>
+<span id="827"> 827</span>
+<span id="828"> 828</span>
+<span id="829"> 829</span>
+<span id="830"> 830</span>
+<span id="831"> 831</span>
+<span id="832"> 832</span>
+<span id="833"> 833</span>
+<span id="834"> 834</span>
+<span id="835"> 835</span>
+<span id="836"> 836</span>
+<span id="837"> 837</span>
+<span id="838"> 838</span>
+<span id="839"> 839</span>
+<span id="840"> 840</span>
+<span id="841"> 841</span>
+<span id="842"> 842</span>
+<span id="843"> 843</span>
+<span id="844"> 844</span>
+<span id="845"> 845</span>
+<span id="846"> 846</span>
+<span id="847"> 847</span>
+<span id="848"> 848</span>
+<span id="849"> 849</span>
+<span id="850"> 850</span>
+<span id="851"> 851</span>
+<span id="852"> 852</span>
+<span id="853"> 853</span>
+<span id="854"> 854</span>
+<span id="855"> 855</span>
+<span id="856"> 856</span>
+<span id="857"> 857</span>
+<span id="858"> 858</span>
+<span id="859"> 859</span>
+<span id="860"> 860</span>
+<span id="861"> 861</span>
+<span id="862"> 862</span>
+<span id="863"> 863</span>
+<span id="864"> 864</span>
+<span id="865"> 865</span>
+<span id="866"> 866</span>
+<span id="867"> 867</span>
+<span id="868"> 868</span>
+<span id="869"> 869</span>
+<span id="870"> 870</span>
+<span id="871"> 871</span>
+<span id="872"> 872</span>
+<span id="873"> 873</span>
+<span id="874"> 874</span>
+<span id="875"> 875</span>
+<span id="876"> 876</span>
+<span id="877"> 877</span>
+<span id="878"> 878</span>
+<span id="879"> 879</span>
+<span id="880"> 880</span>
+<span id="881"> 881</span>
+<span id="882"> 882</span>
+<span id="883"> 883</span>
+<span id="884"> 884</span>
+<span id="885"> 885</span>
+<span id="886"> 886</span>
+<span id="887"> 887</span>
+<span id="888"> 888</span>
+<span id="889"> 889</span>
+<span id="890"> 890</span>
+<span id="891"> 891</span>
+<span id="892"> 892</span>
+<span id="893"> 893</span>
+<span id="894"> 894</span>
+<span id="895"> 895</span>
+<span id="896"> 896</span>
+<span id="897"> 897</span>
+<span id="898"> 898</span>
+<span id="899"> 899</span>
+<span id="900"> 900</span>
+<span id="901"> 901</span>
+<span id="902"> 902</span>
+<span id="903"> 903</span>
+<span id="904"> 904</span>
+<span id="905"> 905</span>
+<span id="906"> 906</span>
+<span id="907"> 907</span>
+<span id="908"> 908</span>
+<span id="909"> 909</span>
+<span id="910"> 910</span>
+<span id="911"> 911</span>
+<span id="912"> 912</span>
+<span id="913"> 913</span>
+<span id="914"> 914</span>
+<span id="915"> 915</span>
+<span id="916"> 916</span>
+<span id="917"> 917</span>
+<span id="918"> 918</span>
+<span id="919"> 919</span>
+<span id="920"> 920</span>
+<span id="921"> 921</span>
+<span id="922"> 922</span>
+<span id="923"> 923</span>
+<span id="924"> 924</span>
+<span id="925"> 925</span>
+<span id="926"> 926</span>
+<span id="927"> 927</span>
+<span id="928"> 928</span>
+<span id="929"> 929</span>
+<span id="930"> 930</span>
+<span id="931"> 931</span>
+<span id="932"> 932</span>
+<span id="933"> 933</span>
+<span id="934"> 934</span>
+<span id="935"> 935</span>
+<span id="936"> 936</span>
+<span id="937"> 937</span>
+<span id="938"> 938</span>
+<span id="939"> 939</span>
+<span id="940"> 940</span>
+<span id="941"> 941</span>
+<span id="942"> 942</span>
+<span id="943"> 943</span>
+<span id="944"> 944</span>
+<span id="945"> 945</span>
+<span id="946"> 946</span>
+<span id="947"> 947</span>
+<span id="948"> 948</span>
+<span id="949"> 949</span>
+<span id="950"> 950</span>
+<span id="951"> 951</span>
+<span id="952"> 952</span>
+<span id="953"> 953</span>
+<span id="954"> 954</span>
+<span id="955"> 955</span>
+<span id="956"> 956</span>
+<span id="957"> 957</span>
+<span id="958"> 958</span>
+<span id="959"> 959</span>
+<span id="960"> 960</span>
+<span id="961"> 961</span>
+<span id="962"> 962</span>
+<span id="963"> 963</span>
+<span id="964"> 964</span>
+<span id="965"> 965</span>
+<span id="966"> 966</span>
+<span id="967"> 967</span>
+<span id="968"> 968</span>
+<span id="969"> 969</span>
+<span id="970"> 970</span>
+<span id="971"> 971</span>
+<span id="972"> 972</span>
+<span id="973"> 973</span>
+<span id="974"> 974</span>
+<span id="975"> 975</span>
+<span id="976"> 976</span>
+<span id="977"> 977</span>
+<span id="978"> 978</span>
+<span id="979"> 979</span>
+<span id="980"> 980</span>
+<span id="981"> 981</span>
+<span id="982"> 982</span>
+<span id="983"> 983</span>
+<span id="984"> 984</span>
+<span id="985"> 985</span>
+<span id="986"> 986</span>
+<span id="987"> 987</span>
+<span id="988"> 988</span>
+<span id="989"> 989</span>
+<span id="990"> 990</span>
+<span id="991"> 991</span>
+<span id="992"> 992</span>
+<span id="993"> 993</span>
+<span id="994"> 994</span>
+<span id="995"> 995</span>
+<span id="996"> 996</span>
+<span id="997"> 997</span>
+<span id="998"> 998</span>
+<span id="999"> 999</span>
+<span id="1000">1000</span>
+<span id="1001">1001</span>
+<span id="1002">1002</span>
+<span id="1003">1003</span>
+<span id="1004">1004</span>
+<span id="1005">1005</span>
+<span id="1006">1006</span>
+<span id="1007">1007</span>
+<span id="1008">1008</span>
+<span id="1009">1009</span>
+<span id="1010">1010</span>
+<span id="1011">1011</span>
+<span id="1012">1012</span>
+<span id="1013">1013</span>
+<span id="1014">1014</span>
+<span id="1015">1015</span>
+<span id="1016">1016</span>
+<span id="1017">1017</span>
+<span id="1018">1018</span>
+<span id="1019">1019</span>
+<span id="1020">1020</span>
+<span id="1021">1021</span>
+<span id="1022">1022</span>
+<span id="1023">1023</span>
+<span id="1024">1024</span>
+<span id="1025">1025</span>
+<span id="1026">1026</span>
+<span id="1027">1027</span>
+<span id="1028">1028</span>
+<span id="1029">1029</span>
+<span id="1030">1030</span>
+<span id="1031">1031</span>
+<span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
+<span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+<span id="1080">1080</span>
+<span id="1081">1081</span>
+<span id="1082">1082</span>
+<span id="1083">1083</span>
+<span id="1084">1084</span>
+<span id="1085">1085</span>
+<span id="1086">1086</span>
+<span id="1087">1087</span>
+<span id="1088">1088</span>
+<span id="1089">1089</span>
+<span id="1090">1090</span>
+<span id="1091">1091</span>
+<span id="1092">1092</span>
+<span id="1093">1093</span>
+<span id="1094">1094</span>
+<span id="1095">1095</span>
+<span id="1096">1096</span>
+<span id="1097">1097</span>
+<span id="1098">1098</span>
+<span id="1099">1099</span>
+<span id="1100">1100</span>
+<span id="1101">1101</span>
+<span id="1102">1102</span>
+<span id="1103">1103</span>
+<span id="1104">1104</span>
+<span id="1105">1105</span>
+<span id="1106">1106</span>
+<span id="1107">1107</span>
+<span id="1108">1108</span>
+</pre><pre class='rust '>
+<span class='comment'>//</span>
+<span class='comment'>// A rust binding for the GSL library by Guillaume Gomez (guillaume1.gomez@gmail.com)</span>
+<span class='comment'>//</span>
+
+<span class='doccomment'>/*!
+##Introduction
+
+Each algorithm computes an approximation to a definite integral of the form,
+
+I = \int_a^b f(x) w(x) dx
+where w(x) is a weight function (for general integrands w(x)=1). The user provides absolute and relative error bounds (epsabs, epsrel) which
+specify the following accuracy requirement,
+
+|RESULT - I|  &lt;= max(epsabs, epsrel |I|)
+
+where RESULT is the numerical approximation obtained by the algorithm. The algorithms attempt to estimate the absolute error ABSERR = |RESULT
+- I| in such a way that the following inequality holds,
+
+|RESULT - I| &lt;= ABSERR &lt;= max(epsabs, epsrel |I|)
+
+In short, the routines return the first approximation which has an absolute error smaller than epsabs or a relative error smaller than epsrel.
+
+Note that this is an either-or constraint, not simultaneous. To compute to a specified absolute error, set epsrel to zero. To compute to a
+specified relative error, set epsabs to zero. The routines will fail to converge if the error bounds are too stringent, but always return the
+best approximation obtained up to that stage.
+
+The algorithms in QUADPACK use a naming convention based on the following letters,
+
+Q - quadrature routine
+
+N - non-adaptive integrator
+A - adaptive integrator
+
+G - general integrand (user-defined)
+W - weight function with integrand
+
+S - singularities can be more readily integrated
+P - points of special difficulty can be supplied
+I - infinite range of integration
+O - oscillatory weight function, cos or sin
+F - Fourier integral
+C - Cauchy principal value
+The algorithms are built on pairs of quadrature rules, a higher order rule and a lower order rule. The higher order rule is used to compute the
+best approximation to an integral over a small range. The difference between the results of the higher order rule and the lower order rule gives
+an estimate of the error in the approximation.
+
+ * [Integrands without weight functions](http://www.gnu.org/software/gsl/manual/html_node/Integrands-without-weight-functions.html#Integrands-without-weight-functions)
+ * [Integrands with weight functions](http://www.gnu.org/software/gsl/manual/html_node/Integrands-with-weight-functions.html#Integrands-with-weight-functions)
+ * [Integrands with singular weight functions](http://www.gnu.org/software/gsl/manual/html_node/Integrands-with-singular-weight-functions.html#Integrands-with-singular-weight-functions)
+
+##QNG non-adaptive Gauss-Kronrod integration
+
+The QNG algorithm is a non-adaptive procedure which uses fixed Gauss-Kronrod-Patterson abscissae to sample the integrand at a maximum of 87
+points. It is provided for fast integration of smooth functions.
+
+##QAG adaptive integration
+
+The QAG algorithm is a simple adaptive integration procedure. The integration region is divided into subintervals, and on each iteration the
+subinterval with the largest estimated error is bisected. This reduces the overall error rapidly, as the subintervals become concentrated
+around local difficulties in the integrand. These subintervals are managed by a gsl_integration_workspace struct, which handles the memory
+for the subinterval ranges, results and error estimates.
+
+##QAGS adaptive integration with singularities
+
+The presence of an integrable singularity in the integration region causes an adaptive routine to concentrate new subintervals around the
+singularity. As the subintervals decrease in size the successive approximations to the integral converge in a limiting fashion. This
+approach to the limit can be accelerated using an extrapolation procedure. The QAGS algorithm combines adaptive bisection with the Wynn
+epsilon-algorithm to speed up the integration of many types of integrable singularities.
+
+##References and Further Reading
+
+The following book is the definitive reference for QUADPACK, and was written by the original authors. It provides descriptions of the
+algorithms, program listings, test programs and examples. It also includes useful advice on numerical integration and many references
+to the numerical integration literature used in developing QUADPACK.
+
+R. Piessens, E. de Doncker-Kapenga, C.W. Ueberhuber, D.K. Kahaner. QUADPACK A subroutine package for automatic integration Springer Verlag, 1983.
+The CQUAD integration algorithm is described in the following paper:
+
+P. Gonnet, “Increasing the Reliability of Adaptive Quadrature Using Explicit Interpolants”, ACM Transactions on Mathematical Software, Volume 37
+(2010), Issue 3, Article 26.
+!*/</span>
+
+<span class='kw'>use</span> <span class='ident'>ffi</span>;
+<span class='kw'>use</span> <span class='ident'>enums</span>;
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>ffi</span>::<span class='ident'>CString</span>;
+
+<span class='kw'>fn</span> <span class='ident'>rescale_error</span>(<span class='ident'>err</span>: <span class='ident'>f64</span>, <span class='ident'>result_abs</span>: <span class='ident'>f64</span>, <span class='ident'>result_asc</span>: <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='ident'>f64</span> {
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>t_err</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>err</span>.<span class='ident'>abs</span>() };
+
+    <span class='kw'>if</span> <span class='ident'>result_asc</span> <span class='op'>!=</span> <span class='number'>0f64</span> <span class='op'>&amp;&amp;</span> <span class='ident'>t_err</span> <span class='op'>!=</span> <span class='number'>0f64</span> {
+        <span class='kw'>let</span> <span class='ident'>scale</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { (<span class='number'>200f64</span> <span class='op'>*</span> <span class='ident'>t_err</span> <span class='op'>/</span> <span class='ident'>result_asc</span>).<span class='ident'>powf</span>(<span class='number'>1.5f64</span>) };
+
+        <span class='kw'>if</span> <span class='ident'>scale</span> <span class='op'>&lt;</span> <span class='number'>1f64</span> {
+            <span class='ident'>t_err</span> <span class='op'>=</span> <span class='ident'>result_asc</span> <span class='op'>*</span> <span class='ident'>scale</span>;
+        } <span class='kw'>else</span> {
+            <span class='ident'>t_err</span> <span class='op'>=</span> <span class='ident'>result_asc</span>;
+        }
+    }
+    <span class='kw'>if</span> <span class='ident'>result_abs</span> <span class='op'>&gt;</span> ::<span class='ident'>DBL_MIN</span> <span class='op'>/</span> (<span class='number'>50f64</span> <span class='op'>*</span> ::<span class='ident'>DBL_EPSILON</span>) {
+        <span class='kw'>let</span> <span class='ident'>min_err</span> <span class='op'>=</span> <span class='number'>50f64</span> <span class='op'>*</span> ::<span class='ident'>DBL_EPSILON</span> <span class='op'>*</span> <span class='ident'>result_abs</span>;
+
+        <span class='kw'>if</span> <span class='ident'>min_err</span> <span class='op'>&gt;</span> <span class='ident'>t_err</span> {
+            <span class='ident'>t_err</span> <span class='op'>=</span> <span class='ident'>min_err</span>;
+        }
+    }
+
+    <span class='ident'>t_err</span>
+}
+
+<span class='doccomment'>/// This function applies the Gauss-Kronrod 10-point, 21-point, 43-point and 87-point integration rules in succession until an estimate of the</span>
+<span class='doccomment'>/// integral of f over (a,b) is achieved within the desired absolute and relative error limits, eps_abs and eps_rel. The function returns the final</span>
+<span class='doccomment'>/// approximation, result, an estimate of the absolute error, abserr and the number of function evaluations used, neval. The Gauss-Kronrod rules</span>
+<span class='doccomment'>/// are designed in such a way that each rule uses all the results of its predecessors, in order to minimize the total number of function</span>
+<span class='doccomment'>/// evaluations.</span>
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>qng</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: ::<span class='ident'>function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>, <span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>eps_abs</span>: <span class='ident'>f64</span>, <span class='ident'>eps_rel</span>: <span class='ident'>f64</span>, <span class='ident'>result</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>abs_err</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>,
+    <span class='ident'>n_eval</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>usize</span>) <span class='op'>-&gt;</span> ::<span class='ident'>Value</span> {
+    <span class='kw'>let</span> <span class='ident'>half_length</span> <span class='op'>=</span> <span class='number'>0.5f64</span> <span class='op'>*</span> (<span class='ident'>b</span> <span class='op'>-</span> <span class='ident'>a</span>);
+    <span class='kw'>let</span> <span class='ident'>abs_half_length</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>half_length</span>.<span class='ident'>abs</span>() };
+    <span class='kw'>let</span> <span class='ident'>center</span> <span class='op'>=</span> <span class='number'>0.5f64</span> <span class='op'>*</span> (<span class='ident'>b</span> <span class='op'>+</span> <span class='ident'>a</span>);
+    <span class='kw'>let</span> <span class='ident'>f_center</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span>, <span class='ident'>arg</span>);
+
+    <span class='kw'>if</span> <span class='ident'>eps_abs</span> <span class='op'>&lt;=</span> <span class='number'>0f64</span> <span class='op'>&amp;&amp;</span> (<span class='ident'>eps_rel</span> <span class='op'>&lt;</span> <span class='number'>50f64</span> <span class='op'>*</span> ::<span class='ident'>DBL_EPSILON</span> <span class='op'>||</span> <span class='ident'>eps_rel</span> <span class='op'>&lt;</span> <span class='number'>0.5e-28f64</span>) {
+        <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+        <span class='op'>*</span><span class='ident'>abs_err</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+        <span class='op'>*</span><span class='ident'>n_eval</span> <span class='op'>=</span> <span class='number'>0usize</span>;
+
+        <span class='comment'>//to avoid the dead_code warning on gsl_error</span>
+        <span class='kw'>unsafe</span> {
+            <span class='kw'>let</span> <span class='ident'>file</span> <span class='op'>=</span> <span class='macro'>file</span><span class='macro'>!</span>();
+            <span class='kw'>let</span> <span class='ident'>c_str</span> <span class='op'>=</span> <span class='ident'>CString</span>::<span class='ident'>new</span>(<span class='string'>&quot;tolerance cannot be achieved with given eps_abs and eps_rel&quot;</span>.<span class='ident'>as_bytes</span>()).<span class='ident'>unwrap</span>();
+            <span class='kw'>let</span> <span class='ident'>c_file</span> <span class='op'>=</span> <span class='ident'>CString</span>::<span class='ident'>new</span>(<span class='ident'>file</span>.<span class='ident'>as_bytes</span>()).<span class='ident'>unwrap</span>();
+
+            <span class='kw'>unsafe</span> {
+                <span class='ident'>ffi</span>::<span class='ident'>gsl_error</span>(<span class='ident'>c_str</span>.<span class='ident'>as_ptr</span>(), <span class='ident'>c_file</span>.<span class='ident'>as_ptr</span>(), <span class='macro'>line</span><span class='macro'>!</span>() <span class='kw'>as</span> <span class='ident'>i32</span>, ::<span class='ident'>Value</span>::<span class='ident'>BadTolerance</span> <span class='kw'>as</span> <span class='ident'>i32</span>);
+            }
+        }
+        <span class='kw'>return</span> ::<span class='ident'>Value</span>::<span class='ident'>BadTolerance</span>;
+    }
+
+    <span class='comment'>// w21b, weights of the 21-point formula for abscissae x2</span>
+    <span class='kw'>let</span> <span class='ident'>w21b</span> : [<span class='ident'>f64</span>; <span class='number'>6</span>] <span class='op'>=</span> [
+        <span class='number'>0.011694638867371874278064396062192f64</span>,
+        <span class='number'>0.054755896574351996031381300244580f64</span>,
+        <span class='number'>0.093125454583697605535065465083366f64</span>,
+        <span class='number'>0.123491976262065851077958109831074f64</span>,
+        <span class='number'>0.142775938577060080797094273138717f64</span>,
+        <span class='number'>0.149445554002916905664936468389821f64</span>
+    ];
+    <span class='comment'>// w10, weights of the 10-point formula</span>
+    <span class='kw'>let</span> <span class='ident'>w10</span> : [<span class='ident'>f64</span>; <span class='number'>5</span>] <span class='op'>=</span> [
+        <span class='number'>0.066671344308688137593568809893332f64</span>,
+        <span class='number'>0.149451349150580593145776339657697f64</span>,
+        <span class='number'>0.219086362515982043995534934228163f64</span>,
+        <span class='number'>0.269266719309996355091226921569469f64</span>,
+        <span class='number'>0.295524224714752870173892994651338f64</span>
+    ];
+    <span class='comment'>// w21a, weights of the 21-point formula for abscissae x1 */</span>
+    <span class='kw'>let</span> <span class='ident'>w21a</span> : [<span class='ident'>f64</span>; <span class='number'>5</span>] <span class='op'>=</span> [
+        <span class='number'>0.032558162307964727478818972459390f64</span>,
+        <span class='number'>0.075039674810919952767043140916190f64</span>,
+        <span class='number'>0.109387158802297641899210590325805f64</span>,
+        <span class='number'>0.134709217311473325928054001771707f64</span>,
+        <span class='number'>0.147739104901338491374841515972068f64</span>
+    ];
+    <span class='comment'>// x1, abscissae common to the 10-, 21-, 43- and 87-point rule */</span>
+    <span class='kw'>let</span> <span class='ident'>x1</span> : [<span class='ident'>f64</span>; <span class='number'>5</span>] <span class='op'>=</span> [
+        <span class='number'>0.973906528517171720077964012084452f64</span>,
+        <span class='number'>0.865063366688984510732096688423493f64</span>,
+        <span class='number'>0.679409568299024406234327365114874f64</span>,
+        <span class='number'>0.433395394129247190799265943165784f64</span>,
+        <span class='number'>0.148874338981631210884826001129720f64</span>
+    ];
+    <span class='comment'>// x2, abscissae common to the 21-, 43- and 87-point rule</span>
+    <span class='kw'>let</span> <span class='ident'>x2</span> : [<span class='ident'>f64</span>; <span class='number'>5</span>] <span class='op'>=</span> [
+        <span class='number'>0.995657163025808080735527280689003f64</span>,
+        <span class='number'>0.930157491355708226001207180059508f64</span>,
+        <span class='number'>0.780817726586416897063717578345042f64</span>,
+        <span class='number'>0.562757134668604683339000099272694f64</span>,
+        <span class='number'>0.294392862701460198131126603103866f64</span>
+    ];
+    <span class='comment'>// x3, abscissae common to the 43- and 87-point rule */</span>
+    <span class='kw'>let</span> <span class='ident'>x3</span> : [<span class='ident'>f64</span>; <span class='number'>11</span>] <span class='op'>=</span> [
+        <span class='number'>0.999333360901932081394099323919911f64</span>,
+        <span class='number'>0.987433402908088869795961478381209f64</span>,
+        <span class='number'>0.954807934814266299257919200290473f64</span>,
+        <span class='number'>0.900148695748328293625099494069092f64</span>,
+        <span class='number'>0.825198314983114150847066732588520f64</span>,
+        <span class='number'>0.732148388989304982612354848755461f64</span>,
+        <span class='number'>0.622847970537725238641159120344323f64</span>,
+        <span class='number'>0.499479574071056499952214885499755f64</span>,
+        <span class='number'>0.364901661346580768043989548502644f64</span>,
+        <span class='number'>0.222254919776601296498260928066212f64</span>,
+        <span class='number'>0.074650617461383322043914435796506f64</span>
+    ];
+    <span class='comment'>// x4, abscissae of the 87-point rule */</span>
+    <span class='kw'>let</span> <span class='ident'>x4</span> : [<span class='ident'>f64</span>; <span class='number'>22</span>] <span class='op'>=</span> [
+        <span class='number'>0.999902977262729234490529830591582f64</span>,
+        <span class='number'>0.997989895986678745427496322365960f64</span>,
+        <span class='number'>0.992175497860687222808523352251425f64</span>,
+        <span class='number'>0.981358163572712773571916941623894f64</span>,
+        <span class='number'>0.965057623858384619128284110607926f64</span>,
+        <span class='number'>0.943167613133670596816416634507426f64</span>,
+        <span class='number'>0.915806414685507209591826430720050f64</span>,
+        <span class='number'>0.883221657771316501372117548744163f64</span>,
+        <span class='number'>0.845710748462415666605902011504855f64</span>,
+        <span class='number'>0.803557658035230982788739474980964f64</span>,
+        <span class='number'>0.757005730685495558328942793432020f64</span>,
+        <span class='number'>0.706273209787321819824094274740840f64</span>,
+        <span class='number'>0.651589466501177922534422205016736f64</span>,
+        <span class='number'>0.593223374057961088875273770349144f64</span>,
+        <span class='number'>0.531493605970831932285268948562671f64</span>,
+        <span class='number'>0.466763623042022844871966781659270f64</span>,
+        <span class='number'>0.399424847859218804732101665817923f64</span>,
+        <span class='number'>0.329874877106188288265053371824597f64</span>,
+        <span class='number'>0.258503559202161551802280975429025f64</span>,
+        <span class='number'>0.185695396568346652015917141167606f64</span>,
+        <span class='number'>0.111842213179907468172398359241362f64</span>,
+        <span class='number'>0.037352123394619870814998165437704f64</span>
+    ];
+    <span class='comment'>// w43a, weights of the 43-point formula for abscissae x1, x3 */</span>
+    <span class='kw'>let</span> <span class='ident'>w43a</span> : [<span class='ident'>f64</span>; <span class='number'>10</span>] <span class='op'>=</span> [
+        <span class='number'>0.016296734289666564924281974617663f64</span>,
+        <span class='number'>0.037522876120869501461613795898115f64</span>,
+        <span class='number'>0.054694902058255442147212685465005f64</span>,
+        <span class='number'>0.067355414609478086075553166302174f64</span>,
+        <span class='number'>0.073870199632393953432140695251367f64</span>,
+        <span class='number'>0.005768556059769796184184327908655f64</span>,
+        <span class='number'>0.027371890593248842081276069289151f64</span>,
+        <span class='number'>0.046560826910428830743339154433824f64</span>,
+        <span class='number'>0.061744995201442564496240336030883f64</span>,
+        <span class='number'>0.071387267268693397768559114425516f64</span>
+    ];
+    <span class='comment'>// w43b, weights of the 43-point formula for abscissae x3 */</span>
+    <span class='kw'>let</span> <span class='ident'>w43b</span> : [<span class='ident'>f64</span>; <span class='number'>12</span>] <span class='op'>=</span> [
+        <span class='number'>0.001844477640212414100389106552965f64</span>,
+        <span class='number'>0.010798689585891651740465406741293f64</span>,
+        <span class='number'>0.021895363867795428102523123075149f64</span>,
+        <span class='number'>0.032597463975345689443882222526137f64</span>,
+        <span class='number'>0.042163137935191811847627924327955f64</span>,
+        <span class='number'>0.050741939600184577780189020092084f64</span>,
+        <span class='number'>0.058379395542619248375475369330206f64</span>,
+        <span class='number'>0.064746404951445885544689259517511f64</span>,
+        <span class='number'>0.069566197912356484528633315038405f64</span>,
+        <span class='number'>0.072824441471833208150939535192842f64</span>,
+        <span class='number'>0.074507751014175118273571813842889f64</span>,
+        <span class='number'>0.074722147517403005594425168280423f64</span>
+    ];
+    <span class='comment'>// w87a, weights of the 87-point formula for abscissae x1, x2, x3</span>
+    <span class='kw'>let</span> <span class='ident'>w87a</span> : [<span class='ident'>f64</span>; <span class='number'>21</span>] <span class='op'>=</span> [
+        <span class='number'>0.008148377384149172900002878448190f64</span>,
+        <span class='number'>0.018761438201562822243935059003794f64</span>,
+        <span class='number'>0.027347451050052286161582829741283f64</span>,
+        <span class='number'>0.033677707311637930046581056957588f64</span>,
+        <span class='number'>0.036935099820427907614589586742499f64</span>,
+        <span class='number'>0.002884872430211530501334156248695f64</span>,
+        <span class='number'>0.013685946022712701888950035273128f64</span>,
+        <span class='number'>0.023280413502888311123409291030404f64</span>,
+        <span class='number'>0.030872497611713358675466394126442f64</span>,
+        <span class='number'>0.035693633639418770719351355457044f64</span>,
+        <span class='number'>0.000915283345202241360843392549948f64</span>,
+        <span class='number'>0.005399280219300471367738743391053f64</span>,
+        <span class='number'>0.010947679601118931134327826856808f64</span>,
+        <span class='number'>0.016298731696787335262665703223280f64</span>,
+        <span class='number'>0.021081568889203835112433060188190f64</span>,
+        <span class='number'>0.025370969769253827243467999831710f64</span>,
+        <span class='number'>0.029189697756475752501446154084920f64</span>,
+        <span class='number'>0.032373202467202789685788194889595f64</span>,
+        <span class='number'>0.034783098950365142750781997949596f64</span>,
+        <span class='number'>0.036412220731351787562801163687577f64</span>,
+        <span class='number'>0.037253875503047708539592001191226f64</span>
+    ];
+    <span class='comment'>// w87b, weights of the 87-point formula for abscissae x4</span>
+    <span class='kw'>let</span> <span class='ident'>w87b</span> : [<span class='ident'>f64</span>; <span class='number'>23</span>] <span class='op'>=</span> [
+        <span class='number'>0.000274145563762072350016527092881f64</span>,
+        <span class='number'>0.001807124155057942948341311753254f64</span>,
+        <span class='number'>0.004096869282759164864458070683480f64</span>,
+        <span class='number'>0.006758290051847378699816577897424f64</span>,
+        <span class='number'>0.009549957672201646536053581325377f64</span>,
+        <span class='number'>0.012329447652244853694626639963780f64</span>,
+        <span class='number'>0.015010447346388952376697286041943f64</span>,
+        <span class='number'>0.017548967986243191099665352925900f64</span>,
+        <span class='number'>0.019938037786440888202278192730714f64</span>,
+        <span class='number'>0.022194935961012286796332102959499f64</span>,
+        <span class='number'>0.024339147126000805470360647041454f64</span>,
+        <span class='number'>0.026374505414839207241503786552615f64</span>,
+        <span class='number'>0.028286910788771200659968002987960f64</span>,
+        <span class='number'>0.030052581128092695322521110347341f64</span>,
+        <span class='number'>0.031646751371439929404586051078883f64</span>,
+        <span class='number'>0.033050413419978503290785944862689f64</span>,
+        <span class='number'>0.034255099704226061787082821046821f64</span>,
+        <span class='number'>0.035262412660156681033782717998428f64</span>,
+        <span class='number'>0.036076989622888701185500318003895f64</span>,
+        <span class='number'>0.036698604498456094498018047441094f64</span>,
+        <span class='number'>0.037120549269832576114119958413599f64</span>,
+        <span class='number'>0.037334228751935040321235449094698f64</span>,
+        <span class='number'>0.037361073762679023410321241766599f64</span>
+    ];
+
+    <span class='comment'>// Compute the integral using the 10- and 21-point formula.</span>
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>res10</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>res21</span> <span class='op'>=</span> <span class='ident'>w21b</span>[<span class='number'>5</span>] <span class='op'>*</span> <span class='ident'>f_center</span>;
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>resabs</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>w21b</span>[<span class='number'>5</span>] <span class='op'>*</span> <span class='ident'>f_center</span>.<span class='ident'>abs</span>() };
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>savfun</span> : [<span class='ident'>f64</span>; <span class='number'>21</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>21</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv1</span> : [<span class='ident'>f64</span>; <span class='number'>5</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>5</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv2</span> : [<span class='ident'>f64</span>; <span class='number'>5</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>5</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv3</span> : [<span class='ident'>f64</span>; <span class='number'>5</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>5</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv4</span> : [<span class='ident'>f64</span>; <span class='number'>5</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>5</span>];
+
+    <span class='kw'>for</span> <span class='ident'>k</span> <span class='kw'>in</span> <span class='number'>0usize</span>..<span class='number'>5usize</span> {
+        <span class='kw'>let</span> <span class='ident'>abscissa</span> <span class='op'>=</span> <span class='ident'>half_length</span> <span class='op'>*</span> <span class='ident'>x1</span>[<span class='ident'>k</span>];
+        <span class='kw'>let</span> <span class='ident'>fval1</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>+</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+        <span class='kw'>let</span> <span class='ident'>fval2</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>-</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+        <span class='kw'>let</span> <span class='ident'>fval</span> <span class='op'>=</span> <span class='ident'>fval1</span> <span class='op'>+</span> <span class='ident'>fval2</span>;
+
+        <span class='ident'>res10</span> <span class='op'>+=</span> <span class='ident'>w10</span>[<span class='ident'>k</span>] <span class='op'>*</span> <span class='ident'>fval</span>;
+        <span class='ident'>res21</span> <span class='op'>+=</span> <span class='ident'>w21a</span>[<span class='ident'>k</span>] <span class='op'>*</span> <span class='ident'>fval</span>;
+        <span class='ident'>resabs</span> <span class='op'>+=</span> <span class='kw'>unsafe</span> { <span class='ident'>w21a</span>[<span class='ident'>k</span>] <span class='op'>*</span> (<span class='ident'>fval1</span>.<span class='ident'>abs</span>() <span class='op'>+</span> <span class='ident'>fval2</span>.<span class='ident'>abs</span>()) };
+        <span class='ident'>savfun</span>[<span class='ident'>k</span>] <span class='op'>=</span> <span class='ident'>fval</span>;
+        <span class='ident'>fv1</span>[<span class='ident'>k</span>] <span class='op'>=</span> <span class='ident'>fval1</span>;
+        <span class='ident'>fv2</span>[<span class='ident'>k</span>] <span class='op'>=</span> <span class='ident'>fval2</span>;
+    }
+
+    <span class='kw'>for</span> <span class='ident'>k</span> <span class='kw'>in</span> <span class='number'>0usize</span>..<span class='number'>5usize</span> {
+        <span class='kw'>let</span> <span class='ident'>abscissa</span> <span class='op'>=</span> <span class='ident'>half_length</span> <span class='op'>*</span> <span class='ident'>x2</span>[<span class='ident'>k</span>];
+        <span class='kw'>let</span> <span class='ident'>fval1</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>+</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+        <span class='kw'>let</span> <span class='ident'>fval2</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>-</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+        <span class='kw'>let</span> <span class='ident'>fval</span> <span class='op'>=</span> <span class='ident'>fval1</span> <span class='op'>+</span> <span class='ident'>fval2</span>;
+
+        <span class='ident'>res21</span> <span class='op'>+=</span> <span class='ident'>w21b</span>[<span class='ident'>k</span>] <span class='op'>*</span> <span class='ident'>fval</span>;
+        <span class='ident'>resabs</span> <span class='op'>+=</span> <span class='kw'>unsafe</span> { <span class='ident'>w21b</span>[<span class='ident'>k</span>] <span class='op'>*</span> (<span class='ident'>fval1</span>.<span class='ident'>abs</span>() <span class='op'>+</span> <span class='ident'>fval2</span>.<span class='ident'>abs</span>()) };
+        <span class='ident'>savfun</span>[<span class='ident'>k</span> <span class='op'>+</span> <span class='number'>5</span>] <span class='op'>=</span> <span class='ident'>fval</span>;
+        <span class='ident'>fv3</span>[<span class='ident'>k</span>] <span class='op'>=</span> <span class='ident'>fval1</span>;
+        <span class='ident'>fv4</span>[<span class='ident'>k</span>] <span class='op'>=</span> <span class='ident'>fval2</span>;
+    }
+    <span class='ident'>resabs</span> <span class='op'>*=</span> <span class='ident'>abs_half_length</span>;
+
+    <span class='kw'>let</span> <span class='ident'>mean</span> <span class='op'>=</span> <span class='number'>0.5f64</span> <span class='op'>*</span> <span class='ident'>res21</span>;
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>resasc</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>w21b</span>[<span class='number'>5</span>] <span class='op'>*</span> (<span class='ident'>f_center</span> <span class='op'>-</span> <span class='ident'>mean</span>).<span class='ident'>abs</span>() };
+
+    <span class='kw'>for</span> <span class='ident'>k</span> <span class='kw'>in</span> <span class='number'>0usize</span>..<span class='number'>5usize</span> {
+        <span class='ident'>resasc</span> <span class='op'>+=</span> <span class='kw'>unsafe</span> { (<span class='ident'>w21a</span>[<span class='ident'>k</span>] <span class='op'>*</span> ((<span class='ident'>fv1</span>[<span class='ident'>k</span>] <span class='op'>-</span> <span class='ident'>mean</span>).<span class='ident'>abs</span>() <span class='op'>+</span> (<span class='ident'>fv2</span>[<span class='ident'>k</span>] <span class='op'>-</span> <span class='ident'>mean</span>).<span class='ident'>abs</span>()) <span class='op'>+</span> <span class='ident'>w21b</span>[<span class='ident'>k</span>] <span class='op'>*</span> ((<span class='ident'>fv3</span>[<span class='ident'>k</span>] <span class='op'>-</span> <span class='ident'>mean</span>).<span class='ident'>abs</span>() <span class='op'>+</span> (<span class='ident'>fv4</span>[<span class='ident'>k</span>] <span class='op'>-</span> <span class='ident'>mean</span>).<span class='ident'>abs</span>())) };
+    }
+    <span class='ident'>resasc</span> <span class='op'>*=</span> <span class='ident'>abs_half_length</span>;
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result_kronrod</span> <span class='op'>=</span> <span class='ident'>res21</span> <span class='op'>*</span> <span class='ident'>half_length</span>;
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>err</span> <span class='op'>=</span> <span class='ident'>rescale_error</span>((<span class='ident'>res21</span> <span class='op'>-</span> <span class='ident'>res10</span>) <span class='op'>*</span> <span class='ident'>half_length</span>, <span class='ident'>resabs</span>, <span class='ident'>resasc</span>);
+
+    <span class='comment'>// test for convergence.</span>
+    <span class='kw'>if</span> <span class='ident'>err</span> <span class='op'>&lt;</span> <span class='ident'>eps_abs</span> <span class='op'>||</span> <span class='ident'>err</span> <span class='op'>&lt;</span> <span class='ident'>eps_rel</span> <span class='op'>*</span> <span class='kw'>unsafe</span> { <span class='ident'>result_kronrod</span>.<span class='ident'>abs</span>() } {
+        <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>result_kronrod</span>;
+        <span class='op'>*</span><span class='ident'>abs_err</span> <span class='op'>=</span> <span class='ident'>err</span>;
+        <span class='op'>*</span><span class='ident'>n_eval</span> <span class='op'>=</span> <span class='number'>21</span>;
+        <span class='kw'>return</span> ::<span class='ident'>Value</span>::<span class='ident'>Success</span>;
+    }
+
+    <span class='comment'>// compute the integral using the 43-point formula.</span>
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>res43</span> <span class='op'>=</span> <span class='ident'>w43b</span>[<span class='number'>11</span>] <span class='op'>*</span> <span class='ident'>f_center</span>;
+
+    <span class='kw'>for</span> <span class='ident'>k</span> <span class='kw'>in</span> <span class='number'>0usize</span>..<span class='number'>10usize</span> {
+        <span class='ident'>res43</span> <span class='op'>+=</span> <span class='ident'>savfun</span>[<span class='ident'>k</span>] <span class='op'>*</span> <span class='ident'>w43a</span>[<span class='ident'>k</span>];
+    }
+
+    <span class='kw'>for</span> <span class='ident'>k</span> <span class='kw'>in</span> <span class='number'>0usize</span>..<span class='number'>11usize</span> {
+        <span class='kw'>let</span> <span class='ident'>abscissa</span> <span class='op'>=</span> <span class='ident'>half_length</span> <span class='op'>*</span> <span class='ident'>x3</span>[<span class='ident'>k</span>];
+        <span class='kw'>let</span> <span class='ident'>fval</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>+</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>) <span class='op'>+</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>-</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+
+        <span class='ident'>res43</span> <span class='op'>+=</span> <span class='ident'>fval</span> <span class='op'>*</span> <span class='ident'>w43b</span>[<span class='ident'>k</span>];
+        <span class='ident'>savfun</span>[<span class='ident'>k</span> <span class='op'>+</span> <span class='number'>10</span>] <span class='op'>=</span> <span class='ident'>fval</span>;
+    }
+
+    <span class='comment'>// test for convergence</span>
+    <span class='ident'>result_kronrod</span> <span class='op'>=</span> <span class='ident'>res43</span> <span class='op'>*</span> <span class='ident'>half_length</span>;
+    <span class='ident'>err</span> <span class='op'>=</span> <span class='ident'>rescale_error</span>((<span class='ident'>res43</span> <span class='op'>-</span> <span class='ident'>res21</span>) <span class='op'>*</span> <span class='ident'>half_length</span>, <span class='ident'>resabs</span>, <span class='ident'>resasc</span>);
+
+    <span class='kw'>if</span> <span class='ident'>err</span> <span class='op'>&lt;</span> <span class='ident'>eps_abs</span> <span class='op'>||</span> <span class='ident'>err</span> <span class='op'>&lt;</span> <span class='ident'>eps_rel</span> <span class='op'>*</span> <span class='kw'>unsafe</span> { <span class='ident'>result_kronrod</span>.<span class='ident'>abs</span>() } {
+        <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>result_kronrod</span>;
+        <span class='op'>*</span><span class='ident'>abs_err</span> <span class='op'>=</span> <span class='ident'>err</span>;
+        <span class='op'>*</span><span class='ident'>n_eval</span> <span class='op'>=</span> <span class='number'>43</span>;
+        <span class='kw'>return</span> ::<span class='ident'>Value</span>::<span class='ident'>Success</span>;
+    }
+
+    <span class='comment'>// compute the integral using the 87-point formula.</span>
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>res87</span> <span class='op'>=</span> <span class='ident'>w87b</span>[<span class='number'>22</span>] <span class='op'>*</span> <span class='ident'>f_center</span>;
+
+    <span class='kw'>for</span> <span class='ident'>k</span> <span class='kw'>in</span> <span class='number'>0</span>..<span class='number'>21</span> {
+        <span class='ident'>res87</span> <span class='op'>+=</span> <span class='ident'>savfun</span>[<span class='ident'>k</span>] <span class='op'>*</span> <span class='ident'>w87a</span>[<span class='ident'>k</span>];
+    }
+    <span class='kw'>for</span> <span class='ident'>k</span> <span class='kw'>in</span> <span class='number'>0</span>..<span class='number'>22</span> {
+        <span class='kw'>let</span> <span class='ident'>abscissa</span> <span class='op'>=</span> <span class='ident'>half_length</span> <span class='op'>*</span> <span class='ident'>x4</span>[<span class='ident'>k</span>];
+
+        <span class='ident'>res87</span> <span class='op'>+=</span> <span class='ident'>w87b</span>[<span class='ident'>k</span>] <span class='op'>*</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>+</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>) <span class='op'>+</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>-</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+    }
+
+    <span class='comment'>// test for convergence</span>
+    <span class='ident'>result_kronrod</span> <span class='op'>=</span> <span class='ident'>res87</span> <span class='op'>*</span> <span class='ident'>half_length</span> ;
+    <span class='ident'>err</span> <span class='op'>=</span> <span class='ident'>rescale_error</span>((<span class='ident'>res87</span> <span class='op'>-</span> <span class='ident'>res43</span>) <span class='op'>*</span> <span class='ident'>half_length</span>, <span class='ident'>resabs</span>, <span class='ident'>resasc</span>);
+
+    <span class='kw'>if</span> <span class='ident'>err</span> <span class='op'>&lt;</span> <span class='ident'>eps_abs</span> <span class='op'>||</span> <span class='ident'>err</span> <span class='op'>&lt;</span> <span class='ident'>eps_rel</span> <span class='op'>*</span> <span class='kw'>unsafe</span> { <span class='ident'>result_kronrod</span>.<span class='ident'>abs</span>() } {
+        <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>result_kronrod</span>;
+        <span class='op'>*</span><span class='ident'>abs_err</span> <span class='op'>=</span> <span class='ident'>err</span>;
+        <span class='op'>*</span><span class='ident'>n_eval</span> <span class='op'>=</span> <span class='number'>87</span>;
+        <span class='kw'>return</span> ::<span class='ident'>Value</span>::<span class='ident'>Success</span>;
+    }
+
+    <span class='comment'>// failed to converge</span>
+    <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>result_kronrod</span>;
+    <span class='op'>*</span><span class='ident'>abs_err</span> <span class='op'>=</span> <span class='ident'>err</span>;
+    <span class='op'>*</span><span class='ident'>n_eval</span> <span class='op'>=</span> <span class='number'>87</span>;
+    <span class='macro'>rgsl_error</span><span class='macro'>!</span>(<span class='string'>&quot;failed to reach tolerance with highest-order rule&quot;</span>, ::<span class='ident'>Value</span>::<span class='ident'>Tolerance</span>);
+    ::<span class='ident'>Value</span>::<span class='ident'>Tolerance</span>
+}
+
+<span class='doccomment'>/// Gauss quadrature weights and kronrod quadrature abscissae and weights as evaluated with 80 decimal digit arithmetic by L. W.</span>
+<span class='doccomment'>/// Fullerton, Bell Labs, Nov. 1981.</span>
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>qk15</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: ::<span class='ident'>function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>, <span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>result</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>abserr</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resabs</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resasc</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) {
+    <span class='comment'>// abscissae of the 15-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>xgk</span> : [<span class='ident'>f64</span>; <span class='number'>8</span>] <span class='op'>=</span> [
+        <span class='number'>0.991455371120812639206854697526329f64</span>,
+        <span class='number'>0.949107912342758524526189684047851f64</span>,
+        <span class='number'>0.864864423359769072789712788640926f64</span>,
+        <span class='number'>0.741531185599394439863864773280788f64</span>,
+        <span class='number'>0.586087235467691130294144838258730f64</span>,
+        <span class='number'>0.405845151377397166906606412076961f64</span>,
+        <span class='number'>0.207784955007898467600689403773245f64</span>,
+        <span class='number'>0.000000000000000000000000000000000f64</span>
+    ];
+
+    <span class='comment'>// xgk[1], xgk[3], ... abscissae of the 7-point gauss rule.</span>
+    <span class='comment'>// xgk[0], xgk[2], ... abscissae to optimally extend the 7-point gauss rule</span>
+
+    <span class='comment'>// weights of the 7-point gauss rule</span>
+    <span class='kw'>let</span> <span class='ident'>wg</span> : [<span class='ident'>f64</span>; <span class='number'>4</span>] <span class='op'>=</span> [
+        <span class='number'>0.129484966168869693270611432679082f64</span>,
+        <span class='number'>0.279705391489276667901467771423780f64</span>,
+        <span class='number'>0.381830050505118944950369775488975f64</span>,
+        <span class='number'>0.417959183673469387755102040816327f64</span>
+    ];
+
+    <span class='comment'>// weights of the 15-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>wgk</span> : [<span class='ident'>f64</span>; <span class='number'>8</span>] <span class='op'>=</span> [
+        <span class='number'>0.022935322010529224963732008058970f64</span>,
+        <span class='number'>0.063092092629978553290700663189204f64</span>,
+        <span class='number'>0.104790010322250183839876322541518f64</span>,
+        <span class='number'>0.140653259715525918745189590510238f64</span>,
+        <span class='number'>0.169004726639267902826583426598550f64</span>,
+        <span class='number'>0.190350578064785409913256402421014f64</span>,
+        <span class='number'>0.204432940075298892414161999234649f64</span>,
+        <span class='number'>0.209482141084727828012999174891714f64</span>
+    ];
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv1</span> : [<span class='ident'>f64</span>; <span class='number'>8</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>8</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv2</span> : [<span class='ident'>f64</span>; <span class='number'>8</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>8</span>];
+
+    <span class='ident'>qk</span>(<span class='kw-2'>&amp;</span><span class='ident'>xgk</span>, <span class='kw-2'>&amp;</span><span class='ident'>wg</span>, <span class='kw-2'>&amp;</span><span class='ident'>wgk</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv1</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv2</span>, <span class='ident'>f</span>, <span class='ident'>arg</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>result</span>, <span class='ident'>abserr</span>, <span class='ident'>resabs</span>, <span class='ident'>resasc</span>);
+}
+
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>qk21</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: ::<span class='ident'>function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>, <span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>result</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>abserr</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resabs</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resasc</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) {
+    <span class='comment'>// abscissae of the 21-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>xgk</span> : [<span class='ident'>f64</span>; <span class='number'>11</span>] <span class='op'>=</span> [
+        <span class='number'>0.995657163025808080735527280689003f64</span>,
+        <span class='number'>0.973906528517171720077964012084452f64</span>,
+        <span class='number'>0.930157491355708226001207180059508f64</span>,
+        <span class='number'>0.865063366688984510732096688423493f64</span>,
+        <span class='number'>0.780817726586416897063717578345042f64</span>,
+        <span class='number'>0.679409568299024406234327365114874f64</span>,
+        <span class='number'>0.562757134668604683339000099272694f64</span>,
+        <span class='number'>0.433395394129247190799265943165784f64</span>,
+        <span class='number'>0.294392862701460198131126603103866f64</span>,
+        <span class='number'>0.148874338981631210884826001129720f64</span>,
+        <span class='number'>0.000000000000000000000000000000000f64</span>
+    ];
+
+    <span class='comment'>// xgk[1], xgk[3], ... abscissae of the 10-point gauss rule.</span>
+    <span class='comment'>// xgk[0], xgk[2], ... abscissae to optimally extend the 10-point gauss rule</span>
+
+    <span class='comment'>// weights of the 10-point gauss rule</span>
+    <span class='kw'>let</span> <span class='ident'>wg</span> : [<span class='ident'>f64</span>; <span class='number'>5</span>] <span class='op'>=</span> [
+        <span class='number'>0.066671344308688137593568809893332f64</span>,
+        <span class='number'>0.149451349150580593145776339657697f64</span>,
+        <span class='number'>0.219086362515982043995534934228163f64</span>,
+        <span class='number'>0.269266719309996355091226921569469f64</span>,
+        <span class='number'>0.295524224714752870173892994651338f64</span>
+    ];
+
+    <span class='comment'>// weights of the 21-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>wgk</span> : [<span class='ident'>f64</span>; <span class='number'>11</span>] <span class='op'>=</span> [
+        <span class='number'>0.011694638867371874278064396062192f64</span>,
+        <span class='number'>0.032558162307964727478818972459390f64</span>,
+        <span class='number'>0.054755896574351996031381300244580f64</span>,
+        <span class='number'>0.075039674810919952767043140916190f64</span>,
+        <span class='number'>0.093125454583697605535065465083366f64</span>,
+        <span class='number'>0.109387158802297641899210590325805f64</span>,
+        <span class='number'>0.123491976262065851077958109831074f64</span>,
+        <span class='number'>0.134709217311473325928054001771707f64</span>,
+        <span class='number'>0.142775938577060080797094273138717f64</span>,
+        <span class='number'>0.147739104901338491374841515972068f64</span>,
+        <span class='number'>0.149445554002916905664936468389821f64</span>
+    ];
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv1</span> : [<span class='ident'>f64</span>; <span class='number'>11</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>11</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv2</span> : [<span class='ident'>f64</span>; <span class='number'>11</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>11</span>];
+
+    <span class='ident'>qk</span>(<span class='kw-2'>&amp;</span><span class='ident'>xgk</span>, <span class='kw-2'>&amp;</span><span class='ident'>wg</span>, <span class='kw-2'>&amp;</span><span class='ident'>wgk</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv1</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv2</span>, <span class='ident'>f</span>, <span class='ident'>arg</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>result</span>, <span class='ident'>abserr</span>, <span class='ident'>resabs</span>, <span class='ident'>resasc</span>);
+}
+
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>qk31</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: ::<span class='ident'>function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>, <span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>result</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>abserr</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resabs</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resasc</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) {
+    <span class='comment'>// abscissae of the 31-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>xgk</span> : [<span class='ident'>f64</span>; <span class='number'>16</span>] <span class='op'>=</span> [
+        <span class='number'>0.998002298693397060285172840152271f64</span>,
+        <span class='number'>0.987992518020485428489565718586613f64</span>,
+        <span class='number'>0.967739075679139134257347978784337f64</span>,
+        <span class='number'>0.937273392400705904307758947710209f64</span>,
+        <span class='number'>0.897264532344081900882509656454496f64</span>,
+        <span class='number'>0.848206583410427216200648320774217f64</span>,
+        <span class='number'>0.790418501442465932967649294817947f64</span>,
+        <span class='number'>0.724417731360170047416186054613938f64</span>,
+        <span class='number'>0.650996741297416970533735895313275f64</span>,
+        <span class='number'>0.570972172608538847537226737253911f64</span>,
+        <span class='number'>0.485081863640239680693655740232351f64</span>,
+        <span class='number'>0.394151347077563369897207370981045f64</span>,
+        <span class='number'>0.299180007153168812166780024266389f64</span>,
+        <span class='number'>0.201194093997434522300628303394596f64</span>,
+        <span class='number'>0.101142066918717499027074231447392f64</span>,
+        <span class='number'>0.000000000000000000000000000000000f64</span>
+    ];
+
+    <span class='comment'>// xgk[1], xgk[3], ... abscissae of the 15-point gauss rule.</span>
+    <span class='comment'>// xgk[0], xgk[2], ... abscissae to optimally extend the 15-point gauss rule</span>
+
+    <span class='comment'>// weights of the 15-point gauss rule</span>
+    <span class='kw'>let</span> <span class='ident'>wg</span> : [<span class='ident'>f64</span>; <span class='number'>8</span>] <span class='op'>=</span> [
+        <span class='number'>0.030753241996117268354628393577204f64</span>,
+        <span class='number'>0.070366047488108124709267416450667f64</span>,
+        <span class='number'>0.107159220467171935011869546685869f64</span>,
+        <span class='number'>0.139570677926154314447804794511028f64</span>,
+        <span class='number'>0.166269205816993933553200860481209f64</span>,
+        <span class='number'>0.186161000015562211026800561866423f64</span>,
+        <span class='number'>0.198431485327111576456118326443839f64</span>,
+        <span class='number'>0.202578241925561272880620199967519f64</span>
+    ];
+
+    <span class='comment'>// weights of the 31-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>wgk</span> : [<span class='ident'>f64</span>; <span class='number'>16</span>] <span class='op'>=</span> [
+        <span class='number'>0.005377479872923348987792051430128f64</span>,
+        <span class='number'>0.015007947329316122538374763075807f64</span>,
+        <span class='number'>0.025460847326715320186874001019653f64</span>,
+        <span class='number'>0.035346360791375846222037948478360f64</span>,
+        <span class='number'>0.044589751324764876608227299373280f64</span>,
+        <span class='number'>0.053481524690928087265343147239430f64</span>,
+        <span class='number'>0.062009567800670640285139230960803f64</span>,
+        <span class='number'>0.069854121318728258709520077099147f64</span>,
+        <span class='number'>0.076849680757720378894432777482659f64</span>,
+        <span class='number'>0.083080502823133021038289247286104f64</span>,
+        <span class='number'>0.088564443056211770647275443693774f64</span>,
+        <span class='number'>0.093126598170825321225486872747346f64</span>,
+        <span class='number'>0.096642726983623678505179907627589f64</span>,
+        <span class='number'>0.099173598721791959332393173484603f64</span>,
+        <span class='number'>0.100769845523875595044946662617570f64</span>,
+        <span class='number'>0.101330007014791549017374792767493f64</span>
+    ];
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv1</span> : [<span class='ident'>f64</span>; <span class='number'>16</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>16</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv2</span> : [<span class='ident'>f64</span>; <span class='number'>16</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>16</span>];
+
+    <span class='ident'>qk</span>(<span class='kw-2'>&amp;</span><span class='ident'>xgk</span>, <span class='kw-2'>&amp;</span><span class='ident'>wg</span>, <span class='kw-2'>&amp;</span><span class='ident'>wgk</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv1</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv2</span>, <span class='ident'>f</span>, <span class='ident'>arg</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>result</span>, <span class='ident'>abserr</span>, <span class='ident'>resabs</span>, <span class='ident'>resasc</span>);
+}
+
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>qk41</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: ::<span class='ident'>function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>, <span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>result</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>abserr</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resabs</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resasc</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) {
+    <span class='comment'>// abscissae of the 41-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>xgk</span> : [<span class='ident'>f64</span>; <span class='number'>21</span>] <span class='op'>=</span> [
+        <span class='number'>0.998859031588277663838315576545863f64</span>,
+        <span class='number'>0.993128599185094924786122388471320f64</span>,
+        <span class='number'>0.981507877450250259193342994720217f64</span>,
+        <span class='number'>0.963971927277913791267666131197277f64</span>,
+        <span class='number'>0.940822633831754753519982722212443f64</span>,
+        <span class='number'>0.912234428251325905867752441203298f64</span>,
+        <span class='number'>0.878276811252281976077442995113078f64</span>,
+        <span class='number'>0.839116971822218823394529061701521f64</span>,
+        <span class='number'>0.795041428837551198350638833272788f64</span>,
+        <span class='number'>0.746331906460150792614305070355642f64</span>,
+        <span class='number'>0.693237656334751384805490711845932f64</span>,
+        <span class='number'>0.636053680726515025452836696226286f64</span>,
+        <span class='number'>0.575140446819710315342946036586425f64</span>,
+        <span class='number'>0.510867001950827098004364050955251f64</span>,
+        <span class='number'>0.443593175238725103199992213492640f64</span>,
+        <span class='number'>0.373706088715419560672548177024927f64</span>,
+        <span class='number'>0.301627868114913004320555356858592f64</span>,
+        <span class='number'>0.227785851141645078080496195368575f64</span>,
+        <span class='number'>0.152605465240922675505220241022678f64</span>,
+        <span class='number'>0.076526521133497333754640409398838f64</span>,
+        <span class='number'>0.000000000000000000000000000000000f64</span>
+    ];
+
+    <span class='comment'>// xgk[1], xgk[3], ... abscissae of the 20-point gauss rule.</span>
+    <span class='comment'>// xgk[0], xgk[2], ... abscissae to optimally extend the 20-point gauss rule</span>
+
+    <span class='comment'>// weights of the 20-point gauss rule</span>
+    <span class='kw'>let</span> <span class='ident'>wg</span> : [<span class='ident'>f64</span>; <span class='number'>11</span>] <span class='op'>=</span> [
+        <span class='number'>0.017614007139152118311861962351853f64</span>,
+        <span class='number'>0.040601429800386941331039952274932f64</span>,
+        <span class='number'>0.062672048334109063569506535187042f64</span>,
+        <span class='number'>0.083276741576704748724758143222046f64</span>,
+        <span class='number'>0.101930119817240435036750135480350f64</span>,
+        <span class='number'>0.118194531961518417312377377711382f64</span>,
+        <span class='number'>0.131688638449176626898494499748163f64</span>,
+        <span class='number'>0.142096109318382051329298325067165f64</span>,
+        <span class='number'>0.149172986472603746787828737001969f64</span>,
+        <span class='number'>0.152753387130725850698084331955098f64</span>,
+        <span class='number'>0.000000000000000000000000000000000f64</span>
+    ];
+
+    <span class='comment'>// weights of the 41-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>wgk</span> : [<span class='ident'>f64</span>; <span class='number'>21</span>] <span class='op'>=</span> [
+        <span class='number'>0.003073583718520531501218293246031f64</span>,
+        <span class='number'>0.008600269855642942198661787950102f64</span>,
+        <span class='number'>0.014626169256971252983787960308868f64</span>,
+        <span class='number'>0.020388373461266523598010231432755f64</span>,
+        <span class='number'>0.025882133604951158834505067096153f64</span>,
+        <span class='number'>0.031287306777032798958543119323801f64</span>,
+        <span class='number'>0.036600169758200798030557240707211f64</span>,
+        <span class='number'>0.041668873327973686263788305936895f64</span>,
+        <span class='number'>0.046434821867497674720231880926108f64</span>,
+        <span class='number'>0.050944573923728691932707670050345f64</span>,
+        <span class='number'>0.055195105348285994744832372419777f64</span>,
+        <span class='number'>0.059111400880639572374967220648594f64</span>,
+        <span class='number'>0.062653237554781168025870122174255f64</span>,
+        <span class='number'>0.065834597133618422111563556969398f64</span>,
+        <span class='number'>0.068648672928521619345623411885368f64</span>,
+        <span class='number'>0.071054423553444068305790361723210f64</span>,
+        <span class='number'>0.073030690332786667495189417658913f64</span>,
+        <span class='number'>0.074582875400499188986581418362488f64</span>,
+        <span class='number'>0.075704497684556674659542775376617f64</span>,
+        <span class='number'>0.076377867672080736705502835038061f64</span>,
+        <span class='number'>0.076600711917999656445049901530102f64</span>
+    ];
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv1</span> : [<span class='ident'>f64</span>; <span class='number'>21</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>21</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv2</span> : [<span class='ident'>f64</span>; <span class='number'>21</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>21</span>];
+
+    <span class='ident'>qk</span>(<span class='kw-2'>&amp;</span><span class='ident'>xgk</span>, <span class='kw-2'>&amp;</span><span class='ident'>wg</span>, <span class='kw-2'>&amp;</span><span class='ident'>wgk</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv1</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv2</span>, <span class='ident'>f</span>, <span class='ident'>arg</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>result</span>, <span class='ident'>abserr</span>, <span class='ident'>resabs</span>, <span class='ident'>resasc</span>);
+}
+
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>qk51</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: ::<span class='ident'>function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>, <span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>result</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>abserr</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resabs</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resasc</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) {
+    <span class='comment'>// abscissae of the 51-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>xgk</span> : [<span class='ident'>f64</span>; <span class='number'>26</span>] <span class='op'>=</span> [
+        <span class='number'>0.999262104992609834193457486540341f64</span>,
+        <span class='number'>0.995556969790498097908784946893902f64</span>,
+        <span class='number'>0.988035794534077247637331014577406f64</span>,
+        <span class='number'>0.976663921459517511498315386479594f64</span>,
+        <span class='number'>0.961614986425842512418130033660167f64</span>,
+        <span class='number'>0.942974571228974339414011169658471f64</span>,
+        <span class='number'>0.920747115281701561746346084546331f64</span>,
+        <span class='number'>0.894991997878275368851042006782805f64</span>,
+        <span class='number'>0.865847065293275595448996969588340f64</span>,
+        <span class='number'>0.833442628760834001421021108693570f64</span>,
+        <span class='number'>0.797873797998500059410410904994307f64</span>,
+        <span class='number'>0.759259263037357630577282865204361f64</span>,
+        <span class='number'>0.717766406813084388186654079773298f64</span>,
+        <span class='number'>0.673566368473468364485120633247622f64</span>,
+        <span class='number'>0.626810099010317412788122681624518f64</span>,
+        <span class='number'>0.577662930241222967723689841612654f64</span>,
+        <span class='number'>0.526325284334719182599623778158010f64</span>,
+        <span class='number'>0.473002731445714960522182115009192f64</span>,
+        <span class='number'>0.417885382193037748851814394594572f64</span>,
+        <span class='number'>0.361172305809387837735821730127641f64</span>,
+        <span class='number'>0.303089538931107830167478909980339f64</span>,
+        <span class='number'>0.243866883720988432045190362797452f64</span>,
+        <span class='number'>0.183718939421048892015969888759528f64</span>,
+        <span class='number'>0.122864692610710396387359818808037f64</span>,
+        <span class='number'>0.061544483005685078886546392366797f64</span>,
+        <span class='number'>0.000000000000000000000000000000000f64</span>
+    ];
+
+    <span class='comment'>// xgk[1], xgk[3], ... abscissae of the 25-point gauss rule.</span>
+    <span class='comment'>// xgk[0], xgk[2], ... abscissae to optimally extend the 25-point gauss rule</span>
+
+    <span class='comment'>// weights of the 25-point gauss rule</span>
+    <span class='kw'>let</span> <span class='ident'>wg</span> : [<span class='ident'>f64</span>; <span class='number'>13</span>] <span class='op'>=</span> [
+        <span class='number'>0.011393798501026287947902964113235f64</span>,
+        <span class='number'>0.026354986615032137261901815295299f64</span>,
+        <span class='number'>0.040939156701306312655623487711646f64</span>,
+        <span class='number'>0.054904695975835191925936891540473f64</span>,
+        <span class='number'>0.068038333812356917207187185656708f64</span>,
+        <span class='number'>0.080140700335001018013234959669111f64</span>,
+        <span class='number'>0.091028261982963649811497220702892f64</span>,
+        <span class='number'>0.100535949067050644202206890392686f64</span>,
+        <span class='number'>0.108519624474263653116093957050117f64</span>,
+        <span class='number'>0.114858259145711648339325545869556f64</span>,
+        <span class='number'>0.119455763535784772228178126512901f64</span>,
+        <span class='number'>0.122242442990310041688959518945852f64</span>,
+        <span class='number'>0.123176053726715451203902873079050f64</span>
+    ];
+
+    <span class='comment'>// weights of the 51-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>wgk</span> : [<span class='ident'>f64</span>; <span class='number'>26</span>] <span class='op'>=</span> [
+        <span class='number'>0.001987383892330315926507851882843f64</span>,
+        <span class='number'>0.005561932135356713758040236901066f64</span>,
+        <span class='number'>0.009473973386174151607207710523655f64</span>,
+        <span class='number'>0.013236229195571674813656405846976f64</span>,
+        <span class='number'>0.016847817709128298231516667536336f64</span>,
+        <span class='number'>0.020435371145882835456568292235939f64</span>,
+        <span class='number'>0.024009945606953216220092489164881f64</span>,
+        <span class='number'>0.027475317587851737802948455517811f64</span>,
+        <span class='number'>0.030792300167387488891109020215229f64</span>,
+        <span class='number'>0.034002130274329337836748795229551f64</span>,
+        <span class='number'>0.037116271483415543560330625367620f64</span>,
+        <span class='number'>0.040083825504032382074839284467076f64</span>,
+        <span class='number'>0.042872845020170049476895792439495f64</span>,
+        <span class='number'>0.045502913049921788909870584752660f64</span>,
+        <span class='number'>0.047982537138836713906392255756915f64</span>,
+        <span class='number'>0.050277679080715671963325259433440f64</span>,
+        <span class='number'>0.052362885806407475864366712137873f64</span>,
+        <span class='number'>0.054251129888545490144543370459876f64</span>,
+        <span class='number'>0.055950811220412317308240686382747f64</span>,
+        <span class='number'>0.057437116361567832853582693939506f64</span>,
+        <span class='number'>0.058689680022394207961974175856788f64</span>,
+        <span class='number'>0.059720340324174059979099291932562f64</span>,
+        <span class='number'>0.060539455376045862945360267517565f64</span>,
+        <span class='number'>0.061128509717053048305859030416293f64</span>,
+        <span class='number'>0.061471189871425316661544131965264f64</span>,
+        <span class='number'>0.061580818067832935078759824240066f64</span>
+    ];
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv1</span> : [<span class='ident'>f64</span>; <span class='number'>26</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>26</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv2</span> : [<span class='ident'>f64</span>; <span class='number'>26</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>26</span>];
+
+    <span class='ident'>qk</span>(<span class='kw-2'>&amp;</span><span class='ident'>xgk</span>, <span class='kw-2'>&amp;</span><span class='ident'>wg</span>, <span class='kw-2'>&amp;</span><span class='ident'>wgk</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv1</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv2</span>, <span class='ident'>f</span>, <span class='ident'>arg</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>result</span>, <span class='ident'>abserr</span>, <span class='ident'>resabs</span>, <span class='ident'>resasc</span>);
+}
+
+
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>qk61</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: ::<span class='ident'>function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>, <span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>, <span class='ident'>result</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>abserr</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resabs</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resasc</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) {
+    <span class='comment'>// abscissae of the 61-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>xgk</span> : [<span class='ident'>f64</span>; <span class='number'>31</span>] <span class='op'>=</span> [
+        <span class='number'>0.999484410050490637571325895705811f64</span>,
+        <span class='number'>0.996893484074649540271630050918695f64</span>,
+        <span class='number'>0.991630996870404594858628366109486f64</span>,
+        <span class='number'>0.983668123279747209970032581605663f64</span>,
+        <span class='number'>0.973116322501126268374693868423707f64</span>,
+        <span class='number'>0.960021864968307512216871025581798f64</span>,
+        <span class='number'>0.944374444748559979415831324037439f64</span>,
+        <span class='number'>0.926200047429274325879324277080474f64</span>,
+        <span class='number'>0.905573307699907798546522558925958f64</span>,
+        <span class='number'>0.882560535792052681543116462530226f64</span>,
+        <span class='number'>0.857205233546061098958658510658944f64</span>,
+        <span class='number'>0.829565762382768397442898119732502f64</span>,
+        <span class='number'>0.799727835821839083013668942322683f64</span>,
+        <span class='number'>0.767777432104826194917977340974503f64</span>,
+        <span class='number'>0.733790062453226804726171131369528f64</span>,
+        <span class='number'>0.697850494793315796932292388026640f64</span>,
+        <span class='number'>0.660061064126626961370053668149271f64</span>,
+        <span class='number'>0.620526182989242861140477556431189f64</span>,
+        <span class='number'>0.579345235826361691756024932172540f64</span>,
+        <span class='number'>0.536624148142019899264169793311073f64</span>,
+        <span class='number'>0.492480467861778574993693061207709f64</span>,
+        <span class='number'>0.447033769538089176780609900322854f64</span>,
+        <span class='number'>0.400401254830394392535476211542661f64</span>,
+        <span class='number'>0.352704725530878113471037207089374f64</span>,
+        <span class='number'>0.304073202273625077372677107199257f64</span>,
+        <span class='number'>0.254636926167889846439805129817805f64</span>,
+        <span class='number'>0.204525116682309891438957671002025f64</span>,
+        <span class='number'>0.153869913608583546963794672743256f64</span>,
+        <span class='number'>0.102806937966737030147096751318001f64</span>,
+        <span class='number'>0.051471842555317695833025213166723f64</span>,
+        <span class='number'>0.000000000000000000000000000000000f64</span>
+    ];
+
+    <span class='comment'>// xgk[1], xgk[3], ... abscissae of the 30-point gauss rule.</span>
+    <span class='comment'>// xgk[0], xgk[2], ... abscissae to optimally extend the 30-point gauss rule</span>
+
+    <span class='comment'>// weights of the 30-point gauss rule</span>
+    <span class='kw'>let</span> <span class='ident'>wg</span> : [<span class='ident'>f64</span>; <span class='number'>15</span>] <span class='op'>=</span> [
+        <span class='number'>0.007968192496166605615465883474674f64</span>,
+        <span class='number'>0.018466468311090959142302131912047f64</span>,
+        <span class='number'>0.028784707883323369349719179611292f64</span>,
+        <span class='number'>0.038799192569627049596801936446348f64</span>,
+        <span class='number'>0.048402672830594052902938140422808f64</span>,
+        <span class='number'>0.057493156217619066481721689402056f64</span>,
+        <span class='number'>0.065974229882180495128128515115962f64</span>,
+        <span class='number'>0.073755974737705206268243850022191f64</span>,
+        <span class='number'>0.080755895229420215354694938460530f64</span>,
+        <span class='number'>0.086899787201082979802387530715126f64</span>,
+        <span class='number'>0.092122522237786128717632707087619f64</span>,
+        <span class='number'>0.096368737174644259639468626351810f64</span>,
+        <span class='number'>0.099593420586795267062780282103569f64</span>,
+        <span class='number'>0.101762389748405504596428952168554f64</span>,
+        <span class='number'>0.102852652893558840341285636705415f64</span>
+    ];
+
+    <span class='comment'>// weights of the 61-point kronrod rule</span>
+    <span class='kw'>let</span> <span class='ident'>wgk</span> : [<span class='ident'>f64</span>; <span class='number'>31</span>] <span class='op'>=</span> [
+        <span class='number'>0.001389013698677007624551591226760f64</span>,
+        <span class='number'>0.003890461127099884051267201844516f64</span>,
+        <span class='number'>0.006630703915931292173319826369750f64</span>,
+        <span class='number'>0.009273279659517763428441146892024f64</span>,
+        <span class='number'>0.011823015253496341742232898853251f64</span>,
+        <span class='number'>0.014369729507045804812451432443580f64</span>,
+        <span class='number'>0.016920889189053272627572289420322f64</span>,
+        <span class='number'>0.019414141193942381173408951050128f64</span>,
+        <span class='number'>0.021828035821609192297167485738339f64</span>,
+        <span class='number'>0.024191162078080601365686370725232f64</span>,
+        <span class='number'>0.026509954882333101610601709335075f64</span>,
+        <span class='number'>0.028754048765041292843978785354334f64</span>,
+        <span class='number'>0.030907257562387762472884252943092f64</span>,
+        <span class='number'>0.032981447057483726031814191016854f64</span>,
+        <span class='number'>0.034979338028060024137499670731468f64</span>,
+        <span class='number'>0.036882364651821229223911065617136f64</span>,
+        <span class='number'>0.038678945624727592950348651532281f64</span>,
+        <span class='number'>0.040374538951535959111995279752468f64</span>,
+        <span class='number'>0.041969810215164246147147541285970f64</span>,
+        <span class='number'>0.043452539701356069316831728117073f64</span>,
+        <span class='number'>0.044814800133162663192355551616723f64</span>,
+        <span class='number'>0.046059238271006988116271735559374f64</span>,
+        <span class='number'>0.047185546569299153945261478181099f64</span>,
+        <span class='number'>0.048185861757087129140779492298305f64</span>,
+        <span class='number'>0.049055434555029778887528165367238f64</span>,
+        <span class='number'>0.049795683427074206357811569379942f64</span>,
+        <span class='number'>0.050405921402782346840893085653585f64</span>,
+        <span class='number'>0.050881795898749606492297473049805f64</span>,
+        <span class='number'>0.051221547849258772170656282604944f64</span>,
+        <span class='number'>0.051426128537459025933862879215781f64</span>,
+        <span class='number'>0.051494729429451567558340433647099f64</span>
+    ];
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv1</span> : [<span class='ident'>f64</span>; <span class='number'>31</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>31</span>];
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>fv2</span> : [<span class='ident'>f64</span>; <span class='number'>31</span>] <span class='op'>=</span> [<span class='number'>0f64</span>; <span class='number'>31</span>];
+
+    <span class='ident'>qk</span>(<span class='kw-2'>&amp;</span><span class='ident'>xgk</span>, <span class='kw-2'>&amp;</span><span class='ident'>wg</span>, <span class='kw-2'>&amp;</span><span class='ident'>wgk</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv1</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>fv2</span>, <span class='ident'>f</span>, <span class='ident'>arg</span>, <span class='ident'>a</span>, <span class='ident'>b</span>, <span class='ident'>result</span>, <span class='ident'>abserr</span>, <span class='ident'>resabs</span>, <span class='ident'>resasc</span>);
+}
+
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>qk</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>xgk</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>wg</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>wgk</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>f64</span>], <span class='ident'>fv1</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>f64</span>], <span class='ident'>fv2</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> [<span class='ident'>f64</span>], <span class='ident'>f</span>: ::<span class='ident'>function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>, <span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>b</span>: <span class='ident'>f64</span>,
+    <span class='ident'>result</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>abserr</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resabs</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>resasc</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) {
+    <span class='kw'>let</span> <span class='ident'>n</span> <span class='op'>=</span> <span class='ident'>fv1</span>.<span class='ident'>len</span>();
+
+    <span class='kw'>let</span> <span class='ident'>center</span> <span class='op'>=</span> <span class='number'>0.5f64</span> <span class='op'>*</span> (<span class='ident'>a</span> <span class='op'>+</span> <span class='ident'>b</span>);
+    <span class='kw'>let</span> <span class='ident'>half_length</span> <span class='op'>=</span> <span class='number'>0.5f64</span> <span class='op'>*</span> (<span class='ident'>b</span> <span class='op'>-</span> <span class='ident'>a</span>);
+    <span class='kw'>let</span> <span class='ident'>abs_half_length</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>half_length</span>.<span class='ident'>abs</span>() };
+    <span class='kw'>let</span> <span class='ident'>f_center</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span>, <span class='ident'>arg</span>);
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result_gauss</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result_kronrod</span> <span class='op'>=</span> <span class='ident'>f_center</span> <span class='op'>*</span> <span class='ident'>wgk</span>[<span class='ident'>n</span> <span class='op'>-</span> <span class='number'>1</span>];
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result_abs</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>result_kronrod</span>.<span class='ident'>abs</span>() };
+
+    <span class='kw'>if</span> <span class='ident'>n</span> <span class='op'>%</span> <span class='number'>2</span> <span class='op'>==</span> <span class='number'>0</span> {
+        <span class='ident'>result_gauss</span> <span class='op'>=</span> <span class='ident'>f_center</span> <span class='op'>*</span> <span class='ident'>wg</span>[<span class='ident'>n</span> <span class='op'>/</span> <span class='number'>2</span> <span class='op'>-</span> <span class='number'>1</span>];
+    }
+
+    <span class='kw'>for</span> <span class='ident'>j</span> <span class='kw'>in</span> <span class='number'>0usize</span>..((<span class='ident'>n</span> <span class='op'>-</span> <span class='number'>1</span>) <span class='op'>/</span> <span class='number'>2</span>) {
+        <span class='comment'>// in original fortran j=1,2,3 jtw=2,4,6</span>
+        <span class='kw'>let</span> <span class='ident'>jtw</span> <span class='op'>=</span> <span class='ident'>j</span> <span class='op'>*</span> <span class='number'>2</span> <span class='op'>+</span> <span class='number'>1</span>;
+        <span class='kw'>let</span> <span class='ident'>abscissa</span> <span class='op'>=</span> <span class='ident'>half_length</span> <span class='op'>*</span> <span class='ident'>xgk</span>[<span class='ident'>jtw</span>];
+        <span class='kw'>let</span> <span class='ident'>fval1</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>-</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+        <span class='kw'>let</span> <span class='ident'>fval2</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>+</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+        <span class='kw'>let</span> <span class='ident'>fsum</span> <span class='op'>=</span> <span class='ident'>fval1</span> <span class='op'>+</span> <span class='ident'>fval2</span>;
+
+        <span class='ident'>fv1</span>[<span class='ident'>jtw</span>] <span class='op'>=</span> <span class='ident'>fval1</span>;
+        <span class='ident'>fv2</span>[<span class='ident'>jtw</span>] <span class='op'>=</span> <span class='ident'>fval2</span>;
+        <span class='ident'>result_gauss</span> <span class='op'>+=</span> <span class='ident'>wg</span>[<span class='ident'>j</span>] <span class='op'>*</span> <span class='ident'>fsum</span>;
+        <span class='ident'>result_kronrod</span> <span class='op'>+=</span> <span class='ident'>wgk</span>[<span class='ident'>jtw</span>] <span class='op'>*</span> <span class='ident'>fsum</span>;
+        <span class='ident'>result_abs</span> <span class='op'>+=</span> <span class='kw'>unsafe</span> { <span class='ident'>wgk</span>[<span class='ident'>jtw</span>] <span class='op'>*</span> (<span class='ident'>fval1</span>.<span class='ident'>abs</span>() <span class='op'>+</span> <span class='ident'>fval2</span>.<span class='ident'>abs</span>()) };
+    }
+
+    <span class='kw'>for</span> <span class='ident'>j</span> <span class='kw'>in</span> <span class='number'>0usize</span>..(<span class='ident'>n</span> <span class='op'>/</span> <span class='number'>2</span>) {
+        <span class='kw'>let</span> <span class='ident'>jtwm1</span> <span class='op'>=</span> <span class='ident'>j</span> <span class='op'>*</span> <span class='number'>2</span>;
+        <span class='kw'>let</span> <span class='ident'>abscissa</span> <span class='op'>=</span> <span class='ident'>half_length</span> <span class='op'>*</span> <span class='ident'>xgk</span>[<span class='ident'>jtwm1</span>];
+        <span class='kw'>let</span> <span class='ident'>fval1</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>-</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+        <span class='kw'>let</span> <span class='ident'>fval2</span> <span class='op'>=</span> <span class='ident'>f</span>(<span class='ident'>center</span> <span class='op'>+</span> <span class='ident'>abscissa</span>, <span class='ident'>arg</span>);
+
+        <span class='ident'>fv1</span>[<span class='ident'>jtwm1</span>] <span class='op'>=</span> <span class='ident'>fval1</span>;
+        <span class='ident'>fv2</span>[<span class='ident'>jtwm1</span>] <span class='op'>=</span> <span class='ident'>fval2</span>;
+        <span class='ident'>result_kronrod</span> <span class='op'>+=</span> <span class='ident'>wgk</span>[<span class='ident'>jtwm1</span>] <span class='op'>*</span> (<span class='ident'>fval1</span> <span class='op'>+</span> <span class='ident'>fval2</span>);
+        <span class='ident'>result_abs</span> <span class='op'>+=</span> <span class='kw'>unsafe</span> { <span class='ident'>wgk</span>[<span class='ident'>jtwm1</span>] <span class='op'>*</span> (<span class='ident'>fval1</span>.<span class='ident'>abs</span>() <span class='op'>+</span> <span class='ident'>fval2</span>.<span class='ident'>abs</span>()) };
+    }
+
+    <span class='kw'>let</span> <span class='ident'>mean</span> <span class='op'>=</span> <span class='ident'>result_kronrod</span> <span class='op'>*</span> <span class='number'>0.5</span>;
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>result_asc</span> <span class='op'>=</span> <span class='kw'>unsafe</span> { <span class='ident'>wgk</span>[<span class='ident'>n</span> <span class='op'>-</span> <span class='number'>1</span>] <span class='op'>*</span> (<span class='ident'>f_center</span> <span class='op'>-</span> <span class='ident'>mean</span>).<span class='ident'>abs</span>() };
+
+    <span class='kw'>for</span> <span class='ident'>j</span> <span class='kw'>in</span> <span class='number'>0usize</span>..(<span class='ident'>n</span> <span class='op'>-</span> <span class='number'>1</span>) {
+        <span class='ident'>result_asc</span> <span class='op'>+=</span> <span class='kw'>unsafe</span> { <span class='ident'>wgk</span>[<span class='ident'>j</span>] <span class='op'>*</span> ((<span class='ident'>fv1</span>[<span class='ident'>j</span>] <span class='op'>-</span> <span class='ident'>mean</span>).<span class='ident'>abs</span>() <span class='op'>+</span> (<span class='ident'>fv2</span>[<span class='ident'>j</span>] <span class='op'>-</span> <span class='ident'>mean</span>).<span class='ident'>abs</span>()) };
+    }
+
+    <span class='comment'>// scale by the width of the integration region</span>
+    <span class='kw'>let</span> <span class='ident'>err</span> <span class='op'>=</span> (<span class='ident'>result_kronrod</span> <span class='op'>-</span> <span class='ident'>result_gauss</span>) <span class='op'>*</span> <span class='ident'>half_length</span>;
+
+    <span class='ident'>result_kronrod</span> <span class='op'>*=</span> <span class='ident'>half_length</span>;
+    <span class='ident'>result_abs</span> <span class='op'>*=</span> <span class='ident'>abs_half_length</span>;
+    <span class='ident'>result_asc</span> <span class='op'>*=</span> <span class='ident'>abs_half_length</span>;
+
+    <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>result_kronrod</span>;
+    <span class='op'>*</span><span class='ident'>resabs</span> <span class='op'>=</span> <span class='ident'>result_abs</span>;
+    <span class='op'>*</span><span class='ident'>resasc</span> <span class='op'>=</span> <span class='ident'>result_asc</span>;
+    <span class='op'>*</span><span class='ident'>abserr</span> <span class='op'>=</span> <span class='ident'>rescale_error</span>(<span class='ident'>err</span>, <span class='ident'>result_abs</span>, <span class='ident'>result_asc</span>);
+}
+
+<span class='doccomment'>/// This function attempts to compute a Fourier integral of the function f over the semi-infinite interval [a,+\infty).</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// I = \int_a^{+\infty} dx f(x) sin(omega x)</span>
+<span class='doccomment'>/// I = \int_a^{+\infty} dx f(x) cos(omega x)</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// The parameter \omega and choice of \sin or \cos is taken from the table wf (the length L can take any value, since it is overridden by</span>
+<span class='doccomment'>/// this function to a value appropriate for the Fourier integration). The integral is computed using the QAWO algorithm over each of the</span>
+<span class='doccomment'>/// subintervals,</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// C_1 = [a, a + c]</span>
+<span class='doccomment'>/// C_2 = [a + c, a + 2 c]</span>
+<span class='doccomment'>/// ... = ...</span>
+<span class='doccomment'>/// C_k = [a + (k-1) c, a + k c]</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// where c = (2 floor(|\omega|) + 1) \pi/|\omega|. The width c is chosen to cover an odd number of periods so that the contributions from</span>
+<span class='doccomment'>/// the intervals alternate in sign and are monotonically decreasing when f is positive and monotonically decreasing. The sum of this sequence</span>
+<span class='doccomment'>/// of contributions is accelerated using the epsilon-algorithm.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// This function works to an overall absolute tolerance of abserr. The following strategy is used: on each interval C_k the algorithm tries</span>
+<span class='doccomment'>/// to achieve the tolerance</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// TOL_k = u_k abserr</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// where u_k = (1 - p)p^{k-1} and p = 9/10. The sum of the geometric series of contributions from each interval gives an overall tolerance</span>
+<span class='doccomment'>/// of abserr.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// If the integration of a subinterval leads to difficulties then the accuracy requirement for subsequent intervals is relaxed,</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// TOL_k = u_k max(abserr, max_{i&lt;k}{E_i})</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// where E_k is the estimated error on the interval C_k.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// The subintervals and their results are stored in the memory provided by workspace. The maximum number of subintervals is given by limit,</span>
+<span class='doccomment'>/// which may not exceed the allocated size of the workspace. The integration over each subinterval uses the memory provided by cycle_workspace</span>
+<span class='doccomment'>/// as workspace for the QAWO algorithm.</span>
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>qawf</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>(<span class='ident'>f</span>: ::<span class='ident'>function</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>, <span class='ident'>arg</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>T</span>, <span class='ident'>a</span>: <span class='ident'>f64</span>, <span class='ident'>epsabs</span>: <span class='ident'>f64</span>, <span class='ident'>limit</span>: <span class='ident'>usize</span>, <span class='ident'>workspace</span>: <span class='kw-2'>&amp;</span>::<span class='ident'>IntegrationWorkspace</span>,
+    <span class='ident'>cycle_workspace</span>: <span class='kw-2'>&amp;</span>::<span class='ident'>IntegrationWorkspace</span>, <span class='ident'>wf</span>: <span class='kw-2'>&amp;</span>::<span class='ident'>IntegrationQawoTable</span>, <span class='ident'>result</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>, <span class='ident'>abserr</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>f64</span>) <span class='op'>-&gt;</span> <span class='ident'>enums</span>::<span class='ident'>Value</span> {
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>total_error</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>ktmin</span> <span class='op'>=</span> <span class='number'>0usize</span>;
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>iteration</span> <span class='op'>=</span> <span class='number'>0usize</span>;
+
+    <span class='kw'>unsafe</span> {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>table</span> : <span class='ident'>ffi</span>::<span class='ident'>extrapolation_table</span> <span class='op'>=</span> ::<span class='ident'>std</span>::<span class='ident'>mem</span>::<span class='ident'>zeroed</span>();
+
+        <span class='kw'>let</span> <span class='ident'>omega</span> <span class='op'>=</span> (<span class='op'>*</span><span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>unwrap</span>(<span class='ident'>wf</span>)).<span class='ident'>omega</span>;
+
+        <span class='kw'>let</span> <span class='ident'>p</span> <span class='op'>=</span> <span class='number'>0.9f64</span>;
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>factor</span> <span class='op'>=</span> <span class='number'>1f64</span>;
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>error_type</span> <span class='op'>=</span> <span class='number'>0i32</span>;
+
+        <span class='comment'>/* Initialize results */</span>
+        <span class='ident'>workspace</span>.<span class='ident'>initialise</span>(<span class='ident'>a</span>, <span class='ident'>a</span>);
+
+        <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+        <span class='op'>*</span><span class='ident'>abserr</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+
+        <span class='kw'>if</span> <span class='ident'>limit</span> <span class='op'>&gt;</span> (<span class='op'>*</span><span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>unwrap</span>(<span class='ident'>workspace</span>)).<span class='ident'>limit</span> {
+            <span class='macro'>rgsl_error</span><span class='macro'>!</span>(<span class='string'>&quot;iteration limit exceeds available workspace&quot;</span>, ::<span class='ident'>Value</span>::<span class='ident'>Invalid</span>);
+        }
+
+        <span class='comment'>/* Test on accuracy */</span>
+        <span class='kw'>if</span> <span class='ident'>epsabs</span> <span class='op'>&lt;=</span> <span class='number'>0f64</span> {
+            <span class='macro'>rgsl_error</span><span class='macro'>!</span>(<span class='string'>&quot;absolute tolerance epsabs must be positive&quot;</span>, ::<span class='ident'>Value</span>::<span class='ident'>BadTolerance</span>);
+        }
+
+        <span class='kw'>if</span> <span class='ident'>omega</span> <span class='op'>==</span> <span class='number'>0f64</span> {
+            <span class='kw'>if</span> (<span class='op'>*</span><span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>unwrap</span>(<span class='ident'>wf</span>)).<span class='ident'>sine</span> <span class='op'>==</span> ::<span class='ident'>IntegrationQawo</span>::<span class='ident'>Sine</span> {
+                <span class='comment'>/* The function sin(w x) f(x) is always zero for w = 0 */</span>
+                <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+                <span class='op'>*</span><span class='ident'>abserr</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+
+                <span class='kw'>return</span> ::<span class='ident'>Value</span>::<span class='ident'>Success</span>;
+            }  <span class='kw'>else</span> {
+                <span class='comment'>/* The function cos(w x) f(x) is always f(x) for w = 0 */</span>
+                <span class='kw'>return</span> <span class='ident'>cycle_workspace</span>.<span class='ident'>qagiu</span>(<span class='ident'>f</span>, <span class='ident'>arg</span>, <span class='ident'>a</span>, <span class='ident'>epsabs</span>, <span class='number'>0f64</span>, (<span class='op'>*</span><span class='ident'>ffi</span>::<span class='ident'>FFI</span>::<span class='ident'>unwrap</span>(<span class='ident'>cycle_workspace</span>)).<span class='ident'>limit</span> <span class='kw'>as</span> <span class='ident'>usize</span>, <span class='ident'>result</span>, <span class='ident'>abserr</span>);
+            }
+        }
+
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>eps</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>epsabs</span> <span class='op'>&gt;</span> ::<span class='ident'>DBL_MIN</span> <span class='op'>/</span> (<span class='number'>1f64</span> <span class='op'>-</span> <span class='ident'>p</span>) {
+            <span class='ident'>epsabs</span> <span class='op'>*</span> (<span class='number'>1f64</span> <span class='op'>-</span> <span class='ident'>p</span>)
+        } <span class='kw'>else</span> {
+            <span class='ident'>epsabs</span>
+        };
+
+        <span class='kw'>let</span> <span class='ident'>initial_eps</span> <span class='op'>=</span> <span class='ident'>eps</span>;
+
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>area</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>errsum</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>res_ext</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>err_ext</span> <span class='op'>=</span> ::<span class='ident'>DBL_MAX</span>;
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>correc</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+
+        <span class='kw'>let</span> <span class='ident'>cycle</span> <span class='op'>=</span> (<span class='number'>2f64</span> <span class='op'>*</span> <span class='ident'>omega</span>.<span class='ident'>abs</span>().<span class='ident'>floor</span>() <span class='op'>+</span> <span class='number'>1f64</span>) <span class='op'>*</span> ::<span class='ident'>std</span>::<span class='ident'>f64</span>::<span class='ident'>consts</span>::<span class='ident'>PI</span> <span class='op'>/</span> <span class='ident'>omega</span>.<span class='ident'>abs</span>();
+
+        <span class='ident'>wf</span>.<span class='ident'>set_length</span>(<span class='ident'>cycle</span>);
+
+        ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>initialise_table</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>table</span>);
+
+        <span class='kw'>while</span> <span class='ident'>iteration</span> <span class='op'>&lt;</span> <span class='ident'>limit</span> {
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>area1</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>error1</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>reseps</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>erreps</span> <span class='op'>=</span> <span class='number'>0f64</span>;
+
+            <span class='kw'>let</span> <span class='ident'>a1</span> <span class='op'>=</span> <span class='ident'>a</span> <span class='op'>+</span> <span class='ident'>iteration</span> <span class='kw'>as</span> <span class='ident'>f64</span> <span class='op'>*</span> <span class='ident'>cycle</span>;
+            <span class='kw'>let</span> <span class='ident'>b1</span> <span class='op'>=</span> <span class='ident'>a1</span> <span class='op'>+</span> <span class='ident'>cycle</span>;
+
+            <span class='kw'>let</span> <span class='ident'>epsabs1</span> <span class='op'>=</span> <span class='ident'>eps</span> <span class='op'>*</span> <span class='ident'>factor</span>;
+
+            <span class='kw'>let</span> <span class='ident'>status</span> <span class='op'>=</span> <span class='ident'>wf</span>.<span class='ident'>qawo</span>(<span class='ident'>f</span>, <span class='ident'>arg</span>, <span class='ident'>a1</span>, <span class='ident'>epsabs1</span>, <span class='number'>0f64</span>, <span class='ident'>limit</span> <span class='kw'>as</span> <span class='ident'>usize</span>, <span class='ident'>cycle_workspace</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>area1</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>error1</span>);
+
+            ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>append_interval</span>(<span class='ident'>workspace</span>, <span class='ident'>a1</span>, <span class='ident'>b1</span>, <span class='ident'>area1</span>, <span class='ident'>error1</span>);
+
+            <span class='ident'>factor</span> <span class='op'>*=</span> <span class='ident'>p</span>;
+
+            <span class='ident'>area</span> <span class='op'>=</span> <span class='ident'>area</span> <span class='op'>+</span> <span class='ident'>area1</span>;
+            <span class='ident'>errsum</span> <span class='op'>=</span> <span class='ident'>errsum</span> <span class='op'>+</span> <span class='ident'>error1</span>;
+
+            <span class='comment'>/* estimate the truncation error as 50 times the final term */</span>
+            <span class='kw'>let</span> <span class='ident'>truncation_error</span> <span class='op'>=</span> <span class='number'>50f64</span> <span class='op'>*</span> <span class='ident'>area1</span>.<span class='ident'>abs</span>();
+
+            <span class='ident'>total_error</span> <span class='op'>=</span> <span class='ident'>errsum</span> <span class='op'>+</span> <span class='ident'>truncation_error</span>;
+
+            <span class='kw'>if</span> <span class='ident'>total_error</span> <span class='op'>&lt;</span> <span class='ident'>epsabs</span> <span class='op'>&amp;&amp;</span> <span class='ident'>iteration</span> <span class='op'>&gt;</span> <span class='number'>4</span> {
+                <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>area</span>;
+                <span class='op'>*</span><span class='ident'>abserr</span> <span class='op'>=</span> <span class='ident'>total_error</span>;
+                <span class='kw'>return</span> ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>return_error</span>(<span class='ident'>error_type</span>);
+            }
+
+            <span class='kw'>if</span> <span class='ident'>error1</span> <span class='op'>&gt;</span> <span class='ident'>correc</span> {
+                <span class='ident'>correc</span> <span class='op'>=</span> <span class='ident'>error1</span>;
+            }
+
+            <span class='kw'>if</span> <span class='ident'>status</span> <span class='op'>!=</span> ::<span class='ident'>Value</span>::<span class='ident'>Success</span> {
+                <span class='ident'>eps</span> <span class='op'>=</span> <span class='ident'>initial_eps</span>.<span class='ident'>max</span>(<span class='ident'>correc</span> <span class='op'>*</span> (<span class='number'>1f64</span> <span class='op'>-</span> <span class='ident'>p</span>));
+            }
+
+            <span class='kw'>if</span> <span class='ident'>status</span> <span class='op'>!=</span> ::<span class='ident'>Value</span>::<span class='ident'>Success</span> <span class='op'>&amp;&amp;</span> <span class='ident'>total_error</span> <span class='op'>&lt;</span> <span class='number'>10f64</span> <span class='op'>*</span> <span class='ident'>correc</span> <span class='op'>&amp;&amp;</span> <span class='ident'>iteration</span> <span class='op'>&gt;</span> <span class='number'>3</span> {
+                <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>area</span>;
+                <span class='op'>*</span><span class='ident'>abserr</span> <span class='op'>=</span> <span class='ident'>total_error</span>;
+                <span class='kw'>return</span> ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>return_error</span>(<span class='ident'>error_type</span>);
+            }
+
+            ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>append_table</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>table</span>, <span class='ident'>area</span>);
+
+            <span class='kw'>if</span> <span class='ident'>table</span>.<span class='ident'>n</span> <span class='op'>&lt;</span> <span class='number'>2</span> {
+                <span class='kw'>continue</span>;
+            }
+
+            ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>intern_qelg</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>table</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>reseps</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>erreps</span>);
+
+            <span class='ident'>ktmin</span> <span class='op'>+=</span> <span class='number'>1</span>;
+
+            <span class='kw'>if</span> <span class='ident'>ktmin</span> <span class='op'>&gt;=</span> <span class='number'>15</span> <span class='op'>&amp;&amp;</span> <span class='ident'>err_ext</span> <span class='op'>&lt;</span> <span class='number'>0.001f64</span> <span class='op'>*</span> <span class='ident'>total_error</span> {
+                <span class='ident'>error_type</span> <span class='op'>=</span> <span class='number'>4</span>;
+            }
+
+            <span class='kw'>if</span> <span class='ident'>erreps</span> <span class='op'>&lt;</span> <span class='ident'>err_ext</span> {
+                <span class='ident'>ktmin</span> <span class='op'>=</span> <span class='number'>0</span>;
+                <span class='ident'>err_ext</span> <span class='op'>=</span> <span class='ident'>erreps</span>;
+                <span class='ident'>res_ext</span> <span class='op'>=</span> <span class='ident'>reseps</span>;
+
+                <span class='kw'>if</span> <span class='ident'>err_ext</span> <span class='op'>+</span> <span class='number'>10f64</span> <span class='op'>*</span> <span class='ident'>correc</span> <span class='op'>&lt;=</span> <span class='ident'>epsabs</span> {
+                    <span class='kw'>break</span>;
+                }
+                <span class='kw'>if</span> <span class='ident'>err_ext</span> <span class='op'>&lt;=</span> <span class='ident'>epsabs</span> <span class='op'>&amp;&amp;</span> <span class='number'>10f64</span> <span class='op'>*</span> <span class='ident'>correc</span> <span class='op'>&gt;=</span> <span class='ident'>epsabs</span> {
+                    <span class='kw'>break</span>;
+                }
+            }
+            <span class='ident'>iteration</span> <span class='op'>+=</span> <span class='number'>1</span>;
+        }
+
+        <span class='kw'>if</span> <span class='ident'>iteration</span> <span class='op'>==</span> <span class='ident'>limit</span> {
+            <span class='ident'>error_type</span> <span class='op'>=</span> <span class='number'>1</span>;
+        }
+
+        <span class='kw'>if</span> <span class='ident'>err_ext</span> <span class='op'>==</span> ::<span class='ident'>DBL_MAX</span> {
+            <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>area</span>;
+            <span class='op'>*</span><span class='ident'>abserr</span> <span class='op'>=</span> <span class='ident'>total_error</span>;
+            <span class='kw'>return</span> ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>return_error</span>(<span class='ident'>error_type</span>);
+        }
+
+        <span class='ident'>err_ext</span> <span class='op'>=</span> <span class='ident'>err_ext</span> <span class='op'>+</span> <span class='number'>10f64</span> <span class='op'>*</span> <span class='ident'>correc</span>;
+
+        <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>res_ext</span>;
+        <span class='op'>*</span><span class='ident'>abserr</span> <span class='op'>=</span> <span class='ident'>err_ext</span>;
+
+        <span class='kw'>if</span> <span class='ident'>error_type</span> <span class='op'>==</span> <span class='number'>0</span> {
+            <span class='kw'>return</span> ::<span class='ident'>Value</span>::<span class='ident'>Success</span>;
+        }
+
+        <span class='kw'>if</span> <span class='ident'>res_ext</span> <span class='op'>!=</span> <span class='number'>0f64</span> <span class='op'>&amp;&amp;</span> <span class='ident'>area</span> <span class='op'>!=</span> <span class='number'>0f64</span> {
+            <span class='kw'>if</span> <span class='ident'>err_ext</span> <span class='op'>/</span> <span class='ident'>res_ext</span>.<span class='ident'>abs</span>() <span class='op'>&gt;</span> <span class='ident'>errsum</span> <span class='op'>/</span> <span class='ident'>area</span>.<span class='ident'>abs</span>() {
+                <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>area</span>;
+                <span class='op'>*</span><span class='ident'>abserr</span> <span class='op'>=</span> <span class='ident'>total_error</span>;
+                <span class='kw'>return</span> ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>return_error</span>(<span class='ident'>error_type</span>);
+            }
+        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>err_ext</span> <span class='op'>&gt;</span> <span class='ident'>errsum</span> {
+            <span class='op'>*</span><span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>area</span>;
+            <span class='op'>*</span><span class='ident'>abserr</span> <span class='op'>=</span> <span class='ident'>total_error</span>;
+            <span class='kw'>return</span> ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>return_error</span>(<span class='ident'>error_type</span>);
+        } <span class='kw'>else</span> <span class='kw'>if</span> <span class='ident'>area</span> <span class='op'>==</span> <span class='number'>0f64</span> {
+            <span class='kw'>return</span> ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>return_error</span>(<span class='ident'>error_type</span>);
+        }
+
+        <span class='comment'>/*if error_type == 4 {
+            err_ext = err_ext + truncation_error;
+        }*/</span>
+
+        ::<span class='ident'>types</span>::<span class='ident'>integration</span>::<span class='ident'>return_error</span>(<span class='ident'>error_type</span>)
+    }
+}
+</pre>
+</section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../jquery.js"></script>
+    <script src="../../main.js"></script>
+    
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

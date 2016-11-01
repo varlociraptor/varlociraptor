@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `multifit_solver` mod in crate `rgsl`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, multifit_solver">
+
+    <title>rgsl::types::multifit_solver - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a></p><script>window.sidebarCurrent = {name: 'multifit_solver', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content mod">
+<h1 class='fqn'><span class='in-band'>Module <a href='../../index.html'>rgsl</a>::<wbr><a href='../index.html'>types</a>::<wbr><a class='mod' href=''>multifit_solver</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-12487' class='srclink' href='../../../src/rgsl/types/multifit_solver.rs.html#5-1529' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'>
+<h1 id='nonlinear-least-squares-fitting' class='section-header'><a href='#nonlinear-least-squares-fitting'>Nonlinear Least-Squares Fitting</a></h1>
+<p>This chapter describes functions for multidimensional nonlinear least-squares fitting. The library provides low level components for a
+variety of iterative solvers and convergence tests. These can be combined by the user to achieve the desired solution, with full access to
+the intermediate steps of the iteration. Each class of methods uses the same framework, so that you can switch between solvers at runtime
+without needing to recompile your program. Each instance of a solver keeps track of its own state, allowing the solvers to be used in
+multi-threaded programs.</p>
+
+<h2 id='overview' class='section-header'><a href='#overview'>Overview</a></h2>
+<p>The problem of multidimensional nonlinear least-squares fitting requires the minimization of the squared residuals of n functions, f_i, in
+p parameters, x_i,</p>
+
+<p>\Phi(x) = (1/2) || F(x) ||<sup>2</sup>
+        = (1/2) \sum_{i=1}<sup>{n}</sup> f_i(x_1, ..., x_p)<sup>2</sup>
+All algorithms proceed from an initial guess using the linearization,</p>
+
+<p>\psi(p) = || F(x+p) || ~=~ || F(x) + J p ||
+where x is the initial point, p is the proposed step and J is the Jacobian matrix J_{ij} = d f_i / d x_j. Additional strategies are used to
+enlarge the region of convergence. These include requiring a decrease in the norm ||F|| on each step or using a trust region to avoid steps
+which fall outside the linear regime.</p>
+
+<p>To perform a weighted least-squares fit of a nonlinear model Y(x,t) to data (t_i, y_i) with independent Gaussian errors \sigma_i, use
+function components of the following form,</p>
+
+<p>f_i = (Y(x, t_i) - y_i) / \sigma_i
+Note that the model parameters are denoted by x in this chapter since the non-linear least-squares algorithms are described geometrically
+(i.e. finding the minimum of a surface). The independent variable of any data to be fitted is denoted by t.</p>
+
+<p>With the definition above the Jacobian is J_{ij} =(1 / \sigma_i) d Y_i / d x_j, where Y_i = Y(x,t_i).</p>
+
+<h2 id='high-level-driver' class='section-header'><a href='#high-level-driver'>High Level Driver</a></h2>
+<p>These routines provide a high level wrapper that combine the iteration and convergence testing for easy use.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MultiFitFdfSolver.html'
+                                  title='rgsl::types::multifit_solver::MultiFitFdfSolver'>MultiFitFdfSolver</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MultiFitFdfSolverType.html'
+                                  title='rgsl::types::multifit_solver::MultiFitFdfSolverType'>MultiFitFdfSolverType</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MultiFitFunction.html'
+                                  title='rgsl::types::multifit_solver::MultiFitFunction'>MultiFitFunction</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class='struct' href='struct.MultiFitFunctionFdf.html'
+                                  title='rgsl::types::multifit_solver::MultiFitFunctionFdf'>MultiFitFunctionFdf</a></td>
+                           <td class='docblock short'>
+                                
+                           </td>
+                       </tr></table></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "rgsl";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

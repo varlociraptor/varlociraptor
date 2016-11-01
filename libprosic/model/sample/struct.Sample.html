@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `Sample` struct in crate `libprosic`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, Sample">
+
+    <title>libprosic::model::sample::Sample - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css">
+    
+
+    
+    
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        
+        <p class='location'><a href='../../index.html'>libprosic</a>::<wbr><a href='../index.html'>model</a>::<wbr><a href='index.html'>sample</a></p><script>window.sidebarCurrent = {name: 'Sample', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+    </nav>
+
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content struct">
+<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>libprosic</a>::<wbr><a href='../index.html'>model</a>::<wbr><a href='index.html'>sample</a>::<wbr><a class='struct' href=''>Sample</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a id='src-674' class='srclink' href='../../../src/libprosic/src/model/sample.rs.html#158-170' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct Sample {
+    // some fields omitted
+}</pre><div class='docblock'><p>A sequenced sample, e.g., a tumor or a normal sample.</p>
+</div><h2 id='methods'>Methods</h2><h3 class='impl'><span class='in-band'><code>impl <a class='struct' href='../../../libprosic/model/sample/struct.Sample.html' title='libprosic::model::sample::Sample'>Sample</a></code></span><span class='out-of-band'><div class='ghost'></div><a id='src-686' class='srclink' href='../../../src/libprosic/src/model/sample.rs.html#173-428' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class='method'><code>fn <a href='#method.new' class='fnname'>new</a>(bam: <a class='struct' href='../../../rust_htslib/bam/struct.IndexedReader.html' title='rust_htslib::bam::IndexedReader'>IndexedReader</a>, pileup_window: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, use_fragment_evidence: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>, use_secondary: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>, use_mapq: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.bool.html'>bool</a>, insert_size: <a class='struct' href='../../../libprosic/model/sample/struct.InsertSize.html' title='libprosic::model::sample::InsertSize'>InsertSize</a>, likelihood_model: <a class='struct' href='../../../libprosic/model/likelihood/struct.LatentVariableModel.html' title='libprosic::model::likelihood::LatentVariableModel'>LatentVariableModel</a>, prob_spurious_isize: <a class='struct' href='../../../bio/stats/probs/struct.Prob.html' title='bio::stats::probs::Prob'>Prob</a>, prob_missed_insertion_alignment: <a class='struct' href='../../../bio/stats/probs/struct.Prob.html' title='bio::stats::probs::Prob'>Prob</a>, prob_missed_deletion_alignment: <a class='struct' href='../../../bio/stats/probs/struct.Prob.html' title='bio::stats::probs::Prob'>Prob</a>, prob_spurious_indel_alignment: <a class='struct' href='../../../bio/stats/probs/struct.Prob.html' title='bio::stats::probs::Prob'>Prob</a>) -&gt; Self</code></h4>
+<div class='docblock'><p>Create a new <code>Sample</code>.</p>
+
+<h1 id='arguments' class='section-header'><a href='#arguments'>Arguments</a></h1>
+<ul>
+<li><code>bam</code> - BAM file with the aligned and deduplicated sequence reads.</li>
+<li><code>pileup_window</code> - Window around the variant that shall be search for evidence (e.g. 5000).</li>
+<li><code>use_fragment_evidence</code> - Whether to use read pairs that are left and right of variant.</li>
+<li><code>use_secondary</code> - Whether to use secondary alignments.</li>
+<li><code>insert_size</code> - estimated insert size</li>
+<li><code>prior_model</code> - Prior assumptions about allele frequency spectrum of this sample.</li>
+<li><code>likelihood_model</code> - Latent variable model to calculate likelihoods of given observations.</li>
+<li><code>prob_spurious_isize</code> - rate of wrongly reported insert size abberations (mapper dependent, BWA: 0.01332338, LASER: 0.05922201)</li>
+<li><code>prob_missed_insertion_alignment</code> - rate of missed insertion alignments if insertion is present (mapper dependent, BWA: 0.2138, LASER: 0.3460)</li>
+<li><code>prob_missed_deletion_alignment</code> - rate of missed deletion alignments if deletion is present (mapper dependent, BWA: 0.0310, LASER: 0.0964)</li>
+<li><code>prob_spurious_indel_alignment</code> - rate of wrongly reported indel alignments if indel is absent (mapper dependent)</li>
+</ul>
+</div><h4 id='method.max_indel_dist' class='method'><code>fn <a href='#method.max_indel_dist' class='fnname'>max_indel_dist</a>(self, dist: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; Self</code></h4>
+<h4 id='method.max_indel_len_diff' class='method'><code>fn <a href='#method.max_indel_len_diff' class='fnname'>max_indel_len_diff</a>(self, diff: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>) -&gt; Self</code></h4>
+<h4 id='method.likelihood_model' class='method'><code>fn <a href='#method.likelihood_model' class='fnname'>likelihood_model</a>(&amp;self) -&gt; <a class='struct' href='../../../libprosic/model/likelihood/struct.LatentVariableModel.html' title='libprosic::model::likelihood::LatentVariableModel'>LatentVariableModel</a></code></h4>
+<div class='docblock'><p>Return likelihood model.</p>
+</div><h4 id='method.extract_observations' class='method'><code>fn <a href='#method.extract_observations' class='fnname'>extract_observations</a>(&amp;mut self, chrom: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>&amp;[</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u8.html'>u8</a><a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.slice.html'>]</a>, start: <a class='primitive' href='https://doc.rust-lang.org/nightly/std/primitive.u32.html'>u32</a>, variant: <a class='enum' href='../../../libprosic/model/enum.Variant.html' title='libprosic::model::Variant'>Variant</a>) -&gt; <a class='enum' href='https://doc.rust-lang.org/nightly/core/result/enum.Result.html' title='core::result::Result'>Result</a>&lt;<a class='struct' href='https://doc.rust-lang.org/nightly/collections/vec/struct.Vec.html' title='collections::vec::Vec'>Vec</a>&lt;<a class='struct' href='../../../libprosic/model/sample/struct.Observation.html' title='libprosic::model::sample::Observation'>Observation</a>&gt;,&nbsp;<a class='struct' href='https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html' title='alloc::boxed::Box'>Box</a>&lt;<a class='trait' href='https://doc.rust-lang.org/nightly/std/error/trait.Error.html' title='std::error::Error'>Error</a>&gt;&gt;</code></h4>
+<div class='docblock'><p>Extract observations for the given variant.</p>
+</div></div></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt>?</dt>
+                    <dd>Show this help dialog</dd>
+                    <dt>S</dt>
+                    <dd>Focus the search field</dd>
+                    <dt>&larrb;</dt>
+                    <dd>Move up in search results</dd>
+                    <dt>&rarrb;</dt>
+                    <dd>Move down in search results</dd>
+                    <dt>&#9166;</dt>
+                    <dd>Go to active search result</dd>
+                    <dt>+</dt>
+                    <dd>Collapse/expand all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "libprosic";
+        window.playgroundUrl = "";
+    </script>
+    <script src="../../../jquery.js"></script>
+    <script src="../../../main.js"></script>
+    
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>
