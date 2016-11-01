@@ -2,6 +2,10 @@
 name = "libprosic"
 version = "0.1.0"
 authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>"]
+description = "A library for calling of genomic variants using a latent variable model."
+repository = "https://github.com/prosic/libprosic"
+readme = "README.md"
+license = "GPLv3"
 
 [dependencies]
 bio = "0.10.*"
