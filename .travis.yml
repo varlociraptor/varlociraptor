@@ -15,8 +15,3 @@ before_script:
 script:
   - travis-cargo build
   - travis-cargo test
-after_success: |
-  [ $TRAVIS_BRANCH = master ] &&
-  [ $TRAVIS_PULL_REQUEST = false ] &&
-  travis-cargo doc &&
-  travis-cargo --only stable doc-upload
