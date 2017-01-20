@@ -11,7 +11,7 @@ pub use priors::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationM
 pub use priors::tumor_normal::TumorNormalModel;
 pub use priors::tumor_normal_relapse::TumorNormalRelapseModel;
 pub use priors::flat::FlatTumorNormalModel;
-
+pub use priors::flat::FlatNormalNormalModel;
 
 /// A prior model of the allele frequency spectrum.
 pub trait Model<A: AlleleFreqs> {
