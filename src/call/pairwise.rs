@@ -222,8 +222,6 @@ pub fn call<A, B, P, M, R, W, X>(
             }
             try!(record.push_info_float(b"CASE_AF", &case_afs));
             try!(record.push_info_float(b"CONTROL_AF", &control_afs));
-
-
         }
         try!(outbcf.write(&record));
         if i % 1000 == 0 {
