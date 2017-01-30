@@ -138,7 +138,9 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         af_normal: &DiscreteAlleleFreqs,
         likelihood_tumor: &L,
         likelihood_normal: &O,
-        variant: Variant
+        variant: Variant,
+        _: usize,
+        _: usize
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
@@ -168,7 +170,9 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         &self,
         likelihood_tumor: &L,
         likelihood_normal: &O,
-        variant: Variant
+        variant: Variant,
+        n_obs_tumor: usize,
+        n_obs_normal: usize
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
@@ -178,7 +182,9 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
             self.allele_freqs().1,
             likelihood_tumor,
             likelihood_normal,
-            variant
+            variant,
+            n_obs_tumor,
+            n_obs_normal
         ).ln_add_exp(
             // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
@@ -186,7 +192,9 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
                 &vec![AlleleFreq(0.0)],
                 likelihood_tumor,
                 likelihood_normal,
-                variant
+                variant,
+                n_obs_tumor,
+                n_obs_normal
             )
         );
         p
@@ -196,7 +204,9 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         &self,
         likelihood_tumor: &L,
         likelihood_normal: &O,
-        variant: Variant
+        variant: Variant,
+        _: usize,
+        _: usize
     ) -> (AlleleFreq, AlleleFreq) where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb

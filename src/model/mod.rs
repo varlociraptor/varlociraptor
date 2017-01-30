@@ -162,7 +162,7 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
             let likelihood = |af: AlleleFreq| {
                 self.likelihood(af)
             };
-            let p = self.prior_model.marginal_prob(&likelihood, self.variant);
+            let p = self.prior_model.marginal_prob(&likelihood, self.variant, self.observations.len());
 
             self.marginal_prob.set(Some(p));
         }
@@ -175,7 +175,7 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
             self.likelihood(af)
         };
 
-        let p = self.prior_model.joint_prob(af, &likelihood, self.variant);
+        let p = self.prior_model.joint_prob(af, &likelihood, self.variant, self.observations.len());
         p
     }
 
@@ -192,7 +192,7 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
             self.likelihood(af)
         };
 
-        self.prior_model.map(&likelihood, self.variant)
+        self.prior_model.map(&likelihood, self.variant, self.observations.len())
     }
 
     fn likelihood(&self, af: AlleleFreq) -> LogProb {
@@ -311,7 +311,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             let control_likelihood = |af_control: AlleleFreq, af_case: AlleleFreq| {
                 self.control_likelihood(af_control, af_case)
             };
-            let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, self.variant);
+            let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len());
 
             self.marginal_prob.set(Some(p));
         }
@@ -327,7 +327,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             self.control_likelihood(af_control, af_case)
         };
 
-        let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, self.variant);
+        let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len());
         debug!("Pr(D, f_case={:?}, f_control={:?}) = {}", af_case, af_control, p.exp());
         p
     }
@@ -349,7 +349,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             self.control_likelihood(af_control, af_case)
         };
 
-        self.prior_model.map(&case_likelihood, &control_likelihood, self.variant)
+        self.prior_model.map(&case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len())
     }
 
     fn case_likelihood(&self, af_case: AlleleFreq, af_control: AlleleFreq) -> LogProb {

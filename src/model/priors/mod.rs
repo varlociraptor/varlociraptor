@@ -14,6 +14,7 @@ pub use priors::tumor_normal::TumorNormalModel;
 //pub use priors::tumor_normal_relapse::TumorNormalRelapseModel;
 pub use priors::flat::FlatTumorNormalModel;
 pub use priors::flat::FlatNormalNormalModel;
+pub use model::PairPileup;
 
 /// A prior model of the allele frequency spectrum.
 pub trait Model<A: AlleleFreqs> {
@@ -23,17 +24,18 @@ pub trait Model<A: AlleleFreqs> {
     /// Return allele frequency spectrum.
     fn allele_freqs(&self) -> &A;
 
-    fn marginal_prob<L>(&self, likelihood: &L, variant: Variant) -> LogProb where
+    fn marginal_prob<L>(&self, likelihood: &L, variant: Variant, n_obs: usize) -> LogProb where
         L: Fn(AlleleFreq) -> LogProb;
 
-    fn joint_prob<L>(&self, af: &A, likelihood: &L, variant: Variant) -> LogProb where
+    fn joint_prob<L>(&self, af: &A, likelihood: &L, variant: Variant, n_obs: usize) -> LogProb where
         L: Fn(AlleleFreq) -> LogProb;
 
     /// Calculate maximum a posteriori probability estimate of allele frequency.
     fn map<L>(
         &self,
         likelihood: &L,
-        variant: Variant
+        variant: Variant,
+        n_obs: usize
     ) -> AlleleFreq where
         L: Fn(AlleleFreq) -> LogProb;
 }
@@ -51,7 +53,9 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         af2: &B,
         likelihood1: &L,
         likelihood2: &O,
-        variant: Variant
+        variant: Variant,
+        n_obs1: usize,
+        n_obs2: usize
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
@@ -61,7 +65,9 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         &self,
         likelihood1: &L,
         likelihood2: &O,
-        variant: Variant
+        variant: Variant,
+        n_obs1: usize,
+        n_obs2: usize
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
@@ -71,7 +77,9 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         &self,
         likelihood1: &L,
         likelihood2: &O,
-        variant: Variant
+        variant: Variant,
+        n_obs1: usize,
+        n_obs2: usize
     ) -> (AlleleFreq, AlleleFreq) where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
@@ -95,7 +103,10 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
         likelihood1: &L,
         likelihood2: &O,
         likelihood3: &Q,
-        variant: Variant
+        variant: Variant,
+        n_obs1: usize,
+        n_obs2: usize,
+        n_obs3: usize
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
@@ -107,7 +118,10 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
         likelihood1: &L,
         likelihood2: &O,
         likelihood3: &Q,
-        variant: Variant
+        variant: Variant,
+        n_obs1: usize,
+        n_obs2: usize,
+        n_obs3: usize
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
@@ -119,7 +133,10 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
         likelihood1: &L,
         likelihood2: &O,
         likelihood3: &Q,
-        variant: Variant
+        variant: Variant,
+        n_obs1: usize,
+        n_obs2: usize,
+        n_obs3: usize
     ) -> (AlleleFreq, AlleleFreq, AlleleFreq) where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
