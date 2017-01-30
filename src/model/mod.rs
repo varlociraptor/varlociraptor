@@ -196,7 +196,7 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
     }
 
     fn likelihood(&self, af: AlleleFreq) -> LogProb {
-        self.sample_model.likelihood_pileup(&self.observations, *af, 0.0)
+        self.sample_model.likelihood_pileup(&self.observations, *af, None)
     }
 
     pub fn observations(&self) -> &[Observation] {
@@ -353,11 +353,11 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     }
 
     fn case_likelihood(&self, af_case: AlleleFreq, af_control: AlleleFreq) -> LogProb {
-        self.case_sample_model.likelihood_pileup(&self.case, *af_case, *af_control)
+        self.case_sample_model.likelihood_pileup(&self.case, *af_case, Some(*af_control))
     }
 
     fn control_likelihood(&self, af_control: AlleleFreq, af_case: AlleleFreq) -> LogProb {
-        self.control_sample_model.likelihood_pileup(&self.control, *af_control, *af_case)
+        self.control_sample_model.likelihood_pileup(&self.control, *af_control, Some(*af_case))
     }
 
     pub fn case_observations(&self) -> &[Observation] {
