@@ -1,7 +1,9 @@
 pub mod infinite_sites_neutral_variation;
 pub mod tumor_normal;
-pub mod tumor_normal_relapse;
+// TODO disable Tumor-Normal-Relapse model until i
+//pub mod tumor_normal_relapse;
 pub mod flat;
+pub mod normal;
 
 use bio::stats::LogProb;
 
@@ -9,7 +11,7 @@ use model::{Variant, AlleleFreqs, AlleleFreq};
 
 pub use priors::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel;
 pub use priors::tumor_normal::TumorNormalModel;
-pub use priors::tumor_normal_relapse::TumorNormalRelapseModel;
+//pub use priors::tumor_normal_relapse::TumorNormalRelapseModel;
 pub use priors::flat::FlatTumorNormalModel;
 pub use priors::flat::FlatNormalNormalModel;
 
@@ -26,9 +28,18 @@ pub trait Model<A: AlleleFreqs> {
 
     fn joint_prob<L>(&self, af: &A, likelihood: &L, variant: Variant) -> LogProb where
         L: Fn(AlleleFreq) -> LogProb;
+
+    /// Calculate maximum a posteriori probability estimate of allele frequency.
+    fn map<L>(
+        &self,
+        likelihood: &L,
+        variant: Variant
+    ) -> AlleleFreq where
+        L: Fn(AlleleFreq) -> LogProb;
 }
 
 
+/// A prior model for sample pairs.
 pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
     /// Calculate prior probability of given combination of allele frequencies.
     fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, variant: Variant) -> LogProb;
@@ -70,6 +81,7 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
 }
 
 
+/// A prior model for trios.
 pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
     /// Calculate prior probability of given combination of allele frequencies.
     fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, af3: AlleleFreq, variant: Variant) -> LogProb;
@@ -129,13 +141,12 @@ mod tests {
 
     #[test]
     fn test_infinite_sites_neutral_variation() {
-        let variant = Variant::Deletion(3);
         let ploidy = 2;
         let het = Prob(0.001);
-        let model = InfiniteSitesNeutralVariationModel::new(ploidy, het);
-        assert_relative_eq!(model.prior_prob(AlleleFreq(0.5), variant).exp(), 0.001);
-        assert_relative_eq!(model.prior_prob(AlleleFreq(1.0), variant).exp(), 0.0005);
-        assert_relative_eq!(model.prior_prob(AlleleFreq(0.0), variant).exp(), 0.9985);
+        let model = InfiniteSitesNeutralVariationModel::new(1, ploidy, het);
+        assert_relative_eq!(model.prior_prob(1).exp(), 0.001);
+        assert_relative_eq!(model.prior_prob(2).exp(), 0.0005);
+        assert_relative_eq!(model.prior_prob(0).exp(), 0.9985);
     }
 
     #[test]

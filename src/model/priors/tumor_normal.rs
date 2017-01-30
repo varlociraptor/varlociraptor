@@ -7,7 +7,7 @@ use bio::stats::{LogProb, Prob};
 use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 use priors::InfiniteSitesNeutralVariationModel;
-use priors::{PairModel, Model};
+use priors::{PairModel, normal};
 
 
 /// Tumor-normal prior model using ploidy, heterozygosity (in normal tissue) and tumor mutation rate
@@ -42,8 +42,10 @@ pub struct TumorNormalModel {
     insertion_factor: f64,
     genome_size: u64,
     pub allele_freqs_tumor: ContinuousAlleleFreqs,
+    pub allele_freqs_normal: DiscreteAlleleFreqs,
     pub grid_points: usize,
-    af_min: AlleleFreq
+    af_min: AlleleFreq,
+    ploidy: u32
 }
 
 
@@ -69,14 +71,16 @@ impl TumorNormalModel {
         let af_min = AlleleFreq((effective_mutation_rate / genome_size as f64).sqrt());
 
         TumorNormalModel {
-            normal_model: InfiniteSitesNeutralVariationModel::new(ploidy, heterozygosity),
+            normal_model: InfiniteSitesNeutralVariationModel::new(1, ploidy, heterozygosity),
             effective_mutation_rate: effective_mutation_rate,
             deletion_factor: deletion_factor,
             insertion_factor: insertion_factor,
             genome_size: genome_size,
             allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
+            allele_freqs_normal: normal::allele_freqs(ploidy),
             grid_points: 51,
-            af_min: af_min
+            af_min: af_min,
+            ploidy: ploidy
         }
     }
 
@@ -104,8 +108,15 @@ impl TumorNormalModel {
         LogProb(self.effective_mutation_rate.ln() + factor - (2.0 * af_somatic.ln() + (self.genome_size as f64).ln()))
     }
 
-    pub fn normal_prior_prob(&self, af_normal: AlleleFreq, variant: Variant) -> LogProb {
-        self.normal_model.prior_prob(af_normal, variant)
+    pub fn normal_prior_prob(&self, af_normal: AlleleFreq, _: Variant) -> LogProb {
+        let m = *af_normal * self.ploidy as f64;
+        if relative_eq!(m % 1.0, 0.0) {
+            // if m is discrete
+            self.normal_model.prior_prob(m.round() as u32)
+        } else {
+            // invalid allele frequency
+            LogProb::ln_zero()
+        }
     }
 }
 
@@ -191,7 +202,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
     {
         let af_case = linspace(*self.allele_freqs_tumor.start, *self.allele_freqs_tumor.end, self.grid_points);
-        let (_, (map_normal, map_tumor)) = self.normal_model.allele_freqs().iter().cartesian_product(af_case).minmax_by_key(
+        let (_, (map_normal, map_tumor)) = self.allele_freqs_normal.iter().cartesian_product(af_case).minmax_by_key(
             |&(&af_normal, af_tumor)| {
                 let af_tumor = AlleleFreq(af_tumor);
                 let p = self.prior_prob(af_tumor, af_normal, variant) +
@@ -206,7 +217,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
     }
 
     fn allele_freqs(&self) -> (&ContinuousAlleleFreqs, &DiscreteAlleleFreqs) {
-        (&self.allele_freqs_tumor, self.normal_model.allele_freqs())
+        (&self.allele_freqs_tumor, &self.allele_freqs_normal)
     }
 }
 

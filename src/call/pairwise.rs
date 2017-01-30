@@ -12,7 +12,7 @@ use bio::stats::{PHREDProb, LogProb};
 
 use model::AlleleFreqs;
 use model::priors;
-use model::PairModel;
+use model::PairCaller;
 use model;
 use ComplementEvent;
 use Event;
@@ -49,7 +49,7 @@ impl<A: AlleleFreqs, B: AlleleFreqs> Event for PairEvent<A, B> {
 fn pileups<'a, A, B, P>(
     inbcf: &bcf::Reader,
     record: &mut bcf::Record,
-    joint_model: &'a mut PairModel<A, B, P>,
+    joint_model: &'a mut PairCaller<A, B, P>,
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: Option<u32>
@@ -95,7 +95,7 @@ pub fn call<A, B, P, M, R, W, X>(
     outbcf: &W,
     events: &[PairEvent<A, B>],
     complement_event: Option<&ComplementEvent>,
-    pair_model: &mut PairModel<A, B, P>,
+    pair_model: &mut PairCaller<A, B, P>,
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: Option<u32>,

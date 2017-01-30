@@ -1,75 +1,41 @@
 use std::f64;
 
-use itertools::Itertools;
 use bio::stats::{LogProb, Prob};
-
-use model::{Variant, DiscreteAlleleFreqs, AlleleFreq};
-use priors::Model;
 
 
 /// The classical population genetic model used for variant calling in e.g. GATK and Samtools.
 pub struct InfiniteSitesNeutralVariationModel {
-    ploidy: u32,
     heterozygosity: LogProb,
     zero_prob: LogProb,
-    allele_freqs: DiscreteAlleleFreqs
+    max_m: u32
 }
 
 
 impl InfiniteSitesNeutralVariationModel {
-    /// Create new model for given ploidy and heterozygosity.
-    pub fn new(ploidy: u32, heterozygosity: Prob) -> Self {
+    pub fn new(n_samples: u32, ploidy: u32, heterozygosity: Prob) -> Self {
         let heterozygosity = LogProb::from(heterozygosity);
-        let zero_prob = LogProb(*heterozygosity +
-            Self::allele_freq_sum(ploidy).ln()
-        ).ln_one_minus_exp();
 
-        let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
+        let zero_prob = {
+            let allele_freq_sum = (1..n_samples * ploidy + 1).fold(0.0, |s, m| s + 1.0 / m as f64);
+            LogProb(*heterozygosity +
+                allele_freq_sum.ln()
+            ).ln_one_minus_exp()
+        };
 
         InfiniteSitesNeutralVariationModel {
-            ploidy: ploidy,
             heterozygosity: heterozygosity,
             zero_prob: zero_prob,
-            allele_freqs: allele_freqs
+            max_m: n_samples * ploidy
         }
     }
 
-    pub fn allele_freq_sum(ploidy: u32) -> f64 {
-        (1..ploidy + 1).fold(0.0, |s, m| s + 1.0 / m as f64)
-    }
-}
-
-
-impl Model<DiscreteAlleleFreqs> for InfiniteSitesNeutralVariationModel {
-    fn prior_prob(&self, af: AlleleFreq, _: Variant) -> LogProb {
-        if *af > 0.0 {
-            let m = *af * self.ploidy as f64;
-            if relative_eq!(m % 1.0, 0.0) {
-                // if m is discrete
-                LogProb(*self.heterozygosity - m.ln())
-            } else {
-                // invalid allele frequency
-                LogProb::ln_zero()
-            }
-        } else {
+    /// Prior probability for m alternative alleles.
+    pub fn prior_prob(&self, m: u32) -> LogProb {
+        if m == 0 {
             self.zero_prob
+        } else {
+            assert!(m <= self.max_m, "m too large (at most ploidy * n_samples)");
+            LogProb(*self.heterozygosity - (m as f64).ln())
         }
-    }
-
-    fn joint_prob<L>(&self, afs: &DiscreteAlleleFreqs, likelihood: &L, variant: Variant) -> LogProb where
-        L: Fn(AlleleFreq) -> LogProb
-    {
-        let summands = afs.iter().map(|af| self.prior_prob(*af, variant) + likelihood(*af)).collect_vec();
-        LogProb::ln_sum_exp(&summands)
-    }
-
-    fn marginal_prob<L>(&self, likelihood: &L, variant: Variant) -> LogProb where
-        L: Fn(AlleleFreq) -> LogProb
-    {
-        self.joint_prob(self.allele_freqs(), likelihood, variant)
-    }
-
-    fn allele_freqs(&self) -> &DiscreteAlleleFreqs {
-        &self.allele_freqs
     }
 }

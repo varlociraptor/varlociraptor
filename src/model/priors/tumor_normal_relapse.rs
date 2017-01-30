@@ -7,7 +7,8 @@ use priors::{PairModel, TumorNormalModel, InfiniteSitesNeutralVariationModel};
 use priors::TrioModel;
 use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
-pub struct TumorNormalRelapseModel {
+
+/*pub struct TumorNormalRelapseModel {
     primary_model: TumorNormalModel,
     relapse_model: TumorNormalModel
 }
