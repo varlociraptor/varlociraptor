@@ -305,10 +305,10 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         if self.marginal_prob.get().is_none() {
             debug!("Calculating marginal probability.");
 
-            let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
+            let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
                 self.case_likelihood(af_case, af_control)
             };
-            let control_likelihood = |af_control: AlleleFreq, af_case: AlleleFreq| {
+            let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
                 self.control_likelihood(af_control, af_case)
             };
             let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len());
@@ -320,10 +320,10 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     }
 
     fn joint_prob(&self, af_case: &A, af_control: &B) -> LogProb {
-        let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
+        let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
             self.case_likelihood(af_case, af_control)
         };
-        let control_likelihood = |af_control: AlleleFreq, af_case: AlleleFreq| {
+        let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
             self.control_likelihood(af_control, af_case)
         };
 
@@ -342,22 +342,22 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     }
 
     pub fn map_allele_freqs(&self) -> (AlleleFreq, AlleleFreq) {
-        let case_likelihood = |af_case: AlleleFreq, af_control: AlleleFreq| {
+        let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
             self.case_likelihood(af_case, af_control)
         };
-        let control_likelihood = |af_control: AlleleFreq, af_case: AlleleFreq| {
+        let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
             self.control_likelihood(af_control, af_case)
         };
 
         self.prior_model.map(&case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len())
     }
 
-    fn case_likelihood(&self, af_case: AlleleFreq, af_control: AlleleFreq) -> LogProb {
-        self.case_sample_model.likelihood_pileup(&self.case, *af_case, Some(*af_control))
+    fn case_likelihood(&self, af_case: AlleleFreq, af_control: Option<AlleleFreq>) -> LogProb {
+        self.case_sample_model.likelihood_pileup(&self.case, *af_case, af_control.map(|af| *af))
     }
 
-    fn control_likelihood(&self, af_control: AlleleFreq, af_case: AlleleFreq) -> LogProb {
-        self.control_sample_model.likelihood_pileup(&self.control, *af_control, Some(*af_case))
+    fn control_likelihood(&self, af_control: AlleleFreq, af_case: Option<AlleleFreq>) -> LogProb {
+        self.control_sample_model.likelihood_pileup(&self.control, *af_control, af_case.map(|af| *af))
     }
 
     pub fn case_observations(&self) -> &[Observation] {

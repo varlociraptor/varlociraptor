@@ -38,15 +38,15 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
         _: usize,
         _: usize
     ) -> LogProb where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
         let p_second = LogProb::ln_sum_exp(&af_second.iter().map(|&af_second| {
-            likelihood_second(af_second, AlleleFreq(0.0))
+            likelihood_second(af_second, None)
         }).collect_vec());
 
         let prob = LogProb::ln_sum_exp(&af_first.iter().map(|&af_first| {
-            let p_first = likelihood_first(af_first, AlleleFreq(0.0));
+            let p_first = likelihood_first(af_first, None);
             let prob = p_first + p_second;
 
             prob
@@ -63,8 +63,8 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
         n_obs_first: usize,
         n_obs_second: usize
     ) -> LogProb where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
         let p = self.joint_prob(
             self.allele_freqs().0,
@@ -87,12 +87,12 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
         _: usize,
         _: usize
     ) -> (AlleleFreq, AlleleFreq) where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
-        fn calc_map<L: Fn(AlleleFreq, AlleleFreq) -> LogProb>(likelihood: &L, afs: &DiscreteAlleleFreqs) -> AlleleFreq {
+        fn calc_map<L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb>(likelihood: &L, afs: &DiscreteAlleleFreqs) -> AlleleFreq {
             let (_, map) = afs.iter().minmax_by_key(|&af| {
-                let p = likelihood(*af, AlleleFreq(0.0));
+                let p = likelihood(*af, None);
                 NotNaN::new(*p).expect("probability is NaN")
             }).into_option().expect("prior has empty allele frequency spectrum");
             *map
@@ -145,13 +145,13 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         _: usize,
         _: usize
     ) -> LogProb where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
         let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
             let density = |af_tumor| {
                 let af_tumor = AlleleFreq(af_tumor);
-                likelihood_tumor(af_tumor, af_normal)
+                likelihood_tumor(af_tumor, Some(af_normal))
             };
 
             let p_tumor = if af_tumor.start == af_tumor.end {
@@ -159,7 +159,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
             } else {
                 LogProb::ln_simpsons_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points)
             };
-            let p_normal = likelihood_normal(af_normal, AlleleFreq(0.0));
+            let p_normal = likelihood_normal(af_normal, None);
             let prob = p_tumor + p_normal;
 
             prob
@@ -176,8 +176,8 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         n_obs_tumor: usize,
         n_obs_normal: usize
     ) -> LogProb where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
         let p = self.joint_prob(
             self.allele_freqs().0,
@@ -210,16 +210,15 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         _: usize,
         _: usize
     ) -> (AlleleFreq, AlleleFreq) where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
         let af_case = linspace(*self.allele_freqs_tumor.start, *self.allele_freqs_tumor.end, self.grid_points);
         let (_, (map_normal, map_tumor)) = self.allele_freqs().1.iter().cartesian_product(af_case).minmax_by_key(
             |&(&af_normal, af_tumor)| {
                 let af_tumor = AlleleFreq(af_tumor);
-                let p = likelihood_tumor(af_tumor, af_normal) +
-                        likelihood_normal(af_normal, AlleleFreq(0.0));
-                //println!("af {} vs {} = {} (prior={} tumor={} normal={})", *af_tumor, af_normal, *p, *self.prior_prob(af_tumor, af_normal, variant), *likelihood_tumor(af_tumor, af_normal), *likelihood_normal(af_normal, AlleleFreq(0.0)));
+                let p = likelihood_tumor(af_tumor, Some(af_normal)) +
+                        likelihood_normal(af_normal, None);
                 NotNaN::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");

@@ -57,8 +57,8 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         n_obs1: usize,
         n_obs2: usize
     ) -> LogProb where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb;
 
     /// Calculate marginal probability.
     fn marginal_prob<L, O>(
@@ -69,8 +69,8 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         n_obs1: usize,
         n_obs2: usize
     ) -> LogProb where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb;
 
     /// Calculate maximum a posteriori probability estimate of allele frequencies.
     fn map<L, O>(
@@ -81,8 +81,8 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         n_obs1: usize,
         n_obs2: usize
     ) -> (AlleleFreq, AlleleFreq) where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb;
 
     /// Return allele frequency spectra.
     fn allele_freqs(&self) -> (&A, &B);
@@ -108,9 +108,9 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
         n_obs2: usize,
         n_obs3: usize
     ) -> LogProb where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        Q: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        Q: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb;
 
     /// Calculate marginal probability.
     fn marginal_prob<L, O, Q>(
@@ -123,9 +123,9 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
         n_obs2: usize,
         n_obs3: usize
     ) -> LogProb where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        Q: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        Q: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb;
 
     /// Calculate maximum a posteriori probability estimate of allele frequencies.
     fn map<L, O, Q>(
@@ -138,9 +138,9 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
         n_obs2: usize,
         n_obs3: usize
     ) -> (AlleleFreq, AlleleFreq, AlleleFreq) where
-        L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
-        Q: Fn(AlleleFreq, AlleleFreq) -> LogProb;
+        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
+        Q: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb;
 
     /// Return allele frequency spectra.
     fn allele_freqs(&self) -> (&A, &B, &C);
