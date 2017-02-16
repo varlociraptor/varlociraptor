@@ -35,7 +35,6 @@ pub fn adjust_mapq(observations: &mut [Observation]) {
             None
         }
     }).fold(LogProb::ln_one(), |s, e| s + e);
-    println!("{:?}", prob_no_alt_fragment);
 
     let prob_no_artifact = prob_no_alt_fragment.ln_one_minus_exp();
     for obs in observations.iter_mut() {
