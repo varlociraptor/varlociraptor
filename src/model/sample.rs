@@ -20,6 +20,33 @@ pub fn prob_mapping(mapq: u8) -> LogProb {
 }
 
 
+/// We assume that the mapping quality of split alignments provided by the aligner is conditional on being no artifact.
+/// Artifact alignments can be caused by aligning short ends as splits due to e.g. repeats.
+/// We can calculate the probability of having no artifact by investigating if there is at least
+/// one fragment supporting the alternative allele.
+/// Then, the final mapping quality can be obtained by multiplying this probability.
+pub fn adjust_mapq(observations: &mut [Observation]) {
+    // calculate probability of at least one alt fragment observation
+    let prob_no_alt_fragment: LogProb = observations.iter().filter_map(|obs| {
+        if !obs.is_alignment_evidence() {
+            let prob_not_alt = (obs.prob_mapping + obs.prob_alt).ln_one_minus_exp();
+            Some(prob_not_alt)
+        } else {
+            None
+        }
+    }).fold(LogProb::ln_one(), |s, e| s + e);
+    println!("{:?}", prob_no_alt_fragment);
+
+    let prob_no_artifact = prob_no_alt_fragment.ln_one_minus_exp();
+    for obs in observations.iter_mut() {
+        if obs.is_alignment_evidence() {
+            // adjust as Pr(mapping) = Pr(no artifact) * Pr(mapping|no artifact)
+            obs.prob_mapping = prob_no_artifact + obs.prob_mapping;
+        }
+    }
+}
+
+
 quick_error! {
     #[derive(Debug)]
     pub enum RecordBufferError {
@@ -136,6 +163,17 @@ pub struct Observation {
 }
 
 
+impl Observation {
+    pub fn is_alignment_evidence(&self) -> bool {
+        if let Evidence::Alignment = self.evidence {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
 pub enum Evidence {
     /// Insert size of fragment
@@ -159,6 +197,7 @@ pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
     use_mapq: bool,
+    adjust_mapq: bool,
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
     prob_spurious_isize: LogProb,
@@ -192,6 +231,7 @@ impl Sample {
         use_fragment_evidence: bool,
         use_secondary: bool,
         use_mapq: bool,
+        adjust_mapq: bool,
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_spurious_isize: Prob,
@@ -203,6 +243,7 @@ impl Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
             use_mapq: use_mapq,
+            adjust_mapq: adjust_mapq,
             insert_size: insert_size,
             likelihood_model: likelihood_model,
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
@@ -277,6 +318,10 @@ impl Sample {
         }
         debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
         debug!("{:?}", observations);
+
+        if self.adjust_mapq {
+            adjust_mapq(&mut observations);
+        }
         Ok(observations)
     }
 
@@ -473,6 +518,100 @@ mod tests {
     use rust_htslib::bam::Read;
     use bio::stats::{LogProb, PHREDProb, Prob};
 
+
+    #[test]
+    fn test_adjust_mapq_with_fragment_evidence() {
+        let mut observations = vec![
+            Observation {
+                prob_mapping: LogProb(0.5f64.ln()),
+                prob_alt: LogProb::ln_one(),
+                prob_ref: LogProb::ln_zero(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
+            },
+            Observation {
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_one(),
+                prob_ref: LogProb::ln_zero(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::InsertSize(300)
+            },
+            Observation {
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_zero(),
+                prob_ref: LogProb::ln_one(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::InsertSize(300)
+            }
+        ];
+
+        adjust_mapq(&mut observations);
+        println!("{:?}", observations);
+        assert_relative_eq!(*observations[0].prob_mapping, *LogProb(0.5f64.ln()));
+    }
+
+    #[test]
+    fn test_adjust_mapq_without_fragment_evidence() {
+        let mut observations = vec![
+            Observation {
+                prob_mapping: LogProb(0.5f64.ln()),
+                prob_alt: LogProb::ln_one(),
+                prob_ref: LogProb::ln_zero(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
+            },
+            Observation {
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_zero(),
+                prob_ref: LogProb::ln_one(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::InsertSize(300)
+            },
+            Observation {
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_zero(),
+                prob_ref: LogProb::ln_one(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::InsertSize(300)
+            }
+        ];
+
+        adjust_mapq(&mut observations);
+        println!("{:?}", observations);
+        assert_relative_eq!(*observations[0].prob_mapping, *LogProb(0.0f64.ln()));
+    }
+
+    #[test]
+    fn test_adjust_mapq_weak_fragment_evidence() {
+        let mut observations = vec![
+            Observation {
+                prob_mapping: LogProb(0.5f64.ln()),
+                prob_alt: LogProb::ln_one(),
+                prob_ref: LogProb::ln_zero(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::Alignment
+            },
+            Observation {
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb(0.5f64.ln()),
+                prob_ref: LogProb(0.5f64.ln()),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::InsertSize(300)
+            },
+            Observation {
+                prob_mapping: LogProb::ln_one(),
+                prob_alt: LogProb::ln_zero(),
+                prob_ref: LogProb::ln_one(),
+                prob_mismapped: LogProb::ln_one(),
+                evidence: Evidence::InsertSize(300)
+            }
+        ];
+
+        adjust_mapq(&mut observations);
+        println!("{:?}", observations);
+        assert_eq!(*observations[0].prob_mapping, *LogProb(0.25f64.ln()));
+    }
+
     #[test]
     fn test_isize_density() {
         let d1 = isize_density(300.0, 312.0, 15.0);
@@ -517,6 +656,7 @@ mod tests {
             true,
             true,
             true,
+            false,
             InsertSize { mean: isize_mean, sd: 20.0 },
             likelihood::LatentVariableModel::new(1.0),
             Prob(0.0),
