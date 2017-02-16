@@ -38,7 +38,7 @@ pub fn adjust_mapq(observations: &mut [Observation]) {
 
     let prob_no_artifact = prob_no_alt_fragment.ln_one_minus_exp();
     for obs in observations.iter_mut() {
-        if obs.is_alignment_evidence() {
+        if obs.is_alignment_evidence() && obs.prob_alt > obs.prob_ref {
             // adjust as Pr(mapping) = Pr(no artifact) * Pr(mapping|no artifact)
             obs.prob_mapping = prob_no_artifact + obs.prob_mapping;
         }
@@ -319,7 +319,12 @@ impl Sample {
         debug!("{:?}", observations);
 
         if self.adjust_mapq {
-            adjust_mapq(&mut observations);
+            match variant {
+                // only adjust for deletion and insertion
+                Variant::Deletion(_) | Variant::Insertion(_) => adjust_mapq(&mut observations),
+                _ => ()
+            }
+
         }
         Ok(observations)
     }
