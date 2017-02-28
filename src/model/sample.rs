@@ -30,12 +30,16 @@ pub fn adjust_mapq(observations: &mut [Observation]) {
     let prob_no_alt_fragment: LogProb = observations.iter().filter_map(|obs| {
         if !obs.is_alignment_evidence() {
             // Calculate posterior probability of having the alternative allele in that read.
-            // This assumes that alt and ref are the only possible events, which is reasonable in case of indels.
-            let prob_alt = obs.prob_alt - (obs.prob_alt.ln_add_exp(obs.prob_ref));
-            let prob_not_alt = (obs.prob_mapping + prob_alt).ln_one_minus_exp();
-            // TODO remove old approach below
-            //let prob_not_alt = (obs.prob_mapping + obs.prob_alt).ln_one_minus_exp();
-            Some(prob_not_alt)
+            if obs.prob_alt == LogProb::ln_zero() && obs.prob_ref == LogProb::ln_zero() {
+                // Both events are zero. Hence, the read is should be ignored, it is likely another artifact.
+                let prob_not_alt = LogProb::ln_one();
+                Some(prob_not_alt)
+            } else {
+                // This assumes that alt and ref are the only possible events, which is reasonable in case of indels.
+                let prob_alt = obs.prob_alt - (obs.prob_alt.ln_add_exp(obs.prob_ref));
+                let prob_not_alt = (obs.prob_mapping + prob_alt).ln_one_minus_exp();
+                Some(prob_not_alt)
+            }
         } else {
             None
         }
@@ -523,10 +527,22 @@ mod tests {
     use model;
     use likelihood;
 
+    use csv;
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
     use bio::stats::{LogProb, PHREDProb, Prob};
+
+
+    fn read_observations(path: &str) -> Vec<Observation> {
+        let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
+        let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
+        let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
+            sample == "case"
+        });
+        let case_obs = groups.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        case_obs
+    }
 
 
     #[test]
@@ -620,6 +636,17 @@ mod tests {
         adjust_mapq(&mut observations);
         println!("{:?}", observations);
         assert_eq!(*observations[0].prob_mapping, *LogProb(0.25f64.ln()));
+    }
+
+    #[test]
+    fn test_adjust_mapq_real() {
+        let mut observations = read_observations("tests/example7.obs.txt");
+
+        adjust_mapq(&mut observations);
+        for obs in observations {
+            println!("{:?}", obs);
+        }
+        assert!(false);
     }
 
     #[test]
