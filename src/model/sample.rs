@@ -646,7 +646,6 @@ mod tests {
         for obs in observations {
             println!("{:?}", obs);
         }
-        assert!(false);
     }
 
     #[test]
