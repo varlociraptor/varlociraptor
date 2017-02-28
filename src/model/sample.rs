@@ -23,13 +23,18 @@ pub fn prob_mapping(mapq: u8) -> LogProb {
 /// We assume that the mapping quality of split alignments provided by the aligner is conditional on being no artifact.
 /// Artifact alignments can be caused by aligning short ends as splits due to e.g. repeats.
 /// We can calculate the probability of having no artifact by investigating if there is at least
-/// one fragment supporting the alternative allele.
+/// one full fragment supporting the alternative allele (via enlarged or reduced insert size).
 /// Then, the final mapping quality can be obtained by multiplying this probability.
 pub fn adjust_mapq(observations: &mut [Observation]) {
     // calculate probability of at least one alt fragment observation
     let prob_no_alt_fragment: LogProb = observations.iter().filter_map(|obs| {
         if !obs.is_alignment_evidence() {
-            let prob_not_alt = (obs.prob_mapping + obs.prob_alt).ln_one_minus_exp();
+            // Calculate posterior probability of having the alternative allele in that read.
+            // This assumes that alt and ref are the only possible events, which is reasonable in case of indels.
+            let prob_alt = obs.prob_alt - (obs.prob_alt.ln_add_exp(obs.prob_ref));
+            let prob_not_alt = (obs.prob_mapping + prob_alt).ln_one_minus_exp();
+            // TODO remove old approach below
+            //let prob_not_alt = (obs.prob_mapping + obs.prob_alt).ln_one_minus_exp();
             Some(prob_not_alt)
         } else {
             None
@@ -39,7 +44,8 @@ pub fn adjust_mapq(observations: &mut [Observation]) {
     let prob_no_artifact = prob_no_alt_fragment.ln_one_minus_exp();
     for obs in observations.iter_mut() {
         if obs.is_alignment_evidence() && obs.prob_alt > obs.prob_ref {
-            // adjust as Pr(mapping) = Pr(no artifact) * Pr(mapping|no artifact)
+            // adjust as Pr(mapping) = Pr(no artifact) * Pr(mapping|no artifact) + Pr(artifact) * Pr(mapping|artifact)
+            // with Pr(mapping|artifact) = 0
             obs.prob_mapping = prob_no_artifact + obs.prob_mapping;
         }
     }
