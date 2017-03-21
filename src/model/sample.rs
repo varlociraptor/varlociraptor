@@ -101,8 +101,12 @@ pub fn prob_read_indel(record: &bam::Record, start: u32, variant: Variant, ref_s
     let mut prob_ref = LogProb::ln_one();
     let mut prob_alt = LogProb::ln_one();
 
+    // TODO handle start outside of [p, p + m]
+    // TODO handle other indels before start (pattern matching to find start position?)
+
+    let prefix_end = if start > p { start - p } else { 0 };
     // common prefix
-    for i in 0..start - p {
+    for i in 0..prefix_end {
         let prob = prob_read_base(i, p + i);
         prob_ref = prob_ref + prob;
         prob_alt = prob_alt + prob;
@@ -112,7 +116,7 @@ pub fn prob_read_indel(record: &bam::Record, start: u32, variant: Variant, ref_s
     let start = start + 1;
 
     // ref likelihood
-    for i in start - p..m {
+    for i in prefix_end..m {
         let prob = prob_read_base(i, p + i);
         prob_ref = prob_ref + prob;
     }
@@ -122,13 +126,15 @@ pub fn prob_read_indel(record: &bam::Record, start: u32, variant: Variant, ref_s
     match variant {
         Variant::Insertion(l) => {
             let l = l as u32;
-            for i in start - p + l..m {
+            assert!(start + l >= p, "start + l < p is unexpected in case of insertion");
+            for i in start + l - p..m {
                 let prob = prob_read_base(i, p + i - l);
                 prob_alt = prob_alt + prob;
             }
         },
         Variant::Deletion(l) => {
             let l = l as u32;
+            assert!(start >= p, "start < p is unexpected in case of deletion");
             for i in start - p..m {
                 let prob = prob_read_base(i, p + i + l);
                 prob_alt = prob_alt + prob;
