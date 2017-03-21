@@ -103,6 +103,7 @@ pub fn prob_read_indel(record: &bam::Record, start: u32, variant: Variant, ref_s
     let mut prob_alt = LogProb::ln_one();
 
     // TODO handle other indels before start
+    // TODO consider the case that a deletion is made invisible via an insertion of the same size and vice versa?
 
     let prefix_end = if start > p { start - p } else { 0 };
     // common prefix
@@ -134,8 +135,12 @@ pub fn prob_read_indel(record: &bam::Record, start: u32, variant: Variant, ref_s
         },
         Variant::Deletion(l) => {
             let l = l as u32;
-            assert!(start >= p, "start < p is unexpected in case of deletion");
-            for i in start - p..m {
+            let (suffix_start, l) = if start >= p {
+                (start - p, l)
+            } else {
+                (0, l - (p - start))
+            };
+            for i in suffix_start..m {
                 let prob = prob_read_base(i, p + i + l);
                 prob_alt = prob_alt + prob;
             }
