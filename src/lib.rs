@@ -18,6 +18,8 @@ extern crate rustc_serialize;
 #[macro_use]
 extern crate quick_error;
 extern crate csv;
+#[macro_use]
+extern crate lazy_static;
 
 #[cfg(feature="flame_it")]
 extern crate flame;

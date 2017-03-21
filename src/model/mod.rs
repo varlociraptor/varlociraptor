@@ -109,8 +109,8 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
     ///
     /// # Returns
     /// The `SinglePileup`, or an error message.
-    pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant) -> Result<SinglePileup<A, P>, Box<Error>> {
-        let pileup = try!(self.sample.borrow_mut().extract_observations(chrom, start, variant));
+    pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<SinglePileup<A, P>, Box<Error>> {
+        let pileup = try!(self.sample.borrow_mut().extract_observations(chrom, start, variant, chrom_seq));
         debug!("Obtained pileups ({} observations).", pileup.len());
         Ok(SinglePileup::new(
             pileup,
@@ -241,11 +241,11 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
     ///
     /// # Returns
     /// The `PairPileup`, or an error message.
-    pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant) -> Result<PairPileup<A, B, P>, Box<Error>> {
+    pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<PairPileup<A, B, P>, Box<Error>> {
         debug!("Case pileup");
-        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, variant));
+        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, variant, chrom_seq));
         debug!("Control pileup");
-        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, variant));
+        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, variant, chrom_seq));
         debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         Ok(PairPileup::new(
             case_pileup,

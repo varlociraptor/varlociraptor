@@ -2,6 +2,7 @@ use std::path::Path;
 use std::error::Error;
 use std::f32;
 use std::str;
+use std::io;
 
 use itertools::Itertools;
 use ndarray::prelude::*;
@@ -9,6 +10,7 @@ use csv;
 use rust_htslib::bcf;
 use rust_htslib::bcf::record::Numeric;
 use bio::stats::{PHREDProb, LogProb};
+use bio::io::fasta;
 
 use model::AlleleFreqs;
 use model::priors;
@@ -50,6 +52,7 @@ fn pileups<'a, A, B, P>(
     inbcf: &bcf::Reader,
     record: &mut bcf::Record,
     joint_model: &'a mut PairCaller<A, B, P>,
+    reference_buffer: &mut utils::ReferenceBuffer,
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: Option<u32>
@@ -61,10 +64,12 @@ fn pileups<'a, A, B, P>(
     let chrom = chrom(&inbcf, &record);
     let variants = try!(utils::collect_variants(record, omit_snvs, omit_indels, max_indel_len.map(|l| 0..l)));
 
+    let chrom_seq = try!(reference_buffer.seq(&chrom));
+
     let mut pileups = Vec::with_capacity(variants.len());
     for variant in variants {
         pileups.push(if let Some(variant) = variant {
-            Some(try!(joint_model.pileup(chrom, record.pos(), variant)))
+            Some(try!(joint_model.pileup(chrom, record.pos(), variant, chrom_seq)))
         } else {
             None
         });
@@ -90,9 +95,10 @@ fn pileups<'a, A, B, P>(
 /// # Returns
 ///
 /// `Result` object with eventual error message.
-pub fn call<A, B, P, M, R, W, X>(
+pub fn call<A, B, P, M, R, W, X, F>(
     inbcf: &R,
     outbcf: &W,
+    fasta: &F,
     events: &[PairEvent<A, B>],
     complement_event: Option<&ComplementEvent>,
     pair_model: &mut PairCaller<A, B, P>,
@@ -106,8 +112,12 @@ pub fn call<A, B, P, M, R, W, X>(
     P: priors::PairModel<A, B>,
     R: AsRef<Path>,
     W: AsRef<Path>,
-    X: AsRef<Path>
+    X: AsRef<Path>,
+    F: AsRef<Path>
 {
+    let mut fasta = try!(fasta::IndexedReader::from_file(fasta));
+    let mut reference_buffer = utils::ReferenceBuffer::new(fasta);
+
     let inbcf = try!(bcf::Reader::new(inbcf));
     let mut header = bcf::Header::with_template(&inbcf.header);
     for event in events {
@@ -148,7 +158,7 @@ pub fn call<A, B, P, M, R, W, X>(
         i += 1;
         // translate to header of the writer
         outbcf.translate(&mut record);
-        let pileups = try!(pileups(&inbcf, &mut record, pair_model, omit_snvs, omit_indels, max_indel_len));
+        let pileups = try!(pileups(&inbcf, &mut record, pair_model, &mut reference_buffer, omit_snvs, omit_indels, max_indel_len));
 
         if !pileups.is_empty() {
             if let Some(ref mut outobs) = outobs {

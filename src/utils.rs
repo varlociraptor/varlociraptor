@@ -1,8 +1,11 @@
 use std::ops::Range;
 use std::error::Error;
+use std::fs;
+use std::str;
 
 use itertools::Itertools;
 use rust_htslib::bcf;
+use bio::io::fasta;
 
 use model;
 use BCFError;
@@ -111,4 +114,37 @@ pub fn collect_variants(
     };
 
     Ok(variants)
+}
+
+
+/// A lazy buffer for reference sequences.
+pub struct ReferenceBuffer {
+    reader: fasta::IndexedReader<fs::File>,
+    chrom: Option<Vec<u8>>,
+    sequence: Vec<u8>
+}
+
+
+impl ReferenceBuffer {
+    pub fn new(fasta: fasta::IndexedReader<fs::File>) -> Self {
+        ReferenceBuffer {
+            reader: fasta,
+            chrom: None,
+            sequence: Vec::new()
+        }
+    }
+
+    /// Load given chromosome and return it as a slice. This is O(1) if chromosome was loaded before.
+    pub fn seq(&mut self, chrom: &[u8]) -> Result<&[u8], Box<Error>> {
+        if let Some(ref last_chrom) = self.chrom {
+            if last_chrom == &chrom {
+                return Ok(&self.sequence);
+            }
+        }
+
+        try!(self.reader.read_all(try!(str::from_utf8(chrom)), &mut self.sequence));
+        self.chrom = Some(chrom.to_owned());
+
+        Ok(&self.sequence)
+    }
 }
