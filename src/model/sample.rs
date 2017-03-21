@@ -85,7 +85,8 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// This is of course a simplification: other indels or SNVs in the same region are ignored.
 /// However, this is reasonable because it is (a) unlikely and (b) they will be ignored in all cases,
 /// such that they simply lead to globally reduced likelihoods, which are normalized away by bayes theorem.
-/// TODO is this claim correct in the heterozygous case?
+/// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
+/// both the alt and the ref case equally.
 pub fn prob_read_indel(record: &bam::Record, start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
     let p = record.pos() as u32;
     let read_seq = record.seq();
@@ -101,8 +102,7 @@ pub fn prob_read_indel(record: &bam::Record, start: u32, variant: Variant, ref_s
     let mut prob_ref = LogProb::ln_one();
     let mut prob_alt = LogProb::ln_one();
 
-    // TODO handle start outside of [p, p + m]
-    // TODO handle other indels before start (pattern matching to find start position?)
+    // TODO handle other indels before start
 
     let prefix_end = if start > p { start - p } else { 0 };
     // common prefix
