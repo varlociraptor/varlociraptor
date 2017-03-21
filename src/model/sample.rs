@@ -10,7 +10,6 @@ use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;
 use bio::stats::{LogProb, PHREDProb, Prob};
-use bio::io::fasta;
 
 use model;
 use model::Variant;
@@ -340,9 +339,6 @@ pub struct Sample {
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
     prob_spurious_isize: LogProb,
-    prob_missed_insertion_alignment: LogProb,
-    prob_missed_deletion_alignment: LogProb,
-    prob_spurious_indel_alignment: LogProb,
     max_indel_dist: u32,
     max_indel_len_diff: u32
 }
@@ -374,9 +370,6 @@ impl Sample {
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_spurious_isize: Prob,
-        prob_missed_insertion_alignment: Prob,
-        prob_missed_deletion_alignment: Prob,
-        prob_spurious_indel_alignment: Prob
     ) -> Self {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
@@ -386,9 +379,6 @@ impl Sample {
             insert_size: insert_size,
             likelihood_model: likelihood_model,
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
-            prob_missed_insertion_alignment: LogProb::from(prob_missed_insertion_alignment),
-            prob_missed_deletion_alignment: LogProb::from(prob_missed_deletion_alignment),
-            prob_spurious_indel_alignment: LogProb::from(prob_spurious_indel_alignment),
             max_indel_dist: 50,
             max_indel_len_diff: 20
         }
@@ -757,9 +747,6 @@ mod tests {
             false,
             InsertSize { mean: isize_mean, sd: 20.0 },
             likelihood::LatentVariableModel::new(1.0),
-            Prob(0.0),
-            Prob(0.0),
-            Prob(0.0),
             Prob(0.0)
         )
     }

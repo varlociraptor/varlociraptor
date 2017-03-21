@@ -2,7 +2,6 @@ use std::path::Path;
 use std::error::Error;
 use std::f32;
 use std::str;
-use std::io;
 
 use itertools::Itertools;
 use ndarray::prelude::*;
@@ -115,7 +114,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
     X: AsRef<Path>,
     F: AsRef<Path>
 {
-    let mut fasta = try!(fasta::IndexedReader::from_file(fasta));
+    let fasta = try!(fasta::IndexedReader::from_file(fasta));
     let mut reference_buffer = utils::ReferenceBuffer::new(fasta);
 
     let inbcf = try!(bcf::Reader::new(inbcf));
