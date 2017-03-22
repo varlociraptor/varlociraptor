@@ -87,7 +87,7 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// such that they simply lead to globally reduced likelihoods, which are normalized away by bayes theorem.
 /// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
 /// both the alt and the ref case equally.
-pub fn prob_read_indel(record: &bam::Record, start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
+pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
     let p = record.pos() as u32;
     let read_seq = record.seq();
     let m = read_seq.len() as u32;
@@ -99,56 +99,77 @@ pub fn prob_read_indel(record: &bam::Record, start: u32, variant: Variant, ref_s
         prob_read_base(read_base, ref_base, quals[read_pos as usize])
     };
 
-    let mut prob_ref = LogProb::ln_one();
-    let mut prob_alt = LogProb::ln_one();
+    // indels can lead to shifts in the mapping position
+    // since we don't know whether any indel comes before our indel of interest, we have to consider
+    // all possible shifts due to indels.
+    let total_indel_len = cigar.iter().map(|c| match c {
+        &Cigar::Ins(l) => l,
+        &Cigar::Del(l) => l,
+        _ => 0
+    }).sum();
 
-    // TODO handle other indels before start
-    // TODO consider the case that a deletion is made invisible via an insertion of the same size and vice versa?
+    let pos_min = p.saturating_sub(total_indel_len);
+    let pos_max = p + total_indel_len;
 
-    let prefix_end = if start > p { start - p } else { 0 };
-    // common prefix
-    for i in 0..prefix_end {
-        let prob = prob_read_base(i, p + i);
-        prob_ref = prob_ref + prob;
-        prob_alt = prob_alt + prob;
+    let capacity = (pos_max - pos_min) as usize;
+    let mut prob_alts = Vec::with_capacity(capacity);
+    let mut prob_refs = Vec::with_capacity(capacity);
+
+    for p in pos_min..pos_max {
+        //println!("pos {}", p);
+        let mut prob_ref = LogProb::ln_one();
+        let mut prob_alt = LogProb::ln_one();
+
+        // TODO consider the case that a deletion is made invisible via an insertion of the same size and vice versa?
+
+        let prefix_end = start.saturating_sub(p);
+        // common prefix
+        for i in 0..prefix_end {
+            let prob = prob_read_base(i, p + i);
+            prob_ref = prob_ref + prob;
+            prob_alt = prob_alt + prob;
+        }
+
+        // do not consider the start base, because callers either do this: A -> ACGT or this: * -> CGT
+        let start = start + 1;
+
+        // ref likelihood
+        for i in prefix_end..m {
+            let prob = prob_read_base(i, p + i);
+            prob_ref = prob_ref + prob;
+        }
+        //println!("");
+
+        // alt likelihood
+        match variant {
+            Variant::Insertion(l) => {
+                let l = l as u32;
+                assert!(start + l >= p, "start + l < p is unexpected in case of insertion");
+                for i in start + l - p..m {
+                    let prob = prob_read_base(i, p + i - l);
+                    prob_alt = prob_alt + prob;
+                }
+            },
+            Variant::Deletion(l) => {
+                let l = l as u32;
+                let (suffix_start, l) = if start >= p {
+                    (start - p, l)
+                } else {
+                    (0, l - (p - start))
+                };
+                for i in suffix_start..m {
+                    let prob = prob_read_base(i, p + i + l);
+                    prob_alt = prob_alt + prob;
+                }
+            },
+            _ => panic!("unsupported variant type")
+        }
+        //println!("---");
+        prob_alts.push(prob_alt);
+        prob_refs.push(prob_ref);
     }
-
-    // do not consider the start base, because callers either do this: A -> ACGT or this: * -> CGT
-    let start = start + 1;
-
-    // ref likelihood
-    for i in prefix_end..m {
-        let prob = prob_read_base(i, p + i);
-        prob_ref = prob_ref + prob;
-    }
-    //println!("");
-
-    // alt likelihood
-    match variant {
-        Variant::Insertion(l) => {
-            let l = l as u32;
-            assert!(start + l >= p, "start + l < p is unexpected in case of insertion");
-            for i in start + l - p..m {
-                let prob = prob_read_base(i, p + i - l);
-                prob_alt = prob_alt + prob;
-            }
-        },
-        Variant::Deletion(l) => {
-            let l = l as u32;
-            let (suffix_start, l) = if start >= p {
-                (start - p, l)
-            } else {
-                (0, l - (p - start))
-            };
-            for i in suffix_start..m {
-                let prob = prob_read_base(i, p + i + l);
-                prob_alt = prob_alt + prob;
-            }
-        },
-        _ => panic!("unsupported variant type")
-    }
-    //println!("---");
-
+    let prob_alt = LogProb::ln_sum_exp(&prob_alts);
+    let prob_ref = LogProb::ln_sum_exp(&prob_refs);
 
     (prob_ref, prob_alt)
 }
@@ -491,7 +512,7 @@ impl Sample {
 
         let (prob_ref, prob_alt) = match variant {
             Variant::Deletion(_) | Variant::Insertion(_) => {
-                prob_read_indel(record, start, variant, chrom_seq)
+                prob_read_indel(record, cigar, start, variant, chrom_seq)
             },
             Variant::SNV(_) => {
                 prob_read_snv(record, cigar, start, variant, chrom_seq)
@@ -859,7 +880,7 @@ mod tests {
     fn ref_seq() -> Vec<u8> {
         let mut fa = fasta::Reader::from_file(&"tests/chr17.prefix.fa").unwrap();
         let mut chr17 = fasta::Record::new();
-        fa.read(&mut chr17);
+        fa.read(&mut chr17).unwrap();
 
         chr17.seq().to_owned()
     }
@@ -872,14 +893,14 @@ mod tests {
 
         // truth
         let probs_alt = [-0.4766, -0.4766, -483.8866, -0.4766, -0.4766, -0.4766];
-        let probs_ref = [-250.6750, -630.0560, -0.4766, -250.6750, -621.5896, -250.6750];
+        let probs_ref = [-250.6750, -215.1903, -0.4766, -250.6750, -621.5896, -250.6750];
 
         // variant (obtained via bcftools)
         let start = 546;
         let variant = Variant::Insertion(10);
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let (prob_ref, prob_alt) = prob_read_indel(rec, start, variant, &ref_seq);
+            let (prob_ref, prob_alt) = prob_read_indel(rec, &rec.cigar(), start, variant, &ref_seq);
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar());
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.001);
