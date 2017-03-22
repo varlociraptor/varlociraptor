@@ -108,7 +108,8 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         _ => 0
     }).sum();
 
-    let pos_min = p.saturating_sub(total_indel_len);
+    // calculate maximal shift to the left without getting outside of the indel start
+    let pos_min = cmp::max(p.saturating_sub(total_indel_len), start.saturating_sub(m));
     let pos_max = p + total_indel_len;
 
     let capacity = (pos_max - pos_min) as usize;
@@ -143,20 +144,20 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         // alt likelihood
         match variant {
             Variant::Insertion(l) => {
-                let l = l as u32;
-                assert!(start + l >= p, "start + l < p is unexpected in case of insertion");
-                for i in start + l - p..m {
+                // reduce length if insertion is left of p
+                let l = if start >= p { l as u32 } else { l - (p - start) };
+                let suffix_start = (start + l).saturating_sub(p);
+
+                for i in suffix_start..m {
                     let prob = prob_read_base(i, p + i - l);
                     prob_alt = prob_alt + prob;
                 }
             },
             Variant::Deletion(l) => {
-                let l = l as u32;
-                let (suffix_start, l) = if start >= p {
-                    (start - p, l)
-                } else {
-                    (0, l - (p - start))
-                };
+                // reduce length if deletion is left of p
+                let l = if start >= p { l as u32 } else { l - (p - start) };
+                let suffix_start = start.saturating_sub(p);
+
                 for i in suffix_start..m {
                     let prob = prob_read_base(i, p + i + l);
                     prob_alt = prob_alt + prob;
