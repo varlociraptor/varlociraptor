@@ -646,11 +646,12 @@ mod tests {
     fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel>) {
         let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
         let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
-        let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
+        let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
             sample == "case"
         });
-        let case_obs = groups.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
-        let control_obs = if let Some(o) = groups.next() {
+        let mut group_iter = groups.into_iter();
+        let case_obs = group_iter.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        let control_obs = if let Some(o) = group_iter.next() {
             o.1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec()
         } else {
             vec![]
@@ -695,11 +696,12 @@ mod tests {
     fn setup_example_flat(path: &str) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::FlatTumorNormalModel>) {
         let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
         let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
-        let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
+        let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
             sample == "case"
         });
-        let case_obs = groups.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
-        let control_obs = if let Some(o) = groups.next() {
+        let mut group_iter = groups.into_iter();
+        let case_obs = group_iter.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        let control_obs = if let Some(o) = group_iter.next() {
             o.1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec()
         } else {
             vec![]

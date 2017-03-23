@@ -1,6 +1,7 @@
 use std::f64;
 
-use itertools::{Itertools, linspace};
+use itertools::Itertools;
+use itertools_num::linspace;
 use ordered_float::NotNaN;
 use bio::stats::{LogProb, Prob};
 
@@ -233,7 +234,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use itertools::linspace;
+    use itertools_num::linspace;
     use bio::stats::Prob;
     use model::Variant;
     use model::priors::PairModel;

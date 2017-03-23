@@ -10,6 +10,7 @@ use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::Cigar;
 use bio::stats::{LogProb, PHREDProb, Prob};
+use itertools;
 
 use model;
 use model::Variant;
@@ -111,10 +112,13 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     // calculate maximal shift to the left without getting outside of the indel start
     let pos_min = cmp::max(p.saturating_sub(total_indel_len), start.saturating_sub(m));
     let pos_max = p + total_indel_len;
+    assert!(p >= pos_min && p <= pos_max, "original mapping position should be within the evaluated shifts");
 
     let capacity = (pos_max - pos_min) as usize;
     let mut prob_alts = Vec::with_capacity(capacity);
     let mut prob_refs = Vec::with_capacity(capacity);
+    let mut alt_matches = Vec::with_capacity(m as usize);
+    let mut ref_matches = Vec::with_capacity(m as usize);
 
     for p in pos_min..pos_max {
         //println!("pos {}", p);
@@ -129,6 +133,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
             let prob = prob_read_base(i, p + i);
             prob_ref = prob_ref + prob;
             prob_alt = prob_alt + prob;
+            // debugging
+            let x = ref_seq[(p + i) as usize] == read_seq[i as usize];
+            alt_matches.push(x);
+            ref_matches.push(x);
         }
 
         // do not consider the start base, because callers either do this: A -> ACGT or this: * -> CGT
@@ -138,6 +146,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         for i in prefix_end..m {
             let prob = prob_read_base(i, p + i);
             prob_ref = prob_ref + prob;
+
+            // debugging
+            let x = ref_seq[(p + i) as usize] == read_seq[i as usize];
+            ref_matches.push(x);
         }
         //println!("");
 
@@ -151,6 +163,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                 for i in suffix_start..m {
                     let prob = prob_read_base(i, p + i - l);
                     prob_alt = prob_alt + prob;
+
+                    // debugging
+                    let x = ref_seq[(p + i - l) as usize] == read_seq[i as usize];
+                    alt_matches.push(x);
                 }
             },
             Variant::Deletion(l) => {
@@ -161,6 +177,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                 for i in suffix_start..m {
                     let prob = prob_read_base(i, p + i + l);
                     prob_alt = prob_alt + prob;
+
+                    // debugging
+                    let x = ref_seq[(p + i + l) as usize] == read_seq[i as usize];
+                    alt_matches.push(x);
                 }
             },
             _ => panic!("unsupported variant type")
@@ -168,6 +188,11 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         //println!("---");
         prob_alts.push(prob_alt);
         prob_refs.push(prob_ref);
+
+        debug!("shift ref: {:?}", itertools::join(ref_matches.iter().map(|&m| if m {'M'} else {'X'}), ""));
+        debug!("shift alt: {:?}", itertools::join(alt_matches.iter().map(|&m| if m {'M'} else {'X'}), ""));
+        ref_matches.clear();
+        alt_matches.clear();
     }
     let prob_alt = LogProb::ln_sum_exp(&prob_alts);
     let prob_ref = LogProb::ln_sum_exp(&prob_refs);
@@ -480,7 +505,6 @@ impl Sample {
             }
         }
         debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
-        debug!("{:?}", observations);
 
         if self.adjust_mapq {
             match variant {
@@ -622,10 +646,10 @@ mod tests {
     fn read_observations(path: &str) -> Vec<Observation> {
         let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
         let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
-        let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
+        let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
             sample == "case"
         });
-        let case_obs = groups.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        let case_obs = groups.into_iter().next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
         case_obs
     }
 

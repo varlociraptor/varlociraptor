@@ -95,7 +95,7 @@ impl LatentVariableModel {
 mod tests {
     use super::*;
     use model::sample::{Observation, Evidence};
-    use itertools::linspace;
+    use itertools_num::linspace;
     use bio::stats::LogProb;
 
     #[test]

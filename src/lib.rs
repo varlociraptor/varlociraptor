@@ -8,6 +8,7 @@ extern crate rust_htslib;
 extern crate log;
 extern crate rgsl;
 extern crate itertools;
+extern crate itertools_num;
 #[macro_use]
 extern crate approx;
 extern crate rusty_machine;
