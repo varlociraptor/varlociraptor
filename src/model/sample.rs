@@ -112,6 +112,8 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     // calculate maximal shift to the left without getting outside of the indel start
     let pos_min = cmp::max(p.saturating_sub(total_indel_len), start.saturating_sub(m));
     let pos_max = p + total_indel_len;
+    debug!("--------------");
+    debug!("calculating indel likelihood for shifts within {} - {}", pos_min, pos_max);
     assert!(p >= pos_min && p <= pos_max, "original mapping position should be within the evaluated shifts");
 
     let capacity = (pos_max - pos_min) as usize;
