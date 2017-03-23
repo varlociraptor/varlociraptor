@@ -3,6 +3,7 @@ use std::collections::{HashMap, VecDeque, vec_deque};
 use std::cmp;
 use std::error::Error;
 use std::f64::consts;
+use log::LogLevel::Debug;
 
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
@@ -120,11 +121,14 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     let capacity = (pos_max - pos_min) as usize;
     let mut prob_alts = Vec::with_capacity(capacity);
     let mut prob_refs = Vec::with_capacity(capacity);
-    let mut alt_matches = Vec::with_capacity(m as usize);
-    let mut ref_matches = Vec::with_capacity(m as usize);
+    let mut alt_matches = None;
+    let mut ref_matches = None;
+    if log_enabled!(Debug) {
+        alt_matches = Some(Vec::with_capacity(m as usize));
+        ref_matches = Some(Vec::with_capacity(m as usize));
+    }
 
     for p in pos_min..pos_max {
-        //println!("pos {}", p);
         let mut prob_ref = LogProb::ln_one();
         let mut prob_alt = LogProb::ln_one();
 
@@ -136,10 +140,13 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
             let prob = prob_read_base(i, p + i);
             prob_ref = prob_ref + prob;
             prob_alt = prob_alt + prob;
-            // debugging
-            let x = ref_seq[(p + i) as usize] == read_seq[i as usize];
-            alt_matches.push(x);
-            ref_matches.push(x);
+
+            if log_enabled!(Debug) {
+                // debugging
+                let x = ref_seq[(p + i) as usize] == read_seq[i as usize];
+                alt_matches.as_mut().unwrap().push(x);
+                ref_matches.as_mut().unwrap().push(x);
+            }
         }
 
         // do not consider the start base, because callers either do this: A -> ACGT or this: * -> CGT
@@ -150,11 +157,11 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
             let prob = prob_read_base(i, p + i);
             prob_ref = prob_ref + prob;
 
-            // debugging
-            let x = ref_seq[(p + i) as usize] == read_seq[i as usize];
-            ref_matches.push(x);
+            if log_enabled!(Debug) {
+                let x = ref_seq[(p + i) as usize] == read_seq[i as usize];
+                ref_matches.as_mut().unwrap().push(x);
+            }
         }
-        //println!("");
 
         // alt likelihood
         match variant {
@@ -167,9 +174,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                     let prob = prob_read_base(i, p + i - l);
                     prob_alt = prob_alt + prob;
 
-                    // debugging
-                    let x = ref_seq[(p + i - l) as usize] == read_seq[i as usize];
-                    alt_matches.push(x);
+                    if log_enabled!(Debug) {
+                        let x = ref_seq[(p + i - l) as usize] == read_seq[i as usize];
+                        alt_matches.as_mut().unwrap().push(x);
+                    }
                 }
             },
             Variant::Deletion(l) => {
@@ -181,21 +189,23 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                     let prob = prob_read_base(i, p + i + l);
                     prob_alt = prob_alt + prob;
 
-                    // debugging
-                    let x = ref_seq[(p + i + l) as usize] == read_seq[i as usize];
-                    alt_matches.push(x);
+                    if log_enabled!(Debug) {
+                        let x = ref_seq[(p + i + l) as usize] == read_seq[i as usize];
+                        alt_matches.as_mut().unwrap().push(x);
+                    }
                 }
             },
             _ => panic!("unsupported variant type")
         }
-        //println!("---");
         prob_alts.push(prob_alt);
         prob_refs.push(prob_ref);
 
-        debug!("shift ref: {:?}", itertools::join(ref_matches.iter().map(|&m| if m {'M'} else {'X'}), ""));
-        debug!("shift alt: {:?}", itertools::join(alt_matches.iter().map(|&m| if m {'M'} else {'X'}), ""));
-        ref_matches.clear();
-        alt_matches.clear();
+        if log_enabled!(Debug) {
+            debug!("shift ref: {:?}", itertools::join(ref_matches.as_mut().unwrap().iter().map(|&m| if m {'M'} else {'X'}), ""));
+            debug!("shift alt: {:?}", itertools::join(alt_matches.as_mut().unwrap().iter().map(|&m| if m {'M'} else {'X'}), ""));
+            ref_matches.as_mut().unwrap().clear();
+            alt_matches.as_mut().unwrap().clear();
+        }
     }
     let prob_alt = LogProb::ln_sum_exp(&prob_alts);
     let prob_ref = LogProb::ln_sum_exp(&prob_refs);
