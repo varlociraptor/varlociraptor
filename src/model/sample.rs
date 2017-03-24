@@ -90,8 +90,6 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
 /// both the alt and the ref case equally.
 pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
-    // TODO put at a proper place!
-    let start = start + 1;
     let pos = record.pos() as u32;
     let read_seq = record.seq();
     let m = read_seq.len() as u32;
@@ -182,7 +180,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
             Variant::Insertion(l) => {
                 // reduce length if insertion is left of p
                 let l = if start >= p { l as u32 } else { l - (p - start) };
-                let suffix_start = (start + l).saturating_sub(p);
+                // TODO this will miss one base in some cases.
+                // but it is needed because some callers specify calls as G->GAA and some as *->AA
+                // a better place to fix is when parsing the vcf file.
+                let suffix_start = (start + l + 1).saturating_sub(p);
 
                 if log_enabled!(Debug) {
                     if suffix_start <= m {
