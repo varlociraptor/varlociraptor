@@ -132,9 +132,9 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     }
     let debug_match = |read_pos, ref_pos| {
         if ref_seq[ref_pos as usize] == read_seq[read_pos as usize] {
-            'M'
+            '='
         } else {
-            'X'
+            read_seq[read_pos as usize] as char
         }
     };
 
