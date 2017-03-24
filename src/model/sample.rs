@@ -27,12 +27,10 @@ lazy_static! {
 pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
     let prob_miscall = LogProb::from(PHREDProb::from(base_qual as f64));
 
-    if read_base == ref_base {
-        //print!("M");
+    if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
         prob_miscall.ln_one_minus_exp()
     } else {
         // TODO replace the second term with technology specific confusion matrix
-        //print!("X");
         prob_miscall + *PROB_CONFUSION
     }
 }
