@@ -91,7 +91,7 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// both the alt and the ref case equally.
 pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
 
-    let p = record.pos() as u32;
+    let pos = record.pos() as u32;
     let read_seq = record.seq();
     let m = read_seq.len() as u32;
     let quals = record.qual();
@@ -112,12 +112,12 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     }).sum();
 
     // calculate maximal shift to the left without getting outside of the indel start
-    let pos_min = cmp::max(p.saturating_sub(total_indel_len), start.saturating_sub(m));
+    let pos_min = cmp::max(pos.saturating_sub(total_indel_len), start.saturating_sub(m));
     // exclusive upper bound
-    let pos_max = p + total_indel_len + 1;
+    let pos_max = pos + total_indel_len + 1;
     debug!("--------------");
     debug!("calculating indel likelihood for shifts within {} - {}", pos_min, pos_max);
-    assert!(p >= pos_min && p <= pos_max, "original mapping position should be within the evaluated shifts");
+    assert!(pos >= pos_min && pos <= pos_max, "original mapping position should be within the evaluated shifts");
 
     let capacity = (pos_max - pos_min) as usize;
     let mut prob_alts = Vec::with_capacity(capacity);
@@ -225,8 +225,9 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         prob_refs.push(prob_ref);
 
         if log_enabled!(Debug) {
-            debug!("shift ref: {:?}", itertools::join(ref_matches.as_ref().unwrap(), ""));
-            debug!("shift alt: {:?}", itertools::join(alt_matches.as_ref().unwrap(), ""));
+            debug!("shift {}:", p as i32 - pos as i32);
+            debug!("ref: {:?}", itertools::join(ref_matches.as_ref().unwrap(), ""));
+            debug!("alt: {:?}", itertools::join(alt_matches.as_ref().unwrap(), ""));
             ref_matches.as_mut().unwrap().clear();
             alt_matches.as_mut().unwrap().clear();
         }
