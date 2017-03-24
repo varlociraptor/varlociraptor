@@ -121,12 +121,21 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     let capacity = (pos_max - pos_min) as usize;
     let mut prob_alts = Vec::with_capacity(capacity);
     let mut prob_refs = Vec::with_capacity(capacity);
+
+    // debugging
     let mut alt_matches = None;
     let mut ref_matches = None;
     if log_enabled!(Debug) {
         alt_matches = Some(Vec::with_capacity(m as usize));
         ref_matches = Some(Vec::with_capacity(m as usize));
     }
+    let debug_match = |read_pos, ref_pos| {
+        if ref_seq[ref_pos as usize] == read_seq[read_pos as usize] {
+            'M'
+        } else {
+            'X'
+        }
+    };
 
     for p in pos_min..pos_max {
         let mut prob_ref = LogProb::ln_one();
@@ -143,7 +152,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
 
             if log_enabled!(Debug) {
                 // debugging
-                let x = ref_seq[(p + i) as usize] == read_seq[i as usize];
+                let x = debug_match(i, p + i);
                 alt_matches.as_mut().unwrap().push(x);
                 ref_matches.as_mut().unwrap().push(x);
             }
@@ -151,6 +160,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
 
         // do not consider the start base, because callers either do this: A -> ACGT or this: * -> CGT
         let start = start + 1;
+        if log_enabled!(Debug) {
+            alt_matches.as_mut().unwrap().push('|');
+            ref_matches.as_mut().unwrap().push('|');
+        }
 
         // ref likelihood
         for i in prefix_end..m {
@@ -158,7 +171,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
             prob_ref = prob_ref + prob;
 
             if log_enabled!(Debug) {
-                let x = ref_seq[(p + i) as usize] == read_seq[i as usize];
+                let x = debug_match(i, p + i);
                 ref_matches.as_mut().unwrap().push(x);
             }
         }
@@ -175,7 +188,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                     prob_alt = prob_alt + prob;
 
                     if log_enabled!(Debug) {
-                        let x = ref_seq[(p + i - l) as usize] == read_seq[i as usize];
+                        let x = debug_match(i, p + i - l);
                         alt_matches.as_mut().unwrap().push(x);
                     }
                 }
@@ -190,7 +203,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                     prob_alt = prob_alt + prob;
 
                     if log_enabled!(Debug) {
-                        let x = ref_seq[(p + i + l) as usize] == read_seq[i as usize];
+                        let x = debug_match(i, p + i + l);
                         alt_matches.as_mut().unwrap().push(x);
                     }
                 }
@@ -201,8 +214,8 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         prob_refs.push(prob_ref);
 
         if log_enabled!(Debug) {
-            debug!("shift ref: {:?}", itertools::join(ref_matches.as_mut().unwrap().iter().map(|&m| if m {'M'} else {'X'}), ""));
-            debug!("shift alt: {:?}", itertools::join(alt_matches.as_mut().unwrap().iter().map(|&m| if m {'M'} else {'X'}), ""));
+            debug!("shift ref: {:?}", itertools::join(ref_matches.as_ref().unwrap(), ""));
+            debug!("shift alt: {:?}", itertools::join(alt_matches.as_ref().unwrap(), ""));
             ref_matches.as_mut().unwrap().clear();
             alt_matches.as_mut().unwrap().clear();
         }
@@ -644,6 +657,8 @@ pub fn isize_mixture_density_louis(value: f64, d: f64, mean: f64, sd: f64, rate:
 
 #[cfg(test)]
 mod tests {
+    extern crate env_logger;
+
     use super::*;
     use model;
     use likelihood;
@@ -925,6 +940,8 @@ mod tests {
 
     #[test]
     fn test_prob_read_indel() {
+        let _ = env_logger::init();
+
         let bam = bam::Reader::new(&"tests/indels+clips.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
         let ref_seq = ref_seq();
