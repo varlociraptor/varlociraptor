@@ -4,6 +4,7 @@ use std::cmp;
 use std::error::Error;
 use std::f64::consts;
 use log::LogLevel::Debug;
+use std::ascii::AsciiExt;
 
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
@@ -130,7 +131,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         ref_matches = Some(Vec::with_capacity(m as usize));
     }
     let debug_match = |read_pos, ref_pos| {
-        if ref_seq[ref_pos as usize] == read_seq[read_pos as usize] {
+        if ref_seq[ref_pos as usize].to_ascii_uppercase() == read_seq[read_pos as usize].to_ascii_uppercase() {
             '='
         } else {
             read_seq[read_pos as usize] as char
