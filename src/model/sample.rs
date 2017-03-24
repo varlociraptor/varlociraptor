@@ -162,6 +162,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         if log_enabled!(Debug) {
             alt_matches.as_mut().unwrap().push('|');
             ref_matches.as_mut().unwrap().push('|');
+            ref_matches.as_mut().unwrap().push('|');
         }
 
         // ref likelihood
@@ -183,6 +184,13 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                 // TODO ensure that start always points to the first nucleotide of the indel!!
                 // TODO then, remove the +1 here.
                 let suffix_start = (start + l + 1).saturating_sub(p);
+
+                if log_enabled!(Debug) {
+                    for i in prefix_end..suffix_start {
+                        alt_matches.as_mut().unwrap().push(read_seq[i as usize] as char);
+                    }
+                    alt_matches.as_mut().unwrap().push('|');
+                }
 
                 for i in suffix_start..m {
                     let prob = prob_read_base(i, p + i - l);
