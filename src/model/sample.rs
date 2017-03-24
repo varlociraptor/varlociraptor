@@ -186,10 +186,12 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                 let suffix_start = (start + l + 1).saturating_sub(p);
 
                 if log_enabled!(Debug) {
-                    for i in prefix_end..suffix_start {
-                        alt_matches.as_mut().unwrap().push(read_seq[i as usize] as char);
+                    if suffix_start <= m {
+                        for i in prefix_end..suffix_start {
+                            alt_matches.as_mut().unwrap().push(read_seq[i as usize] as char);
+                        }
+                        alt_matches.as_mut().unwrap().push('|');
                     }
-                    alt_matches.as_mut().unwrap().push('|');
                 }
 
                 for i in suffix_start..m {
