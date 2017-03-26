@@ -237,7 +237,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     let prob_alt = LogProb::ln_sum_exp(&prob_alts);
     let prob_ref = LogProb::ln_sum_exp(&prob_refs);
 
-    (prob_ref, prob_alt)
+    // normalize over all events, because we assume that the read comes from here (w_i=1)
+    // the uncertainty of the mapping position (w_i) is captured by prob_mapping.
+    let total = prob_ref.ln_add_exp(prob_alt);
+    (prob_ref - total, prob_alt - total)
 }
 
 
