@@ -531,8 +531,8 @@ impl Sample {
             let pos = record.pos();
             let cigar = record.cigar();
             let end_pos = record.end_pos(&cigar);
-            debug!("read alignment: {}-{}, len={}, varpos={}", pos, end_pos, end_pos - pos, varpos);
-            if pos < varpos && end_pos > varpos {
+            //debug!("read alignment: {}-{}, len={}, varpos={}", pos, end_pos, end_pos - pos, varpos);
+            if ((pos as u32) < start && (end_pos as u32) > start) || ((pos as u32) < end && (end_pos as u32) > end) {
                 // overlapping alignment
                 observations.push(self.read_observation(&record, &cigar, start, variant, chrom_seq));
                 n_overlap += 1;
