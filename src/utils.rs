@@ -16,7 +16,8 @@ pub fn collect_variants(
     record: &mut bcf::Record,
     omit_snvs: bool,
     omit_indels: bool,
-    indel_len_range: Option<Range<u32>>
+    indel_len_range: Option<Range<u32>>,
+    exclusive_end: bool
 ) -> Result<Vec<Option<model::Variant>>, Box<Error>> {
     let pos = record.pos();
     let svlen = match record.info(b"SVLEN").integer() {
@@ -24,7 +25,14 @@ pub fn collect_variants(
         _ => None
     };
     let end = match record.info(b"END").integer() {
-        Ok(Some(end)) => Some(end[0] as u32),
+        Ok(Some(end)) => {
+            let mut end = end[0] as u32;
+            if exclusive_end {
+                // this happens with DELLY
+                end -= 1;
+            }
+            Some(end)
+        },
         _ => None
     };
     let inslen = match record.info(b"INSLEN").integer() {
@@ -68,7 +76,7 @@ pub fn collect_variants(
             } else if svtype == b"DEL" {
                 let svlen = match(svlen, end) {
                     (Some(svlen), _)  => svlen,
-                    (None, Some(end)) => end - 1 - 1 - pos, // END is considered to be exclusive and 1-based
+                    (None, Some(end)) => end - 1 - pos,
                     _ => {
                         return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
                     }

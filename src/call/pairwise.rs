@@ -54,14 +54,15 @@ fn pileups<'a, A, B, P>(
     reference_buffer: &mut utils::ReferenceBuffer,
     omit_snvs: bool,
     omit_indels: bool,
-    max_indel_len: Option<u32>
+    max_indel_len: Option<u32>,
+    exclusive_end: bool
 ) -> Result<Vec<Option<model::PairPileup<'a, A, B, P>>>, Box<Error>> where
     A: AlleleFreqs,
     B: AlleleFreqs,
     P: priors::PairModel<A, B>
 {
     let chrom = chrom(&inbcf, &record);
-    let variants = try!(utils::collect_variants(record, omit_snvs, omit_indels, max_indel_len.map(|l| 0..l)));
+    let variants = try!(utils::collect_variants(record, omit_snvs, omit_indels, max_indel_len.map(|l| 0..l), exclusive_end));
 
     let chrom_seq = try!(reference_buffer.seq(&chrom));
 
@@ -104,7 +105,8 @@ pub fn call<A, B, P, M, R, W, X, F>(
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: Option<u32>,
-    outobs: Option<&X>
+    outobs: Option<&X>,
+    exclusive_end: bool
 ) -> Result<(), Box<Error>> where
     A: AlleleFreqs,
     B: AlleleFreqs,
@@ -157,7 +159,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
         i += 1;
         // translate to header of the writer
         outbcf.translate(&mut record);
-        let pileups = try!(pileups(&inbcf, &mut record, pair_model, &mut reference_buffer, omit_snvs, omit_indels, max_indel_len));
+        let pileups = try!(pileups(&inbcf, &mut record, pair_model, &mut reference_buffer, omit_snvs, omit_indels, max_indel_len, exclusive_end));
 
         if !pileups.is_empty() {
             if let Some(ref mut outobs) = outobs {
