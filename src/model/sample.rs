@@ -114,6 +114,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     // exclusive upper bound
     let pos_max = pos + total_indel_len + 1;
     debug!("--------------");
+    debug!("cigar: {:?}", cigar);
     debug!("calculating indel likelihood for shifts within {} - {}", pos_min, pos_max);
     assert!(pos >= pos_min && pos <= pos_max, "original mapping position should be within the evaluated shifts");
 
@@ -240,6 +241,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     // normalize over all events, because we assume that the read comes from here (w_i=1)
     // the uncertainty of the mapping position (w_i) is captured by prob_mapping.
     let total = prob_ref.ln_add_exp(prob_alt);
+    debug!("Pr(alt)={}, Pr(ref)={}, Pr(total)={}", *prob_alt, *prob_ref, *total);
     (prob_ref - total, prob_alt - total)
 }
 
@@ -516,6 +518,8 @@ impl Sample {
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
+
+        debug!("variant: {}:{} {:?}", str::from_utf8(chrom).unwrap(), start, variant);
 
         // move window to the current variant
         debug!("Filling buffer...");

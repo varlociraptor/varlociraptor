@@ -32,6 +32,7 @@ impl AlleleFreqs for DiscreteAlleleFreqs {}
 impl AlleleFreqs for ContinuousAlleleFreqs {}
 
 
+#[derive(Debug)]
 pub enum VariantType {
     Insertion(Option<Range<u32>>),
     Deletion(Option<Range<u32>>),
@@ -39,7 +40,7 @@ pub enum VariantType {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Variant {
     Deletion(u32),
     Insertion(u32),
