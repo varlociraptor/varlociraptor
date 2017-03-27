@@ -68,7 +68,7 @@ pub fn collect_variants(
             } else if svtype == b"DEL" {
                 let svlen = match(svlen, end) {
                     (Some(svlen), _)  => svlen,
-                    (None, Some(end)) => end - 1 - pos,
+                    (None, Some(end)) => end - 1 - 1 - pos, // END is considered to be exclusive and 1-based
                     _ => {
                         return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
                     }

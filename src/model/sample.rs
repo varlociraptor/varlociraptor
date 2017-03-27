@@ -217,7 +217,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                     prob_alt = prob_alt + prob;
 
                     if log_enabled!(Debug) {
-                        let x = debug_match(i, p + i + l - 1);
+                        let x = debug_match(i, p + i + l);
                         alt_matches.as_mut().unwrap().push(x);
                     }
                 }
