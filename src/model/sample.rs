@@ -870,7 +870,7 @@ mod tests {
 
         let ref_seq = ref_seq();
 
-        let true_alt_probs = [-0.4766, -0.4766, -483.8866, -0.4766, -483.8866];
+        let true_alt_probs = [0.0, 0.0, -483.4099, 0.0, -483.4099];
 
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
@@ -969,8 +969,8 @@ mod tests {
         let ref_seq = ref_seq();
 
         // truth
-        let probs_alt = [-0.4766, -0.4766, -483.8866, -0.4766, -0.4766, -0.4766];
-        let probs_ref = [-250.6750, -215.1903, -0.4766, -250.6750, -621.5896, -250.6750];
+        let probs_alt = [0.0, 0.0, -483.4099, 0.0, 0.0, 0.0];
+        let probs_ref = [-250.198, -214.7137, 0.0, -250.198, -621.1132, -250.198];
 
         // variant (obtained via bcftools)
         let start = 546;
