@@ -26,9 +26,10 @@ pub fn collect_variants(
     };
     let end = match record.info(b"END").integer() {
         Ok(Some(end)) => {
-            let mut end = end[0] as u32;
+            let mut end = end[0] as u32 - 1;
             if exclusive_end {
                 // this happens with DELLY
+                debug!("fixing END tag");
                 end -= 1;
             }
             Some(end)
@@ -76,7 +77,7 @@ pub fn collect_variants(
             } else if svtype == b"DEL" {
                 let svlen = match(svlen, end) {
                     (Some(svlen), _)  => svlen,
-                    (None, Some(end)) => end - 1 - pos,
+                    (None, Some(end)) => end - pos,
                     _ => {
                         return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
                     }
