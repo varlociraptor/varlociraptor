@@ -32,6 +32,7 @@ impl AlleleFreqs for DiscreteAlleleFreqs {}
 impl AlleleFreqs for ContinuousAlleleFreqs {}
 
 
+#[derive(Debug)]
 pub enum VariantType {
     Insertion(Option<Range<u32>>),
     Deletion(Option<Range<u32>>),
@@ -39,7 +40,7 @@ pub enum VariantType {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Variant {
     Deletion(u32),
     Insertion(u32),
@@ -109,8 +110,8 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
     ///
     /// # Returns
     /// The `SinglePileup`, or an error message.
-    pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant) -> Result<SinglePileup<A, P>, Box<Error>> {
-        let pileup = try!(self.sample.borrow_mut().extract_observations(chrom, start, variant));
+    pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<SinglePileup<A, P>, Box<Error>> {
+        let pileup = try!(self.sample.borrow_mut().extract_observations(chrom, start, variant, chrom_seq));
         debug!("Obtained pileups ({} observations).", pileup.len());
         Ok(SinglePileup::new(
             pileup,
@@ -241,11 +242,11 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
     ///
     /// # Returns
     /// The `PairPileup`, or an error message.
-    pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant) -> Result<PairPileup<A, B, P>, Box<Error>> {
+    pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<PairPileup<A, B, P>, Box<Error>> {
         debug!("Case pileup");
-        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, variant));
+        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, variant, chrom_seq));
         debug!("Control pileup");
-        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, variant));
+        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, variant, chrom_seq));
         debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         Ok(PairPileup::new(
             case_pileup,
@@ -398,9 +399,6 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.0),
-            Prob(0.0),
-            Prob(0.0),
             Prob(0.0)
         );
         let control_sample = Sample::new(
@@ -412,9 +410,6 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.0),
-            Prob(0.0),
-            Prob(0.0),
             Prob(0.0)
         );
 
@@ -612,9 +607,6 @@ mod tests {
             insert_size,
             LatentVariableModel::new(0.75),
             Prob(0.0),
-            Prob(0.0),
-            Prob(0.0),
-            Prob(0.0)
         );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
@@ -626,9 +618,6 @@ mod tests {
             insert_size,
             LatentVariableModel::new(1.0),
             Prob(0.0),
-            Prob(0.0),
-            Prob(0.0),
-            Prob(0.0)
         );
 
         let model = PairCaller::new(
@@ -658,11 +647,12 @@ mod tests {
     fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel>) {
         let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
         let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
-        let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
+        let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
             sample == "case"
         });
-        let case_obs = groups.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
-        let control_obs = if let Some(o) = groups.next() {
+        let mut group_iter = groups.into_iter();
+        let case_obs = group_iter.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        let control_obs = if let Some(o) = group_iter.next() {
             o.1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec()
         } else {
             vec![]
@@ -678,9 +668,6 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(0.75),
-            Prob(0.05922201),
-            Prob(0.3460),
-            Prob(0.0964),
             Prob(0.00001)
         );
         let control_sample = Sample::new(
@@ -692,9 +679,6 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.05922201),
-            Prob(0.3460),
-            Prob(0.0964),
             Prob(0.00001)
         );
 
@@ -713,11 +697,12 @@ mod tests {
     fn setup_example_flat(path: &str) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::FlatTumorNormalModel>) {
         let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
         let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
-        let mut groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
+        let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
             sample == "case"
         });
-        let case_obs = groups.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
-        let control_obs = if let Some(o) = groups.next() {
+        let mut group_iter = groups.into_iter();
+        let case_obs = group_iter.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        let control_obs = if let Some(o) = group_iter.next() {
             o.1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec()
         } else {
             vec![]
@@ -733,9 +718,6 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(0.75),
-            Prob(0.05922201),
-            Prob(0.3460),
-            Prob(0.0964),
             Prob(0.00001)
         );
         let control_sample = Sample::new(
@@ -747,9 +729,6 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.05922201),
-            Prob(0.3460),
-            Prob(0.0964),
             Prob(0.00001)
         );
 

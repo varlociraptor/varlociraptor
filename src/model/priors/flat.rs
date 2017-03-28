@@ -1,4 +1,5 @@
-use itertools::{Itertools, linspace};
+use itertools::Itertools;
+use itertools_num::linspace;
 use ordered_float::NotNaN;
 use bio::stats::LogProb;
 

@@ -1,8 +1,11 @@
 use std::ops::Range;
 use std::error::Error;
+use std::fs;
+use std::str;
 
 use itertools::Itertools;
 use rust_htslib::bcf;
+use bio::io::fasta;
 
 use model;
 use BCFError;
@@ -13,7 +16,8 @@ pub fn collect_variants(
     record: &mut bcf::Record,
     omit_snvs: bool,
     omit_indels: bool,
-    indel_len_range: Option<Range<u32>>
+    indel_len_range: Option<Range<u32>>,
+    exclusive_end: bool
 ) -> Result<Vec<Option<model::Variant>>, Box<Error>> {
     let pos = record.pos();
     let svlen = match record.info(b"SVLEN").integer() {
@@ -21,7 +25,15 @@ pub fn collect_variants(
         _ => None
     };
     let end = match record.info(b"END").integer() {
-        Ok(Some(end)) => Some(end[0] as u32),
+        Ok(Some(end)) => {
+            let mut end = end[0] as u32 - 1;
+            if exclusive_end {
+                // this happens with DELLY
+                debug!("fixing END tag");
+                end -= 1;
+            }
+            Some(end)
+        },
         _ => None
     };
     let inslen = match record.info(b"INSLEN").integer() {
@@ -65,7 +77,7 @@ pub fn collect_variants(
             } else if svtype == b"DEL" {
                 let svlen = match(svlen, end) {
                     (Some(svlen), _)  => svlen,
-                    (None, Some(end)) => end - 1 - pos,
+                    (None, Some(end)) => end - pos,
                     _ => {
                         return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
                     }
@@ -111,4 +123,37 @@ pub fn collect_variants(
     };
 
     Ok(variants)
+}
+
+
+/// A lazy buffer for reference sequences.
+pub struct ReferenceBuffer {
+    reader: fasta::IndexedReader<fs::File>,
+    chrom: Option<Vec<u8>>,
+    sequence: Vec<u8>
+}
+
+
+impl ReferenceBuffer {
+    pub fn new(fasta: fasta::IndexedReader<fs::File>) -> Self {
+        ReferenceBuffer {
+            reader: fasta,
+            chrom: None,
+            sequence: Vec::new()
+        }
+    }
+
+    /// Load given chromosome and return it as a slice. This is O(1) if chromosome was loaded before.
+    pub fn seq(&mut self, chrom: &[u8]) -> Result<&[u8], Box<Error>> {
+        if let Some(ref last_chrom) = self.chrom {
+            if last_chrom == &chrom {
+                return Ok(&self.sequence);
+            }
+        }
+
+        try!(self.reader.read_all(try!(str::from_utf8(chrom)), &mut self.sequence));
+        self.chrom = Some(chrom.to_owned());
+
+        Ok(&self.sequence)
+    }
 }

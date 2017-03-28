@@ -27,7 +27,7 @@ fn collect_dist<E: Event>(calls: &bcf::Reader, event: &E, vartype: &model::Varia
             }
         }
 
-        let variants = try!(utils::collect_variants(&mut record, false, false, None));
+        let variants = try!(utils::collect_variants(&mut record, false, false, None, false));
         let tag = event.tag_name("PROB");
         let event_probs = try!(record.info(tag.as_bytes()).float());
         if let Some(event_probs) = event_probs {

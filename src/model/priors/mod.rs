@@ -151,7 +151,7 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use itertools::linspace;
+    use itertools_num::linspace;
     use model::Variant;
     use model::AlleleFreq;
     use bio::stats::Prob;

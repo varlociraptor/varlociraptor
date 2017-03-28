@@ -8,6 +8,7 @@ extern crate rust_htslib;
 extern crate log;
 extern crate rgsl;
 extern crate itertools;
+extern crate itertools_num;
 #[macro_use]
 extern crate approx;
 extern crate rusty_machine;
@@ -18,6 +19,8 @@ extern crate rustc_serialize;
 #[macro_use]
 extern crate quick_error;
 extern crate csv;
+#[macro_use]
+extern crate lazy_static;
 
 #[cfg(feature="flame_it")]
 extern crate flame;

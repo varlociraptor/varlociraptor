@@ -57,7 +57,7 @@ pub fn estimate<F: IntoIterator<Item=AlleleFreq>>(allele_frequencies: F) -> Esti
 mod tests {
     use super::*;
     use model::AlleleFreq;
-    use itertools::linspace;
+    use itertools_num::linspace;
 
     #[test]
     fn test_estimate() {
