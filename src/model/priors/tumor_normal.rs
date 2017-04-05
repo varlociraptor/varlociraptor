@@ -234,7 +234,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use itertools::linspace;
+    use itertools_num::linspace;
     use bio::stats::{Prob, LogProb};
     use model::{AlleleFreq, likelihood, PairPileup, Variant};
     use model::priors::PairModel;
