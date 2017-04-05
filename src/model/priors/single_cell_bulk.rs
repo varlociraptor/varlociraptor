@@ -247,7 +247,8 @@ mod tests {
     use super::*;
     use bio::stats::LogProb;
     use model::priors::PairModel;
-    use model::AlleleFreq;
+    use model::{AlleleFreq, likelihood, Variant, PairPileup};
+    use model::sample::{Observation, Evidence};
 
     #[test]
     fn test_prob_rho() {
@@ -314,5 +315,264 @@ mod tests {
                                     results_60_hom_alt[k] as f64, max_relative = 1.0,
                                     epsilon = 0.000000000001);
         }
+    }
+
+    fn create_obs_vector(
+        n_obs_ref: usize,
+        n_obs_alt: usize
+    ) -> Vec<Observation> {
+        let obs_ref_abs = Observation {
+            prob_mapping: LogProb::ln_one(),
+            //prob_mapping: LogProb(0.9f64.ln()),
+            prob_alt: LogProb::ln_zero(),
+            prob_ref: LogProb::ln_one(),
+            prob_mismapped: LogProb::ln_one(),
+            evidence: Evidence::Alignment
+        };
+        let obs_alt_abs = Observation {
+            prob_mapping: LogProb::ln_one(),
+            //prob_mapping: LogProb(0.9f64.ln()),
+            prob_alt: LogProb::ln_one(),
+            prob_ref: LogProb::ln_zero(),
+            prob_mismapped: LogProb::ln_one(),
+            evidence: Evidence::Alignment
+        };
+
+        let mut obs = Vec::new();
+        for _ in 0..n_obs_ref {
+            obs.push(obs_ref_abs.clone());
+        }
+        for _ in 0..n_obs_alt {
+            obs.push(obs_alt_abs.clone());
+        }
+        obs
+    }
+
+    #[test]
+    fn test_scbm_sc_het_germ() {
+
+        let model = SingleCellBulkModel::new(2);
+
+        // single cell is het against het germline
+        let af_single = vec![AlleleFreq(0.5)];
+        let af_bulk = AlleleFreq(0.25)..AlleleFreq(0.75);
+
+        let variant = Variant::SNV(b'T');
+
+        assert_eq!( model.prior_prob(af_single[0], AlleleFreq(0.0), variant), LogProb::ln_one() );
+
+        let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
+        let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
+
+        let single_obs = create_obs_vector(3, 3);
+        let bulk_obs = create_obs_vector(3, 3);
+
+        let pileup = PairPileup::new(
+            single_obs.clone(),
+            bulk_obs.clone(),
+            variant,
+            &model,
+            single_sample_model,
+            bulk_sample_model
+        );
+
+        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
+        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
+        println!("SCBM het: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
+        assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 0.00019473983947767667, epsilon = 0.000000000000000001 );
+        println!("SCBM het: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
+        assert_relative_eq!( pileup.marginal_prob().exp(), 0.00027403381880824275, epsilon = 0.000000000000000001 );
+        println!("SCBM het: pileup.posterior_prob: {}", pileup.posterior_prob(&af_single, &af_bulk).exp() );
+        assert_relative_eq!( pileup.posterior_prob(&af_single, &af_bulk).exp(), 0.710641629287177, epsilon = 0.0000000000000001 );
+        let (sc, blk) = pileup.map_allele_freqs();
+        println!("SCBM het: pileup.map_allele_freqs: ({} {})", sc, blk );
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.5), AlleleFreq(0.5) ) );
+
+        // test maximum a posteriori allele frequency estimates with uneven allele observations
+        let single_obs = create_obs_vector(3, 7);
+        let bulk_obs = create_obs_vector(3, 7);
+
+        let pileup = PairPileup::new(
+            single_obs.clone(),
+            bulk_obs.clone(),
+            variant,
+            &model,
+            single_sample_model,
+            bulk_sample_model
+        );
+        let (sc, blk) = pileup.map_allele_freqs();
+        println!("SCBM het: pileup.map_allele_freqs: ({} {})", sc, blk );
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.5), AlleleFreq(0.7) ) );
+    }
+
+    #[test]
+    fn test_scbm_sc_hom_ref_germ() {
+
+        let model = SingleCellBulkModel::new(2);
+
+        // single cell is hom ref against hom ref germline
+        let af_single = vec![AlleleFreq(0.0)];
+        let af_bulk = AlleleFreq(0.0)..AlleleFreq(0.5);
+
+        let variant = Variant::SNV(b'T');
+
+        assert_eq!( model.prior_prob(af_single[0], AlleleFreq(0.0), variant), LogProb::ln_one() );
+
+        let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
+        let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
+
+        let single_obs = create_obs_vector(5, 0);
+        let bulk_obs = create_obs_vector(5, 0);
+
+        let pileup = PairPileup::new(
+            single_obs.clone(),
+            bulk_obs.clone(),
+            variant,
+            &model,
+            single_sample_model,
+            bulk_sample_model
+        );
+
+        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
+        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
+        println!("SCBM hom ref: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
+        assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 1.313681412668118, epsilon = 0.000000000000001 );
+        println!("SCBM hom ref: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
+        assert_relative_eq!( pileup.marginal_prob().exp(), 1.719859092473503, epsilon = 0.000000000000001 );
+        println!("SCBM hom ref: pileup.posterior_prob: {}", pileup.posterior_prob(&af_single, &af_bulk).exp() );
+        assert_relative_eq!( pileup.posterior_prob(&af_single, &af_bulk).exp(), 0.7638308384780408, epsilon = 0.0000000000000001 );
+        let (sc, blk) = pileup.map_allele_freqs();
+        println!("SCBM hom ref: pileup.map_allele_freqs: ({} {})", sc, blk );
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.0), AlleleFreq(0.0) ) );
+
+        // test maximum a posteriori allele frequency estimates with alt reads
+        let single_obs = create_obs_vector(57, 3);
+        let bulk_obs = create_obs_vector(27, 3);
+
+        let pileup = PairPileup::new(
+            single_obs.clone(),
+            bulk_obs.clone(),
+            variant,
+            &model,
+            single_sample_model,
+            bulk_sample_model
+        );
+        let (sc, blk) = pileup.map_allele_freqs();
+        println!("SCBM hom ref: pileup.map_allele_freqs: ({} {})", sc, blk );
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.0), AlleleFreq(0.1) ) );
+    }
+
+    #[test]
+    fn test_scbm_sc_hom_alt_germ() {
+
+        let model = SingleCellBulkModel::new(2);
+
+        // single cell is hom ref against hom ref germline
+        let af_single = vec![AlleleFreq(1.0)];
+        let af_bulk = AlleleFreq(0.5)..AlleleFreq(1.0);
+
+        let variant = Variant::SNV(b'T');
+
+        assert_eq!( model.prior_prob(af_single[0], AlleleFreq(0.0), variant), LogProb::ln_one() );
+
+        let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
+        let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
+
+        let single_obs = create_obs_vector(0, 5);
+        let bulk_obs = create_obs_vector(0, 5);
+
+        let pileup = PairPileup::new(
+            single_obs.clone(),
+            bulk_obs.clone(),
+            variant,
+            &model,
+            single_sample_model,
+            bulk_sample_model
+        );
+
+        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
+        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
+        println!("SCBM hom alt: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
+        assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 1.313681412668118, epsilon = 0.000000000000001 );
+        println!("SCBM hom alt: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
+        assert_relative_eq!( pileup.marginal_prob().exp(), 1.719859092473503, epsilon = 0.000000000000001 );
+        println!("SCBM hom alt: pileup.posterior_prob: {}", pileup.posterior_prob(&af_single, &af_bulk).exp() );
+        assert_relative_eq!( pileup.posterior_prob(&af_single, &af_bulk).exp(), 0.7638308384780408, epsilon = 0.0000000000000001 );
+        let (sc, blk) = pileup.map_allele_freqs();
+        println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk );
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(1.0), AlleleFreq(1.0) ) );
+
+        // test maximum a posteriori allele frequency estimates with alt reads
+        let single_obs = create_obs_vector(3, 57);
+        let bulk_obs = create_obs_vector(3, 27);
+
+        let pileup = PairPileup::new(
+            single_obs.clone(),
+            bulk_obs.clone(),
+            variant,
+            &model,
+            single_sample_model,
+            bulk_sample_model
+        );
+        let (sc, blk) = pileup.map_allele_freqs();
+        println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk );
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(1.0), AlleleFreq(0.9) ) );
+    }
+
+    #[test]
+    fn test_scbm_sc_hom_alt_som() {
+
+        let model = SingleCellBulkModel::new(2);
+
+        // single cell is hom ref against hom ref germline
+        let af_single = vec![AlleleFreq(1.0)];
+        let af_bulk = AlleleFreq(0.0)..AlleleFreq(0.5);
+
+        let variant = Variant::SNV(b'T');
+
+        assert_eq!( model.prior_prob(af_single[0], AlleleFreq(0.0), variant), LogProb::ln_one() );
+
+        let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
+        let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
+
+        let single_obs = create_obs_vector(0, 4);
+        let bulk_obs = create_obs_vector(3, 1);
+
+        let pileup = PairPileup::new(
+            single_obs.clone(),
+            bulk_obs.clone(),
+            variant,
+            &model,
+            single_sample_model,
+            bulk_sample_model
+        );
+
+        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
+        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
+        println!("SCBM hom alt: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
+        assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 0.158334464000367, epsilon = 0.0000000000000001 );
+        println!("SCBM hom alt: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
+        assert_relative_eq!( pileup.marginal_prob().exp(), 0.2267813569619291, epsilon = 0.0000000000000001 );
+        println!("SCBM hom alt: pileup.posterior_prob: {}", pileup.posterior_prob(&af_single, &af_bulk).exp() );
+        assert_relative_eq!( pileup.posterior_prob(&af_single, &af_bulk).exp(), 0.6981811297078858, epsilon = 0.0000000000000001 );
+        let (sc, blk) = pileup.map_allele_freqs();
+        println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk );
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(1.0), AlleleFreq(0.25) ) );
+
+        // test maximum a posteriori allele frequency estimates with alt reads
+        let single_obs = create_obs_vector(4, 56);
+        let bulk_obs = create_obs_vector(21, 9);
+
+        let pileup = PairPileup::new(
+            single_obs.clone(),
+            bulk_obs.clone(),
+            variant,
+            &model,
+            single_sample_model,
+            bulk_sample_model
+        );
+        let (sc, blk) = pileup.map_allele_freqs();
+        println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk );
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(1.0), AlleleFreq(0.3) ) );
     }
 }

@@ -234,11 +234,11 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use itertools_num::linspace;
-    use bio::stats::Prob;
-    use model::Variant;
+    use itertools::linspace;
+    use bio::stats::{Prob, LogProb};
+    use model::{AlleleFreq, likelihood, PairPileup, Variant};
     use model::priors::PairModel;
-    use model::AlleleFreq;
+    use model::sample::{Observation, Evidence};
 
     #[test]
     fn print_priors() {
@@ -252,5 +252,112 @@ mod tests {
             }
             println!("]");
         }
+    }
+
+    fn create_obs_vector(
+        n_obs_ref: usize,
+        n_obs_alt: usize
+    ) -> Vec<Observation> {
+        let obs_ref_abs = Observation {
+            prob_mapping: LogProb::ln_one(),
+            prob_alt: LogProb::ln_zero(),
+            prob_ref: LogProb::ln_one(),
+            prob_mismapped: LogProb::ln_one(),
+            evidence: Evidence::Alignment
+        };
+        let obs_alt_abs = Observation {
+            prob_mapping: LogProb::ln_one(),
+            prob_alt: LogProb::ln_one(),
+            prob_ref: LogProb::ln_zero(),
+            prob_mismapped: LogProb::ln_one(),
+            evidence: Evidence::Alignment
+        };
+
+        let mut obs = Vec::new();
+        for _ in 0..n_obs_ref {
+            obs.push(obs_ref_abs.clone());
+        }
+        for _ in 0..n_obs_alt {
+            obs.push(obs_alt_abs.clone());
+        }
+        obs
+    }
+
+    #[test]
+    fn test_tnm_het_zero() {
+
+        let heterozygosity = Prob(0.0);//Prob(1.25E-4);
+        let model = TumorNormalModel::new(2, 3000.0, 0.5, 0.5, 3e9 as u64, heterozygosity);
+
+        // tumor and normal both hom ref
+        let af_tumor = AlleleFreq(0.0)..AlleleFreq(0.0);
+        let af_normal = vec![AlleleFreq(0.0)];
+
+        let variant = Variant::SNV(b'T');
+
+        let tumor_sample_model = likelihood::LatentVariableModel::new(1.0);
+        let normal_sample_model = likelihood::LatentVariableModel::new(1.0);
+
+        let tumor_obs = create_obs_vector(5, 0);
+        let normal_obs = create_obs_vector(5, 0);
+
+        let pileup = PairPileup::new(
+            tumor_obs.clone(),
+            normal_obs.clone(),
+            variant,
+            &model,
+            tumor_sample_model,
+            normal_sample_model
+        );
+        assert_eq!( model.prior_prob(af_tumor.start, af_normal[0], variant), LogProb::ln_one());
+        assert_eq!( pileup.joint_prob(&af_tumor, &af_normal), LogProb::ln_one() );
+        assert_relative_eq!(pileup.posterior_prob(&af_tumor, &af_normal).exp(), 1.0, epsilon = 0.008);
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.0), AlleleFreq(0.0) ) );
+    }
+
+    #[test]
+    fn test_tnm_het_real() {
+
+        let heterozygosity = Prob(1.25E-4);
+        let model = TumorNormalModel::new(2, 3000.0, 0.5, 0.5, 3e9 as u64, heterozygosity);
+
+        // tumor and normal both hom ref
+        let af_tumor = AlleleFreq(0.0)..AlleleFreq(0.0);
+        let af_normal = vec![AlleleFreq(0.0)];
+
+        let variant = Variant::SNV(b'T');
+
+        let tumor_sample_model = likelihood::LatentVariableModel::new(1.0);
+        let normal_sample_model = likelihood::LatentVariableModel::with_single_sample();
+
+        let tumor_obs = create_obs_vector(5, 0);
+        let normal_obs = create_obs_vector(5, 0);
+
+        let pileup = PairPileup::new(
+            tumor_obs.clone(),
+            normal_obs.clone(),
+            variant,
+            &model,
+            tumor_sample_model,
+            normal_sample_model
+        );
+
+        // priors assuming: heterozygosity = 1.25E-4, ploidy = 2
+        let normal_prior_prob = 0.9998125;
+        println!("TNM.somatic_prior_prob(af_tumor.start = {}): {}", af_tumor.start, model.somatic_prior_prob(af_tumor.start, variant).exp() );
+        assert_eq!( model.somatic_prior_prob(af_tumor.start, variant), LogProb::ln_one() );
+        println!("TNM.normal_prior_prob(af_normal[0] = {}): {}", af_normal[0], model.normal_prior_prob(af_normal[0], variant).exp() );
+        assert_eq!( model.normal_prior_prob(af_normal[0], variant).exp(), normal_prior_prob );
+        println!("TNM.prior_prob(af_tumor.start = {}, af_normal[0] = {}): {}", af_tumor.start, af_normal[0], model.prior_prob(af_tumor.start, af_normal[0], variant).exp() );
+        assert_eq!( model.prior_prob(af_tumor.start, af_normal[0], variant).exp(), normal_prior_prob );
+        let aft_full = model.allele_freqs().0;
+        let afn_full = model.allele_freqs().1;
+        assert_eq!( pileup.joint_prob(&af_tumor, &af_normal).exp(), normal_prior_prob );
+        println!("pileup.joint_prob(af_tumor, af_normal): {}", pileup.joint_prob(&af_tumor, &af_normal).exp() );
+        println!("pileup.joint_prob(full spectrum): {}", pileup.joint_prob(&aft_full, &afn_full).exp() );
+        println!("pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
+        println!("pileup.posterior_prob: {}", pileup.posterior_prob(&af_tumor, &af_normal).exp() );
+        assert_eq!(pileup.posterior_prob(&af_tumor, &af_normal).exp(), 0.9933008088509733);
+        assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.0), AlleleFreq(0.0) ) );
     }
 }
