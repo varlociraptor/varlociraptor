@@ -29,7 +29,7 @@ impl SingleCellBulkModel {
         let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
         SingleCellBulkModel {
             allele_freqs_single: allele_freqs,
-            allele_freqs_bulk: AlleleFreq(0.0)..AlleleFreq(1.0),
+            allele_freqs_bulk: AlleleFreq(0.0)..AlleleFreq(1.0)
         }
     }
 
