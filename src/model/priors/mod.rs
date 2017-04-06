@@ -1,5 +1,6 @@
 pub mod infinite_sites_neutral_variation;
 pub mod tumor_normal;
+pub mod single_cell_bulk;
 // TODO disable Tumor-Normal-Relapse model until i
 //pub mod tumor_normal_relapse;
 pub mod flat;
@@ -11,6 +12,7 @@ use model::{Variant, AlleleFreqs, AlleleFreq};
 
 pub use priors::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel;
 pub use priors::tumor_normal::TumorNormalModel;
+pub use priors::single_cell_bulk::SingleCellBulkModel;
 //pub use priors::tumor_normal_relapse::TumorNormalRelapseModel;
 pub use priors::flat::FlatTumorNormalModel;
 pub use priors::flat::FlatNormalNormalModel;

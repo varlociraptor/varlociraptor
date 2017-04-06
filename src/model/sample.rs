@@ -686,6 +686,7 @@ mod tests {
     use likelihood;
 
     use csv;
+    use std::str;
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
@@ -974,7 +975,7 @@ mod tests {
 
         // variant (obtained via bcftools)
         let start = 546;
-        let variant = Variant::Insertion(10);
+        let variant = model::Variant::Insertion(10);
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
             let (prob_ref, prob_alt) = prob_read_indel(rec, &rec.cigar(), start, variant, &ref_seq);

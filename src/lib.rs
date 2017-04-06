@@ -21,6 +21,7 @@ extern crate quick_error;
 extern crate csv;
 #[macro_use]
 extern crate lazy_static;
+extern crate statrs;
 
 #[cfg(feature="flame_it")]
 extern crate flame;
