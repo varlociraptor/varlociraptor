@@ -1,5 +1,6 @@
 pub mod infinite_sites_neutral_variation;
 pub mod tumor_normal;
+pub mod single_cell_bulk;
 // TODO disable Tumor-Normal-Relapse model until i
 //pub mod tumor_normal_relapse;
 pub mod flat;
