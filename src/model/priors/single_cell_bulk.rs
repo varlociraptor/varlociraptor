@@ -113,8 +113,9 @@ impl SingleCellBulkModel {
 impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkModel {
 
     fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: Variant) -> LogProb {
-        // TODO: stick in the InfiniteSitesNeutralVariationModel here?
-        LogProb::ln_one()
+        // TODO: stick in meaningful prior for the bulk sample, derivative of InfiniteSitesNeutralVariationModel?
+        // TODO: create a
+        panic!("Priors are currently unsupported in the SingleCellBulkModel, feel free to implement them.")
     }
 
     fn joint_prob<L, O>(
@@ -246,7 +247,6 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
 mod tests {
     use super::*;
     use bio::stats::LogProb;
-    use model::priors::PairModel;
     use model::{AlleleFreq, likelihood, Variant, PairPileup};
     use model::sample::{Observation, Evidence};
 
@@ -359,8 +359,6 @@ mod tests {
 
         let variant = Variant::SNV(b'T');
 
-        assert_eq!( model.prior_prob(af_single[0], AlleleFreq(0.0), variant), LogProb::ln_one() );
-
         let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
         let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
 
@@ -376,8 +374,8 @@ mod tests {
             bulk_sample_model
         );
 
-        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
-        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
+//        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
+//        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
         println!("SCBM het: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 0.00019473983947767667, epsilon = 0.000000000000000001 );
         println!("SCBM het: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
@@ -416,8 +414,6 @@ mod tests {
 
         let variant = Variant::SNV(b'T');
 
-        assert_eq!( model.prior_prob(af_single[0], AlleleFreq(0.0), variant), LogProb::ln_one() );
-
         let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
         let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
 
@@ -433,8 +429,8 @@ mod tests {
             bulk_sample_model
         );
 
-        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
-        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
+//        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
+//        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
         println!("SCBM hom ref: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 1.313681412668118, epsilon = 0.000000000000001 );
         println!("SCBM hom ref: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
@@ -473,8 +469,6 @@ mod tests {
 
         let variant = Variant::SNV(b'T');
 
-        assert_eq!( model.prior_prob(af_single[0], AlleleFreq(0.0), variant), LogProb::ln_one() );
-
         let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
         let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
 
@@ -490,8 +484,8 @@ mod tests {
             bulk_sample_model
         );
 
-        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
-        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
+//        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
+//        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
         println!("SCBM hom alt: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 1.313681412668118, epsilon = 0.000000000000001 );
         println!("SCBM hom alt: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
@@ -530,8 +524,6 @@ mod tests {
 
         let variant = Variant::SNV(b'T');
 
-        assert_eq!( model.prior_prob(af_single[0], AlleleFreq(0.0), variant), LogProb::ln_one() );
-
         let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
         let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
 
@@ -547,8 +539,8 @@ mod tests {
             bulk_sample_model
         );
 
-        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
-        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
+//        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
+//        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
         println!("SCBM hom alt: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 0.158334464000367, epsilon = 0.0000000000000001 );
         println!("SCBM hom alt: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
