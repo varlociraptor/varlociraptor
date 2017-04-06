@@ -11,6 +11,7 @@ use model::{Variant, AlleleFreqs, AlleleFreq};
 
 pub use priors::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel;
 pub use priors::tumor_normal::TumorNormalModel;
+pub use priors::single_cell_bulk::SingleCellBulkModel;
 //pub use priors::tumor_normal_relapse::TumorNormalRelapseModel;
 pub use priors::flat::FlatTumorNormalModel;
 pub use priors::flat::FlatNormalNormalModel;
