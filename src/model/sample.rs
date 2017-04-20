@@ -47,7 +47,8 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
         for c in cigar {
             match c {
                 // potential SNV evidence
-                &Cigar::Match(l) | &Cigar::Diff(l) if contains_start(pos, l) => {
+                &Cigar::Match(l) | &Cigar::Diff(l) | &Cigar::Equal(l) if contains_start(pos, l) => {
+                    qpos = start - pos as u32;
                     let read_base = record.seq()[qpos as usize];
                     let base_qual = record.qual()[qpos as usize];
                     let prob_alt = prob_read_base(read_base, base, base_qual);
@@ -514,7 +515,7 @@ impl Sample {
         let (end, varpos) = match variant {
             Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
             Variant::Insertion(length) => (start + length, start as i32),
-            Variant::SNV(_) => (start, start as i32)
+            Variant::SNV(_) => (start + 1, start as i32)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
