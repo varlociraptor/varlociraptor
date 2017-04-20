@@ -514,7 +514,7 @@ impl Sample {
         let (end, varpos) = match variant {
             Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
             Variant::Insertion(length) => (start + length, start as i32),
-            Variant::SNV(_) => (start, start as i32)
+            Variant::SNV(_) => (start + 1, start as i32)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
