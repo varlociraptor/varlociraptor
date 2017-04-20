@@ -47,7 +47,8 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
         for c in cigar {
             match c {
                 // potential SNV evidence
-                &Cigar::Match(l) | &Cigar::Diff(l) if contains_start(pos, l) => {
+                &Cigar::Match(l) | &Cigar::Diff(l) | &Cigar::Equal(l) if contains_start(pos, l) => {
+                    qpos = start - pos as u32;
                     let read_base = record.seq()[qpos as usize];
                     let base_qual = record.qual()[qpos as usize];
                     let prob_alt = prob_read_base(read_base, base, base_qual);
