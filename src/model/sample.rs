@@ -89,7 +89,7 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
 /// both the alt and the ref case equally.
 pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
-    let pos = record.pos() as u32;
+    let mut pos = record.pos() as u32;
     let read_seq = record.seq();
     let m = read_seq.len() as u32;
     let quals = record.qual();
@@ -99,6 +99,11 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         let read_base = read_seq[read_pos as usize];
         prob_read_base(read_base, ref_base, quals[read_pos as usize])
     };
+
+    // softclips at the left side have to be subtracted from mapping position
+    if let Cigar::SoftClip(l) = cigar[0] {
+        pos -= l;
+    }
 
     // indels can lead to shifts in the mapping position
     // since we don't know whether any indel comes before our indel of interest, we have to consider
