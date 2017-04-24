@@ -161,7 +161,17 @@ pub fn call<A, B, P, M, R, W, X, F>(
         outbcf.translate(&mut record);
         let pileups = try!(pileups(&inbcf, &mut record, pair_model, &mut reference_buffer, omit_snvs, omit_indels, max_indel_len, exclusive_end));
 
-        if !pileups.is_empty() {
+        if !pileups.is_empty() && {
+            let mut non_empty = true;
+            for pileup in pileups.iter() {
+                if let &Some(ref pileup) = pileup {
+                    non_empty = non_empty && pileup.case_observations().len() > 0 && pileup.control_observations().len() > 0;
+                }
+            }
+            non_empty
+        }
+/*        pileups.iter().fold(true, |non_empty, let &Some(ref x) = x| non_empty && (x > 0) ) &&
+            pileups.iter().fold(true, |non_empty, &x| non_empty && (x.unwrap().control_observations().len() > 0) )*/{
             if let Some(ref mut outobs) = outobs {
                 let chrom = str::from_utf8(chrom(&inbcf, &record)).unwrap();
                 for (i, pileup) in pileups.iter().enumerate() {
