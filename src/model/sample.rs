@@ -538,6 +538,7 @@ impl Sample {
             let end_pos = record.end_pos(&cigar);
             // TODO do we also need to consider reads between start and end?
             if ((pos as u32) <= start && (end_pos as u32) >= start) || ((pos as u32) <= end && (end_pos as u32) >= end) {
+                debug!("pos={}, end_pos={}, start={}, end={}", pos, end_pos, start, end);
                 // overlapping alignment
                 observations.push(self.read_observation(&record, &cigar, start, variant, chrom_seq));
                 n_overlap += 1;
