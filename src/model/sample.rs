@@ -533,9 +533,20 @@ impl Sample {
 
         // iterate over records
         for record in self.record_buffer.iter() {
-            let pos = record.pos();
             let cigar = record.cigar();
-            let end_pos = record.end_pos(&cigar);
+            let mut pos = record.pos();
+            let mut end_pos = record.end_pos(&cigar);
+
+            if variant.is_indel() {
+                // consider soft clips for overlap detection
+                if let Cigar::SoftClip(l) = cigar[0] {
+                    pos = pos.wrapping_sub(l as i32);
+                }
+                if let Cigar::SoftClip(l) = cigar[cigar.len() - 1] {
+                    end_pos += l as i32;
+                }
+            }
+
             // TODO do we also need to consider reads between start and end?
             if ((pos as u32) <= start && (end_pos as u32) >= start) || ((pos as u32) <= end && (end_pos as u32) >= end) {
                 debug!("pos={}, end_pos={}, start={}, end={}", pos, end_pos, start, end);
