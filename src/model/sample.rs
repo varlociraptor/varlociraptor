@@ -164,9 +164,11 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         }
 
         if log_enabled!(Debug) {
-            alt_matches.as_mut().unwrap().push('|');
-            ref_matches.as_mut().unwrap().push('|');
-            ref_matches.as_mut().unwrap().push('|');
+            if prefix_end != 0 {
+                alt_matches.as_mut().unwrap().push('|');
+                ref_matches.as_mut().unwrap().push('|');
+                ref_matches.as_mut().unwrap().push('|');
+            }
         }
 
         // ref likelihood
@@ -223,6 +225,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                             let x = debug_match(i, p + i - l);
                             alt_matches.as_mut().unwrap().push(x);
                         }
+                    }
+
+                    if log_enabled!(Debug) {
+                        alt_matches.as_mut().unwrap().push('|');
                     }
                 }
 
