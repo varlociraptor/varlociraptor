@@ -211,7 +211,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
             },
             Variant::Deletion(l) => {
                 // reduce length if deletion is left of p
-                let l = if start >= p { l as u32 } else { l - (p - start) };
+                let l = if start >= p { l as u32 } else { l - (p - start) + 1 };
                 // TODO this will miss one base in some cases.
                 // but it is needed because some callers specify calls as GAA->G and some as AA->*
                 // a better place to fix is when parsing the vcf file.
