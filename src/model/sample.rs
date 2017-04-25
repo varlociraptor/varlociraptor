@@ -236,8 +236,9 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                 };
 
 
-                // reduce length if deletion is left of p
-                let l = if left_of { l as u32 } else { l - (p - start) };
+                // if deletion is left of p, l shall not shift the matches because read has been
+                // aligned after the deletion
+                let l = if left_of { l as u32 } else { 0 };
 
 
                 for i in suffix_start..m {
