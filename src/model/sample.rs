@@ -210,12 +210,35 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                 }
             },
             Variant::Deletion(l) => {
+                let left_of = start > p;
+
+                if !left_of {
+                    // match prefix before deletion (otherwise, this has been done above)
+                    let prefix_end = start + l - p;
+                    for i in 0..prefix_end {
+                        let prob = prob_read_base(i, p + i - l);
+                        prob_alt = prob_alt + prob;
+
+                        if log_enabled!(Debug) {
+                            let x = debug_match(i, p + i - l);
+                            alt_matches.as_mut().unwrap().push(x);
+                        }
+                    }
+                }
+
+                let suffix_start = if left_of {
+                    // TODO this will miss one base in some cases.
+                    // but it is needed because some callers specify calls as GAA->G and some as AA->*
+                    // a better place to fix is when parsing the vcf file.
+                    (start + 1).saturating_sub(p)
+                } else {
+                    start + l - p
+                };
+
+
                 // reduce length if deletion is left of p
-                let l = if start >= p { l as u32 } else { l - (p - start) - 1 };
-                // TODO this will miss one base in some cases.
-                // but it is needed because some callers specify calls as GAA->G and some as AA->*
-                // a better place to fix is when parsing the vcf file.
-                let suffix_start = (start + 1).saturating_sub(p);
+                let l = if left_of { l as u32 } else { l - (p - start) };
+
 
                 for i in suffix_start..m {
                     let prob = prob_read_base(i, p + i + l);
@@ -540,7 +563,7 @@ impl Sample {
             if variant.is_indel() {
                 // consider soft clips for overlap detection
                 if let Cigar::SoftClip(l) = cigar[0] {
-                    pos = pos.wrapping_sub(l as i32);
+                    pos = pos.saturating_sub(l as i32);
                 }
                 if let Cigar::SoftClip(l) = cigar[cigar.len() - 1] {
                     end_pos += l as i32;
