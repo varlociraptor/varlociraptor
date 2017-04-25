@@ -627,7 +627,7 @@ impl Sample {
         chrom_seq: &[u8]
     ) -> Observation {
         let prob_mapping = self.prob_mapping(record.mapq());
-        debug!("prob_mapping={}", prob_mapping);
+        debug!("prob_mapping={}", *prob_mapping);
 
         let (prob_ref, prob_alt) = match variant {
             Variant::Deletion(_) | Variant::Insertion(_) => {
