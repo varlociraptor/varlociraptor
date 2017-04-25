@@ -53,12 +53,12 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], vpos: u32, variant: 
                 &Cigar::Match(_) |
                 &Cigar::Diff(_)  |
                 &Cigar::Equal(_) |
+                &Cigar::Ins(_)   | // this is unexpected, but bwa + GATK indel realignment can produce insertions before matching positions
                 &Cigar::SoftClip(_) => {
                     c = i;
                     break;
                 },
                 &Cigar::Del(_) => panic!("Cigar String: Unexpected Deletion operation found before any reference match."),
-                &Cigar::Ins(_) => panic!("Cigar String: Unexpected Insertion operation found before any reference match."),
                 &Cigar::Back(_) => panic!("Back: Unsupported Cigar operation (not in SAMv1 spec)."),
                 &Cigar::Pad(_) => panic!("Pad: Unsupported Cigar operation (unclear SAMv1 spec)."),
                 &Cigar::RefSkip(_) => panic!("Cigar String: Unexpected Reference Skip operation found before any reference match."),
