@@ -118,7 +118,6 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     let pos_min = cmp::max(pos.saturating_sub(total_indel_len), start.saturating_sub(m));
     // exclusive upper bound
     let pos_max = pos + total_indel_len + 1;
-    debug!("--------------");
     debug!("cigar: {:?}", cigar);
     debug!("calculating indel likelihood for shifts within {} - {}", pos_min, pos_max);
     assert!(pos >= pos_min && pos <= pos_max, "original mapping position should be within the evaluated shifts");
@@ -561,6 +560,8 @@ impl Sample {
 
         // iterate over records
         for record in self.record_buffer.iter() {
+            debug!("--------------");
+
             let cigar = record.cigar();
             let mut pos = record.pos();
             let mut end_pos = record.end_pos(&cigar);
