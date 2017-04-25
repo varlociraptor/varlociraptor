@@ -35,41 +35,73 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
     }
 }
 
-
 /// For an SNV, calculate likelihood of ref (first) or alt (second) for a given read, i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
 /// This follows Samtools and GATK.
-pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
-    let contains_start = |pos: i32, cigar_length: u32|  pos as u32 <= start && pos as u32 + cigar_length >= start;
+/// TODO: Add cigar string parsing tests for SNVs.
+/// TODO: Implement more general cigar parsing function analogous to htslib resolve_cigar2 (sam.c) somewhere more central in libprosic.
+pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], vpos: u32, variant: Variant, ref_seq: &[u8]) -> Option<(LogProb, LogProb)> {
+    let contains_vpos = |pos: u32, cigar_length: u32|  pos <= vpos && pos + cigar_length >= vpos;
 
     if let Variant::SNV(base) = variant {
-        let mut pos = record.pos();
-        let mut qpos = 0;
-        for c in cigar {
-            match c {
+        let mut rpos = record.pos() as u32; // reference position
+        let mut qpos = 0u32; // position within query / read / observation
+        let mut c = 0; // index into cigar operation vector
+        // find first cigar operation referring to qpos = 0 (and thus bases in record.seq()), because
+        // all augmentations of qpos and rpos before that are invalid
+        for i in 0..cigar.len() {
+            match &cigar[i] {
+                &Cigar::Match(_) |
+                &Cigar::Diff(_)  |
+                &Cigar::Equal(_) |
+                &Cigar::SoftClip(_) => {
+                    c = i;
+                    break;
+                },
+                &Cigar::Del(_) => panic!("Cigar String: Unexpected Deletion operation found before any reference match."),
+                &Cigar::Ins(_) => panic!("Cigar String: Unexpected Insertion operation found before any reference match."),
+                &Cigar::Back(_) => panic!("Back: Unsupported Cigar operation (not in SAMv1 spec)."),
+                &Cigar::Pad(_) => panic!("Pad: Unsupported Cigar operation (unclear SAMv1 spec)."),
+                &Cigar::RefSkip(_) => panic!("Cigar String: Unexpected Reference Skip operation found before any reference match."),
+                &Cigar::HardClip(_) => ()
+            }
+
+        }
+        while rpos <= vpos {
+            match &cigar[c] {
                 // potential SNV evidence
-                &Cigar::Match(l) | &Cigar::Diff(l) | &Cigar::Equal(l) if contains_start(pos, l) => {
-                    qpos = start - pos as u32;
+                &Cigar::Match(l) | &Cigar::Diff(l) | &Cigar::Equal(l) if contains_vpos(rpos, l) => {
+                    qpos += vpos - rpos; // difference between vpos and first position of current cigar operation
                     let read_base = record.seq()[qpos as usize];
                     let base_qual = record.qual()[qpos as usize];
                     let prob_alt = prob_read_base(read_base, base, base_qual);
-                    let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
-                    return (prob_ref, prob_alt);
+                    let prob_ref = prob_read_base(read_base, ref_seq[vpos as usize], base_qual);
+                    return Some( (prob_ref, prob_alt) );
                 },
                 // for others, just increase pos and qpos as needed
                 &Cigar::Match(l)   |
-                &Cigar::RefSkip(l) |
-                &Cigar::Equal(l)   |
                 &Cigar::Diff(l)    |
-                &Cigar::Ins(l)  => {
-                    pos += l as i32;
+                &Cigar::Equal(l)   => {
+                    rpos += l;
                     qpos += l;
+                    c += 1;
                 },
-                &Cigar::Del(l)  => pos += l as i32,
-                &Cigar::Back(l) => pos -= l as i32,
-                _ => ()
+                &Cigar::SoftClip(l) |
+                &Cigar::Ins(l)  => {
+                    qpos += l;
+                    c += 1;
+                },
+                &Cigar::RefSkip(l) |
+                &Cigar::Del(l)  => {
+                    rpos += l;
+                    c += 1;
+                },
+                &Cigar::HardClip(_) => return None,
+                &Cigar::Back(_) => panic!("Back: Unsupported Cigar operation (not in SAMv1 spec)."),
+                &Cigar::Pad(_) => panic!("Pad: Unsupported Cigar operation (unclear SAMv1 spec).")
             }
         }
-        panic!("read does not enclose SNV");
+        // if no SNV evidence is found before passing the vpos, must be
+        return None;
     } else {
         panic!("unsupported variant");
     }
@@ -534,9 +566,31 @@ impl Sample {
             let end_pos = record.end_pos(&cigar);
             // TODO do we also need to consider reads between start and end?
             if ((pos as u32) < start && (end_pos as u32) > start) || ((pos as u32) < end && (end_pos as u32) > end) {
-                // overlapping alignment
-                observations.push(self.read_observation(&record, &cigar, start, variant, chrom_seq));
-                n_overlap += 1;
+                match variant {
+                    Variant::Deletion(_) | Variant::Insertion(_) => {
+                        // overlapping indel alignment
+                        let obs = self.read_observation(&record, &cigar, start, variant, chrom_seq);
+                        match obs {
+                            Some(o) => {
+                                observations.push(o);
+                                n_overlap += 1;
+                            },
+                            None => ()
+                        }
+                    },
+                    Variant::SNV(_) => {
+                        let obs = self.read_observation(&record, &cigar, start, variant, chrom_seq);
+                        match obs {
+                            Some(o) => {
+                                observations.push(o);
+                                n_overlap += 1;
+                            },
+                            None => {
+                                debug!("Did not add record to buffer, SNV position deleted or skipped.");
+                            }
+                        }
+                    }
+                }
             } else if variant.has_fragment_evidence() &&
                       self.use_fragment_evidence &&
                       (record.is_first_in_template() || record.is_last_in_template())
@@ -581,24 +635,30 @@ impl Sample {
         start: u32,
         variant: Variant,
         chrom_seq: &[u8]
-    ) -> Observation {
+    ) -> Option<Observation> {
         let prob_mapping = self.prob_mapping(record.mapq());
+        let probs: Option<(LogProb, LogProb)>;
 
-        let (prob_ref, prob_alt) = match variant {
+        match variant {
             Variant::Deletion(_) | Variant::Insertion(_) => {
-                prob_read_indel(record, cigar, start, variant, chrom_seq)
+                probs = Some(prob_read_indel(record, cigar, start, variant, chrom_seq));
             },
             Variant::SNV(_) => {
-                prob_read_snv(record, cigar, start, variant, chrom_seq)
+                probs = prob_read_snv(record, cigar, start, variant, chrom_seq);
             }
         };
 
-        Observation {
-            prob_mapping: prob_mapping,
-            prob_alt: prob_alt,
-            prob_ref: prob_ref,
-            prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::Alignment
+        match probs {
+            Some( (prob_ref, prob_alt) ) => {
+                Some ( Observation {
+                    prob_mapping: prob_mapping,
+                    prob_alt: prob_alt,
+                    prob_ref: prob_ref,
+                    prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                    evidence: Evidence::Alignment
+                } )
+            },
+            None => None
         }
     }
 
@@ -878,9 +938,14 @@ mod tests {
             let record = record.unwrap();
             let cigar = record.cigar();
             let obs = sample.read_observation(&record, &cigar, varpos, variant, &ref_seq);
-            assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.001);
-            assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
-            assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
+            match obs {
+                Some(o) => {
+                    assert_relative_eq!(*o.prob_alt, *true_alt_prob, epsilon=0.001);
+                    assert_relative_eq!(*o.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
+                    assert_relative_eq!(*o.prob_mismapped, *LogProb::ln_one());
+                },
+                None => panic!("read_observation() in test_read_observation_indel() returned 'None'")
+            }
         }
     }
 
