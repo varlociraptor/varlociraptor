@@ -146,6 +146,8 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         let mut prob_ref = LogProb::ln_one();
         let mut prob_alt = LogProb::ln_one();
 
+        let left_of = start > p;
+
         // TODO consider the case that a deletion is made invisible via an insertion of the same size and vice versa?
 
         let prefix_end = start.saturating_sub(p);
@@ -212,8 +214,6 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                 }
             },
             Variant::Deletion(l) => {
-                let left_of = start > p;
-
                 if !left_of {
                     // match prefix before deletion (otherwise, this has been done above)
                     let prefix_end = start + l - p;
@@ -241,11 +241,9 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                     start + l - p
                 };
 
-
                 // if deletion is left of p, l shall not shift the matches because read has been
                 // aligned after the deletion
                 let l = if left_of { l as u32 } else { 0 };
-
 
                 for i in suffix_start..m {
                     let prob = prob_read_base(i, p + i + l);
@@ -629,6 +627,7 @@ impl Sample {
         chrom_seq: &[u8]
     ) -> Observation {
         let prob_mapping = self.prob_mapping(record.mapq());
+        debug!("prob_mapping={}", prob_mapping);
 
         let (prob_ref, prob_alt) = match variant {
             Variant::Deletion(_) | Variant::Insertion(_) => {
