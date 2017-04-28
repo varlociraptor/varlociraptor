@@ -606,6 +606,8 @@ impl Sample {
                             // mate already visited, and this read maps right of varpos
                             observations.push(self.fragment_observation(&record, *mate_mapq, variant));
                         }
+                    } else {
+                        debug!("skipping record: no fragment evindence and overlap={}", overlap);
                     }
                 }
             }
