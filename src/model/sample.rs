@@ -568,7 +568,7 @@ impl Sample {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     debug!("--------------");
-                    let skipped = false;
+                    let mut skipped = false;
                     let cigar = record.cigar();
                     let mut pos = record.pos() as u32;
                     let mut end_pos = record.end_pos(&cigar) as u32;
