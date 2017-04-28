@@ -144,6 +144,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     };
 
     for p in pos_min..pos_max {
+        let end = start + variant.len();
         if !(p <= start && p + m >= start) && !(p <= end && p + m >= end) {
             // shift does not overlap the variant
             continue;

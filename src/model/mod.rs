@@ -75,6 +75,13 @@ impl Variant {
             _ => false
         }
     }
+
+    pub fn len(&self) -> u32 {
+        match self {
+            &Variant::Deletion(l) | &Variant::Insertion(l) => l,
+            &Variant::SNV(_)       => 1
+        }
+    }
 }
 
 
