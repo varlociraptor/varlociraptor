@@ -568,6 +568,7 @@ impl Sample {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     debug!("--------------");
+                    let skipped = false;
                     let cigar = record.cigar();
                     let mut pos = record.pos() as u32;
                     let mut end_pos = record.end_pos(&cigar) as u32;
@@ -608,8 +609,14 @@ impl Sample {
                             // mate already visited, and this read maps right of varpos
                             debug!("fragment evidence: downstream read");
                             observations.push(self.fragment_observation(&record, *mate_mapq, variant));
+                        } else {
+                            skipped = true;
                         }
                     } else {
+                        skipped = true;
+                    }
+
+                    if skipped {
                         debug!("skipping record: no fragment evindence and overlap={}", overlap);
                     }
                 }
