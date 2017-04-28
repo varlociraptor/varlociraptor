@@ -90,7 +90,7 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// both the alt and the ref case equally.
 pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
     debug!("--------------");
-    
+
     let mut pos = record.pos() as u32;
     let read_seq = record.seq();
     let m = read_seq.len() as u32;
@@ -144,6 +144,11 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     };
 
     for p in pos_min..pos_max {
+        if !(p <= start && p + m >= start) && !(p <= end && p + m >= end) {
+            // shift does not overlap the variant
+            continue;
+        }
+
         let mut prob_ref = LogProb::ln_one();
         let mut prob_alt = LogProb::ln_one();
 
