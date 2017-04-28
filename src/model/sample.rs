@@ -89,6 +89,8 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
 /// both the alt and the ref case equally.
 pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
+    debug!("--------------");
+    
     let mut pos = record.pos() as u32;
     let read_seq = record.seq();
     let m = read_seq.len() as u32;
@@ -567,8 +569,6 @@ impl Sample {
             Variant::Insertion(l) | Variant::Deletion(l) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
-                    debug!("--------------");
-                    let mut skipped = false;
                     let cigar = record.cigar();
                     let mut pos = record.pos() as u32;
                     let mut end_pos = record.end_pos(&cigar) as u32;
@@ -589,7 +589,6 @@ impl Sample {
 
                     if overlap > 0 {
                         if overlap <= self.max_indel_overlap {
-                            debug!("read evidence");
                             observations.push(
                                 self.read_observation(&record, &cigar, start, variant, chrom_seq)
                             );
@@ -602,22 +601,12 @@ impl Sample {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
                             if record.mpos() as u32 >= varpos {
-                                debug!("fragment evidence: upstream read");
                                 pairs.insert(record.qname().to_owned(), record.mapq());
                             }
                         } else if let Some(mate_mapq) = pairs.get(record.qname()) {
                             // mate already visited, and this read maps right of varpos
-                            debug!("fragment evidence: downstream read");
                             observations.push(self.fragment_observation(&record, *mate_mapq, variant));
-                        } else {
-                            skipped = true;
                         }
-                    } else {
-                        skipped = true;
-                    }
-
-                    if skipped {
-                        debug!("skipping record: no fragment evindence and overlap={}", overlap);
                     }
                 }
             }
