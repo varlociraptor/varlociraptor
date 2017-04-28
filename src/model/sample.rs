@@ -588,6 +588,7 @@ impl Sample {
 
                     if overlap > 0 {
                         if overlap <= self.max_indel_overlap {
+                            debug!("read evidence");
                             observations.push(
                                 self.read_observation(&record, &cigar, start, variant, chrom_seq)
                             );
@@ -600,10 +601,12 @@ impl Sample {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
                             if record.mpos() as u32 >= varpos {
+                                debug!("fragment evidence: upstream read");
                                 pairs.insert(record.qname().to_owned(), record.mapq());
                             }
                         } else if let Some(mate_mapq) = pairs.get(record.qname()) {
                             // mate already visited, and this read maps right of varpos
+                            debug!("fragment evidence: downstream read");
                             observations.push(self.fragment_observation(&record, *mate_mapq, variant));
                         }
                     } else {
