@@ -474,8 +474,7 @@ pub struct Sample {
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
     prob_spurious_isize: LogProb,
-    max_indel_dist: u32,
-    max_indel_len_diff: u32
+    max_indel_overlap: u32,
 }
 
 
@@ -492,9 +491,7 @@ impl Sample {
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
     /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
     /// * `prob_spurious_isize` - rate of wrongly reported insert size abberations (mapper dependent, BWA: 0.01332338, LASER: 0.05922201)
-    /// * `prob_missed_insertion_alignment` - rate of missed insertion alignments if insertion is present (mapper dependent, BWA: 0.2138, LASER: 0.3460)
-    /// * `prob_missed_deletion_alignment` - rate of missed deletion alignments if deletion is present (mapper dependent, BWA: 0.0310, LASER: 0.0964)
-    /// * `prob_spurious_indel_alignment` - rate of wrongly reported indel alignments if indel is absent (mapper dependent)
+    /// * `max_indel_overlap` - maximum number of bases a read may be aligned beyond the start or end of an indel in order to be considered as an observation
     pub fn new(
         bam: bam::IndexedReader,
         pileup_window: u32,
@@ -505,6 +502,7 @@ impl Sample {
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_spurious_isize: Prob,
+        max_indel_overlap: u32,
     ) -> Self {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
@@ -514,19 +512,8 @@ impl Sample {
             insert_size: insert_size,
             likelihood_model: likelihood_model,
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
-            max_indel_dist: 50,
-            max_indel_len_diff: 20
+            max_indel_overlap: max_indel_overlap,
         }
-    }
-
-    pub fn max_indel_dist(mut self, dist: u32) -> Self {
-        self.max_indel_dist = dist;
-        self
-    }
-
-    pub fn max_indel_len_diff(mut self, diff: u32) -> Self {
-        self.max_indel_len_diff = diff;
-        self
     }
 
     /// Return likelihood model.
@@ -544,9 +531,9 @@ impl Sample {
     ) -> Result<Vec<Observation>, Box<Error>> {
         let mut observations = Vec::new();
         let (end, varpos) = match variant {
-            Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
-            Variant::Insertion(length) => (start + length, start as i32),
-            Variant::SNV(_) => (start, start as i32)
+            Variant::Deletion(length)  => (start + length, start + length / 2),
+            Variant::Insertion(length) => (start + length, start),
+            Variant::SNV(_) => (start, start)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
@@ -558,46 +545,72 @@ impl Sample {
         try!(self.record_buffer.fill(chrom, start, end));
         debug!("Done.");
 
-        // iterate over records
-        for record in self.record_buffer.iter() {
-            debug!("--------------");
 
-            let cigar = record.cigar();
-            let mut pos = record.pos();
-            let mut end_pos = record.end_pos(&cigar);
+        match variant {
+            Variant::SNV(_) => {
+                // iterate over records
+                for record in self.record_buffer.iter() {
+                    debug!("--------------");
+                    let pos = record.pos() as u32;
+                    let cigar = record.cigar();
+                    let end_pos = record.end_pos(&cigar) as u32;
 
-            if variant.is_indel() {
-                // consider soft clips for overlap detection
-                if let Cigar::SoftClip(l) = cigar[0] {
-                    pos = pos.saturating_sub(l as i32);
-                }
-                if let Cigar::SoftClip(l) = cigar[cigar.len() - 1] {
-                    end_pos += l as i32;
-                }
-            }
-
-            // TODO do we also need to consider reads between start and end?
-            if ((pos as u32) <= start && (end_pos as u32) >= start) || ((pos as u32) <= end && (end_pos as u32) >= end) {
-                debug!("pos={}, end_pos={}, start={}, end={}", pos, end_pos, start, end);
-                // overlapping alignment
-                observations.push(self.read_observation(&record, &cigar, start, variant, chrom_seq));
-                n_overlap += 1;
-            } else if variant.has_fragment_evidence() &&
-                      self.use_fragment_evidence &&
-                      (record.is_first_in_template() || record.is_last_in_template())
-            {
-                if end_pos <= varpos {
-                    // need to check mate
-                    // since the bam file is sorted by position, we can't see the mate first
-                    if record.mpos() >= varpos {
-                        pairs.insert(record.qname().to_owned(), record.mapq());
+                    if pos <= start && end_pos >= start {
+                        let cigar = record.cigar();
+                        observations.push(
+                            self.read_observation(&record, &cigar, start, variant, chrom_seq)
+                        );
+                        n_overlap += 1;
                     }
-                } else if let Some(mate_mapq) = pairs.get(record.qname()) {
-                    // mate already visited, and this read maps right of varpos
-                    observations.push(self.fragment_observation(&record, *mate_mapq, variant));
+                }
+            },
+            Variant::Insertion(l) | Variant::Deletion(l) => {
+                // iterate over records
+                for record in self.record_buffer.iter() {
+                    debug!("--------------");
+                    let cigar = record.cigar();
+                    let mut pos = record.pos() as u32;
+                    let mut end_pos = record.end_pos(&cigar) as u32;
+
+                    // consider soft clips for overlap detection
+                    if let Cigar::SoftClip(l) = cigar[0] {
+                        pos = pos.saturating_sub(l);
+                    }
+                    if let Cigar::SoftClip(l) = cigar[cigar.len() - 1] {
+                        end_pos += l;
+                    }
+
+                    let overlap = if end_pos <= end {
+                        cmp::min(end_pos.saturating_sub(start), l)
+                    } else {
+                        cmp::min(end.saturating_sub(pos), l)
+                    };
+
+                    if overlap > 0 {
+                        if overlap <= self.max_indel_overlap {
+                            observations.push(
+                                self.read_observation(&record, &cigar, start, variant, chrom_seq)
+                            );
+                            n_overlap += 1;
+                        }
+                    } else if self.use_fragment_evidence &&
+                       (record.is_first_in_template() || record.is_last_in_template()) {
+                        // TODO get rid of varpos
+                        if end_pos <= varpos {
+                            // need to check mate
+                            // since the bam file is sorted by position, we can't see the mate first
+                            if record.mpos() as u32 >= varpos {
+                                pairs.insert(record.qname().to_owned(), record.mapq());
+                            }
+                        } else if let Some(mate_mapq) = pairs.get(record.qname()) {
+                            // mate already visited, and this read maps right of varpos
+                            observations.push(self.fragment_observation(&record, *mate_mapq, variant));
+                        }
+                    }
                 }
             }
         }
+
         debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
 
         if self.adjust_mapq {
@@ -902,7 +915,8 @@ mod tests {
             false,
             InsertSize { mean: isize_mean, sd: 20.0 },
             likelihood::LatentVariableModel::new(1.0),
-            Prob(0.0)
+            Prob(0.0),
+            20
         )
     }
 

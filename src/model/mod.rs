@@ -399,7 +399,8 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.0)
+            Prob(0.0),
+            20
         );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
@@ -410,7 +411,8 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.0)
+            Prob(0.0),
+            20
         );
 
         let model = PairCaller::new(
@@ -607,6 +609,7 @@ mod tests {
             insert_size,
             LatentVariableModel::new(0.75),
             Prob(0.0),
+            20,
         );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
@@ -618,6 +621,7 @@ mod tests {
             insert_size,
             LatentVariableModel::new(1.0),
             Prob(0.0),
+            20,
         );
 
         let model = PairCaller::new(
@@ -668,7 +672,8 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(0.75),
-            Prob(0.00001)
+            Prob(0.00001),
+            20,
         );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
@@ -679,7 +684,8 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.00001)
+            Prob(0.00001),
+            20,
         );
 
 
@@ -718,7 +724,8 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(0.75),
-            Prob(0.00001)
+            Prob(0.00001),
+            20,
         );
         let control_sample = Sample::new(
             bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
@@ -729,7 +736,8 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.00001)
+            Prob(0.00001),
+            20,
         );
 
 
