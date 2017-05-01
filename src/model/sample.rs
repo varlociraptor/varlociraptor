@@ -554,9 +554,9 @@ impl Sample {
         chrom_seq: &[u8]
     ) -> Result<Vec<Observation>, Box<Error>> {
         let mut observations = Vec::new();
-        let (end, varpos) = match variant {
-            Variant::Deletion(length)  => (start + length, start + length / 2),
-            Variant::Insertion(length) => (start + length, start),
+        let end = match variant {
+            Variant::Deletion(length)  => start + length,
+            Variant::Insertion(length) => start,
             Variant::SNV(_) => (start, start)
         };
         let mut pairs = HashMap::new();
@@ -618,15 +618,14 @@ impl Sample {
                         }
                     } else if self.use_fragment_evidence &&
                        (record.is_first_in_template() || record.is_last_in_template()) {
-                        // TODO get rid of varpos
-                        if end_pos <= varpos {
+                        if end_pos <= start {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
-                            if record.mpos() as u32 >= varpos {
+                            if record.mpos() as u32 >= end {
                                 pairs.insert(record.qname().to_owned(), record.mapq());
                             }
                         } else if let Some(mate_mapq) = pairs.get(record.qname()) {
-                            // mate already visited, and this read maps right of varpos
+                            // mate already visited, and this read maps right of end
                             observations.push(self.fragment_observation(&record, *mate_mapq, variant));
                         }
                     }
