@@ -556,8 +556,8 @@ impl Sample {
         let mut observations = Vec::new();
         let end = match variant {
             Variant::Deletion(length)  => start + length,
-            Variant::Insertion(length) => start,
-            Variant::SNV(_) => (start, start)
+            Variant::Insertion(_) => start,
+            Variant::SNV(_) => start
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
