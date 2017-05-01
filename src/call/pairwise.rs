@@ -96,8 +96,8 @@ fn pileups<'a, A, B, P>(
 ///
 /// `Result` object with eventual error message.
 pub fn call<A, B, P, M, R, W, X, F>(
-    inbcf: Option<&R>,
-    outbcf: Option<&W>,
+    inbcf: Option<R>,
+    outbcf: Option<W>,
     fasta: &F,
     events: &[PairEvent<A, B>],
     complement_event: Option<&ComplementEvent>,
