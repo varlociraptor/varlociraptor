@@ -119,7 +119,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
     let fasta = try!(fasta::IndexedReader::from_file(fasta));
     let mut reference_buffer = utils::ReferenceBuffer::new(fasta);
 
-    let inbcf = try!(bcf::Reader::new(inbcf));
+    let inbcf = try!(bcf::Reader::from_path(inbcf));
     let mut header = bcf::Header::with_template(&inbcf.header);
     for event in events {
         header.push_record(
@@ -139,7 +139,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
         Description=\"Maximum a posteriori probability estimate of allele frequency in control sample.\">"
     );
 
-    let mut outbcf = try!(bcf::Writer::new(outbcf, &header, false, false));
+    let mut outbcf = try!(bcf::Writer::from_path(outbcf, &header, false, false));
     let mut outobs = if let Some(f) = outobs {
         let mut writer = try!(csv::Writer::from_file(f)).delimiter(b'\t');
         // write header for observations

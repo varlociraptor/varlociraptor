@@ -20,7 +20,7 @@ pub fn annotate<R, W, E>(inbcf: &R, outbcf: &W, events: &[E]) -> Result<(), Box<
     E: Event
 {
     // read probs
-    let reader = try!(bcf::Reader::new(&inbcf));
+    let reader = try!(bcf::Reader::from_path(&inbcf));
 
     let mut event_peps = Vec::new();
     for _ in 0..events.len() {
@@ -66,7 +66,7 @@ pub fn annotate<R, W, E>(inbcf: &R, outbcf: &W, events: &[E]) -> Result<(), Box<
     // write results
 
     // read bcf again
-    let reader = try!(bcf::Reader::new(&inbcf));
+    let reader = try!(bcf::Reader::from_path(&inbcf));
     let mut outbcf = {
         let mut header = bcf::Header::with_template(&reader.header);
         for event in events {
@@ -74,7 +74,7 @@ pub fn annotate<R, W, E>(inbcf: &R, outbcf: &W, events: &[E]) -> Result<(), Box<
                 event.header_entry("FDR", "PHRED-scaled FDR when considering this and all better").as_bytes()
             );
         }
-        try!(bcf::Writer::new(outbcf, &header, false, false))
+        try!(bcf::Writer::from_path(outbcf, &header, false, false))
     };
 
     let mut i = 0;

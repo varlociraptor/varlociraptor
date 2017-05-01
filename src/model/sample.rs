@@ -1,6 +1,7 @@
 use std::str;
 use std::collections::{HashMap, VecDeque, vec_deque};
 use std::cmp;
+use std::fmt;
 use std::error::Error;
 use std::f64::consts;
 use log::LogLevel::Debug;
@@ -446,7 +447,7 @@ pub struct Observation {
 
 impl Observation {
     pub fn is_alignment_evidence(&self) -> bool {
-        if let Evidence::Alignment = self.evidence {
+        if let Evidence::Alignment(_) = self.evidence {
             true
         } else {
             false
@@ -460,7 +461,22 @@ pub enum Evidence {
     /// Insert size of fragment
     InsertSize(u32),
     /// Alignment of a single read
-    Alignment
+    Alignment(String)
+}
+
+
+impl Evidence {
+    pub fn dummy_alignment() -> Self {
+        Evidence::Alignment("Dummy-Alignment".to_owned())
+    }
+}
+
+
+impl<'a, Cigar> From<&'a [Cigar]> for Evidence
+where Cigar: fmt::Debug {
+    fn from(cigar: &[Cigar]) -> Self {
+        Evidence::Alignment(format!("{:?}", cigar))
+    }
 }
 
 
@@ -664,7 +680,7 @@ impl Sample {
             prob_alt: prob_alt,
             prob_ref: prob_ref,
             prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::Alignment
+            evidence: Evidence::from(cigar)
         }
     }
 
@@ -780,7 +796,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
@@ -811,7 +827,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
@@ -842,7 +858,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
@@ -914,7 +930,7 @@ mod tests {
 
     fn setup_sample(isize_mean: f64) -> Sample {
         Sample::new(
-            bam::IndexedReader::new(&"tests/indels.bam").unwrap(),
+            bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
             2500,
             true,
             true,
@@ -934,7 +950,7 @@ mod tests {
         let varpos = 546;
 
         let sample = setup_sample(150.0);
-        let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
         let records = bam.records().collect_vec();
 
         let ref_seq = ref_seq();
@@ -954,7 +970,7 @@ mod tests {
     #[test]
     fn test_fragment_observation_no_evidence() {
         let sample = setup_sample(150.0);
-        let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
 
         for varlen in &[0, 5, 10, 100] {
@@ -986,7 +1002,7 @@ mod tests {
 
     #[test]
     fn test_fragment_observation_evidence() {
-        let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
 
         println!("deletion");
@@ -1012,7 +1028,7 @@ mod tests {
 
     #[test]
     fn test_record_buffer() {
-        let bam = bam::IndexedReader::new(&"tests/indels.bam").unwrap();
+        let bam = bam::IndexedReader::from_path(&"tests/indels.bam").unwrap();
         let mut buffer = RecordBuffer::new(bam, 10, true);
 
         buffer.fill(b"17", 10, 20).unwrap();
@@ -1033,7 +1049,7 @@ mod tests {
     fn test_prob_read_indel() {
         let _ = env_logger::init();
 
-        let bam = bam::Reader::new(&"tests/indels+clips.bam").unwrap();
+        let bam = bam::Reader::from_path(&"tests/indels+clips.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
         let ref_seq = ref_seq();
 
