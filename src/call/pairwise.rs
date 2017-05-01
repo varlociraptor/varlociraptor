@@ -83,8 +83,8 @@ fn pileups<'a, A, B, P>(
 ///
 /// # Arguments
 ///
-/// * `inbcf` - path to BCF/VCF with preprocessed variant calls (`"-"` for STDIN).
-/// * `outbcf` - path to BCF/VCF with results (`"-"` for STDOUT).
+/// * `inbcf` - path to BCF/VCF with preprocessed variant calls (None for STDIN).
+/// * `outbcf` - path to BCF/VCF with results (None for STDOUT).
 /// * `events` - events to call
 /// * `complement_event` - optional complementary event to call (e.g. absent)
 /// * `joint_model` - calling model to use
@@ -96,8 +96,8 @@ fn pileups<'a, A, B, P>(
 ///
 /// `Result` object with eventual error message.
 pub fn call<A, B, P, M, R, W, X, F>(
-    inbcf: &R,
-    outbcf: &W,
+    inbcf: Option<&R>,
+    outbcf: Option<&W>,
     fasta: &F,
     events: &[PairEvent<A, B>],
     complement_event: Option<&ComplementEvent>,
@@ -119,7 +119,11 @@ pub fn call<A, B, P, M, R, W, X, F>(
     let fasta = try!(fasta::IndexedReader::from_file(fasta));
     let mut reference_buffer = utils::ReferenceBuffer::new(fasta);
 
-    let inbcf = try!(bcf::Reader::from_path(inbcf));
+    let inbcf = match inbcf {
+        Some(f) => bcf::Reader::from_path(f)?,
+        None    => bcf::Reader::from_stdin()?
+    };
+
     let mut header = bcf::Header::with_template(&inbcf.header);
     for event in events {
         header.push_record(
@@ -139,7 +143,11 @@ pub fn call<A, B, P, M, R, W, X, F>(
         Description=\"Maximum a posteriori probability estimate of allele frequency in control sample.\">"
     );
 
-    let mut outbcf = try!(bcf::Writer::from_path(outbcf, &header, false, false));
+    let mut outbcf = match outbcf {
+        Some(f) => bcf::Writer::from_path(f, &header, false, false)?,
+        None    => bcf::Writer::from_stdout(&header, false, false)?
+    };
+
     let mut outobs = if let Some(f) = outobs {
         let mut writer = try!(csv::Writer::from_file(f)).delimiter(b'\t');
         // write header for observations

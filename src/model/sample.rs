@@ -11,7 +11,7 @@ use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
-use rust_htslib::bam::record::Cigar;
+use rust_htslib::bam::record::{Cigar, CigarString};
 use bio::stats::{LogProb, PHREDProb, Prob};
 use itertools;
 
@@ -89,7 +89,7 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// such that they simply lead to globally reduced likelihoods, which are normalized away by bayes theorem.
 /// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
 /// both the alt and the ref case equally.
-pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
+pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
     debug!("--------------");
 
     let mut pos = record.pos() as u32;
@@ -472,10 +472,10 @@ impl Evidence {
 }
 
 
-impl<'a, Cigar> From<&'a [Cigar]> for Evidence
-where Cigar: fmt::Debug {
-    fn from(cigar: &[Cigar]) -> Self {
-        Evidence::Alignment(format!("{:?}", cigar))
+impl<'a, CigarString> From<&'a CigarString> for Evidence
+where CigarString: fmt::Display {
+    fn from(cigar: &CigarString) -> Self {
+        Evidence::Alignment(format!("{}", cigar))
     }
 }
 
@@ -658,7 +658,7 @@ impl Sample {
     fn read_observation(
         &self,
         record: &bam::Record,
-        cigar: &[Cigar],
+        cigar: &CigarString,
         start: u32,
         variant: Variant,
         chrom_seq: &[u8]
