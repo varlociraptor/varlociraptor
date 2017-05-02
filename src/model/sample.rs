@@ -554,10 +554,10 @@ impl Sample {
         chrom_seq: &[u8]
     ) -> Result<Vec<Observation>, Box<Error>> {
         let mut observations = Vec::new();
-        let end = match variant {
-            Variant::Deletion(length)  => start + length,
-            Variant::Insertion(_) => start,
-            Variant::SNV(_) => start
+        let (end, centerpoint) = match variant {
+            Variant::Deletion(length)  => (start + length, start + length / 2),
+            Variant::Insertion(_) => (start, start),
+            Variant::SNV(_) => (start, start)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
@@ -589,26 +589,34 @@ impl Sample {
                 }
             },
             Variant::Insertion(l) | Variant::Deletion(l) => {
+
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     let cigar = record.cigar();
                     let mut pos = record.pos() as u32;
                     let mut end_pos = record.end_pos(&cigar) as u32;
 
-                    // consider soft clips for overlap detection
-                    if let Cigar::SoftClip(l) = cigar[0] {
-                        pos = pos.saturating_sub(l);
-                    }
-                    if let Cigar::SoftClip(l) = cigar[cigar.len() - 1] {
-                        end_pos += l;
-                    }
+                    let overlap = {
+                        // consider soft clips for overlap detection
+                        let pos = if let Cigar::SoftClip(l) = cigar[0] {
+                            pos.saturating_sub(l)
+                        } else {
+                            pos
+                        };
+                        let end_pos = if let Cigar::SoftClip(l) = cigar[cigar.len() - 1] {
+                            end_pos + l
+                        } else {
+                            end_pos
+                        };
 
-                    let overlap = if end_pos <= end {
-                        cmp::min(end_pos.saturating_sub(start), l)
-                    } else {
-                        cmp::min(end.saturating_sub(pos), l)
+                        if end_pos <= end {
+                            cmp::min(end_pos.saturating_sub(start), l)
+                        } else {
+                            cmp::min(end.saturating_sub(pos), l)
+                        }
                     };
 
+                    // read evidence
                     if overlap > 0 {
                         if overlap <= self.max_indel_overlap {
                             observations.push(
@@ -616,12 +624,15 @@ impl Sample {
                             );
                             n_overlap += 1;
                         }
-                    } else if self.use_fragment_evidence &&
+                    }
+
+                    // fragment evidence
+                    if self.use_fragment_evidence &&
                        (record.is_first_in_template() || record.is_last_in_template()) {
-                        if end_pos <= start {
+                        if end_pos <= centerpoint {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
-                            if record.mpos() as u32 >= end {
+                            if record.mpos() as u32 >= centerpoint {
                                 pairs.insert(record.qname().to_owned(), record.mapq());
                             }
                         } else if let Some(mate_mapq) = pairs.get(record.qname()) {
