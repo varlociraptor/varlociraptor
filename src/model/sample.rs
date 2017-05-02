@@ -593,8 +593,8 @@ impl Sample {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     let cigar = record.cigar();
-                    let mut pos = record.pos() as u32;
-                    let mut end_pos = record.end_pos(&cigar) as u32;
+                    let pos = record.pos() as u32;
+                    let end_pos = record.end_pos(&cigar) as u32;
 
                     let overlap = {
                         // consider soft clips for overlap detection
@@ -632,7 +632,14 @@ impl Sample {
                         if end_pos <= centerpoint {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
-                            if record.mpos() as u32 >= centerpoint {
+                            let mpos = record.mpos() as u32;
+                            if mpos >= centerpoint {
+                                debug!(
+                                    "fragment evidence (dist to centerpoint: {}, {}; insert size: {})",
+                                    centerpoint - end_pos,
+                                    mpos - centerpoint,
+                                    record.insert_size()
+                                );
                                 pairs.insert(record.qname().to_owned(), record.mapq());
                             }
                         } else if let Some(mate_mapq) = pairs.get(record.qname()) {
