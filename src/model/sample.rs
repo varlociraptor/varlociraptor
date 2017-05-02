@@ -627,25 +627,26 @@ impl Sample {
                     }
 
                     // fragment evidence
+                    // We have to consider the fragment even if the read has been used for the
+                    // overlap evidence above. Otherwise, results would be biased towards
+                    // alternative alleles (since reference reads tend to overlap the centerpoint).
                     if self.use_fragment_evidence &&
                        (record.is_first_in_template() || record.is_last_in_template()) {
-                        if end_pos <= centerpoint {
+                        // We ensure fair sampling by checking if the whole fragment overlaps the
+                        // centerpoint. Only taking the internal segment would not be fair,
+                        // because then the second read of reference fragments tends to cross
+                        // the centerpoint and the fragment would be discarded.
+                        // The latter would not happen for alt fragments, because the second read
+                        // would map right of the variant in that case.
+                        if pos <= centerpoint {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
-                            let mpos = record.mpos() as u32;
-                            if mpos >= centerpoint {
-                                debug!(
-                                    "fragment evidence (dist to centerpoint: {}, {}; insert size: {}, cigar: {})",
-                                    centerpoint - end_pos,
-                                    mpos - centerpoint,
-                                    record.insert_size(),
-                                    cigar
-                                );
+                            let insert_size = record.insert_size().abs() as u32;
+                            if pos + insert_size >= centerpoint {
                                 pairs.insert(record.qname().to_owned(), record.mapq());
                             }
                         } else if let Some(mate_mapq) = pairs.get(record.qname()) {
-                            debug!("fragment mate (cigar: {})", cigar);
-                            // mate already visited, and this read maps right of end
+                            // mate already visited, and this fragment overlaps centerpoint
                             observations.push(self.fragment_observation(&record, *mate_mapq, variant));
                         }
                     }
