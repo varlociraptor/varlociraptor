@@ -644,6 +644,7 @@ impl Sample {
                                 pairs.insert(record.qname().to_owned(), record.mapq());
                             }
                         } else if let Some(mate_mapq) = pairs.get(record.qname()) {
+                            debug!("fragment mate (cigar: {})", cigar);
                             // mate already visited, and this read maps right of end
                             observations.push(self.fragment_observation(&record, *mate_mapq, variant));
                         }
