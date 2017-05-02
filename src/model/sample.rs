@@ -123,7 +123,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
     let pos_max = pos + total_indel_len + 1;
     debug!("cigar: {:?}", cigar);
     debug!("calculating indel likelihood for shifts within {} - {}", pos_min, pos_max);
-    assert!(pos >= pos_min && pos <= pos_max, "original mapping position should be within the evaluated shifts ({}-{}, pos={}, cigar={})", pos_min, pos_max, pos, cigar);
+    assert!(pos >= pos_min && pos <= pos_max, "original mapping position should be within the evaluated shifts ({}-{}, pos={}, cigar={}, m={}, start={})", pos_min, pos_max, pos, cigar, m, start);
 
     let capacity = (pos_max - pos_min) as usize;
     let mut prob_alts = Vec::with_capacity(capacity);
