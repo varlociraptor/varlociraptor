@@ -635,10 +635,11 @@ impl Sample {
                             let mpos = record.mpos() as u32;
                             if mpos >= centerpoint {
                                 debug!(
-                                    "fragment evidence (dist to centerpoint: {}, {}; insert size: {})",
+                                    "fragment evidence (dist to centerpoint: {}, {}; insert size: {}, cigar: {})",
                                     centerpoint - end_pos,
                                     mpos - centerpoint,
-                                    record.insert_size()
+                                    record.insert_size(),
+                                    cigar
                                 );
                                 pairs.insert(record.qname().to_owned(), record.mapq());
                             }
