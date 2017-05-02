@@ -117,8 +117,8 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
         _ => 0
     }).sum();
 
-    // calculate maximal shift to the left without getting outside of the indel start
-    let pos_min = cmp::max(pos.saturating_sub(total_indel_len), start.saturating_sub(m));
+    // calculate maximal shift to the left
+    let pos_min = pos.saturating_sub(total_indel_len);
     // exclusive upper bound
     let pos_max = pos + total_indel_len + 1;
     debug!("cigar: {:?}", cigar);
