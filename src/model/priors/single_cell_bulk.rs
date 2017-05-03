@@ -147,7 +147,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         let k_start = (*af_bulk.start * n_obs_bulk as f64).ceil() as u64;
         // stable rust ranges currently only allow exclusive end points, for including an end point,
         // add 0.00000001 in the Event definition
-        let k_end = (*af_bulk.end * n_obs_bulk as f64).floor() as u64;
+        let k_end = (*af_bulk.end * n_obs_bulk as f64).ceil() as u64;
         let k_bulk = k_start..k_end;
 
         // sum up all possible discrete bulk allele frequencies with current number of observations
