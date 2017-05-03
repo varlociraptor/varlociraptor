@@ -210,6 +210,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
                     let p = if pileup.is_some() {
                         let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
                         let total = LogProb::ln_sum_exp(&event_probs.iter().map(|v| v.unwrap()).collect_vec());
+                        debug!("Total probability over all defined Events: {}.", total.exp());
                         // total can slightly exceed 1 due to the numerical integration
                         Some(
                             if *total >= 0.0 {

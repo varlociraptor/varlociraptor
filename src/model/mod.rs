@@ -313,7 +313,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
                 self.control_likelihood(af_control, af_case)
             };
             let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len());
-
+            debug!("Marginal probability: {}.", p.exp());
             self.marginal_prob.set(Some(p));
         }
 
@@ -339,6 +339,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         let p = self.joint_prob(af_case, af_control);
         let marginal = self.marginal_prob();
         let prob = p - marginal;
+        debug!("Posterior probability: {}.", prob.exp());
         prob
     }
 
