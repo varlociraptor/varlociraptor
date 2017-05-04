@@ -220,6 +220,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
                 let af_tumor = AlleleFreq(af_tumor);
                 let p = likelihood_tumor(af_tumor, Some(af_normal)) +
                         likelihood_normal(af_normal, None);
+                debug!("L(f_t={}, f_n={})={}", *af_tumor, *af_normal, *p);
                 NotNaN::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");

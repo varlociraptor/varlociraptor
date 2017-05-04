@@ -1,6 +1,7 @@
 use std::str;
 use std::collections::{HashMap, VecDeque, vec_deque};
 use std::cmp;
+use std::fmt;
 use std::error::Error;
 use std::f64::consts;
 use log::LogLevel::Debug;
@@ -10,7 +11,7 @@ use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
-use rust_htslib::bam::record::Cigar;
+use rust_htslib::bam::record::{Cigar, CigarString};
 use bio::stats::{LogProb, PHREDProb, Prob};
 use itertools;
 
@@ -88,7 +89,9 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// such that they simply lead to globally reduced likelihoods, which are normalized away by bayes theorem.
 /// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
 /// both the alt and the ref case equally.
-pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
+pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
+    debug!("--------------");
+
     let mut pos = record.pos() as u32;
     let read_seq = record.seq();
     let m = read_seq.len() as u32;
@@ -114,14 +117,13 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         _ => 0
     }).sum();
 
-    // calculate maximal shift to the left without getting outside of the indel start
-    let pos_min = cmp::max(pos.saturating_sub(total_indel_len), start.saturating_sub(m));
+    // calculate maximal shift to the left
+    let pos_min = pos.saturating_sub(total_indel_len);
     // exclusive upper bound
     let pos_max = pos + total_indel_len + 1;
-    debug!("--------------");
     debug!("cigar: {:?}", cigar);
     debug!("calculating indel likelihood for shifts within {} - {}", pos_min, pos_max);
-    assert!(pos >= pos_min && pos <= pos_max, "original mapping position should be within the evaluated shifts");
+    assert!(pos >= pos_min && pos <= pos_max, "original mapping position should be within the evaluated shifts ({}-{}, pos={}, cigar={}, m={}, start={})", pos_min, pos_max, pos, cigar, m, start);
 
     let capacity = (pos_max - pos_min) as usize;
     let mut prob_alts = Vec::with_capacity(capacity);
@@ -143,8 +145,16 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
     };
 
     for p in pos_min..pos_max {
+        let end = start + variant.len();
+        if !(p <= start && p + m >= start) && !(p <= end && p + m >= end) {
+            // shift does not overlap the variant
+            continue;
+        }
+
         let mut prob_ref = LogProb::ln_one();
         let mut prob_alt = LogProb::ln_one();
+
+        let left_of = start > p;
 
         // TODO consider the case that a deletion is made invisible via an insertion of the same size and vice versa?
 
@@ -164,9 +174,11 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
         }
 
         if log_enabled!(Debug) {
-            alt_matches.as_mut().unwrap().push('|');
-            ref_matches.as_mut().unwrap().push('|');
-            ref_matches.as_mut().unwrap().push('|');
+            if prefix_end != 0 {
+                alt_matches.as_mut().unwrap().push('|');
+                ref_matches.as_mut().unwrap().push('|');
+                ref_matches.as_mut().unwrap().push('|');
+            }
         }
 
         // ref likelihood
@@ -210,12 +222,36 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &[Cigar], start: u32, varian
                 }
             },
             Variant::Deletion(l) => {
-                // reduce length if deletion is left of p
-                let l = if start >= p { l as u32 } else { l - (p - start) };
-                // TODO this will miss one base in some cases.
-                // but it is needed because some callers specify calls as GAA->G and some as AA->*
-                // a better place to fix is when parsing the vcf file.
-                let suffix_start = (start + 1).saturating_sub(p);
+                if !left_of {
+                    // match prefix before deletion (otherwise, this has been done above)
+                    let prefix_end = start + l - p;
+                    for i in 0..prefix_end {
+                        let prob = prob_read_base(i, p + i - l);
+                        prob_alt = prob_alt + prob;
+
+                        if log_enabled!(Debug) {
+                            let x = debug_match(i, p + i - l);
+                            alt_matches.as_mut().unwrap().push(x);
+                        }
+                    }
+
+                    if log_enabled!(Debug) {
+                        alt_matches.as_mut().unwrap().push('|');
+                    }
+                }
+
+                let suffix_start = if left_of {
+                    // TODO this will miss one base in some cases.
+                    // but it is needed because some callers specify calls as GAA->G and some as AA->*
+                    // a better place to fix is when parsing the vcf file.
+                    (start + 1).saturating_sub(p)
+                } else {
+                    start + l - p
+                };
+
+                // if deletion is left of p, l shall not shift the matches because read has been
+                // aligned after the deletion
+                let l = if left_of { l as u32 } else { 0 };
 
                 for i in suffix_start..m {
                     let prob = prob_read_base(i, p + i + l);
@@ -411,7 +447,7 @@ pub struct Observation {
 
 impl Observation {
     pub fn is_alignment_evidence(&self) -> bool {
-        if let Evidence::Alignment = self.evidence {
+        if let Evidence::Alignment(_) = self.evidence {
             true
         } else {
             false
@@ -425,7 +461,22 @@ pub enum Evidence {
     /// Insert size of fragment
     InsertSize(u32),
     /// Alignment of a single read
-    Alignment
+    Alignment(String)
+}
+
+
+impl Evidence {
+    pub fn dummy_alignment() -> Self {
+        Evidence::Alignment("Dummy-Alignment".to_owned())
+    }
+}
+
+
+impl<'a, CigarString> From<&'a CigarString> for Evidence
+where CigarString: fmt::Display {
+    fn from(cigar: &CigarString) -> Self {
+        Evidence::Alignment(format!("{}", cigar))
+    }
 }
 
 
@@ -447,8 +498,7 @@ pub struct Sample {
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
     prob_spurious_isize: LogProb,
-    max_indel_dist: u32,
-    max_indel_len_diff: u32
+    max_indel_overlap: u32,
 }
 
 
@@ -465,9 +515,7 @@ impl Sample {
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
     /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
     /// * `prob_spurious_isize` - rate of wrongly reported insert size abberations (mapper dependent, BWA: 0.01332338, LASER: 0.05922201)
-    /// * `prob_missed_insertion_alignment` - rate of missed insertion alignments if insertion is present (mapper dependent, BWA: 0.2138, LASER: 0.3460)
-    /// * `prob_missed_deletion_alignment` - rate of missed deletion alignments if deletion is present (mapper dependent, BWA: 0.0310, LASER: 0.0964)
-    /// * `prob_spurious_indel_alignment` - rate of wrongly reported indel alignments if indel is absent (mapper dependent)
+    /// * `max_indel_overlap` - maximum number of bases a read may be aligned beyond the start or end of an indel in order to be considered as an observation
     pub fn new(
         bam: bam::IndexedReader,
         pileup_window: u32,
@@ -478,6 +526,7 @@ impl Sample {
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_spurious_isize: Prob,
+        max_indel_overlap: u32,
     ) -> Self {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
@@ -487,19 +536,8 @@ impl Sample {
             insert_size: insert_size,
             likelihood_model: likelihood_model,
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
-            max_indel_dist: 50,
-            max_indel_len_diff: 20
+            max_indel_overlap: max_indel_overlap,
         }
-    }
-
-    pub fn max_indel_dist(mut self, dist: u32) -> Self {
-        self.max_indel_dist = dist;
-        self
-    }
-
-    pub fn max_indel_len_diff(mut self, diff: u32) -> Self {
-        self.max_indel_len_diff = diff;
-        self
     }
 
     /// Return likelihood model.
@@ -516,10 +554,10 @@ impl Sample {
         chrom_seq: &[u8]
     ) -> Result<Vec<Observation>, Box<Error>> {
         let mut observations = Vec::new();
-        let (end, varpos) = match variant {
-            Variant::Deletion(length)  => (start + length, (start + length / 2) as i32), // TODO do we really need two centerpoints?
-            Variant::Insertion(length) => (start + length, start as i32),
-            Variant::SNV(_) => (start, start as i32)
+        let (end, centerpoint) = match variant {
+            Variant::Deletion(length)  => (start + length, start + length / 2),
+            Variant::Insertion(_) => (start, start),
+            Variant::SNV(_) => (start, start)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
@@ -531,44 +569,91 @@ impl Sample {
         try!(self.record_buffer.fill(chrom, start, end));
         debug!("Done.");
 
-        // iterate over records
-        for record in self.record_buffer.iter() {
-            let cigar = record.cigar();
-            let mut pos = record.pos();
-            let mut end_pos = record.end_pos(&cigar);
 
-            if variant.is_indel() {
-                // consider soft clips for overlap detection
-                if let Cigar::SoftClip(l) = cigar[0] {
-                    pos = pos.wrapping_sub(l as i32);
-                }
-                if let Cigar::SoftClip(l) = cigar[cigar.len() - 1] {
-                    end_pos += l as i32;
-                }
-            }
+        match variant {
+            Variant::SNV(_) => {
+                // iterate over records
+                for record in self.record_buffer.iter() {
+                    debug!("--------------");
+                    let pos = record.pos() as u32;
+                    let cigar = record.cigar();
+                    let end_pos = record.end_pos(&cigar) as u32;
 
-            // TODO do we also need to consider reads between start and end?
-            if ((pos as u32) <= start && (end_pos as u32) >= start) || ((pos as u32) <= end && (end_pos as u32) >= end) {
-                debug!("pos={}, end_pos={}, start={}, end={}", pos, end_pos, start, end);
-                // overlapping alignment
-                observations.push(self.read_observation(&record, &cigar, start, variant, chrom_seq));
-                n_overlap += 1;
-            } else if variant.has_fragment_evidence() &&
-                      self.use_fragment_evidence &&
-                      (record.is_first_in_template() || record.is_last_in_template())
-            {
-                if end_pos <= varpos {
-                    // need to check mate
-                    // since the bam file is sorted by position, we can't see the mate first
-                    if record.mpos() >= varpos {
-                        pairs.insert(record.qname().to_owned(), record.mapq());
+                    if pos <= start && end_pos >= start {
+                        let cigar = record.cigar();
+                        observations.push(
+                            self.read_observation(&record, &cigar, start, variant, chrom_seq)
+                        );
+                        n_overlap += 1;
                     }
-                } else if let Some(mate_mapq) = pairs.get(record.qname()) {
-                    // mate already visited, and this read maps right of varpos
-                    observations.push(self.fragment_observation(&record, *mate_mapq, variant));
+                }
+            },
+            Variant::Insertion(l) | Variant::Deletion(l) => {
+
+                // iterate over records
+                for record in self.record_buffer.iter() {
+                    let cigar = record.cigar();
+                    let pos = record.pos() as u32;
+                    let end_pos = record.end_pos(&cigar) as u32;
+
+                    let overlap = {
+                        // consider soft clips for overlap detection
+                        let pos = if let Cigar::SoftClip(l) = cigar[0] {
+                            pos.saturating_sub(l)
+                        } else {
+                            pos
+                        };
+                        let end_pos = if let Cigar::SoftClip(l) = cigar[cigar.len() - 1] {
+                            end_pos + l
+                        } else {
+                            end_pos
+                        };
+
+                        if end_pos <= end {
+                            cmp::min(end_pos.saturating_sub(start), l)
+                        } else {
+                            cmp::min(end.saturating_sub(pos), l)
+                        }
+                    };
+
+                    // read evidence
+                    if overlap > 0 {
+                        if overlap <= self.max_indel_overlap {
+                            observations.push(
+                                self.read_observation(&record, &cigar, start, variant, chrom_seq)
+                            );
+                            n_overlap += 1;
+                        }
+                    }
+
+                    // fragment evidence
+                    // We have to consider the fragment even if the read has been used for the
+                    // overlap evidence above. Otherwise, results would be biased towards
+                    // alternative alleles (since reference reads tend to overlap the centerpoint).
+                    if self.use_fragment_evidence &&
+                       (record.is_first_in_template() || record.is_last_in_template()) {
+                        // We ensure fair sampling by checking if the whole fragment overlaps the
+                        // centerpoint. Only taking the internal segment would not be fair,
+                        // because then the second read of reference fragments tends to cross
+                        // the centerpoint and the fragment would be discarded.
+                        // The latter would not happen for alt fragments, because the second read
+                        // would map right of the variant in that case.
+                        if pos <= centerpoint {
+                            // need to check mate
+                            // since the bam file is sorted by position, we can't see the mate first
+                            let insert_size = record.insert_size().abs() as u32;
+                            if pos + insert_size >= centerpoint {
+                                pairs.insert(record.qname().to_owned(), record.mapq());
+                            }
+                        } else if let Some(mate_mapq) = pairs.get(record.qname()) {
+                            // mate already visited, and this fragment overlaps centerpoint
+                            observations.push(self.fragment_observation(&record, *mate_mapq, variant));
+                        }
+                    }
                 }
             }
         }
+
         debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
 
         if self.adjust_mapq {
@@ -593,12 +678,13 @@ impl Sample {
     fn read_observation(
         &self,
         record: &bam::Record,
-        cigar: &[Cigar],
+        cigar: &CigarString,
         start: u32,
         variant: Variant,
         chrom_seq: &[u8]
     ) -> Observation {
         let prob_mapping = self.prob_mapping(record.mapq());
+        debug!("prob_mapping={}", *prob_mapping);
 
         let (prob_ref, prob_alt) = match variant {
             Variant::Deletion(_) | Variant::Insertion(_) => {
@@ -614,7 +700,7 @@ impl Sample {
             prob_alt: prob_alt,
             prob_ref: prob_ref,
             prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::Alignment
+            evidence: Evidence::from(cigar)
         }
     }
 
@@ -730,7 +816,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
@@ -761,7 +847,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
@@ -792,7 +878,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
@@ -864,7 +950,7 @@ mod tests {
 
     fn setup_sample(isize_mean: f64) -> Sample {
         Sample::new(
-            bam::IndexedReader::new(&"tests/indels.bam").unwrap(),
+            bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
             2500,
             true,
             true,
@@ -872,7 +958,8 @@ mod tests {
             false,
             InsertSize { mean: isize_mean, sd: 20.0 },
             likelihood::LatentVariableModel::new(1.0),
-            Prob(0.0)
+            Prob(0.0),
+            20
         )
     }
 
@@ -883,7 +970,7 @@ mod tests {
         let varpos = 546;
 
         let sample = setup_sample(150.0);
-        let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
         let records = bam.records().collect_vec();
 
         let ref_seq = ref_seq();
@@ -903,7 +990,7 @@ mod tests {
     #[test]
     fn test_fragment_observation_no_evidence() {
         let sample = setup_sample(150.0);
-        let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
 
         for varlen in &[0, 5, 10, 100] {
@@ -935,7 +1022,7 @@ mod tests {
 
     #[test]
     fn test_fragment_observation_evidence() {
-        let bam = bam::Reader::new(&"tests/indels.bam").unwrap();
+        let bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
 
         println!("deletion");
@@ -961,7 +1048,7 @@ mod tests {
 
     #[test]
     fn test_record_buffer() {
-        let bam = bam::IndexedReader::new(&"tests/indels.bam").unwrap();
+        let bam = bam::IndexedReader::from_path(&"tests/indels.bam").unwrap();
         let mut buffer = RecordBuffer::new(bam, 10, true);
 
         buffer.fill(b"17", 10, 20).unwrap();
@@ -982,7 +1069,7 @@ mod tests {
     fn test_prob_read_indel() {
         let _ = env_logger::init();
 
-        let bam = bam::Reader::new(&"tests/indels+clips.bam").unwrap();
+        let bam = bam::Reader::from_path(&"tests/indels+clips.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
         let ref_seq = ref_seq();
 

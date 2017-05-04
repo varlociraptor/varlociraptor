@@ -75,6 +75,13 @@ impl Variant {
             _ => false
         }
     }
+
+    pub fn len(&self) -> u32 {
+        match self {
+            &Variant::Deletion(l) | &Variant::Insertion(l) => l,
+            &Variant::SNV(_)       => 1
+        }
+    }
 }
 
 
@@ -391,7 +398,7 @@ mod tests {
         let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
         let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, Prob(0.001));
         let case_sample = Sample::new(
-            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
@@ -399,10 +406,11 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.0)
+            Prob(0.0),
+            20
         );
         let control_sample = Sample::new(
-            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
@@ -410,7 +418,8 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.0)
+            Prob(0.0),
+            20
         );
 
         let model = PairCaller::new(
@@ -438,7 +447,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             });
         }
 
@@ -477,7 +486,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             });
         }
 
@@ -517,7 +526,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             });
         }
         for _ in 0..50 {
@@ -526,7 +535,7 @@ mod tests {
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             });
         }
 
@@ -564,7 +573,7 @@ mod tests {
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::Alignment
+                evidence: Evidence::dummy_alignment()
             });
         }
 
@@ -592,13 +601,13 @@ mod tests {
     #[test]
     fn test_example1() {
         let variant = Variant::Insertion(2);
-        let case_obs = vec![Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0025150465111820103), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.007974998278512672), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0031723009285603327), prob_alt: LogProb(-111.18254428986242), prob_ref: LogProb(-109.23587762319576), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.003994511005101995), prob_alt: LogProb(-113.14698873430689), prob_ref: LogProb(-111.18254428986242), prob_mismapped: LogProb::ln_one() }];
-        let control_obs = vec![Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00025122019630215495), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0001585018800054507), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0006311564818346603), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::Alignment, prob_mapping: LogProb(-0.003989017266406586), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }];
+        let case_obs = vec![Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0025150465111820103), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.007974998278512672), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031723009285603327), prob_alt: LogProb(-111.18254428986242), prob_ref: LogProb(-109.23587762319576), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.003994511005101995), prob_alt: LogProb(-113.14698873430689), prob_ref: LogProb(-111.18254428986242), prob_mismapped: LogProb::ln_one() }];
+        let control_obs = vec![Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00025122019630215495), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0001585018800054507), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0006311564818346603), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.003989017266406586), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }];
 
         let insert_size = InsertSize{ mean: 112.0, sd: 15.0 };
         let prior_model = priors::TumorNormalModel::new(2, 40000.0, 0.5, 0.5, 3e9 as u64, Prob(1.25E-4));
         let case_sample = Sample::new(
-            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
@@ -607,9 +616,10 @@ mod tests {
             insert_size,
             LatentVariableModel::new(0.75),
             Prob(0.0),
+            20,
         );
         let control_sample = Sample::new(
-            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
@@ -618,6 +628,7 @@ mod tests {
             insert_size,
             LatentVariableModel::new(1.0),
             Prob(0.0),
+            20,
         );
 
         let model = PairCaller::new(
@@ -660,7 +671,7 @@ mod tests {
 
         let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
         let case_sample = Sample::new(
-            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
@@ -668,10 +679,11 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(0.75),
-            Prob(0.00001)
+            Prob(0.00001),
+            20,
         );
         let control_sample = Sample::new(
-            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
@@ -679,7 +691,8 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.00001)
+            Prob(0.00001),
+            20,
         );
 
 
@@ -710,7 +723,7 @@ mod tests {
 
         let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
         let case_sample = Sample::new(
-            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
@@ -718,10 +731,11 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(0.75),
-            Prob(0.00001)
+            Prob(0.00001),
+            20,
         );
         let control_sample = Sample::new(
-            bam::IndexedReader::new(&"tests/test.bam").expect("Error reading BAM."),
+            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
             5000,
             true,
             true,
@@ -729,7 +743,8 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
-            Prob(0.00001)
+            Prob(0.00001),
+            20,
         );
 
 
