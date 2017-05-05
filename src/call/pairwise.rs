@@ -161,17 +161,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
         outbcf.translate(&mut record);
         let pileups = try!(pileups(&inbcf, &mut record, pair_model, &mut reference_buffer, omit_snvs, omit_indels, max_indel_len, exclusive_end));
 
-        if !pileups.is_empty() && {
-            let mut non_empty = true;
-            for pileup in pileups.iter() {
-                if let &Some(ref pileup) = pileup {
-                    non_empty = non_empty && pileup.case_observations().len() > 0 && pileup.control_observations().len() > 0;
-                }
-            }
-            non_empty
-        }
-/*        pileups.iter().fold(true, |non_empty, let &Some(ref x) = x| non_empty && (x > 0) ) &&
-            pileups.iter().fold(true, |non_empty, &x| non_empty && (x.unwrap().control_observations().len() > 0) )*/{
+        if !pileups.is_empty() {
             if let Some(ref mut outobs) = outobs {
                 let chrom = str::from_utf8(chrom(&inbcf, &record)).unwrap();
                 for (i, pileup) in pileups.iter().enumerate() {
@@ -191,7 +181,15 @@ pub fn call<A, B, P, M, R, W, X, F>(
             for (i, event) in events.iter().enumerate() {
                 for (j, pileup) in pileups.iter().enumerate() {
                     let p = if let &Some(ref pileup) = pileup {
-                        Some(pileup.posterior_prob(&event.af_case, &event.af_control))
+                        // if either of the pileups is empty, no valid probability could be
+                        // calculated for it -- and in SingleCellBulkModel's joint_prob() and map()
+                        // this would result in a division by zero and thus a program crash
+                        if  !pileup.case_observations().is_empty() &&
+                            !pileup.control_observations().is_empty() {
+                                Some(pileup.posterior_prob(&event.af_case, &event.af_control))
+                            } else {
+                                None
+                            }
                     } else {
                         // indicate missing value
                         None
