@@ -245,7 +245,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
 mod tests {
     use super::*;
     use bio::stats::LogProb;
-    use model::{AlleleFreq, likelihood, Variant, PairPileup};
+    use model::{AlleleFreq, AlleleFreqs, likelihood, Variant, PairPileup, priors};
     use model::sample::{Observation, Evidence};
 
     #[test]
@@ -346,6 +346,113 @@ mod tests {
         obs
     }
 
+    fn create_test_snv_pileup<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>>(
+        prior_model: &'a P,
+        s_obs: &Vec<Observation>,
+        b_obs: &Vec<Observation>
+    ) -> PairPileup<'a, A, B, P> {
+        let variant = Variant::SNV(b'T');
+        let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
+        let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
+        PairPileup::new(
+            s_obs.clone(),
+            b_obs.clone(),
+            variant,
+            prior_model,
+            single_sample_model,
+            bulk_sample_model,
+        )
+    }
+
+    // tests that bulk range discretization inludes and excludes the right discrete values per
+    // bulk frequency range (indirect through probabilities, as these bulk ranges aren't public)
+    #[test]
+    fn test_bulk_range_discretization() {
+        let model = SingleCellBulkModel::new(2);
+
+        let af_single_all = vec![AlleleFreq(0.0), AlleleFreq(0.5), AlleleFreq(1.0)];
+        let af_bulk_zero = AlleleFreq(0.0)..AlleleFreq(0.00000001);
+        let af_bulk_not_zero = AlleleFreq(0.00000001)..AlleleFreq(1.00000001);
+        let af_bulk_quarter = AlleleFreq(0.25)..AlleleFreq(0.25000001);
+        let af_bulk_half = AlleleFreq(0.5)..AlleleFreq(0.50000001);
+        let af_bulk_not_one = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let af_bulk_one = AlleleFreq(1.0)..AlleleFreq(1.00000001);
+
+        let s_dummy_obs = create_obs_vector(1, 1);
+
+        let b_1_ref = create_obs_vector(1, 0);
+        let mut pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_1_ref);
+        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_zero): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_zero).exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_not_zero): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_not_zero).exp() );
+        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_not_zero).exp(), 0.0);
+        assert_eq!( (pileup.joint_prob(&af_single_all, &af_bulk_zero) - pileup.marginal_prob() ).exp(), 1.0);
+
+        let b_1_alt = create_obs_vector(0, 1);
+        pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_1_alt);
+        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_one): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_one).exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_not_one): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_not_one).exp() );
+        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_not_one).exp(), 0.0);
+        assert_eq!( (pileup.joint_prob(&af_single_all, &af_bulk_one) - pileup.marginal_prob() ).exp(), 1.0);
+
+        let b_2_ref = create_obs_vector(2, 0);
+        pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_2_ref);
+        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_zero): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_zero).exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_half): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_half).exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_one): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_one).exp() );
+        assert_eq!( ( pileup.joint_prob(&af_single_all, &af_bulk_zero).ln_add_exp(
+                        pileup.joint_prob(&af_single_all, &af_bulk_half)).ln_add_exp(
+                            pileup.joint_prob(&af_single_all, &af_bulk_one)) -
+                    pileup.marginal_prob() ).exp(), 1.0);
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_quarter): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp() );
+        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp(), 0.0);
+
+        let b_1_ref_1_alt = create_obs_vector(1, 1);
+        pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_1_ref_1_alt);
+        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_zero): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_zero).exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_half): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_half).exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_one): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_one).exp() );
+        assert_eq!( ( pileup.joint_prob(&af_single_all, &af_bulk_zero).ln_add_exp(
+                        pileup.joint_prob(&af_single_all, &af_bulk_half)).ln_add_exp(
+                            pileup.joint_prob(&af_single_all, &af_bulk_one)) -
+                    pileup.marginal_prob() ).exp(), 1.0);
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_quarter): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp() );
+        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp(), 0.0);
+
+        let b_2_alt = create_obs_vector(0, 2);
+        pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_2_alt);
+        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_zero): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_zero).exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_half): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_half).exp() );
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_one): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_one).exp() );
+        assert_eq!( ( pileup.joint_prob(&af_single_all, &af_bulk_zero).ln_add_exp(
+                        pileup.joint_prob(&af_single_all, &af_bulk_half)).ln_add_exp(
+                            pileup.joint_prob(&af_single_all, &af_bulk_one)) -
+                    pileup.marginal_prob() ).exp(), 1.0);
+        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_quarter): {}",
+                    pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp() );
+        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp(), 0.0);
+
+    }
+
     #[test]
     fn test_scbm_sc_het_germ() {
 
@@ -355,22 +462,10 @@ mod tests {
         let af_single = vec![AlleleFreq(0.5)];
         let af_bulk = AlleleFreq(0.25000001)..AlleleFreq(0.75000001);
 
-        let variant = Variant::SNV(b'T');
-
-        let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
-        let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
-
         let single_obs = create_obs_vector(3, 3);
         let bulk_obs = create_obs_vector(3, 3);
 
-        let pileup = PairPileup::new(
-            single_obs.clone(),
-            bulk_obs.clone(),
-            variant,
-            &model,
-            single_sample_model,
-            bulk_sample_model
-        );
+        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
 //        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
 //        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
@@ -388,14 +483,7 @@ mod tests {
         let single_obs = create_obs_vector(3, 7);
         let bulk_obs = create_obs_vector(3, 7);
 
-        let pileup = PairPileup::new(
-            single_obs.clone(),
-            bulk_obs.clone(),
-            variant,
-            &model,
-            single_sample_model,
-            bulk_sample_model
-        );
+        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM het: pileup.map_allele_freqs: ({} {})", sc, blk );
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.5), AlleleFreq(0.7) ) );
@@ -410,22 +498,10 @@ mod tests {
         let af_single = vec![AlleleFreq(0.0)];
         let af_bulk = AlleleFreq(0.0)..AlleleFreq(0.25000001);
 
-        let variant = Variant::SNV(b'T');
-
-        let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
-        let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
-
         let single_obs = create_obs_vector(5, 0);
         let bulk_obs = create_obs_vector(5, 0);
 
-        let pileup = PairPileup::new(
-            single_obs.clone(),
-            bulk_obs.clone(),
-            variant,
-            &model,
-            single_sample_model,
-            bulk_sample_model
-        );
+        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
 //        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
 //        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
@@ -443,14 +519,7 @@ mod tests {
         let single_obs = create_obs_vector(57, 3);
         let bulk_obs = create_obs_vector(27, 3);
 
-        let pileup = PairPileup::new(
-            single_obs.clone(),
-            bulk_obs.clone(),
-            variant,
-            &model,
-            single_sample_model,
-            bulk_sample_model
-        );
+        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM hom ref: pileup.map_allele_freqs: ({} {})", sc, blk );
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.0), AlleleFreq(0.1) ) );
@@ -465,22 +534,10 @@ mod tests {
         let af_single = vec![AlleleFreq(1.0)];
         let af_bulk = AlleleFreq(0.75000001)..AlleleFreq(1.00000001);
 
-        let variant = Variant::SNV(b'T');
-
-        let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
-        let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
-
         let single_obs = create_obs_vector(0, 5);
         let bulk_obs = create_obs_vector(0, 5);
 
-        let pileup = PairPileup::new(
-            single_obs.clone(),
-            bulk_obs.clone(),
-            variant,
-            &model,
-            single_sample_model,
-            bulk_sample_model
-        );
+        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
 //        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
 //        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
@@ -498,14 +555,7 @@ mod tests {
         let single_obs = create_obs_vector(3, 57);
         let bulk_obs = create_obs_vector(3, 27);
 
-        let pileup = PairPileup::new(
-            single_obs.clone(),
-            bulk_obs.clone(),
-            variant,
-            &model,
-            single_sample_model,
-            bulk_sample_model
-        );
+        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk );
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(1.0), AlleleFreq(0.9) ) );
@@ -520,22 +570,10 @@ mod tests {
         let af_single = vec![AlleleFreq(1.0)];
         let af_bulk = AlleleFreq(0.25000001)..AlleleFreq(0.75000001);
 
-        let variant = Variant::SNV(b'T');
-
-        let single_sample_model = likelihood::LatentVariableModel::with_single_sample();
-        let bulk_sample_model = likelihood::LatentVariableModel::with_single_sample();
-
         let single_obs = create_obs_vector(0, 4);
         let bulk_obs = create_obs_vector(3, 1);
 
-        let pileup = PairPileup::new(
-            single_obs.clone(),
-            bulk_obs.clone(),
-            variant,
-            &model,
-            single_sample_model,
-            bulk_sample_model
-        );
+        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
 //        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
 //        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
@@ -553,14 +591,7 @@ mod tests {
         let single_obs = create_obs_vector(4, 56);
         let bulk_obs = create_obs_vector(21, 9);
 
-        let pileup = PairPileup::new(
-            single_obs.clone(),
-            bulk_obs.clone(),
-            variant,
-            &model,
-            single_sample_model,
-            bulk_sample_model
-        );
+        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk );
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(1.0), AlleleFreq(0.3) ) );
