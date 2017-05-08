@@ -38,9 +38,9 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 /// For an SNV, calculate likelihood of ref (first) or alt (second) for a given read, i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
 /// This follows Samtools and GATK.
 /// TODO: Add cigar string parsing tests for SNVs.
-/// TODO: Implement more general cigar parsing function analogous to htslib resolve_cigar2 (sam.c) somewhere more central in libprosic.
+/// TODO: Implement more general cigar parsing function analogous to htslib resolve_cigar2 (sam.c) somewhere more central in libprosic or rust-htslib.
 pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], vpos: u32, variant: Variant, ref_seq: &[u8]) -> Option<(LogProb, LogProb)> {
-    let contains_vpos = |pos: u32, cigar_length: u32|  pos <= vpos && pos + cigar_length >= vpos;
+    let contains_vpos = |pos: u32, cigar_length: u32|  pos <= vpos && pos + cigar_length > vpos;
 
     if let Variant::SNV(base) = variant {
         let mut rpos = record.pos() as u32; // reference position
@@ -751,6 +751,7 @@ mod tests {
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
+    use rust_htslib::bam::record::Cigar;
     use bio::stats::{LogProb, PHREDProb, Prob};
     use bio::io::fasta;
 
@@ -1049,6 +1050,91 @@ mod tests {
             println!("{:?}", rec.cigar());
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.001);
             assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.001);
+        }
+    }
+
+    #[test]
+    fn test_prob_read_snv() {
+        let ref_seq: Vec<u8> = b"CCTATACGCGT"[..].to_owned();
+
+        let mut records: Vec<bam::Record> = Vec::new();
+        let mut qname: &[u8];
+        let mut seq: &[u8];
+
+        // Ignore leading HardClip, skip leading SoftClip, reference nucleotide
+        qname = b"HC_SC_M";
+        let cigar = [Cigar::HardClip(5), Cigar::SoftClip(2), Cigar::Match(6)];
+        seq  = b"AATATACG";
+        let qual = [20, 20, 30, 30, 30, 40, 30, 30];
+        let mut record1 = bam::Record::new();
+        record1.set(qname, &cigar, seq, &qual);
+        record1.set_pos(2);
+        records.push(record1);
+
+        // Ignore leading HardClip, skip leading Insertion, alternative nucleotide
+        qname = b"HC_Ins_M";
+        let cigar = [Cigar::HardClip(2), Cigar::Ins(2), Cigar::Match(6)];
+        seq  = b"TTTATGCG";
+        let qual = [20, 20, 20, 20, 20, 30, 20, 20];
+        let mut record2 = bam::Record::new();
+        record2.set(qname, &cigar, seq, &qual);
+        record2.set_pos(2);
+        records.push(record2);
+
+        // Matches and deletion before position, reference nucleotide
+        qname = b"Eq_Diff_Del_Eq";
+        let cigar = [Cigar::Equal(2), Cigar::Diff(1), Cigar::Del(2), Cigar::Equal(5)];
+        seq  = b"CCAACGCG";
+        let qual = [30, 30, 30, 50, 30, 30, 30, 30];
+        let mut record3 = bam::Record::new();
+        record3.set(qname, &cigar, seq, &qual);
+        record3.set_pos(0);
+        records.push(record3);
+
+        // single nucleotide Deletion covering SNV position
+        qname = b"M_Del_M";
+        let cigar = [Cigar::Match(4), Cigar::Del(1), Cigar::Match(4)];
+        seq  = b"CTATCGCG";
+        let qual = [10, 30, 30, 30, 30, 30, 30, 30];
+        let mut record4 = bam::Record::new();
+        record4.set(qname, &cigar, seq, &qual);
+        record4.set_pos(1);
+        records.push(record4);
+
+        // three nucleotide RefSkip covering SNV position
+        qname = b"M_RefSkip_M";
+        let cigar = [Cigar::Equal(1), Cigar::Diff(1), Cigar::Equal(2), Cigar::RefSkip(3), Cigar::Match(4)];
+        seq  = b"CTTAGCGT";
+        let qual = [10, 30, 30, 30, 30, 30, 30, 30];
+        let mut record5 = bam::Record::new();
+        record5.set(qname, &cigar, seq, &qual);
+        record5.set_pos(0);
+        records.push(record5);
+
+
+        // truth
+        let probs_ref = [0.9999,   0.00033, 0.99999  ];
+        let probs_alt = [0.000033, 0.999,   0.0000033];
+        let eps       = [0.000001, 0.00001, 0.0000001];
+
+        let vpos = 5;
+        let variant = model::Variant::SNV(b'G');
+        for (i, rec) in records.iter().enumerate() {
+            println!("{}", str::from_utf8(rec.qname()).unwrap());
+            let res = prob_read_snv(rec, &rec.cigar(), vpos, variant, &ref_seq);
+            match res {
+                Some( (prob_ref, prob_alt) ) => {
+                    println!("{:?}", rec.cigar());
+                    println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
+                    assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
+                    assert_relative_eq!( (*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
+                },
+                None => {
+                    // anything that's tested for the reference position not being covered, should
+                    // have 10 as the quality value of the first base in seq
+                    assert_eq!(rec.qual()[0], 10);
+                }
+            }
         }
     }
 }
