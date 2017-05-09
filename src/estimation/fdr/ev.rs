@@ -46,7 +46,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
     // estimate FDR
     let mut pep_dist = prob_dist.into_iter().rev().map(|p| LogProb(*p).ln_one_minus_exp()).collect_vec();
     let fdrs = bayesian::expected_fdr(&pep_dist);
-    for f in &fdrs {
+    for &f in &fdrs {
         debug!("{}", *f);
     }
 
