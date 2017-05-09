@@ -163,9 +163,9 @@ impl ReferenceBuffer {
 }
 
 
-/// Collect distribution of posterior error probabilities from a VCF file that has been written by
+/// Collect distribution of posterior probabilities from a VCF file that has been written by
 /// libprosic.
-pub fn collect_pep_dist<E: Event>(
+pub fn collect_prob_dist<E: Event>(
     calls: &bcf::Reader,
     event: &E,
     vartype: &model::VariantType) -> Result<Vec<NotNaN<f64>>, Box<Error>> {

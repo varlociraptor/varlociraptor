@@ -42,7 +42,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
     let mut writer = csv::Writer::from_writer(writer).delimiter(b'\t');
     try!(writer.write(["FDR", "max-prob"].into_iter()));
 
-    let null_dist = utils::collect_pep_dist(null_calls, event, vartype)?;
+    let null_dist = utils::collect_prob_dist(null_calls, event, vartype)?;
 
     if null_dist.is_empty() {
         for &alpha in &ALPHAS {
@@ -51,7 +51,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
         return Ok(());
     }
 
-    let prob_dist = utils::collect_pep_dist(calls, event, vartype)?;
+    let prob_dist = utils::collect_prob_dist(calls, event, vartype)?;
     debug!("{} observations in null distribution.", null_dist.len());
     debug!("{} observations in call distribution.", prob_dist.len());
     let pvals = prob_dist.iter().map(|&p| pval(p, &null_dist)).collect_vec();
