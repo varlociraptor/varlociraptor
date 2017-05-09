@@ -47,9 +47,6 @@ pub fn control_fdr<E: Event, W: io::Write>(
     let pep_dist = prob_dist.into_iter().rev().map(|p| LogProb(*p).ln_one_minus_exp()).collect_vec();
     let fdrs = bayesian::expected_fdr(&pep_dist);
     let cumsum: Vec<LogProb> = LogProb::ln_cumsum_exp(pep_dist.iter().cloned()).collect_vec();
-    for (i, (&f, &p)) in fdrs.iter().zip(pep_dist.iter()).enumerate() {
-        debug!("p={}, fdr={}, cumsum={}", *p, *f, *cumsum[i]);
-    }
 
     for &alpha in ALPHAS.iter().rev() {
         let ln_alpha = LogProb(alpha.ln());
