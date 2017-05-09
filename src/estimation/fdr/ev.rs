@@ -1,6 +1,7 @@
 //! This module implements fully bayesian FDR control as presented by
 //! Müller, Parmigiani, and Rice, "FDR and Bayesian Multiple Comparisons Rules" (July 2006).
 //! Johns Hopkin's University, Dept. of Biostatistics Working Papers. Working Paper 115.
+//! Basically, the expected FDR is calculated directly from the posterior error probabilities.
 
 use std::error::Error;
 use std::io;

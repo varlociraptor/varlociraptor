@@ -1,7 +1,7 @@
 use bio::stats::PHREDProb;
 
 pub mod bh;
-pub mod mueller;
+pub mod ev;
 
 
 pub const ALPHAS: [f64; 28] = [
