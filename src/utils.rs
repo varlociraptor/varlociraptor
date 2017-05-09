@@ -6,9 +6,13 @@ use std::str;
 use itertools::Itertools;
 use rust_htslib::bcf;
 use bio::io::fasta;
+use bio::stats::{LogProb, PHREDProb};
+use ordered_float::NotNaN;
 
 use model;
 use BCFError;
+use utils;
+use Event;
 
 
 /// Collect variants from a given ´bcf::Record`.
@@ -156,4 +160,42 @@ impl ReferenceBuffer {
 
         Ok(&self.sequence)
     }
+}
+
+
+/// Collect distribution of posterior error probabilities from a VCF file that has been written by
+/// libprosic.
+pub fn collect_pep_dist<E: Event>(
+    calls: &bcf::Reader,
+    event: &E,
+    vartype: &model::VariantType) -> Result<Vec<NotNaN<f64>>, Box<Error>> {
+    let mut record = bcf::Record::new();
+    let mut prob_dist = Vec::new();
+    loop {
+        if let Err(e) = calls.read(&mut record) {
+            if e.is_eof() {
+                break;
+            } else {
+                return Err(Box::new(e));
+            }
+        }
+
+        let variants = try!(utils::collect_variants(&mut record, false, false, None, false));
+        let tag = event.tag_name("PROB");
+        let event_probs = try!(record.info(tag.as_bytes()).float());
+        if let Some(event_probs) = event_probs {
+            // tag present
+            for (variant, event_prob) in variants.into_iter().zip(event_probs.into_iter()) {
+                if let Some(variant) = variant {
+                    if !variant.is_type(vartype) || event_prob.is_nan() {
+                        continue;
+                    }
+                    let event_prob = LogProb::from(PHREDProb(*event_prob as f64));
+                    prob_dist.push(try!(NotNaN::new(*event_prob)));
+                }
+            }
+        }
+    }
+    prob_dist.sort();
+    Ok(prob_dist)
 }

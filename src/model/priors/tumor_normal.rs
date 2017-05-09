@@ -263,14 +263,14 @@ mod tests {
             prob_alt: LogProb::ln_zero(),
             prob_ref: LogProb::ln_one(),
             prob_mismapped: LogProb::ln_one(),
-            evidence: Evidence::Alignment
+            evidence: Evidence::dummy_alignment()
         };
         let obs_alt_abs = Observation {
             prob_mapping: LogProb::ln_one(),
             prob_alt: LogProb::ln_one(),
             prob_ref: LogProb::ln_zero(),
             prob_mismapped: LogProb::ln_one(),
-            evidence: Evidence::Alignment
+            evidence: Evidence::dummy_alignment()
         };
 
         let mut obs = Vec::new();
