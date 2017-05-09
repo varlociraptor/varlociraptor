@@ -55,7 +55,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
         // do not let peps with the same value cross the boundary
         for i in (0..fdrs.len()).rev() {
             if fdrs[i] <= ln_alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
-                writer.encode(&Record { alpha: alpha, gamma: PHREDProb::from(pep_dist[i]) })?;
+                writer.encode(&Record { alpha: alpha, gamma: PHREDProb::from(pep_dist[i].ln_one_minus_exp()) })?;
                 break;
             }
         }
