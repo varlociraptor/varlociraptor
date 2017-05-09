@@ -4,7 +4,7 @@ use bio::stats::LogProb;
 use statrs::function::beta::ln_beta;
 use statrs::function::factorial::ln_binomial;
 
-use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
+use model::{Variant, AFRange, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 use priors::PairModel;
 
@@ -29,7 +29,7 @@ impl SingleCellBulkModel {
         let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
         SingleCellBulkModel {
             allele_freqs_single: allele_freqs,
-            allele_freqs_bulk: AlleleFreq(0.0)..AlleleFreq(1.00000001) // TODO: make use of inclusive ranges as soon as they arrive in stable rust
+            allele_freqs_bulk: AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) )
         }
     }
 
@@ -142,12 +142,17 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         };
         let k_single = 0..n_obs_s + 1;
 
-        // stable rust ranges currently only allow inclusive start points, for exclusive add
-        // 0.00000001 in the Event definition
-        let k_start = (*af_bulk.start * n_obs_bulk as f64).ceil() as u64;
-        // stable rust ranges currently only allow exclusive end points, for including an end point,
-        // add 0.00000001 in the Event definition
-        let k_end = (*af_bulk.end * n_obs_bulk as f64).ceil() as u64;
+        // discretization of possible bulk allele frequencies at given number of bulk observations
+        let k_start = if af_bulk.left_exclusive {
+            (*af_bulk.inner.start * n_obs_bulk as f64).floor() as u64 + 1
+        } else {
+            (*af_bulk.inner.start * n_obs_bulk as f64).ceil() as u64
+        };
+        let k_end = if af_bulk.right_exclusive {
+            (*af_bulk.inner.end * n_obs_bulk as f64).ceil() as u64
+        } else {
+            (*af_bulk.inner.end * n_obs_bulk as f64).floor() as u64 + 1
+        };
         let k_bulk = k_start..k_end;
 
         // sum up all possible discrete bulk allele frequencies with current number of observations
@@ -245,7 +250,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
 mod tests {
     use super::*;
     use bio::stats::LogProb;
-    use model::{AlleleFreq, AlleleFreqs, likelihood, Variant, PairPileup, priors};
+    use model::{AFRange, AlleleFreq, AlleleFreqs, likelihood, Variant, PairPileup, priors};
     use model::sample::{Observation, Evidence};
 
     #[test]
@@ -371,12 +376,12 @@ mod tests {
         let model = SingleCellBulkModel::new(2);
 
         let af_single_all = vec![AlleleFreq(0.0), AlleleFreq(0.5), AlleleFreq(1.0)];
-        let af_bulk_zero = AlleleFreq(0.0)..AlleleFreq(0.00000001);
-        let af_bulk_not_zero = AlleleFreq(0.00000001)..AlleleFreq(1.00000001);
-        let af_bulk_quarter = AlleleFreq(0.25)..AlleleFreq(0.25000001);
-        let af_bulk_half = AlleleFreq(0.5)..AlleleFreq(0.50000001);
-        let af_bulk_not_one = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let af_bulk_one = AlleleFreq(1.0)..AlleleFreq(1.00000001);
+        let af_bulk_zero = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.0) );
+        let af_bulk_not_zero = AFRange::left_exclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
+        let af_bulk_quarter = AFRange::inclusive( AlleleFreq(0.25)..AlleleFreq(0.25) );
+        let af_bulk_half = AFRange::inclusive( AlleleFreq(0.5)..AlleleFreq(0.5) );
+        let af_bulk_not_one = AFRange::right_exclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
+        let af_bulk_one = AFRange::inclusive( AlleleFreq(1.0)..AlleleFreq(1.0) );
 
         let s_dummy_obs = create_obs_vector(1, 1);
 
@@ -460,15 +465,13 @@ mod tests {
 
         // single cell is het against het germline
         let af_single = vec![AlleleFreq(0.5)];
-        let af_bulk = AlleleFreq(0.25000001)..AlleleFreq(0.75000001);
+        let af_bulk = AFRange::left_exclusive( AlleleFreq(0.25)..AlleleFreq(0.75) );
 
         let single_obs = create_obs_vector(3, 3);
         let bulk_obs = create_obs_vector(3, 3);
 
         let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
-//        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
-//        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
         println!("SCBM het: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 0.00019473983947767667, epsilon = 0.000000000000000001 );
         println!("SCBM het: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
@@ -496,15 +499,13 @@ mod tests {
 
         // single cell is hom ref against hom ref germline
         let af_single = vec![AlleleFreq(0.0)];
-        let af_bulk = AlleleFreq(0.0)..AlleleFreq(0.25000001);
+        let af_bulk = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.25) );
 
         let single_obs = create_obs_vector(5, 0);
         let bulk_obs = create_obs_vector(5, 0);
 
         let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
-//        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
-//        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
         println!("SCBM hom ref: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 1.2409982197541034, epsilon = 0.0000000000000001 );
         println!("SCBM hom ref: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
@@ -532,15 +533,13 @@ mod tests {
 
         // single cell is hom alt against hom alt germline
         let af_single = vec![AlleleFreq(1.0)];
-        let af_bulk = AlleleFreq(0.75000001)..AlleleFreq(1.00000001);
+        let af_bulk = AFRange::left_exclusive( AlleleFreq(0.75)..AlleleFreq(1.0) );
 
         let single_obs = create_obs_vector(0, 5);
         let bulk_obs = create_obs_vector(0, 5);
 
         let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
-//        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
-//        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
         println!("SCBM hom alt: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 1.2409982197541034, epsilon = 0.0000000000000001 );
         println!("SCBM hom alt: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
@@ -568,15 +567,13 @@ mod tests {
 
         // single cell is hom alt against het germline
         let af_single = vec![AlleleFreq(1.0)];
-        let af_bulk = AlleleFreq(0.25000001)..AlleleFreq(0.75000001);
+        let af_bulk = AFRange::left_exclusive( AlleleFreq(0.25)..AlleleFreq(0.75) );
 
         let single_obs = create_obs_vector(0, 4);
         let bulk_obs = create_obs_vector(3, 1);
 
         let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
-//        println!("SCBM.prior_prob(af_single[0] = {}, af_bulk.start = {}): {}", af_single[0], af_bulk.start, model.prior_prob(af_single[0], af_bulk.start, variant).exp() );
-//        assert_eq!( model.prior_prob(af_single[0], af_bulk.start, variant).exp(), 1.0 );
         println!("SCBM hom alt: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 0.06996173990713889, epsilon = 0.0000000000000001 );
         println!("SCBM hom alt: pileup.marginal_prob: {}", pileup.marginal_prob().exp() );
