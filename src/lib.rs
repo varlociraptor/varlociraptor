@@ -13,7 +13,6 @@ extern crate itertools_num;
 extern crate approx;
 extern crate rusty_machine;
 extern crate ordered_float;
-#[macro_use]
 extern crate ndarray;
 extern crate rustc_serialize;
 #[macro_use]
