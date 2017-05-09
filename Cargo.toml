@@ -8,7 +8,7 @@ readme = "README.md"
 license = "GPL-3.0"
 
 [dependencies]
-bio = "0.10.*"
+bio = { git = "https://github.com/rust-bio/rust-bio.git" } # "0.10.*"
 log = "0.3.*"
 rust-htslib = "0.11.*"
 GSL = "0.4.*"
