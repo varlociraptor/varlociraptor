@@ -612,15 +612,11 @@ impl Sample {
                     let end_pos = record.end_pos(&cigar) as u32;
 
                     if pos <= start && end_pos >= start {
-                        let obs = self.read_observation(&record, &cigar, start, variant, chrom_seq);
-                        match obs {
-                            Some(o) => {
-                                observations.push(o);
-                                n_overlap += 1;
-                            },
-                            None => {
-                                debug!("Did not add read to observations, SNV position deleted or skipped.");
-                            }
+                        if let Some(obs) = self.read_observation(&record, &cigar, start, variant, chrom_seq) {
+                            observations.push(obs);
+                            n_overlap += 1;
+                        } else {
+                            debug!("Did not add read to observations, SNV position deleted or skipped.");
                         }
                     }
                 }
@@ -656,13 +652,9 @@ impl Sample {
                     // read evidence
                     if overlap > 0 {
                         if overlap <= self.max_indel_overlap {
-                            let obs = self.read_observation(&record, &cigar, start, variant, chrom_seq);
-                            match obs {
-                                Some(o) => {
-                                    observations.push(o);
-                                    n_overlap += 1;
-                                },
-                                None => ()
+                            if let Some(obs) = self.read_observation(&record, &cigar, start, variant, chrom_seq) {
+                                observations.push(obs);
+                                n_overlap += 1;
                             }
                         }
                     }
@@ -737,17 +729,16 @@ impl Sample {
             }
         };
 
-        match probs {
-            Some( (prob_ref, prob_alt) ) => {
-                Some ( Observation {
-                    prob_mapping: prob_mapping,
-                    prob_alt: prob_alt,
-                    prob_ref: prob_ref,
-                    prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-                    evidence: Evidence::from(cigar)
-                } )
-            },
-            None => None
+        if let Some( (prob_ref, prob_alt) ) = probs {
+            Some ( Observation {
+                prob_mapping: prob_mapping,
+                prob_alt: prob_alt,
+                prob_ref: prob_ref,
+                prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                evidence: Evidence::from(cigar)
+            } )
+        } else {
+            None
         }
     }
 
@@ -1028,14 +1019,12 @@ mod tests {
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            let obs = sample.read_observation(&record, &cigar, varpos, variant, &ref_seq);
-            match obs {
-                Some(o) => {
-                    assert_relative_eq!(*o.prob_alt, *true_alt_prob, epsilon=0.001);
-                    assert_relative_eq!(*o.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
-                    assert_relative_eq!(*o.prob_mismapped, *LogProb::ln_one());
-                },
-                None => panic!("read_observation() in test_read_observation_indel() returned 'None'")
+            if let Some(obs) = sample.read_observation(&record, &cigar, varpos, variant, &ref_seq) {
+                assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.001);
+                assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
+                assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
+            } else {
+                panic!("read_observation() in test_read_observation_indel() returned 'None'");
             }
         }
     }
@@ -1211,19 +1200,15 @@ mod tests {
         let variant = model::Variant::SNV(b'G');
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let res = prob_read_snv(rec, &rec.cigar(), vpos, variant, &ref_seq);
-            match res {
-                Some( (prob_ref, prob_alt) ) => {
-                    println!("{:?}", rec.cigar());
-                    println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
-                    assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
-                    assert_relative_eq!( (*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
-                },
-                None => {
-                    // anything that's tested for the reference position not being covered, should
-                    // have 10 as the quality value of the first base in seq
-                    assert_eq!(rec.qual()[0], 10);
-                }
+            if let Some( (prob_ref, prob_alt) ) = prob_read_snv(rec, &rec.cigar(), vpos, variant, &ref_seq) {
+                println!("{:?}", rec.cigar());
+                println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
+                assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
+                assert_relative_eq!( (*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
+            } else {
+                // anything that's tested for the reference position not being covered, should
+                // have 10 as the quality value of the first base in seq
+                assert_eq!(rec.qual()[0], 10);
             }
         }
     }
