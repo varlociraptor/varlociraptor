@@ -85,8 +85,7 @@ fn pileups<'a, A, B, P>(
 ///
 /// * `inbcf` - path to BCF/VCF with preprocessed variant calls (None for STDIN).
 /// * `outbcf` - path to BCF/VCF with results (None for STDOUT).
-/// * `events` - events to call
-/// * `complement_event` - optional complementary event to call (e.g. absent)
+/// * `events` - events to call (these have to cover the entire event space!!)
 /// * `joint_model` - calling model to use
 /// * `omit_snvs` - omit single nucleotide variants
 /// * `omit_indels` - omit indels
@@ -100,7 +99,6 @@ pub fn call<A, B, P, M, R, W, X, F>(
     outbcf: Option<W>,
     fasta: &F,
     events: &[PairEvent<A, B>],
-    complement_event: Option<&ComplementEvent>,
     pair_model: &mut PairCaller<A, B, P>,
     omit_snvs: bool,
     omit_indels: bool,
@@ -130,9 +128,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
             event.header_entry("PROB", "PHRED-scaled probability for").as_bytes()
         );
     }
-    if let Some(complement_event) = complement_event {
-        header.push_record(complement_event.header_entry("PROB", "PHRED-scaled probability for").as_bytes());
-    }
+
     // add tags for expected allele frequency
     header.push_record(
         b"##INFO=<ID=CASE_AF,Number=A,Type=Float,\
@@ -157,6 +153,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
     let mut record = bcf::Record::new();
     let mut i = 0;
     loop {
+        // read BCF
         if let Err(e) = inbcf.read(&mut record) {
             if e.is_eof() {
                 return Ok(())
@@ -165,30 +162,38 @@ pub fn call<A, B, P, M, R, W, X, F>(
             }
         }
         i += 1;
+
         // translate to header of the writer
         outbcf.translate(&mut record);
-        let pileups = try!(pileups(&inbcf, &mut record, pair_model, &mut reference_buffer, omit_snvs, omit_indels, max_indel_len, exclusive_end));
+        let pileups = pileups(
+            &inbcf, &mut record, pair_model, &mut reference_buffer,
+            omit_snvs, omit_indels, max_indel_len, exclusive_end
+        )?;
 
         if !pileups.is_empty() {
+            // write observations
             if let Some(ref mut outobs) = outobs {
                 let chrom = str::from_utf8(chrom(&inbcf, &record)).unwrap();
                 for (i, pileup) in pileups.iter().enumerate() {
                     if let &Some(ref pileup) = pileup {
                         for obs in pileup.case_observations() {
-                            try!(outobs.encode((chrom, record.pos(), i, "case", obs)));
+                            outobs.encode((chrom, record.pos(), i, "case", obs))?;
                         }
                         for obs in pileup.control_observations() {
-                            try!(outobs.encode((chrom, record.pos(), i, "control", obs)));
+                            outobs.encode((chrom, record.pos(), i, "control", obs))?;
                         }
                     }
                 }
-                try!(outobs.flush());
+                outobs.flush()?;
             }
 
+            // write posterior probabilities
             let mut posterior_probs = Array::default((events.len(), pileups.len()));
             for (i, event) in events.iter().enumerate() {
                 for (j, pileup) in pileups.iter().enumerate() {
                     let p = if let &Some(ref pileup) = pileup {
+                        // TODO use joint probability instead of posterior since we do the
+                        // normalization below.
                         Some(pileup.posterior_prob(&event.af_case, &event.af_control))
                     } else {
                         // indicate missing value
@@ -202,31 +207,25 @@ pub fn call<A, B, P, M, R, W, X, F>(
                     &phred_scale(posterior_probs.row(i).iter())
                 ));
             }
-            if let Some(complement_event) = complement_event {
-                let mut complement_probs = Vec::with_capacity(pileups.len());
-                for (j, pileup) in pileups.iter().enumerate() {
-                    let p = if pileup.is_some() {
-                        let event_probs = posterior_probs.column(j).iter().cloned().collect_vec();
-                        let total = LogProb::ln_sum_exp(&event_probs.iter().map(|v| v.unwrap()).collect_vec());
-                        // total can slightly exceed 1 due to the numerical integration
-                        Some(
-                            if *total >= 0.0 {
-                                LogProb::ln_zero()
-                            } else {
-                                total.ln_one_minus_exp()
-                            }
-                        )
-                    } else {
-                        // indicate missing value
-                        None
-                    };
-                    complement_probs.push(p);
+            for (j, pileup) in pileups.iter().enumerate() {
+                if pileup.is_some() {
+                    let total = LogProb::ln_sum_exp(
+                        &posterior_probs.column(j).iter().map(|v| v.unwrap()).collect_vec()
+                    );
+                    for i in 0..events.len() {
+                        // normalize by total probability
+                        posterior_probs[(i, j)] -= total;
+                    }
                 }
-                try!(record.push_info_float(
-                    complement_event.tag_name("PROB").as_bytes(),
-                    &phred_scale(complement_probs.iter())
-                ));
             }
+            for (i, event) in events.iter().enumerate() {
+                record.push_info_float(
+                    event.tag_name("PROB").as_bytes(),
+                    &phred_scale(posterior_probs.row(i).iter())
+                )?;
+            }
+
+            // write allele frequency estimates
             let mut case_afs = Vec::with_capacity(pileups.len());
             let mut control_afs = Vec::with_capacity(pileups.len());
             for pileup in &pileups {
@@ -239,10 +238,10 @@ pub fn call<A, B, P, M, R, W, X, F>(
                     control_afs.push(f32::missing());
                 }
             }
-            try!(record.push_info_float(b"CASE_AF", &case_afs));
-            try!(record.push_info_float(b"CONTROL_AF", &control_afs));
+            record.push_info_float(b"CASE_AF", &case_afs)?;
+            record.push_info_float(b"CONTROL_AF", &control_afs)?;
         }
-        try!(outbcf.write(&record));
+        outbcf.write(&record)?;
         if i % 1000 == 0 {
             info!("{} records processed.", i);
         }
