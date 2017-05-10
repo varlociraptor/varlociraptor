@@ -15,7 +15,6 @@ use model::AlleleFreqs;
 use model::priors;
 use model::PairCaller;
 use model;
-use ComplementEvent;
 use Event;
 use utils;
 
@@ -214,7 +213,8 @@ pub fn call<A, B, P, M, R, W, X, F>(
                     );
                     for i in 0..events.len() {
                         // normalize by total probability
-                        posterior_probs[(i, j)] -= total;
+                        let p = posterior_probs[(i, j)].unwrap();
+                        posterior_probs[(i, j)] = Some(p - total);
                     }
                 }
             }
