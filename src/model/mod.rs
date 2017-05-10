@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::cell::Cell;
-use std::ops::Range;
+use std::ops::{Range, Deref};
 use std::fmt::Debug;
 use std::error::Error;
 use std::cell::RefCell;
@@ -18,7 +18,6 @@ use model::sample::{Sample, Observation};
 
 pub type AlleleFreq = NotNaN<f64>;
 pub type DiscreteAlleleFreqs = Vec<AlleleFreq>;
-pub type ContinuousAlleleFreqs = AFRange;
 
 
 #[allow(non_snake_case)]
@@ -33,47 +32,55 @@ impl AlleleFreqs for ContinuousAlleleFreqs {}
 
 /// An allele frequency range
 #[derive(Debug)]
-pub struct AFRange {
-    pub inner: Range<AlleleFreq>,
+pub struct ContinuousAlleleFreqs {
+    inner: Range<AlleleFreq>,
     pub left_exclusive: bool,
     pub right_exclusive: bool
 }
 
-impl AFRange {
+impl ContinuousAlleleFreqs {
     /// create a left- and right-inclusive allele frequency range
-    pub fn inclusive(range: Range<AlleleFreq>) -> Self {
-        AFRange {
-            inner: range,
+    pub fn inclusive(range: Range<f64>) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
             right_exclusive: false
         }
     }
 
     /// create a left- and right-exclusive allele frequency range
-    pub fn exclusive(range: Range<AlleleFreq>) -> Self {
-        AFRange {
-            inner: range,
+    pub fn exclusive(range: Range<f64>) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
             right_exclusive: true
         }
     }
 
     /// create a left-exclusive allele frequency range
-    pub fn left_exclusive(range: Range<AlleleFreq>) -> Self {
-        AFRange {
-            inner: range,
+    pub fn left_exclusive(range: Range<f64>) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
             right_exclusive: false
         }
     }
 
     /// create a right-exclusive allele frequency range
-    pub fn right_exclusive(range: Range<AlleleFreq>) -> Self {
-        AFRange {
-            inner: range,
+    pub fn right_exclusive(range: Range<f64>) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
             right_exclusive: true
         }
+    }
+}
+
+impl Deref for ContinuousAlleleFreqs {
+    type Target = Range<AlleleFreq>;
+
+    fn deref(&self) -> &Range<AlleleFreq> {
+        &self.inner
     }
 }
 
@@ -481,8 +488,8 @@ mod tests {
     #[test]
     fn test_same_pileup() {
         let variant = Variant::Deletion(3);
-        let tumor_all = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let tumor_alt = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) ); // TODO: should this be left_exclusive() instead?
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.0..1.0 ); // TODO: should this be left_exclusive() instead?
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -520,8 +527,8 @@ mod tests {
     #[test]
     fn test_empty_control_pileup() {
         let variant = Variant::Deletion(3);
-        let tumor_all = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let tumor_alt = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) ); // TODO: should this be left_exclusive() instead?
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -560,8 +567,8 @@ mod tests {
     #[test]
     fn test_subclonal() {
         let variant = Variant::Deletion(3);
-        let tumor_all = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let tumor_alt = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) ); // TODO: should this be left_exclusive() instead?
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -606,9 +613,9 @@ mod tests {
     #[test]
     fn test_absent() {
         let variant = Variant::Deletion(3);
-        let tumor_all = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let tumor_alt = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) ); // TODO: should this be left_exclusive() instead?
-        let tumor_ref = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.0) );
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
+        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -683,9 +690,9 @@ mod tests {
             prior_model
         );
 
-        let tumor_all = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let tumor_alt = AFRange::inclusive( AlleleFreq(0.05)..AlleleFreq(1.0) ); // TODO: should this be left_exclusive() instead?
-        let tumor_ref = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.001) ); // TODO: should this be (0.0)..(0.0) instead?
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 ); // TODO: should this be left_exclusive() instead?
+        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.001 ); // TODO: should this be (0.0)..(0.0) instead?
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -809,8 +816,8 @@ mod tests {
     fn test_example2() {
         let (case_obs, control_obs, model) = setup_example("tests/example2.obs.txt", 0.01, 0.03);
 
-        let tumor_all = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let tumor_alt = AFRange::inclusive( AlleleFreq(0.05)..AlleleFreq(1.0) ); // TODO: should this be left_exclusive() instead?
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 ); // TODO: should this be left_exclusive() instead?
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -831,8 +838,8 @@ mod tests {
     fn test_example3() {
         let (case_obs, control_obs, model) = setup_example("tests/example3.obs.txt", 0.01, 0.03);
 
-        let tumor_all = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let tumor_alt = AFRange::inclusive( AlleleFreq(0.05)..AlleleFreq(1.0) ); // TODO: should this be left_exclusive() instead?
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 ); // TODO: should this be left_exclusive() instead?
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -856,9 +863,9 @@ mod tests {
             obs.prob_mapping = LogProb(0.999f64.ln());
         }*/
 
-        let tumor_all = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let tumor_alt = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) ); // TODO: should this be left_exclusive() instead?
-        let tumor_ref = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.0) );
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
+        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
         //let lh = model.case_sample().likelihood_model().likelihood_pileup(&case_obs[..100], 0.07, 0.0);

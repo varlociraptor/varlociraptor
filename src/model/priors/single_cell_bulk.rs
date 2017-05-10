@@ -4,7 +4,7 @@ use bio::stats::LogProb;
 use statrs::function::beta::ln_beta;
 use statrs::function::factorial::ln_binomial;
 
-use model::{Variant, AFRange, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
+use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 use priors::PairModel;
 
@@ -29,7 +29,7 @@ impl SingleCellBulkModel {
         let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
         SingleCellBulkModel {
             allele_freqs_single: allele_freqs,
-            allele_freqs_bulk: AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(1.0) )
+            allele_freqs_bulk: ContinuousAlleleFreqs::inclusive( 0.0..1.0 )
         }
     }
 
@@ -144,14 +144,14 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
 
         // discretization of possible bulk allele frequencies at given number of bulk observations
         let k_start = if af_bulk.left_exclusive {
-            (*af_bulk.inner.start * n_obs_bulk as f64).floor() as u64 + 1
+            (*af_bulk.start * n_obs_bulk as f64).floor() as u64 + 1
         } else {
-            (*af_bulk.inner.start * n_obs_bulk as f64).ceil() as u64
+            (*af_bulk.start * n_obs_bulk as f64).ceil() as u64
         };
         let k_end = if af_bulk.right_exclusive {
-            (*af_bulk.inner.end * n_obs_bulk as f64).ceil() as u64
+            (*af_bulk.end * n_obs_bulk as f64).ceil() as u64
         } else {
-            (*af_bulk.inner.end * n_obs_bulk as f64).floor() as u64 + 1
+            (*af_bulk.end * n_obs_bulk as f64).floor() as u64 + 1
         };
         let k_bulk = k_start..k_end;
 
@@ -250,7 +250,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
 mod tests {
     use super::*;
     use bio::stats::LogProb;
-    use model::{AFRange, AlleleFreq, AlleleFreqs, likelihood, Variant, PairPileup, priors};
+    use model::{ContinuousAlleleFreqs, AlleleFreq, AlleleFreqs, likelihood, Variant, PairPileup, priors};
     use model::sample::{Observation, Evidence};
 
     #[test]
@@ -375,13 +375,13 @@ mod tests {
     fn test_bulk_range_discretization() {
         let model = SingleCellBulkModel::new(2);
 
-        let af_single_all = vec![AlleleFreq(0.0), AlleleFreq(0.5), AlleleFreq(1.0)];
-        let af_bulk_zero = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.0) );
-        let af_bulk_not_zero = AFRange::left_exclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let af_bulk_quarter = AFRange::inclusive( AlleleFreq(0.25)..AlleleFreq(0.25) );
-        let af_bulk_half = AFRange::inclusive( AlleleFreq(0.5)..AlleleFreq(0.5) );
-        let af_bulk_not_one = AFRange::right_exclusive( AlleleFreq(0.0)..AlleleFreq(1.0) );
-        let af_bulk_one = AFRange::inclusive( AlleleFreq(1.0)..AlleleFreq(1.0) );
+        let af_single_all    = vec![AlleleFreq(0.0), AlleleFreq(0.5), AlleleFreq(1.0)];
+        let af_bulk_zero     = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
+        let af_bulk_not_zero = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
+        let af_bulk_quarter  = ContinuousAlleleFreqs::inclusive( 0.25..0.25 );
+        let af_bulk_half     = ContinuousAlleleFreqs::inclusive( 0.5..0.5 );
+        let af_bulk_not_one  = ContinuousAlleleFreqs::right_exclusive( 0.0..1.0 );
+        let af_bulk_one      = ContinuousAlleleFreqs::inclusive( 1.0..1.0 );
 
         let s_dummy_obs = create_obs_vector(1, 1);
 
@@ -465,7 +465,7 @@ mod tests {
 
         // single cell is het against het germline
         let af_single = vec![AlleleFreq(0.5)];
-        let af_bulk = AFRange::left_exclusive( AlleleFreq(0.25)..AlleleFreq(0.75) );
+        let af_bulk = ContinuousAlleleFreqs::left_exclusive( 0.25..0.75 );
 
         let single_obs = create_obs_vector(3, 3);
         let bulk_obs = create_obs_vector(3, 3);
@@ -499,7 +499,7 @@ mod tests {
 
         // single cell is hom ref against hom ref germline
         let af_single = vec![AlleleFreq(0.0)];
-        let af_bulk = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.25) );
+        let af_bulk = ContinuousAlleleFreqs::inclusive( 0.0..0.25 );
 
         let single_obs = create_obs_vector(5, 0);
         let bulk_obs = create_obs_vector(5, 0);
@@ -533,7 +533,7 @@ mod tests {
 
         // single cell is hom alt against hom alt germline
         let af_single = vec![AlleleFreq(1.0)];
-        let af_bulk = AFRange::left_exclusive( AlleleFreq(0.75)..AlleleFreq(1.0) );
+        let af_bulk = ContinuousAlleleFreqs::left_exclusive( 0.75..1.0 );
 
         let single_obs = create_obs_vector(0, 5);
         let bulk_obs = create_obs_vector(0, 5);
@@ -567,7 +567,7 @@ mod tests {
 
         // single cell is hom alt against het germline
         let af_single = vec![AlleleFreq(1.0)];
-        let af_bulk = AFRange::left_exclusive( AlleleFreq(0.25)..AlleleFreq(0.75) );
+        let af_bulk = ContinuousAlleleFreqs::left_exclusive( 0.25..0.75 );
 
         let single_obs = create_obs_vector(0, 4);
         let bulk_obs = create_obs_vector(3, 1);

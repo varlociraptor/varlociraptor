@@ -5,7 +5,7 @@ use itertools_num::linspace;
 use ordered_float::NotNaN;
 use bio::stats::{LogProb, Prob};
 
-use model::{Variant, AFRange, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
+use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 use priors::InfiniteSitesNeutralVariationModel;
 use priors::{PairModel, normal};
@@ -77,7 +77,7 @@ impl TumorNormalModel {
             deletion_factor: deletion_factor,
             insertion_factor: insertion_factor,
             genome_size: genome_size,
-            allele_freqs_tumor: AFRange::inclusive(AlleleFreq(0.0)..AlleleFreq(1.0)),
+            allele_freqs_tumor: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
             allele_freqs_normal: normal::allele_freqs(ploidy),
             grid_points: 51,
             af_min: af_min,
@@ -153,10 +153,10 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
                 likelihood_tumor(af_tumor, Some(af_normal))
             };
 
-            let p_tumor = if af_tumor.inner.start == af_tumor.inner.end {
-                density(*af_tumor.inner.start)
+            let p_tumor = if af_tumor.start == af_tumor.end {
+                density(*af_tumor.start)
             } else {
-                LogProb::ln_simpsons_integrate_exp(&density, *af_tumor.inner.start, *af_tumor.inner.end, self.grid_points)
+                LogProb::ln_simpsons_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points)
             };
             let p_normal = likelihood_normal(af_normal, None);
             let prob = p_tumor + p_normal;
@@ -189,7 +189,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         ).ln_add_exp(
             // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
-                &AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.0) ),
+                &ContinuousAlleleFreqs::inclusive( 0.0..0.0 ),
                 &vec![AlleleFreq(0.0)],
                 likelihood_tumor,
                 likelihood_normal,
@@ -212,7 +212,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
         O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
-        let af_case = linspace(*self.allele_freqs_tumor.inner.start, *self.allele_freqs_tumor.inner.end, self.grid_points);
+        let af_case = linspace(*self.allele_freqs_tumor.start, *self.allele_freqs_tumor.end, self.grid_points);
         let (_, (map_normal, map_tumor)) = self.allele_freqs_normal.iter().cartesian_product(af_case).minmax_by_key(
             |&(&af_normal, af_tumor)| {
                 let af_tumor = AlleleFreq(af_tumor);
@@ -236,7 +236,7 @@ mod tests {
     use super::*;
     use itertools_num::linspace;
     use bio::stats::{Prob, LogProb};
-    use model::{AFRange, AlleleFreq, likelihood, PairPileup, Variant};
+    use model::{ContinuousAlleleFreqs, AlleleFreq, likelihood, PairPileup, Variant};
     use model::priors::PairModel;
     use model::sample::{Observation, Evidence};
 
@@ -290,7 +290,7 @@ mod tests {
         let model = TumorNormalModel::new(2, 3000.0, 0.5, 0.5, 3e9 as u64, heterozygosity);
 
         // tumor and normal both hom ref
-        let af_tumor = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.0) );
+        let af_tumor = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
         let af_normal = vec![AlleleFreq(0.0)];
 
         let variant = Variant::SNV(b'T');
@@ -309,7 +309,7 @@ mod tests {
             tumor_sample_model,
             normal_sample_model
         );
-        assert_eq!( model.prior_prob(af_tumor.inner.start, af_normal[0], variant), LogProb::ln_one());
+        assert_eq!( model.prior_prob(af_tumor.start, af_normal[0], variant), LogProb::ln_one());
         assert_eq!( pileup.joint_prob(&af_tumor, &af_normal), LogProb::ln_one() );
         assert_relative_eq!(pileup.posterior_prob(&af_tumor, &af_normal).exp(), 1.0, epsilon = 0.008);
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.0), AlleleFreq(0.0) ) );
@@ -322,7 +322,7 @@ mod tests {
         let model = TumorNormalModel::new(2, 3000.0, 0.5, 0.5, 3e9 as u64, heterozygosity);
 
         // tumor and normal both hom ref
-        let af_tumor = AFRange::inclusive( AlleleFreq(0.0)..AlleleFreq(0.0));
+        let af_tumor = ContinuousAlleleFreqs::inclusive( 0.0..0.0);
         let af_normal = vec![AlleleFreq(0.0)];
 
         let variant = Variant::SNV(b'T');
@@ -344,12 +344,12 @@ mod tests {
 
         // priors assuming: heterozygosity = 1.25E-4, ploidy = 2
         let normal_prior_prob = 0.9998125;
-        println!("TNM.somatic_prior_prob(af_tumor.inner.start = {}): {}", af_tumor.inner.start, model.somatic_prior_prob(af_tumor.inner.start, variant).exp() );
-        assert_eq!( model.somatic_prior_prob(af_tumor.inner.start, variant), LogProb::ln_one() );
+        println!("TNM.somatic_prior_prob(af_tumor.start = {}): {}", af_tumor.start, model.somatic_prior_prob(af_tumor.start, variant).exp() );
+        assert_eq!( model.somatic_prior_prob(af_tumor.start, variant), LogProb::ln_one() );
         println!("TNM.normal_prior_prob(af_normal[0] = {}): {}", af_normal[0], model.normal_prior_prob(af_normal[0], variant).exp() );
         assert_eq!( model.normal_prior_prob(af_normal[0], variant).exp(), normal_prior_prob );
-        println!("TNM.prior_prob(af_tumor.inner.start = {}, af_normal[0] = {}): {}", af_tumor.inner.start, af_normal[0], model.prior_prob(af_tumor.inner.start, af_normal[0], variant).exp() );
-        assert_eq!( model.prior_prob(af_tumor.inner.start, af_normal[0], variant).exp(), normal_prior_prob );
+        println!("TNM.prior_prob(af_tumor.start = {}, af_normal[0] = {}): {}", af_tumor.start, af_normal[0], model.prior_prob(af_tumor.start, af_normal[0], variant).exp() );
+        assert_eq!( model.prior_prob(af_tumor.start, af_normal[0], variant).exp(), normal_prior_prob );
         let aft_full = model.allele_freqs().0;
         let afn_full = model.allele_freqs().1;
         assert_eq!( pileup.joint_prob(&af_tumor, &af_normal).exp(), normal_prior_prob );

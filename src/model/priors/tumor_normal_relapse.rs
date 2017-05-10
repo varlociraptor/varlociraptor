@@ -58,7 +58,7 @@ impl TumorNormalRelapseModel {
 }
 
 
-impl TrioModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalRelapseModel {
+impl TrioModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalRelapseModel {
     fn prior_prob(&self, af_tumor: AlleleFreq, af_relapse: AlleleFreq, af_normal: AlleleFreq, variant: Variant) -> LogProb {
         let p_tumor_normal = self.primary_model.prior_prob(af_tumor, af_normal, variant);
         // af_tumor = 1 or 0
@@ -142,8 +142,8 @@ impl TrioModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs, DiscreteAlleleFreqs
             // add prob for allele frequency zero (the density is non-continuous there)
             // TODO check for further non-continuous spots...
             self.joint_prob(
-                &(AlleleFreq(0.0)..AlleleFreq(0.0)),
-                &(AlleleFreq(0.0)..AlleleFreq(0.0)),
+                &ContinuousAlleleFreqs::inclusive(0.0..0.0),
+                &ContinuousAlleleFreqs::inclusive(0.0..0.0),
                 &vec![AlleleFreq(0.0)],
                 likelihood_tumor,
                 likelihood_relapse,
