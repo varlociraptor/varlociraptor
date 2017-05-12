@@ -89,7 +89,11 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant:
 /// such that they simply lead to globally reduced likelihoods, which are normalized away by bayes theorem.
 /// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
 /// both the alt and the ref case equally.
-pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
+///
+/// # Arguments
+///
+/// * window - maximum number of bases to align left and right of breakpoint (this shall not be too wide in order to avoid bias by other close variants)
+pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, variant: Variant, ref_seq: &[u8], window: u32) -> (LogProb, LogProb) {
     debug!("--------------");
 
     let mut pos = record.pos() as u32;
@@ -159,8 +163,11 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
         // TODO consider the case that a deletion is made invisible via an insertion of the same size and vice versa?
 
         let prefix_end = start.saturating_sub(p);
+        let prefix_start = prefix_end.saturating_sub(window);
+        println!("prefix_start {} - {} = {}", prefix_end, window, prefix_start);
+
         // common prefix
-        for i in 0..prefix_end {
+        for i in prefix_start..prefix_end {
             let prob = prob_read_base(i, p + i);
             prob_ref = prob_ref + prob;
             prob_alt = prob_alt + prob;
@@ -181,14 +188,20 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
             }
         }
 
-        // ref likelihood
-        for i in prefix_end..m {
-            let prob = prob_read_base(i, p + i);
-            prob_ref = prob_ref + prob;
+        {
+            // ref likelihood
+            let suffix_start = prefix_end;
+            let suffix_end = cmp::min(suffix_start + window, m);
+            println!("suffix_end {}", suffix_end);
 
-            if log_enabled!(Debug) {
-                let x = debug_match(i, p + i);
-                ref_matches.as_mut().unwrap().push(x);
+            for i in suffix_start..suffix_end {
+                let prob = prob_read_base(i, p + i);
+                prob_ref = prob_ref + prob;
+
+                if log_enabled!(Debug) {
+                    let x = debug_match(i, p + i);
+                    ref_matches.as_mut().unwrap().push(x);
+                }
             }
         }
 
@@ -201,6 +214,8 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                 // but it is needed because some callers specify calls as G->GAA and some as *->AA
                 // a better place to fix is when parsing the vcf file.
                 let suffix_start = (start + l + 1).saturating_sub(p);
+                let suffix_end = cmp::min(suffix_start + window, m);
+                println!("suffix_end {}", suffix_end);
 
                 if log_enabled!(Debug) {
                     if suffix_start <= m {
@@ -211,7 +226,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                     }
                 }
 
-                for i in suffix_start..m {
+                for i in suffix_start..suffix_end {
                     let prob = prob_read_base(i, p + i - l);
                     prob_alt = prob_alt + prob;
 
@@ -248,12 +263,14 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                 } else {
                     start + l - p
                 };
+                let suffix_end = cmp::min(suffix_start + window, m);
+                println!("suffix_end {}", suffix_end);
 
-                // if deletion is left of p, l shall not shift the matches because read has been
-                // aligned after the deletion
+                // if read is right of deletion, l shall not shift the matches because read has
+                // been aligned after the deletion
                 let l = if left_of { l as u32 } else { 0 };
 
-                for i in suffix_start..m {
+                for i in suffix_start..suffix_end {
                     let prob = prob_read_base(i, p + i + l);
                     prob_alt = prob_alt + prob;
 
@@ -283,7 +300,8 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
     // the uncertainty of the mapping position (w_i) is captured by prob_mapping.
     let total = prob_ref.ln_add_exp(prob_alt);
     debug!("Pr(alt)={}, Pr(ref)={}, Pr(total)={}", *prob_alt, *prob_ref, *total);
-    (prob_ref - total, prob_alt - total)
+    // TODO temporarily disable normalization
+    (prob_ref, prob_alt)
 }
 
 
@@ -499,6 +517,7 @@ pub struct Sample {
     likelihood_model: model::likelihood::LatentVariableModel,
     prob_spurious_isize: LogProb,
     max_indel_overlap: u32,
+    indel_haplotype_window: u32
 }
 
 
@@ -537,6 +556,7 @@ impl Sample {
             likelihood_model: likelihood_model,
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
             max_indel_overlap: max_indel_overlap,
+            indel_haplotype_window: 10
         }
     }
 
@@ -688,7 +708,7 @@ impl Sample {
 
         let (prob_ref, prob_alt) = match variant {
             Variant::Deletion(_) | Variant::Insertion(_) => {
-                prob_read_indel(record, cigar, start, variant, chrom_seq)
+                prob_read_indel(record, cigar, start, variant, chrom_seq, self.indel_haplotype_window)
             },
             Variant::SNV(_) => {
                 prob_read_snv(record, cigar, start, variant, chrom_seq)
@@ -975,13 +995,13 @@ mod tests {
 
         let ref_seq = ref_seq();
 
-        let true_alt_probs = [0.0, 0.0, -483.4099, 0.0, -483.4099];
+        let true_alt_probs = [-0.08, -0.011, -50.13, -0.011, -50.13];
 
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
             let obs = sample.read_observation(&record, &cigar, varpos, variant, &ref_seq);
-            assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.001);
+            assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
             assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
             assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
         }
@@ -1072,21 +1092,22 @@ mod tests {
         let bam = bam::Reader::from_path(&"tests/indels+clips.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
         let ref_seq = ref_seq();
+        let window = 100;
 
         // truth
-        let probs_alt = [0.0, 0.0, -483.4099, 0.0, 0.0, 0.0];
-        let probs_ref = [-250.198, -214.7137, 0.0, -250.198, -621.1132, -250.198];
+        let probs_alt = [-0.47, -0.47, -483.89, -0.47, -0.47, -0.47];
+        let probs_ref = [-250.68, -215.19, -0.47, -250.68, -621.59, -250.68];
 
         // variant (obtained via bcftools)
         let start = 546;
         let variant = model::Variant::Insertion(10);
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let (prob_ref, prob_alt) = prob_read_indel(rec, &rec.cigar(), start, variant, &ref_seq);
+            let (prob_ref, prob_alt) = prob_read_indel(rec, &rec.cigar(), start, variant, &ref_seq, window);
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar());
-            assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.001);
-            assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.001);
+            assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
+            assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
         }
     }
 }
