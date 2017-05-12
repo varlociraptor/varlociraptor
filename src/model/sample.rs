@@ -164,6 +164,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
 
         let prefix_end = start.saturating_sub(p);
         let prefix_start = prefix_end.saturating_sub(window);
+        debug!("common prefix: {}-{}", prefix_start, prefix_end);
 
         // common prefix
         for i in prefix_start..prefix_end {
@@ -189,9 +190,12 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
 
         {
             // ref likelihood
-            let suffix_start = prefix_end;
+            // TODO skip the first base because we do the same for the ALT case.
+            // remove the skip once this has been fixed in the vcf parser.
+            let suffix_start = prefix_end + 1;
             let suffix_end = cmp::min(suffix_start + window, m);
 
+            debug!("ref suffix: {}-{}", suffix_start, suffix_end);
             for i in suffix_start..suffix_end {
                 let prob = prob_read_base(i, p + i);
                 prob_ref = prob_ref + prob;
@@ -213,6 +217,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                 // a better place to fix is when parsing the vcf file.
                 let suffix_start = (start + l + 1).saturating_sub(p);
                 let suffix_end = cmp::min(suffix_start + window, m);
+                debug!("alt suffix: {}-{}", suffix_start, suffix_end);
 
                 if log_enabled!(Debug) {
                     if suffix_start <= m {
@@ -237,7 +242,10 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                 if !left_of {
                     // match prefix before deletion (otherwise, this has been done above)
                     let prefix_end = start + l - p;
-                    for i in 0..prefix_end {
+                    let prefix_start = prefix_end.saturating_sub(window);
+                    debug!("alt prefix: {}-{}", prefix_start, prefix_end);
+
+                    for i in prefix_start..prefix_end {
                         let prob = prob_read_base(i, p + i - l);
                         prob_alt = prob_alt + prob;
 
@@ -261,6 +269,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                     start + l - p
                 };
                 let suffix_end = cmp::min(suffix_start + window, m);
+                debug!("alt suffix: {}-{}", suffix_start, suffix_end);
 
                 // if read is right of deletion, l shall not shift the matches because read has
                 // been aligned after the deletion
