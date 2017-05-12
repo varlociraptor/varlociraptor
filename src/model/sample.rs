@@ -193,7 +193,9 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
             // TODO skip the first base because we do the same for the ALT case.
             // remove the skip once this has been fixed in the vcf parser.
             let suffix_start = prefix_end + 1;
-            let suffix_end = cmp::min(suffix_start + window, m);
+            let prefix_len = prefix_end - prefix_start;
+            let w = if prefix_len == 0 { window * 2 } else { window };
+            let suffix_end = cmp::min(suffix_start + w, m);
 
             debug!("ref suffix: {}-{}", suffix_start, suffix_end);
             for i in suffix_start..suffix_end {
