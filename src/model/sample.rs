@@ -271,6 +271,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                     (start + l + 1).saturating_sub(p)
                 };
                 let suffix_end = cmp::min(suffix_start + window, m);
+                debug!("del len: {}", l);
                 debug!("alt suffix: {}-{}", suffix_start, suffix_end);
 
                 // if read is right of deletion, l shall not shift the matches because read has
