@@ -407,7 +407,8 @@ mod tests {
             insert_size,
             LatentVariableModel::new(1.0),
             Prob(0.0),
-            20
+            20,
+            10
         );
         let control_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
@@ -419,7 +420,8 @@ mod tests {
             insert_size,
             LatentVariableModel::new(1.0),
             Prob(0.0),
-            20
+            20,
+            10
         );
 
         let model = PairCaller::new(
@@ -617,6 +619,7 @@ mod tests {
             LatentVariableModel::new(0.75),
             Prob(0.0),
             20,
+            10
         );
         let control_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
@@ -629,6 +632,7 @@ mod tests {
             LatentVariableModel::new(1.0),
             Prob(0.0),
             20,
+            10
         );
 
         let model = PairCaller::new(
@@ -681,6 +685,7 @@ mod tests {
             LatentVariableModel::new(0.75),
             Prob(0.00001),
             20,
+            10
         );
         let control_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
@@ -693,6 +698,7 @@ mod tests {
             LatentVariableModel::new(1.0),
             Prob(0.00001),
             20,
+            10
         );
 
 
@@ -733,6 +739,7 @@ mod tests {
             LatentVariableModel::new(0.75),
             Prob(0.00001),
             20,
+            10
         );
         let control_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
@@ -745,6 +752,7 @@ mod tests {
             LatentVariableModel::new(1.0),
             Prob(0.00001),
             20,
+            10
         );
 
 

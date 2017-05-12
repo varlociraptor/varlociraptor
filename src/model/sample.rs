@@ -535,6 +535,7 @@ impl Sample {
     /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
     /// * `prob_spurious_isize` - rate of wrongly reported insert size abberations (mapper dependent, BWA: 0.01332338, LASER: 0.05922201)
     /// * `max_indel_overlap` - maximum number of bases a read may be aligned beyond the start or end of an indel in order to be considered as an observation
+    /// * `indel_haplotype_window` - maximum number of considered bases around an indel breakpoint
     pub fn new(
         bam: bam::IndexedReader,
         pileup_window: u32,
@@ -546,6 +547,7 @@ impl Sample {
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_spurious_isize: Prob,
         max_indel_overlap: u32,
+        indel_haplotype_window: u32
     ) -> Self {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
@@ -556,7 +558,7 @@ impl Sample {
             likelihood_model: likelihood_model,
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
             max_indel_overlap: max_indel_overlap,
-            indel_haplotype_window: 10
+            indel_haplotype_window: indel_haplotype_window
         }
     }
 
@@ -979,7 +981,8 @@ mod tests {
             InsertSize { mean: isize_mean, sd: 20.0 },
             likelihood::LatentVariableModel::new(1.0),
             Prob(0.0),
-            20
+            20,
+            10
         )
     }
 
