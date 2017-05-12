@@ -164,7 +164,6 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
 
         let prefix_end = start.saturating_sub(p);
         let prefix_start = prefix_end.saturating_sub(window);
-        println!("prefix_start {} - {} = {}", prefix_end, window, prefix_start);
 
         // common prefix
         for i in prefix_start..prefix_end {
@@ -192,7 +191,6 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
             // ref likelihood
             let suffix_start = prefix_end;
             let suffix_end = cmp::min(suffix_start + window, m);
-            println!("suffix_end {}", suffix_end);
 
             for i in suffix_start..suffix_end {
                 let prob = prob_read_base(i, p + i);
@@ -215,7 +213,6 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                 // a better place to fix is when parsing the vcf file.
                 let suffix_start = (start + l + 1).saturating_sub(p);
                 let suffix_end = cmp::min(suffix_start + window, m);
-                println!("suffix_end {}", suffix_end);
 
                 if log_enabled!(Debug) {
                     if suffix_start <= m {
@@ -264,7 +261,6 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                     start + l - p
                 };
                 let suffix_end = cmp::min(suffix_start + window, m);
-                println!("suffix_end {}", suffix_end);
 
                 // if read is right of deletion, l shall not shift the matches because read has
                 // been aligned after the deletion
@@ -280,7 +276,7 @@ pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, va
                     }
                 }
             },
-            _ => panic!("unsupported variant type")
+            _ => panic!("bug: unsupported variant type")
         }
         prob_alts.push(prob_alt);
         prob_refs.push(prob_ref);
