@@ -29,7 +29,6 @@ statrs = "0.6.*"
 [dev-dependencies]
 env_logger = "0.3.*"
 fern = "0.4"
-hyper = "0.10"
 
 [features]
 default = []

@@ -6,7 +6,6 @@ extern crate bio;
 extern crate fern;
 extern crate log;
 extern crate itertools;
-extern crate hyper;
 
 use std::fs;
 use std::path::Path;
