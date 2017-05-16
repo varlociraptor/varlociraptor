@@ -1,4 +1,0 @@
-*.bam filter=lfs diff=lfs merge=lfs -text
-*.fa.gz filter=lfs diff=lfs merge=lfs -text
-*.fa filter=lfs diff=lfs merge=lfs -text
-*.bam.bai filter=lfs diff=lfs merge=lfs -text
