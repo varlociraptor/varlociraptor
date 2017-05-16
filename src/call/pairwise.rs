@@ -206,6 +206,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
                     &phred_scale(posterior_probs.row(i).iter())
                 ));
             }
+
             for (j, pileup) in pileups.iter().enumerate() {
                 if pileup.is_some() {
                     let total = LogProb::ln_sum_exp(
