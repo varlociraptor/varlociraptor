@@ -146,7 +146,10 @@ pub fn call<A, B, P, M, R, W, X, F>(
     let mut outobs = if let Some(f) = outobs {
         let mut writer = try!(csv::Writer::from_file(f)).delimiter(b'\t');
         // write header for observations
-        try!(writer.write(["chrom", "pos", "allele", "sample", "prob_mapping", "prob_alt", "prob_ref", "prob_mismapped", "evidence"].iter()));
+        writer.write(
+            ["chrom", "pos", "allele", "sample", "prob_mapping",
+             "prob_alt", "prob_ref", "prob_mismapped", "evidence"].iter()
+         )?;
         Some(writer)
     } else { None };
     let mut record = bcf::Record::new();

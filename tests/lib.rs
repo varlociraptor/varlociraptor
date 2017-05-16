@@ -10,6 +10,7 @@ extern crate itertools;
 use std::fs;
 use std::path::Path;
 use std::str;
+use std::{thread, time};
 
 use itertools::Itertools;
 use rust_htslib::{bam,bcf};
@@ -48,8 +49,12 @@ fn call_tumor_normal(test: &str) {
 
     let basedir = basedir(test);
 
-    let tumor_bam = bam::IndexedReader::from_path(&format!("{}/tumor.bam", basedir)).unwrap();
-    let normal_bam = bam::IndexedReader::from_path(&format!("{}/normal.bam", basedir)).unwrap();
+    let tumor_bam = format!("{}/tumor.bam", basedir);
+    let normal_bam = format!("{}/normal.bam", basedir);
+
+    let tumor_bam = bam::IndexedReader::from_path(&tumor_bam).unwrap();
+    let normal_bam = bam::IndexedReader::from_path(&normal_bam).unwrap();
+
     let candidates = format!("{}/candidates.vcf", basedir);
     let reference = "tests/resources/chr1.fa";
 
@@ -136,7 +141,10 @@ fn call_tumor_normal(test: &str) {
             Some(10000),
             Some(&observations),
             false
-        ).unwrap()
+        ).unwrap();
+
+    // sleep a second in order to wait for filesystem flushing
+    thread::sleep(time::Duration::from_secs(1));
 }
 
 
