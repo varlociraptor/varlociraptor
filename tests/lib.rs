@@ -6,11 +6,14 @@ extern crate bio;
 extern crate fern;
 extern crate log;
 extern crate itertools;
+extern crate hyper;
+extern crate flate2;
 
 use std::fs;
 use std::path::Path;
 use std::str;
 use std::{thread, time};
+use std::io;
 
 use itertools::Itertools;
 use rust_htslib::{bam,bcf};
@@ -44,7 +47,27 @@ fn setup_logger(test: &str) {
 }
 
 
+fn download_reference() -> &'static str {
+    let reference = "tests/resources/chr1.fa";
+    if !Path::new(reference).exists() {
+        let client = hyper::Client::new();
+        let res = client.get(
+            "http://hgdownload.cse.ucsc.edu/goldenpath/hg18/chromosomes/chr1.fa.gz"
+        ).send().unwrap();
+        let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
+        let mut reference_file = fs::File::create(reference).unwrap();
+
+        io::copy(&mut reference_stream, &mut reference_file).unwrap();
+    }
+    reference
+}
+
+
 fn call_tumor_normal(test: &str) {
+    let reference = download_reference();
+    assert!(Path::new(reference).exists());
+    assert!(Path::new(&(reference.to_owned() + ".fai")).exists());
+
     //setup_logger(test);
 
     let basedir = basedir(test);
