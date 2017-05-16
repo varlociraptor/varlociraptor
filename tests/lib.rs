@@ -6,6 +6,7 @@ extern crate bio;
 extern crate fern;
 extern crate log;
 extern crate itertools;
+extern crate hyper;
 
 use std::fs;
 use std::path::Path;
@@ -45,6 +46,10 @@ fn setup_logger(test: &str) {
 
 
 fn call_tumor_normal(test: &str) {
+    let reference = "tests/resources/chr1.fa";
+    assert!(Path::new(reference).exists(), "Hg18 Chromosome 1 not present here: {}. Please download and extract it first from here: http://hgdownload.cse.ucsc.edu/goldenpath/hg18/chromosomes/chr1.fa.gz.", reference);
+    assert!(Path::new(reference + ".fai").exists(), "Reference index not present. Please run 'samtools faidx {}'", reference);
+
     //setup_logger(test);
 
     let basedir = basedir(test);
