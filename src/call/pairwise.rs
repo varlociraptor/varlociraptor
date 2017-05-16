@@ -242,7 +242,6 @@ pub fn call<A, B, P, M, R, W, X, F>(
             record.push_info_float(b"CASE_AF", &case_afs)?;
             record.push_info_float(b"CONTROL_AF", &control_afs)?;
         }
-        println!("out!!");
         outbcf.write(&record)?;
         if i % 1000 == 0 {
             info!("{} records processed.", i);
