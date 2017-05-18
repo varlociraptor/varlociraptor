@@ -1,9 +1,14 @@
+use std::mem;
+
 use bio::stats::LogProb;
 
 
 pub trait Parameters {
-    /// Probability to start with an offset in x.
-    fn prob_offset_x(&self) -> LogProb;
+    /// Allow to start with an offset in x.
+    fn free_start_gap_x(&self) -> bool;
+
+    // Allow a free end gap in x (stop alignment before end of x).
+    fn free_end_gap_x(&self) -> bool;
 
     /// Probability to open a gap in x.
     fn prob_gap_x(&self) -> LogProb;
@@ -12,16 +17,16 @@ pub trait Parameters {
     fn prob_gap_y(&self) -> LogProb;
 
     /// Probability to extend a gap.
-    fn prob_extend(&self) -> LogProb;
+    fn prob_gap_extend(&self) -> LogProb;
 
     /// Probability to emit x_i and y_j.
-    fn prob_emit_xy(&self, i: usize, j: usize);
+    fn prob_emit_xy(&self, i: usize, j: usize) -> LogProb;
 
     /// Probability to emit x_i.
-    fn prob_emit_x(&self, i: usize);
+    fn prob_emit_x(&self, i: usize) -> LogProb;
 
     /// Probability to emit y_j.
-    fn prob_emit_y(&self, j: usize);
+    fn prob_emit_y(&self, j: usize) -> LogProb;
 
     fn len_x(&self) -> usize;
 
@@ -30,37 +35,251 @@ pub trait Parameters {
 
 
 
-pub struct PairHMM<P: Parameters> {
-    parameters: P,
-    vm: [Vec<LogProb>; 2],
-    vx: [Vec<LogProb>; 2],
-    vy: [Vec<LogProb>; 2]
+/// A pair Hidden Markov Model as described by
+/// Durbin, R., Eddy, S., Krogh, A., & Mitchison, G. (1998). Biological Sequence Analysis.
+/// Current Topics in Genome Analysis 2008. http://doi.org/10.1017/CBO9780511790492.
+///
+pub struct PairHMM {
+    fm: [Vec<LogProb>; 2],
+    fx: [Vec<LogProb>; 2],
+    fy: [Vec<LogProb>; 2],
+    prob_cols: Vec<LogProb>,
+
 }
 
 
 impl PairHMM {
-    /// Calculate the probability of sequence y coming from sequence x.
-    pub fn prob_any(&mut self) -> LogProb {
-        for k in 0..2 {
-            self.vm[k].clear();
-            self.vx[k].clear();
-            self.vy[k].clear();
+    pub fn new() -> Self {
+        PairHMM {
+            fm: [Vec::new(), Vec::new()],
+            fx: [Vec::new(), Vec::new()],
+            fy: [Vec::new(), Vec::new()],
+            prob_cols: Vec::new()
+        }
+    }
 
-            self.vm[k].resize(self.parameters.len_y() + 1, LogProb::ln_zero());
-            self.vx[k].resize(self.parameters.len_y() + 1, LogProb::ln_zero());
-            self.vy[k].resize(self.parameters.len_y() + 1, LogProb::ln_zero());
+    /// Calculate the probability of sequence x being related to y via any alignment.
+    pub fn prob_full<M, X, Y>(
+        &mut self,
+        prob_gap_x: LogProb,
+        prob_gap_y: LogProb,
+        prob_gap_extend: LogProb,
+        prob_emit_xy: &M,
+        prob_emit_x: &X,
+        prob_emit_y: &Y,
+        len_x: usize,
+        len_y: usize,
+        free_start_gap_x: bool,
+        free_end_gap_x: bool
+    ) -> LogProb where
+        M: Fn(usize, usize) -> LogProb,
+        X: Fn(usize) -> LogProb,
+        Y: Fn(usize) -> LogProb
+    {
+        for k in 0..2 {
+            self.fm[k].clear();
+            self.fx[k].clear();
+            self.fy[k].clear();
+            self.prob_cols.clear();
+
+            self.fm[k].resize(len_y + 1, LogProb::ln_zero());
+            self.fx[k].resize(len_y + 1, LogProb::ln_zero());
+            self.fy[k].resize(len_y + 1, LogProb::ln_zero());
+
+            if free_end_gap_x {
+                let c = (len_x * 3).saturating_sub(self.prob_cols.capacity());
+                self.prob_cols.reserve_exact(c);
+            }
         }
 
-        let prev = 0;
-        let curr = 1;
-        self.vm[prev][0] = LogProb::ln_one();
-        for j in 1..self.parameters.len_x() {
-            if j > 1 {
-                // allow alignment to start from offset in x
-                self.vm[prev][0] = self.parameters.prob_offset_x();
+        let prob_no_gap = prob_gap_x.ln_add_exp(prob_gap_y);
+        let prob_no_gap_extend = prob_gap_extend.ln_one_minus_exp();
+
+        let mut prev = 0;
+        let mut curr = 1;
+        self.fm[prev][0] = LogProb::ln_one();
+
+        // iterate over x
+        for i in 0..len_x {
+            if i > 0 && free_start_gap_x {
+                // allow alignment to start from offset in x (if prob_offset_x is set accordingly)
+                self.fm[prev][0] = LogProb::ln_one();
             }
 
-            self.vm[curr][i]
+            // iterate over y
+            for j in 0..len_y {
+                let j_ = j + 1;
+
+                // match or mismatch
+                self.fm[curr][j_] = prob_emit_xy(i, j) + LogProb::ln_sum_exp(&[
+                    // coming from state M
+                    prob_no_gap.ln_one_minus_exp() + self.fm[prev][j_ - 1],
+                    // coming from state X
+                    prob_no_gap_extend + self.fx[prev][j_ - 1],
+                    // coming from state Y
+                    prob_no_gap_extend + self.fy[prev][j_ - 1]
+                ]);
+
+                // gap in y
+                self.fx[curr][j_] = prob_emit_x(i) + (
+                    // open gap
+                    prob_gap_y + self.fm[prev][j_]
+                ).ln_add_exp(
+                    // extend gap
+                    prob_gap_extend + self.fx[prev][j_]
+                );
+
+                // gap in x
+                self.fy[curr][j_] = prob_emit_y(j) + (
+                    // open gap
+                    prob_gap_x + self.fm[curr][j_ - 1]
+                ).ln_add_exp(
+                    // extend gap
+                    prob_gap_extend + self.fy[curr][j_ - 1]
+                );
+
+            }
+
+            if free_end_gap_x {
+                // Cache column probabilities or simply record the last probability.
+                // We can put all of them in one array since we simply have to sum in the end.
+                // This is also good for numerical stability.
+                self.prob_cols.push(self.fm[curr].last().unwrap().clone());
+                self.prob_cols.push(self.fx[curr].last().unwrap().clone());
+                self.prob_cols.push(self.fy[curr].last().unwrap().clone());
+            }
+
+            // next column
+            mem::swap(&mut curr, &mut prev);
+            // reset next column to zeros
+            for v in self.fm[curr].iter_mut() {
+                *v = LogProb::ln_zero();
+            }
         }
+
+        if free_end_gap_x {
+            LogProb::ln_sum_exp(&self.prob_cols)
+        } else {
+            LogProb::ln_sum_exp(&[
+                self.fm[prev].last().unwrap().clone(),
+                self.fx[prev].last().unwrap().clone(),
+                self.fy[prev].last().unwrap().clone()
+            ])
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bio::stats::{Prob, LogProb};
+
+    // Single base insertion and deletion rates for R1 according to Schirmer et al. BMC Bioinformatics 2016
+    // DOI: 10.1186/s12859-016-0976-y
+    static PROB_ILLUMINA_INS: Prob = Prob(2.8e-6);
+    static PROB_ILLUMINA_DEL: Prob = Prob(5.1e-6);
+    static PROB_ILLUMINA_SUBST: Prob = Prob(0.0021);
+
+
+    fn prob_emit_xy(x: &[u8], y: &[u8], i: usize, j: usize) -> LogProb {
+        if x[i] == y[j] {
+            LogProb::from(Prob(1.0) - PROB_ILLUMINA_SUBST)
+        } else {
+            LogProb::from(PROB_ILLUMINA_SUBST / Prob(3.0))
+        }
+    }
+
+    fn prob_emit_x_or_y() -> LogProb {
+        LogProb::from(Prob(1.0) - PROB_ILLUMINA_SUBST)
+    }
+
+
+    #[test]
+    fn test_same() {
+        let x = b"AGCTCGATCGATCGATC";
+        let y = b"AGCTCGATCGATCGATC";
+
+        let mut pair_hmm = PairHMM::new();
+        let p = pair_hmm.prob_full(
+            LogProb::from(PROB_ILLUMINA_INS),
+            LogProb::from(PROB_ILLUMINA_DEL),
+            LogProb::ln_zero(),
+            &|i, j| prob_emit_xy(x, y, i, j),
+            &|_| prob_emit_x_or_y(),
+            &|_| prob_emit_x_or_y(),
+            x.len(),
+            y.len(),
+            false,
+            false
+        );
+        assert!(*p <= 0.0);
+        assert_relative_eq!(*p, 0.0, epsilon=0.1);
+    }
+
+    #[test]
+    fn test_insertion() {
+        let x = b"AGCTCGATCGATCGATC";
+        let y = b"AGCTCGATCTGATCGATCT";
+
+        let mut pair_hmm = PairHMM::new();
+        let p = pair_hmm.prob_full(
+            LogProb::from(PROB_ILLUMINA_INS),
+            LogProb::from(PROB_ILLUMINA_DEL),
+            LogProb::ln_zero(),
+            &|i, j| prob_emit_xy(x, y, i, j),
+            &|_| prob_emit_x_or_y(),
+            &|_| prob_emit_x_or_y(),
+            x.len(),
+            y.len(),
+            false,
+            false
+        );
+        assert!(*p <= 0.0);
+        assert_relative_eq!(p.exp(), PROB_ILLUMINA_INS.powi(2), epsilon=1e-12);
+    }
+
+    #[test]
+    fn test_deletion() {
+        let x = b"AGCTCGATCTGATCGATCT";
+        let y = b"AGCTCGATCGATCGATC";
+
+        let mut pair_hmm = PairHMM::new();
+        let p = pair_hmm.prob_full(
+            LogProb::from(PROB_ILLUMINA_INS),
+            LogProb::from(PROB_ILLUMINA_DEL),
+            LogProb::ln_zero(),
+            &|i, j| prob_emit_xy(x, y, i, j),
+            &|_| prob_emit_x_or_y(),
+            &|_| prob_emit_x_or_y(),
+            x.len(),
+            y.len(),
+            false,
+            false
+        );
+        assert!(*p <= 0.0);
+        assert_relative_eq!(p.exp(), PROB_ILLUMINA_DEL.powi(2), epsilon=1e-12);
+    }
+
+    #[test]
+    fn test_mismatch() {
+        let x = b"AGCTCGAGCGATCGATC";
+        let y = b"TGCTCGATCGATCGATC";
+
+        let mut pair_hmm = PairHMM::new();
+        let p = pair_hmm.prob_full(
+            LogProb::from(PROB_ILLUMINA_INS),
+            LogProb::from(PROB_ILLUMINA_DEL),
+            LogProb::ln_zero(),
+            &|i, j| prob_emit_xy(x, y, i, j),
+            &|_| prob_emit_x_or_y(),
+            &|_| prob_emit_x_or_y(),
+            x.len(),
+            y.len(),
+            false,
+            false
+        );
+        assert!(*p <= 0.0);
+        assert_relative_eq!(p.exp(), (PROB_ILLUMINA_SUBST / Prob(3.0)).powi(2), epsilon=1e-7);
     }
 }

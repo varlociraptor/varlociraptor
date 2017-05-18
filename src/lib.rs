@@ -29,6 +29,7 @@ pub mod model;
 pub mod estimation;
 pub mod call;
 pub mod utils;
+pub mod pairhmm;
 
 pub use model::sample::Sample;
 pub use model::likelihood;
