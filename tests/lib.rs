@@ -226,3 +226,15 @@ fn test3() {
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
     check_info_float(&mut call, b"PROB_GERMLINE", 1.0e-36, 1.0e-36);
 }
+
+
+/// Test a Pindel call (insertion) that is a germline call in reality (case af: 0.042, control af: 0.0).
+#[test]
+fn test4() {
+    call_tumor_normal("test4");
+    let mut call = load_call("test4");
+
+    check_info_float(&mut call, b"CASE_AF", 0.042, 0.2);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC", 4.0e-7, 1.0e-7);
+}
