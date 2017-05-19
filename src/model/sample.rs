@@ -24,6 +24,24 @@ lazy_static! {
 }
 
 
+quick_error! {
+    #[derive(Debug)]
+    pub enum CigarError {
+        UnsupportedOperation(msg: String) {
+            description("Unsupported CIGAR operation")
+            display(x) -> ("{}: {}", x.description(), msg)
+        }
+        UnexpectedOperation(msg: String) {
+            description("Unexpected CIGAR operation")
+            display(x) -> ("{}: {}", x.description(), msg)
+        }
+        InvalidOperation(msg: String) {
+            description("Invalid use of supported CIGAR operation")
+            display(x) -> ("{}: {}", x.description(), msg)
+        }
+    }
+}
+
 /// Calculate probability of read_base given ref_base.
 pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
     let prob_miscall = LogProb::from(PHREDProb::from(base_qual as f64));
@@ -38,9 +56,9 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 
 /// For an SNV, calculate likelihood of ref (first) or alt (second) for a given read, i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
 /// This follows Samtools and GATK.
-/// TODO: Add cigar string parsing tests for SNVs.
 /// TODO: Implement more general cigar parsing function analogous to htslib resolve_cigar2 (sam.c) somewhere more central in libprosic or rust-htslib.
-pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], vpos: u32, variant: Variant, ref_seq: &[u8]) -> Option<(LogProb, LogProb)> {
+/// TODO: Make this rigorously check for SAMv1 spec rules, e.g. nothing between read end and HardClip
+pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], vpos: u32, variant: Variant, ref_seq: &[u8]) -> Result<Option<(LogProb, LogProb)>, CigarError> {
     let contains_vpos = |pos: u32, cigar_length: u32|  pos <= vpos && pos + cigar_length > vpos;
 
     if let Variant::SNV(base) = variant {
@@ -54,16 +72,24 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], vpos: u32, variant: 
                 &Cigar::Match(_) |
                 &Cigar::Diff(_)  |
                 &Cigar::Equal(_) |
-                &Cigar::Ins(_)   | // this is unexpected, but bwa + GATK indel realignment can produce insertions before matching positions
+                &Cigar::Ins(_)   | // this is somewhat unexpected, but bwa + GATK indel realignment can produce insertions before matching positions
                 &Cigar::SoftClip(_) => {
                     c = i;
                     break;
                 },
-                &Cigar::Del(_) => panic!("Cigar String: Unexpected Deletion operation found before any reference match."),
-                &Cigar::Back(_) => panic!("Back: Unsupported Cigar operation (not in SAMv1 spec)."),
-                &Cigar::Pad(_) => panic!("Pad: Unsupported Cigar operation (unclear SAMv1 spec)."),
-                &Cigar::RefSkip(_) => panic!("Cigar String: Unexpected Reference Skip operation found before any reference match."),
-                &Cigar::HardClip(_) => ()
+                &Cigar::Del(_) => {
+                    return Err( CigarError::UnexpectedOperation("Deletion operation found before any operation describing read sequence.".to_string()) );
+                },
+                &Cigar::Back(_) => {
+                    return Err( CigarError::UnsupportedOperation("Back operation not in SAMv1 spec and deprecated according to htslib/bam_plcmd.c".to_string()) );
+                },
+                &Cigar::Pad(_) => {
+                    return Err( CigarError::UnsupportedOperation("Pad operation definition in SAMv1 spec is unclear.".to_string()) );
+                },
+                &Cigar::RefSkip(_) => {
+                    return Err( CigarError::UnexpectedOperation("Reference Skip operation found before any operation describing read sequence.".to_string()) );
+                },
+                &Cigar::HardClip(_) => () // just skip HardClips, they're not in the read sequence any more
             }
 
         }
@@ -76,7 +102,7 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], vpos: u32, variant: 
                     let base_qual = record.qual()[qpos as usize];
                     let prob_alt = prob_read_base(read_base, base, base_qual);
                     let prob_ref = prob_read_base(read_base, ref_seq[vpos as usize], base_qual);
-                    return Some( (prob_ref, prob_alt) );
+                    return Ok( Some( (prob_ref, prob_alt) ) );
                 },
                 // for others, just increase pos and qpos as needed
                 &Cigar::Match(l)   |
@@ -96,13 +122,17 @@ pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], vpos: u32, variant: 
                     rpos += l;
                     c += 1;
                 },
-                &Cigar::HardClip(_) => return None,
-                &Cigar::Back(_) => panic!("Back: Unsupported Cigar operation (not in SAMv1 spec)."),
-                &Cigar::Pad(_) => panic!("Pad: Unsupported Cigar operation (unclear SAMv1 spec).")
+                &Cigar::HardClip(_) => return Ok( None ),
+                &Cigar::Back(_) => {
+                    return Err( CigarError::UnsupportedOperation("Back operation not in SAMv1 spec and deprecated according to htslib/bam_plcmd.c".to_string()) );
+                },
+                &Cigar::Pad(_) => {
+                    return Err( CigarError::UnsupportedOperation("Pad operation definition in SAMv1 spec is unclear.".to_string()) );
+                }
             }
         }
         // if no SNV evidence is found before passing the vpos, must be
-        return None;
+        return Ok( None );
     } else {
         panic!("unsupported variant");
     }
@@ -725,7 +755,17 @@ impl Sample {
                 probs = Some(prob_read_indel(record, cigar, start, variant, chrom_seq));
             },
             Variant::SNV(_) => {
-                probs = prob_read_snv(record, cigar, start, variant, chrom_seq);
+                probs = match prob_read_snv(record, cigar, start, variant, chrom_seq) {
+                    Ok(ps) => ps,
+                    Err(err) => {
+                        println!("Error, skipping record '{}' for SNV at '{}:{}' due to: {}",
+                                    str::from_utf8(record.qname()).unwrap().to_owned(),
+                                    record.tid(),
+                                    start,
+                                    err );
+                        None
+                    }
+                }
             }
         };
 
@@ -1200,7 +1240,7 @@ mod tests {
         let variant = model::Variant::SNV(b'G');
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            if let Some( (prob_ref, prob_alt) ) = prob_read_snv(rec, &rec.cigar(), vpos, variant, &ref_seq) {
+            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_read_snv(rec, &rec.cigar(), vpos, variant, &ref_seq) {
                 println!("{:?}", rec.cigar());
                 println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
                 assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
