@@ -210,8 +210,8 @@ fn test1() {
     call_tumor_normal("test1");
     let mut call = load_call("test2");
     // TODO fix and add check
-    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.2);
-    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.2);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
 
 

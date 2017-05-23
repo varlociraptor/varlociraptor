@@ -933,12 +933,13 @@ mod tests {
 
         let ref_seq = ref_seq();
 
-        let true_alt_probs = [-0.08, -0.011, -50.13, -0.011, -50.13];
+        let true_alt_probs = [-0.022, -0.011, -50.13, -0.011, -50.13];
 
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
             let obs = sample.read_observation(&record, &cigar, varpos, variant, &ref_seq).unwrap();
+            println!("{:?}", obs);
             assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
             assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
             assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
@@ -1034,8 +1035,8 @@ mod tests {
         let sample = setup_sample(312.0);
 
         // truth
-        let probs_alt = [-0.47, -0.47, -483.89, -0.47, -0.47, -0.47];
-        let probs_ref = [-250.68, -206.72, -0.47, -250.68, -621.59, -250.68];
+        let probs_alt = [-0.022, -0.005, -483.89, -0.022, -0.022, -0.022];
+        let probs_ref = [-59.3, -62.56, -0.022, -59.3, -621.59, -59.3];
 
         // variant (obtained via bcftools)
         let start = 546;
