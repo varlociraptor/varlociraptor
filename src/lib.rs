@@ -30,6 +30,7 @@ pub mod estimation;
 pub mod call;
 pub mod utils;
 pub mod pairhmm;
+pub mod constants;
 
 pub use model::sample::Sample;
 pub use model::likelihood;

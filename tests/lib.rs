@@ -20,6 +20,7 @@ use rust_htslib::{bam,bcf};
 use bio::stats::Prob;
 
 use libprosic::model::AlleleFreq;
+use libprosic::constants;
 
 
 fn basedir(test: &str) -> String {
@@ -102,6 +103,10 @@ fn call_tumor_normal(test: &str) {
         insert_size,
         libprosic::likelihood::LatentVariableModel::new(purity),
         Prob(0.0),
+        constants::PROB_ILLUMINA_INS,
+        constants::PROB_ILLUMINA_DEL,
+        Prob(0.0),
+        Prob(0.0),
         25,
         30
     );
@@ -115,6 +120,10 @@ fn call_tumor_normal(test: &str) {
         true,
         insert_size,
         libprosic::likelihood::LatentVariableModel::new(1.0),
+        Prob(0.0),
+        constants::PROB_ILLUMINA_INS,
+        constants::PROB_ILLUMINA_DEL,
+        Prob(0.0),
         Prob(0.0),
         25,
         30

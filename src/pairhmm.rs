@@ -3,39 +3,7 @@ use std::mem;
 use bio::stats::LogProb;
 
 
-pub trait Parameters {
-    /// Allow to start with an offset in x.
-    fn free_start_gap_x(&self) -> bool;
-
-    // Allow a free end gap in x (stop alignment before end of x).
-    fn free_end_gap_x(&self) -> bool;
-
-    /// Probability to open a gap in x.
-    fn prob_gap_x(&self) -> LogProb;
-
-    /// Probability to open a gap in y.
-    fn prob_gap_y(&self) -> LogProb;
-
-    /// Probability to extend a gap.
-    fn prob_gap_extend(&self) -> LogProb;
-
-    /// Probability to emit x_i and y_j.
-    fn prob_emit_xy(&self, i: usize, j: usize) -> LogProb;
-
-    /// Probability to emit x_i.
-    fn prob_emit_x(&self, i: usize) -> LogProb;
-
-    /// Probability to emit y_j.
-    fn prob_emit_y(&self, j: usize) -> LogProb;
-
-    fn len_x(&self) -> usize;
-
-    fn len_y(&self) -> usize;
-}
-
-
-
-/// A pair Hidden Markov Model as described by
+/// A pair Hidden Markov Model for comparing sequences x and y as described by
 /// Durbin, R., Eddy, S., Krogh, A., & Mitchison, G. (1998). Biological Sequence Analysis.
 /// Current Topics in Genome Analysis 2008. http://doi.org/10.1017/CBO9780511790492.
 ///
@@ -43,8 +11,7 @@ pub struct PairHMM {
     fm: [Vec<LogProb>; 2],
     fx: [Vec<LogProb>; 2],
     fy: [Vec<LogProb>; 2],
-    prob_cols: Vec<LogProb>,
-
+    prob_cols: Vec<LogProb>
 }
 
 
@@ -59,11 +26,12 @@ impl PairHMM {
     }
 
     /// Calculate the probability of sequence x being related to y via any alignment.
-    pub fn prob_full<M, X, Y>(
+    pub fn prob_related<M, X, Y>(
         &mut self,
         prob_gap_x: LogProb,
         prob_gap_y: LogProb,
-        prob_gap_extend: LogProb,
+        prob_gap_x_extend: LogProb,
+        prob_gap_y_extend: LogProb,
         prob_emit_xy: &M,
         prob_emit_x: &X,
         prob_emit_y: &Y,
@@ -93,7 +61,8 @@ impl PairHMM {
         }
 
         let prob_no_gap = prob_gap_x.ln_add_exp(prob_gap_y);
-        let prob_no_gap_extend = prob_gap_extend.ln_one_minus_exp();
+        let prob_no_gap_x_extend = prob_gap_x_extend.ln_one_minus_exp();
+        let prob_no_gap_y_extend = prob_gap_y_extend.ln_one_minus_exp();
 
         let mut prev = 0;
         let mut curr = 1;
@@ -115,9 +84,9 @@ impl PairHMM {
                     // coming from state M
                     prob_no_gap.ln_one_minus_exp() + self.fm[prev][j_ - 1],
                     // coming from state X
-                    prob_no_gap_extend + self.fx[prev][j_ - 1],
+                    prob_no_gap_x_extend + self.fx[prev][j_ - 1],
                     // coming from state Y
-                    prob_no_gap_extend + self.fy[prev][j_ - 1]
+                    prob_no_gap_y_extend + self.fy[prev][j_ - 1]
                 ]);
 
                 // gap in y
@@ -126,7 +95,7 @@ impl PairHMM {
                     prob_gap_y + self.fm[prev][j_]
                 ).ln_add_exp(
                     // extend gap
-                    prob_gap_extend + self.fx[prev][j_]
+                    prob_gap_y_extend + self.fx[prev][j_]
                 );
 
                 // gap in x
@@ -135,7 +104,7 @@ impl PairHMM {
                     prob_gap_x + self.fm[curr][j_ - 1]
                 ).ln_add_exp(
                     // extend gap
-                    prob_gap_extend + self.fy[curr][j_ - 1]
+                    prob_gap_x_extend + self.fy[curr][j_ - 1]
                 );
 
             }
@@ -174,24 +143,19 @@ impl PairHMM {
 mod tests {
     use super::*;
     use bio::stats::{Prob, LogProb};
-
-    // Single base insertion and deletion rates for R1 according to Schirmer et al. BMC Bioinformatics 2016
-    // DOI: 10.1186/s12859-016-0976-y
-    static PROB_ILLUMINA_INS: Prob = Prob(2.8e-6);
-    static PROB_ILLUMINA_DEL: Prob = Prob(5.1e-6);
-    static PROB_ILLUMINA_SUBST: Prob = Prob(0.0021);
+    use constants;
 
 
     fn prob_emit_xy(x: &[u8], y: &[u8], i: usize, j: usize) -> LogProb {
         if x[i] == y[j] {
-            LogProb::from(Prob(1.0) - PROB_ILLUMINA_SUBST)
+            LogProb::from(Prob(1.0) - constants::PROB_ILLUMINA_SUBST)
         } else {
-            LogProb::from(PROB_ILLUMINA_SUBST / Prob(3.0))
+            LogProb::from(constants::PROB_ILLUMINA_SUBST / Prob(3.0))
         }
     }
 
     fn prob_emit_x_or_y() -> LogProb {
-        LogProb::from(Prob(1.0) - PROB_ILLUMINA_SUBST)
+        LogProb::from(Prob(1.0) - constants::PROB_ILLUMINA_SUBST)
     }
 
 
@@ -201,9 +165,10 @@ mod tests {
         let y = b"AGCTCGATCGATCGATC";
 
         let mut pair_hmm = PairHMM::new();
-        let p = pair_hmm.prob_full(
-            LogProb::from(PROB_ILLUMINA_INS),
-            LogProb::from(PROB_ILLUMINA_DEL),
+        let p = pair_hmm.prob_related(
+            LogProb::from(constants::PROB_ILLUMINA_INS),
+            LogProb::from(constants::PROB_ILLUMINA_DEL),
+            LogProb::ln_zero(),
             LogProb::ln_zero(),
             &|i, j| prob_emit_xy(x, y, i, j),
             &|_| prob_emit_x_or_y(),
@@ -223,9 +188,10 @@ mod tests {
         let y = b"AGCTCGATCTGATCGATCT";
 
         let mut pair_hmm = PairHMM::new();
-        let p = pair_hmm.prob_full(
-            LogProb::from(PROB_ILLUMINA_INS),
-            LogProb::from(PROB_ILLUMINA_DEL),
+        let p = pair_hmm.prob_related(
+            LogProb::from(constants::PROB_ILLUMINA_INS),
+            LogProb::from(constants::PROB_ILLUMINA_DEL),
+            LogProb::ln_zero(),
             LogProb::ln_zero(),
             &|i, j| prob_emit_xy(x, y, i, j),
             &|_| prob_emit_x_or_y(),
@@ -236,7 +202,7 @@ mod tests {
             false
         );
         assert!(*p <= 0.0);
-        assert_relative_eq!(p.exp(), PROB_ILLUMINA_INS.powi(2), epsilon=1e-12);
+        assert_relative_eq!(p.exp(), constants::PROB_ILLUMINA_INS.powi(2), epsilon=1e-12);
     }
 
     #[test]
@@ -245,9 +211,10 @@ mod tests {
         let y = b"AGCTCGATCGATCGATC";
 
         let mut pair_hmm = PairHMM::new();
-        let p = pair_hmm.prob_full(
-            LogProb::from(PROB_ILLUMINA_INS),
-            LogProb::from(PROB_ILLUMINA_DEL),
+        let p = pair_hmm.prob_related(
+            LogProb::from(constants::PROB_ILLUMINA_INS),
+            LogProb::from(constants::PROB_ILLUMINA_DEL),
+            LogProb::ln_zero(),
             LogProb::ln_zero(),
             &|i, j| prob_emit_xy(x, y, i, j),
             &|_| prob_emit_x_or_y(),
@@ -258,7 +225,7 @@ mod tests {
             false
         );
         assert!(*p <= 0.0);
-        assert_relative_eq!(p.exp(), PROB_ILLUMINA_DEL.powi(2), epsilon=1e-12);
+        assert_relative_eq!(p.exp(), constants::PROB_ILLUMINA_DEL.powi(2), epsilon=1e-12);
     }
 
     #[test]
@@ -267,9 +234,10 @@ mod tests {
         let y = b"TGCTCGATCGATCGATC";
 
         let mut pair_hmm = PairHMM::new();
-        let p = pair_hmm.prob_full(
-            LogProb::from(PROB_ILLUMINA_INS),
-            LogProb::from(PROB_ILLUMINA_DEL),
+        let p = pair_hmm.prob_related(
+            LogProb::from(constants::PROB_ILLUMINA_INS),
+            LogProb::from(constants::PROB_ILLUMINA_DEL),
+            LogProb::ln_zero(),
             LogProb::ln_zero(),
             &|i, j| prob_emit_xy(x, y, i, j),
             &|_| prob_emit_x_or_y(),
@@ -280,6 +248,6 @@ mod tests {
             false
         );
         assert!(*p <= 0.0);
-        assert_relative_eq!(p.exp(), (PROB_ILLUMINA_SUBST / Prob(3.0)).powi(2), epsilon=1e-7);
+        assert_relative_eq!(p.exp(), (constants::PROB_ILLUMINA_SUBST / Prob(3.0)).powi(2), epsilon=1e-7);
     }
 }

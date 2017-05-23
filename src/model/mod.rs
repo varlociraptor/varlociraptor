@@ -385,6 +385,8 @@ mod tests {
     use Sample;
     use InsertSize;
     use model::sample::{Observation, Evidence};
+    use constants;
+    
     use rust_htslib::bam;
     use bio::stats::{LogProb, Prob};
     #[cfg(feature="flame_it")]
@@ -407,6 +409,10 @@ mod tests {
             insert_size,
             LatentVariableModel::new(1.0),
             Prob(0.0),
+            constants::PROB_ILLUMINA_INS,
+            constants::PROB_ILLUMINA_DEL,
+            Prob(0.0),
+            Prob(0.0),
             20,
             10
         );
@@ -419,6 +425,10 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
+            Prob(0.0),
+            constants::PROB_ILLUMINA_INS,
+            constants::PROB_ILLUMINA_DEL,
+            Prob(0.0),
             Prob(0.0),
             20,
             10
@@ -618,6 +628,10 @@ mod tests {
             insert_size,
             LatentVariableModel::new(0.75),
             Prob(0.0),
+            constants::PROB_ILLUMINA_INS,
+            constants::PROB_ILLUMINA_DEL,
+            Prob(0.0),
+            Prob(0.0),
             20,
             10
         );
@@ -630,6 +644,10 @@ mod tests {
             false,
             insert_size,
             LatentVariableModel::new(1.0),
+            Prob(0.0),
+            constants::PROB_ILLUMINA_INS,
+            constants::PROB_ILLUMINA_DEL,
+            Prob(0.0),
             Prob(0.0),
             20,
             10
@@ -684,6 +702,10 @@ mod tests {
             insert_size,
             LatentVariableModel::new(0.75),
             Prob(0.00001),
+            constants::PROB_ILLUMINA_INS,
+            constants::PROB_ILLUMINA_DEL,
+            Prob(0.0),
+            Prob(0.0),
             20,
             10
         );
@@ -697,6 +719,10 @@ mod tests {
             insert_size,
             LatentVariableModel::new(1.0),
             Prob(0.00001),
+            constants::PROB_ILLUMINA_INS,
+            constants::PROB_ILLUMINA_DEL,
+            Prob(0.0),
+            Prob(0.0),
             20,
             10
         );
@@ -738,6 +764,10 @@ mod tests {
             insert_size,
             LatentVariableModel::new(0.75),
             Prob(0.00001),
+            constants::PROB_ILLUMINA_INS,
+            constants::PROB_ILLUMINA_DEL,
+            Prob(0.0),
+            Prob(0.0),
             20,
             10
         );
@@ -751,6 +781,10 @@ mod tests {
             insert_size,
             LatentVariableModel::new(1.0),
             Prob(0.00001),
+            constants::PROB_ILLUMINA_INS,
+            constants::PROB_ILLUMINA_DEL,
+            Prob(0.0),
+            Prob(0.0),
             20,
             10
         );

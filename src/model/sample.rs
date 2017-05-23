@@ -4,20 +4,19 @@ use std::cmp;
 use std::fmt;
 use std::error::Error;
 use std::f64::consts;
-use log::LogLevel::Debug;
 use std::ascii::AsciiExt;
+use std::cell::RefCell;
 
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
-use rust_htslib::bam::record::{Cigar, CigarString};
+use rust_htslib::bam::record::{Cigar, CigarStringView};
 use bio::stats::{LogProb, PHREDProb, Prob};
-use itertools;
 
 use model;
 use model::Variant;
-
+use pairhmm::PairHMM;
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
@@ -26,7 +25,7 @@ lazy_static! {
 
 /// Calculate probability of read_base given ref_base.
 pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
-    let prob_miscall = LogProb::from(PHREDProb::from(base_qual as f64));
+    let prob_miscall = prob_read_base_miscall(base_qual);
 
     if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
         prob_miscall.ln_one_minus_exp()
@@ -37,279 +36,35 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 }
 
 
-/// For an SNV, calculate likelihood of ref (first) or alt (second) for a given read, i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
-/// This follows Samtools and GATK.
-pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], start: u32, variant: Variant, ref_seq: &[u8]) -> (LogProb, LogProb) {
-    let contains_start = |pos: i32, cigar_length: u32|  pos as u32 <= start && pos as u32 + cigar_length >= start;
-
-    if let Variant::SNV(base) = variant {
-        let mut pos = record.pos();
-        let mut qpos = 0;
-        for c in cigar {
-            match c {
-                // potential SNV evidence
-                &Cigar::Match(l) | &Cigar::Diff(l) if contains_start(pos, l) => {
-                    let read_base = record.seq()[qpos as usize];
-                    let base_qual = record.qual()[qpos as usize];
-                    let prob_alt = prob_read_base(read_base, base, base_qual);
-                    let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
-                    return (prob_ref, prob_alt);
-                },
-                // for others, just increase pos and qpos as needed
-                &Cigar::Match(l)   |
-                &Cigar::RefSkip(l) |
-                &Cigar::Equal(l)   |
-                &Cigar::Diff(l)    |
-                &Cigar::Ins(l)  => {
-                    pos += l as i32;
-                    qpos += l;
-                },
-                &Cigar::Del(l)  => pos += l as i32,
-                &Cigar::Back(l) => pos -= l as i32,
-                _ => ()
-            }
-        }
-        panic!("read does not enclose SNV");
-    } else {
-        panic!("unsupported variant");
-    }
+/// Calculate probability of read_base given ref_base.
+pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
+    LogProb::from(PHREDProb::from(base_qual as f64))
 }
 
 
-/// For an indel, calculate likelihood of ref (first) or alt (second) for a given read, i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
-///
-/// # Idea
-///
-/// The MAPQ already encodes the uncertainty of the given read position. Hence, all we need to do is
-/// to calculate the probability that a read is sampled from the given position under the assumption that
-/// (a) there is no variant, and (b) there is the given variant.
-/// We do this by multiplying the sampling probability of each read base, see `prob_read_base`.
-/// This is of course a simplification: other indels or SNVs in the same region are ignored.
-/// However, this is reasonable because it is (a) unlikely and (b) they will be ignored in all cases,
-/// such that they simply lead to globally reduced likelihoods, which are normalized away by bayes theorem.
-/// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
-/// both the alt and the ref case equally.
-///
-/// # Arguments
-///
-/// * window - maximum number of bases to align left and right of breakpoint (this shall not be too wide in order to avoid bias by other close variants)
-pub fn prob_read_indel(record: &bam::Record, cigar: &CigarString, start: u32, variant: Variant, ref_seq: &[u8], window: u32) -> (LogProb, LogProb) {
-    debug!("--------------");
-
-    let mut pos = record.pos() as u32;
-    let read_seq = record.seq();
-    let m = read_seq.len() as u32;
-    let quals = record.qual();
-
-    let prob_read_base = |read_pos, ref_pos| {
-        let ref_base = ref_seq[ref_pos as usize];
-        let read_base = read_seq[read_pos as usize];
-        prob_read_base(read_base, ref_base, quals[read_pos as usize])
-    };
-
-    // softclips at the left side have to be subtracted from mapping position
-    if let Cigar::SoftClip(l) = cigar[0] {
-        pos -= l;
-    }
-
-    // indels can lead to shifts in the mapping position
-    // since we don't know whether any indel comes before our indel of interest, we have to consider
-    // all possible shifts due to indels.
-    let total_indel_len = cigar.iter().map(|c| match c {
-        &Cigar::Ins(l) => l,
-        &Cigar::Del(l) => l,
-        _ => 0
-    }).sum();
-
-    // calculate maximal shift to the left
-    let pos_min = pos.saturating_sub(total_indel_len);
-    // exclusive upper bound
-    let pos_max = pos + total_indel_len + 1;
-    debug!("cigar: {:?}", cigar);
-    debug!("calculating indel likelihood for shifts within {} - {}", pos_min, pos_max);
-    assert!(pos >= pos_min && pos <= pos_max, "original mapping position should be within the evaluated shifts ({}-{}, pos={}, cigar={}, m={}, start={})", pos_min, pos_max, pos, cigar, m, start);
-
-    let capacity = (pos_max - pos_min) as usize;
-    let mut prob_alts = Vec::with_capacity(capacity);
-    let mut prob_refs = Vec::with_capacity(capacity);
-
-    // debugging
-    let mut alt_matches = None;
-    let mut ref_matches = None;
-    if log_enabled!(Debug) {
-        alt_matches = Some(Vec::with_capacity(m as usize));
-        ref_matches = Some(Vec::with_capacity(m as usize));
-    }
-    let debug_match = |read_pos, ref_pos| {
-        if ref_seq[ref_pos as usize].to_ascii_uppercase() == read_seq[read_pos as usize].to_ascii_uppercase() {
-            '='
+/// For an SNV, calculate likelihood of ref (first) or alt (second) for a given read, i.e.
+/// Pr(Z_i | ref) and Pr(Z_i | alt). This follows Samtools and GATK.
+pub fn prob_read_snv(
+    record: &bam::Record,
+    cigar: &CigarStringView,
+    start: u32,
+    variant: Variant,
+    ref_seq: &[u8]
+) -> Result<(LogProb, LogProb), Box<Error>> {
+    if let Variant::SNV(base) = variant {
+        if let Some(qpos) = cigar.read_pos(start, false)? {
+            let read_base = record.seq()[qpos as usize];
+            let base_qual = record.qual()[qpos as usize];
+            let prob_alt = prob_read_base(read_base, base, base_qual);
+            let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
+            Ok((prob_ref, prob_alt))
         } else {
-            read_seq[read_pos as usize] as char
+            // such a read should be filtered out before
+            panic!("bug: read does not enclose SNV");
         }
-    };
-
-    for p in pos_min..pos_max {
-        let end = start + variant.len();
-        if !(p <= start && p + m >= start) && !(p <= end && p + m >= end) {
-            // shift does not overlap the variant
-            continue;
-        }
-
-        let mut prob_ref = LogProb::ln_one();
-        let mut prob_alt = LogProb::ln_one();
-
-        let left_of = start > p;
-
-        // TODO consider the case that a deletion is made invisible via an insertion of the same size and vice versa?
-
-        let prefix_end = start.saturating_sub(p);
-        let prefix_start = prefix_end.saturating_sub(window);
-        debug!("common prefix: {}-{}", prefix_start, prefix_end);
-
-        // common prefix
-        for i in prefix_start..prefix_end {
-            let prob = prob_read_base(i, p + i);
-            prob_ref = prob_ref + prob;
-            prob_alt = prob_alt + prob;
-
-            if log_enabled!(Debug) {
-                // debugging
-                let x = debug_match(i, p + i);
-                alt_matches.as_mut().unwrap().push(x);
-                ref_matches.as_mut().unwrap().push(x);
-            }
-        }
-
-        if log_enabled!(Debug) {
-            if prefix_end != 0 {
-                alt_matches.as_mut().unwrap().push('|');
-                ref_matches.as_mut().unwrap().push('|');
-                ref_matches.as_mut().unwrap().push('|');
-            }
-        }
-
-        {
-            // ref likelihood
-            // TODO skip the first base because we do the same for the ALT case.
-            // remove the skip once this has been fixed in the vcf parser.
-            let suffix_start = prefix_end + 1;
-            let prefix_len = prefix_end - prefix_start;
-            let w = if prefix_len == 0 { window * 2 } else { window };
-            let suffix_end = cmp::min(suffix_start + w, m);
-
-            debug!("ref suffix: {}-{}", suffix_start, suffix_end);
-            for i in suffix_start..suffix_end {
-                let prob = prob_read_base(i, p + i);
-                prob_ref = prob_ref + prob;
-
-                if log_enabled!(Debug) {
-                    let x = debug_match(i, p + i);
-                    ref_matches.as_mut().unwrap().push(x);
-                }
-            }
-        }
-
-        // alt likelihood
-        match variant {
-            Variant::Insertion(l) => {
-                // reduce length if insertion is left of p
-                let l = if start >= p { l as u32 } else { l - (p - start) };
-                // TODO this will miss one base in some cases.
-                // but it is needed because some callers specify calls as G->GAA and some as *->AA
-                // a better place to fix is when parsing the vcf file.
-                let suffix_start = (start + l + 1).saturating_sub(p);
-                let suffix_end = cmp::min(suffix_start + window, m);
-                debug!("alt suffix: {}-{}", suffix_start, suffix_end);
-
-                if log_enabled!(Debug) {
-                    if suffix_start <= m {
-                        for i in prefix_end..suffix_start {
-                            alt_matches.as_mut().unwrap().push(read_seq[i as usize] as char);
-                        }
-                        alt_matches.as_mut().unwrap().push('|');
-                    }
-                }
-
-                for i in suffix_start..suffix_end {
-                    let prob = prob_read_base(i, p + i - l);
-                    prob_alt = prob_alt + prob;
-
-                    if log_enabled!(Debug) {
-                        let x = debug_match(i, p + i - l);
-                        alt_matches.as_mut().unwrap().push(x);
-                    }
-                }
-            },
-            Variant::Deletion(l) => {
-                if !left_of {
-                    // match prefix before deletion (otherwise, this has been done above)
-                    let prefix_end = start + l - p;
-                    let prefix_start = prefix_end.saturating_sub(window);
-                    debug!("alt prefix: {}-{}", prefix_start, prefix_end);
-
-                    for i in prefix_start..prefix_end {
-                        let prob = prob_read_base(i, p + i - l);
-                        prob_alt = prob_alt + prob;
-
-                        if log_enabled!(Debug) {
-                            let x = debug_match(i, p + i - l);
-                            alt_matches.as_mut().unwrap().push(x);
-                        }
-                    }
-
-                    if log_enabled!(Debug) {
-                        alt_matches.as_mut().unwrap().push('|');
-                    }
-                }
-
-                let suffix_start = if left_of {
-                    // TODO this will miss one base in some cases.
-                    // but it is needed because some callers specify calls as GAA->G and some as AA->*
-                    // a better place to fix is when parsing the vcf file.
-                    (start + 1).saturating_sub(p)
-                } else {
-                    (start + l + 1).saturating_sub(p)
-                };
-                let suffix_end = cmp::min(suffix_start + window, m);
-                debug!("del len: {}", l);
-                debug!("alt suffix: {}-{}", suffix_start, suffix_end);
-
-                // if read is right of deletion, l shall not shift the matches because read has
-                // been aligned after the deletion
-                let l = if left_of { l as u32 } else { 0 };
-
-                for i in suffix_start..suffix_end {
-                    let prob = prob_read_base(i, p + i + l);
-                    prob_alt = prob_alt + prob;
-
-                    if log_enabled!(Debug) {
-                        let x = debug_match(i, p + i + l);
-                        alt_matches.as_mut().unwrap().push(x);
-                    }
-                }
-            },
-            _ => panic!("bug: unsupported variant type")
-        }
-        prob_alts.push(prob_alt);
-        prob_refs.push(prob_ref);
-
-        if log_enabled!(Debug) {
-            debug!("shift {}:", p as i32 - pos as i32);
-            debug!("ref: {:?}", itertools::join(ref_matches.as_ref().unwrap(), ""));
-            debug!("alt: {:?}", itertools::join(alt_matches.as_ref().unwrap(), ""));
-            ref_matches.as_mut().unwrap().clear();
-            alt_matches.as_mut().unwrap().clear();
-        }
+    } else {
+        panic!("bug: unsupported variant");
     }
-    let prob_alt = LogProb::ln_sum_exp(&prob_alts);
-    let prob_ref = LogProb::ln_sum_exp(&prob_refs);
-
-    // normalize over all events, because we assume that the read comes from here (w_i=1)
-    // the uncertainty of the mapping position (w_i) is captured by prob_mapping.
-    let total = prob_ref.ln_add_exp(prob_alt);
-    debug!("Pr(alt)={}, Pr(ref)={}, Pr(total)={}", *prob_alt, *prob_ref, *total);
-    // TODO temporarily disable normalization
-    (prob_ref, prob_alt)
 }
 
 
@@ -524,8 +279,13 @@ pub struct Sample {
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
     prob_spurious_isize: LogProb,
+    prob_insertion_artifact: LogProb,
+    prob_deletion_artifact: LogProb,
+    prob_insertion_extend_artifact: LogProb,
+    prob_deletion_extend_artifact: LogProb,
     max_indel_overlap: u32,
-    indel_haplotype_window: u32
+    indel_haplotype_window: u32,
+    pair_hmm: RefCell<PairHMM>
 }
 
 
@@ -554,6 +314,10 @@ impl Sample {
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_spurious_isize: Prob,
+        prob_insertion_artifact: Prob,
+        prob_deletion_artifact: Prob,
+        prob_insertion_extend_artifact: Prob,
+        prob_deletion_extend_artifact: Prob,
         max_indel_overlap: u32,
         indel_haplotype_window: u32
     ) -> Self {
@@ -565,8 +329,13 @@ impl Sample {
             insert_size: insert_size,
             likelihood_model: likelihood_model,
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
+            prob_insertion_artifact: LogProb::from(prob_insertion_artifact),
+            prob_deletion_artifact: LogProb::from(prob_deletion_artifact),
+            prob_insertion_extend_artifact: LogProb::from(prob_insertion_extend_artifact),
+            prob_deletion_extend_artifact: LogProb::from(prob_deletion_extend_artifact),
             max_indel_overlap: max_indel_overlap,
-            indel_haplotype_window: indel_haplotype_window
+            indel_haplotype_window: indel_haplotype_window,
+            pair_hmm: RefCell::new(PairHMM::new())
         }
     }
 
@@ -604,15 +373,14 @@ impl Sample {
             Variant::SNV(_) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
-                    debug!("--------------");
                     let pos = record.pos() as u32;
                     let cigar = record.cigar();
-                    let end_pos = record.end_pos(&cigar) as u32;
+                    let end_pos = cigar.end_pos() as u32;
 
                     if pos <= start && end_pos >= start {
                         let cigar = record.cigar();
                         observations.push(
-                            self.read_observation(&record, &cigar, start, variant, chrom_seq)
+                            self.read_observation(&record, &cigar, start, variant, chrom_seq)?
                         );
                         n_overlap += 1;
                     }
@@ -624,7 +392,7 @@ impl Sample {
                 for record in self.record_buffer.iter() {
                     let cigar = record.cigar();
                     let pos = record.pos() as u32;
-                    let end_pos = record.end_pos(&cigar) as u32;
+                    let end_pos = cigar.end_pos() as u32;
 
                     let overlap = {
                         // consider soft clips for overlap detection
@@ -650,7 +418,7 @@ impl Sample {
                     if overlap > 0 {
                         if overlap <= self.max_indel_overlap {
                             observations.push(
-                                self.read_observation(&record, &cigar, start, variant, chrom_seq)
+                                self.read_observation(&record, &cigar, start, variant, chrom_seq)?
                             );
                             n_overlap += 1;
                         }
@@ -708,30 +476,30 @@ impl Sample {
     fn read_observation(
         &self,
         record: &bam::Record,
-        cigar: &CigarString,
+        cigar: &CigarStringView,
         start: u32,
         variant: Variant,
         chrom_seq: &[u8]
-    ) -> Observation {
+    ) -> Result<Observation, Box<Error>> {
         let prob_mapping = self.prob_mapping(record.mapq());
         debug!("prob_mapping={}", *prob_mapping);
 
         let (prob_ref, prob_alt) = match variant {
             Variant::Deletion(_) | Variant::Insertion(_) => {
-                prob_read_indel(record, cigar, start, variant, chrom_seq, self.indel_haplotype_window)
+                self.prob_read_indel(record, cigar, start, variant, chrom_seq)?
             },
             Variant::SNV(_) => {
-                prob_read_snv(record, cigar, start, variant, chrom_seq)
+                prob_read_snv(record, cigar, start, variant, chrom_seq)?
             }
         };
 
-        Observation {
+        Ok(Observation {
             prob_mapping: prob_mapping,
             prob_alt: prob_alt,
             prob_ref: prob_ref,
             prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
             evidence: Evidence::from(cigar)
-        }
+        })
     }
 
     fn fragment_observation(
@@ -772,6 +540,154 @@ impl Sample {
         };
 
         obs
+    }
+
+    /// For an indel, calculate likelihood of ref (first) or alt (second) for a given read, i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
+    ///
+    /// # Idea
+    ///
+    /// The MAPQ already encodes the uncertainty of the given read position. Hence, all we need to do is
+    /// to calculate the probability that a read is sampled from the given position under the assumption that
+    /// (a) there is no variant, and (b) there is the given variant.
+    /// We do this by multiplying the sampling probability of each read base, see `prob_read_base`.
+    /// This is of course a simplification: other indels or SNVs in the same region are ignored.
+    /// However, this is reasonable because it is (a) unlikely and (b) they will be ignored in all cases,
+    /// such that they simply lead to globally reduced likelihoods, which are normalized away by bayes theorem.
+    /// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
+    /// both the alt and the ref case equally.
+    pub fn prob_read_indel(
+        &self,
+        record: &bam::Record,
+        cigar: &CigarStringView,
+        start: u32,
+        variant: Variant,
+        chrom_seq: &[u8]
+    ) -> Result<(LogProb, LogProb), Box<Error>> {
+
+        let read_seq = record.seq();
+        let read_qual = record.qual();
+
+        let (qpos, breakpoint) = if let Some(qpos) = cigar.read_pos(start, true)? {
+            (qpos as usize, start as usize)
+        } else if let Some(qpos) = cigar.read_pos(start + variant.len(), true)? {
+            (qpos as usize, (start + variant.len()) as usize)
+        } else {
+            panic!("bug: read does not overlap breakpoint");
+        };
+        let start = start as usize;
+
+        let read_offset = qpos.saturating_sub(self.indel_haplotype_window as usize);
+        let read_end = cmp::min(qpos + self.indel_haplotype_window as usize, read_seq.len());
+
+        let prob_emit_xy = |i_projected, j| {
+            let j_ = j + read_offset;
+            let read_base = read_seq[j_];
+            let ref_base = chrom_seq[i_projected];
+            prob_read_base(read_base, ref_base, read_qual[j_])
+        };
+        let prob_emit_x = |_| LogProb::ln_one();
+        let prob_emit_y = |j| prob_read_base_miscall(read_qual[j + read_offset]);
+
+        // ref allele
+        let ref_offset = breakpoint.saturating_sub(read_seq.len());
+        let ref_end = cmp::min(breakpoint + read_seq.len(), chrom_seq.len());
+
+        let prob_ref = self.pair_hmm.borrow_mut().prob_related(
+            self.prob_insertion_artifact,
+            self.prob_deletion_artifact,
+            self.prob_insertion_extend_artifact,
+            self.prob_deletion_extend_artifact,
+            &|i, j| prob_emit_xy(i + ref_offset, j),
+            &prob_emit_x,
+            &prob_emit_y,
+            ref_end - ref_offset,
+            read_end - read_offset,
+            true,
+            true
+        );
+
+        // alt allele
+        let prob_alt = match variant {
+            Variant::Deletion(l) => {
+                let l = l as usize;
+
+                let ref_offset = start.saturating_sub(read_seq.len());
+                let ref_end = cmp::min(start + read_seq.len(), chrom_seq.len());
+                let project_i = |i| {
+                    let i_ = i + ref_offset;
+                    if i_ < start {
+                        i_
+                    } else {
+                        (i_ + l)
+                    }
+                };
+
+                self.pair_hmm.borrow_mut().prob_related(
+                    self.prob_insertion_artifact,
+                    self.prob_deletion_artifact,
+                    self.prob_insertion_extend_artifact,
+                    self.prob_deletion_extend_artifact,
+                    &|i, j| {
+                        prob_emit_xy(project_i(i), j)
+                    },
+                    &|i| prob_emit_x(project_i(i)),
+                    &prob_emit_y,
+                    ref_end - ref_offset,
+                    read_end - read_offset,
+                    true,
+                    true
+                )
+            },
+            Variant::Insertion(l) => {
+                let l = l as usize;
+
+                let ref_offset = start.saturating_sub(read_seq.len()) as usize;
+                let ref_end = cmp::min(start + l + read_seq.len(), chrom_seq.len());
+                let project_i = |i| {
+                    let i_ = i + ref_offset;
+                    if i_ < start {
+                        Some(i_)
+                    } else if i_ >= start + l {
+                        Some(i_ + l)
+                    } else {
+                        None
+                    }
+                };
+
+                self.pair_hmm.borrow_mut().prob_related(
+                    self.prob_insertion_artifact,
+                    self.prob_deletion_artifact,
+                    self.prob_insertion_extend_artifact,
+                    self.prob_deletion_extend_artifact,
+                    &|i, j| {
+                        if let Some(i_projected) = project_i(i) {
+                            prob_emit_xy(i_projected, j)
+                        } else {
+                            // TODO obtain the inserted sequence and return the real probabilities here
+                            LogProb::ln_one()
+                        }
+                    },
+                    &|i| {
+                        if let Some(i_projected) = project_i(i) {
+                            prob_emit_x(i_projected)
+                        } else {
+                            // TODO obtain the inserted sequence and return the real probabilities here
+                            LogProb::ln_one()
+                        }
+                    },
+                    &prob_emit_y,
+                    ref_end - ref_offset,
+                    read_end - read_offset,
+                    true,
+                    true
+                )
+            },
+            _ => {
+                panic!("bug: unsupported variant");
+            }
+        };
+
+        Ok((prob_ref, prob_alt))
     }
 }
 
@@ -817,6 +733,7 @@ mod tests {
     use super::*;
     use model;
     use likelihood;
+    use constants;
 
     use csv;
     use std::str;
@@ -989,6 +906,10 @@ mod tests {
             InsertSize { mean: isize_mean, sd: 20.0 },
             likelihood::LatentVariableModel::new(1.0),
             Prob(0.0),
+            constants::PROB_ILLUMINA_INS,
+            constants::PROB_ILLUMINA_DEL,
+            Prob(0.0),
+            Prob(0.0),
             20,
             10
         )
@@ -1011,7 +932,7 @@ mod tests {
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            let obs = sample.read_observation(&record, &cigar, varpos, variant, &ref_seq);
+            let obs = sample.read_observation(&record, &cigar, varpos, variant, &ref_seq).unwrap();
             assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
             assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
             assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
@@ -1104,6 +1025,7 @@ mod tests {
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
         let ref_seq = ref_seq();
         let window = 100;
+        let sample = setup_sample(312.0);
 
         // truth
         let probs_alt = [-0.47, -0.47, -483.89, -0.47, -0.47, -0.47];
@@ -1114,7 +1036,7 @@ mod tests {
         let variant = model::Variant::Insertion(10);
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let (prob_ref, prob_alt) = prob_read_indel(rec, &rec.cigar(), start, variant, &ref_seq, window);
+            let (prob_ref, prob_alt) = sample.prob_read_indel(rec, &rec.cigar(), start, variant, &ref_seq).unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar());
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
