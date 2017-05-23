@@ -203,13 +203,15 @@ fn check_info_float(rec: &mut bcf::Record, tag: &[u8], truth: f32, maxerr: f32) 
 }
 
 
-/// Test a Pindel call in a repeat region. It should be a germline call,
-/// but so far it is reported as somatic.
+/// Test a Pindel call in a repeat region. It is a false positive that should be absent instead.
+/// But so far it is reported as somatic (however, at least with a weak probability).
 #[test]
 fn test1() {
     call_tumor_normal("test1");
-    let calls = load_call("test2");
+    let mut call = load_call("test2");
     // TODO fix and add check
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.2);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
 }
 
 
@@ -219,7 +221,7 @@ fn test2() {
     call_tumor_normal("test2");
     let mut call = load_call("test2");
 
-    check_info_float(&mut call, b"CASE_AF", 0.125, 0.1);
+    check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"PROB_SOMATIC", 1.0e-7, 1.0e-7);
 }
@@ -231,19 +233,19 @@ fn test3() {
     call_tumor_normal("test3");
     let mut call = load_call("test3");
 
-    check_info_float(&mut call, b"CASE_AF", 0.5, 0.1);
+    check_info_float(&mut call, b"CASE_AF", 0.5, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_GERMLINE", 1.0e-36, 1.0e-36);
+    check_info_float(&mut call, b"PROB_GERMLINE", 8.0e-29, 9.0e-30);
 }
 
 
-/// Test a Pindel call (insertion) that is a germline call in reality (case af: 0.042, control af: 0.0).
+/// Test a Pindel call (insertion) that is a somatic call in reality (case af: 0.042, control af: 0.0).
 #[test]
 fn test4() {
     call_tumor_normal("test4");
     let mut call = load_call("test4");
 
-    check_info_float(&mut call, b"CASE_AF", 0.042, 0.2);
+    check_info_float(&mut call, b"CASE_AF", 0.042, 0.06);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 4.0e-7, 1.0e-7);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.01, 0.06);
 }

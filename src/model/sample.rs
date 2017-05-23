@@ -38,7 +38,7 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 
 /// Calculate probability of read_base given ref_base.
 pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
-    LogProb::from(PHREDProb::from(base_qual as f64))
+    LogProb::from(PHREDProb::from((base_qual) as f64))
 }
 
 
@@ -572,7 +572,13 @@ impl Sample {
         } else if let Some(qpos) = cigar.read_pos(start + variant.len(), true)? {
             (qpos as usize, (start + variant.len()) as usize)
         } else {
-            panic!("bug: read does not overlap breakpoint");
+            panic!(
+                "bug: read does not overlap breakpoint: pos={}, cigar={}, start={}, len={}",
+                record.pos(),
+                cigar,
+                start,
+                variant.len()
+            );
         };
         let start = start as usize;
 
@@ -615,7 +621,7 @@ impl Sample {
                 let ref_end = cmp::min(start + read_seq.len(), chrom_seq.len());
                 let project_i = |i| {
                     let i_ = i + ref_offset;
-                    if i_ < start {
+                    if i_ <= start {
                         i_
                     } else {
                         (i_ + l)
@@ -645,10 +651,10 @@ impl Sample {
                 let ref_end = cmp::min(start + l + read_seq.len(), chrom_seq.len());
                 let project_i = |i| {
                     let i_ = i + ref_offset;
-                    if i_ < start {
+                    if i_ <= start {
                         Some(i_)
                     } else if i_ >= start + l {
-                        Some(i_ + l)
+                        Some(i_ - l)
                     } else {
                         None
                     }
