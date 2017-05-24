@@ -52,7 +52,7 @@ pub fn prob_read_snv(
     ref_seq: &[u8]
 ) -> Result<(LogProb, LogProb), Box<Error>> {
     if let &Variant::SNV(base) = variant {
-        if let Some(qpos) = cigar.read_pos(start, false)? {
+        if let Some(qpos) = cigar.read_pos(start, false, false)? {
             let read_base = record.seq()[qpos as usize];
             let base_qual = record.qual()[qpos as usize];
             let prob_alt = prob_read_base(read_base, base, base_qual);
@@ -566,8 +566,8 @@ impl Sample {
             };
 
             match (
-                cigar.read_pos(varstart, true)?,
-                cigar.read_pos(varend, true)?
+                cigar.read_pos(varstart, true, true)?,
+                cigar.read_pos(varend, true, true)?
             ) {
                 // read encloses variant
                 (Some(qstart), Some(qend)) => {
