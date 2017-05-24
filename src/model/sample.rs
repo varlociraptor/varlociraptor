@@ -578,7 +578,7 @@ impl Sample {
                         qend + self.indel_haplotype_window as usize,
                         read_seq.len()
                     );
-                    println!("window: {} - {} (variant: {} - {})", read_offset, read_end, qstart, qend);
+                    //println!("window: {} - {} (variant: {} - {})", read_offset, read_end, qstart, qend);
                     (read_offset, read_end, varstart as usize)
                 },
                 (Some(qstart), None) => {
@@ -617,10 +617,9 @@ impl Sample {
         let ref_window = (self.indel_haplotype_window as f64 * 1.5) as f64 as usize;
 
 
-        let prob_emit_xy = |i_projected, j| {
+        let prob_emit_xy = |ref_base, j| {
             let j_ = j + read_offset;
             let read_base = read_seq[j_];
-            let ref_base = chrom_seq[i_projected];
             prob_read_base(read_base, ref_base, read_qual[j_])
         };
         let prob_emit_x = |_| LogProb::ln_one();
@@ -635,7 +634,7 @@ impl Sample {
             self.prob_deletion_artifact,
             self.prob_insertion_extend_artifact,
             self.prob_deletion_extend_artifact,
-            &|i, j| prob_emit_xy(i + ref_offset, j),
+            &|i, j| prob_emit_xy(chrom_seq[i + ref_offset], j),
             &prob_emit_x,
             &prob_emit_y,
             ref_end - ref_offset,
@@ -666,9 +665,9 @@ impl Sample {
                     self.prob_insertion_extend_artifact,
                     self.prob_deletion_extend_artifact,
                     &|i, j| {
-                        prob_emit_xy(project_i(i), j)
+                        prob_emit_xy(chrom_seq[project_i(i)], j)
                     },
-                    &|i| prob_emit_x(project_i(i)),
+                    &prob_emit_x,
                     &prob_emit_y,
                     ref_end - ref_offset,
                     read_end - read_offset,
@@ -676,21 +675,11 @@ impl Sample {
                     true
                 )
             },
-            &Variant::Insertion(_) => {
-                let l = variant.len() as usize;
+            &Variant::Insertion(ref ins_seq) => {
+                let l = ins_seq.len() as usize;
 
                 let ref_offset = start.saturating_sub(ref_window) as usize;
                 let ref_end = cmp::min(start + l + ref_window, chrom_seq.len());
-                let project_i = |i| {
-                    let i_ = i + ref_offset;
-                    if i_ <= start {
-                        Some(i_)
-                    } else if i_ >= start + l {
-                        Some(i_ - l)
-                    } else {
-                        None
-                    }
-                };
 
                 self.pair_hmm.borrow_mut().prob_related(
                     self.prob_insertion_artifact,
@@ -698,21 +687,20 @@ impl Sample {
                     self.prob_insertion_extend_artifact,
                     self.prob_deletion_extend_artifact,
                     &|i, j| {
-                        if let Some(i_projected) = project_i(i) {
-                            prob_emit_xy(i_projected, j)
+                        let i_ = i + ref_offset;
+                        let ref_base = if i_ <= start {
+                            // before variant
+                            chrom_seq[i_]
+                        } else if i_ > start + l {
+                            // after variant
+                            chrom_seq[i_ - l]
                         } else {
-                            // TODO obtain the inserted sequence and return the real probabilities here
-                            LogProb::ln_one().ln_sub_exp(LogProb::from(Prob(0.01)))
-                        }
+                            // within variant
+                            ins_seq[i_ - (start + 1)]
+                        };
+                        prob_emit_xy(ref_base, j)
                     },
-                    &|i| {
-                        if let Some(i_projected) = project_i(i) {
-                            prob_emit_x(i_projected)
-                        } else {
-                            // TODO obtain the inserted sequence and return the real probabilities here
-                            LogProb::ln_one()
-                        }
-                    },
+                    &prob_emit_x,
                     &prob_emit_y,
                     ref_end - ref_offset,
                     read_end - read_offset,
@@ -965,7 +953,7 @@ mod tests {
 
         let ref_seq = ref_seq();
 
-        let true_alt_probs = [-0.022, -0.011, -50.13, -0.011, -50.13];
+        let true_alt_probs = [-0.09, -0.02, -73.09, -16.95, -73.09];
 
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
@@ -1067,8 +1055,8 @@ mod tests {
         let sample = setup_sample(312.0);
 
         // truth
-        let probs_alt = [-0.022, -0.005, -483.89, -0.022, -0.022, -0.022];
-        let probs_ref = [-59.3, -62.56, -0.022, -59.3, -621.59, -59.3];
+        let probs_alt = [-0.09, -16.95, -73.09, -0.022, -0.011, -0.03];
+        let probs_ref = [-151.13, -163.03, -0.01, -67.75, -67.74, -67.76];
 
         // variant (obtained via bcftools)
         let start = 546;
@@ -1078,9 +1066,8 @@ mod tests {
             let (prob_ref, prob_alt) = sample.prob_read_indel(rec, &rec.cigar(), start, &variant, &ref_seq).unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar());
-            //assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
-            //assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
+            assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
+            assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
         }
-        assert!(false);
     }
 }
