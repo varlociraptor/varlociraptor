@@ -1,5 +1,7 @@
 use std::mem;
 
+use itertools::Itertools;
+
 use bio::stats::LogProb;
 
 
@@ -44,6 +46,7 @@ impl PairHMM {
         X: Fn(usize) -> LogProb,
         Y: Fn(usize) -> LogProb
     {
+        println!("-----------");
         for k in 0..2 {
             self.fm[k].clear();
             self.fx[k].clear();
@@ -117,6 +120,12 @@ impl PairHMM {
                 self.prob_cols.push(self.fx[curr].last().unwrap().clone());
                 self.prob_cols.push(self.fy[curr].last().unwrap().clone());
             }
+
+            // TODO remove
+            for p in &self.fm[curr] {
+                print!("{:.2} ", p.exp())
+            }
+            println!("");
 
             // next column
             mem::swap(&mut curr, &mut prev);

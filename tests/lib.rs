@@ -235,7 +235,7 @@ fn test3() {
 
     check_info_float(&mut call, b"CASE_AF", 0.5, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_GERMLINE", 8.0e-29, 9.0e-30);
+    check_info_float(&mut call, b"PROB_GERMLINE", 8.0e-29, 8.0e-29);
 }
 
 

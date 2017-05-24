@@ -542,19 +542,8 @@ impl Sample {
         obs
     }
 
-    /// For an indel, calculate likelihood of ref (first) or alt (second) for a given read, i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
-    ///
-    /// # Idea
-    ///
-    /// The MAPQ already encodes the uncertainty of the given read position. Hence, all we need to do is
-    /// to calculate the probability that a read is sampled from the given position under the assumption that
-    /// (a) there is no variant, and (b) there is the given variant.
-    /// We do this by multiplying the sampling probability of each read base, see `prob_read_base`.
-    /// This is of course a simplification: other indels or SNVs in the same region are ignored.
-    /// However, this is reasonable because it is (a) unlikely and (b) they will be ignored in all cases,
-    /// such that they simply lead to globally reduced likelihoods, which are normalized away by bayes theorem.
-    /// Other homo/heterozgous variants on the same haplotype as the investigated are no problem. They will affect
-    /// both the alt and the ref case equally.
+    /// For an indel, calculate likelihood of ref (first) or alt (second) for a given read,
+    /// i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
     pub fn prob_read_indel(
         &self,
         record: &bam::Record,
@@ -563,27 +552,70 @@ impl Sample {
         variant: Variant,
         chrom_seq: &[u8]
     ) -> Result<(LogProb, LogProb), Box<Error>> {
+        // TODO we really need the insertion sequence!!
+        // Otherwise we loose a lot of discriminative power.
 
         let read_seq = record.seq();
         let read_qual = record.qual();
 
-        let (qpos, breakpoint) = if let Some(qpos) = cigar.read_pos(start, true)? {
-            (qpos as usize, start as usize)
-        } else if let Some(qpos) = cigar.read_pos(start + variant.len(), true)? {
-            (qpos as usize, (start + variant.len()) as usize)
-        } else {
-            panic!(
-                "bug: read does not overlap breakpoint: pos={}, cigar={}, start={}, len={}",
-                record.pos(),
-                cigar,
-                start,
-                variant.len()
-            );
-        };
-        let start = start as usize;
+        let (read_offset, read_end, breakpoint) = {
+            let (varstart, varend) = match variant {
+                Variant::Deletion(l) => (start, start + variant.len()),
+                Variant::Insertion(l) => (start, start + 1),
+                Variant::SNV(_) => panic!("bug: unsupported variant")
+            };
 
-        let read_offset = qpos.saturating_sub(self.indel_haplotype_window as usize);
-        let read_end = cmp::min(qpos + self.indel_haplotype_window as usize, read_seq.len());
+            match (
+                cigar.read_pos(varstart, true)?,
+                cigar.read_pos(varend, true)?
+            ) {
+                // read encloses variant
+                (Some(qstart), Some(qend)) => {
+                    let qstart = qstart as usize;
+                    let qend = qend as usize;
+                    let read_offset = qstart.saturating_sub(self.indel_haplotype_window as usize);
+                    let read_end = cmp::min(
+                        qend + self.indel_haplotype_window as usize,
+                        read_seq.len()
+                    );
+                    println!("window: {} - {} (variant: {} - {})", read_offset, read_end, qstart, qend);
+                    (read_offset, read_end, varstart as usize)
+                },
+                (Some(qstart), None) => {
+                    let qstart = qstart as usize;
+                    let read_offset = qstart.saturating_sub(self.indel_haplotype_window as usize);
+                    let read_end = cmp::min(
+                        qstart + self.indel_haplotype_window as usize,
+                        read_seq.len()
+                    );
+                    (read_offset, read_end, varstart as usize)
+                },
+                (None, Some(qend)) => {
+                    let qend = qend as usize;
+                    let read_offset = qend.saturating_sub(self.indel_haplotype_window as usize);
+                    let read_end = cmp::min(
+                        qend + self.indel_haplotype_window as usize,
+                        read_seq.len()
+                    );
+                    (read_offset, read_end, varend as usize)
+                },
+                (None, None) => {
+                    panic!(
+                        "bug: read does not overlap breakpoint: pos={}, cigar={}, start={}, len={}",
+                        record.pos(),
+                        cigar,
+                        start,
+                        variant.len()
+                    );
+                }
+            }
+        };
+
+        let start = start as usize;
+        // the window on the reference could be a bit larger to allow some flexibility with close
+        // indels. But it should not be so large that the read can align outside of the breakpoint.
+        let ref_window = (self.indel_haplotype_window as f64 * 1.5) as f64 as usize;
+
 
         let prob_emit_xy = |i_projected, j| {
             let j_ = j + read_offset;
@@ -595,8 +627,8 @@ impl Sample {
         let prob_emit_y = |j| prob_read_base_miscall(read_qual[j + read_offset]);
 
         // ref allele
-        let ref_offset = breakpoint.saturating_sub(read_seq.len());
-        let ref_end = cmp::min(breakpoint + read_seq.len(), chrom_seq.len());
+        let ref_offset = breakpoint.saturating_sub(ref_window);
+        let ref_end = cmp::min(breakpoint + ref_window, chrom_seq.len());
 
         let prob_ref = self.pair_hmm.borrow_mut().prob_related(
             self.prob_insertion_artifact,
@@ -617,8 +649,8 @@ impl Sample {
             Variant::Deletion(l) => {
                 let l = l as usize;
 
-                let ref_offset = start.saturating_sub(read_seq.len());
-                let ref_end = cmp::min(start + read_seq.len(), chrom_seq.len());
+                let ref_offset = start.saturating_sub(ref_window);
+                let ref_end = cmp::min(start + ref_window, chrom_seq.len());
                 let project_i = |i| {
                     let i_ = i + ref_offset;
                     if i_ <= start {
@@ -647,8 +679,8 @@ impl Sample {
             Variant::Insertion(l) => {
                 let l = l as usize;
 
-                let ref_offset = start.saturating_sub(read_seq.len()) as usize;
-                let ref_end = cmp::min(start + l + read_seq.len(), chrom_seq.len());
+                let ref_offset = start.saturating_sub(ref_window) as usize;
+                let ref_end = cmp::min(start + l + ref_window, chrom_seq.len());
                 let project_i = |i| {
                     let i_ = i + ref_offset;
                     if i_ <= start {
@@ -670,7 +702,7 @@ impl Sample {
                             prob_emit_xy(i_projected, j)
                         } else {
                             // TODO obtain the inserted sequence and return the real probabilities here
-                            LogProb::ln_one()
+                            LogProb::ln_one().ln_sub_exp(LogProb::from(Prob(0.01)))
                         }
                     },
                     &|i| {
@@ -1046,8 +1078,9 @@ mod tests {
             let (prob_ref, prob_alt) = sample.prob_read_indel(rec, &rec.cigar(), start, variant, &ref_seq).unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar());
-            assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
-            assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
+            //assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
+            //assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
         }
+        assert!(false);
     }
 }
