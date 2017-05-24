@@ -614,7 +614,7 @@ impl Sample {
         let start = start as usize;
         // the window on the reference could be a bit larger to allow some flexibility with close
         // indels. But it should not be so large that the read can align outside of the breakpoint.
-        let ref_window = (self.indel_haplotype_window as f64 * 1.5) as f64 as usize;
+        let ref_window = (self.indel_haplotype_window as f64 * 1.5) as usize;
 
 
         let prob_emit_xy = |ref_base, j| {
