@@ -25,7 +25,7 @@ impl FlatNormalNormalModel {
 
 impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalModel {
 
-    fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: Variant) -> LogProb {
+    fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: &Variant) -> LogProb {
         LogProb::ln_one()
     }
 
@@ -35,7 +35,7 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
         af_second: &DiscreteAlleleFreqs,
         likelihood_first: &L,
         likelihood_second: &O,
-        _: Variant,
+        _: &Variant,
         _: usize,
         _: usize
     ) -> LogProb where
@@ -60,7 +60,7 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
         &self,
         likelihood_first: &L,
         likelihood_second: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs_first: usize,
         n_obs_second: usize
     ) -> LogProb where
@@ -84,7 +84,7 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
         &self,
         likelihood_first: &L,
         likelihood_second: &O,
-        _: Variant,
+        _: &Variant,
         _: usize,
         _: usize
     ) -> (AlleleFreq, AlleleFreq) where
@@ -132,7 +132,7 @@ impl FlatTumorNormalModel {
 
 impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalModel {
 
-    fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: Variant) -> LogProb {
+    fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: &Variant) -> LogProb {
         LogProb::ln_one()
     }
 
@@ -142,7 +142,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         af_normal: &DiscreteAlleleFreqs,
         likelihood_tumor: &L,
         likelihood_normal: &O,
-        _: Variant,
+        _: &Variant,
         _: usize,
         _: usize
     ) -> LogProb where
@@ -173,7 +173,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         &self,
         likelihood_tumor: &L,
         likelihood_normal: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs_tumor: usize,
         n_obs_normal: usize
     ) -> LogProb where
@@ -207,7 +207,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         &self,
         likelihood_tumor: &L,
         likelihood_normal: &O,
-        _: Variant,
+        _: &Variant,
         _: usize,
         _: usize
     ) -> (AlleleFreq, AlleleFreq) where

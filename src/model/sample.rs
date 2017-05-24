@@ -48,10 +48,10 @@ pub fn prob_read_snv(
     record: &bam::Record,
     cigar: &CigarStringView,
     start: u32,
-    variant: Variant,
+    variant: &Variant,
     ref_seq: &[u8]
 ) -> Result<(LogProb, LogProb), Box<Error>> {
-    if let Variant::SNV(base) = variant {
+    if let &Variant::SNV(base) = variant {
         if let Some(qpos) = cigar.read_pos(start, false)? {
             let read_base = record.seq()[qpos as usize];
             let base_qual = record.qual()[qpos as usize];
@@ -349,14 +349,14 @@ impl Sample {
         &mut self,
         chrom: &[u8],
         start: u32,
-        variant: Variant,
+        variant: &Variant,
         chrom_seq: &[u8]
     ) -> Result<Vec<Observation>, Box<Error>> {
         let mut observations = Vec::new();
         let (end, centerpoint) = match variant {
-            Variant::Deletion(length)  => (start + length, start + length / 2),
-            Variant::Insertion(_) => (start, start),
-            Variant::SNV(_) => (start, start)
+            &Variant::Deletion(length)  => (start + length, start + length / 2),
+            &Variant::Insertion(_) => (start, start),
+            &Variant::SNV(_) => (start, start)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
@@ -370,7 +370,7 @@ impl Sample {
 
 
         match variant {
-            Variant::SNV(_) => {
+            &Variant::SNV(_) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     let pos = record.pos() as u32;
@@ -386,7 +386,7 @@ impl Sample {
                     }
                 }
             },
-            Variant::Insertion(l) | Variant::Deletion(l) => {
+            &Variant::Insertion(_) | &Variant::Deletion(_) => {
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
@@ -408,9 +408,9 @@ impl Sample {
                         };
 
                         if end_pos <= end {
-                            cmp::min(end_pos.saturating_sub(start), l)
+                            cmp::min(end_pos.saturating_sub(start), variant.len())
                         } else {
-                            cmp::min(end.saturating_sub(pos), l)
+                            cmp::min(end.saturating_sub(pos), variant.len())
                         }
                     };
 
@@ -457,7 +457,7 @@ impl Sample {
         if self.adjust_mapq {
             match variant {
                 // only adjust for deletion and insertion
-                Variant::Deletion(_) | Variant::Insertion(_) => adjust_mapq(&mut observations),
+                &Variant::Deletion(_) | &Variant::Insertion(_) => adjust_mapq(&mut observations),
                 _ => ()
             }
 
@@ -478,17 +478,17 @@ impl Sample {
         record: &bam::Record,
         cigar: &CigarStringView,
         start: u32,
-        variant: Variant,
+        variant: &Variant,
         chrom_seq: &[u8]
     ) -> Result<Observation, Box<Error>> {
         let prob_mapping = self.prob_mapping(record.mapq());
         debug!("prob_mapping={}", *prob_mapping);
 
         let (prob_ref, prob_alt) = match variant {
-            Variant::Deletion(_) | Variant::Insertion(_) => {
+            &Variant::Deletion(_) | &Variant::Insertion(_) => {
                 self.prob_read_indel(record, cigar, start, variant, chrom_seq)?
             },
-            Variant::SNV(_) => {
+            &Variant::SNV(_) => {
                 prob_read_snv(record, cigar, start, variant, chrom_seq)?
             }
         };
@@ -506,13 +506,13 @@ impl Sample {
         &self,
         record: &bam::Record,
         mate_mapq: u8,
-        variant: Variant
+        variant: &Variant
     ) -> Observation {
         let insert_size = record.insert_size().abs();
         let shift = match variant {
-            Variant::Deletion(length)  => length as f64,
-            Variant::Insertion(length) => -(length as f64),
-            Variant::SNV(_) => panic!("no fragment observations for SNV")
+            &Variant::Deletion(_)  => variant.len() as f64,
+            &Variant::Insertion(_) => -(variant.len() as f64),
+            &Variant::SNV(_) => panic!("no fragment observations for SNV")
         };
         let p_alt = (
             // case: correctly called indel
@@ -549,7 +549,7 @@ impl Sample {
         record: &bam::Record,
         cigar: &CigarStringView,
         start: u32,
-        variant: Variant,
+        variant: &Variant,
         chrom_seq: &[u8]
     ) -> Result<(LogProb, LogProb), Box<Error>> {
         // TODO we really need the insertion sequence!!
@@ -560,9 +560,9 @@ impl Sample {
 
         let (read_offset, read_end, breakpoint) = {
             let (varstart, varend) = match variant {
-                Variant::Deletion(l) => (start, start + variant.len()),
-                Variant::Insertion(l) => (start, start + 1),
-                Variant::SNV(_) => panic!("bug: unsupported variant")
+                &Variant::Deletion(_) => (start, start + variant.len()),
+                &Variant::Insertion(_) => (start, start + 1),
+                &Variant::SNV(_) => panic!("bug: unsupported variant")
             };
 
             match (
@@ -646,8 +646,8 @@ impl Sample {
 
         // alt allele
         let prob_alt = match variant {
-            Variant::Deletion(l) => {
-                let l = l as usize;
+            &Variant::Deletion(_) => {
+                let l = variant.len() as usize;
 
                 let ref_offset = start.saturating_sub(ref_window);
                 let ref_end = cmp::min(start + ref_window, chrom_seq.len());
@@ -676,8 +676,8 @@ impl Sample {
                     true
                 )
             },
-            Variant::Insertion(l) => {
-                let l = l as usize;
+            &Variant::Insertion(_) => {
+                let l = variant.len() as usize;
 
                 let ref_offset = start.saturating_sub(ref_window) as usize;
                 let ref_end = cmp::min(start + l + ref_window, chrom_seq.len());
@@ -955,7 +955,7 @@ mod tests {
 
     #[test]
     fn test_read_observation_indel() {
-        let variant = model::Variant::Insertion(10);
+        let variant = model::Variant::Insertion(b"GCATCCTGCG".to_vec());
         // insertion starts at 546 and has length 10
         let varpos = 546;
 
@@ -970,7 +970,7 @@ mod tests {
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            let obs = sample.read_observation(&record, &cigar, varpos, variant, &ref_seq).unwrap();
+            let obs = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq).unwrap();
             println!("{:?}", obs);
             assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
             assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
@@ -987,9 +987,9 @@ mod tests {
         for varlen in &[0, 5, 10, 100] {
             println!("varlen {}", varlen);
             println!("insertion");
-            let variant = model::Variant::Insertion(*varlen);
+            let variant = model::Variant::Insertion(vec![b'A'; *varlen]);
             for record in &records {
-                let obs = sample.fragment_observation(record, 60u8, variant);
+                let obs = sample.fragment_observation(record, 60u8, &variant);
                 println!("{:?}", obs);
                 if *varlen == 0 {
                     assert_relative_eq!(*obs.prob_ref, *obs.prob_alt);
@@ -998,9 +998,9 @@ mod tests {
                 }
             }
             println!("deletion");
-            let variant = model::Variant::Deletion(*varlen);
+            let variant = model::Variant::Deletion(*varlen as u32);
             for record in &records {
-                let obs = sample.fragment_observation(record, 60u8, variant);
+                let obs = sample.fragment_observation(record, 60u8, &variant);
                 println!("{:?}", obs);
                 if *varlen == 0 {
                     assert_relative_eq!(*obs.prob_ref, *obs.prob_alt);
@@ -1020,7 +1020,7 @@ mod tests {
         let sample = setup_sample(100.0);
         let variant = model::Variant::Deletion(50);
         for record in &records {
-            let obs = sample.fragment_observation(record, 60u8, variant);
+            let obs = sample.fragment_observation(record, 60u8, &variant);
             println!("{:?}", obs);
             assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
             assert!(obs.prob_alt > obs.prob_ref);
@@ -1028,9 +1028,9 @@ mod tests {
 
         println!("insertion");
         let sample = setup_sample(200.0);
-        let variant = model::Variant::Insertion(50);
+        let variant = model::Variant::Insertion(vec![b'A'; 50]);
         for record in &records {
-            let obs = sample.fragment_observation(record, 60u8, variant);
+            let obs = sample.fragment_observation(record, 60u8, &variant);
             println!("{:?}", obs);
             assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
             assert!(obs.prob_alt > obs.prob_ref);
@@ -1072,10 +1072,10 @@ mod tests {
 
         // variant (obtained via bcftools)
         let start = 546;
-        let variant = model::Variant::Insertion(10);
+        let variant = model::Variant::Insertion(b"GCATCCTGCG".to_vec());
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let (prob_ref, prob_alt) = sample.prob_read_indel(rec, &rec.cigar(), start, variant, &ref_seq).unwrap();
+            let (prob_ref, prob_alt) = sample.prob_read_indel(rec, &rec.cigar(), start, &variant, &ref_seq).unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar());
             //assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);

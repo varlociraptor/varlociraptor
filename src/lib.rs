@@ -47,6 +47,10 @@ quick_error! {
             description("unexpected missing tag")
             display("expected tag {} missing from BCF record", name)
         }
+        InvalidRecord(msg: String) {
+            description("invalid record")
+            display("{}", msg)
+        }
     }
 }
 

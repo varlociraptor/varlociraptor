@@ -21,22 +21,22 @@ pub use model::PairPileup;
 /// A prior model of the allele frequency spectrum.
 pub trait Model<A: AlleleFreqs> {
     /// Calculate prior probability of given allele frequency.
-    fn prior_prob(&self, af: AlleleFreq, variant: Variant) -> LogProb;
+    fn prior_prob(&self, af: AlleleFreq, variant: &Variant) -> LogProb;
 
     /// Return allele frequency spectrum.
     fn allele_freqs(&self) -> &A;
 
-    fn marginal_prob<L>(&self, likelihood: &L, variant: Variant, n_obs: usize) -> LogProb where
+    fn marginal_prob<L>(&self, likelihood: &L, variant: &Variant, n_obs: usize) -> LogProb where
         L: Fn(AlleleFreq) -> LogProb;
 
-    fn joint_prob<L>(&self, af: &A, likelihood: &L, variant: Variant, n_obs: usize) -> LogProb where
+    fn joint_prob<L>(&self, af: &A, likelihood: &L, variant: &Variant, n_obs: usize) -> LogProb where
         L: Fn(AlleleFreq) -> LogProb;
 
     /// Calculate maximum a posteriori probability estimate of allele frequency.
     fn map<L>(
         &self,
         likelihood: &L,
-        variant: Variant,
+        variant: &Variant,
         n_obs: usize
     ) -> AlleleFreq where
         L: Fn(AlleleFreq) -> LogProb;
@@ -46,7 +46,7 @@ pub trait Model<A: AlleleFreqs> {
 /// A prior model for sample pairs.
 pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
     /// Calculate prior probability of given combination of allele frequencies.
-    fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, variant: Variant) -> LogProb;
+    fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, variant: &Variant) -> LogProb;
 
     /// Calculate joint probability of prior with likelihoods for given allele frequency ranges.
     fn joint_prob<L, O>(
@@ -55,7 +55,7 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         af2: &B,
         likelihood1: &L,
         likelihood2: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs1: usize,
         n_obs2: usize
     ) -> LogProb where
@@ -67,7 +67,7 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         &self,
         likelihood1: &L,
         likelihood2: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs1: usize,
         n_obs2: usize
     ) -> LogProb where
@@ -79,7 +79,7 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
         &self,
         likelihood1: &L,
         likelihood2: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs1: usize,
         n_obs2: usize
     ) -> (AlleleFreq, AlleleFreq) where
@@ -94,7 +94,7 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
 /// A prior model for trios.
 pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
     /// Calculate prior probability of given combination of allele frequencies.
-    fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, af3: AlleleFreq, variant: Variant) -> LogProb;
+    fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, af3: AlleleFreq, variant: &Variant) -> LogProb;
 
     /// Calculate joint probability of prior with likelihoods for given allele frequency ranges.
     fn joint_prob<L, O, Q>(
@@ -105,7 +105,7 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
         likelihood1: &L,
         likelihood2: &O,
         likelihood3: &Q,
-        variant: Variant,
+        variant: &Variant,
         n_obs1: usize,
         n_obs2: usize,
         n_obs3: usize
@@ -120,7 +120,7 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
         likelihood1: &L,
         likelihood2: &O,
         likelihood3: &Q,
-        variant: Variant,
+        variant: &Variant,
         n_obs1: usize,
         n_obs2: usize,
         n_obs3: usize
@@ -135,7 +135,7 @@ pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
         likelihood1: &L,
         likelihood2: &O,
         likelihood3: &Q,
-        variant: Variant,
+        variant: &Variant,
         n_obs1: usize,
         n_obs2: usize,
         n_obs3: usize
@@ -172,13 +172,13 @@ mod tests {
     fn test_tumor() {
         let variant = Variant::Deletion(3);
         let model = TumorNormalModel::new(2, 300.0, 1.0, 1.0, 3e9 as u64, Prob(0.001));
-        println!("af=0.0,0.0 -> {}", *model.prior_prob(AlleleFreq(0.0), AlleleFreq(0.0), variant));
-        println!("af=0.5,0.5 -> {}", *model.prior_prob(AlleleFreq(0.5), AlleleFreq(0.5), variant));
+        println!("af=0.0,0.0 -> {}", *model.prior_prob(AlleleFreq(0.0), AlleleFreq(0.0), &variant));
+        println!("af=0.5,0.5 -> {}", *model.prior_prob(AlleleFreq(0.5), AlleleFreq(0.5), &variant));
 
         for af in linspace(0.0, 1.0, 20) {
-            println!("normal={} af={} p={}", 0.0, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(0.0), variant));
-            println!("normal={} af={} p={}", 0.5, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(0.5), variant));
-            println!("normal={} af={} p={}", 1.0, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(1.0), variant));
+            println!("normal={} af={} p={}", 0.0, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(0.0), &variant));
+            println!("normal={} af={} p={}", 0.5, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(0.5), &variant));
+            println!("normal={} af={} p={}", 1.0, af, *model.prior_prob(AlleleFreq(af), AlleleFreq(1.0), &variant));
         }
     }
 }

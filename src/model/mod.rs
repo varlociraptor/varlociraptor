@@ -40,10 +40,10 @@ pub enum VariantType {
 }
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum Variant {
     Deletion(u32),
-    Insertion(u32),
+    Insertion(Vec<u8>),
     SNV(u8)
 }
 
@@ -67,8 +67,12 @@ impl Variant {
 
     pub fn is_type(&self, vartype: &VariantType) -> bool {
         match (self, vartype) {
-            (&Variant::Deletion(l), &VariantType::Deletion(Some(ref range))) => l >= range.start && l < range.end,
-            (&Variant::Insertion(l), &VariantType::Insertion(Some(ref range))) => l >= range.start && l < range.end,
+            (&Variant::Deletion(l), &VariantType::Deletion(Some(ref range))) => {
+                l >= range.start && l < range.end
+            },
+            (&Variant::Insertion(_), &VariantType::Insertion(Some(ref range))) => {
+                self.len() >= range.start && self.len() < range.end
+            },
             (&Variant::Deletion(_), &VariantType::Deletion(None)) => true,
             (&Variant::Insertion(_), &VariantType::Insertion(None)) => true,
             (&Variant::SNV(_), &VariantType::SNV) => true,
@@ -78,8 +82,9 @@ impl Variant {
 
     pub fn len(&self) -> u32 {
         match self {
-            &Variant::Deletion(l) | &Variant::Insertion(l) => l,
-            &Variant::SNV(_)       => 1
+            &Variant::Deletion(l)      => l,
+            &Variant::Insertion(ref s) => s.len() as u32,
+            &Variant::SNV(_)           => 1
         }
     }
 }
@@ -118,7 +123,7 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
     /// # Returns
     /// The `SinglePileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<SinglePileup<A, P>, Box<Error>> {
-        let pileup = try!(self.sample.borrow_mut().extract_observations(chrom, start, variant, chrom_seq));
+        let pileup = try!(self.sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
         debug!("Obtained pileups ({} observations).", pileup.len());
         Ok(SinglePileup::new(
             pileup,
@@ -170,7 +175,7 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
             let likelihood = |af: AlleleFreq| {
                 self.likelihood(af)
             };
-            let p = self.prior_model.marginal_prob(&likelihood, self.variant, self.observations.len());
+            let p = self.prior_model.marginal_prob(&likelihood, &self.variant, self.observations.len());
 
             self.marginal_prob.set(Some(p));
         }
@@ -183,7 +188,7 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
             self.likelihood(af)
         };
 
-        let p = self.prior_model.joint_prob(af, &likelihood, self.variant, self.observations.len());
+        let p = self.prior_model.joint_prob(af, &likelihood, &self.variant, self.observations.len());
         p
     }
 
@@ -200,7 +205,7 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
             self.likelihood(af)
         };
 
-        self.prior_model.map(&likelihood, self.variant, self.observations.len())
+        self.prior_model.map(&likelihood, &self.variant, self.observations.len())
     }
 
     fn likelihood(&self, af: AlleleFreq) -> LogProb {
@@ -251,9 +256,9 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
     /// The `PairPileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<PairPileup<A, B, P>, Box<Error>> {
         debug!("Case pileup");
-        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, variant, chrom_seq));
+        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
         debug!("Control pileup");
-        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, variant, chrom_seq));
+        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
         debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         Ok(PairPileup::new(
             case_pileup,
@@ -319,7 +324,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
                 self.control_likelihood(af_control, af_case)
             };
-            let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len());
+            let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len());
 
             self.marginal_prob.set(Some(p));
         }
@@ -335,7 +340,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             self.control_likelihood(af_control, af_case)
         };
 
-        let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len());
+        let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len());
         debug!("Pr(D, f_case={:?}, f_control={:?}) = {}", af_case, af_control, p.exp());
         p
     }
@@ -357,7 +362,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             self.control_likelihood(af_control, af_case)
         };
 
-        self.prior_model.map(&case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len())
+        self.prior_model.map(&case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len())
     }
 
     fn case_likelihood(&self, af_case: AlleleFreq, af_control: Option<AlleleFreq>) -> LogProb {
@@ -386,7 +391,7 @@ mod tests {
     use InsertSize;
     use model::sample::{Observation, Evidence};
     use constants;
-    
+
     use rust_htslib::bam;
     use bio::stats::{LogProb, Prob};
     #[cfg(feature="flame_it")]
@@ -612,7 +617,7 @@ mod tests {
 
     #[test]
     fn test_example1() {
-        let variant = Variant::Insertion(2);
+        let variant = Variant::Insertion(b"AC".to_vec());
         let case_obs = vec![Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0025150465111820103), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.007974998278512672), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031723009285603327), prob_alt: LogProb(-111.18254428986242), prob_ref: LogProb(-109.23587762319576), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.003994511005101995), prob_alt: LogProb(-113.14698873430689), prob_ref: LogProb(-111.18254428986242), prob_mismapped: LogProb::ln_one() }];
         let control_obs = vec![Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00025122019630215495), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0001585018800054507), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0006311564818346603), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.003989017266406586), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }];
 
@@ -810,7 +815,7 @@ mod tests {
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
-        let variant = Variant::Insertion(4);
+        let variant = Variant::Insertion(b"CTAT".to_vec());
         let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
 
         let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
@@ -832,7 +837,7 @@ mod tests {
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
-        let variant = Variant::Insertion(1);
+        let variant = Variant::Insertion(b"C".to_vec());
         let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
 
         let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
@@ -858,7 +863,7 @@ mod tests {
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
         //let lh = model.case_sample().likelihood_model().likelihood_pileup(&case_obs[..100], 0.07, 0.0);
-        let variant = Variant::Insertion(1);
+        let variant = Variant::Insertion(b"C".to_vec());
         /*let p_absent = model.joint_prob(&case_obs, &control_obs, &tumor_ref, &normal_ref, variant);
         let p_somatic = model.joint_prob(&case_obs, &control_obs, &tumor_alt, &normal_ref, variant);
         let p_germline = model.joint_prob(&case_obs, &control_obs, &tumor_all, &normal_alt, variant);

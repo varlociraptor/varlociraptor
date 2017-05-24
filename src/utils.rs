@@ -66,17 +66,27 @@ pub fn collect_variants(
             if omit_indels {
                 None
             } else if svtype == b"INS" {
-                let svlen = match (svlen, inslen) {
-                    (Some(svlen), _)     => svlen,
-                    (None, Some(inslen)) => inslen,
-                    _ => {
-                        return Err(Box::new(BCFError::MissingTag("SVLEN or INSLEN".to_owned())));
-                    }
-                };
-                if is_valid_len(svlen) {
-                    Some(model::Variant::Insertion(svlen))
-                } else {
+                // get sequence
+                let alleles = record.alleles();
+                if alleles.len() > 2 {
+                    return Err(Box::new(
+                        BCFError::InvalidRecord("SVTYPE=INS but more than one ALT allele".to_owned())
+                    ))
+                }
+                let ref_allele = alleles[0];
+                let alt_allele = alleles[1];
+
+                if alt_allele == b"<INS>" {
+                    // don't support insertions without exact sequence
                     None
+                } else {
+                    let len = alt_allele.len() - ref_allele.len();
+
+                    if is_valid_len(len as u32) {
+                        Some(model::Variant::Insertion(alt_allele[ref_allele.len()..].to_owned()))
+                    } else {
+                        None
+                    }
                 }
             } else if svtype == b"DEL" {
                 let svlen = match(svlen, end) {
@@ -100,7 +110,10 @@ pub fn collect_variants(
         let ref_allele = alleles[0];
 
         alleles.iter().skip(1).map(|alt_allele| {
-            if alt_allele.len() == 1 && ref_allele.len() == 1 {
+            if alt_allele[0] == b'<' {
+                // skip allele if it is a special tag (such alleles have been handled above)
+                None
+            } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 // SNV
                 if omit_snvs {
                     None
@@ -120,7 +133,7 @@ pub fn collect_variants(
                 } else if alt_allele.len() < ref_allele.len() {
                     Some(model::Variant::Deletion((ref_allele.len() - alt_allele.len()) as u32))
                 } else {
-                    Some(model::Variant::Insertion((alt_allele.len() - ref_allele.len()) as u32))
+                    Some(model::Variant::Insertion(alt_allele[ref_allele.len()..].to_owned()))
                 }
             }
         }).collect_vec()
