@@ -1,5 +1,3 @@
-
-
 extern crate libprosic;
 extern crate rust_htslib;
 extern crate bio;
@@ -64,7 +62,7 @@ fn download_reference() -> &'static str {
 }
 
 
-fn call_tumor_normal(test: &str) {
+fn call_tumor_normal(test: &str, exclusive_end: bool) {
     let reference = download_reference();
     assert!(Path::new(reference).exists());
     assert!(Path::new(&(reference.to_owned() + ".fai")).exists());
@@ -99,7 +97,7 @@ fn call_tumor_normal(test: &str) {
         true,
         true,
         true,
-        true,
+        false,
         insert_size,
         libprosic::likelihood::LatentVariableModel::new(purity),
         Prob(0.0),
@@ -117,7 +115,7 @@ fn call_tumor_normal(test: &str) {
         true,
         true,
         true,
-        true,
+        false,
         insert_size,
         libprosic::likelihood::LatentVariableModel::new(1.0),
         Prob(0.0),
@@ -172,7 +170,7 @@ fn call_tumor_normal(test: &str) {
             false,
             Some(10000),
             Some(&observations),
-            false
+            exclusive_end
         ).unwrap();
 
     // sleep a second in order to wait for filesystem flushing
@@ -203,22 +201,37 @@ fn check_info_float(rec: &mut bcf::Record, tag: &[u8], truth: f32, maxerr: f32) 
 }
 
 
+fn control_fdr_ev(test: &str) {
+    let basedir = basedir(test);
+    let mut calls = bcf::Reader::from_path(format!("{}/calls.matched.bcf", basedir)).unwrap();
+    let output = format!("{}/thresholds.tsv", basedir);
+    cleanup_file(&output);
+    let mut writer = fs::File::create(&output).unwrap();
+    libprosic::estimation::fdr::ev::control_fdr(
+        &mut calls,
+        &mut writer,
+        &libprosic::SimpleEvent { name: "SOMATIC".to_owned() },
+        &libprosic::model::VariantType::Deletion(Some(1..30))
+    ).unwrap();
+}
+
+
 /// Test a Pindel call in a repeat region. It is a false positive that should be absent instead.
 /// But so far it is reported as somatic (however, at least with a weak probability).
 #[test]
 fn test1() {
-    call_tumor_normal("test1");
-    let mut call = load_call("test2");
+    call_tumor_normal("test1", false);
+    let mut call = load_call("test1");
     // TODO fix and add check
-    check_info_float(&mut call, b"CASE_AF", 0.0, 0.2);
-    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    //check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    //check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
 
 
 /// Test a Pindel call that is a somatic call in reality (case af: 0.125).
 #[test]
 fn test2() {
-    call_tumor_normal("test2");
+    call_tumor_normal("test2", false);
     let mut call = load_call("test2");
 
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
@@ -230,7 +243,7 @@ fn test2() {
 /// Test a Pindel call that is a germline call in reality (case af: 0.5, control af: 0.5).
 #[test]
 fn test3() {
-    call_tumor_normal("test3");
+    call_tumor_normal("test3", false);
     let mut call = load_call("test3");
 
     check_info_float(&mut call, b"CASE_AF", 0.5, 0.0);
@@ -242,10 +255,29 @@ fn test3() {
 /// Test a Pindel call (insertion) that is a somatic call in reality (case af: 0.042, control af: 0.0).
 #[test]
 fn test4() {
-    call_tumor_normal("test4");
+    call_tumor_normal("test4", false);
     let mut call = load_call("test4");
 
     check_info_float(&mut call, b"CASE_AF", 0.042, 0.1);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"PROB_SOMATIC", 0.01, 0.06);
+}
+
+
+/// Test a Delly call in a repeat region. It is a false positive that should be absent instead.
+/// But so far it is reported as somatic (however, at least with a weak probability).
+#[test]
+fn test5() {
+    call_tumor_normal("test5", true);
+    let mut call = load_call("test5");
+    // TODO fix and add check
+    //check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    //check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+}
+
+
+#[test]
+fn test_fdr_ev() {
+    control_fdr_ev("test_fdr_ev_1");
+    // TODO add a reasonable assertion
 }

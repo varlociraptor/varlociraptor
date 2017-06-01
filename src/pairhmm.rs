@@ -1,4 +1,5 @@
 use std::mem;
+use std::cmp;
 
 use itertools::Itertools;
 
@@ -8,7 +9,6 @@ use bio::stats::LogProb;
 /// A pair Hidden Markov Model for comparing sequences x and y as described by
 /// Durbin, R., Eddy, S., Krogh, A., & Mitchison, G. (1998). Biological Sequence Analysis.
 /// Current Topics in Genome Analysis 2008. http://doi.org/10.1017/CBO9780511790492.
-///
 pub struct PairHMM {
     fm: [Vec<LogProb>; 2],
     fx: [Vec<LogProb>; 2],
@@ -135,7 +135,7 @@ impl PairHMM {
             }
         }
 
-        if free_end_gap_x {
+        let p = if free_end_gap_x {
             LogProb::ln_sum_exp(&self.prob_cols)
         } else {
             LogProb::ln_sum_exp(&[
@@ -143,6 +143,14 @@ impl PairHMM {
                 self.fx[prev].last().unwrap().clone(),
                 self.fy[prev].last().unwrap().clone()
             ])
+        };
+        // take the minimum with 1.0, because sum of paths can exceed probability 1.0
+        // especially in case of repeats
+        assert!(!p.is_nan());
+        if p > LogProb::ln_one() {
+            LogProb::ln_one()
+        } else {
+            p
         }
     }
 }

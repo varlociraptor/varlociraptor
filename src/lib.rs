@@ -87,3 +87,17 @@ impl Event for ComplementEvent {
         &self.name
     }
 }
+
+
+/// A simple event that just has a name.
+pub struct SimpleEvent {
+    /// event name
+    pub name: String
+}
+
+
+impl Event for SimpleEvent {
+    fn name(&self) -> &str {
+        &self.name
+    }
+}

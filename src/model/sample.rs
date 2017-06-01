@@ -437,10 +437,12 @@ impl Sample {
                         // The latter would not happen for alt fragments, because the second read
                         // would map right of the variant in that case.
                         if pos <= centerpoint {
+                        //if end_pos <= centerpoint {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
                             let insert_size = record.insert_size().abs() as u32;
                             if pos + insert_size >= centerpoint {
+                            //if record.mpos() as u32 >= centerpoint {
                                 pairs.insert(record.qname().to_owned(), record.mapq());
                             }
                         } else if let Some(mate_mapq) = pairs.get(record.qname()) {
@@ -454,7 +456,7 @@ impl Sample {
 
         debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
 
-        if self.adjust_mapq {
+        if self.adjust_mapq && self.use_fragment_evidence {
             match variant {
                 // only adjust for deletion and insertion
                 &Variant::Deletion(_) | &Variant::Insertion(_) => adjust_mapq(&mut observations),
@@ -578,7 +580,6 @@ impl Sample {
                         qend + self.indel_haplotype_window as usize,
                         read_seq.len()
                     );
-                    //println!("window: {} - {} (variant: {} - {})", read_offset, read_end, qstart, qend);
                     (read_offset, read_end, varstart as usize)
                 },
                 (Some(qstart), None) => {
@@ -623,7 +624,10 @@ impl Sample {
             prob_read_base(read_base, ref_base, read_qual[j_])
         };
         let prob_emit_x = |_| LogProb::ln_one();
-        let prob_emit_y = |j| prob_read_base_miscall(read_qual[j + read_offset]);
+        let prob_emit_y = |j| {
+            let j_ = j + read_offset;
+            prob_read_base_miscall(read_qual[j_])
+        };
 
         // ref allele
         let ref_offset = breakpoint.saturating_sub(ref_window);
