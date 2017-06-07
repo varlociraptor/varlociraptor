@@ -1,7 +1,4 @@
 use std::mem;
-use std::cmp;
-
-use itertools::Itertools;
 
 use bio::stats::LogProb;
 

@@ -219,12 +219,14 @@ fn control_fdr_ev(test: &str) {
 /// Test a Pindel call in a repeat region. It is a false positive that should be absent instead.
 /// But so far it is reported as somatic (however, at least with a weak probability).
 #[test]
+// TODO remove ignore once fixed
+#[ignore]
 fn test1() {
     call_tumor_normal("test1", false);
     let mut call = load_call("test1");
-    // TODO fix and add check
-    //check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
-    //check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
 
 
@@ -267,12 +269,13 @@ fn test4() {
 /// Test a Delly call in a repeat region. It is a false positive that should be absent instead.
 /// But so far it is reported as somatic (however, at least with a weak probability).
 #[test]
+// TODO remove ignore once fixed
+#[ignore]
 fn test5() {
     call_tumor_normal("test5", true);
     let mut call = load_call("test5");
-    // TODO fix and add check
-    //check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
-    //check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
 
 

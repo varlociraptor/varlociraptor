@@ -40,10 +40,6 @@ pub fn collect_variants(
         },
         _ => None
     };
-    let inslen = match record.info(b"INSLEN").integer() {
-        Ok(Some(inslen)) => Some(inslen[0] as u32),
-        _ => None
-    };
     // TODO avoid cloning svtype
     let svtype = match record.info(b"SVTYPE").string() {
         Ok(Some(svtype)) => Some(svtype[0].to_owned()),

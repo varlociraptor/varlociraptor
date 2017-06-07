@@ -161,7 +161,7 @@ impl RecordBuffer {
             let window_start = cmp::max(start as i32 - self.window as i32 - 1, 0) as u32;
             if self.inner.is_empty() || self.end().unwrap() < window_start || self.tid().unwrap() != tid as i32 {
                 let end = self.reader.header.target_len(tid).unwrap();
-                try!(self.reader.seek(tid, window_start, end));
+                try!(self.reader.fetch(tid, window_start, end));
                 debug!("Clearing ringbuffer");
                 self.inner.clear();
             } else {
