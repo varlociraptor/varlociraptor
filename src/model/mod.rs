@@ -10,6 +10,7 @@ use ordered_float::NotNaN;
 pub mod likelihood;
 pub mod priors;
 pub mod sample;
+pub mod evidence;
 
 use bio::stats::LogProb;
 

@@ -3,6 +3,96 @@ use std::mem;
 use bio::stats::LogProb;
 
 
+/// Trait for parametrization of `PairHMM` gap behavior.
+pub trait GapParameters {
+    /// Probability to open gap in x.
+    fn prob_gap_x(&self) -> LogProb;
+
+    /// Probability to open gap in y.
+    fn prob_gap_y(&self) -> LogProb;
+
+    /// Probability to extend gap in x.
+    fn prob_gap_x_extend(&self) -> LogProb;
+
+    /// Probability to extend gap in y.
+    fn prob_gap_y_extend(&self) -> LogProb;
+
+    /// Probability to start at x[i]. This can be left unchanged if you use `free_start_gap_x` and
+    /// `free_end_gap_x`.
+    #[inline]
+    fn prob_start_gap_x(&self, i: usize) -> LogProb {
+        if self.free_start_gap_x() {
+            LogProb::ln_one()
+        } else {
+            /// For global alignment, this has to return 0.0.
+            LogProb::ln_zero()
+        }
+    }
+
+    /// Allow free start gap in x.
+    fn free_start_gap_x(&self) -> bool;
+
+    /// Allow free end gap in x.
+    fn free_end_gap_x(&self) -> bool;
+}
+
+
+/// Trait for parametrization of `PairHMM` emission behavior.
+pub trait EmitParameters {
+    /// Emission probability for (x[i], y[j]).
+    fn prob_emit_xy(&self, i: usize, j: usize) -> LogProb;
+
+    /// Emission probability for (x[i], -).
+    fn prob_emit_x(&self, i: usize) -> LogProb;
+
+    /// Emission probability for (-, y[j]).
+    fn prob_emit_y(&self, j: usize) -> LogProb;
+
+    fn len_x(&self) -> usize;
+
+    fn len_y(&self) -> usize;
+}
+
+
+/// Trait for parametrization of `PairHMM` that performs a global alignment.
+pub trait GlobalAlignmentParameters: GapParameters {
+    #[inline]
+    fn free_start_gap_x(&self) -> bool {
+        false
+    }
+
+    #[inline]
+    fn free_end_gap_x(&self) -> bool {
+        false
+    }
+
+    #[inline]
+    fn prob_start_gap_x(&self, i: usize) -> LogProb {
+        LogProb::ln_zero()
+    }
+}
+
+
+/// Trait for parametrization of `PairHMM` that performs a semiglobal alignment.
+pub trait SemiglobalAlignmentParameters: GapParameters {
+    #[inline]
+    fn free_start_gap_x(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn free_end_gap_x(&self) -> bool {
+        true
+    }
+
+    #[inline]
+    fn prob_start_gap_x(&self, i: usize) -> LogProb {
+        LogProb::ln_one()
+    }
+}
+
+
+
 /// A pair Hidden Markov Model for comparing sequences x and y as described by
 /// Durbin, R., Eddy, S., Krogh, A., & Mitchison, G. (1998). Biological Sequence Analysis.
 /// Current Topics in Genome Analysis 2008. http://doi.org/10.1017/CBO9780511790492.
@@ -25,64 +115,60 @@ impl PairHMM {
     }
 
     /// Calculate the probability of sequence x being related to y via any alignment.
-    pub fn prob_related<M, X, Y>(
+    pub fn prob_related<G, E>(
         &mut self,
-        prob_gap_x: LogProb,
-        prob_gap_y: LogProb,
-        prob_gap_x_extend: LogProb,
-        prob_gap_y_extend: LogProb,
-        prob_emit_xy: &M,
-        prob_emit_x: &X,
-        prob_emit_y: &Y,
-        len_x: usize,
-        len_y: usize,
-        free_start_gap_x: bool,
-        free_end_gap_x: bool
+        gap_params: &G,
+        emission_params: &E
     ) -> LogProb where
-        M: Fn(usize, usize) -> LogProb,
-        X: Fn(usize) -> LogProb,
-        Y: Fn(usize) -> LogProb
+        G: GapParameters,
+        E: EmissionParameters
     {
-        //println!("-----------");
         for k in 0..2 {
             self.fm[k].clear();
             self.fx[k].clear();
             self.fy[k].clear();
             self.prob_cols.clear();
 
-            self.fm[k].resize(len_y + 1, LogProb::ln_zero());
-            self.fx[k].resize(len_y + 1, LogProb::ln_zero());
-            self.fy[k].resize(len_y + 1, LogProb::ln_zero());
+            self.fm[k].resize(emission_params.len_y() + 1, LogProb::ln_zero());
+            self.fx[k].resize(emission_params.len_y() + 1, LogProb::ln_zero());
+            self.fy[k].resize(emission_params.len_y() + 1, LogProb::ln_zero());
 
-            if free_end_gap_x {
-                let c = (len_x * 3).saturating_sub(self.prob_cols.capacity());
+            if params.free_end_gap_x() {
+                let c = (emission_params.len_x() * 3).saturating_sub(self.prob_cols.capacity());
                 self.prob_cols.reserve_exact(c);
             }
         }
 
-        let prob_no_gap = prob_gap_x.ln_add_exp(prob_gap_y);
-        let prob_no_gap_x_extend = prob_gap_x_extend.ln_one_minus_exp();
-        let prob_no_gap_y_extend = prob_gap_y_extend.ln_one_minus_exp();
+        // cache probs
+        let prob_no_gap = gap_params.prob_gap_x().ln_add_exp(gap_params.prob_gap_y()).ln_one_minus_exp();
+        let prob_no_gap_x_extend = gap_params.prob_gap_x_extend().ln_one_minus_exp();
+        let prob_no_gap_y_extend = gap_params.prob_gap_y_extend().ln_one_minus_exp();
+        let prob_gap_x = gap_params.prob_gap_x();
+        let prob_gap_y = gap_params.prob_gap_y();
+        let prob_gap_x_extend = gap_params.prob_gap_x_extend();
+        let prob_gap_y_extend = gap_params.prob_gap_y_extend();
+        let gap_x_extend = prob_gap_x_extend != LogProb::ln_zero();
+        let gap_y_extend = prob_gap_y_extend != LogProb::ln_zero();
 
         let mut prev = 0;
         let mut curr = 1;
         self.fm[prev][0] = LogProb::ln_one();
 
         // iterate over x
-        for i in 0..len_x {
-            if i > 0 && free_start_gap_x {
-                // allow alignment to start from offset in x (if prob_offset_x is set accordingly)
-                self.fm[prev][0] = LogProb::ln_one();
-            }
+        for i in 0..emission_params.len_x() {
+            // allow alignment to start from offset in x (if prob_start_gap_x is set accordingly)
+            self.fm[prev][0] = gap_params.prob_start_gap_x(i);
+
+            let prob_emit_x = emission_params.prob_emit_x(i);
 
             // iterate over y
-            for j in 0..len_y {
+            for j in 0..params.len_y() {
                 let j_ = j + 1;
 
                 // match or mismatch
-                self.fm[curr][j_] = prob_emit_xy(i, j) + LogProb::ln_sum_exp(&[
+                self.fm[curr][j_] = emission_params.prob_emit_xy(i, j) + LogProb::ln_sum_exp(&[
                     // coming from state M
-                    prob_no_gap.ln_one_minus_exp() + self.fm[prev][j_ - 1],
+                    prob_no_gap + self.fm[prev][j_ - 1],
                     // coming from state X
                     prob_no_gap_x_extend + self.fx[prev][j_ - 1],
                     // coming from state Y
@@ -90,7 +176,7 @@ impl PairHMM {
                 ]);
 
                 // gap in y
-                self.fx[curr][j_] = prob_emit_x(i) + (
+                self.fx[curr][j_] = prob_emit_x + (
                     // open gap
                     prob_gap_y + self.fm[prev][j_]
                 ).ln_add_exp(
@@ -99,7 +185,7 @@ impl PairHMM {
                 );
 
                 // gap in x
-                self.fy[curr][j_] = prob_emit_y(j) + (
+                self.fy[curr][j_] = emission_params.prob_emit_y(j) + (
                     // open gap
                     prob_gap_x + self.fm[curr][j_ - 1]
                 ).ln_add_exp(
@@ -109,20 +195,15 @@ impl PairHMM {
 
             }
 
-            if free_end_gap_x {
+            if gap_params.free_end_gap_x() {
                 // Cache column probabilities or simply record the last probability.
                 // We can put all of them in one array since we simply have to sum in the end.
                 // This is also good for numerical stability.
                 self.prob_cols.push(self.fm[curr].last().unwrap().clone());
                 self.prob_cols.push(self.fx[curr].last().unwrap().clone());
+                // TODO check removing this (we don't want open gaps in x):
                 self.prob_cols.push(self.fy[curr].last().unwrap().clone());
             }
-
-            // comment in for debugging
-            // for p in &self.fm[curr] {
-            //     print!("{:.2} ", p.exp())
-            // }
-            // println!("");
 
             // next column
             mem::swap(&mut curr, &mut prev);
@@ -132,7 +213,7 @@ impl PairHMM {
             }
         }
 
-        let p = if free_end_gap_x {
+        let p = if gap_params.free_end_gap_x() {
             LogProb::ln_sum_exp(&self.prob_cols)
         } else {
             LogProb::ln_sum_exp(&[
@@ -172,26 +253,72 @@ mod tests {
         LogProb::from(Prob(1.0) - constants::PROB_ILLUMINA_SUBST)
     }
 
+    struct TestEmissionParams {
+        x: &'static [u8],
+        y: &'static [u8]
+    }
+
+
+    impl EmissionParameters for TestEmissionParams {
+        fn prob_emit_xy(&self, i: usize, j: usize) -> LogProb {
+            if self.x[i] == self.y[j] {
+                LogProb::from(Prob(1.0) - constants::PROB_ILLUMINA_SUBST)
+            } else {
+                LogProb::from(constants::PROB_ILLUMINA_SUBST / Prob(3.0))
+            }
+        }
+
+        fn prob_emit_x(&self, _: usize) -> LogProb {
+            prob_emit_x_or_y()
+        }
+
+        fn prob_emit_y(&self, _: usize) -> LogProb {
+            prob_emit_x_or_y()
+        }
+
+        fn len_x(&self) -> usize {
+            self.x.len()
+        }
+
+        fn len_y(&self) -> usize {
+            self.y.len()
+        }
+    }
+
+
+    struct TestGapParams;
+
+
+    impl GlobalAlignmentParameters for TestGapParams {
+        fn prob_gap_x(&self) -> LogProb {
+            LogProb::from(constants::PROB_ILLUMINA_INS)
+        }
+
+        fn prob_gap_y(&self) -> LogProb {
+            LogProb::from(constants::PROB_ILLUMINA_DEL)
+        }
+
+        fn prob_gap_x_extend(&self) -> LogProb {
+            LogProb::ln_zero()
+        }
+
+        fn prob_gap_y_extend(&self) -> LogProb {
+            LogProb::ln_zero()
+        }
+    }
+
 
     #[test]
     fn test_same() {
         let x = b"AGCTCGATCGATCGATC";
         let y = b"AGCTCGATCGATCGATC";
 
+        let emission_params = TestEmissionParams { x: x, y: y};
+        let gap_params = TestGapParams;
+
         let mut pair_hmm = PairHMM::new();
-        let p = pair_hmm.prob_related(
-            LogProb::from(constants::PROB_ILLUMINA_INS),
-            LogProb::from(constants::PROB_ILLUMINA_DEL),
-            LogProb::ln_zero(),
-            LogProb::ln_zero(),
-            &|i, j| prob_emit_xy(x, y, i, j),
-            &|_| prob_emit_x_or_y(),
-            &|_| prob_emit_x_or_y(),
-            x.len(),
-            y.len(),
-            false,
-            false
-        );
+        let p = pair_hmm.prob_related(&gap_params, &emission_params);
+
         assert!(*p <= 0.0);
         assert_relative_eq!(*p, 0.0, epsilon=0.1);
     }
@@ -201,20 +328,12 @@ mod tests {
         let x = b"AGCTCGATCGATCGATC";
         let y = b"AGCTCGATCTGATCGATCT";
 
+        let emission_params = TestEmissionParams { x: x, y: y};
+        let gap_params = TestGapParams;
+
         let mut pair_hmm = PairHMM::new();
-        let p = pair_hmm.prob_related(
-            LogProb::from(constants::PROB_ILLUMINA_INS),
-            LogProb::from(constants::PROB_ILLUMINA_DEL),
-            LogProb::ln_zero(),
-            LogProb::ln_zero(),
-            &|i, j| prob_emit_xy(x, y, i, j),
-            &|_| prob_emit_x_or_y(),
-            &|_| prob_emit_x_or_y(),
-            x.len(),
-            y.len(),
-            false,
-            false
-        );
+        let p = pair_hmm.prob_related(&gap_params, &emission_params);
+
         assert!(*p <= 0.0);
         assert_relative_eq!(p.exp(), constants::PROB_ILLUMINA_INS.powi(2), epsilon=1e-12);
     }
@@ -224,20 +343,12 @@ mod tests {
         let x = b"AGCTCGATCTGATCGATCT";
         let y = b"AGCTCGATCGATCGATC";
 
+        let emission_params = TestEmissionParams { x: x, y: y};
+        let gap_params = TestGapParams;
+
         let mut pair_hmm = PairHMM::new();
-        let p = pair_hmm.prob_related(
-            LogProb::from(constants::PROB_ILLUMINA_INS),
-            LogProb::from(constants::PROB_ILLUMINA_DEL),
-            LogProb::ln_zero(),
-            LogProb::ln_zero(),
-            &|i, j| prob_emit_xy(x, y, i, j),
-            &|_| prob_emit_x_or_y(),
-            &|_| prob_emit_x_or_y(),
-            x.len(),
-            y.len(),
-            false,
-            false
-        );
+        let p = pair_hmm.prob_related(&gap_params, &emission_params);
+
         assert!(*p <= 0.0);
         assert_relative_eq!(p.exp(), constants::PROB_ILLUMINA_DEL.powi(2), epsilon=1e-12);
     }
@@ -247,20 +358,12 @@ mod tests {
         let x = b"AGCTCGAGCGATCGATC";
         let y = b"TGCTCGATCGATCGATC";
 
+        let emission_params = TestEmissionParams { x: x, y: y};
+        let gap_params = TestGapParams;
+
         let mut pair_hmm = PairHMM::new();
-        let p = pair_hmm.prob_related(
-            LogProb::from(constants::PROB_ILLUMINA_INS),
-            LogProb::from(constants::PROB_ILLUMINA_DEL),
-            LogProb::ln_zero(),
-            LogProb::ln_zero(),
-            &|i, j| prob_emit_xy(x, y, i, j),
-            &|_| prob_emit_x_or_y(),
-            &|_| prob_emit_x_or_y(),
-            x.len(),
-            y.len(),
-            false,
-            false
-        );
+        let p = pair_hmm.prob_related(&gap_params, &emission_params);
+
         assert!(*p <= 0.0);
         assert_relative_eq!(p.exp(), (constants::PROB_ILLUMINA_SUBST / Prob(3.0)).powi(2), epsilon=1e-7);
     }

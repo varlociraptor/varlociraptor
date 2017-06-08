@@ -554,9 +554,6 @@ impl Sample {
         variant: &Variant,
         chrom_seq: &[u8]
     ) -> Result<(LogProb, LogProb), Box<Error>> {
-        // TODO we really need the insertion sequence!!
-        // Otherwise we loose a lot of discriminative power.
-
         let read_seq = record.seq();
         let read_qual = record.qual();
 
@@ -611,6 +608,7 @@ impl Sample {
                 }
             }
         };
+
 
         let start = start as usize;
         // the window on the reference could be a bit larger to allow some flexibility with close
@@ -720,7 +718,6 @@ impl Sample {
         Ok((prob_ref, prob_alt))
     }
 }
-
 
 /// as shown in http://www.milefoot.com/math/stat/pdfc-normaldisc.htm
 pub fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
