@@ -4,7 +4,6 @@ use std::cmp;
 use std::fmt;
 use std::error::Error;
 use std::f64::consts;
-use std::ascii::AsciiExt;
 use std::cell::RefCell;
 
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
@@ -16,56 +15,7 @@ use bio::stats::{LogProb, PHREDProb, Prob};
 
 use model;
 use model::Variant;
-use pairhmm::PairHMM;
-
-lazy_static! {
-    static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
-}
-
-
-/// Calculate probability of read_base given ref_base.
-pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
-    let prob_miscall = prob_read_base_miscall(base_qual);
-
-    if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
-        prob_miscall.ln_one_minus_exp()
-    } else {
-        // TODO replace the second term with technology specific confusion matrix
-        prob_miscall + *PROB_CONFUSION
-    }
-}
-
-
-/// Calculate probability of read_base given ref_base.
-pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
-    LogProb::from(PHREDProb::from((base_qual) as f64))
-}
-
-
-/// For an SNV, calculate likelihood of ref (first) or alt (second) for a given read, i.e.
-/// Pr(Z_i | ref) and Pr(Z_i | alt). This follows Samtools and GATK.
-pub fn prob_read_snv(
-    record: &bam::Record,
-    cigar: &CigarStringView,
-    start: u32,
-    variant: &Variant,
-    ref_seq: &[u8]
-) -> Result<(LogProb, LogProb), Box<Error>> {
-    if let &Variant::SNV(base) = variant {
-        if let Some(qpos) = cigar.read_pos(start, false, false)? {
-            let read_base = record.seq()[qpos as usize];
-            let base_qual = record.qual()[qpos as usize];
-            let prob_alt = prob_read_base(read_base, base, base_qual);
-            let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
-            Ok((prob_ref, prob_alt))
-        } else {
-            // such a read should be filtered out before
-            panic!("bug: read does not enclose SNV");
-        }
-    } else {
-        panic!("bug: unsupported variant");
-    }
-}
+use model::evidence;
 
 
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps correctly.
@@ -279,13 +229,8 @@ pub struct Sample {
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
     prob_spurious_isize: LogProb,
-    prob_insertion_artifact: LogProb,
-    prob_deletion_artifact: LogProb,
-    prob_insertion_extend_artifact: LogProb,
-    prob_deletion_extend_artifact: LogProb,
     max_indel_overlap: u32,
-    indel_haplotype_window: u32,
-    pair_hmm: RefCell<PairHMM>
+    indel_read_evidence: RefCell<evidence::reads::IndelEvidence>
 }
 
 
@@ -329,13 +274,14 @@ impl Sample {
             insert_size: insert_size,
             likelihood_model: likelihood_model,
             prob_spurious_isize: LogProb::from(prob_spurious_isize),
-            prob_insertion_artifact: LogProb::from(prob_insertion_artifact),
-            prob_deletion_artifact: LogProb::from(prob_deletion_artifact),
-            prob_insertion_extend_artifact: LogProb::from(prob_insertion_extend_artifact),
-            prob_deletion_extend_artifact: LogProb::from(prob_deletion_extend_artifact),
             max_indel_overlap: max_indel_overlap,
-            indel_haplotype_window: indel_haplotype_window,
-            pair_hmm: RefCell::new(PairHMM::new())
+            indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
+                LogProb::from(prob_insertion_artifact),
+                LogProb::from(prob_deletion_artifact),
+                LogProb::from(prob_insertion_extend_artifact),
+                LogProb::from(prob_deletion_extend_artifact),
+                indel_haplotype_window
+            ))
         }
     }
 
@@ -488,10 +434,11 @@ impl Sample {
 
         let (prob_ref, prob_alt) = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
-                self.prob_read_indel(record, cigar, start, variant, chrom_seq)?
+                self.indel_read_evidence.borrow_mut()
+                                        .prob(record, cigar, start, variant, chrom_seq)?
             },
             &Variant::SNV(_) => {
-                prob_read_snv(record, cigar, start, variant, chrom_seq)?
+                evidence::reads::prob_snv(record, cigar, start, variant, chrom_seq)?
             }
         };
 
@@ -542,180 +489,6 @@ impl Sample {
         };
 
         obs
-    }
-
-    /// For an indel, calculate likelihood of ref (first) or alt (second) for a given read,
-    /// i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
-    pub fn prob_read_indel(
-        &self,
-        record: &bam::Record,
-        cigar: &CigarStringView,
-        start: u32,
-        variant: &Variant,
-        chrom_seq: &[u8]
-    ) -> Result<(LogProb, LogProb), Box<Error>> {
-        let read_seq = record.seq();
-        let read_qual = record.qual();
-
-        let (read_offset, read_end, breakpoint) = {
-            let (varstart, varend) = match variant {
-                &Variant::Deletion(_) => (start, start + variant.len()),
-                &Variant::Insertion(_) => (start, start + 1),
-                &Variant::SNV(_) => panic!("bug: unsupported variant")
-            };
-
-            match (
-                cigar.read_pos(varstart, true, true)?,
-                cigar.read_pos(varend, true, true)?
-            ) {
-                // read encloses variant
-                (Some(qstart), Some(qend)) => {
-                    let qstart = qstart as usize;
-                    let qend = qend as usize;
-                    let read_offset = qstart.saturating_sub(self.indel_haplotype_window as usize);
-                    let read_end = cmp::min(
-                        qend + self.indel_haplotype_window as usize,
-                        read_seq.len()
-                    );
-                    (read_offset, read_end, varstart as usize)
-                },
-                (Some(qstart), None) => {
-                    let qstart = qstart as usize;
-                    let read_offset = qstart.saturating_sub(self.indel_haplotype_window as usize);
-                    let read_end = cmp::min(
-                        qstart + self.indel_haplotype_window as usize,
-                        read_seq.len()
-                    );
-                    (read_offset, read_end, varstart as usize)
-                },
-                (None, Some(qend)) => {
-                    let qend = qend as usize;
-                    let read_offset = qend.saturating_sub(self.indel_haplotype_window as usize);
-                    let read_end = cmp::min(
-                        qend + self.indel_haplotype_window as usize,
-                        read_seq.len()
-                    );
-                    (read_offset, read_end, varend as usize)
-                },
-                (None, None) => {
-                    panic!(
-                        "bug: read does not overlap breakpoint: pos={}, cigar={}, start={}, len={}",
-                        record.pos(),
-                        cigar,
-                        start,
-                        variant.len()
-                    );
-                }
-            }
-        };
-
-
-        let start = start as usize;
-        // the window on the reference could be a bit larger to allow some flexibility with close
-        // indels. But it should not be so large that the read can align outside of the breakpoint.
-        let ref_window = (self.indel_haplotype_window as f64 * 1.5) as usize;
-
-
-        let prob_emit_xy = |ref_base, j| {
-            let j_ = j + read_offset;
-            let read_base = read_seq[j_];
-            prob_read_base(read_base, ref_base, read_qual[j_])
-        };
-        let prob_emit_x = |_| LogProb::ln_one();
-        let prob_emit_y = |j| {
-            let j_ = j + read_offset;
-            prob_read_base_miscall(read_qual[j_])
-        };
-
-        // ref allele
-        let ref_offset = breakpoint.saturating_sub(ref_window);
-        let ref_end = cmp::min(breakpoint + ref_window, chrom_seq.len());
-
-        let prob_ref = self.pair_hmm.borrow_mut().prob_related(
-            self.prob_insertion_artifact,
-            self.prob_deletion_artifact,
-            self.prob_insertion_extend_artifact,
-            self.prob_deletion_extend_artifact,
-            &|i, j| prob_emit_xy(chrom_seq[i + ref_offset], j),
-            &prob_emit_x,
-            &prob_emit_y,
-            ref_end - ref_offset,
-            read_end - read_offset,
-            true,
-            true
-        );
-
-        // alt allele
-        let prob_alt = match variant {
-            &Variant::Deletion(_) => {
-                let l = variant.len() as usize;
-
-                let ref_offset = start.saturating_sub(ref_window);
-                let ref_end = cmp::min(start + ref_window, chrom_seq.len());
-                let project_i = |i| {
-                    let i_ = i + ref_offset;
-                    if i_ <= start {
-                        i_
-                    } else {
-                        (i_ + l)
-                    }
-                };
-
-                self.pair_hmm.borrow_mut().prob_related(
-                    self.prob_insertion_artifact,
-                    self.prob_deletion_artifact,
-                    self.prob_insertion_extend_artifact,
-                    self.prob_deletion_extend_artifact,
-                    &|i, j| {
-                        prob_emit_xy(chrom_seq[project_i(i)], j)
-                    },
-                    &prob_emit_x,
-                    &prob_emit_y,
-                    ref_end - ref_offset,
-                    read_end - read_offset,
-                    true,
-                    true
-                )
-            },
-            &Variant::Insertion(ref ins_seq) => {
-                let l = ins_seq.len() as usize;
-
-                let ref_offset = start.saturating_sub(ref_window) as usize;
-                let ref_end = cmp::min(start + l + ref_window, chrom_seq.len());
-
-                self.pair_hmm.borrow_mut().prob_related(
-                    self.prob_insertion_artifact,
-                    self.prob_deletion_artifact,
-                    self.prob_insertion_extend_artifact,
-                    self.prob_deletion_extend_artifact,
-                    &|i, j| {
-                        let i_ = i + ref_offset;
-                        let ref_base = if i_ <= start {
-                            // before variant
-                            chrom_seq[i_]
-                        } else if i_ > start + l {
-                            // after variant
-                            chrom_seq[i_ - l]
-                        } else {
-                            // within variant
-                            ins_seq[i_ - (start + 1)]
-                        };
-                        prob_emit_xy(ref_base, j)
-                    },
-                    &prob_emit_x,
-                    &prob_emit_y,
-                    ref_end - ref_offset,
-                    read_end - read_offset,
-                    true,
-                    true
-                )
-            },
-            _ => {
-                panic!("bug: unsupported variant");
-            }
-        };
-
-        Ok((prob_ref, prob_alt))
     }
 }
 
@@ -1064,7 +837,7 @@ mod tests {
         let variant = model::Variant::Insertion(b"GCATCCTGCG".to_vec());
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let (prob_ref, prob_alt) = sample.prob_read_indel(rec, &rec.cigar(), start, &variant, &ref_seq).unwrap();
+            let (prob_ref, prob_alt) = sample.indel_read_evidence.borrow_mut().prob(rec, &rec.cigar(), start, &variant, &ref_seq).unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar());
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);

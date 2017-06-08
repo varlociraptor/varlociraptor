@@ -16,10 +16,18 @@ pub trait GapParameters {
 
     /// Probability to extend gap in y.
     fn prob_gap_y_extend(&self) -> LogProb;
+}
 
+/// Trait for parametrization of `PairHMM` start and end gap behavior.
+/// This trait can be used to implement global and semiglobal alignments.
+///
+/// * global: methods return `false` and `LogProb::ln_zero()`.
+/// * semiglobal: methods return `true` and `LogProb::ln_one()`.
+pub trait StartEndGapParameters {
     /// Probability to start at x[i]. This can be left unchanged if you use `free_start_gap_x` and
     /// `free_end_gap_x`.
     #[inline]
+    #[allow(unused_variables)]
     fn prob_start_gap_x(&self, i: usize) -> LogProb {
         if self.free_start_gap_x() {
             LogProb::ln_one()
@@ -38,7 +46,7 @@ pub trait GapParameters {
 
 
 /// Trait for parametrization of `PairHMM` emission behavior.
-pub trait EmitParameters {
+pub trait EmissionParameters {
     /// Emission probability for (x[i], y[j]).
     fn prob_emit_xy(&self, i: usize, j: usize) -> LogProb;
 
@@ -52,45 +60,6 @@ pub trait EmitParameters {
 
     fn len_y(&self) -> usize;
 }
-
-
-/// Trait for parametrization of `PairHMM` that performs a global alignment.
-pub trait GlobalAlignmentParameters: GapParameters {
-    #[inline]
-    fn free_start_gap_x(&self) -> bool {
-        false
-    }
-
-    #[inline]
-    fn free_end_gap_x(&self) -> bool {
-        false
-    }
-
-    #[inline]
-    fn prob_start_gap_x(&self, i: usize) -> LogProb {
-        LogProb::ln_zero()
-    }
-}
-
-
-/// Trait for parametrization of `PairHMM` that performs a semiglobal alignment.
-pub trait SemiglobalAlignmentParameters: GapParameters {
-    #[inline]
-    fn free_start_gap_x(&self) -> bool {
-        true
-    }
-
-    #[inline]
-    fn free_end_gap_x(&self) -> bool {
-        true
-    }
-
-    #[inline]
-    fn prob_start_gap_x(&self, i: usize) -> LogProb {
-        LogProb::ln_one()
-    }
-}
-
 
 
 /// A pair Hidden Markov Model for comparing sequences x and y as described by
@@ -120,7 +89,7 @@ impl PairHMM {
         gap_params: &G,
         emission_params: &E
     ) -> LogProb where
-        G: GapParameters,
+        G: GapParameters + StartEndGapParameters,
         E: EmissionParameters
     {
         for k in 0..2 {
@@ -133,7 +102,7 @@ impl PairHMM {
             self.fx[k].resize(emission_params.len_y() + 1, LogProb::ln_zero());
             self.fy[k].resize(emission_params.len_y() + 1, LogProb::ln_zero());
 
-            if params.free_end_gap_x() {
+            if gap_params.free_end_gap_x() {
                 let c = (emission_params.len_x() * 3).saturating_sub(self.prob_cols.capacity());
                 self.prob_cols.reserve_exact(c);
             }
@@ -147,8 +116,8 @@ impl PairHMM {
         let prob_gap_y = gap_params.prob_gap_y();
         let prob_gap_x_extend = gap_params.prob_gap_x_extend();
         let prob_gap_y_extend = gap_params.prob_gap_y_extend();
-        let gap_x_extend = prob_gap_x_extend != LogProb::ln_zero();
-        let gap_y_extend = prob_gap_y_extend != LogProb::ln_zero();
+        // let do_gap_extend = prob_gap_x_extend != LogProb::ln_zero() &&
+        //                     prob_gap_y_extend != LogProb::ln_zero();
 
         let mut prev = 0;
         let mut curr = 1;
@@ -162,7 +131,7 @@ impl PairHMM {
             let prob_emit_x = emission_params.prob_emit_x(i);
 
             // iterate over y
-            for j in 0..params.len_y() {
+            for j in 0..emission_params.len_y() {
                 let j_ = j + 1;
 
                 // match or mismatch
@@ -289,7 +258,7 @@ mod tests {
     struct TestGapParams;
 
 
-    impl GlobalAlignmentParameters for TestGapParams {
+    impl GapParameters for TestGapParams {
         fn prob_gap_x(&self) -> LogProb {
             LogProb::from(constants::PROB_ILLUMINA_INS)
         }
@@ -304,6 +273,16 @@ mod tests {
 
         fn prob_gap_y_extend(&self) -> LogProb {
             LogProb::ln_zero()
+        }
+    }
+
+    impl StartEndGapParameters for TestGapParams {
+        fn free_start_gap_x(&self) -> bool {
+            false
+        }
+
+        fn free_end_gap_x(&self) -> bool {
+            false
         }
     }
 
@@ -335,7 +314,7 @@ mod tests {
         let p = pair_hmm.prob_related(&gap_params, &emission_params);
 
         assert!(*p <= 0.0);
-        assert_relative_eq!(p.exp(), constants::PROB_ILLUMINA_INS.powi(2), epsilon=1e-12);
+        assert_relative_eq!(p.exp(), constants::PROB_ILLUMINA_INS.powi(2), epsilon=1e-11);
     }
 
     #[test]
@@ -350,7 +329,7 @@ mod tests {
         let p = pair_hmm.prob_related(&gap_params, &emission_params);
 
         assert!(*p <= 0.0);
-        assert_relative_eq!(p.exp(), constants::PROB_ILLUMINA_DEL.powi(2), epsilon=1e-12);
+        assert_relative_eq!(p.exp(), constants::PROB_ILLUMINA_DEL.powi(2), epsilon=1e-10);
     }
 
     #[test]
@@ -365,6 +344,6 @@ mod tests {
         let p = pair_hmm.prob_related(&gap_params, &emission_params);
 
         assert!(*p <= 0.0);
-        assert_relative_eq!(p.exp(), (constants::PROB_ILLUMINA_SUBST / Prob(3.0)).powi(2), epsilon=1e-7);
+        assert_relative_eq!(p.exp(), (constants::PROB_ILLUMINA_SUBST / Prob(3.0)).powi(2), epsilon=1e-6);
     }
 }
