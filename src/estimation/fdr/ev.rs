@@ -47,13 +47,17 @@ pub fn control_fdr<E: Event, W: io::Write>(
     let pep_dist = prob_dist.into_iter().rev().map(|p| LogProb(*p).ln_one_minus_exp()).collect_vec();
     let fdrs = bayesian::expected_fdr(&pep_dist);
 
-    for &alpha in ALPHAS.iter().rev() {
+    for &alpha in &ALPHAS {
         let ln_alpha = LogProb(alpha.ln());
         // find the largest pep for which fdr <= alpha
         // do not let peps with the same value cross the boundary
         for i in (0..fdrs.len()).rev() {
             if fdrs[i] <= ln_alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
-                writer.encode(&Record { alpha: alpha, gamma: PHREDProb::from(pep_dist[i].ln_one_minus_exp()) })?;
+                let pep = pep_dist[i];
+                writer.encode(&Record {
+                    alpha: alpha,
+                    gamma: PHREDProb::from(pep.ln_one_minus_exp())
+                })?;
                 break;
             }
         }

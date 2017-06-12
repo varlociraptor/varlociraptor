@@ -37,7 +37,7 @@ impl NormalNormalModel {
 
 
 impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for NormalNormalModel {
-    fn prior_prob(&self, af_first: AlleleFreq, af_second: AlleleFreq, _: Variant) -> LogProb {
+    fn prior_prob(&self, af_first: AlleleFreq, af_second: AlleleFreq, _: &Variant) -> LogProb {
         let sample_prior = |af: AlleleFreq| {
             let m = *af * self.ploidy as f64;
             let valid_genotypes = combinations(self.ploidy, m);
@@ -51,7 +51,7 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for NormalNormalModel {
         af_second: &DiscreteAlleleFreqs,
         likelihood_first: &L,
         likelihood_second: &O,
-        _: Variant
+        _: &Variant
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
@@ -74,7 +74,7 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for NormalNormalModel {
         &self,
         likelihood_first: &L,
         likelihood_second: &O,
-        variant: Variant
+        variant: &Variant
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb
@@ -94,7 +94,7 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for NormalNormalModel {
         &self,
         likelihood_first: &L,
         likelihood_second: &O,
-        _: Variant
+        _: &Variant
     ) -> (AlleleFreq, AlleleFreq) where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb

@@ -8,22 +8,22 @@ readme = "README.md"
 license = "GPL-3.0"
 
 [dependencies]
-bio = "0.13.*"
+bio = { git = "https://github.com/rust-bio/rust-bio.git" } # "0.13.*"
 log = "0.3.*"
-rust-htslib = "0.11.*"
+rust-htslib = "0.12"
 GSL = "0.4.*"
-itertools = "0.5.*"
+itertools = "0.6"
 itertools-num = "0.1.*"
 approx = "0.1.*"
 rusty-machine="0.4.*"
-ordered-float = "0.2.*"
+ordered-float = "0.5"
 ndarray = "0.6"
 flame = { version = "^0.1.2", optional = true }
 flamer = { version = "^0.1.2", optional = true }
-rustc-serialize = "0.3.*"
-quick-error = "1.1.*"
-csv = "0.14.*"
-lazy_static = "0.2.*"
+rustc-serialize = "0.3"
+quick-error = "1.2"
+csv = "0.15"
+lazy_static = "0.2"
 statrs = "0.6.*"
 
 [dev-dependencies]

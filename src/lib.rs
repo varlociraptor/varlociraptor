@@ -29,6 +29,8 @@ pub mod model;
 pub mod estimation;
 pub mod call;
 pub mod utils;
+pub mod pairhmm;
+pub mod constants;
 
 pub use model::sample::Sample;
 pub use model::likelihood;
@@ -44,6 +46,10 @@ quick_error! {
         MissingTag(name: String) {
             description("unexpected missing tag")
             display("expected tag {} missing from BCF record", name)
+        }
+        InvalidRecord(msg: String) {
+            description("invalid record")
+            display("{}", msg)
         }
     }
 }
@@ -77,6 +83,20 @@ pub struct ComplementEvent {
 
 
 impl Event for ComplementEvent {
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+
+/// A simple event that just has a name.
+pub struct SimpleEvent {
+    /// event name
+    pub name: String
+}
+
+
+impl Event for SimpleEvent {
     fn name(&self) -> &str {
         &self.name
     }

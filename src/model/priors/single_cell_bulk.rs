@@ -112,7 +112,7 @@ impl SingleCellBulkModel {
 
 impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkModel {
 
-    fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: Variant) -> LogProb {
+    fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: &Variant) -> LogProb {
         // TODO: stick in meaningful prior for the bulk sample, derivative of InfiniteSitesNeutralVariationModel?
         // TODO: create a
         panic!("Priors are currently unsupported in the SingleCellBulkModel, feel free to implement them.")
@@ -124,7 +124,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         af_bulk: &ContinuousAlleleFreqs,
         likelihood_single_distorted: &L,
         likelihood_bulk: &O,
-        _: Variant,
+        _: &Variant,
         n_obs_single: usize,
         n_obs_bulk: usize
     ) -> LogProb where
@@ -177,7 +177,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         &self,
         likelihood_single_distorted: &L,
         likelihood_bulk: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs_single: usize,
         n_obs_bulk: usize
     ) -> LogProb where
@@ -199,7 +199,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         &self,
         likelihood_single_distorted: &L,
         likelihood_bulk: &O,
-        _: Variant,
+        _: &Variant,
         n_obs_single: usize,
         n_obs_bulk: usize
     ) -> (AlleleFreq, AlleleFreq) where
@@ -368,7 +368,7 @@ mod tests {
         let pileup = PairPileup::new(
             single_obs.clone(),
             bulk_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             single_sample_model,
             bulk_sample_model
@@ -393,7 +393,7 @@ mod tests {
         let pileup = PairPileup::new(
             single_obs.clone(),
             bulk_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             single_sample_model,
             bulk_sample_model
@@ -423,7 +423,7 @@ mod tests {
         let pileup = PairPileup::new(
             single_obs.clone(),
             bulk_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             single_sample_model,
             bulk_sample_model
@@ -448,7 +448,7 @@ mod tests {
         let pileup = PairPileup::new(
             single_obs.clone(),
             bulk_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             single_sample_model,
             bulk_sample_model
@@ -478,7 +478,7 @@ mod tests {
         let pileup = PairPileup::new(
             single_obs.clone(),
             bulk_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             single_sample_model,
             bulk_sample_model
@@ -503,7 +503,7 @@ mod tests {
         let pileup = PairPileup::new(
             single_obs.clone(),
             bulk_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             single_sample_model,
             bulk_sample_model
@@ -533,7 +533,7 @@ mod tests {
         let pileup = PairPileup::new(
             single_obs.clone(),
             bulk_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             single_sample_model,
             bulk_sample_model
@@ -558,7 +558,7 @@ mod tests {
         let pileup = PairPileup::new(
             single_obs.clone(),
             bulk_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             single_sample_model,
             bulk_sample_model
