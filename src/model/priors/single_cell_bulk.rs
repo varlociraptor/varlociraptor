@@ -16,7 +16,9 @@ use priors::PairModel;
 ///       * use the somatic mutation rate per effective cell division? ("The somatic mutation rate per effective cell division in the bulk is the quotient mu/beta, with mu being the somatic mutation rate and beta being the fraction of effective cell divisions (i.e. where both daugther cells survive and form a lineage). Alone, these parameters are not easily obtained. However, assuming mostly neutral mutations, mu/beta can be estimated from SNV calls with a low frequency in the bulk sample, analogous to the tumour sample in Williams et al. (2016). It is the slope of the linear model `y = mu/beta * (x -  1 / fmax)`, with `x` being the reciprocal of the observed allele frequencies and y being the number of observed mutations corresponding to each frequency (see: Williams MJ, Werner B, Barnes CP, Graham TA, Sottoriva A. Identification of neutral tumor evolution across cancer types. Nat Genet. 2016;48: 238–244. doi:10.1038/ng.3489). Based on the Williams model, the tail probability of a somatic allele frequency F > f can be expressed as `Pr(F > f) = M(f) / n = mu/beta (1 / f - 1 / fmax) / n`, with `n` being the size of the genome and `fmax` the expected allele frequency of clonal variants at the beginning of tumor history, overall somatic history in our case. From this, we can obtain the cumulative distribution function as `Pr(F <= f) = 1 - Pr(F > f)`. Consequently, the density becomes the first derivative, i.e. `Pr(F = f) = - M(f)' / n = mu/beta * 1/n * 1/f²` for `f>=fmin`, with `fmin = sqrt(mu/beta * 1/n)`."
 pub struct SingleCellBulkModel {
     allele_freqs_single: DiscreteAlleleFreqs,
-    allele_freqs_bulk: ContinuousAlleleFreqs
+    allele_freqs_bulk: ContinuousAlleleFreqs,
+    n_bulk_min: usize,
+    n_bulk_max: usize
 }
 
 impl SingleCellBulkModel {
@@ -25,11 +27,15 @@ impl SingleCellBulkModel {
     /// # Arguments
     ///
     /// * `ploidy` - the ploidy in the single cell sample (e.g. 2 for diploid)
-    pub fn new(ploidy: u32) -> Self {
+    /// * `n_bulk_min` - minimum number of discrete frequencies n_bulk_min+1 to evaluate over interval [0,1] for bulk sample; if coverage is above this, actual read counts are used to test all possible discrete allele frequencies
+    /// * `n_bulk_max` - maximum number of discrete frequencies n_bulk_min+1 to evaluate over interval [0,1] for bulk sample; if coverage is below this, actual read counts are used to test all possible discrete allele frequencies
+    pub fn new(ploidy: u32, n_bulk_min: usize, n_bulk_max: usize) -> Self {
         let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
         SingleCellBulkModel {
             allele_freqs_single: allele_freqs,
-            allele_freqs_bulk: ContinuousAlleleFreqs::inclusive( 0.0..1.0 )
+            allele_freqs_bulk: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
+            n_bulk_min: n_bulk_min, // TODO: implement initialization via command line arguments in ProSolo, i.e. via n_bulk_per_event_min and iteration over events defined in ProSolo
+            n_bulk_max: n_bulk_max // TODO: implement initialization via command line arguments in ProSolo
         }
     }
 
@@ -107,15 +113,67 @@ impl SingleCellBulkModel {
             _ => panic!("SingleCellBulkModel is currently only implemented for the diploid case with allele frequencies 0.0, 0.5 and 1.0.")
         }
     }
+
+    fn prior_bulk(&self, _: AlleleFreq, _: Variant) -> LogProb {
+        // TODO: stick in meaningful prior for the bulk sample, derivative of InfiniteSitesNeutralVariationModel?
+        LogProb::ln_one()
+    }
+
+    fn prior_single(&self, _: AlleleFreq, _: Variant) -> LogProb {
+        // TODO: stick in meaningful prior for the single cell sample, e.g. P(theta_b > 0 | bulk_pileup)
+        LogProb::ln_one()
+    }
+
+    /// Function to cap the use of the single cell amplification bias model at a coverage of 100,
+    /// as the Lodato et al. model was fit with coverages capped at 60 and starts behaving
+    /// weirdly above 100
+    fn cap_n_s(&self, n: &usize) -> usize {
+    // TODO: make this optional and dependent on the usage of the Lodato model with their params
+        if *n > 100 {
+            100
+        } else {
+           *n
+        }
+    }
+
+    /// adjust n to use for bulk coverage at current site, using application-set min and max values
+    fn adjust_n_b(&self, n: &usize) -> usize {
+        if *n <= self.n_bulk_min {
+            self.n_bulk_min
+        } else if *n >= self.n_bulk_max {
+            self.n_bulk_max
+        } else {
+            *n
+        }
+    }
+
+    /// determine values of k to use with current n and given allele frequency range
+    fn determine_k_b(&self, af: &ContinuousAlleleFreqs, n: &usize) -> (usize,usize) {
+        let k_start = if af.left_exclusive {
+            (*af.start * *n as f64).floor() + 1.0
+        } else {
+            (*af.start * *n as f64).ceil()
+        };
+        let k_end = if af.right_exclusive {
+            (*af.end * *n as f64).ceil()
+        } else {
+            (*af.end * *n as f64).floor() + 1.0
+        };
+        assert!(k_end > k_start, "One of the bulk event ranges defined by your application is too small to be covered with the current minimum number of discrete bulk allele frequencies requested (k_end !> k_start).");
+        (k_start as usize, k_end as usize )
+    }
 }
 
 
 impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkModel {
 
-    fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: Variant) -> LogProb {
-        // TODO: stick in meaningful prior for the bulk sample, derivative of InfiniteSitesNeutralVariationModel?
-        // TODO: create a
-        panic!("Priors are currently unsupported in the SingleCellBulkModel, feel free to implement them.")
+    fn prior_prob(
+        &self,
+        af_single: AlleleFreq,
+        af_bulk: AlleleFreq,
+        variant: Variant
+    ) -> LogProb {
+        self.prior_single(af_single, variant) + self.prior_bulk(af_bulk, variant)
     }
 
     fn joint_prob<L, O>(
@@ -124,49 +182,68 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         af_bulk: &ContinuousAlleleFreqs,
         likelihood_single_distorted: &L,
         likelihood_bulk: &O,
-        _: Variant,
+        variant: Variant,
         n_obs_single: usize,
         n_obs_bulk: usize
     ) -> LogProb where
         L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
         O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
-        // cap the use of the single cell amplification bias model at a coverage of 100,
-        // as the Lodato et al. model was fit with coverages capped at 60 and starts behaving
-        // weirdly above 100
-        // TODO: make this optional and dependent on the usage of the Lodato model with their params
-        let n_obs_s = if n_obs_single > 100 {
-            100
-        } else {
-            n_obs_single
-        };
-        let k_single = 0..n_obs_s + 1;
+        let n_single = self.cap_n_s(&n_obs_single);
+        let k_single = 0..n_single + 1;
 
-        // discretization of possible bulk allele frequencies at given number of bulk observations
-        let k_start = if af_bulk.left_exclusive {
-            (*af_bulk.start * n_obs_bulk as f64).floor() as u64 + 1
-        } else {
-            (*af_bulk.start * n_obs_bulk as f64).ceil() as u64
-        };
-        let k_end = if af_bulk.right_exclusive {
-            (*af_bulk.end * n_obs_bulk as f64).ceil() as u64
-        } else {
-            (*af_bulk.end * n_obs_bulk as f64).floor() as u64 + 1
-        };
+        let n_bulk = self.adjust_n_b(&n_obs_bulk);
+        let (k_start, k_end) = self.determine_k_b(af_bulk, &n_bulk);
         let k_bulk = k_start..k_end;
-
         // sum up all possible discrete bulk allele frequencies with current number of observations
         let p_bulk = LogProb::ln_sum_exp(&k_bulk.map(|k_b| {
-            let af_bulk = AlleleFreq(k_b as f64/n_obs_bulk as f64);
-            likelihood_bulk(af_bulk, None)
+            let af_bulk = AlleleFreq(k_b as f64/n_bulk as f64);
+            let p: LogProb;
+            if n_obs_bulk == 0 { // speedup for zero coverage sites
+                p = self.prior_bulk(af_bulk, variant)
+            } else {
+                p = self.prior_bulk(af_bulk, variant) + likelihood_bulk(af_bulk, None)
+            }
+            p
         }).collect_vec() );
+
+/*
+        // do Simpson's integration instead of point-wise evaluation above
+        let density = |af_bulk| {
+            let af_bulk = AlleleFreq(af_bulk);
+            self.prior_bulk(af_bulk, variant) +
+            likelihood_bulk(af_bulk, None)
+        };
+        let grid_points = k_end - k_start;
+        println!("bulk grid_points: {}", grid_points);
+
+        let p_bulk = if af_bulk.start == af_bulk.end {
+                density(*af_bulk.start)
+            } else {
+                LogProb::ln_simpsons_integrate_exp(
+                    &density,
+                    *af_bulk.start,
+                    *af_bulk.end,
+                    if grid_points % 2 == 1 {
+                        grid_points
+                    } else {
+                        grid_points + 1
+                    })
+            };
+*/
 
         // go through all possible underlying single cell allele frequencies
         let prob = LogProb::ln_sum_exp(&af_single.iter().map(|&af_single| {
             let p_single =
                     LogProb::ln_sum_exp(&k_single.clone().map(|k_s| { // sum up all possible discrete single cell allele frequencies with current number of observations
-                        let af_single_distorted = AlleleFreq(k_s as f64/n_obs_s as f64);
-                        likelihood_single_distorted(af_single_distorted, None) + self.prob_rho(&af_single, &n_obs_s, &k_s)
+                        if n_single == 0 {
+                            self.prior_single(af_single, variant)
+                        } else {
+                            let af_single_distorted = AlleleFreq(k_s as f64/n_single as f64);
+                            self.prior_single(af_single, variant) +
+                            likelihood_single_distorted(af_single_distorted, None) +
+                            self.prob_rho(&af_single, &n_single, &k_s)
+                        }
                     }).collect_vec());
             let prob = p_bulk + p_single;
 
@@ -202,38 +279,39 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         &self,
         likelihood_single_distorted: &L,
         likelihood_bulk: &O,
-        _: Variant,
+        variant: Variant,
         n_obs_single: usize,
         n_obs_bulk: usize
     ) -> (AlleleFreq, AlleleFreq) where
         L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
         O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
-        // cap the use of the single cell amplification bias model at a coverage of 100,
-        // as the Lodato et al. model was fit with coverages capped at 60 and starts behaving
-        // weirdly above 100
-        let n_obs_s = if n_obs_single > 100 {
-            100
-        } else {
-            n_obs_single
-        };
-        let k_single = 0..n_obs_s + 1;
+        let n_single = self.cap_n_s(&n_obs_single);
+        let k_single = 0..n_single + 1;
+
         let (_, map_single) = self.allele_freqs().0.iter().minmax_by_key(
             |&&af_single| {
                 let p_single =
                     LogProb::ln_sum_exp(&k_single.clone().map(|k_s| { // sum up all possible discrete single cell allele frequencies with current number of observations
-                        let af_single_distorted = AlleleFreq(k_s as f64/n_obs_s as f64);
-                        likelihood_single_distorted(af_single_distorted, None) + self.prob_rho(&af_single, &n_obs_s, &k_s)
+                        if n_single == 0 { // avoid division by zero, and speedup
+                            self.prior_single(af_single, variant)
+                        } else {
+                            let af_single_distorted = AlleleFreq(k_s as f64/n_single as f64);
+                            self.prior_single(af_single, variant) +
+                            likelihood_single_distorted(af_single_distorted, None) +
+                            self.prob_rho(&af_single, &n_single, &k_s)
+                        }
                     }).collect_vec());
                 NotNaN::new(*p_single).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
 
-        let k_bulk = 0..n_obs_bulk + 1;
-        let afs_bulk = k_bulk.map(|k| AlleleFreq(k as f64/n_obs_bulk as f64));
+        let n_bulk = self.adjust_n_b(&n_obs_bulk);
+        let k_bulk = 0..n_bulk + 1;
+        let afs_bulk = k_bulk.map(|k| AlleleFreq(k as f64/n_bulk as f64));
         let (_, map_bulk) = afs_bulk.minmax_by_key(
             |af_bulk| {
-                let p_bulk = likelihood_bulk(*af_bulk, None);
+                let p_bulk = self.prior_bulk(*af_bulk, variant) + likelihood_bulk(*af_bulk, None);
                 NotNaN::new(*p_bulk).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
@@ -255,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_prob_rho() {
-        let model = SingleCellBulkModel::new(2);
+        let model = SingleCellBulkModel::new(2,5,100);
         // all expected results calculated with implementation in R version 3.3.3, using
         // dbetabinom.ab() from the R package VGAM_1.0-2
 
@@ -369,99 +447,125 @@ mod tests {
         )
     }
 
-    // tests that bulk range discretization inludes and excludes the right discrete values per
+    fn bulk_test_ranges_sum<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>>(
+        model: &'a P,
+        s_obs: &Vec<Observation>,
+        afs_s: &A,
+        b_obs: &Vec<Observation>,
+        rs_b: Vec<&B>
+    ) {
+        println!("SCBM bulk ranges discretization sum test with:");
+        println!("  * {} bulk ranges", rs_b.len() );
+        println!("  * bulk Observations: {:?}", b_obs );
+        let pileup = create_test_snv_pileup(model, s_obs, b_obs);
+        let p_j: Vec<LogProb> = rs_b.iter().map(|r| pileup.joint_prob(afs_s, r)).collect();
+        for (i, r) in rs_b.iter().enumerate() {
+            println!("  Bulk range: {:?}; pileup.joint_prob() = {}", r, p_j[i].exp() );
+        }
+        let p_m = pileup.marginal_prob();
+        println!("  pileup.marginal_prob(): {}", p_m.exp() );
+        let p_sum = p_j.iter().fold( LogProb::ln_zero(), |sum, p| sum.ln_add_exp(p - p_m) );
+        assert_relative_eq!( p_sum.exp(), 1.0, epsilon = 0.0000000001 );
+    }
+
+    fn bulk_test_range_fraction<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>>(
+        model: &'a P,
+        s_obs: &Vec<Observation>,
+        afs_s: &A,
+        b_obs: &Vec<Observation>,
+        r_b: &B,
+        fraction: f64
+    ) {
+        println!("SCBM bulk ranges discretization ratio test with bulk observations: {:?}.", b_obs);
+        let pileup = create_test_snv_pileup(model, s_obs, b_obs);
+        let p_j = pileup.joint_prob(afs_s, r_b);
+        let p_m = pileup.marginal_prob();
+        println!("  pileup.marginal_prob() = {}; bulk range: {:?}; pileup.joint_prob() = {}", p_m.exp(), r_b, p_j.exp() );
+        assert_relative_eq!( ( p_j - p_m ).exp(), fraction, epsilon = 0.0000000001 );
+    }
+
+    // tests that bulk range discretization includes and excludes the right discrete values per
     // bulk frequency range (indirect through probabilities, as these bulk ranges aren't public)
     #[test]
     fn test_bulk_range_discretization() {
-        let model = SingleCellBulkModel::new(2);
+        let model_4 = SingleCellBulkModel::new(2,4,100);
+        let model_5 = SingleCellBulkModel::new(2,5,100);
+        let model_10 = SingleCellBulkModel::new(2,10,100);
 
-        let af_single_all    = vec![AlleleFreq(0.0), AlleleFreq(0.5), AlleleFreq(1.0)];
+        // static single cell setup
+        let s_dummy_obs = create_obs_vector(10, 0);
+        let af_single_all = vec![AlleleFreq(0.0), AlleleFreq(0.5), AlleleFreq(1.0)];
+
+        // two-range setups
         let af_bulk_zero     = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
         let af_bulk_not_zero = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
-        let af_bulk_quarter  = ContinuousAlleleFreqs::inclusive( 0.25..0.25 );
-        let af_bulk_half     = ContinuousAlleleFreqs::inclusive( 0.5..0.5 );
+
         let af_bulk_not_one  = ContinuousAlleleFreqs::right_exclusive( 0.0..1.0 );
         let af_bulk_one      = ContinuousAlleleFreqs::inclusive( 1.0..1.0 );
 
-        let s_dummy_obs = create_obs_vector(1, 1);
+        // three-range setups
+        let af_bulk_below_quarter  = ContinuousAlleleFreqs::right_exclusive( 0.0..0.25 );
+        let af_bulk_quarter        = ContinuousAlleleFreqs::inclusive( 0.25..0.25 );
+        let af_bulk_above_quarter  = ContinuousAlleleFreqs::left_exclusive( 0.25..1.0 );
+
+        let af_bulk_below_half     = ContinuousAlleleFreqs::right_exclusive( 0.0..0.5 );
+        let af_bulk_half           = ContinuousAlleleFreqs::inclusive( 0.5..0.5 );
+        let af_bulk_above_half     = ContinuousAlleleFreqs::left_exclusive( 0.5..1.0 );
+
 
         let b_1_ref = create_obs_vector(1, 0);
-        let mut pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_1_ref);
-        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_zero): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_zero).exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_not_zero): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_not_zero).exp() );
-        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_not_zero).exp(), 0.0);
-        assert_eq!( (pileup.joint_prob(&af_single_all, &af_bulk_zero) - pileup.marginal_prob() ).exp(), 1.0);
+        bulk_test_ranges_sum(&model_10, &s_dummy_obs, &af_single_all,
+                             &b_1_ref, vec![&af_bulk_zero, &af_bulk_not_zero]);
+        bulk_test_ranges_sum(&model_5, &s_dummy_obs, &af_single_all,
+                             &b_1_ref, vec![&af_bulk_not_one, &af_bulk_one]);
+        bulk_test_range_fraction(&model_5, &s_dummy_obs, &af_single_all,
+                             &b_1_ref, &af_bulk_zero, 0.33333333333333);
+        bulk_test_ranges_sum(&model_4, &s_dummy_obs, &af_single_all,
+                             &b_1_ref,
+                             vec![&af_bulk_below_quarter, &af_bulk_quarter, &af_bulk_above_quarter]);
+        bulk_test_ranges_sum(&model_10, &s_dummy_obs, &af_single_all,
+                             &b_1_ref,
+                             vec![&af_bulk_below_half, &af_bulk_half, &af_bulk_above_half]);
 
         let b_1_alt = create_obs_vector(0, 1);
-        pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_1_alt);
-        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_one): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_one).exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_not_one): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_not_one).exp() );
-        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_not_one).exp(), 0.0);
-        assert_eq!( (pileup.joint_prob(&af_single_all, &af_bulk_one) - pileup.marginal_prob() ).exp(), 1.0);
+        bulk_test_ranges_sum(&model_5, &s_dummy_obs, &af_single_all,
+                             &b_1_alt, vec![&af_bulk_zero, &af_bulk_not_zero]);
+        bulk_test_ranges_sum(&model_10, &s_dummy_obs, &af_single_all,
+                             &b_1_alt, vec![&af_bulk_not_one, &af_bulk_one]);
 
         let b_2_ref = create_obs_vector(2, 0);
-        pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_2_ref);
-        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_zero): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_zero).exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_half): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_half).exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_one): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_one).exp() );
-        assert_eq!( ( pileup.joint_prob(&af_single_all, &af_bulk_zero).ln_add_exp(
-                        pileup.joint_prob(&af_single_all, &af_bulk_half)).ln_add_exp(
-                            pileup.joint_prob(&af_single_all, &af_bulk_one)) -
-                    pileup.marginal_prob() ).exp(), 1.0);
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_quarter): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp() );
-        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp(), 0.0);
+        bulk_test_ranges_sum(&model_10, &s_dummy_obs, &af_single_all,
+                             &b_2_ref, vec![&af_bulk_zero, &af_bulk_not_zero]);
+        bulk_test_ranges_sum(&model_4, &s_dummy_obs, &af_single_all,
+                             &b_2_ref, vec![&af_bulk_not_one, &af_bulk_one]);
 
         let b_1_ref_1_alt = create_obs_vector(1, 1);
-        pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_1_ref_1_alt);
-        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_zero): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_zero).exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_half): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_half).exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_one): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_one).exp() );
-        assert_eq!( ( pileup.joint_prob(&af_single_all, &af_bulk_zero).ln_add_exp(
-                        pileup.joint_prob(&af_single_all, &af_bulk_half)).ln_add_exp(
-                            pileup.joint_prob(&af_single_all, &af_bulk_one)) -
-                    pileup.marginal_prob() ).exp(), 1.0);
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_quarter): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp() );
-        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp(), 0.0);
+        bulk_test_ranges_sum(&model_4, &s_dummy_obs, &af_single_all,
+                             &b_1_ref_1_alt, vec![&af_bulk_zero, &af_bulk_not_zero]);
+        bulk_test_range_fraction(&model_4, &s_dummy_obs, &af_single_all,
+                             &b_1_ref_1_alt, &af_bulk_half, 0.4);
+        bulk_test_range_fraction(&model_4, &s_dummy_obs, &af_single_all,
+                             &b_1_ref_1_alt, &af_bulk_zero, 0.0);
+        bulk_test_ranges_sum(&model_10, &s_dummy_obs, &af_single_all,
+                             &b_1_ref_1_alt, vec![&af_bulk_not_one, &af_bulk_one]);
 
-        let b_2_alt = create_obs_vector(0, 2);
-        pileup = create_test_snv_pileup(&model, &s_dummy_obs, &b_2_alt);
-        println!("SCBM bulk ranges: pileup.marginal_prob(): {}", pileup.marginal_prob().exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_zero): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_zero).exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_half): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_half).exp() );
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_one): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_one).exp() );
-        assert_eq!( ( pileup.joint_prob(&af_single_all, &af_bulk_zero).ln_add_exp(
-                        pileup.joint_prob(&af_single_all, &af_bulk_half)).ln_add_exp(
-                            pileup.joint_prob(&af_single_all, &af_bulk_one)) -
-                    pileup.marginal_prob() ).exp(), 1.0);
-        println!("SCBM bulk ranges: pileup.joint_prob(af_single_all, af_bulk_quarter): {}",
-                    pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp() );
-        assert_eq!(pileup.joint_prob(&af_single_all, &af_bulk_quarter).exp(), 0.0);
-
+        let b_10_ref = create_obs_vector(10, 0);
+        bulk_test_ranges_sum(&model_4, &s_dummy_obs, &af_single_all,
+                             &b_10_ref, vec![&af_bulk_zero, &af_bulk_not_zero]);
+        bulk_test_range_fraction(&model_4, &s_dummy_obs, &af_single_all,
+                             &b_10_ref, &af_bulk_zero, 0.67049555724866);
+        bulk_test_range_fraction(&model_5, &s_dummy_obs, &af_single_all,
+                             &b_10_ref, &af_bulk_zero, 0.67049555724866);
+        bulk_test_range_fraction(&model_10, &s_dummy_obs, &af_single_all,
+                             &b_10_ref, &af_bulk_zero, 0.67049555724866);
+        bulk_test_ranges_sum(&model_5, &s_dummy_obs, &af_single_all,
+                             &b_10_ref, vec![&af_bulk_not_one, &af_bulk_one]);
     }
 
     #[test]
     fn test_scbm_sc_het_germ() {
 
-        let model = SingleCellBulkModel::new(2);
+        let model = SingleCellBulkModel::new(2,1,100);
 
         // single cell is het against het germline
         let af_single = vec![AlleleFreq(0.5)];
@@ -495,7 +599,7 @@ mod tests {
     #[test]
     fn test_scbm_sc_hom_ref_germ() {
 
-        let model = SingleCellBulkModel::new(2);
+        let model = SingleCellBulkModel::new(2,1,100);
 
         // single cell is hom ref against hom ref germline
         let af_single = vec![AlleleFreq(0.0)];
@@ -529,7 +633,7 @@ mod tests {
     #[test]
     fn test_scbm_sc_hom_alt_germ() {
 
-        let model = SingleCellBulkModel::new(2);
+        let model = SingleCellBulkModel::new(2,1,100);
 
         // single cell is hom alt against hom alt germline
         let af_single = vec![AlleleFreq(1.0)];
@@ -563,7 +667,7 @@ mod tests {
     #[test]
     fn test_scbm_sc_hom_alt_som() {
 
-        let model = SingleCellBulkModel::new(2);
+        let model = SingleCellBulkModel::new(2,1,100);
 
         // single cell is hom alt against het germline
         let af_single = vec![AlleleFreq(1.0)];
