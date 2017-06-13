@@ -24,6 +24,7 @@ lazy_static! {
 }
 
 
+// TODO: move whatever we want of this to src/bam/record.rs in rust-htslib and use from there
 quick_error! {
     #[derive(Debug)]
     pub enum CigarError {
@@ -56,7 +57,7 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 
 /// For an SNV, calculate likelihood of ref (first) or alt (second) for a given read, i.e. Pr(Z_i | ref) and Pr(Z_i | alt).
 /// This follows Samtools and GATK.
-/// TODO: Implement more general cigar parsing function analogous to htslib resolve_cigar2 (sam.c) somewhere more central in libprosic or rust-htslib.
+/// TODO: double check that everything implemented here was part of the copy into read_pos() in src/bam/record.rs in rust-htslib before deleting here using `record.cigar().read_pos(vpos)` here
 /// TODO: Make this rigorously check for SAMv1 spec rules, e.g. nothing between read end and HardClip
 pub fn prob_read_snv(record: &bam::Record, cigar: &[Cigar], vpos: u32, variant: Variant, ref_seq: &[u8]) -> Result<Option<(LogProb, LogProb)>, CigarError> {
     let contains_vpos = |pos: u32, cigar_length: u32|  pos <= vpos && pos + cigar_length > vpos;
