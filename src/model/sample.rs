@@ -323,12 +323,21 @@ impl Sample {
                     let end_pos = cigar.end_pos() as u32;
 
                     if pos <= start && end_pos >= start {
-                        let cigar = record.cigar(); // TODO: remove this by removing cigar from the read_observation argument list
-                        // TODO: make sure to parse the read_pos() None return value that is to be passed down by prob_snv() and read_observation(), i.e. do not add the read if None is returned
-                        observations.push(
-                            self.read_observation(&record, &cigar, start, variant, chrom_seq)?
-                        );
-                        n_overlap += 1;
+                        if let Some( (prob_ref, prob_alt) ) = evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)? {
+                            let prob_mapping = self.prob_mapping(record.mapq());
+                            observations.push(
+                                Observation {
+                                    prob_mapping: prob_mapping,
+                                    prob_alt: prob_alt,
+                                    prob_ref: prob_ref,
+                                    prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                                    evidence: Evidence::from(&cigar)
+                                }
+                            );
+                            n_overlap += 1;
+                        } else {
+                             debug!("Did not add read to observations, SNV position deleted (Cigar op 'D') or skipped (Cigar op 'N').");
+                        }
                     }
                 }
             },
@@ -364,7 +373,7 @@ impl Sample {
                     // read evidence
                     if overlap > 0 {
                         if overlap <= self.max_indel_overlap {
-                            observations.push( // TODO: make this conditional on read_observation returning Some() as opposed to None
+                            observations.push(
                                 self.read_observation(&record, &cigar, start, variant, chrom_seq)?
                             );
                             n_overlap += 1;
@@ -422,6 +431,7 @@ impl Sample {
         }
     }
 
+    /// extract within-read evidence for reads covering an indel of interest
     fn read_observation(
         &self,
         record: &bam::Record,
@@ -429,30 +439,23 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8]
-    ) -> Result<Observation, Box<Error>> { // TODO: make Result<Option<Observation>, Box<Error>> to pass on information of SNV reads spanning but not covering variant position
+    ) -> Result<Observation, Box<Error>> {
         let prob_mapping = self.prob_mapping(record.mapq());
-        let probs: Option<(LogProb, LogProb)>;
         debug!("prob_mapping={}", *prob_mapping);
 
-        let (prob_ref, prob_alt) = match variant {
-            &Variant::Deletion(_) | &Variant::Insertion(_) => {
-                self.indel_read_evidence.borrow_mut()
-                                        .prob(record, cigar, start, variant, chrom_seq)?
-            },
-            &Variant::SNV(_) => { //TODO: check for None return from prob_snv
-                evidence::reads::prob_snv(record, cigar, start, variant, chrom_seq)?
-            }
-        };
+        let (prob_ref, prob_alt) = self.indel_read_evidence.borrow_mut()
+                                        .prob(record, cigar, start, variant, chrom_seq)?;
 
-        Ok(Observation { // TODO: wrap Observation in Some() and allow for None as alternative to be returned
-            prob_mapping: prob_mapping,
-            prob_alt: prob_alt,
-            prob_ref: prob_ref,
-            prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::from(cigar)
+        Ok( Observation {
+           prob_mapping: prob_mapping,
+           prob_alt: prob_alt,
+           prob_ref: prob_ref,
+           prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+           evidence: Evidence::from(cigar)
         })
     }
 
+    /// extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
     fn fragment_observation(
         &self,
         record: &bam::Record,
@@ -542,7 +545,6 @@ mod tests {
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
-    use rust_htslib::bam::record::{Cigar, CigarString};
     use bio::stats::{LogProb, PHREDProb, Prob};
     use bio::io::fasta;
 
@@ -735,7 +737,7 @@ mod tests {
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            let obs = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq).unwrap(); // TODO: adjust according to read_observation Option wrap
+            let obs = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq).unwrap();
             println!("{:?}", obs);
             assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
             assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
@@ -847,87 +849,4 @@ mod tests {
             assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
         }
     }
-
-    /* TODO: put tests back in place, after uncovered SNVs are passed down as None
-    #[test]
-    fn test_prob_read_snv() {
-        let ref_seq: Vec<u8> = b"CCTATACGCGT"[..].to_owned();
-
-        let mut records: Vec<bam::Record> = Vec::new();
-        let mut qname: &[u8];
-        let mut seq: &[u8];
-
-        // Ignore leading HardClip, skip leading SoftClip, reference nucleotide
-        qname = b"HC_SC_M";
-        let cigar = CigarString( vec![Cigar::HardClip(5), Cigar::SoftClip(2), Cigar::Match(6)] );
-        seq  = b"AATATACG";
-        let qual = [20, 20, 30, 30, 30, 40, 30, 30];
-        let mut record1 = bam::Record::new();
-        record1.set(qname, &cigar, seq, &qual);
-        record1.set_pos(2);
-        records.push(record1);
-
-        // Ignore leading HardClip, skip leading Insertion, alternative nucleotide
-        qname = b"HC_Ins_M";
-        let cigar = CigarString( vec![Cigar::HardClip(2), Cigar::Ins(2), Cigar::Match(6)] );
-        seq  = b"TTTATGCG";
-        let qual = [20, 20, 20, 20, 20, 30, 20, 20];
-        let mut record2 = bam::Record::new();
-        record2.set(qname, &cigar, seq, &qual);
-        record2.set_pos(2);
-        records.push(record2);
-
-        // Matches and deletion before position, reference nucleotide
-        qname = b"Eq_Diff_Del_Eq";
-        let cigar = CigarString( vec![Cigar::Equal(2), Cigar::Diff(1), Cigar::Del(2), Cigar::Equal(5)] );
-        seq  = b"CCAACGCG";
-        let qual = [30, 30, 30, 50, 30, 30, 30, 30];
-        let mut record3 = bam::Record::new();
-        record3.set(qname, &cigar, seq, &qual);
-        record3.set_pos(0);
-        records.push(record3);
-
-        // single nucleotide Deletion covering SNV position
-        qname = b"M_Del_M";
-        let cigar = CigarString( vec![Cigar::Match(4), Cigar::Del(1), Cigar::Match(4)] );
-        seq  = b"CTATCGCG";
-        let qual = [10, 30, 30, 30, 30, 30, 30, 30];
-        let mut record4 = bam::Record::new();
-        record4.set(qname, &cigar, seq, &qual);
-        record4.set_pos(1);
-        records.push(record4);
-
-        // three nucleotide RefSkip covering SNV position
-        qname = b"M_RefSkip_M";
-        let cigar = CigarString( vec![Cigar::Equal(1), Cigar::Diff(1), Cigar::Equal(2), Cigar::RefSkip(3), Cigar::Match(4)] );
-        seq  = b"CTTAGCGT";
-        let qual = [10, 30, 30, 30, 30, 30, 30, 30];
-        let mut record5 = bam::Record::new();
-        record5.set(qname, &cigar, seq, &qual);
-        record5.set_pos(0);
-        records.push(record5);
-
-
-        // truth
-        let probs_ref = [0.9999,   0.00033, 0.99999  ];
-        let probs_alt = [0.000033, 0.999,   0.0000033];
-        let eps       = [0.000001, 0.00001, 0.0000001];
-
-        let vpos = 5;
-        let variant = model::Variant::SNV(b'G');
-        for (i, rec) in records.iter().enumerate() {
-            println!("{}", str::from_utf8(rec.qname()).unwrap());
-            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_read_snv(rec, &rec.cigar(), vpos, variant, &ref_seq) {
-                println!("{:?}", rec.cigar());
-                println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
-                assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
-                assert_relative_eq!( (*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
-            } else {
-                // anything that's tested for the reference position not being covered, should
-                // have 10 as the quality value of the first base in seq
-                assert_eq!(rec.qual()[0], 10);
-            }
-        }
-    }
-    */
 }
