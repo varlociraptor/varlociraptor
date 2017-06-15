@@ -377,7 +377,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
                 self.control_likelihood(af_control, af_case)
             };
-            let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, self.variant, self.case.len(), self.control.len());
+            let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len());
             debug!("Marginal probability: {}.", p.exp());
 
             self.marginal_prob.set(Some(p));
