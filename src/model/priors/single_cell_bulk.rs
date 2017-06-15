@@ -137,27 +137,27 @@ impl SingleCellBulkModel {
     }
 
     /// adjust n to use for bulk coverage at current site, using application-set min and max values
-    fn adjust_n_b(&self, n: &usize) -> usize {
-        if *n <= self.n_bulk_min {
+    fn adjust_n_b(&self, n: usize) -> usize {
+        if n <= self.n_bulk_min {
             self.n_bulk_min
-        } else if *n >= self.n_bulk_max {
+        } else if n >= self.n_bulk_max {
             self.n_bulk_max
         } else {
-            *n
+            n
         }
     }
 
     /// determine values of k to use with current n and given allele frequency range
-    fn determine_k_b(&self, af: &ContinuousAlleleFreqs, n: &usize) -> (usize,usize) {
+    fn determine_k_b(&self, af: &ContinuousAlleleFreqs, n: usize) -> (usize,usize) {
         let k_start = if af.left_exclusive {
-            (*af.start * *n as f64).floor() + 1.0
+            (*af.start * n as f64).floor() + 1.0
         } else {
-            (*af.start * *n as f64).ceil()
+            (*af.start * n as f64).ceil()
         };
         let k_end = if af.right_exclusive {
-            (*af.end * *n as f64).ceil()
+            (*af.end * n as f64).ceil()
         } else {
-            (*af.end * *n as f64).floor() + 1.0
+            (*af.end * n as f64).floor() + 1.0
         };
         assert!(k_end > k_start, "One of the bulk event ranges defined by your application is too small to be covered with the current minimum number of discrete bulk allele frequencies requested (k_end !> k_start).");
         (k_start as usize, k_end as usize )
@@ -192,8 +192,8 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         let n_single = self.cap_n_s(&n_obs_single);
         let k_single = 0..n_single + 1;
 
-        let n_bulk = self.adjust_n_b(&n_obs_bulk);
-        let (k_start, k_end) = self.determine_k_b(af_bulk, &n_bulk);
+        let n_bulk = self.adjust_n_b(n_obs_bulk);
+        let (k_start, k_end) = self.determine_k_b(af_bulk, n_bulk);
         let k_bulk = k_start..k_end;
         // sum up all possible discrete bulk allele frequencies with current number of observations
         let p_bulk = LogProb::ln_sum_exp(&k_bulk.map(|k_b| {
@@ -306,7 +306,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
 
-        let n_bulk = self.adjust_n_b(&n_obs_bulk);
+        let n_bulk = self.adjust_n_b(n_obs_bulk);
         let k_bulk = 0..n_bulk + 1;
         let afs_bulk = k_bulk.map(|k| AlleleFreq(k as f64/n_bulk as f64));
         let (_, map_bulk) = afs_bulk.minmax_by_key(
