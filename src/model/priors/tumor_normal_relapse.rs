@@ -58,8 +58,8 @@ impl TumorNormalRelapseModel {
 }
 
 
-impl TrioModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalRelapseModel {
-    fn prior_prob(&self, af_tumor: AlleleFreq, af_relapse: AlleleFreq, af_normal: AlleleFreq, variant: Variant) -> LogProb {
+impl TrioModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalRelapseModel {
+    fn prior_prob(&self, af_tumor: AlleleFreq, af_relapse: AlleleFreq, af_normal: AlleleFreq, variant: &Variant) -> LogProb {
         let p_tumor_normal = self.primary_model.prior_prob(af_tumor, af_normal, variant);
         // af_tumor = 1 or 0
         let p_relapse = if *af_tumor == 1.0 || *af_tumor == 0.0 {
@@ -85,7 +85,7 @@ impl TrioModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalRelaps
         likelihood_tumor: &L,
         likelihood_relapse: &O,
         likelihood_normal: &Q,
-        variant: Variant
+        variant: &Variant
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
@@ -124,7 +124,7 @@ impl TrioModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalRelaps
         likelihood_tumor: &L,
         likelihood_relapse: &O,
         likelihood_normal: &Q,
-        variant: Variant
+        variant: &Variant
     ) -> LogProb where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb,
@@ -158,7 +158,7 @@ impl TrioModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalRelaps
         likelihood_tumor: &L,
         likelihood_relapse: &O,
         likelihood_normal: &Q,
-        variant: Variant
+        variant: &Variant
     ) -> (AlleleFreq, AlleleFreq, AlleleFreq) where
         L: Fn(AlleleFreq, AlleleFreq) -> LogProb,
         O: Fn(AlleleFreq, AlleleFreq) -> LogProb,

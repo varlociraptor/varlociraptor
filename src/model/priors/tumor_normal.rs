@@ -85,7 +85,7 @@ impl TumorNormalModel {
         }
     }
 
-    pub fn somatic_prior_prob(&self, af_somatic: AlleleFreq, variant: Variant) -> LogProb {
+    pub fn somatic_prior_prob(&self, af_somatic: AlleleFreq, variant: &Variant) -> LogProb {
         // af_somatic can become negative, meaning that at some point a variant from normal was lost
         // in one cell (LOH!!). Again, the frequency corresponds to time in tumor evolution since the model
         // assumes that all frequencies stay constant. Hence, we can simply take the absolute value
@@ -101,15 +101,15 @@ impl TumorNormalModel {
 
         // adjust effective mutation rate by type-specific factor
         let factor = match variant {
-            Variant::Deletion(_)  => self.deletion_factor.ln(),
-            Variant::Insertion(_) => self.insertion_factor.ln(),
-            Variant::SNV(_) => 0.0 // no factor for SNVs
+            &Variant::Deletion(_)  => self.deletion_factor.ln(),
+            &Variant::Insertion(_) => self.insertion_factor.ln(),
+            &Variant::SNV(_) => 0.0 // no factor for SNVs
         };
 
         LogProb(self.effective_mutation_rate.ln() + factor - (2.0 * af_somatic.ln() + (self.genome_size as f64).ln()))
     }
 
-    pub fn normal_prior_prob(&self, af_normal: AlleleFreq, _: Variant) -> LogProb {
+    pub fn normal_prior_prob(&self, af_normal: AlleleFreq, _: &Variant) -> LogProb {
         let m = *af_normal * self.ploidy as f64;
         if relative_eq!(m % 1.0, 0.0) {
             // if m is discrete
@@ -124,7 +124,7 @@ impl TumorNormalModel {
 
 impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel {
 
-    fn prior_prob(&self, af_tumor: AlleleFreq, af_normal: AlleleFreq, variant: Variant) -> LogProb {
+    fn prior_prob(&self, af_tumor: AlleleFreq, af_normal: AlleleFreq, variant: &Variant) -> LogProb {
         // af_tumor = af_normal + af_somatic
         let af_somatic =  af_tumor - af_normal;
         let p = self.somatic_prior_prob(af_somatic, variant) +
@@ -139,7 +139,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         af_normal: &DiscreteAlleleFreqs,
         likelihood_tumor: &L,
         likelihood_normal: &O,
-        variant: Variant,
+        variant: &Variant,
         _: usize,
         _: usize
     ) -> LogProb where
@@ -171,7 +171,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         &self,
         likelihood_tumor: &L,
         likelihood_normal: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs_tumor: usize,
         n_obs_normal: usize
     ) -> LogProb where
@@ -205,7 +205,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         &self,
         likelihood_tumor: &L,
         likelihood_normal: &O,
-        variant: Variant,
+        variant: &Variant,
         _: usize,
         _: usize
     ) -> (AlleleFreq, AlleleFreq) where
@@ -247,7 +247,7 @@ mod tests {
         for af_normal in &[0.0, 0.5, 1.0] {
             println!("af_normal={}:", af_normal);
             print!("[");
-            for p in linspace(0.0, 1.0, 20).map(|af_tumor| model.prior_prob(AlleleFreq(af_tumor), AlleleFreq(*af_normal), variant)) {
+            for p in linspace(0.0, 1.0, 20).map(|af_tumor| model.prior_prob(AlleleFreq(af_tumor), AlleleFreq(*af_normal), &variant)) {
                 print!("{}, ", p.exp());
             }
             println!("]");
@@ -304,12 +304,12 @@ mod tests {
         let pileup = PairPileup::new(
             tumor_obs.clone(),
             normal_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             tumor_sample_model,
             normal_sample_model
         );
-        assert_eq!( model.prior_prob(af_tumor.start, af_normal[0], variant), LogProb::ln_one());
+        assert_eq!( model.prior_prob(af_tumor.start, af_normal[0], &variant), LogProb::ln_one());
         assert_eq!( pileup.joint_prob(&af_tumor, &af_normal), LogProb::ln_one() );
         assert_relative_eq!(pileup.posterior_prob(&af_tumor, &af_normal).exp(), 1.0, epsilon = 0.008);
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.0), AlleleFreq(0.0) ) );
@@ -336,7 +336,7 @@ mod tests {
         let pileup = PairPileup::new(
             tumor_obs.clone(),
             normal_obs.clone(),
-            variant,
+            variant.clone(),
             &model,
             tumor_sample_model,
             normal_sample_model
@@ -344,12 +344,12 @@ mod tests {
 
         // priors assuming: heterozygosity = 1.25E-4, ploidy = 2
         let normal_prior_prob = 0.9998125;
-        println!("TNM.somatic_prior_prob(af_tumor.start = {}): {}", af_tumor.start, model.somatic_prior_prob(af_tumor.start, variant).exp() );
-        assert_eq!( model.somatic_prior_prob(af_tumor.start, variant), LogProb::ln_one() );
-        println!("TNM.normal_prior_prob(af_normal[0] = {}): {}", af_normal[0], model.normal_prior_prob(af_normal[0], variant).exp() );
-        assert_eq!( model.normal_prior_prob(af_normal[0], variant).exp(), normal_prior_prob );
-        println!("TNM.prior_prob(af_tumor.start = {}, af_normal[0] = {}): {}", af_tumor.start, af_normal[0], model.prior_prob(af_tumor.start, af_normal[0], variant).exp() );
-        assert_eq!( model.prior_prob(af_tumor.start, af_normal[0], variant).exp(), normal_prior_prob );
+        println!("TNM.somatic_prior_prob(af_tumor.start = {}): {}", af_tumor.start, model.somatic_prior_prob(af_tumor.start, &variant).exp() );
+        assert_eq!( model.somatic_prior_prob(af_tumor.start, &variant), LogProb::ln_one() );
+        println!("TNM.normal_prior_prob(af_normal[0] = {}): {}", af_normal[0], model.normal_prior_prob(af_normal[0], &variant).exp() );
+        assert_eq!( model.normal_prior_prob(af_normal[0], &variant).exp(), normal_prior_prob );
+        println!("TNM.prior_prob(af_tumor.start = {}, af_normal[0] = {}): {}", af_tumor.start, af_normal[0], model.prior_prob(af_tumor.start, af_normal[0], &variant).exp() );
+        assert_eq!( model.prior_prob(af_tumor.start, af_normal[0], &variant).exp(), normal_prior_prob );
         let aft_full = model.allele_freqs().0;
         let afn_full = model.allele_freqs().1;
         assert_eq!( pileup.joint_prob(&af_tumor, &af_normal).exp(), normal_prior_prob );

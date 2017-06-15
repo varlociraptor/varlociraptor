@@ -257,7 +257,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         &self,
         likelihood_single_distorted: &L,
         likelihood_bulk: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs_single: usize,
         n_obs_bulk: usize
     ) -> LogProb where

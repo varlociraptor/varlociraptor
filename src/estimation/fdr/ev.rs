@@ -34,9 +34,9 @@ pub fn control_fdr<E: Event, W: io::Write>(
     let mut writer = csv::Writer::from_writer(writer).delimiter(b'\t');
     try!(writer.write(["FDR", "max-prob"].into_iter()));
 
-    let pep_dist = utils::collect_pep_dist(calls, event, vartype)?;
+    let prob_dist = utils::collect_prob_dist(calls, event, vartype)?;
 
-    if pep_dist.is_empty() {
+    if prob_dist.is_empty() {
         for &alpha in &ALPHAS {
             writer.write([&format!("{}", alpha), ""].iter())?;
         }
@@ -44,16 +44,20 @@ pub fn control_fdr<E: Event, W: io::Write>(
     }
 
     // estimate FDR
-    let pep_dist = pep_dist.into_iter().map(|p| LogProb(*p)).collect_vec();
+    let pep_dist = prob_dist.into_iter().rev().map(|p| LogProb(*p).ln_one_minus_exp()).collect_vec();
     let fdrs = bayesian::expected_fdr(&pep_dist);
 
-    for &alpha in ALPHAS.iter().rev() {
+    for &alpha in &ALPHAS {
         let ln_alpha = LogProb(alpha.ln());
         // find the largest pep for which fdr <= alpha
         // do not let peps with the same value cross the boundary
         for i in (0..fdrs.len()).rev() {
             if fdrs[i] <= ln_alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
-                writer.encode(&Record { alpha: alpha, gamma: PHREDProb::from(pep_dist[i]) })?;
+                let pep = pep_dist[i];
+                writer.encode(&Record {
+                    alpha: alpha,
+                    gamma: PHREDProb::from(pep.ln_one_minus_exp())
+                })?;
                 break;
             }
         }

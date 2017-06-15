@@ -1,17 +1,27 @@
 language: rust
+
+cache: cargo
+
 rust:
   - stable
   - beta
   - nightly
+
 matrix:
   allow_failures:
     - rust: nightly
     - rust: beta
+
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y libgsl0-dev
+  - curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+  - sudo apt-get install -y git-lfs
+
 before_script:
   - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
+  - git lfs pull
+
 script:
   - travis-cargo build
   - travis-cargo test
