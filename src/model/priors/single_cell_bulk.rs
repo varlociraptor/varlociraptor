@@ -114,12 +114,12 @@ impl SingleCellBulkModel {
         }
     }
 
-    fn prior_bulk(&self, _: AlleleFreq, _: Variant) -> LogProb {
+    fn prior_bulk(&self, _: AlleleFreq, _: &Variant) -> LogProb {
         // TODO: stick in meaningful prior for the bulk sample, derivative of InfiniteSitesNeutralVariationModel?
         LogProb::ln_one()
     }
 
-    fn prior_single(&self, _: AlleleFreq, _: Variant) -> LogProb {
+    fn prior_single(&self, _: AlleleFreq, _: &Variant) -> LogProb {
         // TODO: stick in meaningful prior for the single cell sample, e.g. P(theta_b > 0 | bulk_pileup)
         LogProb::ln_one()
     }
@@ -171,7 +171,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         &self,
         af_single: AlleleFreq,
         af_bulk: AlleleFreq,
-        variant: Variant
+        variant: &Variant
     ) -> LogProb {
         self.prior_single(af_single, variant) + self.prior_bulk(af_bulk, variant)
     }
@@ -182,7 +182,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         af_bulk: &ContinuousAlleleFreqs,
         likelihood_single_distorted: &L,
         likelihood_bulk: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs_single: usize,
         n_obs_bulk: usize
     ) -> LogProb where
@@ -279,7 +279,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         &self,
         likelihood_single_distorted: &L,
         likelihood_bulk: &O,
-        variant: Variant,
+        variant: &Variant,
         n_obs_single: usize,
         n_obs_bulk: usize
     ) -> (AlleleFreq, AlleleFreq) where
