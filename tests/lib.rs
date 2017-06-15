@@ -130,17 +130,17 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
     let events = [
         libprosic::call::pairwise::PairEvent {
             name: "germline".to_owned(),
-            af_case: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ), // TODO: double-check, if this is meant to be inclusive
+            af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
             af_control: vec![AlleleFreq(0.5), AlleleFreq(1.0)]
         },
         libprosic::call::pairwise::PairEvent {
             name: "somatic".to_owned(),
-            af_case: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ), // TODO: double-check, if this is meant to be inclusive
+            af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
             af_control: vec![AlleleFreq(0.0)]
         },
         libprosic::call::pairwise::PairEvent {
             name: "absent".to_owned(),
-            af_case: ContinuousAlleleFreqs::inclusive( 0.0..0.0 ), // TODO: double-check, if this is meant to be inclusive
+            af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..0.0 ),
             af_control: vec![AlleleFreq(0.0)]
         }
     ];

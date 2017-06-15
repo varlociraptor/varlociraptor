@@ -508,7 +508,7 @@ mod tests {
     fn test_same_pileup() {
         let variant = Variant::Deletion(3);
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
-        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.0..1.0 ); // TODO: should this be left_exclusive() instead?
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -720,8 +720,8 @@ mod tests {
         );
 
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
-        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 ); // TODO: should this be left_exclusive() instead?
-        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.001 ); // TODO: should this be (0.0)..(0.0) instead?
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
+        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.001 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -866,7 +866,7 @@ mod tests {
         let (case_obs, control_obs, model) = setup_example("tests/example2.obs.txt", 0.01, 0.03);
 
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
-        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 ); // TODO: should this be left_exclusive() instead?
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -888,7 +888,7 @@ mod tests {
         let (case_obs, control_obs, model) = setup_example("tests/example3.obs.txt", 0.01, 0.03);
 
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
-        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 ); // TODO: should this be left_exclusive() instead?
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
