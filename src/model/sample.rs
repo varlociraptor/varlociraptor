@@ -323,17 +323,8 @@ impl Sample {
                     let end_pos = cigar.end_pos() as u32;
 
                     if pos <= start && end_pos >= start {
-                        if let Some( (prob_ref, prob_alt) ) = evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)? {
-                            let prob_mapping = self.prob_mapping(record.mapq());
-                            observations.push(
-                                Observation {
-                                    prob_mapping: prob_mapping,
-                                    prob_alt: prob_alt,
-                                    prob_ref: prob_ref,
-                                    prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-                                    evidence: Evidence::from(&cigar)
-                                }
-                            );
+                        if let Some( obs ) = self.read_observation(&record, &cigar, start, variant, chrom_seq)? {
+                            observations.push( obs );
                             n_overlap += 1;
                         } else {
                              debug!("Did not add read to observations, SNV position deleted (Cigar op 'D') or skipped (Cigar op 'N').");
@@ -373,10 +364,12 @@ impl Sample {
                     // read evidence
                     if overlap > 0 {
                         if overlap <= self.max_indel_overlap {
-                            observations.push(
-                                self.read_observation(&record, &cigar, start, variant, chrom_seq)?
-                            );
-                            n_overlap += 1;
+                            if let Some( obs ) = self.read_observation(&record, &cigar, start, variant, chrom_seq)? {
+                                observations.push( obs );
+                                n_overlap += 1;
+                            } else {
+                                panic!("Got an unexpected 'None' when trying to read_observation() for an indel.")
+                            }
                         }
                     }
 
@@ -431,7 +424,7 @@ impl Sample {
         }
     }
 
-    /// extract within-read evidence for reads covering an indel of interest
+    /// extract within-read evidence for reads covering an indel or SNV of interest
     fn read_observation(
         &self,
         record: &bam::Record,
@@ -439,20 +432,34 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8]
-    ) -> Result<Observation, Box<Error>> {
-        let prob_mapping = self.prob_mapping(record.mapq());
-        debug!("prob_mapping={}", *prob_mapping);
+    ) -> Result<Option<Observation>, Box<Error>> {
+        let probs: Option<(LogProb, LogProb)>;
 
-        let (prob_ref, prob_alt) = self.indel_read_evidence.borrow_mut()
-                                        .prob(record, cigar, start, variant, chrom_seq)?;
+        match variant {
+            &Variant::Deletion(_) | &Variant::Insertion(_) => {
+                probs = Some( self.indel_read_evidence.borrow_mut()
+                                        .prob(record, cigar, start, variant, chrom_seq)? );
+            },
+            &Variant::SNV(_) => {
+                probs = evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)?;
+            }
+        }
 
-        Ok( Observation {
-           prob_mapping: prob_mapping,
-           prob_alt: prob_alt,
-           prob_ref: prob_ref,
-           prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-           evidence: Evidence::from(cigar)
-        })
+        if let Some( (prob_ref, prob_alt) ) = probs {
+            let prob_mapping = self.prob_mapping(record.mapq());
+            debug!("prob_mapping={}", *prob_mapping);
+            Ok( Some (
+                Observation {
+                    prob_mapping: prob_mapping,
+                    prob_alt: prob_alt,
+                    prob_ref: prob_ref,
+                    prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                    evidence: Evidence::from(&cigar)
+                }
+            ))
+        } else {
+            Ok( None )
+        }
     }
 
     /// extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
@@ -737,11 +744,14 @@ mod tests {
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            let obs = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq).unwrap();
-            println!("{:?}", obs);
-            assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
-            assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
-            assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
+            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq).unwrap() {
+                println!("{:?}", obs);
+                assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
+                assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
+                assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
+            } else {
+                panic!("read_observation() test for indels failed; it returned 'None'.")
+            }
         }
     }
 
