@@ -127,12 +127,12 @@ impl SingleCellBulkModel {
     /// Function to cap the use of the single cell amplification bias model at a coverage of 100,
     /// as the Lodato et al. model was fit with coverages capped at 60 and starts behaving
     /// weirdly above 100
-    fn cap_n_s(&self, n: &usize) -> usize {
+    fn cap_n_s(&self, n: usize) -> usize {
     // TODO: make this optional and dependent on the usage of the Lodato model with their params
-        if *n > 100 {
+        if n > 100 {
             100
         } else {
-           *n
+           n
         }
     }
 
@@ -189,7 +189,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
         O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
-        let n_single = self.cap_n_s(&n_obs_single);
+        let n_single = self.cap_n_s(n_obs_single);
         let k_single = 0..n_single + 1;
 
         let n_bulk = self.adjust_n_b(n_obs_bulk);
@@ -286,7 +286,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
         O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
-        let n_single = self.cap_n_s(&n_obs_single);
+        let n_single = self.cap_n_s(n_obs_single);
         let k_single = 0..n_single + 1;
 
         let (_, map_single) = self.allele_freqs().0.iter().minmax_by_key(
