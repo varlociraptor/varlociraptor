@@ -172,14 +172,14 @@ pub struct Observation {
     /// Probability of the read/read-pair given that it has been mismapped.
     pub prob_mismapped: LogProb,
     /// Type of evidence.
-    pub evidence: Evidence
+    pub evidence: Vec<Evidence>
 }
 
 
 impl Observation {
     pub fn is_alignment_evidence(&self) -> bool {
-        if let Evidence::Alignment(_) = self.evidence {
-            true
+        if let Evidence::Alignment(_) = self.evidence[0] {
+            self.evidence.len() == 1
         } else {
             false
         }
@@ -466,7 +466,7 @@ impl Sample {
             prob_alt: prob_alt,
             prob_ref: prob_ref,
             prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::from(cigar)
+            evidence: vec![Evidence::from(cigar)]
         })
     }
 
@@ -484,7 +484,7 @@ impl Sample {
             prob_alt: p_alt,
             prob_ref: p_ref,
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::InsertSize(insert_size as u32)
+            evidence: vec![Evidence::InsertSize(insert_size as u32)]
         };
 
         Ok(obs)
@@ -562,21 +562,21 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
+                evidence: vec![Evidence::dummy_alignment()]
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: vec![Evidence::InsertSize(300)]
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: vec![Evidence::InsertSize(300)]
             }
         ];
 
@@ -593,21 +593,21 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
+                evidence: vec![Evidence::dummy_alignment()]
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: vec![Evidence::InsertSize(300)]
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: vec![Evidence::InsertSize(300)]
             }
         ];
 
@@ -624,21 +624,21 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
+                evidence: vec![Evidence::dummy_alignment()]
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb(0.5f64.ln()),
                 prob_ref: LogProb(0.5f64.ln()),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: vec![Evidence::InsertSize(300)]
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: vec![Evidence::InsertSize(300)]
             }
         ];
 
