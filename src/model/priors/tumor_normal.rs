@@ -77,7 +77,7 @@ impl TumorNormalModel {
             deletion_factor: deletion_factor,
             insertion_factor: insertion_factor,
             genome_size: genome_size,
-            allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
+            allele_freqs_tumor: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
             allele_freqs_normal: normal::allele_freqs(ploidy),
             grid_points: 51,
             af_min: af_min,
@@ -189,7 +189,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         ).ln_add_exp(
             // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
-                &(AlleleFreq(0.0)..AlleleFreq(0.0)),
+                &ContinuousAlleleFreqs::inclusive( 0.0..0.0 ),
                 &vec![AlleleFreq(0.0)],
                 likelihood_tumor,
                 likelihood_normal,
@@ -236,7 +236,7 @@ mod tests {
     use super::*;
     use itertools_num::linspace;
     use bio::stats::{Prob, LogProb};
-    use model::{AlleleFreq, likelihood, PairPileup, Variant};
+    use model::{ContinuousAlleleFreqs, AlleleFreq, likelihood, PairPileup, Variant};
     use model::priors::PairModel;
     use model::sample::{Observation, Evidence};
 
@@ -290,7 +290,7 @@ mod tests {
         let model = TumorNormalModel::new(2, 3000.0, 0.5, 0.5, 3e9 as u64, heterozygosity);
 
         // tumor and normal both hom ref
-        let af_tumor = AlleleFreq(0.0)..AlleleFreq(0.0);
+        let af_tumor = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
         let af_normal = vec![AlleleFreq(0.0)];
 
         let variant = Variant::SNV(b'T');
@@ -322,7 +322,7 @@ mod tests {
         let model = TumorNormalModel::new(2, 3000.0, 0.5, 0.5, 3e9 as u64, heterozygosity);
 
         // tumor and normal both hom ref
-        let af_tumor = AlleleFreq(0.0)..AlleleFreq(0.0);
+        let af_tumor = ContinuousAlleleFreqs::inclusive( 0.0..0.0);
         let af_normal = vec![AlleleFreq(0.0)];
 
         let variant = Variant::SNV(b'T');

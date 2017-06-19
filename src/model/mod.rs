@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::cell::Cell;
-use std::ops::Range;
+use std::ops::{Range, Deref};
 use std::fmt::Debug;
 use std::error::Error;
 use std::cell::RefCell;
@@ -19,7 +19,6 @@ use model::sample::{Sample, Observation};
 
 pub type AlleleFreq = NotNaN<f64>;
 pub type DiscreteAlleleFreqs = Vec<AlleleFreq>;
-pub type ContinuousAlleleFreqs = Range<AlleleFreq>;
 
 
 #[allow(non_snake_case)]
@@ -32,6 +31,59 @@ pub trait AlleleFreqs: Debug {}
 impl AlleleFreqs for DiscreteAlleleFreqs {}
 impl AlleleFreqs for ContinuousAlleleFreqs {}
 
+/// An allele frequency range
+#[derive(Debug)]
+pub struct ContinuousAlleleFreqs {
+    inner: Range<AlleleFreq>,
+    pub left_exclusive: bool,
+    pub right_exclusive: bool
+}
+
+impl ContinuousAlleleFreqs {
+    /// create a left- and right-inclusive allele frequency range
+    pub fn inclusive(range: Range<f64>) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
+            left_exclusive: false,
+            right_exclusive: false
+        }
+    }
+
+    /// create a left- and right-exclusive allele frequency range
+    pub fn exclusive(range: Range<f64>) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
+            left_exclusive: true,
+            right_exclusive: true
+        }
+    }
+
+    /// create a left-exclusive allele frequency range
+    pub fn left_exclusive(range: Range<f64>) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
+            left_exclusive: true,
+            right_exclusive: false
+        }
+    }
+
+    /// create a right-exclusive allele frequency range
+    pub fn right_exclusive(range: Range<f64>) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
+            left_exclusive: false,
+            right_exclusive: true
+        }
+    }
+}
+
+impl Deref for ContinuousAlleleFreqs {
+    type Target = Range<AlleleFreq>;
+
+    fn deref(&self) -> &Range<AlleleFreq> {
+        &self.inner
+    }
+}
 
 #[derive(Debug)]
 pub enum VariantType {
@@ -326,6 +378,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
                 self.control_likelihood(af_control, af_case)
             };
             let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len());
+            debug!("Marginal probability: {}.", p.exp());
 
             self.marginal_prob.set(Some(p));
         }
@@ -352,6 +405,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         let p = self.joint_prob(af_case, af_control);
         let marginal = self.marginal_prob();
         let prob = p - marginal;
+        debug!("Posterior probability: {}.", prob.exp());
         prob
     }
 
@@ -453,8 +507,8 @@ mod tests {
     #[test]
     fn test_same_pileup() {
         let variant = Variant::Deletion(3);
-        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -492,8 +546,8 @@ mod tests {
     #[test]
     fn test_empty_control_pileup() {
         let variant = Variant::Deletion(3);
-        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -532,8 +586,8 @@ mod tests {
     #[test]
     fn test_subclonal() {
         let variant = Variant::Deletion(3);
-        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -578,9 +632,9 @@ mod tests {
     #[test]
     fn test_absent() {
         let variant = Variant::Deletion(3);
-        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.0);
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
+        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -665,9 +719,9 @@ mod tests {
             prior_model
         );
 
-        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.05)..AlleleFreq(1.0);
-        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.001);
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
+        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.001 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -811,8 +865,8 @@ mod tests {
     fn test_example2() {
         let (case_obs, control_obs, model) = setup_example("tests/example2.obs.txt", 0.01, 0.03);
 
-        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.05)..AlleleFreq(1.0);
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -833,8 +887,8 @@ mod tests {
     fn test_example3() {
         let (case_obs, control_obs, model) = setup_example("tests/example3.obs.txt", 0.01, 0.03);
 
-        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.05)..AlleleFreq(1.0);
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
 
@@ -858,9 +912,9 @@ mod tests {
             obs.prob_mapping = LogProb(0.999f64.ln());
         }*/
 
-        let tumor_all = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_alt = AlleleFreq(0.0)..AlleleFreq(1.0);
-        let tumor_ref = AlleleFreq(0.0)..AlleleFreq(0.0);
+        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
+        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
+        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
         let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
         let normal_ref = vec![AlleleFreq(0.0)];
         //let lh = model.case_sample().likelihood_model().likelihood_pileup(&case_obs[..100], 0.07, 0.0);
