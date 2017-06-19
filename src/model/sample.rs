@@ -340,8 +340,7 @@ impl Sample {
                     let pos = record.pos() as u32;
                     let end_pos = cigar.end_pos() as u32;
 
-                    let overlap = { // BUG: SoftClips can be preceded by HardClips at read starts, followed by HardClips at read ends!
-                        // TODO: suggestion for removing the above BUG: consider this in the CigarStringView::end_pos calculation by adding in the include_softclips argument there, as well, and create an according function CigarStringView::start_pos
+                    let overlap = {
                         // consider soft clips for overlap detection
                         let pos = if let Cigar::SoftClip(l) = cigar[0] {
                             pos.saturating_sub(l)
