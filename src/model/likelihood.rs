@@ -106,7 +106,7 @@ mod tests {
             prob_alt: LogProb::ln_one(),
             prob_ref: LogProb::ln_zero(),
             prob_mismapped: LogProb::ln_one(),
-            evidence: vec![Evidence::dummy_alignment()]
+            evidence: Evidence::dummy_alignment()
         };
 
         let lh = model.likelihood_observation(&observation, LogProb::ln_one(), Some(LogProb::ln_zero()));
@@ -141,7 +141,7 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: vec![Evidence::dummy_alignment()]
+                evidence: Evidence::dummy_alignment()
             });
         }
         for _ in 0..5 {
@@ -150,7 +150,7 @@ mod tests {
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: vec![Evidence::dummy_alignment()]
+                evidence: Evidence::dummy_alignment()
             });
         }
         let lh = model.likelihood_pileup(&observations, 0.5, Some(0.0));
