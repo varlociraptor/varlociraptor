@@ -200,20 +200,24 @@ pub enum Evidence {
 
 
 impl Evidence {
+    /// Create a dummy alignment.
     pub fn dummy_alignment() -> Self {
         Evidence::Alignment("Dummy-Alignment".to_owned())
     }
 
+    /// Create dummy insert size evidence.
     pub fn dummy_insert_size(insert_size: u32) -> Self {
         Evidence::InsertSize(format!("insert-size={}", insert_size))
     }
 
+    /// Create insert size evidence.
     pub fn insert_size(insert_size: u32, left: &CigarString, right: &CigarString) -> Self {
         Evidence::InsertSize(format!(
             "insert-size={}, left={}, right={}", insert_size, left, right
         ))
     }
 
+    /// Create alignment evidence.
     pub fn alignment(cigar: &CigarString) -> Self {
         Evidence::Alignment(format!("{}", cigar))
     }
