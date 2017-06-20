@@ -187,6 +187,9 @@ impl Observation {
 }
 
 
+/// Types of evidence that lead to an observation.
+/// The contained information is intended for debugging and will be printed together with
+/// observations.
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
 pub enum Evidence {
     /// Insert size of fragment
