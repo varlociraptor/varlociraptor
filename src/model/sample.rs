@@ -10,7 +10,7 @@ use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
-use rust_htslib::bam::record::{Cigar, CigarStringView};
+use rust_htslib::bam::record::{Cigar, CigarStringView, CigarString};
 use bio::stats::{LogProb, PHREDProb, Prob};
 
 use model;
@@ -190,7 +190,7 @@ impl Observation {
 #[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
 pub enum Evidence {
     /// Insert size of fragment
-    InsertSize(u32),
+    InsertSize(String),
     /// Alignment of a single read
     Alignment(String)
 }
@@ -200,12 +200,18 @@ impl Evidence {
     pub fn dummy_alignment() -> Self {
         Evidence::Alignment("Dummy-Alignment".to_owned())
     }
-}
 
+    pub fn dummy_insert_size(insert_size: u32) -> Self {
+        Evidence::InsertSize(format!("insert-size={}", insert_size))
+    }
 
-impl<'a, CigarString> From<&'a CigarString> for Evidence
-where CigarString: fmt::Display {
-    fn from(cigar: &CigarString) -> Self {
+    pub fn insert_size(insert_size: u32, left: &CigarString, right: &CigarString) -> Self {
+        Evidence::InsertSize(format!(
+            "insert-size={}, left={}, right={}", insert_size, left, right
+        ))
+    }
+
+    pub fn alignment(cigar: &CigarString) -> Self {
         Evidence::Alignment(format!("{}", cigar))
     }
 }
@@ -466,7 +472,7 @@ impl Sample {
             prob_alt: prob_alt,
             prob_ref: prob_ref,
             prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::from(cigar)
+            evidence: Evidence::alignment(cigar)
         })
     }
 
@@ -484,7 +490,11 @@ impl Sample {
             prob_alt: p_alt,
             prob_ref: p_ref,
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::InsertSize(insert_size as u32)
+            evidence: Evidence::insert_size(
+                insert_size as u32,
+                &left_record.cigar(),
+                &right_record.cigar()
+            )
         };
 
         Ok(obs)
@@ -569,14 +579,14 @@ mod tests {
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: Evidence::dummy_insert_size(300)
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: Evidence::dummy_insert_size(300)
             }
         ];
 
@@ -600,14 +610,14 @@ mod tests {
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: Evidence::dummy_insert_size(300)
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: Evidence::dummy_insert_size(300)
             }
         ];
 
@@ -631,14 +641,14 @@ mod tests {
                 prob_alt: LogProb(0.5f64.ln()),
                 prob_ref: LogProb(0.5f64.ln()),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: Evidence::dummy_insert_size(300)
             },
             Observation {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::InsertSize(300)
+                evidence: Evidence::dummy_insert_size(300)
             }
         ];
 
