@@ -106,7 +106,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
         Prob(0.0),
         Prob(0.0),
         25,
-        25
+        100
     );
 
     let normal = libprosic::Sample::new(
@@ -124,7 +124,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
         Prob(0.0),
         Prob(0.0),
         25,
-        25
+        100
     );
 
     let events = [

@@ -211,15 +211,32 @@ impl Evidence {
     }
 
     /// Create insert size evidence.
-    pub fn insert_size(insert_size: u32, left: &CigarString, right: &CigarString) -> Self {
+    pub fn insert_size(
+        insert_size: u32,
+        left: &CigarString,
+        right: &CigarString,
+        left_record: &bam::Record,
+        right_record: &bam::Record
+    ) -> Self {
         Evidence::InsertSize(format!(
-            "insert-size={}, left={}, right={}", insert_size, left, right
+            "insert-size={}, left: cigar={}, qname={}, AS={:?}, XS={:?}, right: cigar={}, AS={:?}, XS={:?}",
+            insert_size, left, str::from_utf8(left_record.qname()).unwrap(),
+            left_record.aux(b"AS").map(|a| a.integer()),
+            left_record.aux(b"XS").map(|a| a.integer()),
+            right,
+            right_record.aux(b"AS").map(|a| a.integer()),
+            right_record.aux(b"XS").map(|a| a.integer())
         ))
     }
 
     /// Create alignment evidence.
-    pub fn alignment(cigar: &CigarString) -> Self {
-        Evidence::Alignment(format!("{}", cigar))
+    pub fn alignment(cigar: &CigarString, record: &bam::Record) -> Self {
+        Evidence::Alignment(format!(
+            "cigar={}, qname={}, AS={:?}, XS={:?}",
+            cigar, str::from_utf8(record.qname()).unwrap(),
+            record.aux(b"AS").map(|a| a.integer()),
+            record.aux(b"XS").map(|a| a.integer())
+        ))
     }
 }
 
@@ -307,6 +324,21 @@ impl Sample {
         }
     }
 
+    /// Return true if MAPQ appears to be reliable.
+    /// Currently, this checks if AS > XS, i.e., the alignment score of the current position is
+    /// better than for any alternative hit. If this is not the case, the read was most likely
+    /// mapped to the current position because of its mate. Such placements can easily lead to
+    /// false positives, especially in repetetive regions. Hence, we choose to rather ignore them.
+    fn is_reliable_read(&self, record: &bam::Record) -> bool {
+        if let Some(astag) = record.aux(b"AS") {
+            if let Some(xstag) = record.aux(b"XS") {
+                return astag.integer() > xstag.integer();
+            }
+        }
+
+        true
+    }
+
     /// Return likelihood model.
     pub fn likelihood_model(&self) -> model::likelihood::LatentVariableModel {
         self.likelihood_model
@@ -341,6 +373,10 @@ impl Sample {
             &Variant::SNV(_) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
+                    if !self.is_reliable_read(record) {
+                        continue;
+                    }
+
                     let pos = record.pos() as u32;
                     let cigar = record.cigar();
                     let end_pos = cigar.end_pos() as u32;
@@ -358,6 +394,10 @@ impl Sample {
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
+                    if !self.is_reliable_read(record) {
+                        continue;
+                    }
+
                     let cigar = record.cigar();
                     let pos = record.pos() as u32;
                     let end_pos = cigar.end_pos() as u32;
@@ -479,7 +519,7 @@ impl Sample {
             prob_alt: prob_alt,
             prob_ref: prob_ref,
             prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::alignment(cigar)
+            evidence: Evidence::alignment(cigar, record)
         })
     }
 
@@ -500,7 +540,9 @@ impl Sample {
             evidence: Evidence::insert_size(
                 insert_size as u32,
                 &left_record.cigar(),
-                &right_record.cigar()
+                &right_record.cigar(),
+                left_record,
+                right_record
             )
         };
 
