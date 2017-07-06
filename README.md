@@ -18,5 +18,5 @@ A Rust library for calling genomic variants using a latent variable model. This 
 
 ### Implementation
 
-* [Johannes Köster](https://github.com/johanneskoester)
+* [Johannes Köster](https://github.com/johanneskoester) (framework, software architecture, model, tumor-normal variant calling)
 * [David Lähnemann](https://github.com/dlaehnemann) (single cell variant calling)
