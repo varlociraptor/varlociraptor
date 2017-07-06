@@ -11,9 +11,10 @@ A Rust library for calling genomic variants using a latent variable model.
 
 ### Model
 
-* [Louis Dijkstra](https://github.com/louisdijkstra) (likelihoods)
-* [Johannes Köster](https://github.com/johanneskoester) (prior probabilities)
+* [Louis Dijkstra](https://github.com/louisdijkstra) (latent variable model)
+* [Johannes Köster](https://github.com/johanneskoester) (prior probabilities, indel allele probabilities, FDR control)
 * [David Lähnemann](https://github.com/dlaehnemann) (single cell whole genome amplification model)
+* [Alexander Schönhuth](https://github.com/aschoen) (latent variable model, FDR control)
 
 ### Implementation
 
