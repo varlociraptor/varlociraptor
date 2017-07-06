@@ -1,7 +1,7 @@
 [package]
 name = "libprosic"
 version = "0.4.0"
-authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>"]
+authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>"]
 description = "A library for calling of genomic variants using a latent variable model."
 repository = "https://github.com/prosic/libprosic"
 readme = "README.md"
