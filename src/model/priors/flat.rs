@@ -122,7 +122,7 @@ impl FlatTumorNormalModel {
     pub fn new(ploidy: u32) -> Self {
         let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
         FlatTumorNormalModel {
-            allele_freqs_tumor: AlleleFreq(0.0)..AlleleFreq(1.0),
+            allele_freqs_tumor: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
             allele_freqs_normal: allele_freqs,
             grid_points: 201
         }
@@ -191,7 +191,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         ).ln_add_exp(
             // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
-                &(AlleleFreq(0.0)..AlleleFreq(0.0)),
+                &ContinuousAlleleFreqs::inclusive( 0.0..0.0 ),
                 &vec![AlleleFreq(0.0)],
                 likelihood_tumor,
                 likelihood_normal,

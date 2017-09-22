@@ -46,13 +46,13 @@ pub fn n_fragment_positions(
 ///
 /// * `left` - left read of the pair
 /// * `right` - right read of the pair
-pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> u32 {
+pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u32, Box<Error>> {
     let left_cigar = left.cigar();
     let right_cigar = right.cigar();
     let left_clips = evidence::Clips::trailing(&left_cigar);
     let right_clips = evidence::Clips::leading(&right_cigar);
 
-    let left_end = (left_cigar.end_pos() as u32) + left_clips.both();
+    let left_end = (left_cigar.end_pos()? as u32) + left_clips.both();
     let right_start = (right.pos() as u32).saturating_sub(
         right_clips.both()
     );
@@ -66,7 +66,7 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> u32 {
                       evidence::read_len(right, &right_cigar) as i32;
     assert!(insert_size > 0, "bug: insert size {} is smaller than zero", insert_size);
 
-    insert_size as u32
+    Ok(insert_size as u32)
 }
 
 

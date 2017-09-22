@@ -1,7 +1,7 @@
 [package]
 name = "libprosic"
-version = "0.3.0"
-authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>"]
+version = "0.4.0"
+authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>"]
 description = "A library for calling of genomic variants using a latent variable model."
 repository = "https://github.com/prosic/libprosic"
 readme = "README.md"
@@ -10,7 +10,7 @@ license = "GPL-3.0"
 [dependencies]
 bio = "0.14"
 log = "0.3.*"
-rust-htslib = "0.12"
+rust-htslib = { git = "https://github.com/rust-bio/rust-htslib.git" } # "0.12"
 GSL = "0.4.*"
 itertools = "0.6"
 itertools-num = "0.1.*"

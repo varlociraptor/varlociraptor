@@ -1,7 +1,6 @@
 use std::str;
 use std::collections::{HashMap, VecDeque, vec_deque};
 use std::cmp;
-use std::fmt;
 use std::error::Error;
 use std::f64::consts;
 use std::cell::RefCell;
@@ -10,7 +9,7 @@ use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
-use rust_htslib::bam::record::{Cigar, CigarStringView, CigarString};
+use rust_htslib::bam::record::{CigarStringView, CigarString};
 use bio::stats::{LogProb, PHREDProb, Prob};
 
 use model;
@@ -368,7 +367,6 @@ impl Sample {
         try!(self.record_buffer.fill(chrom, start, end));
         debug!("Done.");
 
-
         match variant {
             &Variant::SNV(_) => {
                 // iterate over records
@@ -379,14 +377,15 @@ impl Sample {
 
                     let pos = record.pos() as u32;
                     let cigar = record.cigar();
-                    let end_pos = cigar.end_pos() as u32;
+                    let end_pos = cigar.end_pos()? as u32;
 
                     if pos <= start && end_pos >= start {
-                        let cigar = record.cigar();
-                        observations.push(
-                            self.read_observation(&record, &cigar, start, variant, chrom_seq)?
-                        );
-                        n_overlap += 1;
+                        if let Some( obs ) = self.read_observation(&record, &cigar, start, variant, chrom_seq)? {
+                            observations.push( obs );
+                            n_overlap += 1;
+                        } else {
+                             debug!("Did not add read to observations, SNV position deleted (Cigar op 'D') or skipped (Cigar op 'N').");
+                        }
                     }
                 }
             },
@@ -400,7 +399,7 @@ impl Sample {
 
                     let cigar = record.cigar();
                     let pos = record.pos() as u32;
-                    let end_pos = cigar.end_pos() as u32;
+                    let end_pos = cigar.end_pos()? as u32;
 
                     let overlap = {
                         // consider soft clips for overlap detection
@@ -417,10 +416,12 @@ impl Sample {
                     // read evidence
                     if overlap > 0 {
                         if overlap <= self.max_indel_overlap {
-                            observations.push(
-                                self.read_observation(&record, &cigar, start, variant, chrom_seq)?
-                            );
-                            n_overlap += 1;
+                            if let Some( obs ) = self.read_observation(&record, &cigar, start, variant, chrom_seq)? {
+                                observations.push( obs );
+                                n_overlap += 1;
+                            } else {
+                                panic!("Got an unexpected 'None' when trying to read_observation() for an indel.")
+                            }
                         }
                     }
 
@@ -493,6 +494,7 @@ impl Sample {
         }
     }
 
+    /// extract within-read evidence for reads covering an indel or SNV of interest
     fn read_observation(
         &self,
         record: &bam::Record,
@@ -500,36 +502,44 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8]
-    ) -> Result<Observation, Box<Error>> {
-        let prob_mapping = self.prob_mapping(record.mapq());
-        debug!("prob_mapping={}", *prob_mapping);
+    ) -> Result<Option<Observation>, Box<Error>> {
+        let probs: Option<(LogProb, LogProb)>;
 
-        let (prob_ref, prob_alt) = match variant {
+        match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
-                self.indel_read_evidence.borrow_mut()
-                                        .prob(record, cigar, start, variant, chrom_seq)?
+                probs = Some( self.indel_read_evidence.borrow_mut()
+                                        .prob(record, cigar, start, variant, chrom_seq)? );
             },
             &Variant::SNV(_) => {
-                evidence::reads::prob_snv(record, cigar, start, variant, chrom_seq)?
+                probs = evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)?;
             }
-        };
+        }
 
-        Ok(Observation {
-            prob_mapping: prob_mapping,
-            prob_alt: prob_alt,
-            prob_ref: prob_ref,
-            prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
-            evidence: Evidence::alignment(cigar, record)
-        })
+        if let Some( (prob_ref, prob_alt) ) = probs {
+            let prob_mapping = self.prob_mapping(record.mapq());
+            debug!("prob_mapping={}", *prob_mapping);
+            Ok( Some (
+                Observation {
+                    prob_mapping: prob_mapping,
+                    prob_alt: prob_alt,
+                    prob_ref: prob_ref,
+                    prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                    evidence: Evidence::alignment(cigar, record)
+                }
+            ))
+        } else {
+            Ok( None )
+        }
     }
 
+    /// extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
     fn fragment_observation(
         &self,
         left_record: &bam::Record,
         right_record: &bam::Record,
         variant: &Variant
     ) -> Result<Observation, Box<Error>> {
-        let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record);
+        let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
         let (p_ref, p_alt) = self.indel_fragment_evidence.borrow().prob(insert_size, variant)?;
 
         let obs = Observation {
@@ -790,15 +800,23 @@ mod tests {
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            let obs = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq).unwrap();
-            println!("{:?}", obs);
-            assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
-            assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
-            assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
+            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq).unwrap() {
+                println!("{:?}", obs);
+                assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
+                assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
+                assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
+            } else {
+                panic!("read_observation() test for indels failed; it returned 'None'.")
+            }
         }
     }
 
-    // TODO re-enable and adapt to changed API.
+    // fn simulate_mate(record: &bam::Record) -> bam::Record {
+    //     let mut mate_record = record.clone();
+    //     mate_record.set_pos(record.pos() + record.insert_size() - record.seq().len() as i32);
+    //     mate_record
+    // }
+    //
     // #[test]
     // fn test_fragment_observation_no_evidence() {
     //     let sample = setup_sample(150.0);
@@ -810,7 +828,7 @@ mod tests {
     //         println!("insertion");
     //         let variant = model::Variant::Insertion(vec![b'A'; *varlen]);
     //         for record in &records {
-    //             let obs = sample.fragment_observation(record, 60u8, &variant).unwrap();
+    //             let obs = sample.fragment_observation(record, &simulate_mate(record), &variant).unwrap();
     //             println!("{:?}", obs);
     //             if *varlen == 0 {
     //                 assert_relative_eq!(*obs.prob_ref, *obs.prob_alt);
@@ -821,7 +839,7 @@ mod tests {
     //         println!("deletion");
     //         let variant = model::Variant::Deletion(*varlen as u32);
     //         for record in &records {
-    //             let obs = sample.fragment_observation(record, 60u8, &variant).unwrap();
+    //             let obs = sample.fragment_observation(record, &simulate_mate(record), &variant).unwrap();
     //             println!("{:?}", obs);
     //             if *varlen == 0 {
     //                 assert_relative_eq!(*obs.prob_ref, *obs.prob_alt);
@@ -841,7 +859,7 @@ mod tests {
     //     let sample = setup_sample(100.0);
     //     let variant = model::Variant::Deletion(50);
     //     for record in &records {
-    //         let obs = sample.fragment_observation(record, 60u8, &variant).unwrap();
+    //         let obs = sample.fragment_observation(record, &simulate_mate(record), &variant).unwrap();
     //         println!("{:?}", obs);
     //         assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
     //         assert!(obs.prob_alt > obs.prob_ref);
@@ -851,7 +869,7 @@ mod tests {
     //     let sample = setup_sample(200.0);
     //     let variant = model::Variant::Insertion(vec![b'A'; 50]);
     //     for record in &records {
-    //         let obs = sample.fragment_observation(record, 60u8, &variant).unwrap();
+    //         let obs = sample.fragment_observation(record, &simulate_mate(record), &variant).unwrap();
     //         println!("{:?}", obs);
     //         assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
     //         assert!(obs.prob_alt > obs.prob_ref);
