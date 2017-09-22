@@ -1,7 +1,5 @@
 language: rust
 
-#cache: cargo
-
 rust:
   - stable
   - beta
@@ -12,16 +10,30 @@ matrix:
     - rust: nightly
     - rust: beta
 
-before_install:
-  - sudo apt-get -qq update
-  - sudo apt-get install -y libgsl0-dev
-  - curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
-  - sudo apt-get install -y git-lfs
+cache: cargo
+
+sudo: false
+
+# Dependencies of kcov, used for cargo-travis
+addons:
+  apt:
+    packages:
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+      - binutils-dev
+      - cmake
+    sources:
+      - kalakris-cmake
 
 before_script:
-  - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
-  - git lfs pull
+  - cargo install --force cargo-travis
+  - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
-  - travis-cargo build
-  - travis-cargo test
+  - |
+      cargo build &&
+      cargo test
+
+after_success:
+  - cargo coveralls
