@@ -23,6 +23,7 @@ addons:
       - libdw-dev
       - binutils-dev
       - cmake
+      - libgsl0-dev
     sources:
       - kalakris-cmake
 
