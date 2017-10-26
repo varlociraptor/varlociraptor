@@ -24,17 +24,17 @@ use utils;
 /// * `calls` - BCF reader with prosic calls
 /// * `null_calls` - calls under the null model, e.g. obtained by swapping tumor and normal sample
 /// * `writer` - writer for resulting thresholds
-/// * `event` - the event to control
+/// * `events` - the set of events to control (sum of the probabilities of the individual events at a site)
 /// * `vartype` - the variant type to consider
 pub fn control_fdr<E: Event, W: io::Write>(
     calls: &mut bcf::Reader,
     writer: &mut W,
-    event: &E,
+    events: &Vec<E>,
     vartype: &model::VariantType) -> Result<(), Box<Error>> {
     let mut writer = csv::Writer::from_writer(writer).delimiter(b'\t');
     try!(writer.write(["FDR", "max-prob"].into_iter()));
 
-    let prob_dist = utils::collect_prob_dist(calls, event, vartype)?;
+    let prob_dist = utils::collect_prob_dist(calls, events, vartype)?;
 
     if prob_dist.is_empty() {
         for &alpha in &ALPHAS {

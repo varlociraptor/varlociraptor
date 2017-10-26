@@ -174,12 +174,19 @@ impl ReferenceBuffer {
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
 /// libprosic.
+///
+/// # Arguments
+///
+/// * `calls` - BCF reader with libprosic calls
+/// * `events` - the set of events to sum up for a particular site
+/// * `vartype` - the variant type to consider
 pub fn collect_prob_dist<E: Event>(
     calls: &bcf::Reader,
-    event: &E,
+    events: &Vec<E>,
     vartype: &model::VariantType) -> Result<Vec<NotNaN<f64>>, Box<Error>> {
     let mut record = bcf::Record::new();
     let mut prob_dist = Vec::new();
+    let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     loop {
         if let Err(e) = calls.read(&mut record) {
             if e.is_eof() {
@@ -190,21 +197,25 @@ pub fn collect_prob_dist<E: Event>(
         }
 
         let variants = try!(utils::collect_variants(&mut record, false, false, None, false));
-        let tag = event.tag_name("PROB");
-        let event_probs = try!(record.info(tag.as_bytes()).float());
-        if let Some(event_probs) = event_probs {
-            // tag present
-            for (variant, event_prob) in variants.into_iter().zip(event_probs.into_iter()) {
-                if let Some(variant) = variant {
-                    if !variant.is_type(vartype) || event_prob.is_nan() {
-                        continue;
+        let events_prob_sum = LogProb::ln_zero();
+        for tag in &tags {
+            if let Some(event_probs) = try!(record.info(tag.as_bytes()).float()) {
+                //tag present
+                for (variant, event_prob) in (&variants).into_iter().zip(event_probs.into_iter()) {
+                    if let Some(ref variant) = *variant {
+                        if !variant.is_type(vartype) || event_prob.is_nan() {
+                            continue;
+                        }
+                        events_prob_sum.ln_add_exp(LogProb::from(PHREDProb( *event_prob as f64)));
                     }
-                    let event_prob = LogProb::from(PHREDProb(*event_prob as f64));
-                    prob_dist.push(try!(NotNaN::new(*event_prob)));
                 }
+
             }
         }
+        prob_dist.push(try!(NotNaN::new(*events_prob_sum)));
     }
     prob_dist.sort();
     Ok(prob_dist)
 }
+
+//TODO: tests for collect_prob_dist()
