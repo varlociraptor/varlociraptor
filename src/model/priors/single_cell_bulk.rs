@@ -53,7 +53,7 @@ impl SingleCellBulkModel {
 
         match *af_single_underlying {
             // model for hom ref sites
-            0.0 => {
+            f if f == 0.0 => {
                 let alpha = |cov| {
                     -0.000027183 * cov as f64 + 0.068567471
                 };
@@ -69,7 +69,7 @@ impl SingleCellBulkModel {
                 )
             },
             // model for heterozygous sites
-            0.5 => {
+            f if f == 0.5 => {
                 let weight = |cov| {
                     0.000548761 * cov as f64 + 0.540396786
                 };
@@ -95,7 +95,7 @@ impl SingleCellBulkModel {
                 )
             },
             // model for hom alt sites (hom ref density mirrored)
-            1.0 => {
+            f if f == 1.0 => {
                 let alpha = |cov| {
                     0.007454388 * cov as f64 + 2.367486659
                 };
