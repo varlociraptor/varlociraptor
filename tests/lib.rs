@@ -210,7 +210,7 @@ fn control_fdr_ev(test: &str) {
     libprosic::estimation::fdr::ev::control_fdr(
         &mut calls,
         &mut writer,
-        &libprosic::SimpleEvent { name: "SOMATIC".to_owned() },
+        &vec![ libprosic::SimpleEvent { name: "SOMATIC".to_owned() } ],
         &libprosic::model::VariantType::Deletion(Some(1..30))
     ).unwrap();
 }
