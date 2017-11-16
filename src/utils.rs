@@ -182,7 +182,7 @@ impl ReferenceBuffer {
 /// * `vartype` - the variant type to consider
 pub fn collect_prob_dist<E: Event>(
     calls: &bcf::Reader,
-    events: &Vec<E>,
+    events: &[E],
     vartype: &model::VariantType) -> Result<Vec<NotNaN<f64>>, Box<Error>> {
     let mut record = bcf::Record::new();
     let mut prob_dist = Vec::new();

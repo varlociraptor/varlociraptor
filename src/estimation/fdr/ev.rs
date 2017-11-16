@@ -29,7 +29,7 @@ use utils;
 pub fn control_fdr<E: Event, W: io::Write>(
     calls: &mut bcf::Reader,
     writer: &mut W,
-    events: &Vec<E>,
+    events: &[E],
     vartype: &model::VariantType) -> Result<(), Box<Error>> {
     let mut writer = csv::Writer::from_writer(writer).delimiter(b'\t');
     try!(writer.write(["FDR", "max-prob"].into_iter()));
