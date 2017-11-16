@@ -174,12 +174,19 @@ impl ReferenceBuffer {
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
 /// libprosic.
+///
+/// # Arguments
+///
+/// * `calls` - BCF reader with libprosic calls
+/// * `events` - the set of events to sum up for a particular site
+/// * `vartype` - the variant type to consider
 pub fn collect_prob_dist<E: Event>(
     calls: &bcf::Reader,
-    event: &E,
+    events: &[E],
     vartype: &model::VariantType) -> Result<Vec<NotNaN<f64>>, Box<Error>> {
     let mut record = bcf::Record::new();
     let mut prob_dist = Vec::new();
+    let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     loop {
         if let Err(e) = calls.read(&mut record) {
             if e.is_eof() {
@@ -189,22 +196,86 @@ pub fn collect_prob_dist<E: Event>(
             }
         }
 
-        let variants = try!(utils::collect_variants(&mut record, false, false, None, false));
-        let tag = event.tag_name("PROB");
-        let event_probs = try!(record.info(tag.as_bytes()).float());
-        if let Some(event_probs) = event_probs {
-            // tag present
-            for (variant, event_prob) in variants.into_iter().zip(event_probs.into_iter()) {
-                if let Some(variant) = variant {
-                    if !variant.is_type(vartype) || event_prob.is_nan() {
-                        continue;
+        let variants = (utils::collect_variants(&mut record, false, false, None, false))?;
+        let mut events_prob_sum = LogProb::ln_zero();
+        for tag in &tags {
+            if let Some(event_probs) = (record.info(tag.as_bytes()).float())? {
+                //tag present
+                for (variant, event_prob) in (&variants).into_iter().zip(event_probs.into_iter()) {
+                    if let Some(ref variant) = *variant {
+                        if !variant.is_type(vartype) || event_prob.is_nan() {
+                            continue;
+                        }
+                        events_prob_sum = events_prob_sum.ln_add_exp( LogProb::from( PHREDProb( *event_prob as f64 ) ) );
                     }
-                    let event_prob = LogProb::from(PHREDProb(*event_prob as f64));
-                    prob_dist.push(try!(NotNaN::new(*event_prob)));
                 }
+
             }
         }
+        prob_dist.push(try!(NotNaN::new( *events_prob_sum ) ));
     }
     prob_dist.sort();
     Ok(prob_dist)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use rust_htslib::bcf;
+    use bio::stats::Prob;
+    use model::VariantType;
+    use ComplementEvent;
+    use SimpleEvent;
+
+    #[test]
+    fn test_collect_prob_dist() {
+        // setup events with names as in prosic2
+        let events = vec![
+            SimpleEvent { name: "germline".to_owned() },
+            SimpleEvent { name: "somatic".to_owned() }
+        ];
+        // setup absent event as the complement of the other events
+        let absent_event = vec![ ComplementEvent { name: "absent".to_owned() } ];
+
+        let test_file = "tests/resources/test_collect_prob_dist/min.calls.vcf";
+
+        //TESTS deletion
+        let del = VariantType::Deletion(None);
+
+        let del_calls_1 = bcf::Reader::from_path( test_file ).unwrap();
+        if let Ok(prob_del) = collect_prob_dist(&del_calls_1, &events, &del) {
+            println!("prob_del[0]: {:?}", prob_del[0].into_inner() );
+            assert_eq!( prob_del.len(), 3 );
+            assert_relative_eq!( prob_del[2].into_inner(), Prob(0.8).ln(), epsilon = 0.000005 );
+        } else {
+            panic!("collect_prob_dist(&calls, &events, &del) returned Error")
+        }
+        let del_calls_2 = bcf::Reader::from_path( test_file ).unwrap();
+        if let Ok(prob_del_abs) = collect_prob_dist(&del_calls_2, &absent_event, &del) {
+            assert_eq!( prob_del_abs.len(), 3 );
+            assert_relative_eq!( prob_del_abs[2].into_inner(), Prob(0.2).ln(), epsilon = 0.000005 );
+        } else {
+            panic!("collect_prob_dist(&calls, &absent_event, &del) returned Error")
+        }
+
+        //TESTS insertion
+        let ins = VariantType::Insertion(None);
+
+        let ins_calls_1 = bcf::Reader::from_path( test_file ).unwrap();
+        if let Ok(prob_ins) = collect_prob_dist(&ins_calls_1, &events, &ins) {
+            assert_eq!( prob_ins.len(), 3 );
+            assert_relative_eq!( prob_ins[2].into_inner(), Prob(0.2).ln(), epsilon = 0.000005 );
+        } else {
+            panic!("collect_prob_dist(&calls, &events, &ins) returned Error")
+        }
+        let ins_calls_2 = bcf::Reader::from_path( test_file ).unwrap();
+        if let Ok(prob_ins_abs) = collect_prob_dist(&ins_calls_2, &absent_event, &ins) {
+            assert_eq!( prob_ins_abs.len(), 3 );
+            assert_relative_eq!( prob_ins_abs[2].into_inner(), Prob(0.8).ln(), epsilon = 0.000005 );
+        } else {
+            panic!("collect_prob_dist(&calls, &absent_event, &ins) returned Error")
+        }
+    }
+
 }
