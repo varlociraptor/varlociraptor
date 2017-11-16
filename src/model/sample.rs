@@ -257,7 +257,6 @@ pub struct Sample {
     adjust_mapq: bool,
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
-    prob_spurious_isize: LogProb,
     max_indel_overlap: u32,
     indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>
@@ -276,7 +275,6 @@ impl Sample {
     /// * `insert_size` - estimated insert size
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
     /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
-    /// * `prob_spurious_isize` - rate of wrongly reported insert size abberations (mapper dependent, BWA: 0.01332338, LASER: 0.05922201)
     /// * `max_indel_overlap` - maximum number of bases a read may be aligned beyond the start or end of an indel in order to be considered as an observation
     /// * `indel_haplotype_window` - maximum number of considered bases around an indel breakpoint
     pub fn new(
@@ -288,7 +286,6 @@ impl Sample {
         adjust_mapq: bool,
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
-        prob_spurious_isize: Prob,
         prob_insertion_artifact: Prob,
         prob_deletion_artifact: Prob,
         prob_insertion_extend_artifact: Prob,
@@ -303,7 +300,6 @@ impl Sample {
             adjust_mapq: adjust_mapq,
             insert_size: insert_size,
             likelihood_model: likelihood_model,
-            prob_spurious_isize: LogProb::from(prob_spurious_isize),
             max_indel_overlap: max_indel_overlap,
             indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
                 LogProb::from(prob_insertion_artifact),
@@ -773,7 +769,6 @@ mod tests {
             false,
             InsertSize { mean: isize_mean, sd: 20.0 },
             likelihood::LatentVariableModel::new(1.0),
-            Prob(0.0),
             constants::PROB_ILLUMINA_INS,
             constants::PROB_ILLUMINA_DEL,
             Prob(0.0),
