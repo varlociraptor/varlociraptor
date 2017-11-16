@@ -196,10 +196,10 @@ pub fn collect_prob_dist<E: Event>(
             }
         }
 
-        let variants = try!(utils::collect_variants(&mut record, false, false, None, false));
+        let variants = (utils::collect_variants(&mut record, false, false, None, false))?;
         let mut events_prob_sum = LogProb::ln_zero();
         for tag in &tags {
-            if let Some(event_probs) = try!(record.info(tag.as_bytes()).float()) {
+            if let Some(event_probs) = (record.info(tag.as_bytes()).float())? {
                 //tag present
                 for (variant, event_prob) in (&variants).into_iter().zip(event_probs.into_iter()) {
                     if let Some(ref variant) = *variant {
