@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.5.0] - 2017-11-17
+### Changed
+- FDR control now works for sets of events.
+- The pair HMM implementation has been finetuned and improved.
+- Artifacts from weird mapper decisions are now better detected.
+
+
 ## [0.4.0] - 2017-07-06
 ### Changed
 - Refactored and fixed the false discovery rate estimation code.
