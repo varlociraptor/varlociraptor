@@ -238,7 +238,7 @@ pub fn filter_by_threshold<E: Event>(
         }
 
         let variants = (utils::collect_variants(&mut record, false, false, None, false))?;
-        let mut events_probs = Vec::with_capacity(7);
+        let mut events_probs = Vec::with_capacity( variants.len() * tags.len() );
         for tag in &tags {
             if let Some(event_probs) = (record.info(tag.as_bytes()).float())? {
                 //tag present
