@@ -238,7 +238,7 @@ pub fn filter_by_threshold<E: Event>(
         }
 
         let variants = (utils::collect_variants(&mut record, false, false, None, false))?;
-        let mut events_prob_sum = LogProb::ln_zero();
+        let mut events_probs = Vec::new();
         for tag in &tags {
             if let Some(event_probs) = (record.info(tag.as_bytes()).float())? {
                 //tag present
@@ -247,11 +247,12 @@ pub fn filter_by_threshold<E: Event>(
                         if !variant.is_type(vartype) || event_prob.is_nan() {
                             continue;
                         }
-                        events_prob_sum = events_prob_sum.ln_add_exp( LogProb::from( PHREDProb( *event_prob as f64 ) ) );
+                        events_probs.push( LogProb::from( PHREDProb( *event_prob as f64 ) ) );
                     }
                 }
             }
         }
+        let events_prob_sum = LogProb::ln_sum_exp(&events_probs);
         if events_prob_sum >= lp_threshold { out.write(&record)? };
     }
 }
