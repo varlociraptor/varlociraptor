@@ -218,6 +218,57 @@ pub fn collect_prob_dist<E: Event>(
     Ok(prob_dist)
 }
 
+/// Filter a VCF record stream by a minimum threshold on the sum of
+/// posterior probabilities of a given set of Events. The threshold
+/// should be an informative false discovery rate (FDR) threshold,
+/// e.g. determined with the libprosic FDR control functionality.
+///
+/// # Arguments
+///
+/// * `calls` - BCF reader with libprosic calls
+/// * `threshold` - minimum threshold for the sum of posterior probabilities of the set of Events considered
+/// * `calls` - BCF writer for the filtered libprosic calls
+/// * `events` - the set of Events to filter on
+/// * `vartype` - the variant type to consider
+pub fn filter_by_threshold<E: Event>(
+    calls: &bcf::Reader,
+    threshold: &f64,
+    out: &mut bcf::Writer,
+    events: &[E],
+    vartype: &model::VariantType
+) -> Result<(), Box<Error>> {
+    let mut record = bcf::Record::new();
+    let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
+    let lp_threshold = LogProb::from( PHREDProb( *threshold + 0.000000001) ); // the manual epsilon is required, because the threshold output by `control-fdr` has some digits cut off, which can lead to the threshold being lower than the values reread from the BCF record only due to a higher precision
+    loop {
+        if let Err(e) = calls.read(&mut record) {
+            if e.is_eof() {
+                return Ok(());
+            } else {
+                return Err(Box::new(e));
+            }
+        }
+
+        let variants = (utils::collect_variants(&mut record, false, false, None, false))?;
+        let mut events_probs = Vec::with_capacity( variants.len() * tags.len() );
+        for tag in &tags {
+            if let Some(event_probs) = (record.info(tag.as_bytes()).float())? {
+                //tag present
+                for (variant, event_prob) in (&variants).into_iter().zip(event_probs.into_iter()) {
+                    if let Some(ref variant) = *variant {
+                        if !variant.is_type(vartype) || event_prob.is_nan() {
+                            continue;
+                        }
+                        events_probs.push( LogProb::from( PHREDProb( *event_prob as f64 ) ) );
+                    }
+                }
+            }
+        }
+        let events_prob_sum = LogProb::ln_sum_exp(&events_probs);
+        if events_prob_sum >= lp_threshold { out.write(&record)? };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
