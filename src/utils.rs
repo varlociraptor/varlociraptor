@@ -218,6 +218,18 @@ pub fn collect_prob_dist<E: Event>(
     Ok(prob_dist)
 }
 
+/// Filter a VCF record stream by a minimum threshold on the sum of
+/// posterior probabilities of a given set of Events. The threshold
+/// should be an informative false discovery rate (FDR) threshold,
+/// e.g. determined with the libprosic FDR control functionality.
+///
+/// # Arguments
+///
+/// * `calls` - BCF reader with libprosic calls
+/// * `threshold` - minimum threshold for the sum of posterior probabilities of the set of Events considered
+/// * `calls` - BCF writer for the filtered libprosic calls
+/// * `events` - the set of Events to filter on
+/// * `vartype` - the variant type to consider
 pub fn filter_by_threshold<E: Event>(
     calls: &bcf::Reader,
     threshold: &f64,
