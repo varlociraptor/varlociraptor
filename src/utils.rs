@@ -171,6 +171,38 @@ impl ReferenceBuffer {
     }
 }
 
+/// Sum up in log space the probabilities of the given tags for all variants of
+/// vartype in the given BCF record.
+///
+/// # Arguments
+///
+/// * `record` - BCF record
+/// * `tags` - tags of the set of events to sum up for a particular site and variant
+/// * `vartype` - the variant type to consider
+fn tags_prob_sum(
+    record: &mut bcf::Record,
+    tags: &[String],
+    vartype: &model::VariantType
+) -> Result<LogProb, Box<Error>> {
+
+    let variants = (utils::collect_variants(record, false, false, None, false))?;
+    let mut tags_probs_out = Vec::with_capacity( variants.len() * tags.len() );
+
+    for tag in tags {
+        if let Some(tags_probs_in) = (record.info(tag.as_bytes()).float())? {
+            //tag present
+            for (variant, tag_prob) in (&variants).into_iter().zip(tags_probs_in.into_iter()) {
+                if let Some(ref variant) = *variant {
+                    if !variant.is_type(vartype) || tag_prob.is_nan() {
+                        continue;
+                    }
+                    tags_probs_out.push( LogProb::from( PHREDProb( *tag_prob as f64 ) ) );
+                }
+            }
+        }
+    }
+    Ok(LogProb::ln_sum_exp(&tags_probs_out))
+}
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
 /// libprosic.
@@ -196,22 +228,7 @@ pub fn collect_prob_dist<E: Event>(
             }
         }
 
-        let variants = (utils::collect_variants(&mut record, false, false, None, false))?;
-        let mut events_prob_sum = LogProb::ln_zero();
-        for tag in &tags {
-            if let Some(event_probs) = (record.info(tag.as_bytes()).float())? {
-                //tag present
-                for (variant, event_prob) in (&variants).into_iter().zip(event_probs.into_iter()) {
-                    if let Some(ref variant) = *variant {
-                        if !variant.is_type(vartype) || event_prob.is_nan() {
-                            continue;
-                        }
-                        events_prob_sum = events_prob_sum.ln_add_exp( LogProb::from( PHREDProb( *event_prob as f64 ) ) );
-                    }
-                }
-
-            }
-        }
+        let events_prob_sum = utils::tags_prob_sum(&mut record, &tags, &vartype)?;
         prob_dist.push(try!(NotNaN::new( *events_prob_sum ) ));
     }
     prob_dist.sort();
@@ -249,22 +266,7 @@ pub fn filter_by_threshold<E: Event>(
             }
         }
 
-        let variants = (utils::collect_variants(&mut record, false, false, None, false))?;
-        let mut events_probs = Vec::with_capacity( variants.len() * tags.len() );
-        for tag in &tags {
-            if let Some(event_probs) = (record.info(tag.as_bytes()).float())? {
-                //tag present
-                for (variant, event_prob) in (&variants).into_iter().zip(event_probs.into_iter()) {
-                    if let Some(ref variant) = *variant {
-                        if !variant.is_type(vartype) || event_prob.is_nan() {
-                            continue;
-                        }
-                        events_probs.push( LogProb::from( PHREDProb( *event_prob as f64 ) ) );
-                    }
-                }
-            }
-        }
-        let events_prob_sum = LogProb::ln_sum_exp(&events_probs);
+        let events_prob_sum = utils::tags_prob_sum(&mut record, &tags, &vartype)?;
         if events_prob_sum >= lp_threshold { out.write(&record)? };
     }
 }
