@@ -224,8 +224,6 @@ fn control_fdr_ev(test: &str) {
 ///   reasonable distance. It turns out that at least for BWA the MAPQ is not accurately modelling
 ///   the uncertainty in such cases.
 #[test]
-// TODO remove ignore once fixed
-#[ignore]
 fn test1() {
     call_tumor_normal("test1", false);
     let mut call = load_call("test1");
@@ -273,17 +271,12 @@ fn test4() {
 }
 
 
-/// Test a Delly call in a repeat region. It is a false positive that should be absent instead.
-/// But so far it is reported as somatic (however, at least with a weak probability).
+/// Test a Delly call in a repeat region. It is most likely a germline variant from Venter.
 #[test]
-// TODO remove ignore once fixed
-// TODO is this really absent? We now call this quite confidently as germline...
-#[ignore]
 fn test5() {
     call_tumor_normal("test5", true);
     let mut call = load_call("test5");
-    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
 }
 
 
