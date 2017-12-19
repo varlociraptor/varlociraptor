@@ -3,6 +3,10 @@ use rust_htslib::bam::record::{Cigar, CigarStringView};
 
 pub mod reads;
 pub mod fragments;
+pub mod observation;
+
+pub use self::observation::Observation;
+pub use self::observation::Evidence;
 
 
 pub struct Clips {

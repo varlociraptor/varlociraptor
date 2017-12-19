@@ -238,7 +238,7 @@ mod tests {
     use bio::stats::{Prob, LogProb};
     use model::{ContinuousAlleleFreqs, AlleleFreq, likelihood, PairPileup, Variant};
     use model::priors::PairModel;
-    use model::sample::{Observation, Evidence};
+    use model::evidence::{Observation, Evidence};
 
     #[test]
     fn print_priors() {

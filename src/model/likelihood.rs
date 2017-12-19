@@ -1,6 +1,6 @@
 use bio::stats::LogProb;
 
-use model::sample::Observation;
+use model::evidence::Observation;
 
 
 pub type AlleleFreq = f64;
@@ -94,7 +94,7 @@ impl LatentVariableModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use model::sample::{Observation, Evidence};
+    use model::evidence::{Observation, Evidence};
     use itertools_num::linspace;
     use bio::stats::LogProb;
 

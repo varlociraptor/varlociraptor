@@ -329,7 +329,7 @@ mod tests {
     use super::*;
     use bio::stats::LogProb;
     use model::{ContinuousAlleleFreqs, AlleleFreq, AlleleFreqs, likelihood, Variant, PairPileup, priors};
-    use model::sample::{Observation, Evidence};
+    use model::evidence::{Observation, Evidence};
 
     #[test]
     fn test_prob_rho() {

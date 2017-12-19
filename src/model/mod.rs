@@ -14,7 +14,8 @@ pub mod evidence;
 
 use bio::stats::LogProb;
 
-use model::sample::{Sample, Observation};
+use model::sample::Sample;
+use model::evidence::Observation;
 
 
 pub type AlleleFreq = NotNaN<f64>;
@@ -444,7 +445,7 @@ mod tests {
     use likelihood::LatentVariableModel;
     use Sample;
     use InsertSize;
-    use model::sample::{Observation, Evidence};
+    use model::evidence::{Observation, Evidence};
     use constants;
 
     use rust_htslib::bam;
