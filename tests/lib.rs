@@ -291,5 +291,4 @@ fn test_fdr_ev1() {
 fn test_fdr_ev2() {
     control_fdr_ev("test_fdr_ev_2");
     // TODO add a reasonable assertion
-    assert!(false);
 }
