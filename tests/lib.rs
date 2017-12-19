@@ -281,7 +281,15 @@ fn test5() {
 
 
 #[test]
-fn test_fdr_ev() {
+fn test_fdr_ev1() {
     control_fdr_ev("test_fdr_ev_1");
     // TODO add a reasonable assertion
+}
+
+
+#[test]
+fn test_fdr_ev2() {
+    control_fdr_ev("test_fdr_ev_2");
+    // TODO add a reasonable assertion
+    assert!(false);
 }
