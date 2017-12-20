@@ -405,7 +405,21 @@ impl Sample {
         }
     }
 
-    /// extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
+    /// Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
+    /// Here we calculate the product of insert size based and alignment based probabilities.
+    /// This has the benefit that the calculating automatically checks for consistence between
+    /// insert size and overlapping alignmnments.
+    /// This sports the following desirable behavior:
+    ///
+    /// * If there is no clear evidence from either the insert size or the alignment, the factors
+    ///   simply
+    ///   scale because the probabilities of the corresponding type of evidence will be equal.
+    /// * If reads and fragments agree, 1 stays 1 and 0 stays 0.
+    /// * If reads and fragments disagree (the promising part!), the other type of evidence will
+    ///   scale potential false positive probabilities down.
+    /// * Since there is only one observation per fragment, there is no double counting when
+    ///   estimating allele frequencies. Before, we had one observation for an overlapping read
+    ///   and potentially another observation for the corresponding fragment.
     fn fragment_observation(
         &self,
         left_record: &bam::Record,
