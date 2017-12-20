@@ -95,7 +95,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
         tumor_bam,
         2500,
         true,
-        true,
+        false,
         true,
         false,
         insert_size,
@@ -112,7 +112,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
         normal_bam,
         2500,
         true,
-        true,
+        false,
         true,
         false,
         insert_size,
@@ -230,8 +230,8 @@ fn test1() {
 
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.1);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_ABSENT", 0.89, 0.01);
-    check_info_float(&mut call, b"PROB_SOMATIC", 7.31, 0.01);
+    check_info_float(&mut call, b"PROB_ABSENT", 1.92, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 4.5, 0.01);
 }
 
 
@@ -243,7 +243,7 @@ fn test2() {
 
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 1.0e-3, 1.0e-3);
+    check_info_float(&mut call, b"PROB_SOMATIC", 1.85, 0.01);
 }
 
 
@@ -253,9 +253,9 @@ fn test3() {
     call_tumor_normal("test3", false);
     let mut call = load_call("test3");
 
-    check_info_float(&mut call, b"CASE_AF", 0.5, 0.04);
+    check_info_float(&mut call, b"CASE_AF", 0.5, 0.17); // TODO: here a prior could help
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.04);
-    check_info_float(&mut call, b"PROB_GERMLINE", 3.0e-23, 3.0e-23);
+    check_info_float(&mut call, b"PROB_GERMLINE", 7.0e-5, 7.0e-5);
 }
 
 
@@ -265,9 +265,9 @@ fn test4() {
     call_tumor_normal("test4", false);
     let mut call = load_call("test4");
 
-    check_info_float(&mut call, b"CASE_AF", 0.042, 0.1);
+    check_info_float(&mut call, b"CASE_AF", 0.042, 0.2);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.01, 0.06);
+    check_info_float(&mut call, b"PROB_SOMATIC", 2.04, 0.05);
 }
 
 

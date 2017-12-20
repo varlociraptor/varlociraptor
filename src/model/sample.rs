@@ -312,34 +312,7 @@ impl Sample {
                     if !self.is_reliable_read(record) {
                         continue;
                     }
-
-                    let cigar = record.cigar();
                     let pos = record.pos() as u32;
-                    let end_pos = cigar.end_pos()? as u32;
-
-                    let overlap = {
-                        // consider soft clips for overlap detection
-                        let pos = pos.saturating_sub(evidence::Clips::leading(&cigar).soft());
-                        let end_pos = end_pos + evidence::Clips::trailing(&cigar).soft();
-
-                        if end_pos <= end {
-                            cmp::min(end_pos.saturating_sub(start), variant.len())
-                        } else {
-                            cmp::min(end.saturating_sub(pos), variant.len())
-                        }
-                    };
-
-                    // read evidence
-                    if overlap > 0 {
-                        if overlap <= self.max_indel_overlap {
-                            if let Some( obs ) = self.read_observation(&record, &cigar, start, variant, chrom_seq)? {
-                                observations.push( obs );
-                                n_overlap += 1;
-                            } else {
-                                panic!("Got an unexpected 'None' when trying to read_observation() for an indel.")
-                            }
-                        }
-                    }
 
                     // fragment evidence
                     // We have to consider the fragment even if the read has been used for the
@@ -347,9 +320,6 @@ impl Sample {
                     // alternative alleles (since reference reads tend to overlap the centerpoint).
                     if self.use_fragment_evidence &&
                        (record.is_first_in_template() || record.is_last_in_template()) {
-                        // project all trailing clips (nothing of the read shall overlap the
-                        // centerpoint)
-                        // let end_pos = end_pos + trailing_clips(&cigar, true);
 
                         // We ensure fair sampling by checking if the whole fragment overlaps the
                         // centerpoint. Only taking the internal segment would not be fair,
@@ -358,31 +328,18 @@ impl Sample {
                         // The latter would not happen for alt fragments, because the second read
                         // would map right of the variant in that case.
                         if pos <= centerpoint {
-                        //if end_pos <= centerpoint {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
                             let tlen = record.insert_size().abs() as u32;
                             if pos + tlen >= centerpoint {
-                            //if record.mpos() as u32 >= centerpoint {
                                 pairs.insert(record.qname().to_owned(), record);
                             }
                         } else if let Some(mate) = pairs.get(record.qname()) {
                             // mate already visited, and this fragment overlaps centerpoint
                             observations.push(
                                 // the mate is always the left read of the pair
-                                self.fragment_observation(mate, &record, variant)?
+                                self.fragment_observation(mate, &record, start, variant, chrom_seq, centerpoint, end)?
                             );
-
-                            // project all leading clips (nothing of the read shall overlap the
-                            // centerpoint).
-                            // let pos = (record.pos() as u32).saturating_sub(
-                            //     leading_clips(&cigar, true)
-                            // );
-                            // if pos >= centerpoint {
-                            //     observations.push(
-                            //         self.fragment_observation(&record, *mate_mapq, variant)?
-                            //     );
-                            // }
                         }
                     }
                 }
@@ -453,15 +410,50 @@ impl Sample {
         &self,
         left_record: &bam::Record,
         right_record: &bam::Record,
-        variant: &Variant
+        start: u32,
+        variant: &Variant,
+        chrom_seq: &[u8],
+        centerpoint: u32,
+        end: u32
     ) -> Result<Observation, Box<Error>> {
+
+        let prob_read = |record: &bam::Record| {
+            let cigar = record.cigar();
+            let pos = record.pos() as u32;
+            let end_pos = cigar.end_pos()? as u32;
+
+            let overlap = {
+                // consider soft clips for overlap detection
+                let pos = pos.saturating_sub(evidence::Clips::leading(&cigar).soft());
+                let end_pos = end_pos + evidence::Clips::trailing(&cigar).soft();
+
+                if end_pos <= end {
+                    cmp::min(end_pos.saturating_sub(start), variant.len())
+                } else {
+                    cmp::min(end.saturating_sub(pos), variant.len())
+                }
+            };
+
+            // read evidence
+            if overlap > 0 && overlap <= self.max_indel_overlap {
+                self.indel_read_evidence.borrow_mut()
+                                        .prob(record, &cigar, start, variant, chrom_seq)
+            } else {
+                Ok((LogProb::ln_one(), LogProb::ln_one()))
+            }
+        };
+
+        // obtain probabilities for both reads
+        let (p_ref_left, p_alt_left) = prob_read(left_record)?;
+        let (p_ref_right, p_alt_right) = prob_read(right_record)?;
+
         let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
-        let (p_ref, p_alt) = self.indel_fragment_evidence.borrow().prob(insert_size, variant)?;
+        let (p_ref_isize, p_alt_isize) = self.indel_fragment_evidence.borrow().prob(insert_size, variant)?;
 
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
-            prob_alt: p_alt,
-            prob_ref: p_ref,
+            prob_alt: p_alt_isize + p_alt_left + p_alt_right,
+            prob_ref: p_ref_isize + p_ref_left + p_ref_right,
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
             evidence: Evidence::insert_size(
                 insert_size as u32,
