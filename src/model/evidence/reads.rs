@@ -67,8 +67,6 @@ impl IndelEvidence {
     }
 
     /// Calculate probability for reference and alternative allele.
-    /// If the record does not overlap the given variant, the probability for ref and alt is
-    /// calculated only once, over an artificial breakpoint in the center of the read.
     pub fn prob(&mut self,
         record: &bam::Record,
         cigar: &CigarStringView,
@@ -79,7 +77,7 @@ impl IndelEvidence {
         let read_seq = record.seq();
         let read_qual = record.qual();
 
-        let (read_offset, read_end, breakpoint, overlap) = {
+        let (read_offset, read_end, breakpoint) = {
             let (varstart, varend) = match variant {
                 &Variant::Deletion(_) => (start, start + variant.len()),
                 &Variant::Insertion(_) => (start, start + 1),
@@ -99,7 +97,7 @@ impl IndelEvidence {
                         qend + self.window as usize,
                         read_seq.len()
                     );
-                    (read_offset, read_end, varstart as usize, true)
+                    (read_offset, read_end, varstart as usize)
                 },
                 (Some(qstart), None) => {
                     let qstart = qstart as usize;
@@ -108,7 +106,7 @@ impl IndelEvidence {
                         qstart + self.window as usize,
                         read_seq.len()
                     );
-                    (read_offset, read_end, varstart as usize, true)
+                    (read_offset, read_end, varstart as usize)
                 },
                 (None, Some(qend)) => {
                     let qend = qend as usize;
@@ -117,26 +115,16 @@ impl IndelEvidence {
                         qend + self.window as usize,
                         read_seq.len()
                     );
-                    (read_offset, read_end, varend as usize, true)
+                    (read_offset, read_end, varend as usize)
                 },
                 (None, None) => {
-                    // panic!(
-                    //     "bug: read does not overlap breakpoint: pos={}, cigar={}, start={}, len={}",
-                    //     record.pos(),
-                    //     cigar,
-                    //     start,
-                    //     variant.len()
-                    // );
-                    // no overlap: create artifical breakpoint in the center of the read below
-                    let center = read_seq.len() / 2;
-                    let read_offset = center.saturating_sub(self.window as usize);
-                    let read_end = cmp::min(
-                        center + self.window as usize,
-                        read_seq.len()
+                    panic!(
+                        "bug: read does not overlap breakpoint: pos={}, cigar={}, start={}, len={}",
+                        record.pos(),
+                        cigar,
+                        start,
+                        variant.len()
                     );
-                    let breakpoint = record.pos() as usize + center;
-
-                    (read_offset, read_end, breakpoint, false)
                 }
             }
         };
@@ -161,50 +149,45 @@ impl IndelEvidence {
         );
 
         // alt allele
-        let prob_alt = if overlap {
-            match variant {
-                &Variant::Deletion(_) => {
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &DeletionEmissionParams {
-                            ref_seq: ref_seq,
-                            read_seq: &read_seq,
-                            read_qual: read_qual,
-                            read_offset: read_offset,
-                            read_end: read_end,
-                            ref_offset: start.saturating_sub(ref_window),
-                            ref_end: cmp::min(start + ref_window, ref_seq.len()),
-                            del_start: start,
-                            del_len: variant.len() as usize
-                        }
-                    )
-                },
-                &Variant::Insertion(ref ins_seq) => {
-                    let l = ins_seq.len() as usize;
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &InsertionEmissionParams {
-                            ref_seq: ref_seq,
-                            read_seq: &read_seq,
-                            read_qual: read_qual,
-                            read_offset: read_offset,
-                            read_end: read_end,
-                            ref_offset: start.saturating_sub(ref_window),
-                            ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
-                            ins_start: start,
-                            ins_len: l,
-                            ins_end: start + l,
-                            ins_seq: ins_seq
-                        }
-                    )
-                },
-                _ => {
-                    panic!("bug: unsupported variant");
-                }
+        let prob_alt = match variant {
+            &Variant::Deletion(_) => {
+                self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &DeletionEmissionParams {
+                        ref_seq: ref_seq,
+                        read_seq: &read_seq,
+                        read_qual: read_qual,
+                        read_offset: read_offset,
+                        read_end: read_end,
+                        ref_offset: start.saturating_sub(ref_window),
+                        ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                        del_start: start,
+                        del_len: variant.len() as usize
+                    }
+                )
+            },
+            &Variant::Insertion(ref ins_seq) => {
+                let l = ins_seq.len() as usize;
+                self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &InsertionEmissionParams {
+                        ref_seq: ref_seq,
+                        read_seq: &read_seq,
+                        read_qual: read_qual,
+                        read_offset: read_offset,
+                        read_end: read_end,
+                        ref_offset: start.saturating_sub(ref_window),
+                        ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
+                        ins_start: start,
+                        ins_len: l,
+                        ins_end: start + l,
+                        ins_seq: ins_seq
+                    }
+                )
+            },
+            _ => {
+                panic!("bug: unsupported variant");
             }
-        } else {
-            // no overlap, we just copy the ref allele probability over the artificial breakpoint
-            prob_ref
         };
 
         Ok((prob_ref, prob_alt))

@@ -414,19 +414,29 @@ impl Sample {
 
     /// Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
     /// Here we calculate the product of insert size based and alignment based probabilities.
-    /// This has the benefit that the calculating automatically checks for consistence between
+    /// This has the benefit that the calculation automatically checks for consistence between
     /// insert size and overlapping alignmnments.
     /// This sports the following desirable behavior:
     ///
     /// * If there is no clear evidence from either the insert size or the alignment, the factors
-    ///   simply
-    ///   scale because the probabilities of the corresponding type of evidence will be equal.
+    ///   simply scale because the probabilities of the corresponding type of evidence will be equal.
     /// * If reads and fragments agree, 1 stays 1 and 0 stays 0.
     /// * If reads and fragments disagree (the promising part!), the other type of evidence will
     ///   scale potential false positive probabilities down.
     /// * Since there is only one observation per fragment, there is no double counting when
     ///   estimating allele frequencies. Before, we had one observation for an overlapping read
     ///   and potentially another observation for the corresponding fragment.
+    ///
+    /// Two important tweaks are made:
+    ///
+    /// 1. Insert size based probabilities are only used when the variant length
+    ///    exceeds the standard deviation. Otherwise noise from the isize distribution can destroy
+    ///    the read based evidence, e.g., leading to wrong allele frequency estimates.
+    /// 2. Alignment based probability is only used if the read overlaps the variant. Otherwise,
+    ///    the impact of other variants on the same haplotype (within the non-overlapping read)
+    ///    could cause a bias in the resulting probability. E.g., all alt supporting pairs could
+    ///    be downweighted, because there is another variant (that is not considered because we
+    ///    only look at one variant) in the second read.
     fn fragment_observation(
         &self,
         left_record: &bam::Record,
@@ -462,24 +472,13 @@ impl Sample {
             } else {
                 Ok(None)
             }
-
-            // Calculate evidence regardless of overlap.
-            // This ensures that fragments where the variant is between the reads do not get
-            // too much weight because the read evidence would not contribute to the product below.
-            // self.indel_read_evidence.borrow_mut()
-            //                         .prob(record, &cigar, start, variant, chrom_seq)
         };
 
-        let p_left = prob_read(left_record)?;
-        let p_right = prob_read(right_record)?;
-
-        // if p_left.is_none() && p_right.is_none() {
-        //     // if there is no overlap in any of the reads, we ignore the fragment
-        //     return Ok(None);
-        // }
-        let p_ignore = || (LogProb::ln_one(), LogProb::ln_one());
 
         // obtain probabilities for both reads
+        let p_left = prob_read(left_record)?;
+        let p_right = prob_read(right_record)?;
+        let p_ignore = || (LogProb::ln_one(), LogProb::ln_one());
         let (p_ref_left, p_alt_left) = prob_read(left_record)?.unwrap_or_else(&p_ignore);
         let (p_ref_right, p_alt_right) = prob_read(right_record)?.unwrap_or_else(&p_ignore);
 
@@ -492,9 +491,6 @@ impl Sample {
         } else {
             (LogProb::ln_one(), LogProb::ln_one())
         };
-
-        // let (p_ref_isize, p_alt_isize) = (LogProb(-8.0), LogProb(-8.0));
-        //let (p_ref_isize, p_alt_isize) = (LogProb(0.0), LogProb(0.0));
 
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
