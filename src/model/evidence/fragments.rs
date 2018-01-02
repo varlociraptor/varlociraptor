@@ -102,6 +102,11 @@ impl IndelEvidence {
         }
     }
 
+    /// Returns true if
+    pub fn is_discriminative(&self, variant: &Variant) -> bool {
+        variant.len() as f64 > self.insert_size.sd
+    }
+
     /// Calculate probability for reference and alternative allele.
     pub fn prob(&self,
         insert_size: u32,

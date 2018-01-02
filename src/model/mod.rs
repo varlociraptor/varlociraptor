@@ -237,7 +237,7 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
         self.marginal_prob.get().unwrap()
     }
 
-    fn joint_prob(&self, af: &A) -> LogProb {
+    pub fn joint_prob(&self, af: &A) -> LogProb {
         let likelihood = |af: AlleleFreq| {
             self.likelihood(af)
         };
@@ -387,7 +387,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         self.marginal_prob.get().unwrap()
     }
 
-    fn joint_prob(&self, af_case: &A, af_control: &B) -> LogProb {
+    pub fn joint_prob(&self, af_case: &A, af_control: &B) -> LogProb {
         let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
             self.case_likelihood(af_case, af_control)
         };

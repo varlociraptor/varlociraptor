@@ -140,7 +140,22 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
             name: "absent".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..0.0 ),
             af_control: vec![AlleleFreq(0.0)]
-        }
+        },
+        // libprosic::call::pairwise::PairEvent {
+        //     name: "test_germline0.0".to_owned(),
+        //     af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
+        //     af_control: vec![AlleleFreq(0.5)]
+        // },
+        // libprosic::call::pairwise::PairEvent {
+        //     name: "test_germline0.5".to_owned(),
+        //     af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
+        //     af_control: vec![AlleleFreq(0.5)]
+        // },
+        // libprosic::call::pairwise::PairEvent {
+        //     name: "test_germline1.0".to_owned(),
+        //     af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
+        //     af_control: vec![AlleleFreq(1.0)]
+        // }
     ];
 
     let prior_model = libprosic::priors::FlatTumorNormalModel::new(2);
@@ -230,8 +245,8 @@ fn test1() {
 
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.1);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_ABSENT", 1.92, 0.01);
-    check_info_float(&mut call, b"PROB_SOMATIC", 4.5, 0.01);
+    check_info_float(&mut call, b"PROB_ABSENT", 1.0, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 8.0, 0.5);
 }
 
 
@@ -243,7 +258,7 @@ fn test2() {
 
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 1.85, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.18, 0.05);
 }
 
 
@@ -265,18 +280,32 @@ fn test4() {
     call_tumor_normal("test4", false);
     let mut call = load_call("test4");
 
-    check_info_float(&mut call, b"CASE_AF", 0.042, 0.2);
+    check_info_float(&mut call, b"CASE_AF", 0.042, 0.1);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 2.04, 0.05);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.02, 0.05);
 }
 
 
-/// Test a Delly call in a repeat region. It is most likely a germline variant from Venter.
+/// Test a Delly call in a repeat region. There is most likely a heterozygous germline variant
+/// from Venter.
 #[test]
 fn test5() {
     call_tumor_normal("test5", true);
     let mut call = load_call("test5");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_GERMLINE", 3.0, 0.1);
+}
+
+
+/// Test a small Lancet deletion. It is a somatic call (AF=0.125) in reality.
+#[test]
+fn test7() {
+    call_tumor_normal("test7", false);
+    let mut call = load_call("test7");
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 0.125, 0.1);
+    check_info_float(&mut call, b"PROB_SOMATIC", 1.0, 0.5);
+    check_info_float(&mut call, b"PROB_GERMLINE", 9.0, 0.5);
 }
 
 

@@ -196,7 +196,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
                     let p = if let &Some(ref pileup) = pileup {
                         // TODO use joint probability instead of posterior since we do the
                         // normalization below.
-                        Some(pileup.posterior_prob(&event.af_case, &event.af_control))
+                        Some(pileup.joint_prob(&event.af_case, &event.af_control))
                     } else {
                         // indicate missing value
                         None

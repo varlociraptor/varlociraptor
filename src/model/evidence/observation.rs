@@ -63,11 +63,10 @@ impl Evidence {
         right_record: &bam::Record
     ) -> Self {
         Evidence::InsertSize(format!(
-            "insert-size={}, left: cigar={}, qname={}, AS={:?}, XS={:?}, right: cigar={}, AS={:?}, XS={:?}",
-            insert_size, left, str::from_utf8(left_record.qname()).unwrap(),
+            "left: cigar={}, right: cigar={}, insert-size={}, qname={}, left: AS={:?}, XS={:?}, right: AS={:?}, XS={:?}",
+            left, right, insert_size, str::from_utf8(left_record.qname()).unwrap(),
             left_record.aux(b"AS").map(|a| a.integer()),
             left_record.aux(b"XS").map(|a| a.integer()),
-            right,
             right_record.aux(b"AS").map(|a| a.integer()),
             right_record.aux(b"XS").map(|a| a.integer())
         ))

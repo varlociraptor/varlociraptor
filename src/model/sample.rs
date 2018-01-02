@@ -140,6 +140,9 @@ impl RecordBuffer {
                 if !self.use_secondary && record.is_secondary() {
                     continue;
                 }
+                if record.qname() == b"sim_Som3-5-1_chr1_2_2015af" {
+                    println!("buff rec {}", str::from_utf8(record.qname()).unwrap());
+                }
                 self.inner.push_back(record);
                 if pos > end as i32 + self.window as i32 {
                     break;
@@ -189,7 +192,7 @@ impl Sample {
     /// # Arguments
     ///
     /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
-    /// * `pileup_window` - Window around the variant that shall be search for evidence (e.g. 5000).
+    /// * `pileup_window` - Window around the variant that shall be searched for evidence (e.g. 5000).
     /// * `use_fragment_evidence` - Whether to use read pairs that are left and right of variant.
     /// * `use_secondary` - Whether to use secondary alignments.
     /// * `insert_size` - estimated insert size
@@ -309,10 +312,11 @@ impl Sample {
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
-                    if !self.is_reliable_read(record) {
-                        continue;
-                    }
+                    // if !self.is_reliable_read(record) {
+                    //     continue;
+                    // }
                     let pos = record.pos() as u32;
+                    //println!("rec {}", str::from_utf8(record.qname()).unwrap());
 
                     // fragment evidence
                     // We have to consider the fragment even if the read has been used for the
@@ -320,6 +324,7 @@ impl Sample {
                     // alternative alleles (since reference reads tend to overlap the centerpoint).
                     if self.use_fragment_evidence &&
                        (record.is_first_in_template() || record.is_last_in_template()) {
+                        //println!("considered {}", str::from_utf8(record.qname()).unwrap());
 
                         // We ensure fair sampling by checking if the whole fragment overlaps the
                         // centerpoint. Only taking the internal segment would not be fair,
@@ -327,19 +332,21 @@ impl Sample {
                         // the centerpoint and the fragment would be discarded.
                         // The latter would not happen for alt fragments, because the second read
                         // would map right of the variant in that case.
-                        if pos <= centerpoint {
+                        if pos <= centerpoint && !pairs.contains_key(record.qname()) {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
                             let tlen = record.insert_size().abs() as u32;
                             if pos + tlen >= centerpoint {
+                                //println!("read {}: pos={}, pos+tlen={}", str::from_utf8(record.qname()).unwrap(), pos, pos+tlen);
                                 pairs.insert(record.qname().to_owned(), record);
                             }
                         } else if let Some(mate) = pairs.get(record.qname()) {
+                            //println!("mate {}", str::from_utf8(record.qname()).unwrap());
                             // mate already visited, and this fragment overlaps centerpoint
-                            observations.push(
-                                // the mate is always the left read of the pair
-                                self.fragment_observation(mate, &record, start, variant, chrom_seq, centerpoint, end)?
-                            );
+                            // the mate is always the left read of the pair
+                            if let Some(obs) = self.fragment_observation(mate, &record, start, variant, chrom_seq, centerpoint, end)? {
+                                observations.push(obs);
+                            }
                         }
                     }
                 }
@@ -429,9 +436,9 @@ impl Sample {
         chrom_seq: &[u8],
         centerpoint: u32,
         end: u32
-    ) -> Result<Observation, Box<Error>> {
+    ) -> Result<Option<Observation>, Box<Error>> {
 
-        let prob_read = |record: &bam::Record| {
+        let prob_read = |record: &bam::Record| -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
             let cigar = record.cigar();
             let pos = record.pos() as u32;
             let end_pos = cigar.end_pos()? as u32;
@@ -450,19 +457,44 @@ impl Sample {
 
             // read evidence
             if overlap > 0 && overlap <= self.max_indel_overlap {
-                self.indel_read_evidence.borrow_mut()
-                                        .prob(record, &cigar, start, variant, chrom_seq)
+                Ok(Some(self.indel_read_evidence.borrow_mut()
+                                                .prob(record, &cigar, start, variant, chrom_seq)?))
             } else {
-                Ok((LogProb::ln_one(), LogProb::ln_one()))
+                Ok(None)
             }
+
+            // Calculate evidence regardless of overlap.
+            // This ensures that fragments where the variant is between the reads do not get
+            // too much weight because the read evidence would not contribute to the product below.
+            // self.indel_read_evidence.borrow_mut()
+            //                         .prob(record, &cigar, start, variant, chrom_seq)
         };
 
-        // obtain probabilities for both reads
-        let (p_ref_left, p_alt_left) = prob_read(left_record)?;
-        let (p_ref_right, p_alt_right) = prob_read(right_record)?;
+        let p_left = prob_read(left_record)?;
+        let p_right = prob_read(right_record)?;
 
+        // if p_left.is_none() && p_right.is_none() {
+        //     // if there is no overlap in any of the reads, we ignore the fragment
+        //     return Ok(None);
+        // }
+        let p_ignore = || (LogProb::ln_one(), LogProb::ln_one());
+
+        // obtain probabilities for both reads
+        let (p_ref_left, p_alt_left) = prob_read(left_record)?.unwrap_or_else(&p_ignore);
+        let (p_ref_right, p_alt_right) = prob_read(right_record)?.unwrap_or_else(&p_ignore);
+
+        // obtain insert size probability
+        // if insert size is discriminative for the given variant
         let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
-        let (p_ref_isize, p_alt_isize) = self.indel_fragment_evidence.borrow().prob(insert_size, variant)?;
+        let (p_ref_isize, p_alt_isize)
+            = if self.indel_fragment_evidence.borrow().is_discriminative(variant) {
+            self.indel_fragment_evidence.borrow().prob(insert_size, variant)?
+        } else {
+            (LogProb::ln_one(), LogProb::ln_one())
+        };
+
+        // let (p_ref_isize, p_alt_isize) = (LogProb(-8.0), LogProb(-8.0));
+        //let (p_ref_isize, p_alt_isize) = (LogProb(0.0), LogProb(0.0));
 
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
@@ -478,7 +510,7 @@ impl Sample {
             )
         };
 
-        Ok(obs)
+        Ok(Some(obs))
     }
 }
 
