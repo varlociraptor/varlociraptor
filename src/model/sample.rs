@@ -160,7 +160,7 @@ impl RecordBuffer {
 
 
 /// An observation for or against a variant.
-#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     pub prob_mapping: LogProb,
@@ -189,7 +189,7 @@ impl Observation {
 /// Types of evidence that lead to an observation.
 /// The contained information is intended for debugging and will be printed together with
 /// observations.
-#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Evidence {
     /// Insert size of fragment
     InsertSize(String),
@@ -609,8 +609,8 @@ mod tests {
 
 
     fn read_observations(path: &str) -> Vec<Observation> {
-        let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
-        let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
+        let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(path).expect("error reading example");
+        let obs = reader.deserialize().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
         let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
             sample == "case"
         });

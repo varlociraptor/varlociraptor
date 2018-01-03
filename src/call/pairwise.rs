@@ -144,9 +144,9 @@ pub fn call<A, B, P, M, R, W, X, F>(
     };
 
     let mut outobs = if let Some(f) = outobs {
-        let mut writer = try!(csv::Writer::from_file(f)).delimiter(b'\t');
+        let mut writer = try!(csv::WriterBuilder::new().delimiter(b'\t').from_path(f) );
         // write header for observations
-        writer.write(
+        writer.write_record(
             ["chrom", "pos", "allele", "sample", "prob_mapping",
              "prob_alt", "prob_ref", "prob_mismapped", "evidence"].iter()
          )?;
@@ -179,10 +179,10 @@ pub fn call<A, B, P, M, R, W, X, F>(
                 for (i, pileup) in pileups.iter().enumerate() {
                     if let &Some(ref pileup) = pileup {
                         for obs in pileup.case_observations() {
-                            outobs.encode((chrom, record.pos(), i, "case", obs))?;
+                            outobs.serialize((chrom, record.pos(), i, "case", obs))?;
                         }
                         for obs in pileup.control_observations() {
-                            outobs.encode((chrom, record.pos(), i, "control", obs))?;
+                            outobs.serialize((chrom, record.pos(), i, "control", obs))?;
                         }
                     }
                 }

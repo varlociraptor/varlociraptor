@@ -734,8 +734,8 @@ mod tests {
     }
 
     fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel>) {
-        let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
-        let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
+        let mut reader = csv::ReaderBuilder::new().has_headers(true).delimiter(b'\t').from_path(path).expect("error reading example");
+        let obs = reader.deserialize().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
         let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
             sample == "case"
         });
@@ -794,8 +794,8 @@ mod tests {
 
     #[allow(dead_code)]
     fn setup_example_flat(path: &str) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::FlatTumorNormalModel>) {
-        let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
-        let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
+        let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(path).expect("error reading example");
+        let obs = reader.deserialize().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
         let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
             sample == "case"
         });
