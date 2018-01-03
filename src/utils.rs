@@ -201,7 +201,7 @@ fn tags_prob_sum(
             }
         }
     }
-    Ok(LogProb::ln_sum_exp(&tags_probs_out))
+    Ok( LogProb::ln_sum_exp(&tags_probs_out).cap_numerical_overshoot(0.000001) )
 }
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
@@ -276,10 +276,37 @@ mod tests {
     use super::*;
 
     use rust_htslib::bcf;
-    use bio::stats::Prob;
+    use bio::stats::{Prob, LogProb};
     use model::VariantType;
     use ComplementEvent;
     use SimpleEvent;
+
+    #[test]
+    fn test_tags_prob_sum() {
+
+        // set up test input
+        let test_file = "tests/resources/test_tags_prob_sum/overshoot.vcf";
+        let overshoot_calls = bcf::Reader::from_path( test_file ).unwrap();
+        let mut record = bcf::Record::new();
+        overshoot_calls.read(&mut record);
+
+        // set up all alt events with names as in prosolo
+        let alt_tags = [
+            String::from("PROB_ADO_TO_REF"),
+            String::from("PROB_ADO_TO_ALT"),
+            String::from("PROB_HOM_ALT"),
+            String::from("PROB_HET"),
+            String::from("PROB_ERR_REF")
+        ];
+
+        let snv = VariantType::SNV;
+
+        if let Ok( prob_sum ) = tags_prob_sum(&mut record, &alt_tags, &snv) {
+            assert_eq!( LogProb::ln_one(), prob_sum );
+        } else {
+            panic!("tags_prob_sum(&overshoot_calls, &alt_events, &snv) returned Error")
+        }
+    }
 
     #[test]
     fn test_collect_prob_dist() {
@@ -329,6 +356,11 @@ mod tests {
         } else {
             panic!("collect_prob_dist(&calls, &absent_event, &ins) returned Error")
         }
+    }
+
+    #[test]
+    fn test_filter_by_threshold() {
+        //TODO: write a minimal test for this function
     }
 
 }

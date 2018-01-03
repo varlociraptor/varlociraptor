@@ -1,0 +1,15 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##contig=<ID=chr1,length=247249719>
+##INFO=<ID=PROB_HOM_REF,Number=A,Type=Float,Description="PHRED-scaled probability for hom_ref variant">
+##INFO=<ID=PROB_ADO_TO_REF,Number=A,Type=Float,Description="PHRED-scaled probability for ADO_to_ref variant">
+##INFO=<ID=PROB_ADO_TO_ALT,Number=A,Type=Float,Description="PHRED-scaled probability for ADO_to_alt variant">
+##INFO=<ID=PROB_HOM_ALT,Number=A,Type=Float,Description="PHRED-scaled probability for hom_alt variant">
+##INFO=<ID=PROB_ERR_ALT,Number=A,Type=Float,Description="PHRED-scaled probability for err_alt variant">
+##INFO=<ID=PROB_HET,Number=A,Type=Float,Description="PHRED-scaled probability for het variant">
+##INFO=<ID=PROB_ERR_REF,Number=A,Type=Float,Description="PHRED-scaled probability for err_ref variant">
+##INFO=<ID=CASE_AF,Number=A,Type=Float,Description="Maximum a posteriori probability estimate of allele frequency in case sample.">
+##INFO=<ID=CONTROL_AF,Number=A,Type=Float,Description="Maximum a posteriori probability estimate of allele frequency in control sample.">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	single-cell.bam
+chr1	62976472	rs1168043	T	G	5682.93	PASS	PROB_HOM_REF=177.487;PROB_ADO_TO_REF=30.2547;PROB_ADO_TO_ALT=148.039;PROB_HOM_ALT=0.807449;PROB_ERR_ALT=2094.59;PROB_HET=12.1714;PROB_ERR_REF=9.66315;CASE_AF=1;CONTROL_AF=1	GT	1/1
