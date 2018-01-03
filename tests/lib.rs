@@ -187,14 +187,14 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
         ).unwrap();
 
     // sleep a second in order to wait for filesystem flushing
-    thread::sleep(time::Duration::from_secs(5));
+    thread::sleep(time::Duration::from_secs(10));
 }
 
 
 fn load_call(test: &str) -> bcf::Record {
     let basedir = basedir(test);
 
-    let reader = bcf::Reader::from_path(format!("{}/calls.bcf", basedir)).unwrap();
+    let mut reader = bcf::Reader::from_path(format!("{}/calls.bcf", basedir)).unwrap();
 
     let mut calls = reader.records().map(|r| r.unwrap()).collect_vec();
     assert_eq!(calls.len(), 1, "unexpected number of calls");
