@@ -187,7 +187,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
         ).unwrap();
 
     // sleep a second in order to wait for filesystem flushing
-    thread::sleep(time::Duration::from_secs(1));
+    thread::sleep(time::Duration::from_secs(5));
 }
 
 
