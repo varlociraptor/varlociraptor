@@ -28,7 +28,7 @@ addons:
       - kalakris-cmake
 
 before_script:
-  - cargo install --force cargo-travis
+  - cargo install cargo-travis
   - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
