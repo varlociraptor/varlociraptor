@@ -121,7 +121,11 @@ pub fn call<A, B, P, M, R, W, X, F>(
         None    => bcf::Reader::from_stdin()?
     };
 
+<<<<<<< HEAD
     let mut header = bcf::Header::with_template(&inbcf.header());
+=======
+    let mut header = bcf::Header::with_template(inbcf.header());
+>>>>>>> master
     for event in events {
         header.push_record(
             event.header_entry("PROB", "PHRED-scaled probability for").as_bytes()
@@ -152,7 +156,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
          )?;
         Some(writer)
     } else { None };
-    let mut record = bcf::Record::new();
+    let mut record = inbcf.empty_record();
     let mut i = 0;
     loop {
         // read BCF

@@ -184,7 +184,7 @@ pub fn collect_prob_dist<E: Event>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: &model::VariantType) -> Result<Vec<NotNaN<f64>>, Box<Error>> {
-    let mut record = bcf::Record::new();
+    let mut record = calls.empty_record();
     let mut prob_dist = Vec::new();
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     loop {
@@ -237,7 +237,7 @@ pub fn filter_by_threshold<E: Event>(
     events: &[E],
     vartype: &model::VariantType
 ) -> Result<(), Box<Error>> {
-    let mut record = bcf::Record::new();
+    let mut record = calls.empty_record();
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     let lp_threshold = LogProb::from( PHREDProb( *threshold + 0.000000001) ); // the manual epsilon is required, because the threshold output by `control-fdr` has some digits cut off, which can lead to the threshold being lower than the values reread from the BCF record only due to a higher precision
     loop {
