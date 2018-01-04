@@ -337,7 +337,7 @@ impl Sample {
                     if record.is_mate_unmapped() || !self.use_fragment_evidence {
                         // with unmapped mate, we only look at the current read
                         let (overlap, cigar) = overlap(record, start, variant, end)?;
-                        if overlap > 0 {
+                        if overlap > 0 && overlap <= self.max_indel_overlap {
                             if let Some(obs) = self.read_observation(
                                     &record, &cigar, start, variant, chrom_seq
                             )? {
