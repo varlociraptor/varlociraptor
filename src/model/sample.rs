@@ -24,6 +24,29 @@ pub fn prob_mapping(mapq: u8) -> LogProb {
 }
 
 
+/// Calculate overlap of read against variant.
+pub fn overlap(
+    record: &bam::Record,
+    start: u32,
+    variant: &Variant,
+    end: u32
+) -> Result<(u32, bam::record::CigarStringView), Box<Error>> {
+    let cigar = record.cigar();
+    let pos = record.pos() as u32;
+    let end_pos = cigar.end_pos()? as u32;
+
+    // consider soft clips for overlap detection
+    let pos = pos.saturating_sub(evidence::Clips::leading(&cigar).soft());
+    let end_pos = end_pos + evidence::Clips::trailing(&cigar).soft();
+
+    if end_pos <= end {
+        Ok((cmp::min(end_pos.saturating_sub(start), variant.len()), cigar))
+    } else {
+        Ok((cmp::min(end.saturating_sub(pos), variant.len()), cigar))
+    }
+}
+
+
 /// We assume that the mapping quality of split alignments provided by the aligner is conditional on being no artifact.
 /// Artifact alignments can be caused by aligning short ends as splits due to e.g. repeats.
 /// We can calculate the probability of having no artifact by investigating if there is at least
@@ -312,19 +335,20 @@ impl Sample {
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
-                    // if !self.is_reliable_read(record) {
-                    //     continue;
-                    // }
                     let pos = record.pos() as u32;
-                    //println!("rec {}", str::from_utf8(record.qname()).unwrap());
 
-                    // fragment evidence
-                    // We have to consider the fragment even if the read has been used for the
-                    // overlap evidence above. Otherwise, results would be biased towards
-                    // alternative alleles (since reference reads tend to overlap the centerpoint).
-                    if self.use_fragment_evidence &&
-                       (record.is_first_in_template() || record.is_last_in_template()) {
-                        //println!("considered {}", str::from_utf8(record.qname()).unwrap());
+                    if record.is_mate_unmapped() || !self.use_fragment_evidence {
+                        // with unmapped mate, we only look at the current read
+                        let (overlap, cigar) = overlap(record, start, variant, end)?;
+                        if overlap > 0 {
+                            if let Some(obs) = self.read_observation(
+                                    &record, &cigar, start, variant, chrom_seq
+                            )? {
+                                observations.push(obs);
+                            }
+                        }
+                    } else if record.is_first_in_template() || record.is_last_in_template() {
+                        // with properly mapped pair, we look at the whole fragment at once
 
                         // We ensure fair sampling by checking if the whole fragment overlaps the
                         // centerpoint. Only taking the internal segment would not be fair,
@@ -344,7 +368,9 @@ impl Sample {
                             //println!("mate {}", str::from_utf8(record.qname()).unwrap());
                             // mate already visited, and this fragment overlaps centerpoint
                             // the mate is always the left read of the pair
-                            if let Some(obs) = self.fragment_observation(mate, &record, start, variant, chrom_seq, centerpoint, end)? {
+                            if let Some(obs) = self.fragment_observation(
+                                mate, &record, start, variant, chrom_seq, centerpoint, end
+                            )? {
                                 observations.push(obs);
                             }
                         }
@@ -449,21 +475,7 @@ impl Sample {
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |record: &bam::Record| -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
-            let cigar = record.cigar();
-            let pos = record.pos() as u32;
-            let end_pos = cigar.end_pos()? as u32;
-
-            let overlap = {
-                // consider soft clips for overlap detection
-                let pos = pos.saturating_sub(evidence::Clips::leading(&cigar).soft());
-                let end_pos = end_pos + evidence::Clips::trailing(&cigar).soft();
-
-                if end_pos <= end {
-                    cmp::min(end_pos.saturating_sub(start), variant.len())
-                } else {
-                    cmp::min(end.saturating_sub(pos), variant.len())
-                }
-            };
+            let (overlap, cigar) = overlap(record, start, variant, end)?;
 
             // read evidence
             if overlap > 0 && overlap <= self.max_indel_overlap {
@@ -473,7 +485,6 @@ impl Sample {
                 Ok(None)
             }
         };
-
 
         // obtain probabilities for both reads
         let p_left = prob_read(left_record)?;

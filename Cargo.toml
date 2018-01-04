@@ -10,11 +10,7 @@ license = "GPL-3.0"
 [dependencies]
 bio = "0.14"
 log = "0.3.*"
-<<<<<<< HEAD
-rust-htslib = { git="https://github.com/rust-bio/rust-htslib.git", branch="master" } #"0.15"
-=======
 rust-htslib = "0.16"
->>>>>>> master
 GSL = "0.4.*"
 itertools = "0.6"
 itertools-num = "0.1.*"
