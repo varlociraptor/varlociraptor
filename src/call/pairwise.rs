@@ -116,12 +116,12 @@ pub fn call<A, B, P, M, R, W, X, F>(
     let fasta = fasta::IndexedReader::from_file(fasta)?;
     let mut reference_buffer = utils::ReferenceBuffer::new(fasta);
 
-    let inbcf = match inbcf {
+    let mut inbcf = match inbcf {
         Some(f) => bcf::Reader::from_path(f)?,
         None    => bcf::Reader::from_stdin()?
     };
 
-    let mut header = bcf::Header::with_template(&inbcf.header);
+    let mut header = bcf::Header::with_template(inbcf.header());
     for event in events {
         header.push_record(
             event.header_entry("PROB", "PHRED-scaled probability for").as_bytes()
@@ -152,7 +152,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
          )?;
         Some(writer)
     } else { None };
-    let mut record = bcf::Record::new();
+    let mut record = inbcf.empty_record();
     let mut i = 0;
     loop {
         // read BCF
@@ -253,5 +253,5 @@ pub fn call<A, B, P, M, R, W, X, F>(
 }
 
 fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
-    inbcf.header.rid2name(record.rid().unwrap())
+    inbcf.header().rid2name(record.rid().unwrap())
 }

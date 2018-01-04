@@ -179,7 +179,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
 fn load_call(test: &str) -> bcf::Record {
     let basedir = basedir(test);
 
-    let reader = bcf::Reader::from_path(format!("{}/calls.bcf", basedir)).unwrap();
+    let mut reader = bcf::Reader::from_path(format!("{}/calls.bcf", basedir)).unwrap();
 
     let mut calls = reader.records().map(|r| r.unwrap()).collect_vec();
     assert_eq!(calls.len(), 1, "unexpected number of calls");

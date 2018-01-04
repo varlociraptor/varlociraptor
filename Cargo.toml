@@ -10,7 +10,7 @@ license = "GPL-3.0"
 [dependencies]
 bio = "0.14"
 log = "0.3.*"
-rust-htslib = "0.13"
+rust-htslib = "0.16"
 GSL = "0.4.*"
 itertools = "0.6"
 itertools-num = "0.1.*"

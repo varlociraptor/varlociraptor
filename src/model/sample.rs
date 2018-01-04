@@ -106,10 +106,10 @@ impl RecordBuffer {
 
     /// Fill buffer around the given interval.
     pub fn fill(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<(), Box<Error>> {
-        if let Some(tid) = self.reader.header.tid(chrom) {
+        if let Some(tid) = self.reader.header().tid(chrom) {
             let window_start = cmp::max(start as i32 - self.window as i32 - 1, 0) as u32;
             if self.inner.is_empty() || self.end().unwrap() < window_start || self.tid().unwrap() != tid as i32 {
-                let end = self.reader.header.target_len(tid).unwrap();
+                let end = self.reader.header().target_len(tid).unwrap();
                 try!(self.reader.fetch(tid, window_start, end));
                 debug!("Clearing ringbuffer");
                 self.inner.clear();
@@ -785,7 +785,7 @@ mod tests {
         let varpos = 546;
 
         let sample = setup_sample(150.0);
-        let bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
+        let mut bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
         let records = bam.records().collect_vec();
 
         let ref_seq = ref_seq();
@@ -894,7 +894,7 @@ mod tests {
     fn test_prob_read_indel() {
         let _ = env_logger::init();
 
-        let bam = bam::Reader::from_path(&"tests/indels+clips.bam").unwrap();
+        let mut bam = bam::Reader::from_path(&"tests/indels+clips.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
         let ref_seq = ref_seq();
         let window = 100;

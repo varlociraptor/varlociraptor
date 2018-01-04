@@ -181,10 +181,10 @@ impl ReferenceBuffer {
 /// * `events` - the set of events to sum up for a particular site
 /// * `vartype` - the variant type to consider
 pub fn collect_prob_dist<E: Event>(
-    calls: &bcf::Reader,
+    calls: &mut bcf::Reader,
     events: &[E],
     vartype: &model::VariantType) -> Result<Vec<NotNaN<f64>>, Box<Error>> {
-    let mut record = bcf::Record::new();
+    let mut record = calls.empty_record();
     let mut prob_dist = Vec::new();
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     loop {
@@ -231,13 +231,13 @@ pub fn collect_prob_dist<E: Event>(
 /// * `events` - the set of Events to filter on
 /// * `vartype` - the variant type to consider
 pub fn filter_by_threshold<E: Event>(
-    calls: &bcf::Reader,
+    calls: &mut bcf::Reader,
     threshold: &f64,
     out: &mut bcf::Writer,
     events: &[E],
     vartype: &model::VariantType
 ) -> Result<(), Box<Error>> {
-    let mut record = bcf::Record::new();
+    let mut record = calls.empty_record();
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     let lp_threshold = LogProb::from( PHREDProb( *threshold + 0.000000001) ); // the manual epsilon is required, because the threshold output by `control-fdr` has some digits cut off, which can lead to the threshold being lower than the values reread from the BCF record only due to a higher precision
     loop {
@@ -294,16 +294,16 @@ mod tests {
         //TESTS deletion
         let del = VariantType::Deletion(None);
 
-        let del_calls_1 = bcf::Reader::from_path( test_file ).unwrap();
-        if let Ok(prob_del) = collect_prob_dist(&del_calls_1, &events, &del) {
+        let mut del_calls_1 = bcf::Reader::from_path( test_file ).unwrap();
+        if let Ok(prob_del) = collect_prob_dist(&mut del_calls_1, &events, &del) {
             println!("prob_del[0]: {:?}", prob_del[0].into_inner() );
             assert_eq!( prob_del.len(), 3 );
             assert_relative_eq!( prob_del[2].into_inner(), Prob(0.8).ln(), epsilon = 0.000005 );
         } else {
             panic!("collect_prob_dist(&calls, &events, &del) returned Error")
         }
-        let del_calls_2 = bcf::Reader::from_path( test_file ).unwrap();
-        if let Ok(prob_del_abs) = collect_prob_dist(&del_calls_2, &absent_event, &del) {
+        let mut del_calls_2 = bcf::Reader::from_path( test_file ).unwrap();
+        if let Ok(prob_del_abs) = collect_prob_dist(&mut del_calls_2, &absent_event, &del) {
             assert_eq!( prob_del_abs.len(), 3 );
             assert_relative_eq!( prob_del_abs[2].into_inner(), Prob(0.2).ln(), epsilon = 0.000005 );
         } else {
@@ -313,15 +313,15 @@ mod tests {
         //TESTS insertion
         let ins = VariantType::Insertion(None);
 
-        let ins_calls_1 = bcf::Reader::from_path( test_file ).unwrap();
-        if let Ok(prob_ins) = collect_prob_dist(&ins_calls_1, &events, &ins) {
+        let mut ins_calls_1 = bcf::Reader::from_path( test_file ).unwrap();
+        if let Ok(prob_ins) = collect_prob_dist(&mut ins_calls_1, &events, &ins) {
             assert_eq!( prob_ins.len(), 3 );
             assert_relative_eq!( prob_ins[2].into_inner(), Prob(0.2).ln(), epsilon = 0.000005 );
         } else {
             panic!("collect_prob_dist(&calls, &events, &ins) returned Error")
         }
-        let ins_calls_2 = bcf::Reader::from_path( test_file ).unwrap();
-        if let Ok(prob_ins_abs) = collect_prob_dist(&ins_calls_2, &absent_event, &ins) {
+        let mut ins_calls_2 = bcf::Reader::from_path( test_file ).unwrap();
+        if let Ok(prob_ins_abs) = collect_prob_dist(&mut ins_calls_2, &absent_event, &ins) {
             assert_eq!( prob_ins_abs.len(), 3 );
             assert_relative_eq!( prob_ins_abs[2].into_inner(), Prob(0.8).ln(), epsilon = 0.000005 );
         } else {
