@@ -103,7 +103,8 @@ impl TumorNormalModel {
         let factor = match variant {
             &Variant::Deletion(_)  => self.deletion_factor.ln(),
             &Variant::Insertion(_) => self.insertion_factor.ln(),
-            &Variant::SNV(_) => 0.0 // no factor for SNVs
+            &Variant::SNV(_) => 0.0, // no factor for SNVs
+            &Variant::Ref(_) => 0.0 // no factor for homozygous reference sites
         };
 
         LogProb(self.effective_mutation_rate.ln() + factor - (2.0 * af_somatic.ln() + (self.genome_size as f64).ln()))

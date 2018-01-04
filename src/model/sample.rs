@@ -351,7 +351,8 @@ impl Sample {
         let (end, centerpoint) = match variant {
             &Variant::Deletion(length)  => (start + length, start + length / 2),
             &Variant::Insertion(_) => (start, start),
-            &Variant::SNV(_) => (start, start)
+            &Variant::SNV(_) => (start, start),
+            &Variant::Ref(_) => (start, start)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
@@ -364,7 +365,7 @@ impl Sample {
         debug!("Done.");
 
         match variant {
-            &Variant::SNV(_) => {
+            &Variant::SNV(_) | &Variant::Ref(_) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     if !self.is_reliable_read(record) {
@@ -506,7 +507,7 @@ impl Sample {
                 probs = Some( self.indel_read_evidence.borrow_mut()
                                         .prob(record, cigar, start, variant, chrom_seq)? );
             },
-            &Variant::SNV(_) => {
+            &Variant::SNV(_) | &Variant::Ref(_) => {
                 probs = evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)?;
             }
         }

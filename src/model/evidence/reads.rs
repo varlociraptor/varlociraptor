@@ -18,11 +18,17 @@ pub fn prob_snv(
     variant: &Variant,
     ref_seq: &[u8]
 ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
-    if let &Variant::SNV(base) = variant {
+    if let &Variant::SNV(base) | &Variant::Ref(base) = variant {
         if let Some(qpos) = cigar.read_pos(start, false, false)? {
             let read_base = record.seq()[qpos as usize];
             let base_qual = record.qual()[qpos as usize];
-            let prob_alt = prob_read_base(read_base, base, base_qual);
+            // 76 is ASCII u8 'L' for "any aLt allele" (L is not a IUPAC nucleotide code!)
+            if base == 76 {
+                // TODO: implement prob_read_not_base() or find way to alter prob_read_base()
+                let prob_alt = prob_read_not_base(read_base, ref_seq[start as usize], base_qual);
+            } else {
+                let prob_alt = prob_read_base(read_base, base, base_qual);
+            }
             let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
             Ok( Some( (prob_ref, prob_alt) ) )
         } else {
@@ -81,7 +87,7 @@ impl IndelEvidence {
             let (varstart, varend) = match variant {
                 &Variant::Deletion(_) => (start, start + variant.len()),
                 &Variant::Insertion(_) => (start, start + 1),
-                &Variant::SNV(_) => panic!("bug: unsupported variant")
+                &Variant::SNV(_) | &Variant::Ref(_) => panic!("bug: unsupported variant")
             };
 
             match (
