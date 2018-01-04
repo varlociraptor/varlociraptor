@@ -163,9 +163,6 @@ impl RecordBuffer {
                 if !self.use_secondary && record.is_secondary() {
                     continue;
                 }
-                if record.qname() == b"sim_Som3-5-1_chr1_2_2015af" {
-                    println!("buff rec {}", str::from_utf8(record.qname()).unwrap());
-                }
                 self.inner.push_back(record);
                 if pos > end as i32 + self.window as i32 {
                     break;
@@ -361,11 +358,9 @@ impl Sample {
                             // since the bam file is sorted by position, we can't see the mate first
                             let tlen = record.insert_size().abs() as u32;
                             if pos + tlen >= centerpoint {
-                                //println!("read {}: pos={}, pos+tlen={}", str::from_utf8(record.qname()).unwrap(), pos, pos+tlen);
                                 pairs.insert(record.qname().to_owned(), record);
                             }
                         } else if let Some(mate) = pairs.get(record.qname()) {
-                            //println!("mate {}", str::from_utf8(record.qname()).unwrap());
                             // mate already visited, and this fragment overlaps centerpoint
                             // the mate is always the left read of the pair
                             if let Some(obs) = self.fragment_observation(
