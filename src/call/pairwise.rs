@@ -14,6 +14,7 @@ use bio::io::fasta;
 use model::AlleleFreqs;
 use model::priors;
 use model::PairCaller;
+use model::sample::Evidence;
 use model;
 use Event;
 use utils;
@@ -77,6 +78,18 @@ fn pileups<'a, A, B, P>(
     Ok(pileups)
 }
 
+#[derive(Debug, Serialize)]
+struct ObservationRecord {
+    chrom: String,
+    pos: u32,
+    allele: u32,
+    sample: String,
+    prob_mapping: LogProb,
+    prob_alt: LogProb,
+    prob_ref: LogProb,
+    prob_mismapped: LogProb,
+    evidence: Evidence
+}
 
 /// Call variants with the given model.
 ///
@@ -145,11 +158,6 @@ pub fn call<A, B, P, M, R, W, X, F>(
 
     let mut outobs = if let Some(f) = outobs {
         let mut writer = try!(csv::WriterBuilder::new().delimiter(b'\t').from_path(f) );
-        // write header for observations
-        writer.write_record(
-            ["chrom", "pos", "allele", "sample", "prob_mapping",
-             "prob_alt", "prob_ref", "prob_mismapped", "evidence"].iter()
-         )?;
         Some(writer)
     } else { None };
     let mut record = bcf::Record::new();
@@ -179,11 +187,34 @@ pub fn call<A, B, P, M, R, W, X, F>(
                 for (i, pileup) in pileups.iter().enumerate() {
                     if let &Some(ref pileup) = pileup {
                         for obs in pileup.case_observations() {
-                            outobs.serialize((chrom, record.pos(), i, "case", obs))?;
+                            outobs.serialize(
+                                ObservationRecord {
+                                    chrom: chrom.to_string(),
+                                    pos: record.pos(),
+                                    allele: i as u32,
+                                    sample: "case".to_string(),
+                                    prob_mapping: obs.prob_mapping,
+                                    prob_alt: obs.prob_alt,
+                                    prob_ref: obs.prob_ref,
+                                    prob_mismapped: obs.prob_mismapped,
+                                    evidence: obs.evidence.clone()
+                                }
+                            )?;
                         }
                         for obs in pileup.control_observations() {
-                            outobs.serialize((chrom, record.pos(), i, "control", obs))?;
-                        }
+                            outobs.serialize(
+                                ObservationRecord {
+                                    chrom: chrom.to_string(),
+                                    pos: record.pos(),
+                                    allele: i as u32,
+                                    sample: "control".to_string(),
+                                    prob_mapping: obs.prob_mapping,
+                                    prob_alt: obs.prob_alt,
+                                    prob_ref: obs.prob_ref,
+                                    prob_mismapped: obs.prob_mismapped,
+                                    evidence: obs.evidence.clone()
+                                }
+                            )?;}
                     }
                 }
                 outobs.flush()?;
