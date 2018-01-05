@@ -755,10 +755,9 @@ mod tests {
 
     fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel>) {
         let mut reader = csv::ReaderBuilder::new().has_headers(true).delimiter(b'\t').from_path(path).expect("error reading example");
-        let mut rows = reader.deserialize();
         let mut case_obs = vec![];
         let mut control_obs = vec![];
-        if let Some(row) = rows.next() {
+        for row in reader.deserialize() {
             let record: Row = row.unwrap();
             let ev = recode_evidence(record.evidence);
             let obs = Observation {
@@ -773,8 +772,6 @@ mod tests {
                 "control" => control_obs.push(obs),
                 _ => panic!("unknown sample type: neither case nor control")
             }
-        } else {
-            panic!("expected at least one record but got none")
         }
 
         let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
@@ -825,10 +822,9 @@ mod tests {
     #[allow(dead_code)]
     fn setup_example_flat(path: &str) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::FlatTumorNormalModel>) {
         let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(path).expect("error reading example");
-        let mut rows = reader.deserialize();
         let mut case_obs = vec![];
         let mut control_obs = vec![];
-        if let Some(row) = rows.next() {
+        for row in reader.deserialize() {
             let record: Row = row.unwrap();
             let ev = recode_evidence(record.evidence);
             let obs = Observation {
@@ -843,8 +839,6 @@ mod tests {
                 "control" => control_obs.push(obs),
                 _ => panic!("unknown sample type: neither case nor control")
             }
-        } else {
-            panic!("expected at least one record but got none")
         }
 
         let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
@@ -896,6 +890,7 @@ mod tests {
     #[test]
     fn test_example2() {
         let (case_obs, control_obs, model) = setup_example("tests/example2.obs.txt", 0.01, 0.03);
+        println!("{:?}", case_obs);
 
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );

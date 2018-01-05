@@ -630,9 +630,8 @@ mod tests {
 
     fn read_observations(path: &str) -> Vec<Observation> {
         let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(path).expect("error reading example");
-        let mut rows = reader.deserialize();
         let mut case_obs = vec![];
-        if let Some(row) = rows.next() {
+        for row in reader.deserialize() {
             let record: Row = row.unwrap();
             if record.sample == "case" {
                 let ev = recode_evidence(record.evidence);
@@ -645,8 +644,6 @@ mod tests {
                 };
                 case_obs.push(obs)
             }
-        } else {
-            panic!("expected at least one record but got none")
         }
         case_obs
     }
