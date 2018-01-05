@@ -608,13 +608,46 @@ mod tests {
     use bio::io::fasta;
 
 
+    fn recode_evidence(string: String) -> Evidence {
+        match &*string.to_string() {
+            "Alignment" => Evidence::Alignment(string),
+            _ => Evidence::InsertSize(string)
+        }
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct Row {
+        chrom: String,
+        pos: u32,
+        allele: u32,
+        sample: String,
+        prob_mapping: LogProb,
+        prob_alt: LogProb,
+        prob_ref: LogProb,
+        prob_mismapped: LogProb,
+        evidence: String
+    }
+
     fn read_observations(path: &str) -> Vec<Observation> {
         let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(path).expect("error reading example");
-        let obs = reader.deserialize().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
-        let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
-            sample == "case"
-        });
-        let case_obs = groups.into_iter().next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        let mut rows = reader.deserialize();
+        let mut case_obs = vec![];
+        if let Some(row) = rows.next() {
+            let record: Row = row.unwrap();
+            if record.sample == "case" {
+                let ev = recode_evidence(record.evidence);
+                let obs = Observation {
+                    prob_mapping: record.prob_mapping,
+                    prob_alt: record.prob_alt,
+                    prob_ref: record.prob_ref,
+                    prob_mismapped: record.prob_mismapped,
+                    evidence: ev
+                };
+                case_obs.push(obs)
+            }
+        } else {
+            panic!("expected at least one record but got none")
+        }
         case_obs
     }
 
