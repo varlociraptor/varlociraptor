@@ -49,21 +49,24 @@ pub fn n_fragment_positions(
 pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u32, Box<Error>> {
     let left_cigar = left.cigar();
     let right_cigar = right.cigar();
-    let left_clips = evidence::Clips::trailing(&left_cigar);
-    let right_clips = evidence::Clips::leading(&right_cigar);
 
-    let left_end = (left_cigar.end_pos()? as u32) + left_clips.both();
-    let right_start = (right.pos() as u32).saturating_sub(
-        right_clips.both()
-    );
+    let aln = |rec: &bam::Record, cigar| -> Result<(u32, u32), Box<Error>> {
+        Ok((
+            (rec.pos() as u32).saturating_sub(evidence::Clips::leading(cigar).both()),
+            cigar.end_pos()? as u32 + evidence::Clips::trailing(cigar).both()
+        ))
+    };
+
+    let (left_start, left_end) = aln(left, &left_cigar)?;
+    let (right_start, right_end) = aln(right, &right_cigar)?;
     // as defined by Torsten Seemann
     // (http://thegenomefactory.blogspot.nl/2013/08/paired-end-read-confusion-library.html)
     let inner_mate_distance = right_start as i32 - left_end as i32;
     debug!("inner mate distance: {} {} {}", inner_mate_distance, right_start, left_end);
 
     let insert_size = inner_mate_distance +
-                      evidence::read_len(left, &left_cigar) as i32 +
-                      evidence::read_len(right, &right_cigar) as i32;
+                      (left_end - left_start) as i32 +
+                      (right_end - right_start) as i32;
     assert!(insert_size > 0, "bug: insert size {} is smaller than zero", insert_size);
 
     Ok(insert_size as u32)

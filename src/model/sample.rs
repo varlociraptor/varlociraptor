@@ -520,10 +520,6 @@ impl Sample {
             (LogProb::ln_one(), LogProb::ln_one())
         };
 
-        if left_record.qname() == b"sim_Som1-5-1_chr2_2_2e3c81" {
-            println!("{} {} {} {} {} {}", p_ref_left.exp(), p_ref_right.exp(), p_ref_isize.exp(), p_alt_left.exp(), p_alt_right.exp(), p_alt_isize.exp());
-        }
-
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
             prob_alt: p_alt_isize + p_alt_left + p_alt_right,
