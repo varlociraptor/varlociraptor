@@ -311,7 +311,7 @@ impl Sample {
         let mut observations = Vec::new();
         let (end, centerpoint) = match variant {
             &Variant::Deletion(length)  => (start + length, start + length / 2),
-            &Variant::Insertion(_) => (start, start),
+            &Variant::Insertion(_) => (start + 1, start),  // end of insertion is the next regular base
             &Variant::SNV(_) => (start, start)
         };
         let mut pairs = HashMap::new();
