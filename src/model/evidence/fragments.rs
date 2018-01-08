@@ -40,7 +40,9 @@ pub fn n_fragment_positions(
 }
 
 
-/// Estimate insert size from read pair.
+/// Estimate the insert size from read pair projected on reference sequence including clips.
+/// Note that this is is not the insert size of the real fragment but rather the insert size of
+/// the alignment on the reference sequence.
 ///
 /// # Arguments
 ///
