@@ -24,29 +24,6 @@ pub fn prob_mapping(mapq: u8) -> LogProb {
 }
 
 
-/// Calculate overlap of read against variant.
-pub fn overlap(
-    record: &bam::Record,
-    start: u32,
-    variant: &Variant,
-    end: u32
-) -> Result<(u32, bam::record::CigarStringView), Box<Error>> {
-    let cigar = record.cigar();
-    let pos = record.pos() as u32;
-    let end_pos = cigar.end_pos()? as u32;
-
-    // consider soft clips for overlap detection
-    let pos = pos.saturating_sub(evidence::Clips::leading(&cigar).soft());
-    let end_pos = end_pos + evidence::Clips::trailing(&cigar).soft();
-
-    if end_pos <= end {
-        Ok((cmp::min(end_pos.saturating_sub(start), variant.len()), cigar))
-    } else {
-        Ok((cmp::min(end.saturating_sub(pos), variant.len()), cigar))
-    }
-}
-
-
 /// We assume that the mapping quality of split alignments provided by the aligner is conditional on being no artifact.
 /// Artifact alignments can be caused by aligning short ends as splits due to e.g. repeats.
 /// We can calculate the probability of having no artifact by investigating if there is at least
@@ -277,6 +254,47 @@ impl Sample {
         true
     }
 
+    /// Calculate if overlap of read against variant is to be considered.
+    fn is_valid_overlap(
+        &self,
+        record: &bam::Record,
+        start: u32,
+        variant: &Variant,
+        end: u32,
+        enclose_only: bool,
+        consider_clips: bool
+    ) -> Result<(bool, bam::record::CigarStringView), Box<Error>> {
+        let cigar = record.cigar();
+        let mut pos = record.pos() as u32;
+        let mut end_pos = cigar.end_pos()? as u32;
+
+        if consider_clips {
+            // consider soft clips for overlap detection
+            pos = pos.saturating_sub(evidence::Clips::leading(&cigar).soft());
+            end_pos = end_pos + evidence::Clips::trailing(&cigar).soft();
+        }
+
+        let is_enclosing = pos <= start && end_pos >= end;
+
+        if is_enclosing || enclose_only {
+            // if read encloses variant, stop early in any case
+            // if we just want enclosing reads, stop early as well
+            return Ok((is_enclosing, cigar))
+        }
+
+        // calculate overlap
+        let overlap = if end_pos <= end {
+            cmp::min(end_pos.saturating_sub(start), variant.len())
+        } else {
+            cmp::min(end.saturating_sub(pos), variant.len())
+        };
+
+        Ok((
+            overlap > 0 && overlap <= self.max_indel_overlap,
+            cigar
+        ))
+    }
+
     /// Return likelihood model.
     pub fn likelihood_model(&self) -> model::likelihood::LatentVariableModel {
         self.likelihood_model
@@ -314,11 +332,11 @@ impl Sample {
                         continue;
                     }
 
-                    let pos = record.pos() as u32;
-                    let cigar = record.cigar();
-                    let end_pos = cigar.end_pos()? as u32;
+                    let (valid_overlap, cigar) = self.is_valid_overlap(
+                        record, start, variant, end, true, false
+                    )?;
 
-                    if pos <= start && end_pos >= start {
+                    if valid_overlap {
                         if let Some( obs ) = self.read_observation(&record, &cigar, start, variant, chrom_seq)? {
                             observations.push( obs );
                             n_overlap += 1;
@@ -336,8 +354,10 @@ impl Sample {
 
                     if record.is_mate_unmapped() || !self.use_fragment_evidence {
                         // with unmapped mate, we only look at the current read
-                        let (overlap, cigar) = overlap(record, start, variant, end)?;
-                        if overlap > 0 && overlap <= self.max_indel_overlap {
+                        let (valid_overlap, cigar) = self.is_valid_overlap(
+                            record, start, variant, end, false, true
+                        )?;
+                        if valid_overlap {
                             if let Some(obs) = self.read_observation(
                                     &record, &cigar, start, variant, chrom_seq
                             )? {
@@ -470,10 +490,12 @@ impl Sample {
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |record: &bam::Record| -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
-            let (overlap, cigar) = overlap(record, start, variant, end)?;
+            let (valid_overlap, cigar) = self.is_valid_overlap(
+                record, start, variant, end, false, true
+            )?;
 
             // read evidence
-            if overlap > 0 && overlap <= self.max_indel_overlap {
+            if valid_overlap {
                 Ok(Some(self.indel_read_evidence.borrow_mut()
                                                 .prob(record, &cigar, start, variant, chrom_seq)?))
             } else {
@@ -497,6 +519,10 @@ impl Sample {
         } else {
             (LogProb::ln_one(), LogProb::ln_one())
         };
+
+        if left_record.qname() == b"sim_Som1-5-1_chr2_2_2e3c81" {
+            println!("{} {} {} {} {} {}", p_ref_left.exp(), p_ref_right.exp(), p_ref_isize.exp(), p_alt_left.exp(), p_alt_right.exp(), p_alt_isize.exp());
+        }
 
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),

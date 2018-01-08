@@ -1,4 +1,5 @@
 use std::cmp;
+use std::str;
 use std::error::Error;
 use std::ascii::AsciiExt;
 
@@ -119,7 +120,8 @@ impl IndelEvidence {
                 },
                 (None, None) => {
                     panic!(
-                        "bug: read does not overlap breakpoint: pos={}, cigar={}, start={}, len={}",
+                        "bug: read does not overlap breakpoint: qname={}, pos={}, cigar={}, start={}, len={}",
+                        str::from_utf8(record.qname()).unwrap(),
                         record.pos(),
                         cigar,
                         start,

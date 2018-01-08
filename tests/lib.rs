@@ -12,6 +12,7 @@ use std::path::Path;
 use std::str;
 use std::{thread, time};
 use std::io;
+use std::process::Command;
 
 use itertools::Itertools;
 use rust_htslib::{bam,bcf};
@@ -46,15 +47,15 @@ fn setup_logger(test: &str) {
 }
 
 
-fn download_reference() -> &'static str {
-    let reference = "tests/resources/chr1.fa";
-    if !Path::new(reference).exists() {
+fn download_reference(chrom: &str) -> String {
+    let reference = format!("tests/resources/{}.fa", chrom);
+    if !Path::new(&reference).exists() {
         let client = hyper::Client::new();
         let res = client.get(
-            "http://hgdownload.cse.ucsc.edu/goldenpath/hg18/chromosomes/chr1.fa.gz"
+            &format!("http://hgdownload.cse.ucsc.edu/goldenpath/hg18/chromosomes/{}.fa.gz", chrom)
         ).send().unwrap();
         let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
-        let mut reference_file = fs::File::create(reference).unwrap();
+        let mut reference_file = fs::File::create(&reference).unwrap();
 
         io::copy(&mut reference_stream, &mut reference_file).unwrap();
     }
@@ -62,10 +63,14 @@ fn download_reference() -> &'static str {
 }
 
 
-fn call_tumor_normal(test: &str, exclusive_end: bool) {
-    let reference = download_reference();
-    assert!(Path::new(reference).exists());
-    assert!(Path::new(&(reference.to_owned() + ".fai")).exists());
+fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
+    let reference = download_reference(chrom);
+    assert!(Path::new(&reference).exists());
+    if !Path::new(&(reference.clone() + ".fai")).exists() {
+        Command::new("samtools").args(&["faidx", &reference])
+                                .status()
+                                .expect("failed to create fasta index");
+    }
 
     //setup_logger(test);
 
@@ -78,7 +83,6 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
     let normal_bam = bam::IndexedReader::from_path(&normal_bam).unwrap();
 
     let candidates = format!("{}/candidates.vcf", basedir);
-    let reference = "tests/resources/chr1.fa";
 
     let output = format!("{}/calls.bcf", basedir);
     let observations = format!("{}/observations.tsv", basedir);
@@ -240,7 +244,7 @@ fn control_fdr_ev(test: &str) {
 ///   the uncertainty in such cases.
 #[test]
 fn test1() {
-    call_tumor_normal("test1", false);
+    call_tumor_normal("test1", false, "chr1");
     let mut call = load_call("test1");
 
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.1);
@@ -253,7 +257,7 @@ fn test1() {
 /// Test a Pindel call that is a somatic call in reality (case af: 0.125).
 #[test]
 fn test2() {
-    call_tumor_normal("test2", false);
+    call_tumor_normal("test2", false, "chr1");
     let mut call = load_call("test2");
 
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
@@ -265,7 +269,7 @@ fn test2() {
 /// Test a Pindel call that is a germline call in reality (case af: 0.5, control af: 0.5).
 #[test]
 fn test3() {
-    call_tumor_normal("test3", false);
+    call_tumor_normal("test3", false, "chr1");
     let mut call = load_call("test3");
 
     check_info_float(&mut call, b"CASE_AF", 0.5, 0.17); // TODO: here a prior could help
@@ -277,7 +281,7 @@ fn test3() {
 /// Test a Pindel call (insertion) that is a somatic call in reality (case af: 0.042, control af: 0.0).
 #[test]
 fn test4() {
-    call_tumor_normal("test4", false);
+    call_tumor_normal("test4", false, "chr1");
     let mut call = load_call("test4");
 
     check_info_float(&mut call, b"CASE_AF", 0.042, 0.1);
@@ -290,7 +294,7 @@ fn test4() {
 /// from Venter.
 #[test]
 fn test5() {
-    call_tumor_normal("test5", true);
+    call_tumor_normal("test5", true, "chr1");
     let mut call = load_call("test5");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
     check_info_float(&mut call, b"PROB_GERMLINE", 3.0, 0.1);
@@ -300,12 +304,22 @@ fn test5() {
 /// Test a small Lancet deletion. It is a somatic call (AF=0.125) in reality.
 #[test]
 fn test7() {
-    call_tumor_normal("test7", false);
+    call_tumor_normal("test7", false, "chr1");
     let mut call = load_call("test7");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.1);
     check_info_float(&mut call, b"PROB_SOMATIC", 1.0, 0.5);
     check_info_float(&mut call, b"PROB_GERMLINE", 9.0, 0.5);
+}
+
+
+/// Test a Delly deletion. It is a germline call in reality.
+#[test]
+fn test8() {
+    call_tumor_normal("test8", true, "chr2");
+    let mut call = load_call("test8");
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.5);
+    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.8);
 }
 
 

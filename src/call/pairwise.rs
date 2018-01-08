@@ -194,8 +194,8 @@ pub fn call<A, B, P, M, R, W, X, F>(
             for (i, event) in events.iter().enumerate() {
                 for (j, pileup) in pileups.iter().enumerate() {
                     let p = if let &Some(ref pileup) = pileup {
-                        // TODO use joint probability instead of posterior since we do the
-                        // normalization below.
+                        // use joint probability instead of posterior since we do the
+                        // normalization below, turning joint probabilities into posteriors.
                         Some(pileup.joint_prob(&event.af_case, &event.af_control))
                     } else {
                         // indicate missing value
@@ -204,10 +204,6 @@ pub fn call<A, B, P, M, R, W, X, F>(
 
                     posterior_probs[(i, j)] = p;
                 }
-                try!(record.push_info_float(
-                    event.tag_name("PROB").as_bytes(),
-                    &phred_scale(posterior_probs.row(i).iter())
-                ));
             }
 
             for (j, pileup) in pileups.iter().enumerate() {
