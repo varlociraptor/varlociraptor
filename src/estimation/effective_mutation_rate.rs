@@ -9,7 +9,7 @@ use itertools::Itertools;
 use model::AlleleFreq;
 
 
-#[derive(Debug, RustcDecodable, RustcEncodable)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Estimate {
     pub observations: Vec<(f64, u64)>,
     pub intercept: f64,

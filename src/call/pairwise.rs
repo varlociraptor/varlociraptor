@@ -14,6 +14,7 @@ use bio::io::fasta;
 use model::AlleleFreqs;
 use model::priors;
 use model::PairCaller;
+use model::sample::Evidence;
 use model;
 use Event;
 use utils;
@@ -76,7 +77,6 @@ fn pileups<'a, A, B, P>(
 
     Ok(pileups)
 }
-
 
 /// Call variants with the given model.
 ///
@@ -144,12 +144,12 @@ pub fn call<A, B, P, M, R, W, X, F>(
     };
 
     let mut outobs = if let Some(f) = outobs {
-        let mut writer = try!(csv::Writer::from_file(f)).delimiter(b'\t');
+        let mut writer = try!(csv::WriterBuilder::new().has_headers(false).delimiter(b'\t').from_path(f) );
         // write header for observations
-        writer.write(
+        writer.write_record(
             ["chrom", "pos", "allele", "sample", "prob_mapping",
-             "prob_alt", "prob_ref", "prob_mismapped", "evidence"].iter()
-         )?;
+            "prob_alt", "prob_ref", "prob_mismapped", "evidence"].iter()
+        )?;
         Some(writer)
     } else { None };
     let mut record = inbcf.empty_record();
@@ -179,10 +179,10 @@ pub fn call<A, B, P, M, R, W, X, F>(
                 for (i, pileup) in pileups.iter().enumerate() {
                     if let &Some(ref pileup) = pileup {
                         for obs in pileup.case_observations() {
-                            outobs.encode((chrom, record.pos(), i, "case", obs))?;
+                            outobs.serialize((chrom, record.pos(), i, "case", obs))?;
                         }
                         for obs in pileup.control_observations() {
-                            outobs.encode((chrom, record.pos(), i, "control", obs))?;
+                            outobs.serialize((chrom, record.pos(), i, "control", obs))?;
                         }
                     }
                 }
