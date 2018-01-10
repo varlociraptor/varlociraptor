@@ -286,8 +286,8 @@ mod tests {
 
         // set up test input
         let test_file = "tests/resources/test_tags_prob_sum/overshoot.vcf";
-        let overshoot_calls = bcf::Reader::from_path( test_file ).unwrap();
-        let mut record = bcf::Record::new();
+        let mut overshoot_calls = bcf::Reader::from_path( test_file ).unwrap();
+        let mut record = overshoot_calls.empty_record();
         overshoot_calls.read(&mut record);
 
         // set up all alt events with names as in prosolo
