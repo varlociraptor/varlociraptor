@@ -371,6 +371,13 @@ impl Sample {
                             }
                         }
                     } else if record.is_first_in_template() || record.is_last_in_template() {
+                        // TODO:
+                        // obtain maximum del/ins in cigars
+                        // * allow full fragment overlap for smaller vars
+                        // * allow internal segment overlap for others
+                        // obtain maximum non-supplementary softclip len
+                        // * use as maximum overlap
+
                         // with properly mapped pair, we look at the whole fragment at once
 
                         // We ensure fair sampling by checking if the whole fragment overlaps the
