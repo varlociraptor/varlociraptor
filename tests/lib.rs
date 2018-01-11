@@ -245,8 +245,8 @@ fn test1() {
 
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.1);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_ABSENT", 1.5, 0.5);
-    check_info_float(&mut call, b"PROB_SOMATIC", 5.0, 0.5);
+    check_info_float(&mut call, b"PROB_ABSENT", 2.5, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 3.3, 0.5);
 }
 
 
