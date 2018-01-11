@@ -362,7 +362,31 @@ mod tests {
 
     #[test]
     fn test_filter_by_threshold() {
-        //TODO: write a minimal test for this function
-    }
+        // TODO: make this test work with both thresholds, testing against expected_output files
+        /*
+        // set up test input
+        let test_file = "tests/resources/test_tags_prob_sum/overshoot.vcf";
+        let mut calls = bcf::Reader::from_path( test_file ).unwrap();
 
+        let threshold_1 = 0.1;
+        let threshold_2 = 0.00000000001;
+
+        let events = vec![
+            SimpleEvent { name: "ADO_TO_REF".to_owned() },
+            SimpleEvent { name: "ADO_TO_ALT".to_owned() },
+            SimpleEvent { name: "HOM_ALT".to_owned() },
+            SimpleEvent { name: "HET".to_owned() },
+            SimpleEvent { name: "ERR_REF".to_owned() }
+        ];
+
+        let snv = VariantType::SNV;
+
+        let header = bcf::Header::with_template(&calls.header());
+        let mut out = bcf::Writer::from_stdout(&header, false, false).unwrap();
+
+        filter_by_threshold(&mut calls, &threshold, &mut out, &events, &snv);
+
+        panic!("Just checking");
+        */
+    }
 }
