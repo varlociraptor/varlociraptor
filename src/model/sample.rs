@@ -201,6 +201,7 @@ impl Sample {
         bam: bam::IndexedReader,
         pileup_window: u32,
         use_fragment_evidence: bool,
+        // TODO remove this parameter, it will lead to wrong insert size estimations and is not necessary
         use_secondary: bool,
         use_mapq: bool,
         adjust_mapq: bool,
