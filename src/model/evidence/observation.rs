@@ -60,11 +60,20 @@ impl Evidence {
         left: &CigarString,
         right: &CigarString,
         left_record: &bam::Record,
-        right_record: &bam::Record
+        right_record: &bam::Record,
+        p_left_ref: LogProb,
+        p_left_alt: LogProb,
+        p_right_ref: LogProb,
+        p_right_alt: LogProb,
+        p_isize_ref: LogProb,
+        p_isize_alt: LogProb
     ) -> Self {
         Evidence::InsertSize(format!(
-            "left: cigar={}, right: cigar={}, insert-size={}, qname={}, left: AS={:?}, XS={:?}, right: AS={:?}, XS={:?}",
-            left, right, insert_size, str::from_utf8(left_record.qname()).unwrap(),
+            "left: cigar={} ({:e} vs {:e}), right: cigar={} ({:e} vs {:e}), insert-size={} ({:e} vs {:e}), qname={}, left: AS={:?}, XS={:?}, right: AS={:?}, XS={:?}",
+            left, p_left_ref.exp(), p_left_alt.exp(),
+            right, p_right_ref.exp(), p_right_alt.exp(),
+            insert_size, p_isize_ref.exp(), p_isize_alt.exp(),
+            str::from_utf8(left_record.qname()).unwrap(),
             left_record.aux(b"AS").map(|a| a.integer()),
             left_record.aux(b"XS").map(|a| a.integer()),
             right_record.aux(b"AS").map(|a| a.integer()),

@@ -351,6 +351,11 @@ impl Sample {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     let pos = record.pos() as u32;
+                    if record.is_supplementary() {
+                        // there is no need to look at supplementary alignments,
+                        // because we realign overlapping reads agains both alleles anyway
+                        continue;
+                    }
 
                     if record.is_mate_unmapped() || !self.use_fragment_evidence {
                         // with unmapped mate, we only look at the current read
@@ -373,7 +378,9 @@ impl Sample {
                         // the centerpoint and the fragment would be discarded.
                         // The latter would not happen for alt fragments, because the second read
                         // would map right of the variant in that case.
-                        if pos <= centerpoint && !pairs.contains_key(record.qname()) {
+                        // There is no need to look at
+                        if pos <= centerpoint && !pairs.contains_key(record.qname())
+                        {
                             // need to check mate
                             // since the bam file is sorted by position, we can't see the mate first
                             let tlen = record.insert_size().abs() as u32;
@@ -381,6 +388,7 @@ impl Sample {
                                 pairs.insert(record.qname().to_owned(), record);
                             }
                         } else if let Some(mate) = pairs.get(record.qname()) {
+                            // this must be the second read then
                             // mate already visited, and this fragment overlaps centerpoint
                             // the mate is always the left read of the pair
                             if let Some(obs) = self.fragment_observation(
@@ -530,7 +538,13 @@ impl Sample {
                 &left_record.cigar(),
                 &right_record.cigar(),
                 left_record,
-                right_record
+                right_record,
+                p_ref_left,
+                p_alt_left,
+                p_ref_right,
+                p_alt_right,
+                p_ref_isize,
+                p_alt_isize
             )
         };
 

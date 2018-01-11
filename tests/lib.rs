@@ -108,7 +108,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
         Prob(0.0),
-        25,
+        40,
         100
     );
 
@@ -125,7 +125,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
         Prob(0.0),
-        25,
+        40,
         100
     );
 
@@ -316,6 +316,14 @@ fn test8() {
     let mut call = load_call("test8");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.5);
     check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.8);
+}
+
+/// Test a Delly deletion. It should not be a somatic call.
+#[test]
+fn test9() {
+    call_tumor_normal("test9", true, "chr2");
+    let mut call = load_call("test9");
+    assert!(false);
 }
 
 
