@@ -327,6 +327,16 @@ fn test9() {
 }
 
 
+/// Test a Lancet insertion. It seems to be a germline variant from venters genome, but it is called
+/// as somatic.
+#[test]
+fn test10() {
+    call_tumor_normal("test10", false, "chr20");
+    let mut call = load_call("test10");
+    // TODO add assertions once this test passes
+}
+
+
 #[test]
 fn test_fdr_ev1() {
     control_fdr_ev("test_fdr_ev_1");
