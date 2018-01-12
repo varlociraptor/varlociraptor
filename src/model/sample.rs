@@ -296,6 +296,40 @@ impl Sample {
         ))
     }
 
+    pub fn prob_sampling(
+        &self,
+        variant: &Variant,
+        start: u32,
+        end: u32,
+        left_record: &bam::Record,
+        right_record: &bam::Record,
+        insert_size: u32
+    ) -> (LogProb, LogProb) {
+        let a = self.record_buffer.window as i32;
+        let delta = match variant {
+            &Variant::Deletion(len) => len as i32,
+            &Variant::Insertion(ref seq) => -(seq.len() as i32),
+            _ => panic!("bug: unsupported variant")
+        };
+        let x = insert_size as i32;
+        let s = self.max_indel_overlap as i32;
+        let g = 3500000000.0f64; // TODO make genome length a parameter
+        let r = left_record.seq().len() as i32;
+
+        let n_placements = |delta| {
+            cmp::min(
+                cmp::max(x - delta - 2 * (r - s) + 1, 0),
+                cmp::max(a + delta - x + 2 * s + 1, 0)
+            ) as f64
+        };
+
+        // prob to sample from ref
+        let prob_ref = LogProb(n_placements(0).ln() - g.ln());
+        let prob_alt = LogProb(n_placements(delta).ln() - g.ln());
+
+        (prob_ref, prob_alt)
+    }
+
     /// Return likelihood model.
     pub fn likelihood_model(&self) -> model::likelihood::LatentVariableModel {
         self.likelihood_model
@@ -536,10 +570,20 @@ impl Sample {
             (LogProb::ln_one(), LogProb::ln_one())
         };
 
+        let (p_ref_sampling, p_alt_sampling) = self.prob_sampling(
+            variant,
+            start,
+            end,
+            left_record,
+            right_record,
+            insert_size
+        );
+        println!("sampling: {} {}", p_ref_sampling.exp(), p_alt_sampling.exp());
+
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
-            prob_alt: p_alt_isize + p_alt_left + p_alt_right,
-            prob_ref: p_ref_isize + p_ref_left + p_ref_right,
+            prob_alt: p_alt_isize + p_alt_left + p_alt_right + p_alt_sampling,
+            prob_ref: p_ref_isize + p_ref_left + p_ref_right + p_ref_sampling,
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
             evidence: Evidence::insert_size(
                 insert_size as u32,
