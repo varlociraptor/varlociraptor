@@ -39,7 +39,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
     writer: &mut W,
     events: &[E],
     vartype: &model::VariantType) -> Result<(), Box<Error>> {
-    let mut writer = csv::WriterBuilder::new().delimiter(b'\t').from_writer(writer);
+    let mut writer = csv::WriterBuilder::new().has_headers(false).delimiter(b'\t').from_writer(writer);
     try!(writer.write_record(["FDR", "max-prob"].into_iter()));
 
     let null_dist = utils::collect_prob_dist(null_calls, events, vartype)?;
