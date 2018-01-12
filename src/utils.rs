@@ -171,6 +171,38 @@ impl ReferenceBuffer {
     }
 }
 
+/// Sum up in log space the probabilities of the given tags for all variants of
+/// vartype in the given BCF record.
+///
+/// # Arguments
+///
+/// * `record` - BCF record
+/// * `tags` - tags of the set of events to sum up for a particular site and variant
+/// * `vartype` - the variant type to consider
+fn tags_prob_sum(
+    record: &mut bcf::Record,
+    tags: &[String],
+    vartype: &model::VariantType
+) -> Result<LogProb, Box<Error>> {
+
+    let variants = (utils::collect_variants(record, false, false, None, false))?;
+    let mut tags_probs_out = Vec::with_capacity( variants.len() * tags.len() );
+
+    for tag in tags {
+        if let Some(tags_probs_in) = (record.info(tag.as_bytes()).float())? {
+            //tag present
+            for (variant, tag_prob) in (&variants).into_iter().zip(tags_probs_in.into_iter()) {
+                if let Some(ref variant) = *variant {
+                    if !variant.is_type(vartype) || tag_prob.is_nan() {
+                        continue;
+                    }
+                    tags_probs_out.push( LogProb::from( PHREDProb( *tag_prob as f64 ) ) );
+                }
+            }
+        }
+    }
+    Ok( LogProb::ln_sum_exp(&tags_probs_out).cap_numerical_overshoot(0.000001) )
+}
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
 /// libprosic.
@@ -196,22 +228,7 @@ pub fn collect_prob_dist<E: Event>(
             }
         }
 
-        let variants = (utils::collect_variants(&mut record, false, false, None, false))?;
-        let mut events_prob_sum = LogProb::ln_zero();
-        for tag in &tags {
-            if let Some(event_probs) = (record.info(tag.as_bytes()).float())? {
-                //tag present
-                for (variant, event_prob) in (&variants).into_iter().zip(event_probs.into_iter()) {
-                    if let Some(ref variant) = *variant {
-                        if !variant.is_type(vartype) || event_prob.is_nan() {
-                            continue;
-                        }
-                        events_prob_sum = events_prob_sum.ln_add_exp( LogProb::from( PHREDProb( *event_prob as f64 ) ) );
-                    }
-                }
-
-            }
-        }
+        let events_prob_sum = utils::tags_prob_sum(&mut record, &tags, &vartype)?;
         prob_dist.push(try!(NotNaN::new( *events_prob_sum ) ));
     }
     prob_dist.sort();
@@ -249,22 +266,7 @@ pub fn filter_by_threshold<E: Event>(
             }
         }
 
-        let variants = (utils::collect_variants(&mut record, false, false, None, false))?;
-        let mut events_probs = Vec::with_capacity( variants.len() * tags.len() );
-        for tag in &tags {
-            if let Some(event_probs) = (record.info(tag.as_bytes()).float())? {
-                //tag present
-                for (variant, event_prob) in (&variants).into_iter().zip(event_probs.into_iter()) {
-                    if let Some(ref variant) = *variant {
-                        if !variant.is_type(vartype) || event_prob.is_nan() {
-                            continue;
-                        }
-                        events_probs.push( LogProb::from( PHREDProb( *event_prob as f64 ) ) );
-                    }
-                }
-            }
-        }
-        let events_prob_sum = LogProb::ln_sum_exp(&events_probs);
+        let events_prob_sum = utils::tags_prob_sum(&mut record, &tags, &vartype)?;
         if events_prob_sum >= lp_threshold { out.write(&record)? };
     }
 }
@@ -274,10 +276,39 @@ mod tests {
     use super::*;
 
     use rust_htslib::bcf;
-    use bio::stats::Prob;
+    use bio::stats::{Prob, LogProb};
     use model::VariantType;
     use ComplementEvent;
     use SimpleEvent;
+
+    #[test]
+    fn test_tags_prob_sum() {
+
+        // set up test input
+        let test_file = "tests/resources/test_tags_prob_sum/overshoot.vcf";
+        let mut overshoot_calls = bcf::Reader::from_path( test_file ).unwrap();
+        let mut record = overshoot_calls.empty_record();
+        if let Err(e) = overshoot_calls.read(&mut record) {
+            panic!("BCF reading error: {}", e);
+        }
+
+        // set up all alt events with names as in prosolo
+        let alt_tags = [
+            String::from("PROB_ADO_TO_REF"),
+            String::from("PROB_ADO_TO_ALT"),
+            String::from("PROB_HOM_ALT"),
+            String::from("PROB_HET"),
+            String::from("PROB_ERR_REF")
+        ];
+
+        let snv = VariantType::SNV;
+
+        if let Ok( prob_sum ) = tags_prob_sum(&mut record, &alt_tags, &snv) {
+            assert_eq!( LogProb::ln_one(), prob_sum );
+        } else {
+            panic!("tags_prob_sum(&overshoot_calls, &alt_events, &snv) returned Error")
+        }
+    }
 
     #[test]
     fn test_collect_prob_dist() {
@@ -329,4 +360,33 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_filter_by_threshold() {
+        // TODO: make this test work with both thresholds, testing against expected_output files
+        /*
+        // set up test input
+        let test_file = "tests/resources/test_tags_prob_sum/overshoot.vcf";
+        let mut calls = bcf::Reader::from_path( test_file ).unwrap();
+
+        let threshold_1 = 0.1;
+        let threshold_2 = 0.00000000001;
+
+        let events = vec![
+            SimpleEvent { name: "ADO_TO_REF".to_owned() },
+            SimpleEvent { name: "ADO_TO_ALT".to_owned() },
+            SimpleEvent { name: "HOM_ALT".to_owned() },
+            SimpleEvent { name: "HET".to_owned() },
+            SimpleEvent { name: "ERR_REF".to_owned() }
+        ];
+
+        let snv = VariantType::SNV;
+
+        let header = bcf::Header::with_template(&calls.header());
+        let mut out = bcf::Writer::from_stdout(&header, false, false).unwrap();
+
+        filter_by_threshold(&mut calls, &threshold, &mut out, &events, &snv);
+
+        panic!("Just checking");
+        */
+    }
 }
