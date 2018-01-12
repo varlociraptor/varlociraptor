@@ -1,4 +1,3 @@
-use csv;
 use bio::stats::PHREDProb;
 
 pub mod bh;
