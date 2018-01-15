@@ -1,6 +1,9 @@
 use std::cmp;
 use std::error::Error;
+use std::ops::Range;
+use std::f64;
 
+use itertools::Itertools;
 use rgsl::randist::gaussian::ugaussian_P;
 use bio::stats::LogProb;
 use rust_htslib::bam::record::CigarStringView;
@@ -94,6 +97,7 @@ impl IndelEvidence {
         prob_deletion_extend_artifact: LogProb,
         window: u32
     ) -> Self {
+
         IndelEvidence {
             gap_params: evidence::reads::IndelGapParams {
                 prob_insertion_artifact: prob_insertion_artifact,
@@ -107,7 +111,61 @@ impl IndelEvidence {
         }
     }
 
-    /// Returns true if
+    /// Get range of insert sizes with probability above zero.
+    /// We use 6 SDs around the mean.
+    fn pmf_range(&self, shift: f64) -> Range<u32> {
+        let m = (self.insert_size.mean + shift).round() as u32;
+        let s = self.insert_size.sd.ceil() as u32 * 6;
+        m.saturating_sub(s)..m + s
+    }
+
+    /// Get probability of given insert size from distribution shifted by the given value.
+    fn pmf(&self,  insert_size: u32, shift: f64) -> LogProb {
+        isize_pmf(
+            insert_size as f64,
+            self.insert_size.mean + shift,
+            self.insert_size.sd
+        )
+    }
+
+    /// Number of possible placements of fragment over a variant allele.
+    ///
+    /// # Arguments
+    /// * insert_size - the observed insert size
+    /// * left_read_len - the length of the left read
+    /// * right_read_len - the length of the right read
+    /// * max_softclip - maximum number of softclips that are supported by the mapper or considered in `model::sample`
+    /// * delta - the length of the variant in the sequenced DNA (0 for ref and del, inslen otherwise)
+    fn n_placements_alt(
+        &self,
+        insert_size: u32,
+        left_read_len: u32,
+        right_read_len: u32,
+        max_softclip: u32,
+        delta: u32
+    ) -> u32 {
+        let x = insert_size as i32;
+
+        // allow softclips of given maximum length
+        let r_left = left_read_len.saturating_sub(max_softclip) as i32;
+        let r_right = right_read_len.saturating_sub(max_softclip) as i32;
+
+        // for alt allele, the reads may not overlap the variant more than the maximum softclip
+        // they have to enclose the variant area (represented by delta) if it is in the sequenced
+        // DNA (i.e.: delta is 0 for deletions and insertion len otherwise)
+        cmp::max(x - delta as i32 - r_left - r_right + 1, 0) as u32
+    }
+
+    /// Number of placements of fragment with given insert size over reference allele.
+    fn n_placements_ref(
+        &self,
+        insert_size: u32
+    ) -> u32 {
+        // for reference, read just has to enclose the centerpoint
+        cmp::max(insert_size + 1, 0)
+    }
+
+    /// Returns true if insert size is discriminative.
     pub fn is_discriminative(&self, variant: &Variant) -> bool {
         variant.len() as f64 > self.insert_size.sd
     }
@@ -115,25 +173,40 @@ impl IndelEvidence {
     /// Calculate probability for reference and alternative allele.
     pub fn prob(&self,
         insert_size: u32,
+        left_read_len: u32,
+        right_read_len: u32,
+        max_softclip: u32,
         variant: &Variant
     ) -> Result<(LogProb, LogProb), Box<Error>> {
-        let shift = match variant {
-            &Variant::Deletion(_)  => variant.len() as f64,
-            &Variant::Insertion(_) => -(variant.len() as f64),
+        let (shift, delta) = match variant {
+            &Variant::Deletion(_)  => (variant.len() as f64, 0),
+            &Variant::Insertion(_) => (-(variant.len() as f64), variant.len()),
             &Variant::SNV(_) => panic!("no fragment observations for SNV")
         };
 
-        let p_alt = isize_pmf(
-            insert_size as f64,
-            self.insert_size.mean + shift,
-            self.insert_size.sd
-        );
+        // ref allele: Pr(placement) * Pr(isize) / marginal
+        let prob_joint_ref = |insert_size| {
+            LogProb((self.n_placements_ref(insert_size) as f64).ln() + *self.pmf(insert_size, 0.0))
+        };
+        let p_ref = prob_joint_ref(insert_size) -
+                    LogProb::ln_sum_exp(&self.pmf_range(0.0).map(
+                        |x| prob_joint_ref(x)
+                    ).collect_vec());
 
-        let p_ref = isize_pmf(
-            insert_size as f64,
-            self.insert_size.mean,
-            self.insert_size.sd
-        );
+        // alt allele: Pr(placement) * Pr(isize) / marginal
+        let prob_joint_alt = |insert_size| {
+            LogProb((self.n_placements_alt(
+                insert_size,
+                left_read_len,
+                right_read_len,
+                max_softclip,
+                delta
+            ) as f64).ln() + *self.pmf(insert_size, shift))
+        };
+        let p_alt = prob_joint_alt(insert_size) -
+                    LogProb::ln_sum_exp(&self.pmf_range(shift).map(
+                        |x| prob_joint_alt(x)
+                    ).collect_vec());
 
         Ok((p_ref, p_alt))
     }
