@@ -169,6 +169,33 @@ pub struct InsertSize {
 }
 
 
+/// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
+#[derive(Debug)]
+pub enum Overlap {
+    Enclosing(u32),
+    Clipped(u32),
+    None
+}
+
+impl Overlap {
+    pub fn is_enclosing(&self) -> bool {
+        if let &Overlap::Enclosing(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        if let &Overlap::None = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample {
     record_buffer: RecordBuffer,
@@ -256,9 +283,7 @@ impl Sample {
     }
 
     /// Calculate if overlap of read against variant is to be considered.
-    /// In the spirit of Sahlin et al. biorxiv 2015
-    /// (http://biorxiv.org/content/biorxiv/early/2015/08/04/023929.full.pdf).
-    fn is_valid_overlap(
+    fn overlap(
         &self,
         record: &bam::Record,
         start: u32,
@@ -266,7 +291,7 @@ impl Sample {
         end: u32,
         enclose_only: bool,
         consider_clips: bool
-    ) -> Result<(bool, bam::record::CigarStringView), Box<Error>> {
+    ) -> Result<(Overlap, bam::record::CigarStringView), Box<Error>> {
         let cigar = record.cigar();
         let mut pos = record.pos() as u32;
         let mut end_pos = cigar.end_pos()? as u32;
@@ -278,24 +303,32 @@ impl Sample {
         }
 
         let is_enclosing = pos <= start && end_pos >= end;
-
-        if is_enclosing || enclose_only {
-            // if read encloses variant, stop early in any case
-            // if we just want enclosing reads, stop early as well
-            return Ok((is_enclosing, cigar))
-        }
-
         // calculate overlap
         let overlap = if end_pos <= end {
+            // TODO do we need the right case?
             cmp::min(end_pos.saturating_sub(start), variant.len())
         } else {
             cmp::min(end.saturating_sub(pos), variant.len())
         };
 
-        Ok((
-            overlap > 0 && overlap <= self.max_indel_overlap,
-            cigar
-        ))
+        if is_enclosing {
+            // if read encloses variant, stop early in any case
+            // if we just want enclosing reads, stop early as well
+            Ok((Overlap::Enclosing(overlap), cigar))
+        } else if overlap > 0 {
+            Ok((Overlap::Clipped(overlap), cigar))
+        } else {
+            Ok((Overlap::None, cigar))
+        }
+    }
+
+    /// Return whether given overlap shall be considered for an observation.
+    fn is_valid_indel_overlap(&self, overlap: &Overlap) -> bool {
+        match overlap {
+            &Overlap::Enclosing(o) => o <= self.max_indel_overlap,
+            &Overlap::Clipped(o) => o <= self.max_indel_overlap,
+            &Overlap::None => true
+        }
     }
 
     /// Return likelihood model.
@@ -335,11 +368,11 @@ impl Sample {
                         continue;
                     }
 
-                    let (valid_overlap, cigar) = self.is_valid_overlap(
+                    let (overlap, cigar) = self.overlap(
                         record, start, variant, end, true, false
                     )?;
 
-                    if valid_overlap {
+                    if overlap.is_enclosing() {
                         if let Some( obs ) = self.read_observation(&record, &cigar, start, variant, chrom_seq)? {
                             observations.push( obs );
                             n_overlap += 1;
@@ -362,10 +395,10 @@ impl Sample {
 
                     if record.is_mate_unmapped() || !self.use_fragment_evidence {
                         // with unmapped mate, we only look at the current read
-                        let (valid_overlap, cigar) = self.is_valid_overlap(
+                        let (overlap, cigar) = self.overlap(
                             record, start, variant, end, false, true
                         )?;
-                        if valid_overlap {
+                        if !overlap.is_none() && self.is_valid_indel_overlap(&overlap) {
                             if let Some(obs) = self.read_observation(
                                     &record, &cigar, start, variant, chrom_seq
                             )? {
@@ -374,9 +407,6 @@ impl Sample {
                         }
                     } else if record.is_first_in_template() || record.is_last_in_template() {
                         // TODO:
-                        // obtain maximum del/ins in cigars
-                        // * allow full fragment overlap for smaller vars
-                        // * allow internal segment overlap for others
                         // obtain maximum non-supplementary softclip len
                         // * use as maximum overlap
 
@@ -388,7 +418,6 @@ impl Sample {
                         // the centerpoint and the fragment would be discarded.
                         // The latter would not happen for alt fragments, because the second read
                         // would map right of the variant in that case.
-                        // There is no need to look at
                         if pos <= centerpoint && !pairs.contains_key(record.qname())
                         {
                             // need to check mate
@@ -507,26 +536,41 @@ impl Sample {
         end: u32
     ) -> Result<Option<Observation>, Box<Error>> {
 
-        let prob_read = |record: &bam::Record| -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
-            let (valid_overlap, cigar) = self.is_valid_overlap(
-                record, start, variant, end, false, true
-            )?;
-
+        let prob_read = |
+            record: &bam::Record, overlap: Overlap, cigar: CigarStringView
+        | -> Result<(LogProb, LogProb), Box<Error>> {
             // read evidence
-            if valid_overlap {
-                Ok(Some(self.indel_read_evidence.borrow_mut()
-                                                .prob(record, &cigar, start, variant, chrom_seq)?))
+            if !overlap.is_none() {
+                // we check before whether the overlaps are valid
+                Ok(self.indel_read_evidence.borrow_mut()
+                                           .prob(record, &cigar, start, variant, chrom_seq)?)
             } else {
-                Ok(None)
+                // when there is no overlap, we ignore this read
+                // TODO calculate ref likelihood only
+                Ok((LogProb::ln_one(), LogProb::ln_one()))
             }
         };
 
-        // obtain probabilities for both reads
-        let p_left = prob_read(left_record)?;
-        let p_right = prob_read(right_record)?;
-        let p_ignore = || (LogProb::ln_one(), LogProb::ln_one());
-        let (p_ref_left, p_alt_left) = prob_read(left_record)?.unwrap_or_else(&p_ignore);
-        let (p_ref_right, p_alt_right) = prob_read(right_record)?.unwrap_or_else(&p_ignore);
+        let (left_overlap, left_cigar) = self.overlap(
+            left_record, start, variant, end, false, true
+        )?;
+        let (right_overlap, right_cigar) = self.overlap(
+            right_record, start, variant, end, false, true
+        )?;
+
+        if str::from_utf8(left_record.qname()).unwrap() == "sim_control30x_Control_chr2_1_d80e14" {
+            println!("{}-{} vs {} {} {:?}", left_record.pos(), left_cigar.end_pos()?, start, end, left_overlap);
+        }
+
+        if !self.is_valid_indel_overlap(&left_overlap) ||
+           !self.is_valid_indel_overlap(&right_overlap) {
+            // If either left of right has a too large overlap, skip fragment,
+            // otherwise we would generate a bias towards ref fragments.
+            return Ok(None);
+        }
+
+        let (p_ref_left, p_alt_left) = prob_read(left_record, left_overlap, left_cigar)?;
+        let (p_ref_right, p_alt_right) = prob_read(right_record, right_overlap, right_cigar)?;
 
         // obtain insert size probability
         // if insert size is discriminative for the given variant

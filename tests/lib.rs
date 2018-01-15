@@ -321,7 +321,6 @@ fn test8() {
 
 /// Test a Delly deletion. It should not be a somatic call.
 #[test]
-#[ignore]
 fn test9() {
     call_tumor_normal("test9", true, "chr2");
     let mut call = load_call("test9");
