@@ -78,7 +78,7 @@ impl IndelEvidence {
         let read_seq = record.seq();
         let read_qual = record.qual();
 
-        let (read_offset, read_end, breakpoint) = {
+        let (read_offset, read_end, breakpoint, overlap) = {
             let (varstart, varend) = match variant {
                 &Variant::Deletion(_) => (start, start + variant.len()),
                 &Variant::Insertion(_) => (start, start + 1),
@@ -98,7 +98,7 @@ impl IndelEvidence {
                         qend + self.window as usize,
                         read_seq.len()
                     );
-                    (read_offset, read_end, varstart as usize)
+                    (read_offset, read_end, varstart as usize, true)
                 },
                 (Some(qstart), None) => {
                     let qstart = qstart as usize;
@@ -107,7 +107,7 @@ impl IndelEvidence {
                         qstart + self.window as usize,
                         read_seq.len()
                     );
-                    (read_offset, read_end, varstart as usize)
+                    (read_offset, read_end, varstart as usize, true)
                 },
                 (None, Some(qend)) => {
                     let qend = qend as usize;
@@ -116,17 +116,14 @@ impl IndelEvidence {
                         qend + self.window as usize,
                         read_seq.len()
                     );
-                    (read_offset, read_end, varend as usize)
+                    (read_offset, read_end, varend as usize, true)
                 },
                 (None, None) => {
-                    panic!(
-                        "bug: read does not overlap breakpoint: qname={}, pos={}, cigar={}, start={}, len={}",
-                        str::from_utf8(record.qname()).unwrap(),
-                        record.pos(),
-                        cigar,
-                        start,
-                        variant.len()
-                    );
+                    let m = read_seq.len() / 2;
+                    let read_offset = m.saturating_sub(self.window as usize);
+                    let read_end = cmp::min(m + self.window as usize, read_seq.len());
+                    let breakpoint = record.pos() as usize + m;
+                    (read_offset, read_end, breakpoint, false)
                 }
             }
         };
@@ -151,45 +148,50 @@ impl IndelEvidence {
         );
 
         // alt allele
-        let prob_alt = match variant {
-            &Variant::Deletion(_) => {
-                self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &DeletionEmissionParams {
-                        ref_seq: ref_seq,
-                        read_seq: &read_seq,
-                        read_qual: read_qual,
-                        read_offset: read_offset,
-                        read_end: read_end,
-                        ref_offset: start.saturating_sub(ref_window),
-                        ref_end: cmp::min(start + ref_window, ref_seq.len()),
-                        del_start: start,
-                        del_len: variant.len() as usize
-                    }
-                )
-            },
-            &Variant::Insertion(ref ins_seq) => {
-                let l = ins_seq.len() as usize;
-                self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &InsertionEmissionParams {
-                        ref_seq: ref_seq,
-                        read_seq: &read_seq,
-                        read_qual: read_qual,
-                        read_offset: read_offset,
-                        read_end: read_end,
-                        ref_offset: start.saturating_sub(ref_window),
-                        ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
-                        ins_start: start,
-                        ins_len: l,
-                        ins_end: start + l,
-                        ins_seq: ins_seq
-                    }
-                )
-            },
-            _ => {
-                panic!("bug: unsupported variant");
+        let prob_alt = if overlap {
+            match variant {
+                &Variant::Deletion(_) => {
+                    self.pairhmm.prob_related(
+                        &self.gap_params,
+                        &DeletionEmissionParams {
+                            ref_seq: ref_seq,
+                            read_seq: &read_seq,
+                            read_qual: read_qual,
+                            read_offset: read_offset,
+                            read_end: read_end,
+                            ref_offset: start.saturating_sub(ref_window),
+                            ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                            del_start: start,
+                            del_len: variant.len() as usize
+                        }
+                    )
+                },
+                &Variant::Insertion(ref ins_seq) => {
+                    let l = ins_seq.len() as usize;
+                    self.pairhmm.prob_related(
+                        &self.gap_params,
+                        &InsertionEmissionParams {
+                            ref_seq: ref_seq,
+                            read_seq: &read_seq,
+                            read_qual: read_qual,
+                            read_offset: read_offset,
+                            read_end: read_end,
+                            ref_offset: start.saturating_sub(ref_window),
+                            ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
+                            ins_start: start,
+                            ins_len: l,
+                            ins_end: start + l,
+                            ins_seq: ins_seq
+                        }
+                    )
+                },
+                _ => {
+                    panic!("bug: unsupported variant");
+                }
             }
+        } else {
+            // if no overlap, we can simply use prob_ref again
+            prob_ref
         };
 
         Ok((prob_ref, prob_alt))

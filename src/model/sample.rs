@@ -5,6 +5,7 @@ use std::error::Error;
 use std::f64::consts;
 use std::cell::RefCell;
 
+use ordered_float::NotNaN;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
 use rust_htslib::bam;
@@ -443,6 +444,20 @@ impl Sample {
 
         debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
 
+        if !observations.is_empty() {
+            // We scale all probabilities by the maximum value. This is just an unbiased scaling
+            // that does not affect the final certainties (because of Bayes' theorem application
+            // in the end). However, we avoid numerical issues (e.g., during integration).
+            let max_prob = LogProb(*observations.iter().map(|obs| {
+                cmp::max(NotNaN::new(*obs.prob_ref).unwrap(), NotNaN::new(*obs.prob_ref).unwrap())
+            }).max().unwrap());
+            for obs in observations.iter_mut() {
+                obs.prob_ref = obs.prob_ref - max_prob;
+                obs.prob_alt = obs.prob_alt - max_prob;
+            }
+        }
+
+        // TODO remove
         if self.adjust_mapq && self.use_fragment_evidence {
             match variant {
                 // only adjust for deletion and insertion
@@ -537,18 +552,13 @@ impl Sample {
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |
-            record: &bam::Record, overlap: Overlap, cigar: CigarStringView
+            record: &bam::Record, cigar: CigarStringView
         | -> Result<(LogProb, LogProb), Box<Error>> {
-            // read evidence
-            if !overlap.is_none() {
-                // we check before whether the overlaps are valid
-                Ok(self.indel_read_evidence.borrow_mut()
-                                           .prob(record, &cigar, start, variant, chrom_seq)?)
-            } else {
-                // when there is no overlap, we ignore this read
-                // TODO calculate ref likelihood only
-                Ok((LogProb::ln_one(), LogProb::ln_one()))
-            }
+            // Calculate read evidence.
+            // We also calculate it in case of no overlap. Otherwise, there would be a bias due to
+            // non-overlapping fragments having higher likelihoods.
+            Ok(self.indel_read_evidence.borrow_mut()
+                                       .prob(record, &cigar, start, variant, chrom_seq)?)
         };
 
         let (left_overlap, left_cigar) = self.overlap(
@@ -569,8 +579,8 @@ impl Sample {
             return Ok(None);
         }
 
-        let (p_ref_left, p_alt_left) = prob_read(left_record, left_overlap, left_cigar)?;
-        let (p_ref_right, p_alt_right) = prob_read(right_record, right_overlap, right_cigar)?;
+        let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
+        let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
 
         // obtain insert size probability
         // if insert size is discriminative for the given variant
