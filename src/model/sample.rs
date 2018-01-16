@@ -291,7 +291,6 @@ impl Sample {
         record: &bam::Record,
         start: u32,
         variant: &Variant,
-        end: u32,
         enclose_only: bool,
         consider_clips: bool
     ) -> Result<(Overlap, bam::record::CigarStringView), Box<Error>> {
@@ -305,13 +304,35 @@ impl Sample {
             end_pos = end_pos + evidence::Clips::trailing(&cigar).soft();
         }
 
-        let is_enclosing = pos <= start && end_pos >= end;
-        // calculate overlap
-        let overlap = if end_pos <= end {
-            // TODO do we need the right case?
-            cmp::min(end_pos.saturating_sub(start), variant.len())
-        } else {
-            cmp::min(end.saturating_sub(pos), variant.len())
+        let (is_enclosing, overlap) = match variant {
+            &Variant::SNV(_) => (pos <= start && end_pos > start, 1),
+            &Variant::Deletion(l) => {
+                let end = start + l;
+                let overlap = if end_pos <= end {
+                    // TODO do we need the right case?
+                    cmp::min(end_pos.saturating_sub(start), l)
+                } else {
+                    cmp::min(end.saturating_sub(pos), l)
+                };
+                let enclosing = pos <= start && end_pos > start + l;
+                (enclosing, overlap)
+            },
+            &Variant::Insertion(ref seq) => {
+                let l = seq.len() as u32;
+                // The alignment encloses the insertion if it fits into the sequence together with
+                // the alignment length (on the reference).
+                let enclosing = end_pos - pos + l <= record.seq().len() as u32;
+                let overlap = if enclosing {
+                    l
+                } else {
+                    // If the alignment does not enclose the insertion, we take the minimum
+                    // piece that goes beyond start. This is equivalent to projecting the aln
+                    // onto an alignment against the variant allele and calculating the overlap
+                    // there.
+                    cmp::min(end_pos.saturating_sub(start), start.saturating_sub(pos))
+                };
+                (enclosing, overlap)
+            }
         };
 
         if is_enclosing {
@@ -372,7 +393,7 @@ impl Sample {
                     }
 
                     let (overlap, cigar) = self.overlap(
-                        record, start, variant, end, true, false
+                        record, start, variant, true, false
                     )?;
 
                     if overlap.is_enclosing() {
@@ -386,6 +407,22 @@ impl Sample {
                 }
             },
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
+                // TODO debugging
+                // let max_indel_overlap = self.record_buffer.iter().map(|rec| {
+                //     if rec.is_supplementary() {
+                //         return 0;
+                //     }
+                //     rec.cigar().iter().map(|c| {
+                //         match c {
+                //             &bam::record::Cigar::Del(l) => l,
+                //             &bam::record::Cigar::Ins(l) => l,
+                //             &bam::record::Cigar::SoftClip(l) => l,
+                //             _ => 0
+                //         }
+                //     }).max().unwrap_or(0)
+                // }).max().unwrap_or(0);
+                // println!("{} vs {}", self.max_indel_overlap, max_indel_overlap);
+                // self.max_indel_overlap = max_indel_overlap;
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
@@ -399,7 +436,7 @@ impl Sample {
                     if record.is_mate_unmapped() || !self.use_fragment_evidence {
                         // with unmapped mate, we only look at the current read
                         let (overlap, cigar) = self.overlap(
-                            record, start, variant, end, false, true
+                            record, start, variant, false, true
                         )?;
                         if !overlap.is_none() && self.is_valid_indel_overlap(&overlap) {
                             if let Some(obs) = self.read_observation(
@@ -554,14 +591,14 @@ impl Sample {
         };
 
         let (left_overlap, left_cigar) = self.overlap(
-            left_record, start, variant, end, false, true
+            left_record, start, variant, false, true
         )?;
         let (right_overlap, right_cigar) = self.overlap(
-            right_record, start, variant, end, false, true
+            right_record, start, variant, false, true
         )?;
 
-        if str::from_utf8(left_record.qname()).unwrap() == "sim_control30x_Control_chr2_1_d80e14" {
-            println!("{}-{} vs {} {} {:?}", left_record.pos(), left_cigar.end_pos()?, start, end, left_overlap);
+        if str::from_utf8(left_record.qname()).unwrap() == "sim_control30x_Control_chr20_2_30cf12" {
+            println!("{}-{} vs {} {} {:?}", right_record.pos(), right_cigar.end_pos()?, start, end, right_overlap);
         }
 
         if !self.is_valid_indel_overlap(&left_overlap) ||
@@ -575,19 +612,17 @@ impl Sample {
         let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
 
         // obtain insert size probability
-        // if insert size is discriminative for the given variant
+        // If insert size is not discriminative for this kind of variant, this will have no
+        // effect on the probabilities.
         let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
-        let (p_ref_isize, p_alt_isize)
-            = if self.indel_fragment_evidence.borrow().is_discriminative(variant) {
-            self.indel_fragment_evidence.borrow().prob(
-                insert_size,
-                left_record.seq().len() as u32,
-                right_record.seq().len() as u32,
-                self.max_indel_overlap,
-                variant)?
-        } else {
-            (LogProb::ln_one(), LogProb::ln_one())
-        };
+        let (p_ref_isize, p_alt_isize) = self.indel_fragment_evidence.borrow().prob(
+            insert_size,
+            left_record.seq().len() as u32,
+            right_record.seq().len() as u32,
+            self.max_indel_overlap,
+            left_overlap.is_enclosing() || right_overlap.is_enclosing(),
+            variant
+        )?;
 
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),

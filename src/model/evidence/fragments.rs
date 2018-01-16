@@ -137,24 +137,33 @@ impl IndelEvidence {
     /// * right_read_len - the length of the right read
     /// * max_softclip - maximum number of softclips that are supported by the mapper or considered in `model::sample`
     /// * delta - the length of the variant in the sequenced DNA (0 for ref and del, inslen otherwise)
+    /// * is_enclosing - denote if of the alignments encloses the variant (maps left and right of it)
     fn n_placements(
         &self,
         insert_size: u32,
         left_read_len: u32,
         right_read_len: u32,
         max_softclip: u32,
-        delta: u32
+        delta: u32,
+        is_enclosing: bool
     ) -> u32 {
         let x = insert_size as i32;
 
-        // allow softclips of given maximum length
-        let r_left = left_read_len.saturating_sub(max_softclip) as i32;
-        let r_right = right_read_len.saturating_sub(max_softclip) as i32;
+        if is_enclosing {
+            // If one of the reads encloses the variant, placements are simply limited by delta.
+            cmp::max(x - delta as i32 + 1, 0) as u32
+        } else {
+            // If none of the reads encloses the variant, placements are limited by delta and
+            // maximum softclips.
+            // The reads may not overlap the variant more than the maximum softclip
+            // they have to enclose the variant area (represented by delta).
 
-        // for alt allele, the reads may not overlap the variant more than the maximum softclip
-        // they have to enclose the variant area (represented by delta) if it is in the sequenced
-        // DNA (i.e.: delta is 0 for deletions and insertion len otherwise)
-        cmp::max(x - delta as i32 - r_left - r_right + 1, 0) as u32
+            // allow softclips of given maximum length
+            let r_left = left_read_len.saturating_sub(max_softclip) as i32;
+            let r_right = right_read_len.saturating_sub(max_softclip) as i32;
+
+            cmp::max(x - delta as i32 - r_left - r_right + 1, 0) as u32
+        }
     }
 
     /// Returns true if insert size is discriminative.
@@ -168,6 +177,7 @@ impl IndelEvidence {
         left_read_len: u32,
         right_read_len: u32,
         max_softclip: u32,
+        is_enclosing: bool,
         variant: &Variant
     ) -> Result<(LogProb, LogProb), Box<Error>> {
         let (shift, delta) = match variant {
@@ -183,7 +193,8 @@ impl IndelEvidence {
                 left_read_len,
                 right_read_len,
                 max_softclip,
-                delta
+                delta,
+                is_enclosing
             ) as f64).ln() + *self.pmf(insert_size, shift))
         };
         let prob = |insert_size, shift| {
