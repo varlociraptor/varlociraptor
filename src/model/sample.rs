@@ -597,10 +597,6 @@ impl Sample {
             right_record, start, variant, false, true
         )?;
 
-        if str::from_utf8(left_record.qname()).unwrap() == "sim_control30x_Control_chr20_2_30cf12" {
-            println!("{}-{} vs {} {} {:?}", right_record.pos(), right_cigar.end_pos()?, start, end, right_overlap);
-        }
-
         if !self.is_valid_indel_overlap(&left_overlap) ||
            !self.is_valid_indel_overlap(&right_overlap) {
             // If either left of right has a too large overlap, skip fragment,
