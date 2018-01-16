@@ -189,9 +189,6 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
             Some(&observations),
             exclusive_end
         ).unwrap();
-
-    // sleep a second in order to wait for filesystem flushing
-    thread::sleep(time::Duration::from_secs(1));
 }
 
 
@@ -246,7 +243,7 @@ fn test1() {
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.1);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"PROB_ABSENT", 2.5, 0.5);
-    check_info_float(&mut call, b"PROB_SOMATIC", 3.8, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 3.1, 0.5);
 }
 
 
@@ -258,7 +255,7 @@ fn test2() {
 
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.21, 0.05);
+    check_info_float(&mut call, b"PROB_SOMATIC", 1.5, 0.05);
 }
 
 
@@ -268,8 +265,8 @@ fn test3() {
     call_tumor_normal("test3", false, "chr1");
     let mut call = load_call("test3");
 
-    check_info_float(&mut call, b"CASE_AF", 0.5, 0.17); // TODO: here a prior could help
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.04);
+    check_info_float(&mut call, b"CASE_AF", 0.5, 0.05);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
     check_info_float(&mut call, b"PROB_GERMLINE", 7.0e-5, 7.0e-5);
 }
 
@@ -280,9 +277,9 @@ fn test4() {
     call_tumor_normal("test4", false, "chr1");
     let mut call = load_call("test4");
 
-    check_info_float(&mut call, b"CASE_AF", 0.042, 0.1);
+    check_info_float(&mut call, b"CASE_AF", 0.042, 0.05);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.02, 0.05);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.9, 0.05);
 }
 
 
@@ -291,10 +288,8 @@ fn test4() {
 fn test5() {
     call_tumor_normal("test5", true, "chr1");
     let mut call = load_call("test5");
-    check_info_float(&mut call, b"PROB_ABSENT", 2.5, 0.5);
-    check_info_float(&mut call, b"PROB_SOMATIC", 5.6, 0.5);
-    check_info_float(&mut call, b"PROB_GERMLINE", 7.0, 0.5);
-    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC", 39.1, 0.5);
 }
 
 
@@ -304,9 +299,9 @@ fn test7() {
     call_tumor_normal("test7", false, "chr1");
     let mut call = load_call("test7");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"CASE_AF", 0.125, 0.1);
+    check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
     check_info_float(&mut call, b"PROB_SOMATIC", 1.0, 0.5);
-    check_info_float(&mut call, b"PROB_GERMLINE", 9.0, 0.5);
+    check_info_float(&mut call, b"PROB_GERMLINE", 9.5, 0.5);
 }
 
 
@@ -315,7 +310,7 @@ fn test7() {
 fn test8() {
     call_tumor_normal("test8", true, "chr2");
     let mut call = load_call("test8");
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.5);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
     check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.8);
 }
 
@@ -324,15 +319,14 @@ fn test8() {
 fn test9() {
     call_tumor_normal("test9", true, "chr2");
     let mut call = load_call("test9");
-    // TODO add assertions once this test passes
-    assert!(false);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC", 11.2, 0.5);
 }
 
 
 /// Test a Lancet insertion. It seems to be a germline variant from venters genome, but it is called
 /// as somatic.
 #[test]
-#[ignore]
 fn test10() {
     call_tumor_normal("test10", false, "chr20");
     let mut call = load_call("test10");

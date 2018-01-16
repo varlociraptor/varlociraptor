@@ -231,7 +231,9 @@ impl Sample {
         use_fragment_evidence: bool,
         // TODO remove this parameter, it will lead to wrong insert size estimations and is not necessary
         use_secondary: bool,
+        // TODO remove this parameter, we should always use MAPQ
         use_mapq: bool,
+        // TODO remove this parameter, it is not needed anymore
         adjust_mapq: bool,
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
@@ -455,16 +457,6 @@ impl Sample {
                 obs.prob_ref = obs.prob_ref - max_prob;
                 obs.prob_alt = obs.prob_alt - max_prob;
             }
-        }
-
-        // TODO remove
-        if self.adjust_mapq && self.use_fragment_evidence {
-            match variant {
-                // only adjust for deletion and insertion
-                &Variant::Deletion(_) | &Variant::Insertion(_) => adjust_mapq(&mut observations),
-                _ => ()
-            }
-
         }
         Ok(observations)
     }

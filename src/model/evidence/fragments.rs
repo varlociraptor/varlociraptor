@@ -128,7 +128,8 @@ impl IndelEvidence {
         )
     }
 
-    /// Number of possible placements of fragment over a variant allele.
+    /// Number of possible placements of fragment over variant
+    /// (we use the same sampling for ref and alt).
     ///
     /// # Arguments
     /// * insert_size - the observed insert size
@@ -136,7 +137,7 @@ impl IndelEvidence {
     /// * right_read_len - the length of the right read
     /// * max_softclip - maximum number of softclips that are supported by the mapper or considered in `model::sample`
     /// * delta - the length of the variant in the sequenced DNA (0 for ref and del, inslen otherwise)
-    fn n_placements_alt(
+    fn n_placements(
         &self,
         insert_size: u32,
         left_read_len: u32,
@@ -154,15 +155,6 @@ impl IndelEvidence {
         // they have to enclose the variant area (represented by delta) if it is in the sequenced
         // DNA (i.e.: delta is 0 for deletions and insertion len otherwise)
         cmp::max(x - delta as i32 - r_left - r_right + 1, 0) as u32
-    }
-
-    /// Number of placements of fragment with given insert size over reference allele.
-    fn n_placements_ref(
-        &self,
-        insert_size: u32
-    ) -> u32 {
-        // for reference, read just has to enclose the centerpoint
-        cmp::max(insert_size + 1, 0)
     }
 
     /// Returns true if insert size is discriminative.
@@ -184,18 +176,9 @@ impl IndelEvidence {
             &Variant::SNV(_) => panic!("no fragment observations for SNV")
         };
 
-        // ref allele: Pr(placement) * Pr(isize) / marginal
-        let prob_joint_ref = |insert_size| {
-            LogProb((self.n_placements_ref(insert_size) as f64).ln() + *self.pmf(insert_size, 0.0))
-        };
-        let p_ref = prob_joint_ref(insert_size) -
-                    LogProb::ln_sum_exp(&self.pmf_range(0.0).map(
-                        |x| prob_joint_ref(x)
-                    ).collect_vec());
-
-        // alt allele: Pr(placement) * Pr(isize) / marginal
-        let prob_joint_alt = |insert_size| {
-            LogProb((self.n_placements_alt(
+        // calc Pr(placement) * Pr(isize) / marginal
+        let prob_joint = |insert_size, shift| {
+            LogProb((self.n_placements(
                 insert_size,
                 left_read_len,
                 right_read_len,
@@ -203,10 +186,14 @@ impl IndelEvidence {
                 delta
             ) as f64).ln() + *self.pmf(insert_size, shift))
         };
-        let p_alt = prob_joint_alt(insert_size) -
-                    LogProb::ln_sum_exp(&self.pmf_range(shift).map(
-                        |x| prob_joint_alt(x)
-                    ).collect_vec());
+        let prob = |insert_size, shift| {
+            prob_joint(insert_size, shift) - LogProb::ln_sum_exp(&self.pmf_range(shift).map(
+                |x| prob_joint(x, shift)
+            ).collect_vec())
+        };
+
+        let p_ref = prob(insert_size, 0.0);
+        let p_alt = prob(insert_size, shift);
 
         Ok((p_ref, p_alt))
     }
