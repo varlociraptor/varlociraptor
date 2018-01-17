@@ -14,7 +14,6 @@ use bio::io::fasta;
 use model::AlleleFreqs;
 use model::priors;
 use model::PairCaller;
-use model::sample::Evidence;
 use model;
 use Event;
 use utils;

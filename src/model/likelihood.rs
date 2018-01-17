@@ -50,6 +50,7 @@ impl LatentVariableModel {
                                               allele_freq_case.ln_one_minus_exp() + observation.prob_ref
                                 );
                 assert!(!prob_case.is_nan());
+                println!("{:?} {:?}", observation.prob_alt, observation.prob_ref);
                 // total probability
                 let total = (observation.prob_mapping + prob_control.ln_add_exp(prob_case)).ln_add_exp(
                                   observation.prob_mapping.ln_one_minus_exp() + observation.prob_mismapped

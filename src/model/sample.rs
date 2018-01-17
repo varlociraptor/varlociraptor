@@ -161,28 +161,12 @@ impl RecordBuffer {
 }
 
 
-<<<<<<< HEAD
 /// Expected insert size in terms of mean and standard deviation.
 /// This should be estimated from unsorted(!) bam files to avoid positional biases.
 #[derive(Copy, Clone, Debug)]
 pub struct InsertSize {
     pub mean: f64,
     pub sd: f64
-=======
-/// An observation for or against a variant.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Observation {
-    /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
-    pub prob_mapping: LogProb,
-    /// Probability that the read/read-pair comes from the alternative allele.
-    pub prob_alt: LogProb,
-    /// Probability that the read/read-pair comes from the reference allele.
-    pub prob_ref: LogProb,
-    /// Probability of the read/read-pair given that it has been mismapped.
-    pub prob_mismapped: LogProb,
-    /// Type of evidence.
-    pub evidence: Evidence
->>>>>>> master
 }
 
 
@@ -203,65 +187,12 @@ impl Overlap {
         }
     }
 
-<<<<<<< HEAD
     pub fn is_none(&self) -> bool {
         if let &Overlap::None = self {
             true
         } else {
             false
         }
-=======
-/// Types of evidence that lead to an observation.
-/// The contained information is intended for debugging and will be printed together with
-/// observations.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Evidence {
-    /// Insert size of fragment
-    InsertSize(String),
-    /// Alignment of a single read
-    Alignment(String)
-}
-
-
-impl Evidence {
-    /// Create a dummy alignment.
-    pub fn dummy_alignment() -> Self {
-        Evidence::Alignment("Dummy-Alignment".to_owned())
-    }
-
-    /// Create dummy insert size evidence.
-    pub fn dummy_insert_size(insert_size: u32) -> Self {
-        Evidence::InsertSize(format!("insert-size={}", insert_size))
-    }
-
-    /// Create insert size evidence.
-    pub fn insert_size(
-        insert_size: u32,
-        left: &CigarString,
-        right: &CigarString,
-        left_record: &bam::Record,
-        right_record: &bam::Record
-    ) -> Self {
-        Evidence::InsertSize(format!(
-            "insert-size={}, left: cigar={}, qname={}, AS={:?}, XS={:?}, right: cigar={}, AS={:?}, XS={:?}",
-            insert_size, left, str::from_utf8(left_record.qname()).unwrap(),
-            left_record.aux(b"AS").map(|a| a.integer()),
-            left_record.aux(b"XS").map(|a| a.integer()),
-            right,
-            right_record.aux(b"AS").map(|a| a.integer()),
-            right_record.aux(b"XS").map(|a| a.integer())
-        ))
-    }
-
-    /// Create alignment evidence.
-    pub fn alignment(cigar: &CigarString, record: &bam::Record) -> Self {
-        Evidence::Alignment(format!(
-            "cigar={}, qname={}, AS={:?}, XS={:?}",
-            cigar, str::from_utf8(record.qname()).unwrap(),
-            record.aux(b"AS").map(|a| a.integer()),
-            record.aux(b"XS").map(|a| a.integer())
-        ))
->>>>>>> master
     }
 }
 
@@ -557,7 +488,7 @@ impl Sample {
             // that does not affect the final certainties (because of Bayes' theorem application
             // in the end). However, we avoid numerical issues (e.g., during integration).
             let max_prob = LogProb(*observations.iter().map(|obs| {
-                cmp::max(NotNaN::new(*obs.prob_ref).unwrap(), NotNaN::new(*obs.prob_ref).unwrap())
+                cmp::max(NotNaN::from(obs.prob_ref), NotNaN::from(obs.prob_alt))
             }).max().unwrap());
             for obs in observations.iter_mut() {
                 obs.prob_ref = obs.prob_ref - max_prob;
@@ -689,12 +620,12 @@ impl Sample {
             variant
         )?;
 
-        assert!(!p_alt_isize.is_nan());
-        assert!(!p_ref_isize.is_nan());
-        assert!(!p_alt_left.is_nan());
-        assert!(!p_alt_right.is_nan());
-        assert!(!p_ref_left.is_nan());
-        assert!(!p_ref_right.is_nan());
+        assert!(p_alt_isize.is_valid());
+        assert!(p_ref_isize.is_valid());
+        assert!(p_alt_left.is_valid());
+        assert!(p_alt_right.is_valid());
+        assert!(p_ref_left.is_valid());
+        assert!(p_ref_right.is_valid());
 
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
@@ -715,6 +646,8 @@ impl Sample {
                 p_alt_isize
             )
         };
+        assert!(obs.prob_alt.is_valid());
+        assert!(obs.prob_ref.is_valid());
 
         Ok(Some(obs))
     }

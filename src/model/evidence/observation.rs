@@ -1,11 +1,11 @@
 use std::str;
-use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::stats::LogProb;
 use rust_htslib::bam;
-use rust_htslib::bam::record::{CigarStringView, CigarString};
+use rust_htslib::bam::record::CigarString;
 
 
 /// An observation for or against a variant.
-#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     pub prob_mapping: LogProb,
@@ -34,7 +34,7 @@ impl Observation {
 /// Types of evidence that lead to an observation.
 /// The contained information is intended for debugging and will be printed together with
 /// observations.
-#[derive(Clone, Debug, RustcDecodable, RustcEncodable)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Evidence {
     /// Insert size of fragment
     InsertSize(String),

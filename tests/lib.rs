@@ -268,13 +268,6 @@ fn test4() {
 }
 
 
-#[test]
-fn test6() {
-    call_tumor_normal("test6", false, "chr16");
-    let mut call = load_call("test6");
-}
-
-
 /// Test a Delly call in a repeat region. This should not be a somatic call.
 #[test]
 fn test5() {
@@ -282,6 +275,18 @@ fn test5() {
     let mut call = load_call("test5");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
     check_info_float(&mut call, b"PROB_SOMATIC", 39.1, 0.5);
+}
+
+
+/// Test a large deletion that should be a very clear germline call.
+#[test]
+fn test6() {
+    call_tumor_normal("test6", false, "chr16");
+    let mut call = load_call("test6");
+
+    check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
+    check_info_float(&mut call, b"PROB_GERMLINE", 0.0006, 0.0001);
 }
 
 
