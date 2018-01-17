@@ -620,6 +620,13 @@ impl Sample {
             variant
         )?;
 
+        assert!(!p_alt_isize.is_nan());
+        assert!(!p_ref_isize.is_nan());
+        assert!(!p_alt_left.is_nan());
+        assert!(!p_alt_right.is_nan());
+        assert!(!p_ref_left.is_nan());
+        assert!(!p_ref_right.is_nan());
+
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
             prob_alt: p_alt_isize + p_alt_left + p_alt_right,

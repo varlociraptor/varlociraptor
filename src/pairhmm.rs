@@ -32,7 +32,7 @@ pub trait StartEndGapParameters {
         if self.free_start_gap_x() {
             LogProb::ln_one()
         } else {
-            /// For global alignment, this has to return 0.0.
+            // For global alignment, this has to return 0.0.
             LogProb::ln_zero()
         }
     }
