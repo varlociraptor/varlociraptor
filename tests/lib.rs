@@ -268,6 +268,13 @@ fn test4() {
 }
 
 
+#[test]
+fn test6() {
+    call_tumor_normal("test6", false, "chr16");
+    let mut call = load_call("test6");
+}
+
+
 /// Test a Delly call in a repeat region. This should not be a somatic call.
 #[test]
 fn test5() {
