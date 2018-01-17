@@ -31,14 +31,14 @@ pub fn control_fdr<E: Event, W: io::Write>(
     writer: &mut W,
     events: &[E],
     vartype: &model::VariantType) -> Result<(), Box<Error>> {
-    let mut writer = csv::Writer::from_writer(writer).delimiter(b'\t');
-    try!(writer.write(["FDR", "max-prob"].into_iter()));
+    let mut writer = csv::WriterBuilder::new().has_headers(false).delimiter(b'\t').from_writer(writer);
+    try!(writer.write_record(["FDR", "max-prob"].into_iter()));
 
     let prob_dist = utils::collect_prob_dist(calls, events, vartype)?;
 
     if prob_dist.is_empty() {
         for &alpha in &ALPHAS {
-            writer.write([&format!("{}", alpha), ""].iter())?;
+            writer.write_record([&format!("{}", alpha), ""].iter())?;
         }
         return Ok(());
     }
@@ -54,7 +54,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
         for i in (0..fdrs.len()).rev() {
             if fdrs[i] <= ln_alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
                 let pep = pep_dist[i];
-                writer.encode(&Record {
+                writer.serialize(&Record {
                     alpha: alpha,
                     gamma: PHREDProb::from(pep.ln_one_minus_exp())
                 })?;

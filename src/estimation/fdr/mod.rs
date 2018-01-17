@@ -36,7 +36,7 @@ pub const ALPHAS: [f64; 28] = [
 ];
 
 
-#[derive(RustcEncodable)]
+#[derive(Serialize)]
 struct Record {
     alpha: f64,
     gamma: PHREDProb

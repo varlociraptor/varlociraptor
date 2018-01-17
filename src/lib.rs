@@ -14,7 +14,9 @@ extern crate approx;
 extern crate rusty_machine;
 extern crate ordered_float;
 extern crate ndarray;
-extern crate rustc_serialize;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 #[macro_use]
 extern crate quick_error;
 extern crate csv;

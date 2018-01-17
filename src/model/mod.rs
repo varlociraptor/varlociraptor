@@ -734,19 +734,46 @@ mod tests {
         assert!(p_somatic > p_absent);
     }
 
+    fn recode_evidence(string: String) -> Evidence {
+        match &*string.to_string() {
+            "Alignment" => Evidence::Alignment(string),
+            _ => Evidence::InsertSize(string)
+        }
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct Row {
+        chrom: String,
+        pos: u32,
+        allele: u32,
+        sample: String,
+        prob_mapping: LogProb,
+        prob_alt: LogProb,
+        prob_ref: LogProb,
+        prob_mismapped: LogProb,
+        evidence: String
+    }
+
     fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel>) {
-        let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
-        let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
-        let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
-            sample == "case"
-        });
-        let mut group_iter = groups.into_iter();
-        let case_obs = group_iter.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
-        let control_obs = if let Some(o) = group_iter.next() {
-            o.1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec()
-        } else {
-            vec![]
-        };
+        let mut reader = csv::ReaderBuilder::new().has_headers(true).delimiter(b'\t').from_path(path).expect("error reading example");
+        let mut case_obs = vec![];
+        let mut control_obs = vec![];
+        for row in reader.deserialize() {
+            let record: Row = row.unwrap();
+            let ev = recode_evidence(record.evidence);
+            let obs = Observation {
+                prob_mapping: record.prob_mapping,
+                prob_alt: record.prob_alt,
+                prob_ref: record.prob_ref,
+                prob_mismapped: record.prob_mismapped,
+                evidence: ev
+            };
+            match &*record.sample.to_string() {
+                "case" => case_obs.push(obs),
+                "control" => control_obs.push(obs),
+                _ => panic!("unknown sample type: neither case nor control")
+            }
+        }
 
         let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
         let case_sample = Sample::new(
@@ -795,18 +822,25 @@ mod tests {
 
     #[allow(dead_code)]
     fn setup_example_flat(path: &str) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::FlatTumorNormalModel>) {
-        let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
-        let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
-        let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
-            sample == "case"
-        });
-        let mut group_iter = groups.into_iter();
-        let case_obs = group_iter.next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
-        let control_obs = if let Some(o) = group_iter.next() {
-            o.1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec()
-        } else {
-            vec![]
-        };
+        let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(path).expect("error reading example");
+        let mut case_obs = vec![];
+        let mut control_obs = vec![];
+        for row in reader.deserialize() {
+            let record: Row = row.unwrap();
+            let ev = recode_evidence(record.evidence);
+            let obs = Observation {
+                prob_mapping: record.prob_mapping,
+                prob_alt: record.prob_alt,
+                prob_ref: record.prob_ref,
+                prob_mismapped: record.prob_mismapped,
+                evidence: ev
+            };
+            match &*record.sample.to_string() {
+                "case" => case_obs.push(obs),
+                "control" => control_obs.push(obs),
+                _ => panic!("unknown sample type: neither case nor control")
+            }
+        }
 
         let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
         let case_sample = Sample::new(
@@ -857,6 +891,7 @@ mod tests {
     #[test]
     fn test_example2() {
         let (case_obs, control_obs, model) = setup_example("tests/example2.obs.txt", 0.01, 0.03);
+        println!("{:?}", case_obs);
 
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );

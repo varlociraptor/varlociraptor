@@ -1,6 +1,6 @@
 [package]
 name = "libprosic"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>"]
 description = "A library for calling of genomic variants using a latent variable model."
 repository = "https://github.com/prosic/libprosic"
@@ -20,9 +20,11 @@ ordered-float = "0.5"
 ndarray = "0.6"
 flame = { version = "^0.1.2", optional = true }
 flamer = { version = "^0.1.2", optional = true }
-rustc-serialize = "0.3"
 quick-error = "1.2"
-csv = "0.15"
+
+serde = "1"
+serde_derive = "1"
+csv = "1.0.0-beta.5"
 lazy_static = "0.2"
 statrs = "0.6.*"
 

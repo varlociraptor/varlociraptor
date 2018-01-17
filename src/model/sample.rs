@@ -161,12 +161,28 @@ impl RecordBuffer {
 }
 
 
+<<<<<<< HEAD
 /// Expected insert size in terms of mean and standard deviation.
 /// This should be estimated from unsorted(!) bam files to avoid positional biases.
 #[derive(Copy, Clone, Debug)]
 pub struct InsertSize {
     pub mean: f64,
     pub sd: f64
+=======
+/// An observation for or against a variant.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Observation {
+    /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
+    pub prob_mapping: LogProb,
+    /// Probability that the read/read-pair comes from the alternative allele.
+    pub prob_alt: LogProb,
+    /// Probability that the read/read-pair comes from the reference allele.
+    pub prob_ref: LogProb,
+    /// Probability of the read/read-pair given that it has been mismapped.
+    pub prob_mismapped: LogProb,
+    /// Type of evidence.
+    pub evidence: Evidence
+>>>>>>> master
 }
 
 
@@ -187,12 +203,65 @@ impl Overlap {
         }
     }
 
+<<<<<<< HEAD
     pub fn is_none(&self) -> bool {
         if let &Overlap::None = self {
             true
         } else {
             false
         }
+=======
+/// Types of evidence that lead to an observation.
+/// The contained information is intended for debugging and will be printed together with
+/// observations.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Evidence {
+    /// Insert size of fragment
+    InsertSize(String),
+    /// Alignment of a single read
+    Alignment(String)
+}
+
+
+impl Evidence {
+    /// Create a dummy alignment.
+    pub fn dummy_alignment() -> Self {
+        Evidence::Alignment("Dummy-Alignment".to_owned())
+    }
+
+    /// Create dummy insert size evidence.
+    pub fn dummy_insert_size(insert_size: u32) -> Self {
+        Evidence::InsertSize(format!("insert-size={}", insert_size))
+    }
+
+    /// Create insert size evidence.
+    pub fn insert_size(
+        insert_size: u32,
+        left: &CigarString,
+        right: &CigarString,
+        left_record: &bam::Record,
+        right_record: &bam::Record
+    ) -> Self {
+        Evidence::InsertSize(format!(
+            "insert-size={}, left: cigar={}, qname={}, AS={:?}, XS={:?}, right: cigar={}, AS={:?}, XS={:?}",
+            insert_size, left, str::from_utf8(left_record.qname()).unwrap(),
+            left_record.aux(b"AS").map(|a| a.integer()),
+            left_record.aux(b"XS").map(|a| a.integer()),
+            right,
+            right_record.aux(b"AS").map(|a| a.integer()),
+            right_record.aux(b"XS").map(|a| a.integer())
+        ))
+    }
+
+    /// Create alignment evidence.
+    pub fn alignment(cigar: &CigarString, record: &bam::Record) -> Self {
+        Evidence::Alignment(format!(
+            "cigar={}, qname={}, AS={:?}, XS={:?}",
+            cigar, str::from_utf8(record.qname()).unwrap(),
+            record.aux(b"AS").map(|a| a.integer()),
+            record.aux(b"XS").map(|a| a.integer())
+        ))
+>>>>>>> master
     }
 }
 
@@ -703,13 +772,43 @@ mod tests {
     use bio::io::fasta;
 
 
+    fn recode_evidence(string: String) -> Evidence {
+        match &*string.to_string() {
+            "Alignment" => Evidence::Alignment(string),
+            _ => Evidence::InsertSize(string)
+        }
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct Row {
+        chrom: String,
+        pos: u32,
+        allele: u32,
+        sample: String,
+        prob_mapping: LogProb,
+        prob_alt: LogProb,
+        prob_ref: LogProb,
+        prob_mismapped: LogProb,
+        evidence: String
+    }
+
     fn read_observations(path: &str) -> Vec<Observation> {
-        let mut reader = csv::Reader::from_file(path).expect("error reading example").delimiter(b'\t');
-        let obs = reader.decode().collect::<Result<Vec<(String, u32, u32, String, Observation)>, _>>().unwrap();
-        let groups = obs.into_iter().group_by(|&(_, _, _, ref sample, _)| {
-            sample == "case"
-        });
-        let case_obs = groups.into_iter().next().unwrap().1.into_iter().map(|(_, _, _, _, obs)| obs).collect_vec();
+        let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(path).expect("error reading example");
+        let mut case_obs = vec![];
+        for row in reader.deserialize() {
+            let record: Row = row.unwrap();
+            if record.sample == "case" {
+                let ev = recode_evidence(record.evidence);
+                let obs = Observation {
+                    prob_mapping: record.prob_mapping,
+                    prob_alt: record.prob_alt,
+                    prob_ref: record.prob_ref,
+                    prob_mismapped: record.prob_mismapped,
+                    evidence: ev
+                };
+                case_obs.push(obs)
+            }
+        }
         case_obs
     }
 
