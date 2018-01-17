@@ -174,7 +174,8 @@ pub struct InsertSize {
 #[derive(Debug)]
 pub enum Overlap {
     Enclosing(u32),
-    Clipped(u32),
+    Left(u32),
+    Right(u32),
     None
 }
 
@@ -285,7 +286,7 @@ impl Sample {
         true
     }
 
-    /// Calculate if overlap of read against variant is to be considered.
+    /// Calculate overlap of read against variant.
     fn overlap(
         &self,
         record: &bam::Record,
@@ -304,53 +305,88 @@ impl Sample {
             end_pos = end_pos + evidence::Clips::trailing(&cigar).soft();
         }
 
-        let (is_enclosing, overlap) = match variant {
-            &Variant::SNV(_) => (pos <= start && end_pos > start, 1),
+        let overlap = match variant {
+            &Variant::SNV(_) => {
+                if pos <= start && end_pos > start {
+                    Overlap::Enclosing(1)
+                } else {
+                    Overlap::None
+                }
+            },
             &Variant::Deletion(l) => {
                 let end = start + l;
-                let overlap = if end_pos <= end {
-                    // TODO do we need the right case?
-                    cmp::min(end_pos.saturating_sub(start), l)
+                let enclosing = pos < start && end_pos > end;
+                if enclosing {
+                    Overlap::Enclosing(l)
                 } else {
-                    cmp::min(end.saturating_sub(pos), l)
-                };
-                let enclosing = pos <= start && end_pos > start + l;
-                (enclosing, overlap)
+                    if end_pos <= end && end_pos > start {
+                        Overlap::Right(end_pos - start)
+                    } else if pos >= start && pos < end {
+                        Overlap::Left(end - pos)
+                    } else {
+                        Overlap::None
+                    }
+                }
             },
             &Variant::Insertion(ref seq) => {
                 let l = seq.len() as u32;
-                // The alignment encloses the insertion if it fits into the sequence together with
-                // the alignment length (on the reference).
-                let enclosing = end_pos - pos + l <= record.seq().len() as u32;
-                let overlap = if enclosing {
-                    l
+
+                let center_pos = (end_pos - pos) / 2 + pos;
+                if pos < start && end_pos > start {
+                    if start > center_pos {
+                        // right of alignment center
+                        let overlap = end_pos - start;
+                        if overlap > l {
+                            // we overlap more than insertion len, hence we enclose it
+                            Overlap::Enclosing(l)
+                        } else {
+                            // less overlap, hence it can be only partial
+                            Overlap::Right(overlap)
+                        }
+                    } else {
+                        // left of alignment center
+                        let overlap = start - pos;
+                        if overlap > l {
+                            // we overlap more than insertion len, hence we enclose it
+                            Overlap::Enclosing(l)
+                        } else {
+                            // less overlap, hence it can be only partial
+                            Overlap::Left(overlap)
+                        }
+                    }
                 } else {
-                    // If the alignment does not enclose the insertion, we take the minimum
-                    // piece that goes beyond start. This is equivalent to projecting the aln
-                    // onto an alignment against the variant allele and calculating the overlap
-                    // there.
-                    cmp::min(end_pos.saturating_sub(start), start.saturating_sub(pos))
-                };
-                (enclosing, overlap)
+                    Overlap::None
+                }
             }
         };
 
-        if is_enclosing {
-            // if read encloses variant, stop early in any case
-            // if we just want enclosing reads, stop early as well
-            Ok((Overlap::Enclosing(overlap), cigar))
-        } else if overlap > 0 {
-            Ok((Overlap::Clipped(overlap), cigar))
-        } else {
-            Ok((Overlap::None, cigar))
+        Ok((overlap, cigar))
+    }
+
+    /// Return whether given overlap shall be considered for a fragment observation.
+    /// We only allow overlaps towards the center of the fragment. This simplifies sampling and
+    /// solves cases where sampling over insertions prefers to catch reference reads. Also,
+    /// it would otherwise be harder to calculate the effect on the insert size distribution, as
+    /// only parts of the variant could be inside the fragment.
+    fn is_valid_fragment_indel_overlap(&self, overlap: &Overlap, left_record: bool) -> bool {
+        match (overlap, left_record) {
+            (&Overlap::Enclosing(o), _) => o <= self.max_indel_overlap,
+            (&Overlap::Right(o), true) => o <= self.max_indel_overlap,
+            (&Overlap::Left(o), false) => o <= self.max_indel_overlap,
+            // do not allow left clips of left record
+            (&Overlap::Left(_), true) => false,
+            // do not allow right clips of right record
+            (&Overlap::Right(_), false) => false,
+            (&Overlap::None, _) => true
         }
     }
 
-    /// Return whether given overlap shall be considered for an observation.
-    fn is_valid_indel_overlap(&self, overlap: &Overlap) -> bool {
+    /// Return whether given overlap shall be considered for a read observation.
+    fn is_valid_read_indel_overlap(&self, overlap: &Overlap) -> bool {
         match overlap {
             &Overlap::Enclosing(o) => o <= self.max_indel_overlap,
-            &Overlap::Clipped(o) => o <= self.max_indel_overlap,
+            &Overlap::Right(o) => o <= self.max_indel_overlap,
+            &Overlap::Left(o) => o <= self.max_indel_overlap,
             &Overlap::None => true
         }
     }
@@ -438,7 +474,7 @@ impl Sample {
                         let (overlap, cigar) = self.overlap(
                             record, start, variant, false, true
                         )?;
-                        if !overlap.is_none() && self.is_valid_indel_overlap(&overlap) {
+                        if !overlap.is_none() && self.is_valid_read_indel_overlap(&overlap) {
                             if let Some(obs) = self.read_observation(
                                     &record, &cigar, start, variant, chrom_seq
                             )? {
@@ -597,8 +633,8 @@ impl Sample {
             right_record, start, variant, false, true
         )?;
 
-        if !self.is_valid_indel_overlap(&left_overlap) ||
-           !self.is_valid_indel_overlap(&right_overlap) {
+        if !self.is_valid_fragment_indel_overlap(&left_overlap, true) ||
+           !self.is_valid_fragment_indel_overlap(&right_overlap, false) {
             // If either left of right has a too large overlap, skip fragment,
             // otherwise we would generate a bias towards ref fragments.
             return Ok(None);
