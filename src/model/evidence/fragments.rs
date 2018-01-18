@@ -161,7 +161,6 @@ impl IndelEvidence {
             // allow softclips of given maximum length
             let r_left = left_read_len.saturating_sub(max_softclip) as i32;
             let r_right = right_read_len.saturating_sub(max_softclip) as i32;
-            println!("{} {} {} {}", x, delta, r_left, r_right);
 
             cmp::max(x - delta as i32 - r_left - r_right + 1, 0) as u32
         }
