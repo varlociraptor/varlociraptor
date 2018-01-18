@@ -333,6 +333,16 @@ fn test10() {
 }
 
 
+// A delly deletion that has very low coverage and very weak evidence. We cannot really infer
+// something. However, this test is in here to ensure that such corner cases (a lot of -inf), do
+// not cause panics.
+#[test]
+fn test11() {
+    call_tumor_normal("test11", false, "chr2");
+    let mut call = load_call("test11");
+}
+
+
 #[test]
 fn test_fdr_ev1() {
     control_fdr_ev("test_fdr_ev_1");
