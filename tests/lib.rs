@@ -264,7 +264,7 @@ fn test4() {
 
     check_info_float(&mut call, b"CASE_AF", 0.042, 0.06);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.45, 0.05);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.8, 0.5);
 }
 
 
@@ -328,8 +328,8 @@ fn test10() {
     call_tumor_normal("test10", false, "chr20");
     let mut call = load_call("test10");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 4.3, 0.5);
-    check_info_float(&mut call, b"PROB_GERMLINE", 2.2, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 51.9, 0.5);
+    check_info_float(&mut call, b"PROB_GERMLINE", 2.8e-5, 0.5);
 }
 
 
@@ -340,6 +340,16 @@ fn test10() {
 fn test11() {
     call_tumor_normal("test11", false, "chr2");
     let mut call = load_call("test11");
+}
+
+
+// A large lancet insertion that is not somatic, but likely a homozygous germline variant.
+#[test]
+fn test12() {
+    call_tumor_normal("test12", false, "chr10");
+    let mut call = load_call("test12");
+    check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 1.0, 0.05);
 }
 
 

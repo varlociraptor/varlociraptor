@@ -161,6 +161,7 @@ impl IndelEvidence {
             // allow softclips of given maximum length
             let r_left = left_read_len.saturating_sub(max_softclip) as i32;
             let r_right = right_read_len.saturating_sub(max_softclip) as i32;
+            println!("{} {} {} {}", x, delta, r_left, r_right);
 
             cmp::max(x - delta as i32 - r_left - r_right + 1, 0) as u32
         }
@@ -182,20 +183,30 @@ impl IndelEvidence {
     ) -> Result<(LogProb, LogProb), Box<Error>> {
         let (shift, delta) = match variant {
             &Variant::Deletion(_)  => (variant.len() as f64, 0),
-            &Variant::Insertion(_) => (-(variant.len() as f64), variant.len()),
+            &Variant::Insertion(_) => {
+                //(-(variant.len() as f64), variant.len())
+                // We don't support insertions for now because it is not possible to reliably
+                // detect that the fragment only overlaps the insertion at the inner read ends.
+                // See Sample::overlap.
+                panic!("bug: insert-size based probability for insertions is currently unsupported");
+            },
             &Variant::SNV(_) => panic!("no fragment observations for SNV")
         };
 
         // calc Pr(placement) * Pr(isize) / marginal
-        let prob_joint = |insert_size, shift| {
-            LogProb((self.n_placements(
+        let n_placements = |insert_size| {
+            self.n_placements(
                 insert_size,
                 left_read_len,
                 right_read_len,
                 max_softclip,
                 delta,
                 is_enclosing
-            ) as f64).ln() + *self.pmf(insert_size, shift))
+            )
+        };
+
+        let prob_joint = |insert_size, shift| {
+            LogProb((n_placements(insert_size) as f64).ln() + *self.pmf(insert_size, shift))
         };
         let prob = |insert_size, shift| {
             prob_joint(insert_size, shift) - LogProb::ln_sum_exp(&self.pmf_range(shift).map(

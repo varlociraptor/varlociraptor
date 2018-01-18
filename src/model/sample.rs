@@ -333,6 +333,17 @@ impl Sample {
 
                 let center_pos = (end_pos - pos) / 2 + pos;
                 if pos < start && end_pos > start {
+                    // TODO this does currently not reliably detect the side of the overlap.
+                    // There can be cases where start is left of the center but clips are at the
+                    // right side of the read. Also due to repeat structure, it is not possible to
+                    // use relation of pos/end_pos with and without clips.
+                    // Hence, we simply use this as a way to sample in a fair way.
+                    // Since we might pick up fragments that overlap the insertion at the right
+                    // side (with softclips), we disable insert size based probability computation
+                    // for insertions below. Instead, we rely exclusively on HMMs for insertions.
+                    // The advantage is that this allows to consider far more fragments, in
+                    // particular the larger the insertions get
+                    // (e.g. exceeding insert size distribution).
                     if start > center_pos {
                         // right of alignment center
                         let overlap = end_pos - start;
@@ -443,23 +454,6 @@ impl Sample {
                 }
             },
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
-                // TODO debugging
-                // let max_indel_overlap = self.record_buffer.iter().map(|rec| {
-                //     if rec.is_supplementary() {
-                //         return 0;
-                //     }
-                //     rec.cigar().iter().map(|c| {
-                //         match c {
-                //             &bam::record::Cigar::Del(l) => l,
-                //             &bam::record::Cigar::Ins(l) => l,
-                //             &bam::record::Cigar::SoftClip(l) => l,
-                //             _ => 0
-                //         }
-                //     }).max().unwrap_or(0)
-                // }).max().unwrap_or(0);
-                // println!("{} vs {}", self.max_indel_overlap, max_indel_overlap);
-                // self.max_indel_overlap = max_indel_overlap;
-
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     let pos = record.pos() as u32;
@@ -483,8 +477,7 @@ impl Sample {
                         }
                     } else if record.is_first_in_template() || record.is_last_in_template() {
                         // TODO:
-                        // obtain maximum non-supplementary softclip len
-                        // * use as maximum overlap
+                        // obtain maximum non-supplementary softclip len use as maximum overlap
 
                         // with properly mapped pair, we look at the whole fragment at once
 
@@ -640,7 +633,7 @@ impl Sample {
 
         if !self.is_valid_fragment_indel_overlap(&left_overlap, true) ||
            !self.is_valid_fragment_indel_overlap(&right_overlap, false) {
-            // If either left of right has a too large overlap, skip fragment,
+            // If either left or right has a too large overlap, skip fragment,
             // otherwise we would generate a bias towards ref fragments.
             return Ok(None);
         }
@@ -648,18 +641,26 @@ impl Sample {
         let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
         let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
 
-        // obtain insert size probability
-        // If insert size is not discriminative for this kind of variant, this will have no
-        // effect on the probabilities.
         let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
-        let (p_ref_isize, p_alt_isize) = self.indel_fragment_evidence.borrow().prob(
-            insert_size,
-            left_record.seq().len() as u32,
-            right_record.seq().len() as u32,
-            self.max_indel_overlap,
-            left_overlap.is_enclosing() || right_overlap.is_enclosing(),
-            variant
-        )?;
+        let (p_ref_isize, p_alt_isize) = if let &Variant::Deletion(_) = variant {
+            // obtain insert size probability
+            // If insert size is not discriminative for this kind of variant, this will have no
+            // effect on the probabilities.
+            self.indel_fragment_evidence.borrow().prob(
+                insert_size,
+                left_record.seq().len() as u32,
+                right_record.seq().len() as u32,
+                self.max_indel_overlap,
+                left_overlap.is_enclosing() || right_overlap.is_enclosing(),
+                variant
+            )?
+        } else {
+            // Ignore isize for insertions. The reason is that we cannot reliably determine if a
+            // fragment encloses the insertion properly (with overlaps at the inner read ends).
+            // Hence, the probabilities cannot be calculated. Further, we have a lot of fragments
+            // that overlap insertions at the left or right side, and those are also helpful.
+            (LogProb::ln_one(), LogProb::ln_one())
+        };
 
         assert!(p_alt_isize.is_valid());
         assert!(p_ref_isize.is_valid());
