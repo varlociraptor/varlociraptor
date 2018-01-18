@@ -526,7 +526,7 @@ impl Sample {
             let max_prob = LogProb(*observations.iter().map(|obs| {
                 cmp::max(NotNaN::from(obs.prob_ref), NotNaN::from(obs.prob_alt))
             }).max().unwrap());
-            if max_prob != LogProb::ln_zero() && false {
+            if max_prob != LogProb::ln_zero() {
                 // only scale if the maximum probability is not zero
                 for obs in observations.iter_mut() {
                     obs.prob_ref = obs.prob_ref - max_prob;
