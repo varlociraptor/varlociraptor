@@ -636,17 +636,19 @@ impl Sample {
 
         let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
         let (p_ref_isize, p_alt_isize) = if let &Variant::Deletion(_) = variant {
-            // obtain insert size probability
-            // If insert size is not discriminative for this kind of variant, this will have no
-            // effect on the probabilities.
-            self.indel_fragment_evidence.borrow().prob(
-                insert_size,
-                left_record.seq().len() as u32,
-                right_record.seq().len() as u32,
-                self.max_indel_overlap,
-                left_overlap.is_enclosing() || right_overlap.is_enclosing(),
-                variant
-            )?
+            if self.is_enclosing_fragment(left_overlap, right_overlap) {
+                // obtain insert size probability
+                // If insert size is not discriminative for this kind of variant, this will have no
+                // effect on the probabilities.
+                self.indel_fragment_evidence.borrow().prob(
+                    insert_size,
+                    left_record.seq().len() as u32,
+                    right_record.seq().len() as u32,
+                    self.max_indel_overlap,
+                    left_overlap.is_enclosing() || right_overlap.is_enclosing(),
+                    variant
+                )?
+            }
         } else {
             // Ignore isize for insertions. The reason is that we cannot reliably determine if a
             // fragment encloses the insertion properly (with overlaps at the inner read ends).
