@@ -631,13 +631,6 @@ impl Sample {
             right_record, start, variant, false, true
         )?;
 
-        if !self.is_valid_fragment_indel_overlap(&left_overlap, true) ||
-           !self.is_valid_fragment_indel_overlap(&right_overlap, false) {
-            // If either left or right has a too large overlap, skip fragment,
-            // otherwise we would generate a bias towards ref fragments.
-            return Ok(None);
-        }
-
         let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
         let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
 

@@ -338,7 +338,7 @@ fn test10() {
 // not cause panics.
 #[test]
 fn test11() {
-    call_tumor_normal("test11", false, "chr2");
+    call_tumor_normal("test11", true, "chr2");
     let mut call = load_call("test11");
 }
 
@@ -348,6 +348,15 @@ fn test11() {
 fn test12() {
     call_tumor_normal("test12", false, "chr10");
     let mut call = load_call("test12");
+    check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 1.0, 0.05);
+}
+
+// A delly deletion that is a somatic mutation in reality.
+#[test]
+fn test13() {
+    call_tumor_normal("test13", true, "chr1");
+    let mut call = load_call("test13");
     check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.05);
 }
