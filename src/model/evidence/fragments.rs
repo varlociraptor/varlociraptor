@@ -180,8 +180,8 @@ impl IndelEvidence {
         is_enclosing: bool,
         variant: &Variant
     ) -> Result<(LogProb, LogProb), Box<Error>> {
-        let (shift, delta) = match variant {
-            &Variant::Deletion(_)  => (variant.len() as f64, 0),
+        let shift = match variant {
+            &Variant::Deletion(_)  => variant.len() as f64,
             &Variant::Insertion(_) => {
                 //(-(variant.len() as f64), variant.len())
                 // We don't support insertions for now because it is not possible to reliably
@@ -192,29 +192,8 @@ impl IndelEvidence {
             &Variant::SNV(_) => panic!("no fragment observations for SNV")
         };
 
-        // calc Pr(placement) * Pr(isize) / marginal
-        let n_placements = |insert_size| {
-            self.n_placements(
-                insert_size,
-                left_read_len,
-                right_read_len,
-                max_softclip,
-                delta,
-                is_enclosing
-            )
-        };
-
-        let prob_joint = |insert_size, shift| {
-            LogProb((n_placements(insert_size) as f64).ln() + *self.pmf(insert_size, shift))
-        };
-        let prob = |insert_size, shift| {
-            prob_joint(insert_size, shift) - LogProb::ln_sum_exp(&self.pmf_range(shift).map(
-                |x| prob_joint(x, shift)
-            ).collect_vec())
-        };
-
-        let p_ref = prob(insert_size, 0.0);
-        let p_alt = prob(insert_size, shift);
+        let p_ref = self.pmf(insert_size, 0.0);
+        let p_alt = self.pmf(insert_size, shift);
 
         Ok((p_ref, p_alt))
     }
