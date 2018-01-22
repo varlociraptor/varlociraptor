@@ -197,6 +197,36 @@ impl IndelEvidence {
 
         Ok((p_ref, p_alt))
     }
+
+    pub fn prob_sampling(
+        &self,
+        insert_size: u32,
+        left_read_len: u32,
+        right_read_len: u32,
+        max_softclip: u32,
+        is_enclosing: bool,
+        variant: &Variant
+    ) -> (LogProb, LogProb) {
+        let delta = match variant {
+            &Variant::Deletion(_)  => variant.len() as u32,
+            &Variant::Insertion(_) => variant.len() as u32,
+            &Variant::SNV(_) => panic!("no fragment observations for SNV")
+        };
+
+        let n_ref = insert_size;
+        let n_alt = insert_size.saturating_sub(delta).saturating_sub(if is_enclosing {
+            left_read_len.saturating_sub(max_softclip) -
+            right_read_len.saturating_sub(max_softclip)
+        } else { 0 });
+
+        // genome size. This just has to be large enough to turn p_ref and p_alt into probabilities.
+        let g = 3.5e9f64;
+
+        let p_ref = LogProb((n_ref as f64).ln() - g.ln());
+        let p_alt = LogProb((n_alt as f64).ln() - g.ln());
+
+        (p_ref, p_alt)
+    }
 }
 
 
