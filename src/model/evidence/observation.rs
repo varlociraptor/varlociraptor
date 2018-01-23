@@ -13,6 +13,8 @@ pub struct Observation {
     pub prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
     pub prob_ref: LogProb,
+    /// Probability to sample the read/read-pair over the variant given all placements over ref and alt
+    pub prob_sample_alt: LogProb,
     /// Probability of the read/read-pair given that it has been mismapped.
     pub prob_mismapped: LogProb,
     /// Type of evidence.

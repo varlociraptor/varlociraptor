@@ -36,18 +36,21 @@ impl LatentVariableModel {
                        observation: &Observation,
                        allele_freq_case: LogProb,
                        allele_freq_control: Option<LogProb>) -> LogProb {
+        // probability to sample observation: AF * placement induced probability
+        let prob_sample_alt_case = allele_freq_case + observation.prob_sample_alt;
         match (allele_freq_control, self.purity) {
             (Some(allele_freq_control), Some(purity)) => {
                 // read comes from control sample and is correctly mapped
+                let prob_sample_alt_control = allele_freq_control + observation.prob_sample_alt;
                 let prob_control = self.impurity() +
-                                   (allele_freq_control + observation.prob_alt).ln_add_exp(
-                                         allele_freq_control.ln_one_minus_exp() + observation.prob_ref
+                                   (prob_sample_alt_control + observation.prob_alt).ln_add_exp(
+                                         prob_sample_alt_control.ln_one_minus_exp() + observation.prob_ref
                                    );
                 assert!(!prob_control.is_nan());
                 // read comes from case sample and is correctly mapped
                 let prob_case = purity +
-                                (allele_freq_case + observation.prob_alt).ln_add_exp(
-                                              allele_freq_case.ln_one_minus_exp() + observation.prob_ref
+                                (prob_sample_alt_case + observation.prob_alt).ln_add_exp(
+                                              prob_sample_alt_case.ln_one_minus_exp() + observation.prob_ref
                                 );
                 assert!(!prob_case.is_nan());
                 // total probability
@@ -67,8 +70,8 @@ impl LatentVariableModel {
                 }
 
                 // read comes from case sample and is correctly mapped
-                let prob_case = (allele_freq_case + observation.prob_alt).ln_add_exp(
-                                              allele_freq_case.ln_one_minus_exp() + observation.prob_ref
+                let prob_case = (prob_sample_alt_case + observation.prob_alt).ln_add_exp(
+                                              prob_sample_alt_case.ln_one_minus_exp() + observation.prob_ref
                                 );
                 assert!(!prob_case.is_nan());
                 // total probability
@@ -114,6 +117,7 @@ mod tests {
             prob_mapping: LogProb::ln_one(),
             prob_alt: LogProb::ln_one(),
             prob_ref: LogProb::ln_zero(),
+            prob_sample_alt: LogProb::ln_one(),
             prob_mismapped: LogProb::ln_one(),
             evidence: Evidence::dummy_alignment()
         };
@@ -149,6 +153,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             });
@@ -158,6 +163,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             });

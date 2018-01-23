@@ -407,6 +407,7 @@ mod tests {
             //prob_mapping: LogProb(0.9f64.ln()),
             prob_alt: LogProb::ln_zero(),
             prob_ref: LogProb::ln_one(),
+            prob_sample_alt: LogProb::ln_one(),
             prob_mismapped: LogProb::ln_one(),
             evidence: Evidence::dummy_alignment()
         };
@@ -415,6 +416,7 @@ mod tests {
             //prob_mapping: LogProb(0.9f64.ln()),
             prob_alt: LogProb::ln_one(),
             prob_ref: LogProb::ln_zero(),
+            prob_sample_alt: LogProb::ln_one(),
             prob_mismapped: LogProb::ln_one(),
             evidence: Evidence::dummy_alignment()
         };

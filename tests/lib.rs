@@ -274,19 +274,16 @@ fn test5() {
     call_tumor_normal("test5", true, "chr1");
     let mut call = load_call("test5");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 15.5, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 39.9, 0.5);
 }
 
 
-/// Test a large deletion that should be a very clear germline call.
+/// Test a large deletion that should not be a somatic call.
 #[test]
 fn test6() {
     call_tumor_normal("test6", false, "chr16");
     let mut call = load_call("test6");
-
-    check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"PROB_GERMLINE", 0.0006, 0.0001);
+    check_info_float(&mut call, b"PROB_SOMATIC", 9.0, 0.5);
 }
 
 
@@ -328,8 +325,7 @@ fn test10() {
     call_tumor_normal("test10", false, "chr20");
     let mut call = load_call("test10");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 51.9, 0.5);
-    check_info_float(&mut call, b"PROB_GERMLINE", 2.8e-5, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 64.3, 0.5);
 }
 
 
@@ -352,13 +348,14 @@ fn test12() {
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.05);
 }
 
-// A delly deletion that is a somatic mutation in reality.
+// A delly deletion that is a somatic mutation in reality (AF=0.33).
 #[test]
 fn test13() {
     call_tumor_normal("test13", true, "chr1");
     let mut call = load_call("test13");
-    check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"CASE_AF", 1.0, 0.05);
+    check_info_float(&mut call, b"PROB_SOMATIC", 1.6e-5, 0.05);
+    check_info_float(&mut call, b"CASE_AF", 0.33, 0.06);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
 
 

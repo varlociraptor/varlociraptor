@@ -569,6 +569,7 @@ impl Sample {
                     prob_mapping: prob_mapping,
                     prob_alt: prob_alt,
                     prob_ref: prob_ref,
+                    prob_sample_alt: LogProb::ln_one(), // TODO calculate
                     prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
                     evidence: Evidence::alignment(cigar, record)
                 }
@@ -662,7 +663,7 @@ impl Sample {
         assert!(p_ref_left.is_valid());
         assert!(p_ref_right.is_valid());
 
-        let (p_ref_sampling, p_alt_sampling) = self.indel_fragment_evidence.borrow().prob_sampling(
+        let p_sample_alt = self.indel_fragment_evidence.borrow().prob_sample_alt(
             insert_size,
             left_record.seq().len() as u32,
             right_record.seq().len() as u32,
@@ -673,8 +674,9 @@ impl Sample {
 
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
-            prob_alt: p_alt_isize + p_alt_left + p_alt_right + p_alt_sampling,
-            prob_ref: p_ref_isize + p_ref_left + p_ref_right + p_ref_sampling,
+            prob_alt: p_alt_isize + p_alt_left + p_alt_right,
+            prob_ref: p_ref_isize + p_ref_left + p_ref_right,
+            prob_sample_alt: p_sample_alt,
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
             evidence: Evidence::insert_size(
                 insert_size as u32,
@@ -780,6 +782,7 @@ mod tests {
                     prob_mapping: record.prob_mapping,
                     prob_alt: record.prob_alt,
                     prob_ref: record.prob_ref,
+                    prob_sample_alt: LogProb::ln_one(),
                     prob_mismapped: record.prob_mismapped,
                     evidence: ev
                 };
@@ -797,6 +800,7 @@ mod tests {
                 prob_mapping: LogProb(0.5f64.ln()),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             },
@@ -804,6 +808,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_insert_size(300)
             },
@@ -811,6 +816,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_insert_size(300)
             }
@@ -828,6 +834,7 @@ mod tests {
                 prob_mapping: LogProb(0.5f64.ln()),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             },
@@ -835,6 +842,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_insert_size(300)
             },
@@ -842,6 +850,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_insert_size(300)
             }
@@ -859,6 +868,7 @@ mod tests {
                 prob_mapping: LogProb(0.5f64.ln()),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             },
@@ -866,6 +876,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb(0.5f64.ln()),
                 prob_ref: LogProb(0.5f64.ln()),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_insert_size(300)
             },
@@ -873,6 +884,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_insert_size(300)
             }

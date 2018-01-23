@@ -517,6 +517,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             });
@@ -556,6 +557,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             });
@@ -596,6 +598,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_one(),
                 prob_ref: LogProb::ln_zero(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             });
@@ -605,6 +608,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             });
@@ -643,6 +647,7 @@ mod tests {
                 prob_mapping: LogProb::ln_one(),
                 prob_alt: LogProb::ln_zero(),
                 prob_ref: LogProb::ln_one(),
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: LogProb::ln_one(),
                 evidence: Evidence::dummy_alignment()
             });
@@ -667,71 +672,6 @@ mod tests {
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.02);
         // absent
         assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.02);
-    }
-
-    #[test]
-    fn test_example1() {
-        let variant = Variant::Insertion(b"AC".to_vec());
-        let case_obs = vec![Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0025150465111820103), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.007974998278512672), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031723009285603327), prob_alt: LogProb(-111.18254428986242), prob_ref: LogProb(-109.23587762319576), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.003994511005101995), prob_alt: LogProb(-113.14698873430689), prob_ref: LogProb(-111.18254428986242), prob_mismapped: LogProb::ln_one() }];
-        let control_obs = vec![Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00025122019630215495), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0001585018800054507), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0006311564818346603), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.003989017266406586), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }];
-
-        let insert_size = InsertSize{ mean: 112.0, sd: 15.0 };
-        let prior_model = priors::TumorNormalModel::new(2, 40000.0, 0.5, 0.5, 3e9 as u64, Prob(1.25E-4));
-        let case_sample = Sample::new(
-            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
-            true,
-            false,
-            insert_size,
-            LatentVariableModel::new(0.75),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            20,
-            10
-        );
-        let control_sample = Sample::new(
-            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
-            true,
-            false,
-            insert_size,
-            LatentVariableModel::new(1.0),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            20,
-            10
-        );
-
-        let model = PairCaller::new(
-            case_sample,
-            control_sample,
-            prior_model
-        );
-
-        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
-        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
-        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.001 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
-
-        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
-
-        let p_absent = pileup.posterior_prob(&tumor_ref, &normal_ref);
-        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
-        println!("{} {} {}", p_absent.exp(), p_somatic.exp(), p_germline.exp());
-
-        assert!(p_somatic.exp() > 0.9);
-        assert!(p_somatic > p_germline);
-        assert!(p_somatic > p_absent);
     }
 
     fn recode_evidence(string: String) -> Evidence {
@@ -765,6 +705,7 @@ mod tests {
                 prob_mapping: record.prob_mapping,
                 prob_alt: record.prob_alt,
                 prob_ref: record.prob_ref,
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: record.prob_mismapped,
                 evidence: ev
             };
@@ -832,6 +773,7 @@ mod tests {
                 prob_mapping: record.prob_mapping,
                 prob_alt: record.prob_alt,
                 prob_ref: record.prob_ref,
+                prob_sample_alt: LogProb::ln_one(),
                 prob_mismapped: record.prob_mismapped,
                 evidence: ev
             };

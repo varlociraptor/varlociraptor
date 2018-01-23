@@ -198,7 +198,7 @@ impl IndelEvidence {
         Ok((p_ref, p_alt))
     }
 
-    pub fn prob_sampling(
+    pub fn prob_sample_alt(
         &self,
         insert_size: u32,
         left_read_len: u32,
@@ -206,7 +206,7 @@ impl IndelEvidence {
         max_softclip: u32,
         is_enclosing: bool,
         variant: &Variant
-    ) -> (LogProb, LogProb) {
+    ) -> LogProb {
         let delta = match variant {
             &Variant::Deletion(_)  => variant.len() as u32,
             &Variant::Insertion(_) => variant.len() as u32,
@@ -214,18 +214,19 @@ impl IndelEvidence {
         };
 
         let n_ref = insert_size;
-        let n_alt = insert_size.saturating_sub(delta).saturating_sub(if is_enclosing {
-            left_read_len.saturating_sub(max_softclip) -
+        let n_alt = insert_size.saturating_sub(delta).saturating_sub(if !is_enclosing {
+            left_read_len.saturating_sub(max_softclip) +
             right_read_len.saturating_sub(max_softclip)
         } else { 0 });
 
-        // genome size. This just has to be large enough to turn p_ref and p_alt into probabilities.
-        let g = 3.5e9f64;
+        // We turn the placements into probabilities by deviding by the total number of placements.
+        // Alternatively, the numerator could also be the genome size.
+        // But since probabilities are scaled later anyway, this does not matter.
+        let n_total = n_ref + n_alt;
+        let p_ref = LogProb((n_ref as f64).ln() - (n_total as f64).ln());
+        let p_alt = LogProb((n_alt as f64).ln() - (n_total as f64).ln());
 
-        let p_ref = LogProb((n_ref as f64).ln() - g.ln());
-        let p_alt = LogProb((n_alt as f64).ln() - g.ln());
-
-        (p_ref, p_alt)
+        p_alt
     }
 }
 

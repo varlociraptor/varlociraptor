@@ -147,7 +147,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
         // write header for observations
         writer.write_record(
             ["chrom", "pos", "allele", "sample", "prob_mapping",
-            "prob_alt", "prob_ref", "prob_mismapped", "evidence"].iter()
+            "prob_alt", "prob_ref", "prob_sample_alt", "prob_mismapped", "evidence"].iter()
         )?;
         Some(writer)
     } else { None };
