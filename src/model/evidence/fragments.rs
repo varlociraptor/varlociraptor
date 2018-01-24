@@ -213,18 +213,20 @@ impl IndelEvidence {
             &Variant::SNV(_) => panic!("no fragment observations for SNV")
         };
 
-        let n_ref = insert_size;
         let n_alt = insert_size.saturating_sub(delta).saturating_sub(if !is_enclosing {
             left_read_len.saturating_sub(max_softclip) +
             right_read_len.saturating_sub(max_softclip)
         } else { 0 });
 
-        // We turn the placements into probabilities by deviding by the total number of placements.
-        // Alternatively, the numerator could also be the genome size.
-        // But since probabilities are scaled later anyway, this does not matter.
-        let n_total = n_ref + n_alt;
-        let p_ref = LogProb((n_ref as f64).ln() - (n_total as f64).ln());
-        let p_alt = LogProb((n_alt as f64).ln() - (n_total as f64).ln());
+        // The probability to obtain a valid placement is n_alt divided by the total number of
+        // placements over the centerpoint
+        let p_alt = if n_alt > 0 {
+            LogProb((n_alt as f64).ln() - (insert_size as f64).ln())
+        } else {
+            // If the insert size is too small to place the fragment over the variant it must
+            // be a ref fragment and we can ignore this probability by setting it to 1.0.
+            LogProb::ln_one()
+        };
 
         p_alt
     }
