@@ -108,7 +108,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
         Prob(0.0),
-        40,
+        57,
         100
     );
 
@@ -125,7 +125,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
         Prob(0.0),
-        40,
+        57,
         100
     );
 

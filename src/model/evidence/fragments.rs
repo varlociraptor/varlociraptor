@@ -113,8 +113,8 @@ impl IndelEvidence {
 
     /// Get range of insert sizes with probability above zero.
     /// We use 6 SDs around the mean.
-    fn pmf_range(&self, shift: f64) -> Range<u32> {
-        let m = (self.insert_size.mean + shift).round() as u32;
+    fn pmf_range(&self) -> Range<u32> {
+        let m = self.insert_size.mean.round() as u32;
         let s = self.insert_size.sd.ceil() as u32 * 6;
         m.saturating_sub(s)..m + s
     }
@@ -199,6 +199,46 @@ impl IndelEvidence {
     }
 
     pub fn prob_sample_alt(
+        &self,
+        left_read_len: u32,
+        right_read_len: u32,
+        max_softclip: u32,
+        enclosing_possible: bool,
+        variant: &Variant
+    ) -> LogProb {
+        let delta = match variant {
+            &Variant::Deletion(_)  => 0,
+            &Variant::Insertion(_) => variant.len() as u32,
+            &Variant::SNV(_) => panic!("no fragment observations for SNV")
+        };
+
+        let read_offsets = if enclosing_possible { 0 } else {
+            left_read_len.saturating_sub(max_softclip) +
+            right_read_len.saturating_sub(max_softclip)
+        };
+
+        let expected_p_alt = LogProb::ln_sum_exp(
+            &self.pmf_range().filter_map(|x| {
+                if x < delta {
+                    // if x is too small to enclose the variant, we skip it as it adds zero to the sum
+                    None
+                } else {
+                    Some(
+                        self.pmf(x, 0.0) +
+                        // probability to sample a valid placement
+                        LogProb(
+                            (x.saturating_sub(delta).saturating_sub(read_offsets) as f64).ln() -
+                            (x.saturating_sub(delta) as f64).ln()
+                        )
+                    )
+                }
+            }).collect_vec()
+        );
+
+        expected_p_alt
+    }
+
+    pub fn prob_sample_alt2(
         &self,
         insert_size: u32,
         left_read_len: u32,

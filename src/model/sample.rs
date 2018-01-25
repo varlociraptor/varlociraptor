@@ -664,11 +664,11 @@ impl Sample {
         assert!(p_ref_right.is_valid());
 
         let p_sample_alt = self.indel_fragment_evidence.borrow().prob_sample_alt(
-            insert_size,
             left_record.seq().len() as u32,
             right_record.seq().len() as u32,
             self.max_indel_overlap,
-            left_overlap.is_enclosing() || right_overlap.is_enclosing(),
+            self.can_enclose(left_record, variant) ||
+            self.can_enclose(right_record, variant),
             variant
         );
 
@@ -696,6 +696,13 @@ impl Sample {
         assert!(obs.prob_ref.is_valid());
 
         Ok(Some(obs))
+    }
+
+    /// Return true iff read sequence is large enough to enclose the given variant.
+    /// This is currently hardcoded to 20% of the read length.
+    /// TODO infer this from CIGAR strings.
+    pub fn can_enclose(&self, record: &bam::Record, variant: &Variant) -> bool {
+        variant.len() as f64 / record.seq().len() as f64 <= 0.2
     }
 }
 
