@@ -454,6 +454,30 @@ impl Sample {
                 }
             },
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
+                // TODO consider calculating the following two over all samples
+                // TODO Make max_indel_overlap a local variable.
+                // Obtain maximum indel overlap.
+                self.max_indel_overlap = self.record_buffer.iter().map(|rec| {
+                    if rec.is_supplementary() {
+                        0
+                    } else {
+                        let cigar = rec.cigar();
+                        cmp::max(
+                            evidence::Clips::leading(&cigar).soft(),
+                            evidence::Clips::trailing(&cigar).soft()
+                        )
+                    }
+                }).max().unwrap_or(0);
+                // Obtain maximum indel operation in cigar string.
+                let max_indel_cigar = self.record_buffer.iter().map(|rec| {
+                    if rec.is_supplementary() {
+                        0
+                    } else {
+                        evidence::max_indel(&rec.cigar())
+                    }
+                }).max().unwrap_or(0);
+                let can_be_enclosed = variant.len() <= max_indel_cigar;
+
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     let pos = record.pos() as u32;
@@ -500,7 +524,8 @@ impl Sample {
                             // mate already visited, and this fragment overlaps centerpoint
                             // the mate is always the left read of the pair
                             if let Some(obs) = self.fragment_observation(
-                                mate, &record, start, variant, chrom_seq, centerpoint, end
+                                mate, &record, start, variant, chrom_seq, centerpoint, end,
+                                can_be_enclosed
                             )? {
                                 observations.push(obs);
                             }
@@ -612,7 +637,8 @@ impl Sample {
         variant: &Variant,
         chrom_seq: &[u8],
         centerpoint: u32,
-        end: u32
+        end: u32,
+        can_be_enclosed: bool
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |
@@ -667,8 +693,7 @@ impl Sample {
             left_record.seq().len() as u32,
             right_record.seq().len() as u32,
             self.max_indel_overlap,
-            self.can_enclose(left_record, variant) ||
-            self.can_enclose(right_record, variant),
+            can_be_enclosed,
             variant
         );
 
@@ -696,13 +721,6 @@ impl Sample {
         assert!(obs.prob_ref.is_valid());
 
         Ok(Some(obs))
-    }
-
-    /// Return true iff read sequence is large enough to enclose the given variant.
-    /// This is currently hardcoded to 20% of the read length.
-    /// TODO infer this from CIGAR strings.
-    pub fn can_enclose(&self, record: &bam::Record, variant: &Variant) -> bool {
-        variant.len() as f64 / record.seq().len() as f64 <= 0.2
     }
 }
 

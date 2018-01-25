@@ -71,6 +71,15 @@ impl Clips {
 }
 
 
+/// Return maximum indel operation in given cigar string.
+pub fn max_indel(cigar: &CigarStringView) -> u32 {
+    cigar.iter().map(|op| match op {
+            &Cigar::Ins(l) => l,
+            &Cigar::Del(l) => l,
+            _ => 0
+    }).max().unwrap_or(0)
+}
+
 
 /// Calculate the full read length including hard clipped bases.
 pub fn read_len(record: &bam::Record, cigar: &CigarStringView) -> u32 {
