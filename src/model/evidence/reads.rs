@@ -196,6 +196,26 @@ impl IndelEvidence {
 
         Ok((prob_ref, prob_alt))
     }
+
+    pub fn prob_sample_alt(
+        &self,
+        read_len: u32,
+        max_softclip: u32,
+        enclosing_possible: bool,
+        variant: &Variant
+    ) -> LogProb {
+        let delta = match variant {
+            &Variant::Deletion(_)  => variant.len() as u32,
+            &Variant::Insertion(_) => variant.len() as u32,
+            &Variant::SNV(_) => return LogProb::ln_one()
+        };
+        let n_alt = cmp::min(delta, read_len);
+        let n_alt_valid = if !enclosing_possible {
+            cmp::min(n_alt, max_softclip)
+        } else { n_alt };
+
+        LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
+    }
 }
 
 

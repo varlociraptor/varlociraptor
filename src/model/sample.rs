@@ -444,7 +444,9 @@ impl Sample {
                     )?;
 
                     if overlap.is_enclosing() {
-                        if let Some( obs ) = self.read_observation(&record, &cigar, start, variant, chrom_seq)? {
+                        if let Some( obs ) = self.read_observation(
+                            &record, &cigar, start, variant, chrom_seq, true
+                        )? {
                             observations.push( obs );
                             n_overlap += 1;
                         } else {
@@ -476,7 +478,7 @@ impl Sample {
                         evidence::max_indel(&rec.cigar())
                     }
                 }).max().unwrap_or(0);
-                let can_be_enclosed = variant.len() <= max_indel_cigar;
+                let enclosing_possible = variant.len() <= max_indel_cigar;
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
@@ -492,9 +494,9 @@ impl Sample {
                         let (overlap, cigar) = self.overlap(
                             record, start, variant, false, true
                         )?;
-                        if !overlap.is_none() && self.is_valid_read_indel_overlap(&overlap) {
+                        if !overlap.is_none() {
                             if let Some(obs) = self.read_observation(
-                                    &record, &cigar, start, variant, chrom_seq
+                                    &record, &cigar, start, variant, chrom_seq, enclosing_possible
                             )? {
                                 observations.push(obs);
                             }
@@ -525,7 +527,7 @@ impl Sample {
                             // the mate is always the left read of the pair
                             if let Some(obs) = self.fragment_observation(
                                 mate, &record, start, variant, chrom_seq, centerpoint, end,
-                                can_be_enclosed
+                                enclosing_possible
                             )? {
                                 observations.push(obs);
                             }
@@ -572,29 +574,33 @@ impl Sample {
         cigar: &CigarStringView,
         start: u32,
         variant: &Variant,
-        chrom_seq: &[u8]
+        chrom_seq: &[u8],
+        enclosing_possible: bool
     ) -> Result<Option<Observation>, Box<Error>> {
-        let probs: Option<(LogProb, LogProb)>;
-
-        match variant {
+        let probs = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
-                probs = Some( self.indel_read_evidence.borrow_mut()
-                                        .prob(record, cigar, start, variant, chrom_seq)? );
+                Some( self.indel_read_evidence.borrow_mut()
+                                        .prob(record, cigar, start, variant, chrom_seq)? )
             },
             &Variant::SNV(_) => {
-                probs = evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)?;
+                evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)?
             }
-        }
+        };
 
         if let Some( (prob_ref, prob_alt) ) = probs {
             let prob_mapping = self.prob_mapping(record.mapq());
-            debug!("prob_mapping={}", *prob_mapping);
+            let prob_sample_alt = self.indel_read_evidence.borrow().prob_sample_alt(
+                record.seq().len() as u32,
+                self.max_indel_overlap,
+                enclosing_possible,
+                variant
+            );
             Ok( Some (
                 Observation {
                     prob_mapping: prob_mapping,
                     prob_alt: prob_alt,
                     prob_ref: prob_ref,
-                    prob_sample_alt: LogProb::ln_one(), // TODO calculate
+                    prob_sample_alt: prob_sample_alt, // TODO calculate
                     prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
                     evidence: Evidence::alignment(cigar, record)
                 }
@@ -638,7 +644,7 @@ impl Sample {
         chrom_seq: &[u8],
         centerpoint: u32,
         end: u32,
-        can_be_enclosed: bool
+        enclosing_possible: bool
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |
@@ -693,7 +699,7 @@ impl Sample {
             left_record.seq().len() as u32,
             right_record.seq().len() as u32,
             self.max_indel_overlap,
-            can_be_enclosed,
+            enclosing_possible,
             variant
         );
 
@@ -1003,7 +1009,7 @@ mod tests {
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq).unwrap() {
+            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq, true).unwrap() {
                 println!("{:?}", obs);
                 assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
                 assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));

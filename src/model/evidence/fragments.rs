@@ -209,7 +209,8 @@ impl IndelEvidence {
         let delta = match variant {
             &Variant::Deletion(_)  => 0,
             &Variant::Insertion(_) => variant.len() as u32,
-            &Variant::SNV(_) => panic!("no fragment observations for SNV")
+            // for SNVs sampling is unbiased
+            &Variant::SNV(_) => return LogProb::ln_one()
         };
 
         let read_offsets = if enclosing_possible { 0 } else {
