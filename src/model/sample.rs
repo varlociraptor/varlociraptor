@@ -459,17 +459,17 @@ impl Sample {
                 // TODO consider calculating the following two over all samples
                 // TODO Make max_indel_overlap a local variable.
                 // Obtain maximum indel overlap.
-                self.max_indel_overlap = self.record_buffer.iter().map(|rec| {
-                    if rec.is_supplementary() {
-                        0
-                    } else {
-                        let cigar = rec.cigar();
-                        cmp::max(
-                            evidence::Clips::leading(&cigar).soft(),
-                            evidence::Clips::trailing(&cigar).soft()
-                        )
-                    }
-                }).max().unwrap_or(0);
+                // self.max_indel_overlap = self.record_buffer.iter().map(|rec| {
+                //     if rec.is_supplementary() {
+                //         0
+                //     } else {
+                //         let cigar = rec.cigar();
+                //         cmp::max(
+                //             evidence::Clips::leading(&cigar).soft(),
+                //             evidence::Clips::trailing(&cigar).soft()
+                //         )
+                //     }
+                // }).max().unwrap_or(0);
                 // Obtain maximum indel operation in cigar string.
                 let max_indel_cigar = self.record_buffer.iter().map(|rec| {
                     if rec.is_supplementary() {
@@ -479,6 +479,7 @@ impl Sample {
                     }
                 }).max().unwrap_or(0);
                 let enclosing_possible = variant.len() <= max_indel_cigar;
+                println!("{} {}", self.max_indel_overlap, max_indel_cigar);
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
