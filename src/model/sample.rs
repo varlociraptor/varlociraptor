@@ -479,7 +479,6 @@ impl Sample {
                     }
                 }).max().unwrap_or(0);
                 let enclosing_possible = variant.len() <= max_indel_cigar;
-                println!("{} {}", self.max_indel_overlap, max_indel_cigar);
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
