@@ -21,6 +21,7 @@ ndarray = "0.6"
 flame = { version = "^0.1.2", optional = true }
 flamer = { version = "^0.1.2", optional = true }
 quick-error = "1.2"
+vec_map = "0.8"
 
 serde = "1"
 serde_derive = "1"

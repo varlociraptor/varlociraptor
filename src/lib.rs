@@ -23,6 +23,7 @@ extern crate csv;
 #[macro_use]
 extern crate lazy_static;
 extern crate statrs;
+extern crate vec_map;
 
 #[cfg(feature="flame_it")]
 extern crate flame;

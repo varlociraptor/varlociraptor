@@ -1,17 +1,24 @@
 use std::str;
 use std::rc::Rc;
+use std::ops::Range;
 
 use vec_map::VecMap;
+use itertools::Itertools;
 use rgsl::randist::poisson::poisson_pdf;
+use serde::Serialize;
+use serde::ser::{Serializer, SerializeStruct};
 
 use bio::stats::LogProb;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarString;
 
+use model::{AlleleFreq, Variant};
+use model::sample::Sample;
+
 
 /// An observation for or against a variant.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Observation {
+#[derive(Clone)]
+pub struct Observation<'a> {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     pub prob_mapping: LogProb,
     /// Probability that the read/read-pair comes from the alternative allele.
@@ -24,13 +31,13 @@ pub struct Observation {
     pub left_read_len: u32,
     pub right_read_len: Option<u32>,
     /// Common stuff shared between observations
-    pub common: Rc<Common>,
+    pub common: Rc<Common<'a>>,
     /// Type of evidence.
     pub evidence: Evidence
 }
 
 
-impl Observation {
+impl<'a> Observation<'a> {
     pub fn is_alignment_evidence(&self) -> bool {
         if let Evidence::Alignment(_) = self.evidence {
             true
@@ -45,6 +52,19 @@ impl Observation {
             self.left_read_len,
             self.right_read_len
         )
+    }
+}
+
+
+impl<'a> Serialize for Observation<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer {
+        let mut s = serializer.serialize_struct("Observation", 3)?;
+        s.serialize_field("prob_mapping", &self.prob_mapping)?;
+        s.serialize_field("prob_alt", &self.prob_alt)?;
+        s.serialize_field("prob_ref", &self.prob_ref)?;
+        s.serialize_field("evidence", &self.evidence)?;
+        s.end()
     }
 }
 
@@ -112,6 +132,7 @@ impl Evidence {
 
 
 /// Data that is shared among all observations over a locus.
+#[derive(Clone)]
 pub struct Common<'a> {
     pub softclip_obs: VecMap<u32>,
     /// Average number of reads starting at any position in the region.
@@ -119,14 +140,14 @@ pub struct Common<'a> {
     pub max_read_len: u32,
     pub enclosing_possible: bool,
     pub sample: &'a Sample,
-    pub variant: &'a Variant
+    pub variant: Rc<Variant>
 }
 
 
-impl Common {
+impl<'a> Common<'a> {
     pub fn new(
         sample: &'a Sample,
-        variant: &'a Variant
+        variant: Rc<Variant>
     ) -> Self {
         Common {
             sample: sample,
@@ -134,7 +155,7 @@ impl Common {
             enclosing_possible: true,
             max_read_len: 0,
             coverage: 0.0,
-            soft_clip_obs: VecMap::new()
+            softclip_obs: VecMap::new()
         }
     }
 
@@ -176,7 +197,7 @@ impl Common {
         left_read_len: u32,
         right_read_len: Option<u32>
     ) -> LogProb {
-        if variant.is_snv() {
+        if self.variant.is_snv() {
             // For SNVs, sampling can be assumed to be always unbiased.
             return LogProb::ln_one();
         }
@@ -188,13 +209,13 @@ impl Common {
                     left_read_len,
                     right_read_len,
                     max_softclip,
-                    self.variant
+                    self.variant.as_ref()
                 )
             } else {
                 self.sample.indel_read_evidence.borrow().prob_sample_alt(
                     left_read_len,
                     max_softclip,
-                    self.variant
+                    self.variant.as_ref()
                 )
             }
         };
@@ -209,11 +230,11 @@ impl Common {
             let likelihoods = self.softclip_range().map(
                 |s| self.likelihood_max_softclip(s, allele_freq)
             ).collect_vec();
-            let marginal = LogProb::ln_sum_exp(likelihoods);
+            let marginal = LogProb::ln_sum_exp(&likelihoods);
 
             LogProb::ln_sum_exp(&self.softclip_range().map(|max_softclip| {
                 // posterior probability for maximum softclip s
-                let prob_max_softclip = likelihoods[s as usize] - marginal;
+                let prob_max_softclip = likelihoods[max_softclip as usize] - marginal;
                 // probability to sample from alt allele with this maximum softclip
                 prob_max_softclip + prob_sample_alt(max_softclip)
             }).collect_vec())
@@ -229,11 +250,22 @@ impl Common {
         max_softclip: u32,
         allele_freq: AlleleFreq
     ) -> LogProb {
-        let varcov = self.coverage * allele_freq;
-        let p = self.softclip_range().map(|s| {
-            let count = self.softclip_obs.get(s).unwrap_or(0);
-            let mu = if s <= max_softclip { varcov } else { 0 };
+        let varcov = self.coverage * *allele_freq;
+        self.softclip_range().map(|s| {
+            let count = self.softclip_obs.get(s as usize).cloned().unwrap_or(0);
+            let mu = if s <= max_softclip { varcov } else { 0.0 };
             LogProb(poisson_pdf(count, mu).ln())
-        }).sum();
+        }).sum()
+    }
+}
+
+
+impl<'a> Serialize for Common<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer {
+        let mut s = serializer.serialize_struct("CommonObservation", 2)?;
+        s.serialize_field("softclip_obs", &self.softclip_obs)?;
+        s.serialize_field("coverage", &self.coverage)?;
+        s.end()
     }
 }

@@ -4,6 +4,7 @@ use std::cmp;
 use std::error::Error;
 use std::f64::consts;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 use ordered_float::NotNaN;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
@@ -16,7 +17,7 @@ use bio::stats::{LogProb, PHREDProb, Prob};
 use model;
 use model::Variant;
 use model::evidence;
-use model::evidence::{Observation, Evidence};
+use model::evidence::{observation, Observation, Evidence};
 
 
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps correctly.
@@ -409,22 +410,22 @@ impl Sample {
 
     /// Return the average number of reads starting at any position in the current window.
     fn start_pos_coverage(&self) -> f64 {
-        self.record_buffer.iter().count() as f64 / (self.pileup_window as f64 * 2)
+        self.record_buffer.iter().count() as f64 / (self.record_buffer.window as f64 * 2.0)
     }
 
     /// Extract observations for the given variant.
-    pub fn extract_observations(
-        &mut self,
+    pub fn extract_observations<'a>(
+        &'a mut self,
         chrom: &[u8],
         start: u32,
-        variant: &Variant,
+        variant: Rc<Variant>,
         chrom_seq: &[u8]
-    ) -> Result<Vec<Observation>, Box<Error>> {
+    ) -> Result<Vec<Observation<'a>>, Box<Error>> {
         let mut observations = Vec::new();
-        let (end, centerpoint) = match variant {
-            &Variant::Deletion(length)  => (start + length, start + length / 2),
-            &Variant::Insertion(_) => (start + 1, start),  // end of insertion is the next regular base
-            &Variant::SNV(_) => (start, start)
+        let (end, centerpoint) = match *variant {
+            Variant::Deletion(length)  => (start + length, start + length / 2),
+            Variant::Insertion(_) => (start + 1, start),  // end of insertion is the next regular base
+            Variant::SNV(_) => (start, start)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
@@ -436,9 +437,9 @@ impl Sample {
         try!(self.record_buffer.fill(chrom, start, end));
         debug!("Done.");
 
-        match variant {
-            &Variant::SNV(_) => {
-                let common_obs = Rc::new(observations::Common::new(self, variant));
+        match *variant {
+            Variant::SNV(_) => {
+                let common_obs = Rc::new(observation::Common::new(self, Rc::clone(&variant)));
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     if !self.is_reliable_read(record) {
@@ -446,12 +447,12 @@ impl Sample {
                     }
 
                     let (overlap, cigar) = self.overlap(
-                        record, start, variant, true, false
+                        record, start, variant.as_ref(), true, false
                     )?;
 
                     if overlap.is_enclosing() {
                         if let Some( obs ) = self.read_observation(
-                            &record, &cigar, start, variant, chrom_seq, common_obs
+                            &record, &cigar, start, variant.as_ref(), chrom_seq, Rc::clone(&common_obs)
                         )? {
                             observations.push( obs );
                             n_overlap += 1;
@@ -461,10 +462,12 @@ impl Sample {
                     }
                 }
             },
-            &Variant::Insertion(_) | &Variant::Deletion(_) => {
-                let mut common_obs = Rc::new(observations::Common::new(self, variant));
+            Variant::Insertion(_) | Variant::Deletion(_) => {
+                let mut common_obs = observation::Common::new(self, Rc::clone(&variant));
                 // obtain maximum read len
-                common_obs.max_read_len = self.record_buffer.iter().map(|rec| rec.seq().len()).max();
+                common_obs.max_read_len = self.record_buffer.iter().map(
+                    |rec| rec.seq().len()
+                ).max().unwrap_or(0) as u32;
                 // obtain start pos coverage
                 common_obs.coverage = self.start_pos_coverage();
                 // check whether variant can be enclosed in CIGAR
@@ -478,6 +481,8 @@ impl Sample {
                     }).max().unwrap_or(0);
                     variant.len() <= max_indel_cigar
                 };
+                // move to heap
+                let common_obs = Rc::new(common_obs);
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
@@ -491,11 +496,12 @@ impl Sample {
                     if record.is_mate_unmapped() || !self.use_fragment_evidence {
                         // with unmapped mate, we only look at the current read
                         let (overlap, cigar) = self.overlap(
-                            record, start, variant, false, true
+                            record, start, variant.as_ref(), false, true
                         )?;
                         if !overlap.is_none() {
                             if let Some(obs) = self.read_observation(
-                                    &record, &cigar, start, variant, chrom_seq, common_obs
+                                    &record, &cigar, start, variant.as_ref(),
+                                    chrom_seq, Rc::clone(&common_obs)
                             )? {
                                 observations.push(obs);
                             }
@@ -525,8 +531,8 @@ impl Sample {
                             // mate already visited, and this fragment overlaps centerpoint
                             // the mate is always the left read of the pair
                             if let Some(obs) = self.fragment_observation(
-                                mate, &record, start, variant, chrom_seq, centerpoint, end,
-                                common_obs
+                                mate, &record, start, variant.as_ref(), chrom_seq,
+                                centerpoint, end, Rc::clone(&common_obs)
                             )? {
                                 observations.push(obs);
                             }
@@ -567,15 +573,15 @@ impl Sample {
     }
 
     /// extract within-read evidence for reads covering an indel or SNV of interest
-    fn read_observation(
-        &self,
+    fn read_observation<'a>(
+        &'a self,
         record: &bam::Record,
         cigar: &CigarStringView,
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
-        common: Rc<observations::Common>
-    ) -> Result<Option<Observation>, Box<Error>> {
+        common: Rc<observation::Common<'a>>
+    ) -> Result<Option<Observation<'a>>, Box<Error>> {
         let probs = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
                 Some( self.indel_read_evidence.borrow_mut()
@@ -595,8 +601,8 @@ impl Sample {
                     prob_ref: prob_ref,
                     prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
                     left_read_len: record.seq().len() as u32,
-                    right_read_len: record.seq().len() as u32,
-                    common: Rc::clone(&common),
+                    right_read_len: None,
+                    common: common,
                     evidence: Evidence::alignment(cigar, record)
                 }
             ))
@@ -619,8 +625,8 @@ impl Sample {
     /// * Since there is only one observation per fragment, there is no double counting when
     ///   estimating allele frequencies. Before, we had one observation for an overlapping read
     ///   and potentially another observation for the corresponding fragment.
-    fn fragment_observation(
-        &self,
+    fn fragment_observation<'a>(
+        &'a self,
         left_record: &bam::Record,
         right_record: &bam::Record,
         start: u32,
@@ -628,8 +634,8 @@ impl Sample {
         chrom_seq: &[u8],
         centerpoint: u32,
         end: u32,
-        common: Rc<observations::Common>
-    ) -> Result<Option<Observation>, Box<Error>> {
+        common: Rc<observation::Common<'a>>
+    ) -> Result<Option<Observation<'a>>, Box<Error>> {
 
         let prob_read = |
             record: &bam::Record, cigar: CigarStringView
@@ -685,8 +691,8 @@ impl Sample {
             prob_ref: p_ref_isize + p_ref_left + p_ref_right,
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
             left_read_len: left_record.seq().len() as u32,
-            right_read_len: right_record.seq().len() as u32,
-            common: Rc::clone(&common),
+            right_read_len: Some(right_record.seq().len() as u32),
+            common: common,
             evidence: Evidence::insert_size(
                 insert_size as u32,
                 &left_record.cigar(),

@@ -1,9 +1,7 @@
 use bio::stats::LogProb;
 
 use model::evidence::Observation;
-
-
-pub type AlleleFreq = f64;
+use model::AlleleFreq;
 
 
 /// Variant calling model, taking purity and allele frequencies into account.
@@ -34,8 +32,8 @@ impl LatentVariableModel {
     /// Likelihood to observe a read given allele frequencies for case and control.
     fn likelihood_observation(&self,
                        observation: &Observation,
-                       allele_freq_case: LogProb,
-                       allele_freq_control: Option<LogProb>) -> LogProb {
+                       allele_freq_case: AlleleFreq,
+                       allele_freq_control: Option<AlleleFreq>) -> LogProb {
         // probability to sample observation: AF * placement induced probability
         let prob_sample_alt_case = LogProb(allele_freq_case.ln()) +
                                    observation.prob_sample_alt(allele_freq_case);
@@ -98,8 +96,8 @@ impl LatentVariableModel {
     /// Likelihood to observe a pileup given allele frequencies for case and control.
     pub fn likelihood_pileup(&self,
                              pileup: &[Observation],
-                             allele_freq_case: f64,
-                             allele_freq_control: Option<f64>) -> LogProb {
+                             allele_freq_case: AlleleFreq,
+                             allele_freq_control: Option<AlleleFreq>) -> LogProb {
         // calculate product of per-read likelihoods in log space
         let likelihood = pileup.iter().fold(LogProb::ln_one(),
             |prob, obs| prob + self.likelihood_observation(obs, allele_freq_case, allele_freq_control));
