@@ -106,13 +106,12 @@ pub fn collect_variants(
         let ref_allele = alleles[0];
 
         alleles.iter().skip(1).map(|alt_allele| {
-            if alt_allele == b'<*>' {
+            if alt_allele == b"<*>" {
                 // dummy non-ref allele, signifying potential homozygous reference site
                 if omit_snvs {
                     None
                 } else {
-                    // 76 is ASCII u8 'L' for "any aLt allele" (L is not a IUPAC nucleotide code!)
-                    Some(model::Variant::Ref(76)
+                    Some( model::Variant::Ref )
                 }
             } else if alt_allele[0] == b'<' {
                 // skip allele if it is a special tag other than '<*>' (such alleles have been handled above)

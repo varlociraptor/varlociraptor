@@ -90,7 +90,7 @@ pub enum VariantType {
     Insertion(Option<Range<u32>>),
     Deletion(Option<Range<u32>>),
     SNV,
-    Ref // homozygous reference site
+    Ref, // homozygous reference site
 }
 
 
@@ -99,7 +99,7 @@ pub enum Variant {
     Deletion(u32),
     Insertion(Vec<u8>),
     SNV(u8),
-    Ref(u8)
+    Ref,
 }
 
 
@@ -109,7 +109,7 @@ impl Variant {
             &Variant::Deletion(_)  => true,
             &Variant::Insertion(_) => true,
             &Variant::SNV(_)       => false,
-            &Variant::Ref(_)       => false
+            &Variant::Ref          => false
         }
     }
 
@@ -118,7 +118,7 @@ impl Variant {
             &Variant::Deletion(_)  => true,
             &Variant::Insertion(_) => true,
             &Variant::SNV(_)       => false,
-            &Variant::Ref(_)       => false
+            &Variant::Ref          => false
         }
     }
 
@@ -133,7 +133,7 @@ impl Variant {
             (&Variant::Deletion(_), &VariantType::Deletion(None)) => true,
             (&Variant::Insertion(_), &VariantType::Insertion(None)) => true,
             (&Variant::SNV(_), &VariantType::SNV) => true,
-            (&Variant::Ref(_), &VariantType::Ref) => true,
+            (&Variant::Ref, &VariantType::Ref) => true,
             _ => false
         }
     }
@@ -143,7 +143,7 @@ impl Variant {
             &Variant::Deletion(l)      => l,
             &Variant::Insertion(ref s) => s.len() as u32,
             &Variant::SNV(_)           => 1,
-            &Variant::Ref(_)           => 1
+            &Variant::Ref              => 1
         }
     }
 }

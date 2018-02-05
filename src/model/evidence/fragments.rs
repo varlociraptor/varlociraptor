@@ -110,7 +110,8 @@ impl IndelEvidence {
         let shift = match variant {
             &Variant::Deletion(_)  => variant.len() as f64,
             &Variant::Insertion(_) => -(variant.len() as f64),
-            &Variant::SNV(_) | &Variant::Ref(_) => panic!("no fragment observations for SNV and Ref")
+            &Variant::SNV(_) => panic!("no fragment observations for SNV"),
+            &Variant::Ref => panic!("no fragment observations for Ref")
         };
 
         let p_alt = isize_pmf(
