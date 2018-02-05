@@ -407,6 +407,11 @@ impl Sample {
         self.likelihood_model
     }
 
+    /// Return the average number of reads starting at any position in the current window.
+    fn start_pos_coverage(&self) -> f64 {
+        self.record_buffer.iter().count() as f64 / (self.pileup_window as f64 * 2)
+    }
+
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,
@@ -433,6 +438,7 @@ impl Sample {
 
         match variant {
             &Variant::SNV(_) => {
+                let common_obs = Rc::new(observations::Common::new(self, variant));
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     if !self.is_reliable_read(record) {
@@ -445,7 +451,7 @@ impl Sample {
 
                     if overlap.is_enclosing() {
                         if let Some( obs ) = self.read_observation(
-                            &record, &cigar, start, variant, chrom_seq, true
+                            &record, &cigar, start, variant, chrom_seq, common_obs
                         )? {
                             observations.push( obs );
                             n_overlap += 1;
@@ -456,29 +462,22 @@ impl Sample {
                 }
             },
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
-                // TODO consider calculating the following two over all samples
-                // TODO Make max_indel_overlap a local variable.
-                // Obtain maximum indel overlap.
-                // self.max_indel_overlap = self.record_buffer.iter().map(|rec| {
-                //     if rec.is_supplementary() {
-                //         0
-                //     } else {
-                //         let cigar = rec.cigar();
-                //         cmp::max(
-                //             evidence::Clips::leading(&cigar).soft(),
-                //             evidence::Clips::trailing(&cigar).soft()
-                //         )
-                //     }
-                // }).max().unwrap_or(0);
-                // Obtain maximum indel operation in cigar string.
-                let max_indel_cigar = self.record_buffer.iter().map(|rec| {
-                    if rec.is_supplementary() {
-                        0
-                    } else {
-                        evidence::max_indel(&rec.cigar())
-                    }
-                }).max().unwrap_or(0);
-                let enclosing_possible = variant.len() <= max_indel_cigar;
+                let mut common_obs = Rc::new(observations::Common::new(self, variant));
+                // obtain maximum read len
+                common_obs.max_read_len = self.record_buffer.iter().map(|rec| rec.seq().len()).max();
+                // obtain start pos coverage
+                common_obs.coverage = self.start_pos_coverage();
+                // check whether variant can be enclosed in CIGAR
+                common_obs.enclosing_possible = {
+                    let max_indel_cigar = self.record_buffer.iter().map(|rec| {
+                        if rec.is_supplementary() {
+                            0
+                        } else {
+                            evidence::max_indel(&rec.cigar())
+                        }
+                    }).max().unwrap_or(0);
+                    variant.len() <= max_indel_cigar
+                };
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
@@ -496,7 +495,7 @@ impl Sample {
                         )?;
                         if !overlap.is_none() {
                             if let Some(obs) = self.read_observation(
-                                    &record, &cigar, start, variant, chrom_seq, enclosing_possible
+                                    &record, &cigar, start, variant, chrom_seq, common_obs
                             )? {
                                 observations.push(obs);
                             }
@@ -527,7 +526,7 @@ impl Sample {
                             // the mate is always the left read of the pair
                             if let Some(obs) = self.fragment_observation(
                                 mate, &record, start, variant, chrom_seq, centerpoint, end,
-                                enclosing_possible
+                                common_obs
                             )? {
                                 observations.push(obs);
                             }
@@ -575,7 +574,7 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
-        enclosing_possible: bool
+        common: Rc<observations::Common>
     ) -> Result<Option<Observation>, Box<Error>> {
         let probs = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
@@ -589,19 +588,15 @@ impl Sample {
 
         if let Some( (prob_ref, prob_alt) ) = probs {
             let prob_mapping = self.prob_mapping(record.mapq());
-            let prob_sample_alt = self.indel_read_evidence.borrow().prob_sample_alt(
-                record.seq().len() as u32,
-                self.max_indel_overlap,
-                enclosing_possible,
-                variant
-            );
             Ok( Some (
                 Observation {
                     prob_mapping: prob_mapping,
                     prob_alt: prob_alt,
                     prob_ref: prob_ref,
-                    prob_sample_alt: prob_sample_alt, // TODO calculate
                     prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
+                    left_read_len: record.seq().len() as u32,
+                    right_read_len: record.seq().len() as u32,
+                    common: Rc::clone(&common),
                     evidence: Evidence::alignment(cigar, record)
                 }
             ))
@@ -624,17 +619,6 @@ impl Sample {
     /// * Since there is only one observation per fragment, there is no double counting when
     ///   estimating allele frequencies. Before, we had one observation for an overlapping read
     ///   and potentially another observation for the corresponding fragment.
-    ///
-    /// Two important tweaks are made:
-    ///
-    /// 1. Insert size based probabilities are only used when the variant length
-    ///    exceeds the standard deviation. Otherwise noise from the isize distribution can destroy
-    ///    the read based evidence, e.g., leading to wrong allele frequency estimates.
-    /// 2. Alignment based probability is only used if the read overlaps the variant. Otherwise,
-    ///    the impact of other variants on the same haplotype (within the non-overlapping read)
-    ///    could cause a bias in the resulting probability. E.g., all alt supporting pairs could
-    ///    be downweighted, because there is another variant (that is not considered because we
-    ///    only look at one variant) in the second read.
     fn fragment_observation(
         &self,
         left_record: &bam::Record,
@@ -644,7 +628,7 @@ impl Sample {
         chrom_seq: &[u8],
         centerpoint: u32,
         end: u32,
-        enclosing_possible: bool
+        common: Rc<observations::Common>
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |
@@ -695,20 +679,14 @@ impl Sample {
         assert!(p_ref_left.is_valid());
         assert!(p_ref_right.is_valid());
 
-        let p_sample_alt = self.indel_fragment_evidence.borrow().prob_sample_alt(
-            left_record.seq().len() as u32,
-            right_record.seq().len() as u32,
-            self.max_indel_overlap,
-            enclosing_possible,
-            variant
-        );
-
         let obs = Observation {
             prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
             prob_alt: p_alt_isize + p_alt_left + p_alt_right,
             prob_ref: p_ref_isize + p_ref_left + p_ref_right,
-            prob_sample_alt: p_sample_alt,
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
+            left_read_len: left_record.seq().len() as u32,
+            right_read_len: right_record.seq().len() as u32,
+            common: Rc::clone(&common),
             evidence: Evidence::insert_size(
                 insert_size as u32,
                 &left_record.cigar(),

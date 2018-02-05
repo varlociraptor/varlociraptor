@@ -197,11 +197,12 @@ impl IndelEvidence {
         Ok((prob_ref, prob_alt))
     }
 
+    /// Probability to sample read from alt allele.
+    /// If variant is small enough to be in CIGAR, max_softclip should be set to read len.
     pub fn prob_sample_alt(
         &self,
         read_len: u32,
         max_softclip: u32,
-        enclosing_possible: bool,
         variant: &Variant
     ) -> LogProb {
         let delta = match variant {
@@ -210,9 +211,7 @@ impl IndelEvidence {
             &Variant::SNV(_) => return LogProb::ln_one()
         };
         let n_alt = cmp::min(delta, read_len);
-        let n_alt_valid = if !enclosing_possible {
-            cmp::min(n_alt, max_softclip)
-        } else { n_alt };
+        let n_alt_valid = cmp::min(n_alt, max_softclip);
 
         LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
     }

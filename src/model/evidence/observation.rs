@@ -1,4 +1,5 @@
 use std::str;
+use std::rc::Rc;
 
 use vec_map::VecMap;
 use rgsl::randist::poisson::poisson_pdf;
@@ -10,7 +11,7 @@ use rust_htslib::bam::record::CigarString;
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Observation<'a> {
+pub struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     pub prob_mapping: LogProb,
     /// Probability that the read/read-pair comes from the alternative allele.
@@ -21,9 +22,9 @@ pub struct Observation<'a> {
     pub prob_mismapped: LogProb,
     /// Read lengths
     pub left_read_len: u32,
-    pub right_read_len: u32,
+    pub right_read_len: Option<u32>,
     /// Common stuff shared between observations
-    pub common: &'a Common,
+    pub common: Rc<Common>,
     /// Type of evidence.
     pub evidence: Evidence
 }
@@ -112,17 +113,31 @@ impl Evidence {
 
 /// Data that is shared among all observations over a locus.
 pub struct Common<'a> {
-    softclip_obs: VecMap<u32>,
+    pub softclip_obs: VecMap<u32>,
     /// Average number of reads starting at any position in the region.
-    coverage: f64,
-    max_read_len: u32,
-    enclosing_possible: bool,
-    sample: &'a Sample,
-    variant: &'a Variant
+    pub coverage: f64,
+    pub max_read_len: u32,
+    pub enclosing_possible: bool,
+    pub sample: &'a Sample,
+    pub variant: &'a Variant
 }
 
 
 impl Common {
+    pub fn new(
+        sample: &'a Sample,
+        variant: &'a Variant
+    ) -> Self {
+        Common {
+            sample: sample,
+            variant: variant,
+            enclosing_possible: true,
+            max_read_len: 0,
+            coverage: 0.0,
+            soft_clip_obs: VecMap::new()
+        }
+    }
+
     /// Calculate probability to sample reads from alt allele.
     /// For SNVs this is always 1.0.
     /// Otherwise, this has two components.
@@ -159,21 +174,34 @@ impl Common {
         &self,
         allele_freq: AlleleFreq,
         left_read_len: u32,
-        right_read_len: u32
+        right_read_len: Option<u32>
     ) -> LogProb {
         if variant.is_snv() {
             // For SNVs, sampling can be assumed to be always unbiased.
             return LogProb::ln_one();
         }
 
+        let prob_sample_alt = |max_softclip| {
+            if let Some(right_read_len) = right_read_len {
+                // we have a proper pair, use fragement evidence
+                self.sample.indel_fragment_evidence.borrow().prob_sample_alt(
+                    left_read_len,
+                    right_read_len,
+                    max_softclip,
+                    self.variant
+                )
+            } else {
+                self.sample.indel_read_evidence.borrow().prob_sample_alt(
+                    left_read_len,
+                    max_softclip,
+                    self.variant
+                )
+            }
+        };
+
         if self.enclosing_possible {
-            self.sample.indel_fragment_evidence.borrow().prob_sample_alt(
-                left_read_len,
-                right_read_len,
-                // if read can enclose variant, the maximum overlap is given by max read len
-                self.max_read_len,
-                self.variant
-            )
+            // if read can enclose variant, the maximum overlap is given by max read len
+            prob_sample_alt(self.max_read_len)
         } else {
             // calculate total probability to sample alt allele given the max_softclip distribution
 
@@ -186,15 +214,8 @@ impl Common {
             LogProb::ln_sum_exp(&self.softclip_range().map(|max_softclip| {
                 // posterior probability for maximum softclip s
                 let prob_max_softclip = likelihoods[s as usize] - marginal;
-                // probability to sample from alt allele given that softclip
-                let prob_sample_alt = self.sample.indel_fragment_evidence.borrow().prob_sample_alt(
-                    left_read_len,
-                    right_read_len,
-                    max_softclip,
-                    self.variant
-                );
-                // joint probability
-                prob_max_softclip + prob_sample_alt
+                // probability to sample from alt allele with this maximum softclip
+                prob_max_softclip + prob_sample_alt(max_softclip)
             }).collect_vec())
         }
     }

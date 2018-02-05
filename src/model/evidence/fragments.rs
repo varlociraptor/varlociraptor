@@ -198,6 +198,8 @@ impl IndelEvidence {
         Ok((p_ref, p_alt))
     }
 
+    /// Probability to sample read from alt allele.
+    /// If variant is small enough to be in CIGAR, max_softclip should be set to read len.
     pub fn prob_sample_alt(
         &self,
         left_read_len: u32,

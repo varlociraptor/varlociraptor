@@ -37,26 +37,32 @@ impl LatentVariableModel {
                        allele_freq_case: LogProb,
                        allele_freq_control: Option<LogProb>) -> LogProb {
         // probability to sample observation: AF * placement induced probability
-        let prob_sample_alt_case = allele_freq_case + observation.prob_sample_alt;
+        let prob_sample_alt_case = LogProb(allele_freq_case.ln()) +
+                                   observation.prob_sample_alt(allele_freq_case);
+
         match (allele_freq_control, self.purity) {
             (Some(allele_freq_control), Some(purity)) => {
                 // read comes from control sample and is correctly mapped
-                let prob_sample_alt_control = allele_freq_control + observation.prob_sample_alt;
+                let prob_sample_alt_control = LogProb(allele_freq_control.ln()) +
+                                              observation.prob_sample_alt(allele_freq_control);
                 let prob_control = self.impurity() +
                                    (prob_sample_alt_control + observation.prob_alt).ln_add_exp(
-                                         prob_sample_alt_control.ln_one_minus_exp() + observation.prob_ref
-                                   );
+                    prob_sample_alt_control.ln_one_minus_exp() +
+                    observation.prob_ref
+                );
                 assert!(!prob_control.is_nan());
                 // read comes from case sample and is correctly mapped
                 let prob_case = purity +
                                 (prob_sample_alt_case + observation.prob_alt).ln_add_exp(
-                                              prob_sample_alt_case.ln_one_minus_exp() + observation.prob_ref
-                                );
+                    prob_sample_alt_case.ln_one_minus_exp() +
+                    observation.prob_ref
+                );
                 assert!(!prob_case.is_nan());
                 // total probability
                 let total = (observation.prob_mapping + prob_control.ln_add_exp(prob_case)).ln_add_exp(
-                                  observation.prob_mapping.ln_one_minus_exp() + observation.prob_mismapped
-                            );
+                    observation.prob_mapping.ln_one_minus_exp() +
+                    observation.prob_mismapped
+                );
                 assert!(!total.is_nan());
                 total
             },
@@ -71,30 +77,29 @@ impl LatentVariableModel {
 
                 // read comes from case sample and is correctly mapped
                 let prob_case = (prob_sample_alt_case + observation.prob_alt).ln_add_exp(
-                                              prob_sample_alt_case.ln_one_minus_exp() + observation.prob_ref
-                                );
+                    prob_sample_alt_case.ln_one_minus_exp() +
+                    observation.prob_ref
+                );
                 assert!(!prob_case.is_nan());
                 // total probability
                 let total = (observation.prob_mapping + prob_case).ln_add_exp(
-                                  observation.prob_mapping.ln_one_minus_exp() + observation.prob_mismapped
-                            );
+                    observation.prob_mapping.ln_one_minus_exp() +
+                    observation.prob_mismapped
+                );
                 assert!(!total.is_nan());
                 total
             }
             (Some(_), None) => {
-                panic!("control allele frequency given but purity no purity defined")
+                panic!("control allele frequency given but purity not defined")
             }
         }
     }
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
-    #[cfg_attr(feature="flame_it", flame)]
     pub fn likelihood_pileup(&self,
                              pileup: &[Observation],
                              allele_freq_case: f64,
                              allele_freq_control: Option<f64>) -> LogProb {
-        let allele_freq_case = LogProb(allele_freq_case.ln());
-        let allele_freq_control = allele_freq_control.map(|af| LogProb(af.ln()));
         // calculate product of per-read likelihoods in log space
         let likelihood = pileup.iter().fold(LogProb::ln_one(),
             |prob, obs| prob + self.likelihood_observation(obs, allele_freq_case, allele_freq_control));
