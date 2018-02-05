@@ -111,6 +111,13 @@ impl Variant {
         }
     }
 
+    pub fn is_snv(&self) -> bool {
+        match self {
+            &Variant::SNV(_)       => true,
+            _ => false
+        }
+    }
+
     pub fn is_indel(&self) -> bool {
         match self {
             &Variant::Deletion(_)  => true,

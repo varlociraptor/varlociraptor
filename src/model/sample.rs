@@ -207,8 +207,8 @@ pub struct Sample {
     insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
     max_indel_overlap: u32,
-    indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
-    indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>
+    pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
+    pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>
 }
 
 

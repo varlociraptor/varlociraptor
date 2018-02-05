@@ -203,7 +203,6 @@ impl IndelEvidence {
         left_read_len: u32,
         right_read_len: u32,
         max_softclip: u32,
-        enclosing_possible: bool,
         variant: &Variant
     ) -> LogProb {
         let delta = match variant {
@@ -213,10 +212,8 @@ impl IndelEvidence {
             &Variant::SNV(_) => return LogProb::ln_one()
         };
 
-        let read_offsets = if enclosing_possible { 0 } else {
-            left_read_len.saturating_sub(max_softclip) +
-            right_read_len.saturating_sub(max_softclip)
-        };
+        let read_offsets = left_read_len.saturating_sub(max_softclip) +
+                           right_read_len.saturating_sub(max_softclip);
 
         let expected_p_alt = LogProb::ln_sum_exp(
             &self.pmf_range().filter_map(|x| {
