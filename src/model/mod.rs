@@ -186,13 +186,13 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
     /// The `SinglePileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<SinglePileup<A, P>, Box<Error>> {
         let variant = Rc::new(variant);
-        let pileup = try!(self.sample.borrow_mut().extract_observations(chrom, start, Rc::clone(&variant), chrom_seq));
+        let (pileup, common) = try!(self.sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
         debug!("Obtained pileups ({} observations).", pileup.len());
         Ok(SinglePileup::new(
             pileup,
             variant,
             &self.prior_model,
-            self.sample.borrow().likelihood_model()
+            self.sample.borrow()
         ))
     }
 }
@@ -203,11 +203,11 @@ pub struct SinglePileup<'a, A, P> where
     A: AlleleFreqs,
     P: 'a + priors::Model<A>
 {
-    observations: Vec<Observation<'a>>,
+    observations: Vec<Observation>,
     // we use Cell for marginal prob to be able to mutate the field without having mutable access to the whole pileup
     marginal_prob: Cell<Option<LogProb>>,
     prior_model: &'a P,
-    sample_model: likelihood::LatentVariableModel,
+    sample: &'a Sample,
     variant: Rc<Variant>,
     a: PhantomData<A>
 }
@@ -216,17 +216,17 @@ pub struct SinglePileup<'a, A, P> where
 impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
     /// Create new pileup.
     fn new(
-        observations: Vec<Observation<'a>>,
+        observations: Vec<Observation>,
         variant: Rc<Variant>,
         prior_model: &'a P,
-        sample_model: likelihood::LatentVariableModel
+        sample: &'a Sample
     ) -> Self {
         SinglePileup {
             observations: observations,
             marginal_prob: Cell::new(None),
             variant: variant,
             prior_model: prior_model,
-            sample_model: sample_model,
+            sample: sample,
             a: PhantomData
         }
     }
@@ -272,7 +272,9 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
     }
 
     fn likelihood(&self, af: AlleleFreq) -> LogProb {
-        self.sample_model.likelihood_pileup(&self.observations, af, None)
+        self.sample.likelihood_model().likelihood_pileup(
+            &self.observations, af, None, &self.sample
+        )
     }
 
     pub fn observations(&self) -> &[Observation] {
@@ -320,9 +322,9 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<PairPileup<A, B, P>, Box<Error>> {
         let variant = Rc::new(variant);
         debug!("Case pileup");
-        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, Rc::clone(&variant), chrom_seq));
+        let (case_pileup, case_common) = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
         debug!("Control pileup");
-        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, Rc::clone(&variant), chrom_seq));
+        let (control_pileup, control_common) = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
         debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         Ok(PairPileup::new(
             case_pileup,
@@ -342,8 +344,8 @@ pub struct PairPileup<'a, A, B, P> where
     B: AlleleFreqs,
     P: 'a + priors::PairModel<A, B>
 {
-    case: Vec<Observation<'a>>,
-    control: Vec<Observation<'a>>,
+    case: Vec<Observation>,
+    control: Vec<Observation>,
     // we use Cell for marginal prob to be able to mutate the field without having mutable access to the whole pileup
     marginal_prob: Cell<Option<LogProb>>,
     prior_model: &'a P,
@@ -358,8 +360,8 @@ pub struct PairPileup<'a, A, B, P> where
 impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<'a, A, B, P> {
     /// Create new pileup.
     fn new(
-        case: Vec<Observation<'a>>,
-        control: Vec<Observation<'a>>,
+        case: Vec<Observation>,
+        control: Vec<Observation>,
         variant: Rc<Variant>,
         prior_model: &'a P,
         case_sample_model: likelihood::LatentVariableModel,

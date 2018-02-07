@@ -33,16 +33,18 @@ impl LatentVariableModel {
     fn likelihood_observation(&self,
                        observation: &Observation,
                        allele_freq_case: AlleleFreq,
-                       allele_freq_control: Option<AlleleFreq>) -> LogProb {
+                       allele_freq_control: Option<AlleleFreq>,
+                       prob_sample_alt: LogProb
+    ) -> LogProb {
         // probability to sample observation: AF * placement induced probability
         let prob_sample_alt_case = LogProb(allele_freq_case.ln()) +
-                                   observation.prob_sample_alt(allele_freq_case);
+                                   prob_sample_alt;
 
         match (allele_freq_control, self.purity) {
             (Some(allele_freq_control), Some(purity)) => {
                 // read comes from control sample and is correctly mapped
                 let prob_sample_alt_control = LogProb(allele_freq_control.ln()) +
-                                              observation.prob_sample_alt(allele_freq_control);
+                                              prob_sample_alt; // TODO correct?
                 let prob_control = self.impurity() +
                                    (prob_sample_alt_control + observation.prob_alt).ln_add_exp(
                     prob_sample_alt_control.ln_one_minus_exp() +
@@ -97,10 +99,18 @@ impl LatentVariableModel {
     pub fn likelihood_pileup(&self,
                              pileup: &[Observation],
                              allele_freq_case: AlleleFreq,
-                             allele_freq_control: Option<AlleleFreq>) -> LogProb {
+                             allele_freq_control: Option<AlleleFreq>,
+                             prob_sample_alt: LogProb
+    ) -> LogProb {
         // calculate product of per-read likelihoods in log space
-        let likelihood = pileup.iter().fold(LogProb::ln_one(),
-            |prob, obs| prob + self.likelihood_observation(obs, allele_freq_case, allele_freq_control));
+        let likelihood = pileup.iter().fold(
+            LogProb::ln_one(),
+            |prob, obs| {
+                prob + self.likelihood_observation(
+                    obs, allele_freq_case, allele_freq_control, prob_sample_alt
+                )
+            }
+        );
         assert!(!likelihood.is_nan());
         likelihood
     }

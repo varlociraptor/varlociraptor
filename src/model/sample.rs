@@ -4,17 +4,19 @@ use std::cmp;
 use std::error::Error;
 use std::f64::consts;
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use ordered_float::NotNaN;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
+use rgsl::randist::poisson::poisson_pdf;
 use rgsl::error::erfc;
+use itertools::Itertools;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
-use rust_htslib::bam::record::{CigarStringView, CigarString};
+use rust_htslib::bam::record::CigarStringView;
 use bio::stats::{LogProb, PHREDProb, Prob};
 
 use model;
+use model::AlleleFreq;
 use model::Variant;
 use model::evidence;
 use model::evidence::{observation, Observation, Evidence};
@@ -78,7 +80,7 @@ quick_error! {
 pub struct RecordBuffer {
     reader: bam::IndexedReader,
     inner: VecDeque<bam::Record>,
-    window: u32,
+    pub window: u32,
     use_secondary: bool
 }
 
@@ -408,24 +410,19 @@ impl Sample {
         self.likelihood_model
     }
 
-    /// Return the average number of reads starting at any position in the current window.
-    fn start_pos_coverage(&self) -> f64 {
-        self.record_buffer.iter().count() as f64 / (self.record_buffer.window as f64 * 2.0)
-    }
-
     /// Extract observations for the given variant.
-    pub fn extract_observations<'a>(
-        &'a mut self,
+    pub fn extract_observations(
+        &mut self,
         chrom: &[u8],
         start: u32,
-        variant: Rc<Variant>,
+        variant: &Variant,
         chrom_seq: &[u8]
-    ) -> Result<Vec<Observation<'a>>, Box<Error>> {
+    ) -> Result<(Vec<Observation>, observation::Common), Box<Error>> {
         let mut observations = Vec::new();
-        let (end, centerpoint) = match *variant {
-            Variant::Deletion(length)  => (start + length, start + length / 2),
-            Variant::Insertion(_) => (start + 1, start),  // end of insertion is the next regular base
-            Variant::SNV(_) => (start, start)
+        let (end, centerpoint) = match variant {
+            &Variant::Deletion(length)  => (start + length, start + length / 2),
+            &Variant::Insertion(_) => (start + 1, start),  // end of insertion is the next regular base
+            &Variant::SNV(_) => (start, start)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
@@ -437,22 +434,26 @@ impl Sample {
         try!(self.record_buffer.fill(chrom, start, end));
         debug!("Done.");
 
-        match *variant {
-            Variant::SNV(_) => {
-                let common_obs = Rc::new(observation::Common::new(self, Rc::clone(&variant)));
+        // Obtain common observations.
+        let mut common_obs = observation::Common::new(&self.record_buffer, variant);
+
+        match variant {
+            &Variant::SNV(_) => {
+                common_obs.enclosing_possible = true;
                 // iterate over records
                 for record in self.record_buffer.iter() {
+                    // TODO remove
                     if !self.is_reliable_read(record) {
                         continue;
                     }
 
                     let (overlap, cigar) = self.overlap(
-                        record, start, variant.as_ref(), true, false
+                        record, start, variant, true, false
                     )?;
 
                     if overlap.is_enclosing() {
                         if let Some( obs ) = self.read_observation(
-                            &record, &cigar, start, variant.as_ref(), chrom_seq, Rc::clone(&common_obs)
+                            &record, &cigar, start, variant, chrom_seq
                         )? {
                             observations.push( obs );
                             n_overlap += 1;
@@ -462,28 +463,7 @@ impl Sample {
                     }
                 }
             },
-            Variant::Insertion(_) | Variant::Deletion(_) => {
-                let mut common_obs = observation::Common::new(self, Rc::clone(&variant));
-                // obtain maximum read len
-                common_obs.max_read_len = self.record_buffer.iter().map(
-                    |rec| rec.seq().len()
-                ).max().unwrap_or(0) as u32;
-                // obtain start pos coverage
-                common_obs.coverage = self.start_pos_coverage();
-                // check whether variant can be enclosed in CIGAR
-                common_obs.enclosing_possible = {
-                    let max_indel_cigar = self.record_buffer.iter().map(|rec| {
-                        if rec.is_supplementary() {
-                            0
-                        } else {
-                            evidence::max_indel(&rec.cigar())
-                        }
-                    }).max().unwrap_or(0);
-                    variant.len() <= max_indel_cigar
-                };
-                // move to heap
-                let common_obs = Rc::new(common_obs);
-
+            &Variant::Insertion(_) | &Variant::Deletion(_) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     let pos = record.pos() as u32;
@@ -496,21 +476,17 @@ impl Sample {
                     if record.is_mate_unmapped() || !self.use_fragment_evidence {
                         // with unmapped mate, we only look at the current read
                         let (overlap, cigar) = self.overlap(
-                            record, start, variant.as_ref(), false, true
+                            record, start, variant, false, true
                         )?;
                         if !overlap.is_none() {
                             if let Some(obs) = self.read_observation(
-                                    &record, &cigar, start, variant.as_ref(),
-                                    chrom_seq, Rc::clone(&common_obs)
+                                    &record, &cigar, start, variant, chrom_seq
                             )? {
                                 observations.push(obs);
                             }
                         }
                     } else if record.is_first_in_template() || record.is_last_in_template() {
-                        // TODO:
-                        // obtain maximum non-supplementary softclip len use as maximum overlap
-
-                        // with properly mapped pair, we look at the whole fragment at once
+                        // With properly mapped pair, we look at the whole fragment at once.
 
                         // We ensure fair sampling by checking if the whole fragment overlaps the
                         // centerpoint. Only taking the internal segment would not be fair,
@@ -531,8 +507,8 @@ impl Sample {
                             // mate already visited, and this fragment overlaps centerpoint
                             // the mate is always the left read of the pair
                             if let Some(obs) = self.fragment_observation(
-                                mate, &record, start, variant.as_ref(), chrom_seq,
-                                centerpoint, end, Rc::clone(&common_obs)
+                                mate, &record, start, variant, chrom_seq,
+                                centerpoint, end
                             )? {
                                 observations.push(obs);
                             }
@@ -561,7 +537,7 @@ impl Sample {
                 }
             }
         }
-        Ok(observations)
+        Ok((observations, common_obs))
     }
 
     fn prob_mapping(&self, mapq: u8) -> LogProb {
@@ -573,15 +549,14 @@ impl Sample {
     }
 
     /// extract within-read evidence for reads covering an indel or SNV of interest
-    fn read_observation<'a>(
-        &'a self,
+    fn read_observation(
+        &self,
         record: &bam::Record,
         cigar: &CigarStringView,
         start: u32,
         variant: &Variant,
-        chrom_seq: &[u8],
-        common: Rc<observation::Common<'a>>
-    ) -> Result<Option<Observation<'a>>, Box<Error>> {
+        chrom_seq: &[u8]
+    ) -> Result<Option<Observation>, Box<Error>> {
         let probs = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
                 Some( self.indel_read_evidence.borrow_mut()
@@ -602,7 +577,6 @@ impl Sample {
                     prob_mismapped: LogProb::ln_one(), // if the read is mismapped, we assume sampling probability 1.0
                     left_read_len: record.seq().len() as u32,
                     right_read_len: None,
-                    common: common,
                     evidence: Evidence::alignment(cigar, record)
                 }
             ))
@@ -625,8 +599,8 @@ impl Sample {
     /// * Since there is only one observation per fragment, there is no double counting when
     ///   estimating allele frequencies. Before, we had one observation for an overlapping read
     ///   and potentially another observation for the corresponding fragment.
-    fn fragment_observation<'a>(
-        &'a self,
+    fn fragment_observation(
+        &self,
         left_record: &bam::Record,
         right_record: &bam::Record,
         start: u32,
@@ -634,8 +608,7 @@ impl Sample {
         chrom_seq: &[u8],
         centerpoint: u32,
         end: u32,
-        common: Rc<observation::Common<'a>>
-    ) -> Result<Option<Observation<'a>>, Box<Error>> {
+    ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |
             record: &bam::Record, cigar: CigarStringView
@@ -692,7 +665,6 @@ impl Sample {
             prob_mismapped: LogProb::ln_one(), // if the fragment is mismapped, we assume sampling probability 1.0
             left_read_len: left_record.seq().len() as u32,
             right_read_len: Some(right_record.seq().len() as u32),
-            common: common,
             evidence: Evidence::insert_size(
                 insert_size as u32,
                 &left_record.cigar(),
@@ -711,6 +683,100 @@ impl Sample {
         assert!(obs.prob_ref.is_valid());
 
         Ok(Some(obs))
+    }
+
+    /// Calculate probability to sample reads from alt allele.
+    /// For SNVs this is always 1.0.
+    /// Otherwise, this has two components.
+    ///
+    /// # Component 1: maximum softclip
+    /// First, we estimate the probability distribution of
+    /// the maximum possible softclip. This is influenced by the implementation of the mapper
+    /// and the repeat structure in the region of the variant. E.g., if a region is repetetive,
+    /// a fragment from the alt allele that could map over the variant given the mapper sensitivity
+    /// could still be placed somewhere else because there is a repeat that looks like the alt
+    /// allele. Hence, the maximum softclip has to be calculated per region.
+    ///
+    /// Simply taking the maximum observed softclip in a region is not robust enough though,
+    /// because small allele frequencies and low coverage can lead to not enough observations.
+    /// Instead, we calculate the probability distribution of the maximum softclip, by assuming
+    /// that read start positions are poisson distributed with mean given by the expected variant
+    /// allele coverage.
+    /// This coverage is calculated by multiplying allele frequency with the observed average
+    /// number of reads starting at any position in the region.
+    /// Then, we can calculate the likelihood of the observed softclips given a true maximum
+    /// softclip by taking the product of the poisson distributed probabilities for each observed
+    /// softclip count.
+    /// By applying Bayes theorem, we obtain a posterior probability for each possible maximum
+    /// softclip.
+    ///
+    /// # Component 2:
+    /// We calculate the probability to sample a fragment from the alt allele given a maximum
+    /// softclip and the read lengths. If the variant is small enough to be encoded in the CIGAR
+    /// string, we can simply ignore the maximum softclip distribution.
+    ///
+    /// # Total probability
+    /// The final result is obtained by combining the two components to a total probability.
+    pub fn prob_sample_alt(
+        &self,
+        variant: &Variant,
+        allele_freq: AlleleFreq,
+        obs: &Observation,
+        common_obs: &observation::Common
+    ) -> LogProb {
+        if variant.is_snv() {
+            // For SNVs, sampling can be assumed to be always unbiased.
+            return LogProb::ln_one();
+        }
+
+        let softclip_range = || 0..common_obs.max_read_len + 1;
+
+        let likelihood_max_softclip = |max_softclip| {
+            let varcov = common_obs.coverage * *allele_freq;
+            softclip_range().map(|s| {
+                let count = common_obs.softclip_obs.unwrap().get(s as usize).cloned().unwrap_or(0);
+                let mu = if s <= max_softclip { varcov } else { 0.0 };
+                LogProb(poisson_pdf(count, mu).ln())
+            }).sum()
+        };
+
+        let prob_sample_alt = |max_softclip| {
+            if let Some(right_read_len) = obs.right_read_len {
+                // we have a proper pair, use fragement evidence
+                self.indel_fragment_evidence.borrow().prob_sample_alt(
+                    obs.left_read_len,
+                    right_read_len,
+                    max_softclip,
+                    variant
+                )
+            } else {
+                self.indel_read_evidence.borrow().prob_sample_alt(
+                    obs.left_read_len,
+                    max_softclip,
+                    variant
+                )
+            }
+        };
+
+        if common_obs.enclosing_possible {
+            // if read can enclose variant, the maximum overlap is given by max read len
+            prob_sample_alt(common_obs.max_read_len)
+        } else {
+            // calculate total probability to sample alt allele given the max_softclip distribution
+
+            // max_softclip likelihoods
+            let likelihoods: Vec<LogProb> = softclip_range().map(
+                |s| likelihood_max_softclip(s)
+            ).collect_vec();
+            let marginal = LogProb::ln_sum_exp(&likelihoods);
+
+            LogProb::ln_sum_exp(&softclip_range().map(|max_softclip| {
+                // posterior probability for maximum softclip s
+                let prob_max_softclip = likelihoods[max_softclip as usize] - marginal;
+                // probability to sample from alt allele with this maximum softclip
+                prob_max_softclip + prob_sample_alt(max_softclip)
+            }).collect_vec())
+        }
     }
 }
 

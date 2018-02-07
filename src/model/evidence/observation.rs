@@ -1,10 +1,8 @@
 use std::str;
-use std::rc::Rc;
-use std::ops::Range;
+use std::collections::vec_deque;
+use std::cmp;
 
 use vec_map::VecMap;
-use itertools::Itertools;
-use rgsl::randist::poisson::poisson_pdf;
 use serde::Serialize;
 use serde::ser::{Serializer, SerializeStruct};
 
@@ -12,13 +10,14 @@ use bio::stats::LogProb;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarString;
 
-use model::{AlleleFreq, Variant};
-use model::sample::Sample;
+use model::Variant;
+use model::evidence;
+use model::sample::RecordBuffer;
 
 
 /// An observation for or against a variant.
 #[derive(Clone)]
-pub struct Observation<'a> {
+pub struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     pub prob_mapping: LogProb,
     /// Probability that the read/read-pair comes from the alternative allele.
@@ -30,28 +29,18 @@ pub struct Observation<'a> {
     /// Read lengths
     pub left_read_len: u32,
     pub right_read_len: Option<u32>,
-    /// Common stuff shared between observations
-    pub common: Rc<Common<'a>>,
     /// Type of evidence.
     pub evidence: Evidence
 }
 
 
-impl<'a> Observation<'a> {
+impl Observation {
     pub fn is_alignment_evidence(&self) -> bool {
         if let Evidence::Alignment(_) = self.evidence {
             true
         } else {
             false
         }
-    }
-
-    pub fn prob_sample_alt(&self, allele_freq: AlleleFreq) -> LogProb {
-        self.common.prob_sample_alt(
-            allele_freq,
-            self.left_read_len,
-            self.right_read_len
-        )
     }
 }
 
@@ -133,139 +122,64 @@ impl Evidence {
 
 /// Data that is shared among all observations over a locus.
 #[derive(Clone)]
-pub struct Common<'a> {
-    pub softclip_obs: VecMap<u32>,
+pub struct Common {
+    pub softclip_obs: Option<VecMap<u32>>,
     /// Average number of reads starting at any position in the region.
     pub coverage: f64,
     pub max_read_len: u32,
-    pub enclosing_possible: bool,
-    pub sample: &'a Sample,
-    pub variant: Rc<Variant>
+    pub enclosing_possible: bool
 }
 
 
-impl<'a> Common<'a> {
-    pub fn new(
-        sample: &'a Sample,
-        variant: Rc<Variant>
-    ) -> Self {
-        Common {
-            sample: sample,
-            variant: variant,
-            enclosing_possible: true,
-            max_read_len: 0,
-            coverage: 0.0,
-            softclip_obs: VecMap::new()
-        }
-    }
+impl Common {
+    pub fn new(records: &RecordBuffer, variant: &Variant) -> Self {
+        let valid_records = || records.iter().filter(|rec| !rec.is_supplementary());
 
-    /// Calculate probability to sample reads from alt allele.
-    /// For SNVs this is always 1.0.
-    /// Otherwise, this has two components.
-    ///
-    /// # Component 1: maximum softclip
-    /// First, we estimate the probability distribution of
-    /// the maximum possible softclip. This is influenced by the implementation of the mapper
-    /// and the repeat structure in the region of the variant. E.g., if a region is repetetive,
-    /// a fragment from the alt allele that could map over the variant given the mapper sensitivity
-    /// could still be placed somewhere else because there is a repeat that looks like the alt
-    /// allele. Hence, the maximum softclip has to be calculated per region.
-    ///
-    /// Simply taking the maximum observed softclip in a region is not robust enough though,
-    /// because small allele frequencies and low coverage can lead to not enough observations.
-    /// Instead, we calculate the probability distribution of the maximum softclip, by assuming
-    /// that read start positions are poisson distributed with mean given by the expected variant
-    /// allele coverage.
-    /// This coverage is calculated by multiplying allele frequency with the observed average
-    /// number of reads starting at any position in the region.
-    /// Then, we can calculate the likelihood of the observed softclips given a true maximum
-    /// softclip by taking the product of the poisson distributed probabilities for each observed
-    /// softclip count.
-    /// By applying Bayes theorem, we obtain a posterior probability for each possible maximum
-    /// softclip.
-    ///
-    /// # Component 2:
-    /// We calculate the probability to sample a fragment from the alt allele given a maximum
-    /// softclip and the read lengths. If the variant is small enough to be encoded in the CIGAR
-    /// string, we can simply ignore the maximum softclip distribution.
-    ///
-    /// # Total probability
-    /// The final result is obtained by combining the two components to a total probability.
-    pub fn prob_sample_alt(
-        &self,
-        allele_freq: AlleleFreq,
-        left_read_len: u32,
-        right_read_len: Option<u32>
-    ) -> LogProb {
-        if self.variant.is_snv() {
-            // For SNVs, sampling can be assumed to be always unbiased.
-            return LogProb::ln_one();
-        }
+        // obtain maximum read len
+        let max_read_len = valid_records().map(
+            |rec| rec.seq().len()
+        ).max().unwrap_or(0) as u32;
 
-        let prob_sample_alt = |max_softclip| {
-            if let Some(right_read_len) = right_read_len {
-                // we have a proper pair, use fragement evidence
-                self.sample.indel_fragment_evidence.borrow().prob_sample_alt(
-                    left_read_len,
-                    right_read_len,
-                    max_softclip,
-                    self.variant.as_ref()
-                )
-            } else {
-                self.sample.indel_read_evidence.borrow().prob_sample_alt(
-                    left_read_len,
-                    max_softclip,
-                    self.variant.as_ref()
-                )
-            }
+        // average number of reads starting at any position in the current window
+        let coverage = valid_records().count() as f64 /
+                       (records.window as f64 * 2.0);
+
+        // determine if variant can be enclosed
+        let enclosing_possible = if variant.is_snv() {
+            true
+        } else {
+            let max_indel_cigar = valid_records().map(|rec| {
+                evidence::max_indel(&rec.cigar())
+            }).max().unwrap_or(0);
+            variant.len() <= max_indel_cigar
         };
 
-        if self.enclosing_possible {
-            // if read can enclose variant, the maximum overlap is given by max read len
-            prob_sample_alt(self.max_read_len)
+        let softclip_obs = if variant.is_snv() {
+            None
         } else {
-            // calculate total probability to sample alt allele given the max_softclip distribution
+            let mut obs = VecMap::new();
+            for rec in valid_records() {
+                let cigar = rec.cigar();
+                let s = cmp::max(
+                    evidence::Clips::trailing(&cigar).soft(),
+                    evidence::Clips::leading(&cigar).soft()
+                );
+                obs.entry(&s).or_insert(0) += 1;
+            }
 
-            // max_softclip likelihoods
-            let likelihoods = self.softclip_range().map(
-                |s| self.likelihood_max_softclip(s, allele_freq)
-            ).collect_vec();
-            let marginal = LogProb::ln_sum_exp(&likelihoods);
+            Some(obs)
+        };
 
-            LogProb::ln_sum_exp(&self.softclip_range().map(|max_softclip| {
-                // posterior probability for maximum softclip s
-                let prob_max_softclip = likelihoods[max_softclip as usize] - marginal;
-                // probability to sample from alt allele with this maximum softclip
-                prob_max_softclip + prob_sample_alt(max_softclip)
-            }).collect_vec())
+
+        Common {
+            softclip_obs: softclip_obs,
+            coverage: coverage,
+            max_read_len: max_read_len,
+            enclosing_possible: enclosing_possible
         }
     }
 
-    fn softclip_range(&self) -> Range<u32> {
-        0..self.max_read_len + 1
-    }
+    pub fn collect_softclip_obs(records: vec_deque::Iter<bam::Record>) {
 
-    fn likelihood_max_softclip(
-        &self,
-        max_softclip: u32,
-        allele_freq: AlleleFreq
-    ) -> LogProb {
-        let varcov = self.coverage * *allele_freq;
-        self.softclip_range().map(|s| {
-            let count = self.softclip_obs.get(s as usize).cloned().unwrap_or(0);
-            let mu = if s <= max_softclip { varcov } else { 0.0 };
-            LogProb(poisson_pdf(count, mu).ln())
-        }).sum()
-    }
-}
-
-
-impl<'a> Serialize for Common<'a> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
-        let mut s = serializer.serialize_struct("CommonObservation", 2)?;
-        s.serialize_field("softclip_obs", &self.softclip_obs)?;
-        s.serialize_field("coverage", &self.coverage)?;
-        s.end()
     }
 }
