@@ -28,42 +28,6 @@ pub fn prob_mapping(mapq: u8) -> LogProb {
 }
 
 
-/// We assume that the mapping quality of split alignments provided by the aligner is conditional on being no artifact.
-/// Artifact alignments can be caused by aligning short ends as splits due to e.g. repeats.
-/// We can calculate the probability of having no artifact by investigating if there is at least
-/// one full fragment supporting the alternative allele (via enlarged or reduced insert size).
-/// Then, the final mapping quality can be obtained by multiplying this probability.
-pub fn adjust_mapq(observations: &mut [Observation]) {
-    // calculate probability of at least one alt fragment observation
-    let prob_no_alt_fragment: LogProb = observations.iter().filter_map(|obs| {
-        if !obs.is_alignment_evidence() {
-            // Calculate posterior probability of having the alternative allele in that read.
-            if obs.prob_alt == LogProb::ln_zero() && obs.prob_ref == LogProb::ln_zero() {
-                // Both events are zero. Hence, the read is should be ignored, it is likely another artifact.
-                let prob_not_alt = LogProb::ln_one();
-                Some(prob_not_alt)
-            } else {
-                // This assumes that alt and ref are the only possible events, which is reasonable in case of indels.
-                let prob_alt = obs.prob_alt - (obs.prob_alt.ln_add_exp(obs.prob_ref));
-                let prob_not_alt = (obs.prob_mapping + prob_alt).ln_one_minus_exp();
-                Some(prob_not_alt)
-            }
-        } else {
-            None
-        }
-    }).fold(LogProb::ln_one(), |s, e| s + e);
-
-    let prob_no_artifact = prob_no_alt_fragment.ln_one_minus_exp();
-    for obs in observations.iter_mut() {
-        if obs.is_alignment_evidence() && obs.prob_alt > obs.prob_ref {
-            // adjust as Pr(mapping) = Pr(no artifact) * Pr(mapping|no artifact) + Pr(artifact) * Pr(mapping|artifact)
-            // with Pr(mapping|artifact) = 0
-            obs.prob_mapping = prob_no_artifact + obs.prob_mapping;
-        }
-    }
-}
-
-
 quick_error! {
     #[derive(Debug)]
     pub enum RecordBufferError {
@@ -756,81 +720,6 @@ mod tests {
     use bio::io::fasta;
     use model::tests::{observation, common_observation};
 
-
-    #[test]
-    fn test_adjust_mapq_with_fragment_evidence() {
-        let mut observations = vec![
-            observation(
-                LogProb(0.5f64.ln()),
-                LogProb::ln_one(),
-                LogProb::ln_zero()
-            ),
-            observation(
-                LogProb::ln_one(),
-                LogProb::ln_one(),
-                LogProb::ln_zero()
-            ),
-            observation(
-                LogProb::ln_one(),
-                LogProb::ln_zero(),
-                LogProb::ln_one()
-            )
-        ];
-
-        adjust_mapq(&mut observations);
-        println!("{:?}", observations);
-        assert_relative_eq!(*observations[0].prob_mapping, *LogProb(0.5f64.ln()));
-    }
-
-    #[test]
-    fn test_adjust_mapq_without_fragment_evidence() {
-        let mut observations = vec![
-            observation(
-                LogProb(0.5f64.ln()),
-                LogProb::ln_one(),
-                LogProb::ln_zero()
-            ),
-            observation(
-                LogProb::ln_one(),
-                LogProb::ln_zero(),
-                LogProb::ln_one()
-            ),
-            observation(
-                LogProb::ln_one(),
-                LogProb::ln_zero(),
-                LogProb::ln_one()
-            )
-        ];
-
-        adjust_mapq(&mut observations);
-        println!("{:?}", observations);
-        assert_relative_eq!(*observations[0].prob_mapping, *LogProb(0.0f64.ln()));
-    }
-
-    #[test]
-    fn test_adjust_mapq_weak_fragment_evidence() {
-        let mut observations = vec![
-            observation(
-                LogProb(0.5f64.ln()),
-                LogProb::ln_one(),
-                LogProb::ln_zero()
-            ),
-            observation(
-                LogProb::ln_one(),
-                LogProb(0.5f64.ln()),
-                LogProb(0.5f64.ln())
-            ),
-            observation(
-                LogProb::ln_one(),
-                LogProb::ln_zero(),
-                LogProb::ln_one()
-            )
-        ];
-
-        adjust_mapq(&mut observations);
-        println!("{:?}", observations);
-        assert_eq!(*observations[0].prob_mapping, *LogProb(0.25f64.ln()));
-    }
 
     #[test]
     fn test_isize_density() {
