@@ -239,6 +239,7 @@ mod tests {
     use model::{ContinuousAlleleFreqs, AlleleFreq, likelihood, PairPileup, Variant};
     use model::priors::PairModel;
     use model::evidence::{Observation, Evidence};
+    use model::priors::tests::create_obs_vector;
 
     #[test]
     fn print_priors() {
@@ -252,37 +253,6 @@ mod tests {
             }
             println!("]");
         }
-    }
-
-    fn create_obs_vector(
-        n_obs_ref: usize,
-        n_obs_alt: usize
-    ) -> Vec<Observation> {
-        let obs_ref_abs = Observation {
-            prob_mapping: LogProb::ln_one(),
-            prob_alt: LogProb::ln_zero(),
-            prob_ref: LogProb::ln_one(),
-            prob_sample_alt: LogProb::ln_one(),
-            prob_mismapped: LogProb::ln_one(),
-            evidence: Evidence::dummy_alignment()
-        };
-        let obs_alt_abs = Observation {
-            prob_mapping: LogProb::ln_one(),
-            prob_alt: LogProb::ln_one(),
-            prob_ref: LogProb::ln_zero(),
-            prob_sample_alt: LogProb::ln_one(),
-            prob_mismapped: LogProb::ln_one(),
-            evidence: Evidence::dummy_alignment()
-        };
-
-        let mut obs = Vec::new();
-        for _ in 0..n_obs_ref {
-            obs.push(obs_ref_abs.clone());
-        }
-        for _ in 0..n_obs_alt {
-            obs.push(obs_alt_abs.clone());
-        }
-        obs
     }
 
     #[test]

@@ -134,38 +134,37 @@ mod tests {
     use model::evidence::{Observation, Evidence};
     use itertools_num::linspace;
     use bio::stats::LogProb;
+    use model::tests::observation;
+
 
     #[test]
     fn test_likelihood_observation() {
         let model = LatentVariableModel::new(1.0);
-        let observation = Observation{
-            prob_mapping: LogProb::ln_one(),
-            prob_alt: LogProb::ln_one(),
-            prob_ref: LogProb::ln_zero(),
-            prob_sample_alt: LogProb::ln_one(),
-            prob_mismapped: LogProb::ln_one(),
-            evidence: Evidence::dummy_alignment()
-        };
+        let observation = observation(
+            LogProb::ln_one(),
+            LogProb::ln_one(),
+            LogProb::ln_zero()
+        );
 
-        let lh = model.likelihood_observation(&observation, LogProb::ln_one(), Some(LogProb::ln_zero()));
+        let lh = model.likelihood_observation(&observation, AlleleFreq(1.0), Some(AlleleFreq(0.0)));
         assert_relative_eq!(*lh, *LogProb::ln_one());
 
-        let lh = model.likelihood_observation(&observation, LogProb::ln_zero(), Some(LogProb::ln_zero()));
+        let lh = model.likelihood_observation(&observation, AlleleFreq(0.0), Some(AlleleFreq(0.0)));
         assert_relative_eq!(*lh, *LogProb::ln_zero());
 
-        let lh = model.likelihood_observation(&observation, LogProb(0.5f64.ln()), Some(LogProb::ln_zero()));
+        let lh = model.likelihood_observation(&observation, AlleleFreq(0.5), Some(AlleleFreq(0.0)));
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = model.likelihood_observation(&observation, LogProb(0.5f64.ln()), Some(LogProb(0.5f64.ln())));
+        let lh = model.likelihood_observation(&observation, AlleleFreq(0.5), Some(AlleleFreq(0.5)));
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = model.likelihood_observation(&observation, LogProb(0.1f64.ln()), Some(LogProb::ln_zero()));
+        let lh = model.likelihood_observation(&observation, AlleleFreq(0.1), Some(AlleleFreq(0.0)));
         assert_relative_eq!(*lh, 0.1f64.ln());
 
         // test with 50% purity
         let model = LatentVariableModel::new(0.5);
 
-        let lh = model.likelihood_observation(&observation, LogProb::ln_zero(), Some(LogProb::ln_one()));
+        let lh = model.likelihood_observation(&observation, AlleleFreq(0.0), Some(AlleleFreq(1.0)));
         assert_relative_eq!(*lh, 0.5f64.ln());
     }
 
@@ -174,29 +173,23 @@ mod tests {
         let model = LatentVariableModel::new(1.0);
         let mut observations = Vec::new();
         for _ in 0..5 {
-            observations.push(Observation{
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_one(),
-                prob_ref: LogProb::ln_zero(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            });
+            observations.push(observation(
+                LogProb::ln_one(),
+                LogProb::ln_one(),
+                LogProb::ln_zero()
+            ));
         }
         for _ in 0..5 {
-            observations.push(Observation{
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_zero(),
-                prob_ref: LogProb::ln_one(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            });
+            observations.push(observation(
+                LogProb::ln_one(),
+                LogProb::ln_zero(),
+                LogProb::ln_one()
+            ));
         }
-        let lh = model.likelihood_pileup(&observations, 0.5, Some(0.0));
+        let lh = model.likelihood_pileup(&observations, AlleleFreq(0.5), Some(AlleleFreq(0.0)));
         for af in linspace(0.0, 1.0, 10) {
             if af != 0.5 {
-                let l = model.likelihood_pileup(&observations, af, Some(0.0));
+                let l = model.likelihood_pileup(&observations, AlleleFreq(af), Some(AlleleFreq(0.0)));
                 assert!(lh > l);
             }
         }

@@ -754,77 +754,27 @@ mod tests {
     use rust_htslib::bam::Read;
     use bio::stats::{LogProb, PHREDProb, Prob};
     use bio::io::fasta;
-
-
-    fn recode_evidence(string: String) -> Evidence {
-        match &*string.to_string() {
-            "Alignment" => Evidence::Alignment(string),
-            _ => Evidence::InsertSize(string)
-        }
-    }
-
-    #[derive(Debug, Deserialize)]
-    struct Row {
-        chrom: String,
-        pos: u32,
-        allele: u32,
-        sample: String,
-        prob_mapping: LogProb,
-        prob_alt: LogProb,
-        prob_ref: LogProb,
-        prob_mismapped: LogProb,
-        evidence: String
-    }
-
-    fn read_observations(path: &str) -> Vec<Observation> {
-        let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(path).expect("error reading example");
-        let mut case_obs = vec![];
-        for row in reader.deserialize() {
-            let record: Row = row.unwrap();
-            if record.sample == "case" {
-                let ev = recode_evidence(record.evidence);
-                let obs = Observation {
-                    prob_mapping: record.prob_mapping,
-                    prob_alt: record.prob_alt,
-                    prob_ref: record.prob_ref,
-                    prob_sample_alt: LogProb::ln_one(),
-                    prob_mismapped: record.prob_mismapped,
-                    evidence: ev
-                };
-                case_obs.push(obs)
-            }
-        }
-        case_obs
-    }
+    use model::tests::{observation, common_observation};
 
 
     #[test]
     fn test_adjust_mapq_with_fragment_evidence() {
         let mut observations = vec![
-            Observation {
-                prob_mapping: LogProb(0.5f64.ln()),
-                prob_alt: LogProb::ln_one(),
-                prob_ref: LogProb::ln_zero(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            },
-            Observation {
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_one(),
-                prob_ref: LogProb::ln_zero(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_insert_size(300)
-            },
-            Observation {
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_zero(),
-                prob_ref: LogProb::ln_one(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_insert_size(300)
-            }
+            observation(
+                LogProb(0.5f64.ln()),
+                LogProb::ln_one(),
+                LogProb::ln_zero()
+            ),
+            observation(
+                LogProb::ln_one(),
+                LogProb::ln_one(),
+                LogProb::ln_zero()
+            ),
+            observation(
+                LogProb::ln_one(),
+                LogProb::ln_zero(),
+                LogProb::ln_one()
+            )
         ];
 
         adjust_mapq(&mut observations);
@@ -835,30 +785,21 @@ mod tests {
     #[test]
     fn test_adjust_mapq_without_fragment_evidence() {
         let mut observations = vec![
-            Observation {
-                prob_mapping: LogProb(0.5f64.ln()),
-                prob_alt: LogProb::ln_one(),
-                prob_ref: LogProb::ln_zero(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            },
-            Observation {
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_zero(),
-                prob_ref: LogProb::ln_one(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_insert_size(300)
-            },
-            Observation {
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_zero(),
-                prob_ref: LogProb::ln_one(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_insert_size(300)
-            }
+            observation(
+                LogProb(0.5f64.ln()),
+                LogProb::ln_one(),
+                LogProb::ln_zero()
+            ),
+            observation(
+                LogProb::ln_one(),
+                LogProb::ln_zero(),
+                LogProb::ln_one()
+            ),
+            observation(
+                LogProb::ln_one(),
+                LogProb::ln_zero(),
+                LogProb::ln_one()
+            )
         ];
 
         adjust_mapq(&mut observations);
@@ -869,45 +810,26 @@ mod tests {
     #[test]
     fn test_adjust_mapq_weak_fragment_evidence() {
         let mut observations = vec![
-            Observation {
-                prob_mapping: LogProb(0.5f64.ln()),
-                prob_alt: LogProb::ln_one(),
-                prob_ref: LogProb::ln_zero(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            },
-            Observation {
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb(0.5f64.ln()),
-                prob_ref: LogProb(0.5f64.ln()),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_insert_size(300)
-            },
-            Observation {
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_zero(),
-                prob_ref: LogProb::ln_one(),
-                prob_sample_alt: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_insert_size(300)
-            }
+            observation(
+                LogProb(0.5f64.ln()),
+                LogProb::ln_one(),
+                LogProb::ln_zero()
+            ),
+            observation(
+                LogProb::ln_one(),
+                LogProb(0.5f64.ln()),
+                LogProb(0.5f64.ln())
+            ),
+            observation(
+                LogProb::ln_one(),
+                LogProb::ln_zero(),
+                LogProb::ln_one()
+            )
         ];
 
         adjust_mapq(&mut observations);
         println!("{:?}", observations);
         assert_eq!(*observations[0].prob_mapping, *LogProb(0.25f64.ln()));
-    }
-
-    #[test]
-    fn test_adjust_mapq_real() {
-        let mut observations = read_observations("tests/example7.obs.txt");
-
-        adjust_mapq(&mut observations);
-        for obs in observations {
-            println!("{:?}", obs);
-        }
     }
 
     #[test]
@@ -980,84 +902,20 @@ mod tests {
 
         let true_alt_probs = [-0.09, -0.02, -73.09, -16.95, -73.09];
 
+        let common = Rc::new(common_observation());
+
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq, true).unwrap() {
+            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq, common.clone()).unwrap() {
                 println!("{:?}", obs);
                 assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
                 assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
-                assert_relative_eq!(*obs.prob_mismapped, *LogProb::ln_one());
             } else {
                 panic!("read_observation() test for indels failed; it returned 'None'.")
             }
         }
     }
-
-    // fn simulate_mate(record: &bam::Record) -> bam::Record {
-    //     let mut mate_record = record.clone();
-    //     mate_record.set_pos(record.pos() + record.insert_size() - record.seq().len() as i32);
-    //     mate_record
-    // }
-    //
-    // #[test]
-    // fn test_fragment_observation_no_evidence() {
-    //     let sample = setup_sample(150.0);
-    //     let bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
-    //     let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
-    //
-    //     for varlen in &[0, 5, 10, 100] {
-    //         println!("varlen {}", varlen);
-    //         println!("insertion");
-    //         let variant = model::Variant::Insertion(vec![b'A'; *varlen]);
-    //         for record in &records {
-    //             let obs = sample.fragment_observation(record, &simulate_mate(record), &variant).unwrap();
-    //             println!("{:?}", obs);
-    //             if *varlen == 0 {
-    //                 assert_relative_eq!(*obs.prob_ref, *obs.prob_alt);
-    //             } else {
-    //                 assert!(obs.prob_ref > obs.prob_alt);
-    //             }
-    //         }
-    //         println!("deletion");
-    //         let variant = model::Variant::Deletion(*varlen as u32);
-    //         for record in &records {
-    //             let obs = sample.fragment_observation(record, &simulate_mate(record), &variant).unwrap();
-    //             println!("{:?}", obs);
-    //             if *varlen == 0 {
-    //                 assert_relative_eq!(*obs.prob_ref, *obs.prob_alt);
-    //             } else {
-    //                 assert!(obs.prob_ref > obs.prob_alt);
-    //             }
-    //         }
-    //     }
-    // }
-    //
-    // #[test]
-    // fn test_fragment_observation_evidence() {
-    //     let bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
-    //     let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
-    //
-    //     println!("deletion");
-    //     let sample = setup_sample(100.0);
-    //     let variant = model::Variant::Deletion(50);
-    //     for record in &records {
-    //         let obs = sample.fragment_observation(record, &simulate_mate(record), &variant).unwrap();
-    //         println!("{:?}", obs);
-    //         assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
-    //         assert!(obs.prob_alt > obs.prob_ref);
-    //     }
-    //
-    //     println!("insertion");
-    //     let sample = setup_sample(200.0);
-    //     let variant = model::Variant::Insertion(vec![b'A'; 50]);
-    //     for record in &records {
-    //         let obs = sample.fragment_observation(record, &simulate_mate(record), &variant).unwrap();
-    //         println!("{:?}", obs);
-    //         assert_relative_eq!(obs.prob_ref.exp(), 0.0, epsilon=0.001);
-    //         assert!(obs.prob_alt > obs.prob_ref);
-    //     }
-    // }
 
     #[test]
     fn test_record_buffer() {

@@ -157,6 +157,33 @@ mod tests {
     use model::Variant;
     use model::AlleleFreq;
     use bio::stats::Prob;
+    use model::tests::observation;
+    use model::evidence::observation::Observation;
+
+    pub fn create_obs_vector(
+        n_obs_ref: usize,
+        n_obs_alt: usize
+    ) -> Vec<Observation> {
+        let obs_ref_abs = observation(
+            LogProb::ln_one(),
+            LogProb::ln_zero(),
+            LogProb::ln_one()
+        );
+        let obs_alt_abs = observation(
+            LogProb::ln_one(),
+            LogProb::ln_one(),
+            LogProb::ln_zero()
+        );
+
+        let mut obs = Vec::new();
+        for _ in 0..n_obs_ref {
+            obs.push(obs_ref_abs.clone());
+        }
+        for _ in 0..n_obs_alt {
+            obs.push(obs_alt_abs.clone());
+        }
+        obs
+    }
 
     #[test]
     fn test_infinite_sites_neutral_variation() {

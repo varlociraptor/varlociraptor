@@ -330,6 +330,7 @@ mod tests {
     use bio::stats::LogProb;
     use model::{ContinuousAlleleFreqs, AlleleFreq, AlleleFreqs, likelihood, Variant, PairPileup, priors};
     use model::evidence::{Observation, Evidence};
+    use model::priors::tests::create_obs_vector;
 
     #[test]
     fn test_prob_rho() {
@@ -396,39 +397,6 @@ mod tests {
                                     results_60_hom_alt[k] as f64, max_relative = 1.0,
                                     epsilon = 0.000000000001);
         }
-    }
-
-    fn create_obs_vector(
-        n_obs_ref: usize,
-        n_obs_alt: usize
-    ) -> Vec<Observation> {
-        let obs_ref_abs = Observation {
-            prob_mapping: LogProb::ln_one(),
-            //prob_mapping: LogProb(0.9f64.ln()),
-            prob_alt: LogProb::ln_zero(),
-            prob_ref: LogProb::ln_one(),
-            prob_sample_alt: LogProb::ln_one(),
-            prob_mismapped: LogProb::ln_one(),
-            evidence: Evidence::dummy_alignment()
-        };
-        let obs_alt_abs = Observation {
-            prob_mapping: LogProb::ln_one(),
-            //prob_mapping: LogProb(0.9f64.ln()),
-            prob_alt: LogProb::ln_one(),
-            prob_ref: LogProb::ln_zero(),
-            prob_sample_alt: LogProb::ln_one(),
-            prob_mismapped: LogProb::ln_one(),
-            evidence: Evidence::dummy_alignment()
-        };
-
-        let mut obs = Vec::new();
-        for _ in 0..n_obs_ref {
-            obs.push(obs_ref_abs.clone());
-        }
-        for _ in 0..n_obs_alt {
-            obs.push(obs_alt_abs.clone());
-        }
-        obs
     }
 
     fn create_test_snv_pileup<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>>(

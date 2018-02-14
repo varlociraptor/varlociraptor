@@ -19,7 +19,7 @@ use model::sample::RecordBuffer;
 use model::AlleleFreq;
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ProbSampleAlt {
     /// probability depends on maximum possible softlip
     Dependent(Vec<LogProb>),
@@ -31,7 +31,7 @@ pub enum ProbSampleAlt {
 
 
 /// An observation for or against a variant.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     pub prob_mapping: LogProb,
@@ -206,7 +206,7 @@ impl Evidence {
 
 
 /// Data that is shared among all observations over a locus.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Common {
     pub softclip_obs: Option<VecMap<u32>>,
     /// Average number of reads starting at any position in the region.
