@@ -100,13 +100,16 @@ impl Observation {
 
                 let likelihood_max_softclip = |max_softclip| {
                     let varcov = self.common.coverage * *allele_freq;
-                    softclip_range().map(|s| {
+                    let lh = softclip_range().map(|s| {
                         let count = self.common.softclip_obs.as_ref().unwrap()
                                                             .get(s as usize)
                                                             .cloned().unwrap_or(0);
                         let mu = if s <= max_softclip { varcov } else { 0.0 };
                         LogProb(poisson_pdf(count, mu).ln())
-                    }).sum()
+                    }).sum();
+                    assert!(lh.is_valid());
+                    
+                    lh
                 };
 
                 // calculate total probability to sample alt allele given the max_softclip
@@ -115,15 +118,19 @@ impl Observation {
                     |s| likelihood_max_softclip(s)
                 ).collect_vec();
                 let marginal = LogProb::ln_sum_exp(&likelihoods);
+                assert!(marginal.is_valid());
 
-                LogProb::ln_sum_exp(&probs.iter().enumerate().map(
+                let p = LogProb::ln_sum_exp(&probs.iter().enumerate().map(
                     |(max_softclip, prob_sample_alt)| {
                         // posterior probability for maximum softclip s
                         let prob_max_softclip = likelihoods[max_softclip as usize] - marginal;
                         // probability to sample from alt allele with this maximum softclip
                         prob_max_softclip + prob_sample_alt
                     }
-                ).collect_vec())
+                ).collect_vec());
+                assert!(p.is_valid());
+
+                p
             }
         }
     }
