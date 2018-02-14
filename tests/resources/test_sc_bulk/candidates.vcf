@@ -1,0 +1,48 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##bcftoolsVersion=1.6+htslib-1.6
+##bcftoolsCommand=mpileup --fasta-ref ../chr1.fa single_cell.bam bulk.bam
+##reference=file://../chr1.fa
+##contig=<ID=chr1,length=247249719>
+##contig=<ID=chr2,length=242951149>
+##contig=<ID=chr3,length=199501827>
+##contig=<ID=chr4,length=191273063>
+##contig=<ID=chr5,length=180857866>
+##contig=<ID=chr6,length=170899992>
+##contig=<ID=chr7,length=158821424>
+##contig=<ID=chr8,length=146274826>
+##contig=<ID=chr9,length=140273252>
+##contig=<ID=chr10,length=135374737>
+##contig=<ID=chr11,length=134452384>
+##contig=<ID=chr12,length=132349534>
+##contig=<ID=chr13,length=114142980>
+##contig=<ID=chr14,length=106368585>
+##contig=<ID=chr15,length=100338915>
+##contig=<ID=chr16,length=88827254>
+##contig=<ID=chr17,length=78774742>
+##contig=<ID=chr18,length=76117153>
+##contig=<ID=chr19,length=63811651>
+##contig=<ID=chr20,length=62435964>
+##contig=<ID=chr21,length=46944323>
+##contig=<ID=chr22,length=49691432>
+##contig=<ID=chrX,length=154913754>
+##contig=<ID=chrY,length=57772954>
+##contig=<ID=chrM,length=16571>
+##ALT=<ID=*,Description="Represents allele(s) other than observed.">
+##INFO=<ID=INDEL,Number=0,Type=Flag,Description="Indicates that the variant is an INDEL.">
+##INFO=<ID=IDV,Number=1,Type=Integer,Description="Maximum number of reads supporting an indel">
+##INFO=<ID=IMF,Number=1,Type=Float,Description="Maximum fraction of reads supporting an indel">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw read depth">
+##INFO=<ID=VDB,Number=1,Type=Float,Description="Variant Distance Bias for filtering splice-site artefacts in RNA-seq data (bigger is better)",Version="3">
+##INFO=<ID=RPB,Number=1,Type=Float,Description="Mann-Whitney U test of Read Position Bias (bigger is better)">
+##INFO=<ID=MQB,Number=1,Type=Float,Description="Mann-Whitney U test of Mapping Quality Bias (bigger is better)">
+##INFO=<ID=BQB,Number=1,Type=Float,Description="Mann-Whitney U test of Base Quality Bias (bigger is better)">
+##INFO=<ID=MQSB,Number=1,Type=Float,Description="Mann-Whitney U test of Mapping Quality vs Strand Bias (bigger is better)">
+##INFO=<ID=SGB,Number=1,Type=Float,Description="Segregation based metric.">
+##INFO=<ID=MQ0F,Number=1,Type=Float,Description="Fraction of MQ0 reads (smaller is better)">
+##INFO=<ID=I16,Number=16,Type=Float,Description="Auxiliary tag used for calling, see description of bcf_callret1_t in bam2bcf.h">
+##INFO=<ID=QS,Number=R,Type=Float,Description="Auxiliary tag used for calling">
+##bcftools_viewVersion=1.6+htslib-1.6
+##bcftools_viewCommand=view -G -o candidates.vcf; Date=Thu Feb  8 15:44:25 2018
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+chr1	18472680	.	C	A	0	.	DP=73;I16=33,29,0,1,2107,72671,36,1296,3720,223200,60,3600,1224,27452,25,625;QS=1.96505,0;MQSB=1;MQ0F=0
