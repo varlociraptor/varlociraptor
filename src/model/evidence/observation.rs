@@ -100,15 +100,20 @@ impl Observation {
 
                 let likelihood_max_softclip = |max_softclip| {
                     let varcov = self.common.coverage * *allele_freq;
-                    let lh = softclip_range().map(|s| {
+                    let mut lh = LogProb::ln_one();
+                    for s in softclip_range() {
                         let count = self.common.softclip_obs.as_ref().unwrap()
                                                             .get(s as usize)
                                                             .cloned().unwrap_or(0);
                         let mu = if s <= max_softclip { varcov } else { 0.0 };
-                        LogProb(poisson_pdf(count, mu).ln())
-                    }).sum();
+                        lh += poisson_pmf(count, mu);
+                        if lh == LogProb::ln_zero() {
+                            // stop early if we reach probability zero
+                            break;
+                        }
+                    }
                     assert!(lh.is_valid());
-                    
+
                     lh
                 };
 
@@ -133,6 +138,19 @@ impl Observation {
                 p
             }
         }
+    }
+}
+
+
+pub fn poisson_pmf(count: u32, mu: f64) -> LogProb {
+    if mu == 0.0 {
+        if count == 0 {
+            LogProb::ln_one()
+        } else {
+            LogProb::ln_zero()
+        }
+    } else {
+        LogProb(poisson_pdf(count, mu).ln())
     }
 }
 
@@ -256,7 +274,10 @@ impl Common {
                     evidence::Clips::trailing(&cigar).soft(),
                     evidence::Clips::leading(&cigar).soft()
                 );
-                *obs.entry(s as usize).or_insert(0) += 1;
+                // if we have a softclip, we count it
+                if s > 0 {
+                    *obs.entry(s as usize).or_insert(0) += 1;
+                }
             }
 
             Some(obs)
@@ -270,4 +291,24 @@ impl Common {
             enclosing_possible: enclosing_possible
         }
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // #[test]
+    // fn test_prob_sample_alt() {
+    //     let obs = Observation {
+    //         prob_mapping: LogProb::ln_one(),
+    //         prob_alt: LogProb::ln_one(),
+    //         prob_ref: LogProb::ln_one(),
+    //         evidence: Evidence::dummy_alignment(),
+    //         common: Common {
+    //             softclip_obs: Some(softclip_obs),
+    //             coverage:
+    //         }
+    //     }
+    // }
 }
