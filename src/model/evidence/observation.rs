@@ -1,10 +1,13 @@
 use std::str;
 use std::collections::vec_deque;
 use std::cmp;
+use std::rc::Rc;
 
 use vec_map::VecMap;
 use serde::Serialize;
 use serde::ser::{Serializer, SerializeStruct};
+use itertools::Itertools;
+use rgsl::randist::poisson::poisson_pdf;
 
 use bio::stats::LogProb;
 use rust_htslib::bam;
@@ -13,6 +16,18 @@ use rust_htslib::bam::record::CigarString;
 use model::Variant;
 use model::evidence;
 use model::sample::RecordBuffer;
+use model::AlleleFreq;
+
+
+#[derive(Clone)]
+pub enum ProbSampleAlt {
+    /// probability depends on maximum possible softlip
+    Dependent(Vec<LogProb>),
+    /// probability does not depend on softclip
+    Independent(LogProb),
+    /// probability is always 1
+    One
+}
 
 
 /// An observation for or against a variant.
@@ -24,13 +39,11 @@ pub struct Observation {
     pub prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
     pub prob_ref: LogProb,
-    /// Probability of the read/read-pair given that it has been mismapped.
-    pub prob_mismapped: LogProb,
     /// Read lengths
-    pub left_read_len: u32,
-    pub right_read_len: Option<u32>,
+    pub prob_sample_alt: ProbSampleAlt,
     /// Type of evidence.
-    pub evidence: Evidence
+    pub evidence: Evidence,
+    pub common: Rc<Common>
 }
 
 
@@ -42,10 +55,82 @@ impl Observation {
             false
         }
     }
+
+    /// Calculate probability to sample reads from alt allele.
+    /// For SNVs this is always 1.0.
+    /// Otherwise, this has two components.
+    ///
+    /// # Component 1: maximum softclip
+    /// First, we estimate the probability distribution of
+    /// the maximum possible softclip. This is influenced by the implementation of the mapper
+    /// and the repeat structure in the region of the variant. E.g., if a region is repetetive,
+    /// a fragment from the alt allele that could map over the variant given the mapper sensitivity
+    /// could still be placed somewhere else because there is a repeat that looks like the alt
+    /// allele. Hence, the maximum softclip has to be calculated per region.
+    ///
+    /// Simply taking the maximum observed softclip in a region is not robust enough though,
+    /// because small allele frequencies and low coverage can lead to not enough observations.
+    /// Instead, we calculate the probability distribution of the maximum softclip, by assuming
+    /// that read start positions are poisson distributed with mean given by the expected variant
+    /// allele coverage.
+    /// This coverage is calculated by multiplying allele frequency with the observed average
+    /// number of reads starting at any position in the region.
+    /// Then, we can calculate the likelihood of the observed softclips given a true maximum
+    /// softclip by taking the product of the poisson distributed probabilities for each observed
+    /// softclip count.
+    /// By applying Bayes theorem, we obtain a posterior probability for each possible maximum
+    /// softclip.
+    ///
+    /// # Component 2:
+    /// We calculate the probability to sample a fragment from the alt allele given a maximum
+    /// softclip and the read lengths. If the variant is small enough to be encoded in the CIGAR
+    /// string, we can simply ignore the maximum softclip distribution.
+    ///
+    /// # Total probability
+    /// The final result is obtained by combining the two components to a total probability.
+    pub fn prob_sample_alt(
+        &self,
+        allele_freq: AlleleFreq
+    ) -> LogProb {
+        match &self.prob_sample_alt {
+            &ProbSampleAlt::One => LogProb::ln_one(),
+            &ProbSampleAlt::Independent(p) => p,
+            &ProbSampleAlt::Dependent(ref probs) => {
+                let softclip_range = || 0..probs.len();
+
+                let likelihood_max_softclip = |max_softclip| {
+                    let varcov = self.common.coverage * *allele_freq;
+                    softclip_range().map(|s| {
+                        let count = self.common.softclip_obs.as_ref().unwrap()
+                                                            .get(s as usize)
+                                                            .cloned().unwrap_or(0);
+                        let mu = if s <= max_softclip { varcov } else { 0.0 };
+                        LogProb(poisson_pdf(count, mu).ln())
+                    }).sum()
+                };
+
+                // calculate total probability to sample alt allele given the max_softclip
+                // distribution
+                let likelihoods: Vec<LogProb> = softclip_range().map(
+                    |s| likelihood_max_softclip(s)
+                ).collect_vec();
+                let marginal = LogProb::ln_sum_exp(&likelihoods);
+
+                LogProb::ln_sum_exp(&probs.iter().enumerate().map(
+                    |(max_softclip, prob_sample_alt)| {
+                        // posterior probability for maximum softclip s
+                        let prob_max_softclip = likelihoods[max_softclip as usize] - marginal;
+                        // probability to sample from alt allele with this maximum softclip
+                        prob_max_softclip + prob_sample_alt
+                    }
+                ).collect_vec())
+            }
+        }
+    }
 }
 
 
-impl<'a> Serialize for Observation<'a> {
+impl Serialize for Observation {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where S: Serializer {
         let mut s = serializer.serialize_struct("Observation", 3)?;
@@ -164,7 +249,7 @@ impl Common {
                     evidence::Clips::trailing(&cigar).soft(),
                     evidence::Clips::leading(&cigar).soft()
                 );
-                obs.entry(&s).or_insert(0) += 1;
+                *obs.entry(s as usize).or_insert(0) += 1;
             }
 
             Some(obs)
@@ -177,9 +262,5 @@ impl Common {
             max_read_len: max_read_len,
             enclosing_possible: enclosing_possible
         }
-    }
-
-    pub fn collect_softclip_obs(records: vec_deque::Iter<bam::Record>) {
-
     }
 }

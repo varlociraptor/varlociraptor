@@ -33,35 +33,45 @@ impl LatentVariableModel {
     fn likelihood_observation(&self,
                        observation: &Observation,
                        allele_freq_case: AlleleFreq,
-                       allele_freq_control: Option<AlleleFreq>,
-                       prob_sample_alt: LogProb
+                       allele_freq_control: Option<AlleleFreq>
     ) -> LogProb {
-        // probability to sample observation: AF * placement induced probability
-        let prob_sample_alt_case = LogProb(allele_freq_case.ln()) +
-                                   prob_sample_alt;
+        let prob_mismapped = LogProb::ln_one();
 
         match (allele_freq_control, self.purity) {
             (Some(allele_freq_control), Some(purity)) => {
-                // read comes from control sample and is correctly mapped
+                // Step 1: calculate combined allele frequency including contamination
+                let allele_freq_both = (purity + LogProb(allele_freq_case.ln())).ln_add_exp(
+                    self.impurity() + LogProb(allele_freq_control.ln())
+                ).exp();
+                // Step 2: calculate probability to sample from alt allele
+                let prob_sample_alt = observation.prob_sample_alt(AlleleFreq(allele_freq_both));
+
+                // probability to sample observation: AF * placement induced probability
+                let prob_sample_alt_case = LogProb(allele_freq_case.ln()) +
+                                           prob_sample_alt;
                 let prob_sample_alt_control = LogProb(allele_freq_control.ln()) +
                                               prob_sample_alt; // TODO correct?
+
+                // Step 3: read comes from control sample and is correctly mapped
                 let prob_control = self.impurity() +
                                    (prob_sample_alt_control + observation.prob_alt).ln_add_exp(
                     prob_sample_alt_control.ln_one_minus_exp() +
                     observation.prob_ref
                 );
                 assert!(!prob_control.is_nan());
-                // read comes from case sample and is correctly mapped
+
+                // Step 4: read comes from case sample and is correctly mapped
                 let prob_case = purity +
                                 (prob_sample_alt_case + observation.prob_alt).ln_add_exp(
                     prob_sample_alt_case.ln_one_minus_exp() +
                     observation.prob_ref
                 );
                 assert!(!prob_case.is_nan());
-                // total probability
+
+                // Step 5: total probability
                 let total = (observation.prob_mapping + prob_control.ln_add_exp(prob_case)).ln_add_exp(
                     observation.prob_mapping.ln_one_minus_exp() +
-                    observation.prob_mismapped
+                    prob_mismapped
                 );
                 assert!(!total.is_nan());
                 total
@@ -74,17 +84,20 @@ impl LatentVariableModel {
                         "no control allele frequency given but purity is not 1.0"
                     );
                 }
+                // Step 1: calculate probability to sample from alt allele
+                let prob_sample_alt = observation.prob_sample_alt(allele_freq_case);
 
-                // read comes from case sample and is correctly mapped
-                let prob_case = (prob_sample_alt_case + observation.prob_alt).ln_add_exp(
-                    prob_sample_alt_case.ln_one_minus_exp() +
+                // Step 2: read comes from case sample and is correctly mapped
+                let prob_case = (prob_sample_alt + observation.prob_alt).ln_add_exp(
+                    prob_sample_alt.ln_one_minus_exp() +
                     observation.prob_ref
                 );
                 assert!(!prob_case.is_nan());
-                // total probability
+
+                // Step 3: total probability
                 let total = (observation.prob_mapping + prob_case).ln_add_exp(
                     observation.prob_mapping.ln_one_minus_exp() +
-                    observation.prob_mismapped
+                    prob_mismapped
                 );
                 assert!(!total.is_nan());
                 total
@@ -99,15 +112,14 @@ impl LatentVariableModel {
     pub fn likelihood_pileup(&self,
                              pileup: &[Observation],
                              allele_freq_case: AlleleFreq,
-                             allele_freq_control: Option<AlleleFreq>,
-                             prob_sample_alt: LogProb
+                             allele_freq_control: Option<AlleleFreq>
     ) -> LogProb {
         // calculate product of per-read likelihoods in log space
         let likelihood = pileup.iter().fold(
             LogProb::ln_one(),
             |prob, obs| {
                 prob + self.likelihood_observation(
-                    obs, allele_freq_case, allele_freq_control, prob_sample_alt
+                    obs, allele_freq_case, allele_freq_control
                 )
             }
         );

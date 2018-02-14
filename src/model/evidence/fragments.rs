@@ -13,6 +13,7 @@ use model::Variant;
 use model::sample::InsertSize;
 use pairhmm;
 use model::evidence;
+use model::evidence::observation::ProbSampleAlt;
 
 
 /// Calculate the number of positions a fragment can have in a given window according to
@@ -198,77 +199,61 @@ impl IndelEvidence {
         Ok((p_ref, p_alt))
     }
 
-    /// Probability to sample read from alt allele.
-    /// If variant is small enough to be in CIGAR, max_softclip should be set to read len.
+    /// Probability to sample read from alt allele for each possible max softclip up to a given
+    /// theoretical maximum.
+    /// If variant is small enough to be in CIGAR, max_softclip should be set to None
+    /// (i.e., ignored), and the method will only return one value.
+    ///
+    /// The key idea is to take the insert size distribution and calculate the expected probability
+    /// by considering the number of valid placements over all placements for each possible insert
+    /// size.
     pub fn prob_sample_alt(
         &self,
         left_read_len: u32,
         right_read_len: u32,
-        max_softclip: u32,
+        enclosing_possible: bool,
         variant: &Variant
-    ) -> LogProb {
+    ) -> ProbSampleAlt {
         let delta = match variant {
             &Variant::Deletion(_)  => 0,
             &Variant::Insertion(_) => variant.len() as u32,
             // for SNVs sampling is unbiased
-            &Variant::SNV(_) => return LogProb::ln_one()
+            &Variant::SNV(_) => return ProbSampleAlt::One
         };
 
-        let read_offsets = left_read_len.saturating_sub(max_softclip) +
-                           right_read_len.saturating_sub(max_softclip);
+        let expected_prob = |max_softclip| {
 
-        let expected_p_alt = LogProb::ln_sum_exp(
-            &self.pmf_range().filter_map(|x| {
-                if x < delta {
-                    // if x is too small to enclose the variant, we skip it as it adds zero to the sum
-                    None
-                } else {
-                    Some(
-                        self.pmf(x, 0.0) +
-                        // probability to sample a valid placement
-                        LogProb(
-                            (x.saturating_sub(delta).saturating_sub(read_offsets) as f64).ln() -
-                            (x.saturating_sub(delta) as f64).ln()
+            let read_offsets = left_read_len.saturating_sub(max_softclip) +
+                               right_read_len.saturating_sub(max_softclip);
+
+            let expected_p_alt = LogProb::ln_sum_exp(
+                &self.pmf_range().filter_map(|x| {
+                    if x < delta {
+                        // if x is too small to enclose the variant, we skip it as it adds zero to the sum
+                        None
+                    } else {
+                        Some(
+                            self.pmf(x, 0.0) +
+                            // probability to sample a valid placement
+                            LogProb(
+                                (x.saturating_sub(delta).saturating_sub(read_offsets) as f64).ln() -
+                                (x.saturating_sub(delta) as f64).ln()
+                            )
                         )
-                    )
-                }
-            }).collect_vec()
-        );
+                    }
+                }).collect_vec()
+            );
 
-        expected_p_alt
-    }
-
-    pub fn prob_sample_alt2(
-        &self,
-        insert_size: u32,
-        left_read_len: u32,
-        right_read_len: u32,
-        max_softclip: u32,
-        is_enclosing: bool,
-        variant: &Variant
-    ) -> LogProb {
-        let delta = match variant {
-            &Variant::Deletion(_)  => variant.len() as u32,
-            &Variant::Insertion(_) => variant.len() as u32,
-            &Variant::SNV(_) => panic!("no fragment observations for SNV")
+            expected_p_alt
         };
 
-        let n_alt = insert_size.saturating_sub(delta).saturating_sub(if !is_enclosing {
-            left_read_len.saturating_sub(max_softclip) +
-            right_read_len.saturating_sub(max_softclip)
-        } else { 0 });
+        let max_softclip = cmp::max(left_read_len, right_read_len);
 
-        // The probability to obtain a valid placement is n_alt divided by the total number of
-        // placements over the centerpoint
-        let p_alt = if n_alt > 0 {
-            LogProb((n_alt as f64).ln() - (insert_size as f64).ln())
+        if !enclosing_possible {
+            ProbSampleAlt::Dependent((0..max_softclip + 1).map(&expected_prob).collect_vec())
         } else {
-            // If the insert size is too small to place the fragment over the variant it must
-            // be a ref fragment and we can ignore this probability by setting it to 1.0.
-            LogProb::ln_one()
-        };
-
-        p_alt
+            ProbSampleAlt::Independent(expected_prob(max_softclip))
+        }
     }
 }
 
