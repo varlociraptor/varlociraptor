@@ -406,17 +406,14 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         };
 
         let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len());
-        debug!("Pr(D, f_case={:?}, f_control={:?}) = {}", af_case, af_control, p.exp());
         p
     }
 
     /// Calculate posterior probability of given allele frequencies.
     pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
-        debug!("Calculating posterior probability. for case={:?} and control={:?}", af_case, af_control);
         let p = self.joint_prob(af_case, af_control);
         let marginal = self.marginal_prob();
         let prob = p - marginal;
-        debug!("Posterior probability: {}.", prob.exp());
         prob
     }
 
@@ -432,11 +429,13 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     }
 
     fn case_likelihood(&self, af_case: AlleleFreq, af_control: Option<AlleleFreq>) -> LogProb {
-        self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control.map(|af| af))
+        let p = self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control);
+        p
     }
 
     fn control_likelihood(&self, af_control: AlleleFreq, af_case: Option<AlleleFreq>) -> LogProb {
-        self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case.map(|af| af))
+        let p = self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case);
+        p
     }
 
     pub fn case_observations(&self) -> &[Observation] {

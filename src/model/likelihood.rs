@@ -43,6 +43,7 @@ impl LatentVariableModel {
                 let allele_freq_both = (purity + LogProb(allele_freq_case.ln())).ln_add_exp(
                     self.impurity() + LogProb(allele_freq_control.ln())
                 ).exp();
+
                 // Step 2: calculate probability to sample from alt allele
                 let prob_sample_alt = observation.prob_sample_alt(AlleleFreq(allele_freq_both));
 
@@ -85,7 +86,8 @@ impl LatentVariableModel {
                     );
                 }
                 // Step 1: calculate probability to sample from alt allele
-                let prob_sample_alt = observation.prob_sample_alt(allele_freq_case);
+                let prob_sample_alt = LogProb(allele_freq_case.ln()) +
+                                      observation.prob_sample_alt(allele_freq_case);
 
                 // Step 2: read comes from case sample and is correctly mapped
                 let prob_case = (prob_sample_alt + observation.prob_alt).ln_add_exp(
@@ -136,6 +138,64 @@ mod tests {
     use bio::stats::LogProb;
     use model::tests::observation;
 
+    #[test]
+    fn test_likelihood_observation_absent_single() {
+        let model = LatentVariableModel::new(1.0);
+        let observation = observation(
+            LogProb::ln_one(),
+            LogProb::ln_zero(),
+            LogProb::ln_one()
+        );
+
+        let lh = model.likelihood_observation(&observation, AlleleFreq(0.0), None);
+        assert_relative_eq!(*lh, *LogProb::ln_one());
+    }
+
+    #[test]
+    fn test_likelihood_observation_absent() {
+        let model = LatentVariableModel::new(1.0);
+        let observation = observation(
+            LogProb::ln_one(),
+            LogProb::ln_zero(),
+            LogProb::ln_one()
+        );
+
+        let lh = model.likelihood_observation(&observation, AlleleFreq(0.0), Some(AlleleFreq(0.0)));
+        assert_relative_eq!(*lh, *LogProb::ln_one());
+    }
+
+
+    #[test]
+    fn test_likelihood_pileup_absent() {
+        let model = LatentVariableModel::new(1.0);
+        let mut observations = Vec::new();
+        for _ in 0..10 {
+            observations.push(observation(
+                LogProb::ln_one(),
+                LogProb::ln_zero(),
+                LogProb::ln_one()
+            ));
+        }
+
+        let lh = model.likelihood_pileup(&observations, AlleleFreq(0.0), Some(AlleleFreq(0.0)));
+        assert_relative_eq!(*lh, *LogProb::ln_one());
+    }
+
+    #[test]
+    fn test_likelihood_pileup_absent_single() {
+        let model = LatentVariableModel::new(1.0);
+        let mut observations = Vec::new();
+        for _ in 0..10 {
+            observations.push(observation(
+                LogProb::ln_one(),
+                LogProb::ln_zero(),
+                LogProb::ln_one()
+            ));
+        }
+
+        let lh = model.likelihood_pileup(&observations, AlleleFreq(0.0), None);
+        assert_relative_eq!(*lh, *LogProb::ln_one());
+    }
 
     #[test]
     fn test_likelihood_observation() {

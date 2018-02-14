@@ -159,6 +159,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
                 LogProb::ln_simpsons_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points)
             };
             let p_normal = likelihood_normal(af_normal, None);
+            println!("prior model probs: af={} {:?} {:?}", af_normal, p_tumor, p_normal);
             let prob = p_tumor + p_normal;
 
             prob
