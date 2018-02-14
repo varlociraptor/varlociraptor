@@ -176,6 +176,9 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
 }
 
 fn call_single_cell_bulk(test: &str, exclusive_end: bool) {
+    let reference = download_reference();
+    assert!(Path::new(reference).exists());
+    assert!(Path::new(&(reference.to_owned() + ".fai")).exists());
 
     //setup_logger(test);
 
