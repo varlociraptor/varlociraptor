@@ -92,14 +92,19 @@ impl Observation {
         &self,
         allele_freq: AlleleFreq
     ) -> LogProb {
+        if allele_freq == AlleleFreq(0.0) {
+            // if allele freq is zero, prob_sample_alt has no effect
+            return LogProb::ln_one();
+        }
+
         match &self.prob_sample_alt {
             &ProbSampleAlt::One => LogProb::ln_one(),
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
                 let softclip_range = || 0..probs.len();
+                let varcov = self.common.coverage * *allele_freq;
 
                 let likelihood_max_softclip = |max_softclip| {
-                    let varcov = self.common.coverage * *allele_freq;
                     let mut lh = LogProb::ln_one();
                     for s in softclip_range() {
                         let count = self.common.softclip_obs.as_ref().unwrap()
@@ -124,6 +129,7 @@ impl Observation {
                 ).collect_vec();
                 let marginal = LogProb::ln_sum_exp(&likelihoods);
                 assert!(marginal.is_valid());
+                assert!(marginal != LogProb::ln_zero(), "bug: marginal softclip dist prob of zero");
 
                 let p = LogProb::ln_sum_exp(&probs.iter().enumerate().map(
                     |(max_softclip, prob_sample_alt)| {
@@ -133,7 +139,9 @@ impl Observation {
                         prob_max_softclip + prob_sample_alt
                     }
                 ).collect_vec());
-                assert!(p.is_valid());
+                assert!(p.is_valid(), "invalid probability {:?}", p);
+                println!("softclip-dist: {:?}", self.common.softclip_obs);
+                println!("af={} prob_sample_alt={:?}", allele_freq, p);
 
                 p
             }
