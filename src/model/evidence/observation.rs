@@ -93,7 +93,7 @@ impl Observation {
         allele_freq: AlleleFreq
     ) -> LogProb {
         if allele_freq == AlleleFreq(0.0) {
-            // if allele freq is zero, prob_sample_alt has no effect
+            // if allele freq is zero, prob_sample_alt has no effect (it is also undefined)
             return LogProb::ln_one();
         }
 
@@ -140,8 +140,6 @@ impl Observation {
                     }
                 ).collect_vec());
                 assert!(p.is_valid(), "invalid probability {:?}", p);
-                println!("softclip-dist: {:?}", self.common.softclip_obs);
-                println!("af={} prob_sample_alt={:?}", allele_freq, p);
 
                 p
             }
