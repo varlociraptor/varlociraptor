@@ -138,7 +138,7 @@ impl Observation {
                         // probability to sample from alt allele with this maximum softclip
                         prob_max_softclip + prob_sample_alt
                     }
-                ).collect_vec());
+                ).collect_vec()).cap_numerical_overshoot(1e-5);
                 assert!(p.is_valid(), "invalid probability {:?}", p);
 
                 p
