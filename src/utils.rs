@@ -15,6 +15,9 @@ use utils;
 use Event;
 
 
+pub const NUMERICAL_EPSILON: f64 = 1e-6;
+
+
 /// Collect variants from a given ´bcf::Record`.
 pub fn collect_variants(
     record: &mut bcf::Record,
@@ -201,7 +204,7 @@ fn tags_prob_sum(
             }
         }
     }
-    Ok( LogProb::ln_sum_exp(&tags_probs_out).cap_numerical_overshoot(0.000001) )
+    Ok( LogProb::ln_sum_exp(&tags_probs_out).cap_numerical_overshoot(NUMERICAL_EPSILON) )
 }
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by

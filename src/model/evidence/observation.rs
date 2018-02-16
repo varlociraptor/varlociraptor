@@ -17,6 +17,7 @@ use model::Variant;
 use model::evidence;
 use model::sample::RecordBuffer;
 use model::AlleleFreq;
+use utils::NUMERICAL_EPSILON;
 
 
 #[derive(Clone, Debug)]
@@ -127,7 +128,7 @@ impl Observation {
                 let likelihoods: Vec<LogProb> = softclip_range().map(
                     |s| likelihood_max_softclip(s)
                 ).collect_vec();
-                let marginal = LogProb::ln_sum_exp(&likelihoods);
+                let marginal = LogProb::ln_sum_exp(&likelihoods).cap_numerical_overshoot(NUMERICAL_EPSILON);
                 assert!(marginal.is_valid());
                 assert!(marginal != LogProb::ln_zero(), "bug: marginal softclip dist prob of zero");
 
@@ -138,7 +139,7 @@ impl Observation {
                         // probability to sample from alt allele with this maximum softclip
                         prob_max_softclip + prob_sample_alt
                     }
-                ).collect_vec()).cap_numerical_overshoot(1e-5);
+                ).collect_vec()).cap_numerical_overshoot(NUMERICAL_EPSILON);
                 assert!(p.is_valid(), "invalid probability {:?}", p);
 
                 p
