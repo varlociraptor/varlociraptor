@@ -128,8 +128,8 @@ impl Observation {
                 let likelihoods: Vec<LogProb> = softclip_range().map(
                     |s| likelihood_max_softclip(s)
                 ).collect_vec();
-                let marginal = LogProb::ln_sum_exp(&likelihoods).cap_numerical_overshoot(NUMERICAL_EPSILON);
-                assert!(marginal.is_valid());
+                let marginal = LogProb::ln_sum_exp(&likelihoods);
+                assert!(!marginal.is_nan());
                 assert!(marginal != LogProb::ln_zero(), "bug: marginal softclip dist prob of zero");
 
                 let p = LogProb::ln_sum_exp(&probs.iter().enumerate().map(
