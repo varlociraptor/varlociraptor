@@ -37,14 +37,14 @@ pub fn prob_snv(
 }
 
 // TODO: Should we make this check against potential indel alt alleles, as well? Would need to collect respective observations / reads, then.
-pub fn prob_ref(
+pub fn prob_none(
     record: &bam::Record,
     cigar: &CigarStringView,
     start: u32,
     variant: &Variant,
     ref_seq: &[u8]
 ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
-    if let &Variant::Ref = variant {
+    if let &Variant::None = variant {
         if let Some(qpos) = cigar.read_pos(start, false, false)? {
             let read_base = record.seq()[qpos as usize];
             let base_qual = record.qual()[qpos as usize];
@@ -111,7 +111,7 @@ impl IndelEvidence {
                 &Variant::Deletion(_) => (start, start + variant.len()),
                 &Variant::Insertion(_) => (start, start + 1),
                 //TODO: add support for &Variant::Ref if we want to check against potential indel alt alleles
-                &Variant::SNV(_) | &Variant::Ref => panic!("bug: unsupported variant")
+                &Variant::SNV(_) | &Variant::None => panic!("bug: unsupported variant")
             };
 
             match (
@@ -451,7 +451,7 @@ mod tests {
     use rust_htslib::bam::record::{Cigar, CigarString};
 
     #[test]
-    fn test_prob_ref() {
+    fn test_prob_none() {
         let ref_seq: Vec<u8> = b"GATTACA"[..].to_owned();
 
         let mut records: Vec<bam::Record> = Vec::new();
@@ -505,10 +505,10 @@ mod tests {
         let eps       = [0.00001, 0.0001, 0.000001];
 
         let vpos = 4;
-        let variant = model::Variant::Ref;
+        let variant = model::Variant::None;
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_ref(rec, &rec.cigar(), vpos, &variant, &ref_seq) {
+            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_none(rec, &rec.cigar(), vpos, &variant, &ref_seq) {
                 println!("{:?}", rec.cigar());
                 println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
                 assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);

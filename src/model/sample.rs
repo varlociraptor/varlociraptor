@@ -352,7 +352,7 @@ impl Sample {
             &Variant::Deletion(length)  => (start + length, start + length / 2),
             &Variant::Insertion(_) => (start, start),
             &Variant::SNV(_) => (start, start),
-            &Variant::Ref => (start, start)
+            &Variant::None => (start, start)
         };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
@@ -366,7 +366,7 @@ impl Sample {
 
         match variant {
             //TODO: make &Variant::Ref add reads with position deleted if we want to check against indel alt alleles
-            &Variant::SNV(_) | &Variant::Ref => {
+            &Variant::SNV(_) | &Variant::None => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     if !self.is_reliable_read(record) {
@@ -511,8 +511,8 @@ impl Sample {
             &Variant::SNV(_) => {
                 probs = evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)?;
             },
-            &Variant::Ref => {
-                probs = evidence::reads::prob_ref(record, &cigar, start, variant, chrom_seq)?;
+            &Variant::None => {
+                probs = evidence::reads::prob_none(record, &cigar, start, variant, chrom_seq)?;
             }
         }
 

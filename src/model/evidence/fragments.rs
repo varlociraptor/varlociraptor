@@ -111,7 +111,7 @@ impl IndelEvidence {
             &Variant::Deletion(_)  => variant.len() as f64,
             &Variant::Insertion(_) => -(variant.len() as f64),
             &Variant::SNV(_) => panic!("no fragment observations for SNV"),
-            &Variant::Ref => panic!("no fragment observations for Ref")
+            &Variant::None => panic!("no fragment observations for None")
         };
 
         let p_alt = isize_pmf(

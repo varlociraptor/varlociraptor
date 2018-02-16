@@ -111,7 +111,7 @@ pub fn collect_variants(
                 if omit_snvs {
                     None
                 } else {
-                    Some( model::Variant::Ref )
+                    Some( model::Variant::None )
                 }
             } else if alt_allele[0] == b'<' {
                 // skip allele if it is a special tag other than '<*>' (such alleles have been handled above)
