@@ -106,8 +106,15 @@ pub fn collect_variants(
         let ref_allele = alleles[0];
 
         alleles.iter().skip(1).map(|alt_allele| {
-            if alt_allele[0] == b'<' {
-                // skip allele if it is a special tag (such alleles have been handled above)
+            if alt_allele == b"<*>" {
+                // dummy non-ref allele, signifying potential homozygous reference site
+                if omit_snvs {
+                    None
+                } else {
+                    Some( model::Variant::None )
+                }
+            } else if alt_allele[0] == b'<' {
+                // skip allele if it is a special tag other than '<*>' (such alleles have been handled above)
                 None
             } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 // SNV

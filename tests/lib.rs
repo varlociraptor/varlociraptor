@@ -175,6 +175,138 @@ fn call_tumor_normal(test: &str, exclusive_end: bool) {
     thread::sleep(time::Duration::from_secs(1));
 }
 
+fn call_single_cell_bulk(test: &str, exclusive_end: bool) {
+    let reference = download_reference();
+    assert!(Path::new(reference).exists());
+    assert!(Path::new(&(reference.to_owned() + ".fai")).exists());
+
+    //setup_logger(test);
+
+    let basedir = basedir(test);
+
+    let sc_bam_file = format!("{}/single_cell.bam", basedir);
+    let bulk_bam_file = format!("{}/bulk.bam", basedir);
+
+    let sc_bam = bam::IndexedReader::from_path(&sc_bam_file).unwrap();
+    let bulk_bam = bam::IndexedReader::from_path(&bulk_bam_file).unwrap();
+
+    let candidates = format!("{}/candidates.vcf", basedir);
+    let reference = "tests/resources/chr1.fa";
+
+    let output = format!("{}/calls.bcf", basedir);
+    let observations = format!("{}/observations.tsv", basedir);
+    cleanup_file(&output);
+    cleanup_file(&observations);
+
+    let insert_size = libprosic::InsertSize {
+        mean: 312.0,
+        sd: 15.0
+    };
+
+    let sc = libprosic::Sample::new(
+        sc_bam,
+        2500,
+        true,
+        true,
+        true,
+        false,
+        insert_size,
+        libprosic::likelihood::LatentVariableModel::with_single_sample(),
+        constants::PROB_ILLUMINA_INS,
+        constants::PROB_ILLUMINA_DEL,
+        Prob(0.0),
+        Prob(0.0),
+        25,
+        100
+    );
+
+    let bulk = libprosic::Sample::new(
+        bulk_bam,
+        2500,
+        true,
+        true,
+        true,
+        false,
+        insert_size,
+        libprosic::likelihood::LatentVariableModel::with_single_sample(),
+        constants::PROB_ILLUMINA_INS,
+        constants::PROB_ILLUMINA_DEL,
+        Prob(0.0),
+        Prob(0.0),
+        25,
+        100
+    );
+
+    // setup events: case = single cell; control = bulk
+    let events = [
+        libprosic::call::pairwise::PairEvent {
+            name: "hom_ref".to_owned(),
+            af_case: vec![AlleleFreq(0.0)],
+            af_control: ContinuousAlleleFreqs::right_exclusive( 0.0..0.5 )
+        },
+        libprosic::call::pairwise::PairEvent {
+            name: "ADO_to_ref".to_owned(),
+            af_case: vec![AlleleFreq(0.0)],
+            af_control: ContinuousAlleleFreqs::right_exclusive( 0.5..1.0 )
+        },
+        libprosic::call::pairwise::PairEvent {
+            name: "ADO_to_alt".to_owned(),
+            af_case: vec![AlleleFreq(1.0)],
+            af_control: ContinuousAlleleFreqs::left_exclusive( 0.0..0.5 )
+        },
+        libprosic::call::pairwise::PairEvent {
+            name: "hom_alt".to_owned(),
+            af_case: vec![AlleleFreq(1.0)],
+            af_control: ContinuousAlleleFreqs::left_exclusive( 0.5..1.0 )
+        },
+        libprosic::call::pairwise::PairEvent {
+            name: "err_alt".to_owned(),
+            af_case: vec![AlleleFreq(0.5), AlleleFreq(1.0)],
+            af_control: ContinuousAlleleFreqs::inclusive( 0.0..0.0 )
+        },
+        libprosic::call::pairwise::PairEvent {
+            name: "het".to_owned(),
+            af_case: vec![AlleleFreq(0.5)],
+            af_control: ContinuousAlleleFreqs::exclusive( 0.0..1.0 )
+        },
+        libprosic::call::pairwise::PairEvent {
+            name: "err_ref".to_owned(),
+            af_case: vec![AlleleFreq(0.0), AlleleFreq(0.5)],
+            af_control: ContinuousAlleleFreqs::inclusive( 1.0..1.0 )
+        }
+    ];
+
+    let prior_model = libprosic::priors::SingleCellBulkModel::new(2, 8, 100);
+
+    let mut caller = libprosic::model::PairCaller::new(
+        sc,
+        bulk,
+        prior_model
+    );
+
+    libprosic::call::pairwise::call::<
+            _, _, _,
+            libprosic::model::PairCaller<
+                libprosic::model::DiscreteAlleleFreqs,
+                libprosic::model::ContinuousAlleleFreqs,
+                libprosic::model::priors::SingleCellBulkModel
+            >, _, _, _, _>
+        (
+            Some(&candidates),
+            Some(&output),
+            &reference,
+            &events,
+            &mut caller,
+            false,
+            false,
+            Some(10000),
+            Some(&observations),
+            exclusive_end
+        ).unwrap();
+
+    // sleep a second in order to wait for filesystem flushing
+    thread::sleep(time::Duration::from_secs(1));
+}
 
 fn load_call(test: &str) -> bcf::Record {
     let basedir = basedir(test);
@@ -291,4 +423,31 @@ fn test_fdr_ev1() {
 fn test_fdr_ev2() {
     control_fdr_ev("test_fdr_ev_2");
     // TODO add a reasonable assertion
+}
+
+#[test]
+fn test_sc_bulk() {
+    call_single_cell_bulk("test_sc_bulk", true);
+    let mut call = load_call("test_sc_bulk");
+    check_info_float(&mut call, b"CONTROL_AF", 0.0285714, 0.0000001);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"PROB_HET", 12.5142, 0.0001);
+}
+
+#[test]
+fn test_sc_bulk_hom_ref() {
+    call_single_cell_bulk("test_sc_bulk_hom_ref", true);
+    let mut call = load_call("test_sc_bulk_hom_ref");
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"PROB_HOM_REF", 0.219712, 0.000001);
+}
+
+#[test]
+fn test_sc_bulk_indel() {
+    call_single_cell_bulk("test_sc_bulk_indel", true);
+    let mut call = load_call("test_sc_bulk_indel");
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"PROB_HET", 12.6591, 0.0001);
 }

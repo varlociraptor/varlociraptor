@@ -36,6 +36,35 @@ pub fn prob_snv(
     }
 }
 
+// TODO: Should we make this check against potential indel alt alleles, as well? Would need to collect respective observations / reads, then.
+pub fn prob_none(
+    record: &bam::Record,
+    cigar: &CigarStringView,
+    start: u32,
+    variant: &Variant,
+    ref_seq: &[u8]
+) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
+    if let &Variant::None = variant {
+        if let Some(qpos) = cigar.read_pos(start, false, false)? {
+            let read_base = record.seq()[qpos as usize];
+            let base_qual = record.qual()[qpos as usize];
+            let miscall = prob_read_base_miscall(base_qual);
+            // here, prob_alt is the probability of any alternative allele / nucleotide, NOT of a particular alternative allele
+            if read_base.to_ascii_uppercase() == ref_seq[start as usize].to_ascii_uppercase() {
+                Ok( Some( (miscall.ln_one_minus_exp(), miscall) ) )
+            } else {
+                Ok( Some( (miscall, miscall.ln_one_minus_exp()) ) )
+            }
+        } else {
+            // a read that spans a potential Ref site might have the respective position deleted (Cigar op 'D')
+            // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
+            // but instead needs to know NOT to add those reads (as observations) further up
+            Ok( None )
+        }
+    } else {
+        panic!("bug: unsupported variant");
+    }
+}
 
 /// Calculate read evindence for an indel.
 pub struct IndelEvidence {
@@ -81,7 +110,8 @@ impl IndelEvidence {
             let (varstart, varend) = match variant {
                 &Variant::Deletion(_) => (start, start + variant.len()),
                 &Variant::Insertion(_) => (start, start + 1),
-                &Variant::SNV(_) => panic!("bug: unsupported variant")
+                //TODO: add support for &Variant::Ref if we want to check against potential indel alt alleles
+                &Variant::SNV(_) | &Variant::None => panic!("bug: unsupported variant")
             };
 
             match (
@@ -213,7 +243,7 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 }
 
 
-/// Calculate probability of read_base given ref_base.
+/// unpack miscall probability of read_base.
 pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
     LogProb::from(PHREDProb::from((base_qual) as f64))
 }
@@ -421,6 +451,77 @@ mod tests {
     use rust_htslib::bam::record::{Cigar, CigarString};
 
     #[test]
+    fn test_prob_none() {
+        let ref_seq: Vec<u8> = b"GATTACA"[..].to_owned();
+
+        let mut records: Vec<bam::Record> = Vec::new();
+        let mut qname: &[u8];
+        let mut seq: &[u8];
+
+        // Ignore leading HardClip, skip leading SoftClip, reference nucleotide
+        qname = b"HC_SC_ref";
+        let cigar = CigarString( vec![Cigar::HardClip(3), Cigar::SoftClip(1), Cigar::Match(5)] );
+        seq  = b"TATTaC";
+        let qual = [20, 30, 30, 30, 40, 30];
+        let mut record1 = bam::Record::new();
+        record1.set(qname, &cigar, seq, &qual);
+        record1.set_pos(1);
+        records.push(record1);
+
+        // Ignore leading HardClip, skip leading SoftClip, non-reference nucleotide
+        qname = b"HC_SC_non-ref";
+        let cigar = CigarString( vec![Cigar::HardClip(5), Cigar::SoftClip(2), Cigar::Match(4)] );
+        seq  = b"TTTTCC";
+        let qual = [15, 15, 20, 20, 30, 20];
+        let mut record2 = bam::Record::new();
+        record2.set(qname, &cigar, seq, &qual);
+        record2.set_pos(2);
+        records.push(record2);
+
+        // reference nucleotide, trailing SoftClip, trailing HardClip
+        qname = b"ref_SC_HC";
+        let cigar = CigarString( vec![ Cigar::Match(3), Cigar::SoftClip(2), Cigar::HardClip(7) ] );
+        seq  = b"ACATA";
+        let qual = [50, 20, 20, 20, 20, 20];
+        let mut record3 = bam::Record::new();
+        record3.set(qname, &cigar, seq, &qual);
+        record3.set_pos(4);
+        records.push(record3);
+
+        // three nucleotide Deletion covering Ref position
+        qname = b"M_3Del_M";
+        let cigar = CigarString( vec![Cigar::Match(3), Cigar::Del(3), Cigar::Match(1)] );
+        seq  = b"GATA";
+        let qual = [10, 30, 30, 30];
+        let mut record4 = bam::Record::new();
+        record4.set(qname, &cigar, seq, &qual);
+        record4.set_pos(0);
+        records.push(record4);
+
+
+        // truth
+        let probs_ref = [0.9999,  0.001,  0.99999 ];
+        let probs_alt = [0.0001,  0.999,  0.00001 ];
+        let eps       = [0.00001, 0.0001, 0.000001];
+
+        let vpos = 4;
+        let variant = model::Variant::None;
+        for (i, rec) in records.iter().enumerate() {
+            println!("{}", str::from_utf8(rec.qname()).unwrap());
+            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_none(rec, &rec.cigar(), vpos, &variant, &ref_seq) {
+                println!("{:?}", rec.cigar());
+                println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
+                assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
+                assert_relative_eq!( (*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
+            } else {
+                // tests for reference position not being covered should be pushed onto records last
+                // and should have 10 as the quality value of the first base in seq
+                assert_eq!(rec.qual()[0], 10);
+            }
+        }
+
+    }
+    #[test]
     fn test_prob_snv() {
         let ref_seq: Vec<u8> = b"CCTATACGCGT"[..].to_owned();
 
@@ -494,8 +595,8 @@ mod tests {
                 assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
                 assert_relative_eq!( (*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
             } else {
-                // anything that's tested for the reference position not being covered, should
-                // have 10 as the quality value of the first base in seq
+                // tests for reference position not being covered should be pushed onto records last
+                // and should have 10 as the quality value of the first base in seq
                 assert_eq!(rec.qual()[0], 10);
             }
         }
