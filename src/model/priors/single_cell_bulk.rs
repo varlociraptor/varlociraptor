@@ -30,9 +30,10 @@ impl SingleCellBulkModel {
     /// * `n_bulk_min` - minimum number of discrete frequencies n_bulk_min+1 to evaluate over interval [0,1] for bulk sample; if coverage is above this, actual read counts are used to test all possible discrete allele frequencies
     /// * `n_bulk_max` - maximum number of discrete frequencies n_bulk_min+1 to evaluate over interval [0,1] for bulk sample; if coverage is below this, actual read counts are used to test all possible discrete allele frequencies
     pub fn new(ploidy: u32, n_bulk_min: usize, n_bulk_max: usize) -> Self {
+        // TODO replace with DiscreteAlleleFreqs::feasible()
         let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
         SingleCellBulkModel {
-            allele_freqs_single: allele_freqs,
+            allele_freqs_single: DiscreteAlleleFreqs::new(allele_freqs),
             allele_freqs_bulk: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
             n_bulk_min: n_bulk_min, // TODO: implement initialization via command line arguments in ProSolo, i.e. via n_bulk_per_event_min and iteration over events defined in ProSolo
             n_bulk_max: n_bulk_max // TODO: implement initialization via command line arguments in ProSolo
@@ -464,7 +465,7 @@ mod tests {
 
         // static single cell setup
         let s_dummy_obs = create_obs_vector(10, 0);
-        let af_single_all = vec![AlleleFreq(0.0), AlleleFreq(0.5), AlleleFreq(1.0)];
+        let af_single_all = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0), AlleleFreq(0.5), AlleleFreq(1.0)]);
 
         // two-range setups
         let af_bulk_zero     = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
@@ -538,7 +539,7 @@ mod tests {
         let model = SingleCellBulkModel::new(2,1,100);
 
         // single cell is het against het germline
-        let af_single = vec![AlleleFreq(0.5)];
+        let af_single = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5)]);
         let af_bulk = ContinuousAlleleFreqs::left_exclusive( 0.25..0.75 );
 
         let single_obs = create_obs_vector(3, 3);
@@ -572,7 +573,7 @@ mod tests {
         let model = SingleCellBulkModel::new(2,1,100);
 
         // single cell is hom ref against hom ref germline
-        let af_single = vec![AlleleFreq(0.0)];
+        let af_single = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
         let af_bulk = ContinuousAlleleFreqs::inclusive( 0.0..0.25 );
 
         let single_obs = create_obs_vector(5, 0);
@@ -606,7 +607,7 @@ mod tests {
         let model = SingleCellBulkModel::new(2,1,100);
 
         // single cell is hom alt against hom alt germline
-        let af_single = vec![AlleleFreq(1.0)];
+        let af_single = DiscreteAlleleFreqs::new(vec![AlleleFreq(1.0)]);
         let af_bulk = ContinuousAlleleFreqs::left_exclusive( 0.75..1.0 );
 
         let single_obs = create_obs_vector(0, 5);
@@ -640,7 +641,7 @@ mod tests {
         let model = SingleCellBulkModel::new(2,1,100);
 
         // single cell is hom alt against het germline
-        let af_single = vec![AlleleFreq(1.0)];
+        let af_single = DiscreteAlleleFreqs::new(vec![AlleleFreq(1.0)]);
         let af_bulk = ContinuousAlleleFreqs::left_exclusive( 0.25..0.75 );
 
         let single_obs = create_obs_vector(0, 4);

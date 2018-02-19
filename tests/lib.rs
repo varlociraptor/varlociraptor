@@ -18,7 +18,7 @@ use itertools::Itertools;
 use rust_htslib::{bam,bcf};
 use bio::stats::Prob;
 
-use libprosic::model::{AlleleFreq, ContinuousAlleleFreqs};
+use libprosic::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs};
 use libprosic::constants;
 
 
@@ -133,17 +133,17 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         libprosic::call::pairwise::PairEvent {
             name: "germline".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
-            af_control: vec![AlleleFreq(0.16), AlleleFreq(0.33), AlleleFreq(0.5), AlleleFreq(0.66), AlleleFreq(0.83), AlleleFreq(1.0)]
+            af_control: DiscreteAlleleFreqs::feasible(2, 3).not_absent()
         },
         libprosic::call::pairwise::PairEvent {
             name: "somatic".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
-            af_control: vec![AlleleFreq(0.0)]
+            af_control: DiscreteAlleleFreqs::absent()
         },
         libprosic::call::pairwise::PairEvent {
             name: "absent".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..0.0 ),
-            af_control: vec![AlleleFreq(0.0)]
+            af_control: DiscreteAlleleFreqs::absent()
         }
     ];
 
@@ -360,7 +360,9 @@ fn test13() {
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
 
-/// a delly deletion that is not a somatic call but a clear germline
+/// A delly deletion that is not somatic but a germline. However, there is a large bias
+/// towards the ref allele in the normal sample. A reasonable explanation is a repeat structure
+/// or amplification that projects reference allele reads on the variant location.
 #[test]
 fn test14() {
     call_tumor_normal("test14", true, "chr15");

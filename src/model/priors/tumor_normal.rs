@@ -78,7 +78,9 @@ impl TumorNormalModel {
             insertion_factor: insertion_factor,
             genome_size: genome_size,
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
-            allele_freqs_normal: normal::allele_freqs(ploidy),
+            // TODO make max_amplification parameter (=1) configurable and consider it properly
+            // in the normal model.
+            allele_freqs_normal: DiscreteAlleleFreqs::feasible(ploidy, 1),
             grid_points: 51,
             af_min: af_min,
             ploidy: ploidy
@@ -191,7 +193,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
             // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
                 &ContinuousAlleleFreqs::inclusive( 0.0..0.0 ),
-                &vec![AlleleFreq(0.0)],
+                &DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]),
                 likelihood_tumor,
                 likelihood_normal,
                 variant,
@@ -264,7 +266,7 @@ mod tests {
 
         // tumor and normal both hom ref
         let af_tumor = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
-        let af_normal = vec![AlleleFreq(0.0)];
+        let af_normal = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let variant = Variant::SNV(b'T');
 
@@ -296,7 +298,7 @@ mod tests {
 
         // tumor and normal both hom ref
         let af_tumor = ContinuousAlleleFreqs::inclusive( 0.0..0.0);
-        let af_normal = vec![AlleleFreq(0.0)];
+        let af_normal = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let variant = Variant::SNV(b'T');
 

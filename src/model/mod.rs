@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use ordered_float::NotNaN;
+use itertools::Itertools;
 
 pub mod likelihood;
 pub mod priors;
@@ -20,7 +21,6 @@ use model::evidence::Observation;
 
 
 pub type AlleleFreq = NotNaN<f64>;
-pub type DiscreteAlleleFreqs = Vec<AlleleFreq>;
 
 
 #[allow(non_snake_case)]
@@ -32,6 +32,65 @@ pub fn AlleleFreq(af: f64) -> AlleleFreq {
 pub trait AlleleFreqs: Debug {}
 impl AlleleFreqs for DiscreteAlleleFreqs {}
 impl AlleleFreqs for ContinuousAlleleFreqs {}
+
+
+#[derive(Debug, Clone)]
+pub struct DiscreteAlleleFreqs {
+    inner: Vec<AlleleFreq>
+}
+
+
+impl DiscreteAlleleFreqs {
+    /// Create spectrum of discrete allele frequencies with given values.
+    pub fn new(spectrum: Vec<AlleleFreq>) -> Self {
+        DiscreteAlleleFreqs {
+            inner: spectrum
+        }
+    }
+
+    /// Return spectrum of all feasible allele frequencies for a given ploidy and maximum
+    /// number of amplification.
+    ///
+    /// In principle, a ploidy of, e.g., 2 allows allele frequencies 0, 0.5, 1.0. However,
+    /// if a locus is amplified e.g. 1 time, allele frequencies can be effectively
+    /// 0, 0.25, 0.5, 0.75, 1.0, because all reads are projected to the original location in the
+    /// reference genome, and it is unclear whether the first, the second, or both loci contain
+    /// the variant.
+    ///
+    /// # Arguments
+    /// * ploidy - the assumed overall ploidy
+    /// * max_amplification - the maximum amplification factor (1 means no amplification, 2 means
+    ///   at most one duplicate, ...).
+    pub fn feasible(ploidy: u32, max_amplification: u32) -> Self {
+        let n = ploidy * max_amplification;
+        DiscreteAlleleFreqs {
+            inner: (0..n + 1).map(|m| AlleleFreq(m as f64 / n as f64)).collect_vec()
+        }
+    }
+
+    /// Return all frequencies except 0.0.
+    pub fn not_absent(&self) -> Self {
+        DiscreteAlleleFreqs {
+            inner: self.inner[1..].to_owned()
+        }
+    }
+
+    pub fn absent() -> Self {
+        DiscreteAlleleFreqs {
+            inner: vec![AlleleFreq(0.0)]
+        }
+    }
+}
+
+
+impl Deref for DiscreteAlleleFreqs {
+    type Target = Vec<AlleleFreq>;
+
+    fn deref(&self) -> &Vec<AlleleFreq> {
+        &self.inner
+    }
+}
+
 
 /// An allele frequency range
 #[derive(Debug)]
@@ -86,6 +145,7 @@ impl Deref for ContinuousAlleleFreqs {
         &self.inner
     }
 }
+
 
 #[derive(Debug)]
 pub enum VariantType {
@@ -543,8 +603,8 @@ mod tests {
         let variant = Variant::Deletion(3);
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
+        let normal_alt = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5), AlleleFreq(1.0)]);
+        let normal_ref = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let mut observations = Vec::new();
         for _ in 0..5 {
@@ -580,8 +640,8 @@ mod tests {
         let variant = Variant::Deletion(3);
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
+        let normal_alt = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5), AlleleFreq(1.0)]);
+        let normal_ref = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let mut observations = Vec::new();
         for _ in 0..5 {
@@ -618,8 +678,8 @@ mod tests {
         let variant = Variant::Deletion(3);
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
+        let normal_alt = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5), AlleleFreq(1.0)]);
+        let normal_ref = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let mut observations = Vec::new();
         for _ in 0..5 {
@@ -661,8 +721,8 @@ mod tests {
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
         let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
+        let normal_alt = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5), AlleleFreq(1.0)]);
+        let normal_ref = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let mut observations = Vec::new();
         for _ in 0..10 {

@@ -12,10 +12,6 @@ use itertools::Itertools;
 
 use model::{AlleleFreq, DiscreteAlleleFreqs};
 
-pub fn allele_freqs(ploidy: u32) -> DiscreteAlleleFreqs {
-    (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec()
-}
-
 
 /*
 pub struct NormalNormalModel {
