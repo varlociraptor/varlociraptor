@@ -527,14 +527,14 @@ mod tests {
         prob_alt: LogProb,
         prob_ref: LogProb
     ) -> Observation {
-        Observation {
-            prob_mapping: prob_mapping,
-            prob_alt: prob_alt,
-            prob_ref: prob_ref,
-            prob_sample_alt: ProbSampleAlt::One,
-            evidence: Evidence::dummy_alignment(),
-            common: Rc::new(common_observation())
-        }
+        Observation::new(
+            prob_mapping,
+            prob_alt,
+            prob_ref,
+            ProbSampleAlt::One,
+            Rc::new(common_observation()),
+            Evidence::dummy_alignment()
+        )
     }
 
     /// scenario 1: same pileup -> germline call

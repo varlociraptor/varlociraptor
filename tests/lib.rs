@@ -133,7 +133,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         libprosic::call::pairwise::PairEvent {
             name: "germline".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
-            af_control: vec![AlleleFreq(0.5), AlleleFreq(1.0)]
+            af_control: vec![AlleleFreq(0.16), AlleleFreq(0.33), AlleleFreq(0.5), AlleleFreq(0.66), AlleleFreq(0.83), AlleleFreq(1.0)]
         },
         libprosic::call::pairwise::PairEvent {
             name: "somatic".to_owned(),
@@ -147,7 +147,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         }
     ];
 
-    let prior_model = libprosic::priors::FlatTumorNormalModel::new(2);
+    let prior_model = libprosic::priors::FlatTumorNormalModel::new(2, 3);
 
     let mut caller = libprosic::model::PairCaller::new(
         tumor,
@@ -341,7 +341,7 @@ fn test11() {
 }
 
 
-// A large lancet insertion that is not somatic, but likely a homozygous germline variant.
+/// A large lancet insertion that is not somatic, but likely a homozygous germline variant.
 #[test]
 fn test12() {
     call_tumor_normal("test12", false, "chr10");
@@ -350,7 +350,7 @@ fn test12() {
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.05);
 }
 
-// A delly deletion that is a somatic mutation in reality (AF=0.33).
+/// A delly deletion that is a somatic mutation in reality (AF=0.33).
 #[test]
 fn test13() {
     call_tumor_normal("test13", true, "chr1");
@@ -360,6 +360,13 @@ fn test13() {
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
 
+/// a delly deletion that is not a somatic call but a clear germline
+#[test]
+fn test14() {
+    call_tumor_normal("test14", true, "chr15");
+    let mut call = load_call("test14");
+    assert!(false);
+}
 
 #[test]
 fn test_fdr_ev1() {

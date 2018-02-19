@@ -2,6 +2,8 @@ use std::str;
 use std::collections::vec_deque;
 use std::cmp;
 use std::rc::Rc;
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 use vec_map::VecMap;
 use serde::Serialize;
@@ -23,6 +25,8 @@ use utils::NUMERICAL_EPSILON;
 #[derive(Clone, Debug)]
 pub enum ProbSampleAlt {
     /// probability depends on maximum possible softlip
+    /// The given list of probabilities are the sampling probabilities given maximum
+    /// softclips 0..probs.len().
     Dependent(Vec<LogProb>),
     /// probability does not depend on softclip
     Independent(LogProb),
@@ -44,11 +48,31 @@ pub struct Observation {
     pub prob_sample_alt: ProbSampleAlt,
     /// Type of evidence.
     pub evidence: Evidence,
-    pub common: Rc<Common>
+    pub common: Rc<Common>,
+    prob_sample_alt_cache: RefCell<BTreeMap<AlleleFreq, LogProb>>
 }
 
 
 impl Observation {
+    pub fn new(
+        prob_mapping: LogProb,
+        prob_alt: LogProb,
+        prob_ref: LogProb,
+        prob_sample_alt: ProbSampleAlt,
+        common: Rc<Common>,
+        evidence: Evidence
+    ) -> Self {
+        Observation {
+            prob_mapping: prob_mapping,
+            prob_alt: prob_alt,
+            prob_ref: prob_ref,
+            prob_sample_alt: prob_sample_alt,
+            evidence: evidence,
+            common: common,
+            prob_sample_alt_cache: RefCell::new(BTreeMap::new())
+        }
+    }
+
     pub fn is_alignment_evidence(&self) -> bool {
         if let Evidence::Alignment(_) = self.evidence {
             true
@@ -102,6 +126,10 @@ impl Observation {
             &ProbSampleAlt::One => LogProb::ln_one(),
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
+                if self.prob_sample_alt_cache.borrow().contains_key(&allele_freq) {
+                    return *self.prob_sample_alt_cache.borrow().get(&allele_freq).unwrap()
+                }
+
                 let softclip_range = || 0..probs.len();
                 let varcov = self.common.coverage * *allele_freq;
 
@@ -141,6 +169,8 @@ impl Observation {
                     }
                 ).collect_vec()).cap_numerical_overshoot(NUMERICAL_EPSILON);
                 assert!(p.is_valid(), "invalid probability {:?}", p);
+
+                self.prob_sample_alt_cache.borrow_mut().insert(allele_freq, p);
 
                 p
             }

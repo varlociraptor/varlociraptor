@@ -543,14 +543,14 @@ impl Sample {
                 variant
             );
             Ok( Some (
-                Observation {
-                    prob_mapping: prob_mapping,
-                    prob_alt: prob_alt,
-                    prob_ref: prob_ref,
-                    prob_sample_alt: prob_sample_alt,
-                    common: common_obs,
-                    evidence: Evidence::alignment(cigar, record)
-                }
+                Observation::new(
+                    prob_mapping,
+                    prob_alt,
+                    prob_ref,
+                    prob_sample_alt,
+                    common_obs,
+                    Evidence::alignment(cigar, record)
+                )
             ))
         } else {
             Ok( None )
@@ -607,24 +607,24 @@ impl Sample {
         let right_read_len = right_record.seq().len() as u32;
 
         let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
-        let (p_ref_isize, p_alt_isize) = if let &Variant::Deletion(_) = variant {
-            // obtain insert size probability
-            // If insert size is not discriminative for this kind of variant, this will have no
-            // effect on the probabilities.
-            self.indel_fragment_evidence.borrow().prob(
-                insert_size,
-                left_read_len,
-                right_read_len,
-                self.max_indel_overlap,
-                left_overlap.is_enclosing() || right_overlap.is_enclosing(),
-                variant
-            )?
-        } else {
-            // Ignore isize for insertions. The reason is that we cannot reliably determine if a
-            // fragment encloses the insertion properly (with overlaps at the inner read ends).
-            // Hence, the probabilities cannot be calculated. Further, we have a lot of fragments
-            // that overlap insertions at the left or right side, and those are also helpful.
-            (LogProb::ln_one(), LogProb::ln_one())
+        let (p_ref_isize, p_alt_isize) = match variant {
+            &Variant::Deletion(_) => {
+                self.indel_fragment_evidence.borrow().prob(
+                    insert_size,
+                    left_read_len,
+                    right_read_len,
+                    self.max_indel_overlap,
+                    left_overlap.is_enclosing() || right_overlap.is_enclosing(),
+                    variant
+                )?
+            },
+            _ => {
+                // Ignore isize for insertions. The reason is that we cannot reliably determine if a
+                // fragment encloses the insertion properly (with overlaps at the inner read ends).
+                // Hence, the probabilities cannot be calculated. Further, we have a lot of fragments
+                // that overlap insertions at the left or right side, and those are also helpful.
+                (LogProb::ln_one(), LogProb::ln_one())
+            }
         };
 
         let prob_sample_alt = self.indel_fragment_evidence.borrow().prob_sample_alt(
@@ -641,13 +641,13 @@ impl Sample {
         assert!(p_ref_left.is_valid());
         assert!(p_ref_right.is_valid());
 
-        let obs = Observation {
-            prob_mapping: self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
-            prob_alt: p_alt_isize + p_alt_left + p_alt_right,
-            prob_ref: p_ref_isize + p_ref_left + p_ref_right,
-            prob_sample_alt: prob_sample_alt,
-            common: common_obs,
-            evidence: Evidence::insert_size(
+        let obs = Observation::new(
+            self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
+            p_alt_isize + p_alt_left + p_alt_right,
+            p_ref_isize + p_ref_left + p_ref_right,
+            prob_sample_alt,
+            common_obs,
+            Evidence::insert_size(
                 insert_size as u32,
                 &left_record.cigar(),
                 &right_record.cigar(),
@@ -660,7 +660,7 @@ impl Sample {
                 p_ref_isize,
                 p_alt_isize
             )
-        };
+        );
         assert!(obs.prob_alt.is_valid());
         assert!(obs.prob_ref.is_valid());
 

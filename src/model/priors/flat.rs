@@ -119,8 +119,9 @@ pub struct FlatTumorNormalModel {
 
 
 impl FlatTumorNormalModel {
-    pub fn new(ploidy: u32) -> Self {
-        let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
+    pub fn new(ploidy: u32, max_amplification: u32) -> Self {
+        let n = ploidy * max_amplification;
+        let allele_freqs = (0..n + 1).map(|m| AlleleFreq(m as f64 / n as f64)).collect_vec();
         FlatTumorNormalModel {
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
             allele_freqs_normal: allele_freqs,
