@@ -274,7 +274,7 @@ fn test5() {
     call_tumor_normal("test5", true, "chr1");
     let mut call = load_call("test5");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 50.1, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 41.5, 0.5);
 }
 
 
@@ -295,7 +295,7 @@ fn test7() {
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
     check_info_float(&mut call, b"PROB_SOMATIC", 0.71, 0.05);
-    check_info_float(&mut call, b"PROB_GERMLINE", 5.9, 0.5);
+    check_info_float(&mut call, b"PROB_GERMLINE", 9.8, 0.5);
 }
 
 
@@ -367,7 +367,6 @@ fn test13() {
 fn test14() {
     call_tumor_normal("test14", true, "chr15");
     let mut call = load_call("test14");
-
 }
 
 /// A small lancet deletion that is a true and strong somatic variant (AF=1.0).
