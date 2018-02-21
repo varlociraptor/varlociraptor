@@ -363,6 +363,8 @@ fn test13() {
 /// A delly deletion that is not somatic but a germline. However, there is a large bias
 /// towards the ref allele in the normal sample. A reasonable explanation is a repeat structure
 /// or amplification that projects reference allele reads on the variant location.
+/// There is currently no way to avoid this, but an amplification factor could become another
+/// latent variable in the model.
 #[test]
 fn test14() {
     call_tumor_normal("test14", true, "chr15");
