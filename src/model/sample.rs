@@ -374,36 +374,43 @@ impl Sample {
         self.likelihood_model
     }
 
+    pub fn extract_common_observations(
+        &mut self,
+        chrom: &[u8],
+        start: u32,
+        variant: &Variant,
+        common_obs: &mut observation::Common
+    ) -> Result<(), Box<Error>> {
+        let end = variant.end(start);
+        // move window to the current variant
+        self.record_buffer.fill(chrom, start, end)?;
+
+        // Obtain common observations.
+        common_obs.update(&self.record_buffer, variant);
+
+        Ok(())
+    }
+
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,
         chrom: &[u8],
         start: u32,
         variant: &Variant,
-        chrom_seq: &[u8]
+        chrom_seq: &[u8],
+        common_obs: Rc<observation::Common>
     ) -> Result<Vec<Observation>, Box<Error>> {
+        let centerpoint = variant.centerpoint(start);
+        let end = variant.end(start);
+
         let mut observations = Vec::new();
-        let (end, centerpoint) = match variant {
-            &Variant::Deletion(length)  => (start + length, start + length / 2),
-            &Variant::Insertion(_) => (start + 1, start),  // end of insertion is the next regular base
-            &Variant::SNV(_) => (start, start)
-        };
         let mut pairs = HashMap::new();
         let mut n_overlap = 0;
 
         debug!("variant: {}:{} {:?}", str::from_utf8(chrom).unwrap(), start, variant);
 
-        // move window to the current variant
-        debug!("Filling buffer...");
-        try!(self.record_buffer.fill(chrom, start, end));
-        debug!("Done.");
-
-        // Obtain common observations.
-        let mut common_obs = Rc::new(observation::Common::new(&self.record_buffer, variant));
-
         match variant {
             &Variant::SNV(_) => {
-                Rc::get_mut(&mut common_obs).unwrap().enclosing_possible = true;
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     // TODO remove

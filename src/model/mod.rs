@@ -17,7 +17,7 @@ pub mod evidence;
 use bio::stats::LogProb;
 
 use model::sample::Sample;
-use model::evidence::Observation;
+use model::evidence::{observation, Observation};
 
 
 pub type AlleleFreq = NotNaN<f64>;
@@ -202,6 +202,22 @@ impl Variant {
         }
     }
 
+    pub fn end(&self, start: u32) -> u32 {
+        match self {
+            &Variant::Deletion(length)  => start + length,
+            &Variant::Insertion(_) => start + 1,  // end of insertion is the next regular base
+            &Variant::SNV(_) => start
+        }
+    }
+
+    pub fn centerpoint(&self, start: u32) -> u32 {
+        match self {
+            &Variant::Deletion(length)  => start + length / 2,
+            &Variant::Insertion(_) => start,  // end of insertion is the next regular base
+            &Variant::SNV(_) => start
+        }
+    }
+
     pub fn len(&self) -> u32 {
         match self {
             &Variant::Deletion(l)      => l,
@@ -245,8 +261,15 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
     /// # Returns
     /// The `SinglePileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<SinglePileup<A, P>, Box<Error>> {
-        let pileup = try!(self.sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
+        let mut common_obs = observation::Common::new(&variant);
+        self.sample.borrow_mut().extract_common_observations(
+            chrom, start, &variant, &mut common_obs
+        );
+        let pileup = self.sample.borrow_mut().extract_observations(
+            chrom, start, &variant, chrom_seq, Rc::new(common_obs)
+        )?;
         debug!("Obtained pileups ({} observations).", pileup.len());
+
         Ok(SinglePileup::new(
             pileup,
             variant,
@@ -379,10 +402,28 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
     /// # Returns
     /// The `PairPileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<PairPileup<A, B, P>, Box<Error>> {
+        let mut case_common_obs = observation::Common::new(&variant);
+        self.case_sample.borrow_mut().extract_common_observations(
+            chrom, start, &variant, &mut case_common_obs
+        );
+        let mut control_common_obs = observation::Common::new(&variant);
+        self.control_sample.borrow_mut().extract_common_observations(
+            chrom, start, &variant, &mut control_common_obs
+        );
+        let enclosing_possible = case_common_obs.enclosing_possible ||
+                                 control_common_obs.enclosing_possible;
+        case_common_obs.enclosing_possible = enclosing_possible;
+        control_common_obs.enclosing_possible = enclosing_possible;
+
         debug!("Case pileup");
-        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
+        let mut case_pileup = self.case_sample.borrow_mut().extract_observations(
+            chrom, start, &variant, chrom_seq, Rc::new(case_common_obs)
+        )?;
         debug!("Control pileup");
-        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
+        let mut control_pileup = self.control_sample.borrow_mut().extract_observations(
+            chrom, start, &variant, chrom_seq, Rc::new(control_common_obs)
+        )?;
+
         debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         Ok(PairPileup::new(
             case_pileup,

@@ -133,7 +133,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         libprosic::call::pairwise::PairEvent {
             name: "germline".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
-            af_control: DiscreteAlleleFreqs::feasible(2, 3).not_absent()
+            af_control: DiscreteAlleleFreqs::feasible(2, 1).not_absent()
         },
         libprosic::call::pairwise::PairEvent {
             name: "somatic".to_owned(),
@@ -147,7 +147,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         }
     ];
 
-    let prior_model = libprosic::priors::FlatTumorNormalModel::new(2, 3);
+    let prior_model = libprosic::priors::FlatTumorNormalModel::new(2, 1);
 
     let mut caller = libprosic::model::PairCaller::new(
         tumor,
@@ -294,7 +294,7 @@ fn test7() {
     let mut call = load_call("test7");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
-    check_info_float(&mut call, b"PROB_SOMATIC", 1.5, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.71, 0.05);
     check_info_float(&mut call, b"PROB_GERMLINE", 5.9, 0.5);
 }
 
@@ -367,8 +367,29 @@ fn test13() {
 fn test14() {
     call_tumor_normal("test14", true, "chr15");
     let mut call = load_call("test14");
-    assert!(false);
+
 }
+
+/// A small lancet deletion that is a true and strong somatic variant (AF=1.0).
+#[test]
+fn test15() {
+    call_tumor_normal("test15", false, "chr1");
+    let mut call = load_call("test15");
+    check_info_float(&mut call, b"PROB_SOMATIC", 1.2e-5, 1e-3);
+    check_info_float(&mut call, b"CASE_AF", 1.0, 0.06);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+}
+
+/// A large lancet deletion that is a true and strong somatic variant (AF=0.333).
+#[test]
+fn test16() {
+    call_tumor_normal("test16", false, "chr1");
+    let mut call = load_call("test16");
+    check_info_float(&mut call, b"CASE_AF", 0.33, 0.15); // TODO this has a large bias
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC", 6.6e-5, 1e-3);
+}
+
 
 #[test]
 fn test_fdr_ev1() {

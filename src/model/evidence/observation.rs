@@ -113,6 +113,9 @@ impl Observation {
     ///
     /// # Total probability
     /// The final result is obtained by combining the two components to a total probability.
+    ///
+    /// # Arguments
+    /// * allele_freq - Given allele frequency of sample.
     pub fn prob_sample_alt(
         &self,
         allele_freq: AlleleFreq
@@ -279,32 +282,43 @@ pub struct Common {
 
 
 impl Common {
-    pub fn new(records: &RecordBuffer, variant: &Variant) -> Self {
+    pub fn new(variant: &Variant) -> Self {
+        let enclosing_possible = variant.is_snv();
+
+        Common {
+            softclip_obs: if enclosing_possible { None } else { Some(VecMap::new()) },
+            coverage: 0.0,
+            max_read_len: 0,
+            enclosing_possible: enclosing_possible
+        }
+    }
+
+    /// TODO refactor
+    pub fn update(&mut self, records: &RecordBuffer, variant: &Variant) {
         let valid_records = || records.iter().filter(|rec| !rec.is_supplementary());
 
         // obtain maximum read len
-        let max_read_len = valid_records().map(
-            |rec| rec.seq().len()
-        ).max().unwrap_or(0) as u32;
+        self.max_read_len = cmp::max(
+            self.max_read_len,
+            valid_records().map(
+                |rec| rec.seq().len()
+            ).max().unwrap_or(0) as u32
+        );
 
         // average number of reads starting at any position in the current window
-        let coverage = valid_records().count() as f64 /
+        self.coverage += valid_records().count() as f64 /
                        (records.window as f64 * 2.0);
 
         // determine if variant can be enclosed
-        let enclosing_possible = if variant.is_snv() {
-            true
-        } else {
+        self.enclosing_possible |= {
             let max_indel_cigar = valid_records().map(|rec| {
                 evidence::max_indel(&rec.cigar())
             }).max().unwrap_or(0);
             variant.len() <= max_indel_cigar
         };
 
-        let softclip_obs = if variant.is_snv() {
-            None
-        } else {
-            let mut obs = VecMap::new();
+        if !self.enclosing_possible {
+            let obs = self.softclip_obs.get_or_insert_with(|| VecMap::new());
             for rec in valid_records() {
                 let cigar = rec.cigar();
                 let s = cmp::max(
@@ -316,16 +330,6 @@ impl Common {
                     *obs.entry(s as usize).or_insert(0) += 1;
                 }
             }
-
-            Some(obs)
-        };
-
-
-        Common {
-            softclip_obs: softclip_obs,
-            coverage: coverage,
-            max_read_len: max_read_len,
-            enclosing_possible: enclosing_possible
         }
     }
 }
