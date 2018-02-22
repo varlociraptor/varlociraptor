@@ -163,6 +163,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
             }
         }
         i += 1;
+        debug!("processing record {}.", i);
 
         // translate to header of the writer
         outbcf.translate(&mut record);
