@@ -16,8 +16,8 @@ def prob(max_softclip, observed_softclips, coverage, allelefreq, readlen):
 
 
 observed_softclips = defaultdict(int)
-#observed_softclips.update({14: 1, 34: 1, 4: 1})
-coverage = 0.3
+observed_softclips.update({14: 1, 34: 1, 4: 1})
+coverage = 0.15
 allelefreq = 0.5
 readlen = 100
 

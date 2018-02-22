@@ -266,7 +266,7 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
             chrom, start, &variant, &mut common_obs
         );
         let pileup = self.sample.borrow_mut().extract_observations(
-            chrom, start, &variant, chrom_seq, Rc::new(common_obs)
+            chrom, start, &variant, chrom_seq, &common_obs
         )?;
         debug!("Obtained pileups ({} observations).", pileup.len());
 
@@ -402,26 +402,21 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
     /// # Returns
     /// The `PairPileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<PairPileup<A, B, P>, Box<Error>> {
-        let mut case_common_obs = observation::Common::new(&variant);
+        let mut common_obs = observation::Common::new(&variant);
         self.case_sample.borrow_mut().extract_common_observations(
-            chrom, start, &variant, &mut case_common_obs
+            chrom, start, &variant, &mut common_obs
         );
-        let mut control_common_obs = observation::Common::new(&variant);
         self.control_sample.borrow_mut().extract_common_observations(
-            chrom, start, &variant, &mut control_common_obs
+            chrom, start, &variant, &mut common_obs
         );
-        let enclosing_possible = case_common_obs.enclosing_possible ||
-                                 control_common_obs.enclosing_possible;
-        case_common_obs.enclosing_possible = enclosing_possible;
-        control_common_obs.enclosing_possible = enclosing_possible;
 
         debug!("Case pileup");
         let mut case_pileup = self.case_sample.borrow_mut().extract_observations(
-            chrom, start, &variant, chrom_seq, Rc::new(case_common_obs)
+            chrom, start, &variant, chrom_seq, &common_obs
         )?;
         debug!("Control pileup");
         let mut control_pileup = self.control_sample.borrow_mut().extract_observations(
-            chrom, start, &variant, chrom_seq, Rc::new(control_common_obs)
+            chrom, start, &variant, chrom_seq, &common_obs
         )?;
 
         debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
@@ -616,8 +611,9 @@ mod tests {
 
     pub fn common_observation() -> observation::Common {
         observation::Common {
-            softclip_obs: None,
-            coverage: 10.0,
+            leading_softclip_obs: None,
+            trailing_softclip_obs: None,
+            softclip_coverage: 0.0,
             enclosing_possible: true,
             max_read_len: 100
         }
@@ -632,8 +628,7 @@ mod tests {
             prob_mapping,
             prob_alt,
             prob_ref,
-            ProbSampleAlt::One,
-            Rc::new(common_observation()),
+            LogProb::ln_one(),
             Evidence::dummy_alignment()
         )
     }

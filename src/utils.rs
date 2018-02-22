@@ -4,7 +4,7 @@ use std::fs;
 use std::str;
 
 use itertools::Itertools;
-use rust_htslib::bcf;
+use rust_htslib::{bcf,bam};
 use bio::io::fasta;
 use bio::stats::{LogProb, PHREDProb};
 use ordered_float::NotNaN;
@@ -273,6 +273,132 @@ pub fn filter_by_threshold<E: Event>(
         if events_prob_sum >= lp_threshold { out.write(&record)? };
     }
 }
+
+
+/// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
+#[derive(Debug)]
+pub enum Overlap {
+    Enclosing(u32),
+    Left(u32),
+    Right(u32),
+    Some(u32),
+    None
+}
+
+impl Overlap {
+    pub fn new(
+        record: &bam::Record,
+        cigar: &bam::record::CigarStringView,
+        start: u32,
+        variant: &model::Variant,
+        enclose_only: bool,
+        consider_clips: bool
+    ) -> Result<Overlap, Box<Error>> {
+        let mut pos = record.pos() as u32;
+        let mut end_pos = cigar.end_pos()? as u32;
+
+        if consider_clips {
+            // consider soft clips for overlap detection
+            pos = pos.saturating_sub(model::evidence::Clips::leading(&cigar).soft());
+            end_pos = end_pos + model::evidence::Clips::trailing(&cigar).soft();
+        }
+
+        let overlap = match variant {
+            &model::Variant::SNV(_) => {
+                if pos <= start && end_pos > start {
+                    Overlap::Enclosing(1)
+                } else {
+                    Overlap::None
+                }
+            },
+            &model::Variant::Deletion(l) => {
+                let end = start + l;
+                let enclosing = pos < start && end_pos > end;
+                if enclosing {
+                    Overlap::Enclosing(l)
+                } else {
+                    if end_pos <= end && end_pos > start {
+                        Overlap::Right(end_pos - start)
+                    } else if pos >= start && pos < end {
+                        Overlap::Left(end - pos)
+                    } else {
+                        Overlap::None
+                    }
+                }
+            },
+            &model::Variant::Insertion(ref seq) => {
+                let l = seq.len() as u32;
+
+                let center_pos = (end_pos - pos) / 2 + pos;
+                if pos < start && end_pos > start {
+                    // TODO this does currently not reliably detect the side of the overlap.
+                    // There can be cases where start is left of the center but clips are at the
+                    // right side of the read. Also due to repeat structure, it is not possible to
+                    // use relation of pos/end_pos with and without clips.
+                    // Hence, we simply use this as a way to sample in a fair way.
+                    // Since we might pick up fragments that overlap the insertion at the right
+                    // side (with softclips), we disable insert size based probability computation
+                    // for insertions. Instead, we rely exclusively on HMMs for insertions.
+                    // The advantage is that this allows to consider far more fragments, in
+                    // particular for the larger the insertions
+                    // (e.g. exceeding insert size distribution).
+                    if start > center_pos {
+                        // right of alignment center
+                        let overlap = end_pos - start;
+                        if overlap > l {
+                            // we overlap more than insertion len, hence we enclose it
+                            Overlap::Enclosing(l)
+                        } else {
+                            // less overlap, hence it can be only partial
+                            Overlap::Some(overlap)
+                        }
+                    } else {
+                        // left of alignment center
+                        let overlap = start - pos;
+                        if overlap > l {
+                            // we overlap more than insertion len, hence we enclose it
+                            Overlap::Enclosing(l)
+                        } else {
+                            // less overlap, hence it can be only partial
+                            Overlap::Some(overlap)
+                        }
+                    }
+                } else {
+                    Overlap::None
+                }
+            }
+        };
+
+        Ok(overlap)
+    }
+
+    pub fn is_enclosing(&self) -> bool {
+        if let &Overlap::Enclosing(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        if let &Overlap::None = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn len(&self) -> u32 {
+        match self {
+            &Overlap::Enclosing(l) => l,
+            &Overlap::Left(l)      => l,
+            &Overlap::Right(l)     => l,
+            &Overlap::Some(l)      => l,
+            &Overlap::None         => 0
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

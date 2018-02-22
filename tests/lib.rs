@@ -316,7 +316,8 @@ fn test9() {
     // this seems to be an outlier where we do not reach the correct AF prediction of 0.5
     // but we are close, so this is ok
     //check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 2.15, 0.5); // this is weak enough for now
+    check_info_float(&mut call, b"PROB_SOMATIC", 2.9, 0.1);
+    check_info_float(&mut call, b"PROB_SOMATIC", 3.0, 0.1);
 }
 
 
@@ -386,9 +387,10 @@ fn test15() {
 fn test16() {
     call_tumor_normal("test16", false, "chr1");
     let mut call = load_call("test16");
-    check_info_float(&mut call, b"CASE_AF", 0.33, 0.15); // TODO this has a large bias
+    check_info_float(&mut call, b"CASE_AF", 0.33, 0.2); // TODO this has a large bias
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"PROB_SOMATIC", 6.6e-5, 1e-3);
+    assert!(false);
 }
 
 

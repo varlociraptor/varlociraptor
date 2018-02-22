@@ -20,6 +20,7 @@ use model::AlleleFreq;
 use model::Variant;
 use model::evidence;
 use model::evidence::{observation, Observation, Evidence};
+use utils::Overlap;
 
 
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps correctly.
@@ -137,34 +138,6 @@ pub struct InsertSize {
 }
 
 
-/// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
-#[derive(Debug)]
-pub enum Overlap {
-    Enclosing(u32),
-    Left(u32),
-    Right(u32),
-    None
-}
-
-impl Overlap {
-    pub fn is_enclosing(&self) -> bool {
-        if let &Overlap::Enclosing(_) = self {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn is_none(&self) -> bool {
-        if let &Overlap::None = self {
-            true
-        } else {
-            false
-        }
-    }
-}
-
-
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample {
     record_buffer: RecordBuffer,
@@ -253,122 +226,6 @@ impl Sample {
         true
     }
 
-    /// Calculate overlap of read against variant.
-    fn overlap(
-        &self,
-        record: &bam::Record,
-        start: u32,
-        variant: &Variant,
-        enclose_only: bool,
-        consider_clips: bool
-    ) -> Result<(Overlap, bam::record::CigarStringView), Box<Error>> {
-        let cigar = record.cigar();
-        let mut pos = record.pos() as u32;
-        let mut end_pos = cigar.end_pos()? as u32;
-
-        if consider_clips {
-            // consider soft clips for overlap detection
-            pos = pos.saturating_sub(evidence::Clips::leading(&cigar).soft());
-            end_pos = end_pos + evidence::Clips::trailing(&cigar).soft();
-        }
-
-        let overlap = match variant {
-            &Variant::SNV(_) => {
-                if pos <= start && end_pos > start {
-                    Overlap::Enclosing(1)
-                } else {
-                    Overlap::None
-                }
-            },
-            &Variant::Deletion(l) => {
-                let end = start + l;
-                let enclosing = pos < start && end_pos > end;
-                if enclosing {
-                    Overlap::Enclosing(l)
-                } else {
-                    if end_pos <= end && end_pos > start {
-                        Overlap::Right(end_pos - start)
-                    } else if pos >= start && pos < end {
-                        Overlap::Left(end - pos)
-                    } else {
-                        Overlap::None
-                    }
-                }
-            },
-            &Variant::Insertion(ref seq) => {
-                let l = seq.len() as u32;
-
-                let center_pos = (end_pos - pos) / 2 + pos;
-                if pos < start && end_pos > start {
-                    // TODO this does currently not reliably detect the side of the overlap.
-                    // There can be cases where start is left of the center but clips are at the
-                    // right side of the read. Also due to repeat structure, it is not possible to
-                    // use relation of pos/end_pos with and without clips.
-                    // Hence, we simply use this as a way to sample in a fair way.
-                    // Since we might pick up fragments that overlap the insertion at the right
-                    // side (with softclips), we disable insert size based probability computation
-                    // for insertions below. Instead, we rely exclusively on HMMs for insertions.
-                    // The advantage is that this allows to consider far more fragments, in
-                    // particular the larger the insertions get
-                    // (e.g. exceeding insert size distribution).
-                    if start > center_pos {
-                        // right of alignment center
-                        let overlap = end_pos - start;
-                        if overlap > l {
-                            // we overlap more than insertion len, hence we enclose it
-                            Overlap::Enclosing(l)
-                        } else {
-                            // less overlap, hence it can be only partial
-                            Overlap::Right(overlap)
-                        }
-                    } else {
-                        // left of alignment center
-                        let overlap = start - pos;
-                        if overlap > l {
-                            // we overlap more than insertion len, hence we enclose it
-                            Overlap::Enclosing(l)
-                        } else {
-                            // less overlap, hence it can be only partial
-                            Overlap::Left(overlap)
-                        }
-                    }
-                } else {
-                    Overlap::None
-                }
-            }
-        };
-
-        Ok((overlap, cigar))
-    }
-
-    /// Return whether given overlap shall be considered for a fragment observation.
-    /// We only allow overlaps towards the center of the fragment. This simplifies sampling and
-    /// solves cases where sampling over insertions prefers to catch reference reads. Also,
-    /// it would otherwise be harder to calculate the effect on the insert size distribution, as
-    /// only parts of the variant could be inside the fragment.
-    fn is_valid_fragment_indel_overlap(&self, overlap: &Overlap, left_record: bool) -> bool {
-        match (overlap, left_record) {
-            (&Overlap::Enclosing(o), _) => o <= self.max_indel_overlap,
-            (&Overlap::Right(o), true) => o <= self.max_indel_overlap,
-            (&Overlap::Left(o), false) => o <= self.max_indel_overlap,
-            // do not allow left clips of left record
-            (&Overlap::Left(_), true) => false,
-            // do not allow right clips of right record
-            (&Overlap::Right(_), false) => false,
-            (&Overlap::None, _) => true
-        }
-    }
-
-    /// Return whether given overlap shall be considered for a read observation.
-    fn is_valid_read_indel_overlap(&self, overlap: &Overlap) -> bool {
-        match overlap {
-            &Overlap::Enclosing(o) => o <= self.max_indel_overlap,
-            &Overlap::Right(o) => o <= self.max_indel_overlap,
-            &Overlap::Left(o) => o <= self.max_indel_overlap,
-            &Overlap::None => true
-        }
-    }
-
     /// Return likelihood model.
     pub fn likelihood_model(&self) -> model::likelihood::LatentVariableModel {
         self.likelihood_model
@@ -386,7 +243,7 @@ impl Sample {
         self.record_buffer.fill(chrom, start, end)?;
 
         // Obtain common observations.
-        common_obs.update(&self.record_buffer, variant);
+        common_obs.update(&self.record_buffer, start, variant)?;
 
         Ok(())
     }
@@ -398,7 +255,7 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
-        common_obs: Rc<observation::Common>
+        common_obs: &observation::Common
     ) -> Result<Vec<Observation>, Box<Error>> {
         let centerpoint = variant.centerpoint(start);
         let end = variant.end(start);
@@ -417,15 +274,15 @@ impl Sample {
                     if !self.is_reliable_read(record) {
                         continue;
                     }
-
-                    let (overlap, cigar) = self.overlap(
-                        record, start, variant, true, false
+                    let cigar = record.cigar();
+                    let overlap = Overlap::new(
+                        record, &cigar, start, variant, true, false
                     )?;
 
                     if overlap.is_enclosing() {
                         if let Some( obs ) = self.read_observation(
                             &record, &cigar, start, variant, chrom_seq,
-                            common_obs.clone()
+                            common_obs
                         )? {
                             observations.push( obs );
                             n_overlap += 1;
@@ -447,13 +304,14 @@ impl Sample {
 
                     if record.is_mate_unmapped() || !self.use_fragment_evidence {
                         // with unmapped mate, we only look at the current read
-                        let (overlap, cigar) = self.overlap(
-                            record, start, variant, false, true
+                        let cigar = record.cigar();
+                        let overlap = Overlap::new(
+                            record, &cigar, start, variant, false, true
                         )?;
                         if !overlap.is_none() {
                             if let Some(obs) = self.read_observation(
                                     &record, &cigar, start, variant, chrom_seq,
-                                    common_obs.clone()
+                                    common_obs
                             )? {
                                 observations.push(obs);
                             }
@@ -481,7 +339,7 @@ impl Sample {
                             // the mate is always the left read of the pair
                             if let Some(obs) = self.fragment_observation(
                                 mate, &record, start, variant, chrom_seq,
-                                centerpoint, end, common_obs.clone()
+                                centerpoint, end, common_obs
                             )? {
                                 observations.push(obs);
                             }
@@ -529,7 +387,7 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
-        common_obs: Rc<observation::Common>
+        common_obs: &observation::Common
     ) -> Result<Option<Observation>, Box<Error>> {
         let probs = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
@@ -554,8 +412,7 @@ impl Sample {
                     prob_mapping,
                     prob_alt,
                     prob_ref,
-                    prob_sample_alt,
-                    common_obs,
+                    prob_sample_alt.joint_prob(common_obs),
                     Evidence::alignment(cigar, record)
                 )
             ))
@@ -587,7 +444,7 @@ impl Sample {
         chrom_seq: &[u8],
         centerpoint: u32,
         end: u32,
-        common_obs: Rc<observation::Common>
+        common_obs: &observation::Common
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |
@@ -600,11 +457,13 @@ impl Sample {
                                        .prob(record, &cigar, start, variant, chrom_seq)?)
         };
 
-        let (left_overlap, left_cigar) = self.overlap(
-            left_record, start, variant, false, true
+        let left_cigar = left_record.cigar();
+        let right_cigar = right_record.cigar();
+        let left_overlap = Overlap::new(
+            left_record, &left_cigar, start, variant, false, true
         )?;
-        let (right_overlap, right_cigar) = self.overlap(
-            right_record, start, variant, false, true
+        let right_overlap = Overlap::new(
+            right_record, &right_cigar, start, variant, false, true
         )?;
 
         let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
@@ -652,8 +511,7 @@ impl Sample {
             self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
-            prob_sample_alt,
-            common_obs,
+            prob_sample_alt.joint_prob(common_obs),
             Evidence::insert_size(
                 insert_size as u32,
                 &left_record.cigar(),
@@ -798,12 +656,12 @@ mod tests {
 
         let true_alt_probs = [-0.09, -0.02, -73.09, -16.95, -73.09];
 
-        let common = Rc::new(common_observation());
+        let common = common_observation();
 
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq, common.clone()).unwrap() {
+            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq, &common).unwrap() {
                 println!("{:?}", obs);
                 assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
                 assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));

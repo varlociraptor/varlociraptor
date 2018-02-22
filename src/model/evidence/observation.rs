@@ -1,5 +1,6 @@
 use std::str;
 use std::collections::vec_deque;
+use std::error::Error;
 use std::cmp;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -19,7 +20,7 @@ use model::Variant;
 use model::evidence;
 use model::sample::RecordBuffer;
 use model::AlleleFreq;
-use utils::NUMERICAL_EPSILON;
+use utils::{NUMERICAL_EPSILON, Overlap};
 
 
 #[derive(Clone, Debug)]
@@ -35,51 +36,7 @@ pub enum ProbSampleAlt {
 }
 
 
-/// An observation for or against a variant.
-#[derive(Clone, Debug)]
-pub struct Observation {
-    /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
-    pub prob_mapping: LogProb,
-    /// Probability that the read/read-pair comes from the alternative allele.
-    pub prob_alt: LogProb,
-    /// Probability that the read/read-pair comes from the reference allele.
-    pub prob_ref: LogProb,
-    /// Read lengths
-    pub prob_sample_alt: ProbSampleAlt,
-    /// Type of evidence.
-    pub evidence: Evidence,
-    pub common: Rc<Common>,
-    prob_sample_alt_cache: RefCell<BTreeMap<AlleleFreq, LogProb>>
-}
-
-
-impl Observation {
-    pub fn new(
-        prob_mapping: LogProb,
-        prob_alt: LogProb,
-        prob_ref: LogProb,
-        prob_sample_alt: ProbSampleAlt,
-        common: Rc<Common>,
-        evidence: Evidence
-    ) -> Self {
-        Observation {
-            prob_mapping: prob_mapping,
-            prob_alt: prob_alt,
-            prob_ref: prob_ref,
-            prob_sample_alt: prob_sample_alt,
-            evidence: evidence,
-            common: common,
-            prob_sample_alt_cache: RefCell::new(BTreeMap::new())
-        }
-    }
-
-    pub fn is_alignment_evidence(&self) -> bool {
-        if let Evidence::Alignment(_) = self.evidence {
-            true
-        } else {
-            false
-        }
-    }
+impl ProbSampleAlt {
 
     /// Calculate probability to sample reads from alt allele.
     /// For SNVs this is always 1.0.
@@ -96,10 +53,11 @@ impl Observation {
     /// Simply taking the maximum observed softclip in a region is not robust enough though,
     /// because small allele frequencies and low coverage can lead to not enough observations.
     /// Instead, we calculate the probability distribution of the maximum softclip, by assuming
-    /// that read start positions are poisson distributed with mean given by the expected variant
-    /// allele coverage.
-    /// This coverage is calculated by multiplying allele frequency with the observed average
-    /// number of reads starting at any position in the region.
+    /// that read start positions are poisson distributed with a certain mean.
+    /// The mean is calculated by counting start positions of reads with leading or trailing
+    /// softclips that overlap the variant and dividing by the interval length between the
+    /// first and the last start position. This is an estimate for the average number of softclipped
+    /// reads from the variant allele per position.
     /// Then, we can calculate the likelihood of the observed softclips given a true maximum
     /// softclip by taking the product of the poisson distributed probabilities for each observed
     /// softclip count.
@@ -116,32 +74,23 @@ impl Observation {
     ///
     /// # Arguments
     /// * allele_freq - Given allele frequency of sample.
-    pub fn prob_sample_alt(
-        &self,
-        allele_freq: AlleleFreq
-    ) -> LogProb {
-        if allele_freq == AlleleFreq(0.0) {
-            // if allele freq is zero, prob_sample_alt has no effect (it is also undefined)
-            return LogProb::ln_one();
-        }
-
-        match &self.prob_sample_alt {
+    pub fn joint_prob(&self, common_obs: &Common) -> LogProb {
+        match self {
             &ProbSampleAlt::One => LogProb::ln_one(),
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
-                if self.prob_sample_alt_cache.borrow().contains_key(&allele_freq) {
-                    return *self.prob_sample_alt_cache.borrow().get(&allele_freq).unwrap()
+                if common_obs.no_softclips() {
+                    // if there are no softclip observations we cannot infer anything
+                    return LogProb::ln_one();
                 }
 
-                let softclip_range = || 0..probs.len();
-                let varcov = self.common.coverage * *allele_freq;
+                let softclip_range = || 0..probs.len() as u32;
+                let varcov = common_obs.softclip_coverage;
 
                 let likelihood_max_softclip = |max_softclip| {
                     let mut lh = LogProb::ln_one();
                     for s in softclip_range() {
-                        let count = self.common.softclip_obs.as_ref().unwrap()
-                                                            .get(s as usize)
-                                                            .cloned().unwrap_or(0);
+                        let count = common_obs.softclip_count(s);
                         let mu = if s <= max_softclip { varcov } else { 0.0 };
                         lh += poisson_pmf(count, mu);
                         if lh == LogProb::ln_zero() {
@@ -173,10 +122,51 @@ impl Observation {
                 ).collect_vec()).cap_numerical_overshoot(NUMERICAL_EPSILON);
                 assert!(p.is_valid(), "invalid probability {:?}", p);
 
-                self.prob_sample_alt_cache.borrow_mut().insert(allele_freq, p);
-
                 p
             }
+        }
+    }
+}
+
+
+/// An observation for or against a variant.
+#[derive(Clone, Debug)]
+pub struct Observation {
+    /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
+    pub prob_mapping: LogProb,
+    /// Probability that the read/read-pair comes from the alternative allele.
+    pub prob_alt: LogProb,
+    /// Probability that the read/read-pair comes from the reference allele.
+    pub prob_ref: LogProb,
+    /// Probability to sample the alt allele
+    pub prob_sample_alt: LogProb,
+    /// Type of evidence.
+    pub evidence: Evidence
+}
+
+
+impl Observation {
+    pub fn new(
+        prob_mapping: LogProb,
+        prob_alt: LogProb,
+        prob_ref: LogProb,
+        prob_sample_alt: LogProb,
+        evidence: Evidence
+    ) -> Self {
+        Observation {
+            prob_mapping: prob_mapping,
+            prob_alt: prob_alt,
+            prob_ref: prob_ref,
+            prob_sample_alt: prob_sample_alt,
+            evidence: evidence,
+        }
+    }
+
+    pub fn is_alignment_evidence(&self) -> bool {
+        if let Evidence::Alignment(_) = self.evidence {
+            true
+        } else {
+            false
         }
     }
 }
@@ -202,6 +192,7 @@ impl Serialize for Observation {
         s.serialize_field("prob_mapping", &self.prob_mapping)?;
         s.serialize_field("prob_alt", &self.prob_alt)?;
         s.serialize_field("prob_ref", &self.prob_ref)?;
+        s.serialize_field("prob_sample_alt", &self.prob_sample_alt)?;
         s.serialize_field("evidence", &self.evidence)?;
         s.end()
     }
@@ -270,12 +261,46 @@ impl Evidence {
 }
 
 
+#[derive(Default, Clone, Debug)]
+pub struct SoftclipObservation {
+    counts: VecMap<u32>,
+    start: Option<u32>,
+    end: Option<u32>
+}
+
+
+impl SoftclipObservation {
+    pub fn insert(&mut self, pos: u32, softclip: u32) {
+        *self.counts.entry(softclip as usize).or_insert(0) += 1;
+        self.start = Some(self.start.map_or(pos, |s| cmp::min(s, pos)));
+        self.end = Some(self.end.map_or(pos, |e| cmp::max(e, pos)));
+    }
+
+    pub fn count(&self, softclip: u32) -> u32 {
+        self.counts.get(softclip as usize).cloned().unwrap_or(0)
+    }
+
+    pub fn interval_len(&self) ->  u32 {
+        self.end.map_or(0, |e| e - self.start.unwrap())
+    }
+
+    pub fn total_count(&self) -> u32 {
+        self.counts.values().sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.counts.is_empty()
+    }
+}
+
+
 /// Data that is shared among all observations over a locus.
 #[derive(Clone, Debug)]
 pub struct Common {
-    pub softclip_obs: Option<VecMap<u32>>,
+    pub leading_softclip_obs: Option<SoftclipObservation>,
+    pub trailing_softclip_obs: Option<SoftclipObservation>,
     /// Average number of reads starting at any position in the region.
-    pub coverage: f64,
+    pub softclip_coverage: f64,
     pub max_read_len: u32,
     pub enclosing_possible: bool
 }
@@ -286,15 +311,34 @@ impl Common {
         let enclosing_possible = variant.is_snv();
 
         Common {
-            softclip_obs: if enclosing_possible { None } else { Some(VecMap::new()) },
-            coverage: 0.0,
+            leading_softclip_obs: None,
+            trailing_softclip_obs: None,
             max_read_len: 0,
+            softclip_coverage: 0.0,
             enclosing_possible: enclosing_possible
         }
     }
 
-    /// TODO refactor
-    pub fn update(&mut self, records: &RecordBuffer, variant: &Variant) {
+    pub fn softclip_count(&self, softclip: u32) -> u32 {
+        if self.enclosing_possible {
+            panic!("invalid operation: enclosing possible and softclips accessed");
+        }
+        self.leading_softclip_obs.as_ref().unwrap().count(softclip) +
+        self.trailing_softclip_obs.as_ref().unwrap().count(softclip)
+    }
+
+    pub fn no_softclips(&self) -> bool {
+        if self.enclosing_possible {
+            panic!("invalid operation: enclosing possible and softclips accessed");
+        }
+        self.leading_softclip_obs.as_ref().unwrap().is_empty() &&
+        self.trailing_softclip_obs.as_ref().unwrap().is_empty()
+    }
+
+    /// Update common observation with new reads.
+    pub fn update(
+        &mut self, records: &RecordBuffer, start: u32, variant: &Variant
+    ) -> Result<(), Box<Error>> {
         let valid_records = || records.iter().filter(|rec| !rec.is_supplementary());
 
         // obtain maximum read len
@@ -305,10 +349,6 @@ impl Common {
             ).max().unwrap_or(0) as u32
         );
 
-        // average number of reads starting at any position in the current window
-        self.coverage += valid_records().count() as f64 /
-                       (records.window as f64 * 2.0);
-
         // determine if variant can be enclosed
         self.enclosing_possible |= {
             let max_indel_cigar = valid_records().map(|rec| {
@@ -318,19 +358,55 @@ impl Common {
         };
 
         if !self.enclosing_possible {
-            let obs = self.softclip_obs.get_or_insert_with(|| VecMap::new());
+            let leading_softclip_obs = self.leading_softclip_obs.get_or_insert_with(
+                || SoftclipObservation::default()
+            );
+            let trailing_softclip_obs = self.trailing_softclip_obs.get_or_insert_with(
+                || SoftclipObservation::default()
+            );
+
             for rec in valid_records() {
                 let cigar = rec.cigar();
-                let s = cmp::max(
-                    evidence::Clips::trailing(&cigar).soft(),
-                    evidence::Clips::leading(&cigar).soft()
-                );
-                // if we have a softclip, we count it
-                if s > 0 {
-                    *obs.entry(s as usize).or_insert(0) += 1;
+
+                let leading_soft = evidence::Clips::leading(&cigar).soft();
+                let trailing_soft = evidence::Clips::trailing(&cigar).soft();
+
+                let overlap = Overlap::new(
+                    rec, &cigar, start, variant, false, true
+                )?;
+
+                if overlap.is_none() {
+                    continue;
+                }
+                if leading_soft > 0 || trailing_soft > 0 {
+                    if leading_soft > trailing_soft {
+                        leading_softclip_obs.insert(
+                            (rec.pos() as u32).saturating_sub(leading_soft),
+                            leading_soft
+                        );
+                    } else {
+                        trailing_softclip_obs.insert(
+                            (rec.pos() as u32).saturating_sub(leading_soft),
+                            trailing_soft
+                        );
+                    }
                 }
             }
+
+            // update coverage
+            self.softclip_coverage = (
+                leading_softclip_obs.total_count() + trailing_softclip_obs.total_count()
+            ) as f64 / (
+                leading_softclip_obs.interval_len() + trailing_softclip_obs.interval_len()
+            ) as f64;
+
+        } else {
+            self.leading_softclip_obs = None;
+            self.trailing_softclip_obs = None;
+            self.softclip_coverage = 0.0;
         }
+
+        Ok(())
     }
 }
 
