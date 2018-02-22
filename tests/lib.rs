@@ -390,7 +390,6 @@ fn test16() {
     check_info_float(&mut call, b"CASE_AF", 0.33, 0.2); // TODO this has a large bias
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"PROB_SOMATIC", 6.6e-5, 1e-3);
-    assert!(false);
 }
 
 
