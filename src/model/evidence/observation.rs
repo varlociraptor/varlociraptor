@@ -1,10 +1,6 @@
 use std::str;
-use std::collections::vec_deque;
 use std::error::Error;
 use std::cmp;
-use std::rc::Rc;
-use std::cell::RefCell;
-use std::collections::BTreeMap;
 
 use vec_map::VecMap;
 use serde::Serialize;
@@ -19,7 +15,6 @@ use rust_htslib::bam::record::CigarString;
 use model::Variant;
 use model::evidence;
 use model::sample::RecordBuffer;
-use model::AlleleFreq;
 use utils::{NUMERICAL_EPSILON, Overlap};
 
 
@@ -116,6 +111,7 @@ impl ProbSampleAlt {
                     |(max_softclip, prob_sample_alt)| {
                         // posterior probability for maximum softclip s
                         let prob_max_softclip = likelihoods[max_softclip as usize] - marginal;
+                        println!("{:?}", prob_sample_alt);
                         // probability to sample from alt allele with this maximum softclip
                         prob_max_softclip + prob_sample_alt
                     }
