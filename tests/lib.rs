@@ -392,6 +392,16 @@ fn test16() {
     check_info_float(&mut call, b"PROB_SOMATIC", 6.6e-5, 1e-3);
 }
 
+/// A delly call that is a false positive. It should be called as absent.
+#[test]
+fn test17() {
+    call_tumor_normal("test17", true, "chr11");
+    let mut call = load_call("test17");
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"PROB_ABSENT", 0.14, 0.005);
+}
+
 
 #[test]
 fn test_fdr_ev1() {

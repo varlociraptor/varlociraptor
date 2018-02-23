@@ -79,13 +79,13 @@ impl ProbSampleAlt {
             &ProbSampleAlt::One => LogProb::ln_one(),
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
-                if common_obs.no_softclips() {
+                if common_obs.not_enough_softclips() {
                     // if there are no softclip observations we cannot infer anything
                     return LogProb::ln_one();
                 }
 
                 let softclip_range = || 0..probs.len() as u32;
-                let varcov = common_obs.softclip_coverage;
+                let varcov = common_obs.softclip_coverage.unwrap();
 
                 let likelihood_max_softclip = |max_softclip| {
                     let mut lh = LogProb::ln_one();
@@ -300,7 +300,7 @@ pub struct Common {
     pub leading_softclip_obs: Option<SoftclipObservation>,
     pub trailing_softclip_obs: Option<SoftclipObservation>,
     /// Average number of reads starting at any position in the region.
-    pub softclip_coverage: f64,
+    pub softclip_coverage: Option<f64>,
     pub max_read_len: u32,
     pub enclosing_possible: bool
 }
@@ -314,7 +314,7 @@ impl Common {
             leading_softclip_obs: None,
             trailing_softclip_obs: None,
             max_read_len: 0,
-            softclip_coverage: 0.0,
+            softclip_coverage: None,
             enclosing_possible: enclosing_possible
         }
     }
@@ -327,12 +327,12 @@ impl Common {
         self.trailing_softclip_obs.as_ref().unwrap().count(softclip)
     }
 
-    pub fn no_softclips(&self) -> bool {
+    pub fn not_enough_softclips(&self) -> bool {
         if self.enclosing_possible {
             panic!("invalid operation: enclosing possible and softclips accessed");
         }
-        self.leading_softclip_obs.as_ref().unwrap().is_empty() &&
-        self.trailing_softclip_obs.as_ref().unwrap().is_empty()
+        self.leading_softclip_obs.as_ref().unwrap().total_count() < 2 ||
+        self.trailing_softclip_obs.as_ref().unwrap().total_count() < 2
     }
 
     /// Update common observation with new reads.
@@ -394,16 +394,22 @@ impl Common {
             }
 
             // update coverage
-            self.softclip_coverage = (
-                leading_softclip_obs.total_count() + trailing_softclip_obs.total_count()
-            ) as f64 / (
-                leading_softclip_obs.interval_len() + trailing_softclip_obs.interval_len()
-            ) as f64;
+            self.softclip_coverage = if leading_softclip_obs.total_count() >= 2 ||
+                                        trailing_softclip_obs.total_count() >= 2 {
+                Some((
+                    leading_softclip_obs.total_count() +
+                    trailing_softclip_obs.total_count()
+                ) as f64 / (
+                    leading_softclip_obs.interval_len() + trailing_softclip_obs.interval_len()
+                ) as f64)
+            } else {
+                None
+            };
 
         } else {
             self.leading_softclip_obs = None;
             self.trailing_softclip_obs = None;
-            self.softclip_coverage = 0.0;
+            self.softclip_coverage = None;
         }
 
         Ok(())

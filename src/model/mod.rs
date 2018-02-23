@@ -613,7 +613,7 @@ mod tests {
         observation::Common {
             leading_softclip_obs: None,
             trailing_softclip_obs: None,
-            softclip_coverage: 0.0,
+            softclip_coverage: None,
             enclosing_possible: true,
             max_read_len: 100
         }
