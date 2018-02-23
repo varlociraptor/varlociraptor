@@ -111,7 +111,6 @@ impl ProbSampleAlt {
                     |(max_softclip, prob_sample_alt)| {
                         // posterior probability for maximum softclip s
                         let prob_max_softclip = likelihoods[max_softclip as usize] - marginal;
-                        println!("{:?}", prob_sample_alt);
                         // probability to sample from alt allele with this maximum softclip
                         prob_max_softclip + prob_sample_alt
                     }
