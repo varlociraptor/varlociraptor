@@ -7,3 +7,4 @@
 Cargo.lock
 
 tests/resources/test*/*
+tests/resources/*.fa
