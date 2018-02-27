@@ -4,19 +4,16 @@ use std::cmp;
 use std::error::Error;
 use std::f64::consts;
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use ordered_float::NotNaN;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
-use itertools::Itertools;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::CigarStringView;
 use bio::stats::{LogProb, PHREDProb, Prob};
 
 use model;
-use model::AlleleFreq;
 use model::Variant;
 use model::evidence;
 use model::evidence::{observation, Observation, Evidence};
@@ -125,6 +122,24 @@ impl RecordBuffer {
 
     pub fn iter(&self) -> vec_deque::Iter<bam::Record> {
         self.inner.iter()
+    }
+}
+
+
+struct Candidate<'a> {
+    left: &'a bam::Record,
+    right: Option<&'a bam::Record>,
+    left_is_first: bool
+}
+
+
+impl<'a> Candidate<'a> {
+    fn new(record: &'a bam::Record) -> Self {
+        Candidate {
+            left: record,
+            right: None,
+            left_is_first: record.is_first_in_template()
+        }
     }
 }
 
@@ -261,7 +276,7 @@ impl Sample {
         let end = variant.end(start);
 
         let mut observations = Vec::new();
-        let mut pairs = HashMap::new();
+        let mut candidate_records = HashMap::new();
         let mut n_overlap = 0;
 
         debug!("variant: {}:{} {:?}", str::from_utf8(chrom).unwrap(), start, variant);
@@ -296,50 +311,74 @@ impl Sample {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     let pos = record.pos() as u32;
-                    if record.is_supplementary() {
-                        // there is no need to look at supplementary alignments,
-                        // because we realign overlapping reads agains both alleles anyway
-                        continue;
-                    }
 
-                    if record.is_mate_unmapped() || !self.use_fragment_evidence {
-                        // with unmapped mate, we only look at the current read
-                        let cigar = record.cigar();
+                    // We look at the whole fragment at once.
+
+                    // We ensure fair sampling by checking if the whole fragment overlaps the
+                    // centerpoint. Only taking the internal segment would not be fair,
+                    // because then the second read of reference fragments tends to cross
+                    // the centerpoint and the fragment would be discarded.
+                    // The latter would not happen for alt (deletion) fragments, because the second
+                    // read would map right of the variant in that case.
+
+                    // We always choose the leftmost and the rightmost alignment, thereby also
+                    // considering supplementary alignments.
+                    if !candidate_records.contains_key(record.qname())
+                    {
+                        // this is the first (primary or supplementary alignment in the pair
+                        candidate_records.insert(
+                            record.qname().to_owned(),
+                            Candidate::new(record)
+                        );
+                    } else if let Some(candidate) = candidate_records.get_mut(record.qname()) {
+                        // this is either the last alignment or one in the middle
+                        if (
+                            candidate.left.is_first_in_template() && record.is_first_in_template()
+                        ) && (
+                            candidate.left.is_last_in_template() && record.is_last_in_template()
+                        ) {
+                            // ignore another partial alignment right of the first
+                            continue;
+                        }
+                        // replace right record (we seek for the rightmost (partial) alignment)
+                        candidate.right = Some(record);
+                    }
+                }
+                for candidate in candidate_records.values() {
+                    if let Some(right) = candidate.right {
+                        // this is a pair
+                        let start_pos = (candidate.left.pos() as u32).saturating_sub(
+                            evidence::Clips::leading(&candidate.left.cigar()).soft()
+                        );
+                        if start_pos > centerpoint {
+                            // ignore fragments that start beyond the centerpoint
+                            continue;
+                        }
+
+                        let cigar = right.cigar();
+                        let end_pos = cigar.end_pos()? as u32 +
+                                      evidence::Clips::trailing(&cigar).soft();
+
+                        if end_pos < centerpoint {
+                            continue;
+                        }
+                        if let Some(obs) = self.fragment_observation(
+                            candidate.left, right, start, variant, chrom_seq,
+                            centerpoint, end, common_obs
+                        )? {
+                            observations.push(obs);
+                        }
+                    } else {
+                        // this is a single alignment with unmapped mate or mate outside of the
+                        // region of interest
+                        let cigar = candidate.left.cigar();
                         let overlap = Overlap::new(
-                            record, &cigar, start, variant, false, true
+                            candidate.left, &cigar, start, variant, false, true
                         )?;
                         if !overlap.is_none() {
                             if let Some(obs) = self.read_observation(
-                                    &record, &cigar, start, variant, chrom_seq,
+                                    candidate.left, &cigar, start, variant, chrom_seq,
                                     common_obs
-                            )? {
-                                observations.push(obs);
-                            }
-                        }
-                    } else if record.is_first_in_template() || record.is_last_in_template() {
-                        // With properly mapped pair, we look at the whole fragment at once.
-
-                        // We ensure fair sampling by checking if the whole fragment overlaps the
-                        // centerpoint. Only taking the internal segment would not be fair,
-                        // because then the second read of reference fragments tends to cross
-                        // the centerpoint and the fragment would be discarded.
-                        // The latter would not happen for alt fragments, because the second read
-                        // would map right of the variant in that case.
-                        if pos <= centerpoint && !pairs.contains_key(record.qname())
-                        {
-                            // need to check mate
-                            // since the bam file is sorted by position, we can't see the mate first
-                            let tlen = record.insert_size().abs() as u32;
-                            if pos + tlen >= centerpoint {
-                                pairs.insert(record.qname().to_owned(), record);
-                            }
-                        } else if let Some(mate) = pairs.get(record.qname()) {
-                            // this must be the second read then
-                            // mate already visited, and this fragment overlaps centerpoint
-                            // the mate is always the left read of the pair
-                            if let Some(obs) = self.fragment_observation(
-                                mate, &record, start, variant, chrom_seq,
-                                centerpoint, end, common_obs
                             )? {
                                 observations.push(obs);
                             }
@@ -348,8 +387,6 @@ impl Sample {
                 }
             }
         }
-
-        debug!("Extracted observations ({} fragments, {} overlapping reads).", pairs.len(), n_overlap);
 
         if !observations.is_empty() {
             // We scale all probabilities by the maximum value. This is just an unbiased scaling
@@ -466,6 +503,10 @@ impl Sample {
             right_record, &right_cigar, start, variant, false, true
         )?;
 
+        if !self.use_fragment_evidence && left_overlap.is_none() && right_overlap.is_none() {
+            return Ok(None);
+        }
+
         let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
         let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
 
@@ -474,7 +515,7 @@ impl Sample {
 
         let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
         let (p_ref_isize, p_alt_isize) = match variant {
-            &Variant::Deletion(_) => {
+            &Variant::Deletion(_) if self.use_fragment_evidence => {
                 self.indel_fragment_evidence.borrow().prob(
                     insert_size,
                     left_read_len,

@@ -98,7 +98,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
     let tumor = libprosic::Sample::new(
         tumor_bam,
         2500,
-        true,
+        false,
         false,
         true,
         false,
@@ -115,7 +115,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
     let normal = libprosic::Sample::new(
         normal_bam,
         2500,
-        true,
+        false,
         false,
         true,
         false,
@@ -402,10 +402,31 @@ fn test17() {
     check_info_float(&mut call, b"PROB_ABSENT", 0.14, 0.005);
 }
 
+/// A large lancet deletion that is not somatic and a likely homozygous germline variant.
 #[test]
 fn test18() {
-    call_tumor_normal("test18", true, "chr12");
+    call_tumor_normal("test18", false, "chr12");
     let mut call = load_call("test18");
+    check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
+    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.005);
+}
+
+/// A delly deletion that is not somatic but a heterozygous germline variant.
+/// TODO this needs handling of supplementary alignments when determining whether a fragment
+/// is enclosing the variant.
+#[test]
+fn test19() {
+    call_tumor_normal("test19", true, "chr8");
+    let mut call = load_call("test19");
+}
+
+/// A delly deletion that is not a somatic variant. It is in a highly repetetive region, and we
+/// seem to be just unlucky that there is nothing visible in the normal sample.
+#[test]
+fn test20() {
+    call_tumor_normal("test20", true, "chr4");
+    let mut call = load_call("test20");
 }
 
 
