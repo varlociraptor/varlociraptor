@@ -227,8 +227,8 @@ fn test1() {
 
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.15);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_ABSENT", 4.2, 0.5);
-    check_info_float(&mut call, b"PROB_SOMATIC", 2.0, 0.5); // this is weak enough for now
+    check_info_float(&mut call, b"PROB_ABSENT", 2.61, 0.05);
+    check_info_float(&mut call, b"PROB_SOMATIC", 3.46, 0.05);
 }
 
 
@@ -240,7 +240,7 @@ fn test2() {
 
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 1.5, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.06, 0.01);
 }
 
 
@@ -274,7 +274,7 @@ fn test5() {
     call_tumor_normal("test5", true, "chr1");
     let mut call = load_call("test5");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 41.5, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 47.4, 0.1);
 }
 
 
@@ -283,7 +283,8 @@ fn test5() {
 fn test6() {
     call_tumor_normal("test6", false, "chr16");
     let mut call = load_call("test6");
-    check_info_float(&mut call, b"PROB_SOMATIC", 7.9, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 4.12, 0.01);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
 }
 
 
@@ -294,8 +295,8 @@ fn test7() {
     let mut call = load_call("test7");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.71, 0.05);
-    check_info_float(&mut call, b"PROB_GERMLINE", 9.8, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.6, 0.01);
+    check_info_float(&mut call, b"PROB_GERMLINE", 11.04, 0.01);
 }
 
 
@@ -313,11 +314,8 @@ fn test8() {
 fn test9() {
     call_tumor_normal("test9", true, "chr2");
     let mut call = load_call("test9");
-    // this seems to be an outlier where we do not reach the correct AF prediction of 0.5
-    // but we are close, so this is ok
-    //check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 2.9, 0.1);
-    check_info_float(&mut call, b"PROB_SOMATIC", 3.0, 0.1);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC", 20.38, 0.1);
 }
 
 
@@ -356,7 +354,7 @@ fn test12() {
 fn test13() {
     call_tumor_normal("test13", true, "chr1");
     let mut call = load_call("test13");
-    check_info_float(&mut call, b"PROB_SOMATIC", 1.6e-5, 0.05);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.52, 0.05);
     check_info_float(&mut call, b"CASE_AF", 0.33, 0.06);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
@@ -399,7 +397,7 @@ fn test17() {
     let mut call = load_call("test17");
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_ABSENT", 0.14, 0.005);
+    check_info_float(&mut call, b"PROB_ABSENT", 0.23, 0.01);
 }
 
 /// A large lancet deletion that is not somatic and a likely homozygous germline variant.
