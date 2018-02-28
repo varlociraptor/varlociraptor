@@ -278,13 +278,16 @@ fn test5() {
 }
 
 
-/// Test a large deletion that should not be a somatic call.
+/// Test a large deletion that should not be a somatic call. It seems to be absent, and has very
+/// weak evidence.
 #[test]
 fn test6() {
     call_tumor_normal("test6", false, "chr16");
     let mut call = load_call("test6");
     check_info_float(&mut call, b"PROB_SOMATIC", 4.12, 0.01);
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_ABSENT", 3.5, 0.01);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
 }
 
 
