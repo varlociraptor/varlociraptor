@@ -141,12 +141,13 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         likelihood_tumor: &L,
         likelihood_normal: &O,
         _: &Variant,
-        n_obs_tumor: usize,
+        _: usize,
         _: usize
     ) -> LogProb where
         L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
         O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
+        let grid_points = self.grid_points;
         let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
             let density = |af_tumor| {
                 let af_tumor = AlleleFreq(af_tumor);
@@ -154,13 +155,11 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
             };
 
             let p_tumor = if af_tumor.start == af_tumor.end {
-                let af = *af_tumor.start;
-                let step = 1.0 / (n_obs_tumor + 1) as f64;
-                let min_af = if af == 0.0 { 0.0 } else { af - step / 2.0 };
-                let max_af = af + step / 2.0;
-                LogProb::ln_simpsons_integrate_exp(&density, min_af, max_af, n_obs_tumor + 1)
+                density(*af_tumor.start)
             } else {
-                LogProb::ln_simpsons_integrate_exp(&density, *af_tumor.start, *af_tumor.end, n_obs_tumor + 1)
+                LogProb::ln_simpsons_integrate_exp(
+                    &density, *af_tumor.start, *af_tumor.end, grid_points
+                )
             };
             let p_normal = likelihood_normal(af_normal, None);
             let prob = p_tumor + p_normal;
@@ -222,7 +221,6 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
                 let af_tumor = AlleleFreq(af_tumor);
                 let p = likelihood_tumor(af_tumor, Some(af_normal)) +
                         likelihood_normal(af_normal, None);
-                println!("L(f_t={}, f_n={})={}", *af_tumor, *af_normal, *p);
                 NotNaN::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");

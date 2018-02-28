@@ -375,7 +375,8 @@ impl Sample {
                         let overlap = Overlap::new(
                             candidate.left, &cigar, start, variant, false, true
                         )?;
-                        if !overlap.is_none() {
+                        if !overlap.is_none() && candidate.left.is_mate_unmapped() {
+                            //println!("read obs {}", candidate.left.is_mate_unmapped());
                             if let Some(obs) = self.read_observation(
                                     candidate.left, &cigar, start, variant, chrom_seq,
                                     common_obs

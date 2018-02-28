@@ -413,12 +413,15 @@ fn test18() {
 }
 
 /// A delly deletion that is not somatic but a heterozygous germline variant.
-/// TODO this needs handling of supplementary alignments when determining whether a fragment
+/// This needs handling of supplementary alignments when determining whether a fragment
 /// is enclosing the variant.
 #[test]
 fn test19() {
     call_tumor_normal("test19", true, "chr8");
     let mut call = load_call("test19");
+    //check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.16, 0.01); // this is as weak as we can get for now
+
 }
 
 /// A delly deletion that is not a somatic variant. It is in a highly repetetive region, and we
@@ -427,6 +430,8 @@ fn test19() {
 fn test20() {
     call_tumor_normal("test20", true, "chr4");
     let mut call = load_call("test20");
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_GERMLINE", 0.19, 0.005);
 }
 
 
