@@ -101,7 +101,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         true,
         false,
         true,
-        false,
+        true,
         insert_size,
         libprosic::likelihood::LatentVariableModel::new(purity),
         constants::PROB_ILLUMINA_INS,
@@ -118,7 +118,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         true,
         false,
         true,
-        false,
+        true,
         insert_size,
         libprosic::likelihood::LatentVariableModel::new(1.0),
         constants::PROB_ILLUMINA_INS,
@@ -285,10 +285,10 @@ fn test5() {
 fn test6() {
     call_tumor_normal("test6", false, "chr16");
     let mut call = load_call("test6");
-    check_info_float(&mut call, b"PROB_SOMATIC", 7.95, 0.01);
-    check_info_float(&mut call, b"PROB_ABSENT", 0.76, 0.01);
-    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC", 13.57, 0.01);
+    //check_info_float(&mut call, b"PROB_ABSENT", 0.76, 0.01);
+    //check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    //check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
 }
 
 
@@ -330,7 +330,7 @@ fn test10() {
     call_tumor_normal("test10", false, "chr20");
     let mut call = load_call("test10");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 75.2, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 1243.07, 0.5);
 }
 
 
@@ -438,15 +438,25 @@ fn test20() {
     check_info_float(&mut call, b"PROB_GERMLINE", 0.19, 0.005);
 }
 
-/// A lancet insertion deletion that is at the same place as a real somatic insertion, however
+/// A lancet insertion that is at the same place as a real somatic insertion, however
 /// lancet calls a too short sequence. Ideally, we would call this as absent, but reads
 /// are too small to do this properly.
 #[test]
 #[ignore]
 fn test21() {
-    call_tumor_normal("test21", true, "chr7");
+    call_tumor_normal("test21", false, "chr7");
     let mut call = load_call("test21");
     assert!(false);
+}
+
+/// A manta deletion that is not a somatic variant. The deletion is also present in the normal,
+/// but the allele frequency is too far away from 50% to be called as heterozygous.
+#[test]
+fn test22() {
+    call_tumor_normal("test22", false, "chr18");
+    let mut call = load_call("test22");
+    //check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.81, 0.01);
 }
 
 

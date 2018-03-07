@@ -2,11 +2,13 @@ use std::cmp;
 use std::str;
 use std::error::Error;
 use std::ascii::AsciiExt;
+use std::str::FromStr;
 
 use itertools::Itertools;
+use regex::Regex;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
-use rust_htslib::bam::record::CigarStringView;
+use rust_htslib::bam::record::{CigarStringView, Cigar, CigarString};
 use rust_htslib::bam;
 
 use model::Variant;
@@ -256,6 +258,100 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 /// Calculate probability of read_base given ref_base.
 pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
     LogProb::from(PHREDProb::from((base_qual) as f64))
+}
+
+
+/// Convert MAPQ (from read mapper) to LogProb for the event that the read maps correctly.
+pub fn prob_mapping(record: &bam::Record) -> LogProb {
+    LogProb::from(PHREDProb(record.mapq() as f64)).ln_one_minus_exp()
+}
+
+
+pub fn prob_mapping_adjusted(
+    record: &bam::Record,
+    cigar: &bam::record::CigarStringView,
+    chrom_name: &[u8],
+    chrom_seq: &[u8]
+) -> Result<LogProb, Box<Error>> {
+    fn likelihood(
+        record: &bam::Record,
+        cigar: &bam::record::CigarStringView,
+        pos: u32,
+        chrom_seq: &[u8]
+    ) -> LogProb {
+        let seq = record.seq();
+        let qual = record.qual();
+        let mut ref_pos = pos as u32;
+        let mut read_pos = 0;
+        let mut lh = LogProb::ln_one();
+        for c in cigar {
+            match c {
+                &Cigar::Match(n) |
+                &Cigar::Diff(n)  |
+                &Cigar::Equal(n) => {
+                    for _ in 0..n {
+                        lh += prob_read_base(
+                            seq[read_pos as usize],
+                            chrom_seq[ref_pos as usize],
+                            qual[read_pos as usize]
+                        );
+                        ref_pos += 1;
+                        read_pos += 1;
+                    }
+                },
+                &Cigar::Ins(l) => {
+                    read_pos += l;
+                },
+                &Cigar::Del(l) => {
+                    ref_pos += l;
+                },
+                &Cigar::HardClip(_) => {
+                    // nothing happens because the read sequence is clipped
+                },
+                &Cigar::SoftClip(l) | &Cigar::Pad(l) => {
+                    read_pos += l;
+                },
+                &Cigar::RefSkip(l) => {
+                    ref_pos += l;
+                }
+            }
+        }
+        lh
+    };
+
+    let mut adjusted = false;
+    if let Some(xa) = record.aux(b"XA") {
+        let xa = xa.string();
+        lazy_static! {
+            // regex for a cigar string operation
+            static ref XA_ENTRY: Regex = Regex::new(
+                "(?P<chrom>[^,]+),[+-]?(?P<pos>[0-9]+),(?P<cigar>([0-9]+[MIDNSHP=X])+),[0-9]+;"
+            ).unwrap();
+        }
+
+        let mut summands = Vec::new();
+        for entry in XA_ENTRY.captures_iter(str::from_utf8(xa).unwrap()) {
+            // sum over all XA entries on same chromosome
+            if entry["chrom"].as_bytes() == chrom_name {
+                // XA pos is 1-based, we need a 0-based position
+                let pos = u32::from_str(&entry["pos"])? - 1;
+                let xcigar = CigarString::from_str(&entry["cigar"])?;
+                let cigar_view = xcigar.into_view(pos as i32);
+                let lh = likelihood(record, &cigar_view, pos, chrom_seq);
+                summands.push(lh);
+                adjusted = true;
+            }
+        }
+        if adjusted {
+            let lh_primary = likelihood(record, cigar, record.pos() as u32, chrom_seq);
+            summands.push(lh_primary);
+            //println!("MAPQ: {}, {:?} vs {:?} with {}", record.mapq(), lh_primary, summands, str::from_utf8(xa).unwrap());
+            let marginal = LogProb::ln_sum_exp(&summands);
+            return Ok(lh_primary - marginal);
+        }
+    }
+    // if no XA tag on same chromosome, use MAPQ given by mapper.
+    Ok(prob_mapping(record))
 }
 
 

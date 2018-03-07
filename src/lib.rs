@@ -24,6 +24,7 @@ extern crate csv;
 extern crate lazy_static;
 extern crate statrs;
 extern crate vec_map;
+extern crate regex;
 
 #[cfg(feature="flame_it")]
 extern crate flame;

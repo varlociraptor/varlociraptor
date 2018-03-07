@@ -20,12 +20,6 @@ use model::evidence::{observation, Observation, Evidence};
 use utils::Overlap;
 
 
-/// Convert MAPQ (from read mapper) to LogProb for the event that the read maps correctly.
-pub fn prob_mapping(mapq: u8) -> LogProb {
-    LogProb::from(PHREDProb(mapq as f64)).ln_one_minus_exp()
-}
-
-
 quick_error! {
     #[derive(Debug)]
     pub enum RecordBufferError {
@@ -269,6 +263,7 @@ impl Sample {
         chrom: &[u8],
         start: u32,
         variant: &Variant,
+        chrom_name: &[u8],
         chrom_seq: &[u8],
         common_obs: &observation::Common
     ) -> Result<Vec<Observation>, Box<Error>> {
@@ -296,8 +291,7 @@ impl Sample {
 
                     if overlap.is_enclosing() {
                         if let Some( obs ) = self.read_observation(
-                            &record, &cigar, start, variant, chrom_seq,
-                            common_obs
+                            &record, &cigar, start, variant, chrom_name, chrom_seq, common_obs
                         )? {
                             observations.push( obs );
                             n_overlap += 1;
@@ -363,7 +357,7 @@ impl Sample {
                             continue;
                         }
                         if let Some(obs) = self.fragment_observation(
-                            candidate.left, right, start, variant, chrom_seq,
+                            candidate.left, right, start, variant, chrom_name, chrom_seq,
                             centerpoint, end, common_obs
                         )? {
                             observations.push(obs);
@@ -377,8 +371,8 @@ impl Sample {
                         )?;
                         if !overlap.is_none() && candidate.left.is_mate_unmapped() {
                             if let Some(obs) = self.read_observation(
-                                    candidate.left, &cigar, start, variant, chrom_seq,
-                                    common_obs
+                                    candidate.left, &cigar, start, variant, chrom_name,
+                                    chrom_seq, common_obs
                             )? {
                                 observations.push(obs);
                             }
@@ -408,11 +402,28 @@ impl Sample {
         Ok(observations)
     }
 
-    fn prob_mapping(&self, mapq: u8) -> LogProb {
+    /// Obtain mapping quality. If adjust_mapq is set, the mapping quality is adjusted with the
+    /// certainty of the aligment score compared to the best alternative alignment score.
+    fn prob_mapping(
+        &self,
+        record: &bam::Record,
+        cigar: &bam::record::CigarStringView,
+        chrom_name: &[u8],
+        chrom_seq: &[u8]
+    ) -> Result<LogProb, Box<Error>> {
         if self.use_mapq {
-            prob_mapping(mapq)
+            if self.adjust_mapq {
+                Ok(evidence::reads::prob_mapping_adjusted(
+                    record,
+                    cigar,
+                    chrom_name,
+                    chrom_seq
+                )?)
+            } else {
+                Ok(evidence::reads::prob_mapping(record))
+            }
         } else {
-            LogProb::ln_one()
+            Ok(LogProb::ln_one())
         }
     }
 
@@ -423,6 +434,7 @@ impl Sample {
         cigar: &CigarStringView,
         start: u32,
         variant: &Variant,
+        chrom_name: &[u8],
         chrom_seq: &[u8],
         common_obs: &observation::Common
     ) -> Result<Option<Observation>, Box<Error>> {
@@ -437,7 +449,7 @@ impl Sample {
         };
 
         if let Some( (prob_ref, prob_alt) ) = probs {
-            let prob_mapping = self.prob_mapping(record.mapq());
+            let prob_mapping = self.prob_mapping(record, cigar, chrom_name, chrom_seq)?;
 
             let prob_sample_alt = self.indel_read_evidence.borrow().prob_sample_alt(
                 record.seq().len() as u32,
@@ -478,6 +490,7 @@ impl Sample {
         right_record: &bam::Record,
         start: u32,
         variant: &Variant,
+        chrom_name: &[u8],
         chrom_seq: &[u8],
         centerpoint: u32,
         end: u32,
@@ -485,13 +498,13 @@ impl Sample {
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |
-            record: &bam::Record, cigar: CigarStringView
+            record: &bam::Record, cigar: &CigarStringView
         | -> Result<(LogProb, LogProb), Box<Error>> {
             // Calculate read evidence.
             // We also calculate it in case of no overlap. Otherwise, there would be a bias due to
             // non-overlapping fragments having higher likelihoods.
             Ok(self.indel_read_evidence.borrow_mut()
-                                       .prob(record, &cigar, start, variant, chrom_seq)?)
+                                       .prob(record, cigar, start, variant, chrom_seq)?)
         };
 
         let left_cigar = left_record.cigar();
@@ -507,8 +520,8 @@ impl Sample {
             return Ok(None);
         }
 
-        let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
-        let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
+        let (p_ref_left, p_alt_left) = prob_read(left_record, &left_cigar)?;
+        let (p_ref_right, p_alt_right) = prob_read(right_record, &right_cigar)?;
 
         let left_read_len = left_record.seq().len() as u32;
         let right_read_len = right_record.seq().len() as u32;
@@ -549,7 +562,8 @@ impl Sample {
         assert!(p_ref_right.is_valid());
 
         let obs = Observation::new(
-            self.prob_mapping(left_record.mapq()) + self.prob_mapping(right_record.mapq()),
+            self.prob_mapping(left_record, &left_cigar, chrom_name, chrom_seq)? +
+            self.prob_mapping(right_record, &right_cigar, chrom_name, chrom_seq)?,
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
             prob_sample_alt.joint_prob(common_obs),
@@ -656,14 +670,6 @@ mod tests {
         println!("{} {}", d_mix.exp(), p_alt.exp());
     }
 
-    #[test]
-    fn test_prob_mapping() {
-        assert_relative_eq!(prob_mapping(0).exp(), 0.0);
-        assert_relative_eq!(prob_mapping(10).exp(), 0.9);
-        assert_relative_eq!(prob_mapping(20).exp(), 0.99);
-        assert_relative_eq!(prob_mapping(30).exp(), 0.999);
-    }
-
     fn setup_sample(isize_mean: f64) -> Sample {
         Sample::new(
             bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
@@ -702,7 +708,7 @@ mod tests {
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let record = record.unwrap();
             let cigar = record.cigar();
-            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, &ref_seq, &common).unwrap() {
+            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, b"17", &ref_seq, &common).unwrap() {
                 println!("{:?}", obs);
                 assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
                 assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
