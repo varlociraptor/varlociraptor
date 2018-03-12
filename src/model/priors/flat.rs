@@ -14,9 +14,9 @@ pub struct FlatNormalNormalModel {
 
 
 impl FlatNormalNormalModel {
-    pub fn new(ploidy: u32, max_amplification: u32) -> Self {
+    pub fn new(ploidy: u32) -> Self {
         FlatNormalNormalModel {
-            allele_freqs: DiscreteAlleleFreqs::feasible(ploidy, max_amplification)
+            allele_freqs: DiscreteAlleleFreqs::feasible(ploidy)
         }
     }
 }
@@ -118,10 +118,10 @@ pub struct FlatTumorNormalModel {
 
 
 impl FlatTumorNormalModel {
-    pub fn new(ploidy: u32, max_amplification: u32) -> Self {
+    pub fn new(ploidy: u32) -> Self {
         FlatTumorNormalModel {
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
-            allele_freqs_normal: DiscreteAlleleFreqs::feasible(ploidy, max_amplification),
+            allele_freqs_normal: DiscreteAlleleFreqs::feasible(ploidy),
             grid_points: 201
         }
     }

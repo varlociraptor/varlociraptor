@@ -248,7 +248,8 @@ impl IndelEvidence {
         let delta = match variant {
             &Variant::Deletion(_)  => variant.len() as u32,
             &Variant::Insertion(_) => variant.len() as u32,
-            &Variant::SNV(_) => return ProbSampleAlt::One
+            &Variant::SNV(_) | &Variant::None => return ProbSampleAlt::One,
+
         };
 
         let prob = |max_softclip| {

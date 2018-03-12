@@ -311,7 +311,7 @@ impl Overlap {
         }
 
         let overlap = match variant {
-            &model::Variant::SNV(_) => {
+            &model::Variant::SNV(_) | &model::Variant::None => {
                 if pos <= start && end_pos > start {
                     Overlap::Enclosing(1)
                 } else {

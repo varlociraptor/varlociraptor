@@ -61,11 +61,16 @@ impl DiscreteAlleleFreqs {
     /// * ploidy - the assumed overall ploidy
     /// * max_amplification - the maximum amplification factor (1 means no amplification, 2 means
     ///   at most one duplicate, ...).
-    pub fn feasible(ploidy: u32, max_amplification: u32) -> Self {
+    fn _feasible(ploidy: u32, max_amplification: u32) -> Self {
         let n = ploidy * max_amplification;
         DiscreteAlleleFreqs {
             inner: (0..n + 1).map(|m| AlleleFreq(m as f64 / n as f64)).collect_vec()
         }
+    }
+
+    /// Return spectrum of possible allele frequencies given a ploidy.
+    pub fn feasible(ploidy: u32) -> Self {
+        Self::_feasible(ploidy, 1)
     }
 
     /// Return all frequencies except 0.0.
@@ -211,7 +216,7 @@ impl Variant {
         match self {
             &Variant::Deletion(length)  => start + length,
             &Variant::Insertion(_) => start + 1,  // end of insertion is the next regular base
-            &Variant::SNV(_) => start
+            &Variant::SNV(_) | &Variant::None => start
         }
     }
 
@@ -219,7 +224,7 @@ impl Variant {
         match self {
             &Variant::Deletion(length)  => start + length / 2,
             &Variant::Insertion(_) => start,  // end of insertion is the next regular base
-            &Variant::SNV(_) => start
+            &Variant::SNV(_) | &Variant::None => start
         }
     }
 

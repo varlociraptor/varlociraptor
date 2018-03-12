@@ -282,7 +282,7 @@ impl IndelEvidence {
                 }
             },
             // for SNVs sampling is unbiased
-            &Variant::SNV(_) => return ProbSampleAlt::One
+            &Variant::SNV(_) | &Variant::None => return ProbSampleAlt::One
         }
     }
 }

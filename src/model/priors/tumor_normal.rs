@@ -80,7 +80,7 @@ impl TumorNormalModel {
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
             // TODO make max_amplification parameter (=1) configurable and consider it properly
             // in the normal model.
-            allele_freqs_normal: DiscreteAlleleFreqs::feasible(ploidy, 1),
+            allele_freqs_normal: DiscreteAlleleFreqs::feasible(ploidy),
             grid_points: 51,
             af_min: af_min,
             ploidy: ploidy

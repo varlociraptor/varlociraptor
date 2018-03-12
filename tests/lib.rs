@@ -59,18 +59,19 @@ fn download_reference(chrom: &str) -> String {
 
         io::copy(&mut reference_stream, &mut reference_file).unwrap();
     }
-    reference
-}
-
-
-fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
-    let reference = download_reference(chrom);
     assert!(Path::new(&reference).exists());
     if !Path::new(&(reference.clone() + ".fai")).exists() {
         Command::new("samtools").args(&["faidx", &reference])
                                 .status()
                                 .expect("failed to create fasta index");
     }
+
+    reference
+}
+
+
+fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
+    let reference = download_reference(chrom);
 
     //setup_logger(test);
 
@@ -133,7 +134,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         libprosic::call::pairwise::PairEvent {
             name: "germline".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 ),
-            af_control: DiscreteAlleleFreqs::feasible(2, 1).not_absent()
+            af_control: DiscreteAlleleFreqs::feasible(2).not_absent()
         },
         libprosic::call::pairwise::PairEvent {
             name: "somatic".to_owned(),
@@ -147,7 +148,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         }
     ];
 
-    let prior_model = libprosic::priors::FlatTumorNormalModel::new(2, 1);
+    let prior_model = libprosic::priors::FlatTumorNormalModel::new(2);
 
     let mut caller = libprosic::model::PairCaller::new(
         tumor,
@@ -176,10 +177,8 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         ).unwrap();
 }
 
-fn call_single_cell_bulk(test: &str, exclusive_end: bool) {
-    let reference = download_reference();
-    assert!(Path::new(reference).exists());
-    assert!(Path::new(&(reference.to_owned() + ".fai")).exists());
+fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
+    let reference = download_reference(chrom);
 
     //setup_logger(test);
 
@@ -242,37 +241,37 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool) {
     let events = [
         libprosic::call::pairwise::PairEvent {
             name: "hom_ref".to_owned(),
-            af_case: vec![AlleleFreq(0.0)],
+            af_case: DiscreteAlleleFreqs::absent(),
             af_control: ContinuousAlleleFreqs::right_exclusive( 0.0..0.5 )
         },
         libprosic::call::pairwise::PairEvent {
             name: "ADO_to_ref".to_owned(),
-            af_case: vec![AlleleFreq(0.0)],
+            af_case: DiscreteAlleleFreqs::absent(),
             af_control: ContinuousAlleleFreqs::right_exclusive( 0.5..1.0 )
         },
         libprosic::call::pairwise::PairEvent {
             name: "ADO_to_alt".to_owned(),
-            af_case: vec![AlleleFreq(1.0)],
+            af_case: DiscreteAlleleFreqs::new(vec![AlleleFreq(1.0)]),
             af_control: ContinuousAlleleFreqs::left_exclusive( 0.0..0.5 )
         },
         libprosic::call::pairwise::PairEvent {
             name: "hom_alt".to_owned(),
-            af_case: vec![AlleleFreq(1.0)],
+            af_case: DiscreteAlleleFreqs::new(vec![AlleleFreq(1.0)]),
             af_control: ContinuousAlleleFreqs::left_exclusive( 0.5..1.0 )
         },
         libprosic::call::pairwise::PairEvent {
             name: "err_alt".to_owned(),
-            af_case: vec![AlleleFreq(0.5), AlleleFreq(1.0)],
+            af_case: DiscreteAlleleFreqs::feasible(2).not_absent(),
             af_control: ContinuousAlleleFreqs::inclusive( 0.0..0.0 )
         },
         libprosic::call::pairwise::PairEvent {
             name: "het".to_owned(),
-            af_case: vec![AlleleFreq(0.5)],
+            af_case: DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5)]),
             af_control: ContinuousAlleleFreqs::exclusive( 0.0..1.0 )
         },
         libprosic::call::pairwise::PairEvent {
             name: "err_ref".to_owned(),
-            af_case: vec![AlleleFreq(0.0), AlleleFreq(0.5)],
+            af_case: DiscreteAlleleFreqs::feasible(2).not_absent(),
             af_control: ContinuousAlleleFreqs::inclusive( 1.0..1.0 )
         }
     ];
@@ -608,7 +607,7 @@ fn test_fdr_ev2() {
 
 #[test]
 fn test_sc_bulk() {
-    call_single_cell_bulk("test_sc_bulk", true);
+    call_single_cell_bulk("test_sc_bulk", true, "chr1");
     let mut call = load_call("test_sc_bulk");
     check_info_float(&mut call, b"CONTROL_AF", 0.0285714, 0.0000001);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
@@ -617,7 +616,7 @@ fn test_sc_bulk() {
 
 #[test]
 fn test_sc_bulk_hom_ref() {
-    call_single_cell_bulk("test_sc_bulk_hom_ref", true);
+    call_single_cell_bulk("test_sc_bulk_hom_ref", true, "chr1");
     let mut call = load_call("test_sc_bulk_hom_ref");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
@@ -626,9 +625,9 @@ fn test_sc_bulk_hom_ref() {
 
 #[test]
 fn test_sc_bulk_indel() {
-    call_single_cell_bulk("test_sc_bulk_indel", true);
+    call_single_cell_bulk("test_sc_bulk_indel", true, "chr1");
     let mut call = load_call("test_sc_bulk_indel");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_HET", 12.6591, 0.0001);
+    check_info_float(&mut call, b"PROB_HET", 11.26, 0.01);
 }
