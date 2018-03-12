@@ -101,7 +101,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         true,
         false,
         true,
-        true,
+        false,
         insert_size,
         libprosic::likelihood::LatentVariableModel::new(purity),
         constants::PROB_ILLUMINA_INS,
@@ -118,7 +118,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         true,
         false,
         true,
-        true,
+        false,
         insert_size,
         libprosic::likelihood::LatentVariableModel::new(1.0),
         constants::PROB_ILLUMINA_INS,
@@ -285,7 +285,7 @@ fn test5() {
 fn test6() {
     call_tumor_normal("test6", false, "chr16");
     let mut call = load_call("test6");
-    check_info_float(&mut call, b"PROB_SOMATIC", 13.57, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 7.95, 0.01);
     //check_info_float(&mut call, b"PROB_ABSENT", 0.76, 0.01);
     //check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     //check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
@@ -330,7 +330,7 @@ fn test10() {
     call_tumor_normal("test10", false, "chr20");
     let mut call = load_call("test10");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 1243.07, 0.5);
+    check_info_float(&mut call, b"PROB_SOMATIC", 75.24, 0.05);
 }
 
 
@@ -401,7 +401,7 @@ fn test17() {
     let mut call = load_call("test17");
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_ABSENT", 0.14, 0.01);
+    check_info_float(&mut call, b"PROB_ABSENT", 0.21, 0.01);
 }
 
 /// A large lancet deletion that is not somatic and a likely homozygous germline variant.
@@ -452,11 +452,12 @@ fn test21() {
 /// A manta deletion that is not a somatic variant. The deletion is also present in the normal,
 /// but the allele frequency is too far away from 50% to be called as heterozygous.
 #[test]
+#[ignore]
 fn test22() {
     call_tumor_normal("test22", false, "chr18");
     let mut call = load_call("test22");
-    //check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.81, 0.01);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    //check_info_float(&mut call, b"PROB_SOMATIC", 0.81, 0.01);
 }
 
 

@@ -215,12 +215,18 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
         O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
-        let af_case = linspace(*self.allele_freqs_tumor.start, *self.allele_freqs_tumor.end, n_obs_tumor + 1);
+        let af_case = linspace(
+            *self.allele_freqs_tumor.start,
+            *self.allele_freqs_tumor.end,
+            n_obs_tumor + 1
+        );
+
         let (_, (map_normal, map_tumor)) = self.allele_freqs().1.iter().cartesian_product(af_case).minmax_by_key(
             |&(&af_normal, af_tumor)| {
                 let af_tumor = AlleleFreq(af_tumor);
                 let p = likelihood_tumor(af_tumor, Some(af_normal)) +
                         likelihood_normal(af_normal, None);
+                //println!("lh normal af={}: {:?}", af_normal, likelihood_normal(af_normal, None));
                 NotNaN::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");

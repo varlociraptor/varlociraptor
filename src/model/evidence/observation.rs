@@ -75,8 +75,10 @@ impl ProbSampleAlt {
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
                 if common_obs.not_enough_softclips() {
-                    // if there are no softclip observations we cannot infer anything
-                    return LogProb::ln_one();
+                    // Not enough softclips observed.
+                    // We take the maximum observed softclip as the true maximum.
+                    let s = common_obs.max_softclip() as usize;
+                    return probs[cmp::min(probs.len() - 1, s)];
                 }
 
                 let softclip_range = || 0..probs.len() as u32;
@@ -286,6 +288,11 @@ impl SoftclipObservation {
     pub fn is_empty(&self) -> bool {
         self.counts.is_empty()
     }
+
+    /// Maximum observed softclip, zero if nothing observed.
+    pub fn max_softclip(&self) -> u32 {
+        self.counts.keys().last().unwrap_or(0) as u32
+    }
 }
 
 
@@ -328,6 +335,13 @@ impl Common {
         }
         self.leading_softclip_obs.as_ref().unwrap().total_count() < 2 ||
         self.trailing_softclip_obs.as_ref().unwrap().total_count() < 2
+    }
+
+    pub fn max_softclip(&self) -> u32 {
+        cmp::max(
+            self.leading_softclip_obs.as_ref().unwrap().max_softclip(),
+            self.trailing_softclip_obs.as_ref().unwrap().max_softclip()
+        )
     }
 
     /// Update common observation with new reads.
