@@ -190,7 +190,8 @@ impl IndelEvidence {
                 // See Sample::overlap.
                 panic!("bug: insert-size based probability for insertions is currently unsupported");
             },
-            &Variant::SNV(_) => panic!("no fragment observations for SNV")
+            &Variant::SNV(_) => panic!("no fragment observations for SNV"),
+            &Variant::None => panic!("no fragment observations for None")
         };
 
         let p_ref = self.pmf(insert_size, 0.0);

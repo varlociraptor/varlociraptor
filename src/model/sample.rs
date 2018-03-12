@@ -277,7 +277,8 @@ impl Sample {
         debug!("variant: {}:{} {:?}", str::from_utf8(chrom).unwrap(), start, variant);
 
         match variant {
-            &Variant::SNV(_) => {
+            //TODO: make &Variant::Ref add reads with position deleted if we want to check against indel alt alleles
+            &Variant::SNV(_) | &Variant::None => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     // TODO remove
@@ -445,6 +446,9 @@ impl Sample {
             },
             &Variant::SNV(_) => {
                 evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)?
+            },
+            &Variant::None => {
+                evidence::reads::prob_none(record, &cigar, start, variant, chrom_seq)?
             }
         };
 
