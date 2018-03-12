@@ -11,7 +11,7 @@ use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::CigarStringView;
-use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::stats::{LogProb, Prob};
 
 use model;
 use model::Variant;
@@ -122,8 +122,7 @@ impl RecordBuffer {
 
 struct Candidate<'a> {
     left: &'a bam::Record,
-    right: Option<&'a bam::Record>,
-    left_is_first: bool
+    right: Option<&'a bam::Record>
 }
 
 
@@ -131,8 +130,7 @@ impl<'a> Candidate<'a> {
     fn new(record: &'a bam::Record) -> Self {
         Candidate {
             left: record,
-            right: None,
-            left_is_first: record.is_first_in_template()
+            right: None
         }
     }
 }
@@ -153,9 +151,7 @@ pub struct Sample {
     use_fragment_evidence: bool,
     use_mapq: bool,
     adjust_mapq: bool,
-    insert_size: InsertSize,
     likelihood_model: model::likelihood::LatentVariableModel,
-    max_indel_overlap: u32,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>
 }
@@ -191,7 +187,6 @@ impl Sample {
         prob_deletion_artifact: Prob,
         prob_insertion_extend_artifact: Prob,
         prob_deletion_extend_artifact: Prob,
-        max_indel_overlap: u32,
         indel_haplotype_window: u32
     ) -> Self {
         Sample {
@@ -199,9 +194,7 @@ impl Sample {
             use_fragment_evidence: use_fragment_evidence,
             use_mapq: use_mapq,
             adjust_mapq: adjust_mapq,
-            insert_size: insert_size,
             likelihood_model: likelihood_model,
-            max_indel_overlap: max_indel_overlap,
             indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
                 LogProb::from(prob_insertion_artifact),
                 LogProb::from(prob_deletion_artifact),
@@ -210,12 +203,7 @@ impl Sample {
                 indel_haplotype_window
             )),
             indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new(
-                insert_size,
-                LogProb::from(prob_insertion_artifact),
-                LogProb::from(prob_deletion_artifact),
-                LogProb::from(prob_insertion_extend_artifact),
-                LogProb::from(prob_deletion_extend_artifact),
-                pileup_window
+                insert_size
             ))
         }
     }
@@ -268,11 +256,9 @@ impl Sample {
         common_obs: &observation::Common
     ) -> Result<Vec<Observation>, Box<Error>> {
         let centerpoint = variant.centerpoint(start);
-        let end = variant.end(start);
 
         let mut observations = Vec::new();
         let mut candidate_records = HashMap::new();
-        let mut n_overlap = 0;
 
         debug!("variant: {}:{} {:?}", str::from_utf8(chrom).unwrap(), start, variant);
 
@@ -287,7 +273,7 @@ impl Sample {
                     }
                     let cigar = record.cigar();
                     let overlap = Overlap::new(
-                        record, &cigar, start, variant, true, false
+                        record, &cigar, start, variant, false
                     )?;
 
                     if overlap.is_enclosing() {
@@ -295,7 +281,6 @@ impl Sample {
                             &record, &cigar, start, variant, chrom_name, chrom_seq, common_obs
                         )? {
                             observations.push( obs );
-                            n_overlap += 1;
                         } else {
                              debug!("Did not add read to observations, SNV position deleted (Cigar op 'D') or skipped (Cigar op 'N').");
                         }
@@ -305,7 +290,6 @@ impl Sample {
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
-                    let pos = record.pos() as u32;
 
                     // We look at the whole fragment at once.
 
@@ -359,7 +343,7 @@ impl Sample {
                         }
                         if let Some(obs) = self.fragment_observation(
                             candidate.left, right, start, variant, chrom_name, chrom_seq,
-                            centerpoint, end, common_obs
+                            common_obs
                         )? {
                             observations.push(obs);
                         }
@@ -368,7 +352,7 @@ impl Sample {
                         // region of interest
                         let cigar = candidate.left.cigar();
                         let overlap = Overlap::new(
-                            candidate.left, &cigar, start, variant, false, true
+                            candidate.left, &cigar, start, variant, true
                         )?;
                         if !overlap.is_none() && candidate.left.is_mate_unmapped() {
                             if let Some(obs) = self.read_observation(
@@ -496,8 +480,6 @@ impl Sample {
         variant: &Variant,
         chrom_name: &[u8],
         chrom_seq: &[u8],
-        centerpoint: u32,
-        end: u32,
         common_obs: &observation::Common
     ) -> Result<Option<Observation>, Box<Error>> {
 
@@ -514,10 +496,10 @@ impl Sample {
         let left_cigar = left_record.cigar();
         let right_cigar = right_record.cigar();
         let left_overlap = Overlap::new(
-            left_record, &left_cigar, start, variant, false, true
+            left_record, &left_cigar, start, variant, true
         )?;
         let right_overlap = Overlap::new(
-            right_record, &right_cigar, start, variant, false, true
+            right_record, &right_cigar, start, variant, true
         )?;
 
         if !self.use_fragment_evidence && left_overlap.is_none() && right_overlap.is_none() {
@@ -533,14 +515,7 @@ impl Sample {
         let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
         let (p_ref_isize, p_alt_isize) = match variant {
             &Variant::Deletion(_) if self.use_fragment_evidence => {
-                self.indel_fragment_evidence.borrow().prob(
-                    insert_size,
-                    left_read_len,
-                    right_read_len,
-                    self.max_indel_overlap,
-                    left_overlap.is_enclosing() || right_overlap.is_enclosing(),
-                    variant
-                )?
+                self.indel_fragment_evidence.borrow().prob(insert_size, variant)?
             },
             _ => {
                 // Ignore isize for insertions. The reason is that we cannot reliably determine if a
@@ -635,14 +610,13 @@ mod tests {
     use likelihood;
     use constants;
 
-    use csv;
     use std::str;
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
     use bio::stats::{LogProb, PHREDProb, Prob};
     use bio::io::fasta;
-    use model::tests::{observation, common_observation};
+    use model::tests::common_observation;
 
 
     #[test]
@@ -688,7 +662,6 @@ mod tests {
             constants::PROB_ILLUMINA_DEL,
             Prob(0.0),
             Prob(0.0),
-            20,
             10
         )
     }
@@ -748,7 +721,6 @@ mod tests {
         let mut bam = bam::Reader::from_path(&"tests/indels+clips.bam").unwrap();
         let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
         let ref_seq = ref_seq();
-        let window = 100;
         let sample = setup_sample(312.0);
 
         // truth

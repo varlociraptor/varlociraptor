@@ -1,7 +1,6 @@
 use std::cmp;
 use std::str;
 use std::error::Error;
-use std::ascii::AsciiExt;
 use std::str::FromStr;
 
 use itertools::Itertools;

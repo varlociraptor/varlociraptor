@@ -381,7 +381,7 @@ impl Common {
                 let trailing_soft = evidence::Clips::trailing(&cigar).soft();
 
                 let overlap = Overlap::new(
-                    rec, &cigar, start, variant, false, true
+                    rec, &cigar, start, variant, true
                 )?;
 
                 if overlap.is_none() {
@@ -423,24 +423,4 @@ impl Common {
 
         Ok(())
     }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // #[test]
-    // fn test_prob_sample_alt() {
-    //     let obs = Observation {
-    //         prob_mapping: LogProb::ln_one(),
-    //         prob_alt: LogProb::ln_one(),
-    //         prob_ref: LogProb::ln_one(),
-    //         evidence: Evidence::dummy_alignment(),
-    //         common: Common {
-    //             softclip_obs: Some(softclip_obs),
-    //             coverage:
-    //         }
-    //     }
-    // }
 }

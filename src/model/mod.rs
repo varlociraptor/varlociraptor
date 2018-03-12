@@ -4,7 +4,6 @@ use std::ops::{Range, Deref};
 use std::fmt::Debug;
 use std::error::Error;
 use std::cell::RefCell;
-use std::rc::Rc;
 
 use ordered_float::NotNaN;
 use itertools::Itertools;
@@ -275,7 +274,7 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
         let mut common_obs = observation::Common::new(&variant);
         self.sample.borrow_mut().extract_common_observations(
             chrom, start, &variant, &mut common_obs
-        );
+        )?;
         let pileup = self.sample.borrow_mut().extract_observations(
             chrom, start, &variant, chrom, chrom_seq, &common_obs
         )?;
@@ -416,17 +415,17 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
         let mut common_obs = observation::Common::new(&variant);
         self.case_sample.borrow_mut().extract_common_observations(
             chrom, start, &variant, &mut common_obs
-        );
+        )?;
         self.control_sample.borrow_mut().extract_common_observations(
             chrom, start, &variant, &mut common_obs
-        );
+        )?;
 
         debug!("Case pileup");
-        let mut case_pileup = self.case_sample.borrow_mut().extract_observations(
+        let case_pileup = self.case_sample.borrow_mut().extract_observations(
             chrom, start, &variant, chrom, chrom_seq, &common_obs
         )?;
         debug!("Control pileup");
-        let mut control_pileup = self.control_sample.borrow_mut().extract_observations(
+        let control_pileup = self.control_sample.borrow_mut().extract_observations(
             chrom, start, &variant, chrom, chrom_seq, &common_obs
         )?;
 
@@ -563,7 +562,6 @@ mod tests {
     use InsertSize;
     use model::evidence::{Observation, Evidence};
     use constants;
-    use model::evidence::observation::ProbSampleAlt;
     use model::evidence::observation;
 
     use rust_htslib::bam;
@@ -572,8 +570,6 @@ mod tests {
     use std::fs::File;
     #[cfg(feature="flame_it")]
     use flame;
-    use csv;
-    use itertools::Itertools;
 
     fn setup_pairwise_test<'a>() -> PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
         let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
@@ -591,7 +587,6 @@ mod tests {
             constants::PROB_ILLUMINA_DEL,
             Prob(0.0),
             Prob(0.0),
-            20,
             10
         );
         let control_sample = Sample::new(
@@ -607,7 +602,6 @@ mod tests {
             constants::PROB_ILLUMINA_DEL,
             Prob(0.0),
             Prob(0.0),
-            20,
             10
         );
 

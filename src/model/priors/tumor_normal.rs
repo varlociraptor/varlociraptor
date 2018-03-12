@@ -8,7 +8,7 @@ use bio::stats::{LogProb, Prob};
 use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 use priors::InfiniteSitesNeutralVariationModel;
-use priors::{PairModel, normal};
+use priors::PairModel;
 
 
 /// Tumor-normal prior model using ploidy, heterozygosity (in normal tissue) and tumor mutation rate
@@ -242,7 +242,6 @@ mod tests {
     use bio::stats::{Prob, LogProb};
     use model::{ContinuousAlleleFreqs, AlleleFreq, likelihood, PairPileup, Variant};
     use model::priors::PairModel;
-    use model::evidence::{Observation, Evidence};
     use model::priors::tests::create_obs_vector;
 
     #[test]

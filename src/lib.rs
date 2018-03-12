@@ -41,8 +41,6 @@ pub use model::likelihood;
 pub use model::priors;
 pub use model::sample::InsertSize;
 
-use std::ascii::AsciiExt;
-
 
 quick_error! {
     #[derive(Debug)]

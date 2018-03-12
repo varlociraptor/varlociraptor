@@ -34,7 +34,7 @@ fn cleanup_file(f: &str) {
 }
 
 
-fn setup_logger(test: &str) {
+pub fn setup_logger(test: &str) {
     let basedir = basedir(test);
     let logfile = format!("{}/debug.log", basedir);
     cleanup_file(&logfile);
@@ -109,7 +109,6 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
         Prob(0.0),
-        75,
         100
     );
 
@@ -126,7 +125,6 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
         Prob(0.0),
-        75,
         100
     );
 
@@ -191,7 +189,6 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
     let bulk_bam = bam::IndexedReader::from_path(&bulk_bam_file).unwrap();
 
     let candidates = format!("{}/candidates.vcf", basedir);
-    let reference = "tests/resources/chr1.fa";
 
     let output = format!("{}/calls.bcf", basedir);
     let observations = format!("{}/observations.tsv", basedir);
@@ -216,7 +213,6 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
         Prob(0.0),
-        25,
         100
     );
 
@@ -233,7 +229,6 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
         Prob(0.0),
-        25,
         100
     );
 
@@ -471,7 +466,7 @@ fn test10() {
 #[test]
 fn test11() {
     call_tumor_normal("test11", true, "chr2");
-    let mut call = load_call("test11");
+    load_call("test11");
 }
 
 
@@ -500,9 +495,11 @@ fn test13() {
 /// There is currently no way to avoid this, but an amplification factor could become another
 /// latent variable in the model.
 #[test]
+#[ignore]
 fn test14() {
     call_tumor_normal("test14", true, "chr15");
     let mut call = load_call("test14");
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
 }
 
 /// A small lancet deletion that is a true and strong somatic variant (AF=1.0).
@@ -576,7 +573,7 @@ fn test20() {
 #[ignore]
 fn test21() {
     call_tumor_normal("test21", false, "chr7");
-    let mut call = load_call("test21");
+    load_call("test21");
     assert!(false);
 }
 

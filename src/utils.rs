@@ -298,7 +298,6 @@ impl Overlap {
         cigar: &bam::record::CigarStringView,
         start: u32,
         variant: &model::Variant,
-        enclose_only: bool,
         consider_clips: bool
     ) -> Result<Overlap, Box<Error>> {
         let mut pos = record.pos() as u32;

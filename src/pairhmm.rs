@@ -209,15 +209,6 @@ mod tests {
     use bio::stats::{Prob, LogProb};
     use constants;
 
-
-    fn prob_emit_xy(x: &[u8], y: &[u8], i: usize, j: usize) -> LogProb {
-        if x[i] == y[j] {
-            LogProb::from(Prob(1.0) - constants::PROB_ILLUMINA_SUBST)
-        } else {
-            LogProb::from(constants::PROB_ILLUMINA_SUBST / Prob(3.0))
-        }
-    }
-
     fn prob_emit_x_or_y() -> LogProb {
         LogProb::from(Prob(1.0) - constants::PROB_ILLUMINA_SUBST)
     }

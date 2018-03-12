@@ -330,7 +330,7 @@ mod tests {
     use super::*;
     use bio::stats::LogProb;
     use model::{ContinuousAlleleFreqs, AlleleFreq, AlleleFreqs, likelihood, Variant, PairPileup, priors};
-    use model::evidence::{Observation, Evidence};
+    use model::evidence::Observation;
     use model::priors::tests::create_obs_vector;
 
     #[test]

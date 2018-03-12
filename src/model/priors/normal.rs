@@ -8,10 +8,6 @@
 // use model::{Variant, DiscreteAlleleFreqs, AlleleFreq};
 // use priors::{Model, InfiniteSitesNeutralVariationModel, PairModel};
 
-use itertools::Itertools;
-
-use model::{AlleleFreq, DiscreteAlleleFreqs};
-
 
 /*
 pub struct NormalNormalModel {
