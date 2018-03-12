@@ -15,9 +15,8 @@ pub struct FlatNormalNormalModel {
 
 impl FlatNormalNormalModel {
     pub fn new(ploidy: u32) -> Self {
-        let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
         FlatNormalNormalModel {
-            allele_freqs: allele_freqs
+            allele_freqs: DiscreteAlleleFreqs::feasible(ploidy)
         }
     }
 }
@@ -120,10 +119,9 @@ pub struct FlatTumorNormalModel {
 
 impl FlatTumorNormalModel {
     pub fn new(ploidy: u32) -> Self {
-        let allele_freqs = (0..ploidy + 1).map(|m| AlleleFreq(m as f64 / ploidy as f64)).collect_vec();
         FlatTumorNormalModel {
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
-            allele_freqs_normal: allele_freqs,
+            allele_freqs_normal: DiscreteAlleleFreqs::feasible(ploidy),
             grid_points: 201
         }
     }
@@ -149,6 +147,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
         O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
+        let grid_points = self.grid_points;
         let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
             let density = |af_tumor| {
                 let af_tumor = AlleleFreq(af_tumor);
@@ -158,7 +157,9 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
             let p_tumor = if af_tumor.start == af_tumor.end {
                 density(*af_tumor.start)
             } else {
-                LogProb::ln_simpsons_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points)
+                LogProb::ln_simpsons_integrate_exp(
+                    &density, *af_tumor.start, *af_tumor.end, grid_points
+                )
             };
             let p_normal = likelihood_normal(af_normal, None);
             let prob = p_tumor + p_normal;
@@ -192,7 +193,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
             // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
                 &ContinuousAlleleFreqs::inclusive( 0.0..0.0 ),
-                &vec![AlleleFreq(0.0)],
+                &DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]),
                 likelihood_tumor,
                 likelihood_normal,
                 variant,
@@ -208,19 +209,24 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         likelihood_tumor: &L,
         likelihood_normal: &O,
         _: &Variant,
-        _: usize,
+        n_obs_tumor: usize,
         _: usize
     ) -> (AlleleFreq, AlleleFreq) where
         L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
         O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
     {
-        let af_case = linspace(*self.allele_freqs_tumor.start, *self.allele_freqs_tumor.end, self.grid_points);
+        let af_case = linspace(
+            *self.allele_freqs_tumor.start,
+            *self.allele_freqs_tumor.end,
+            n_obs_tumor + 1
+        );
+
         let (_, (map_normal, map_tumor)) = self.allele_freqs().1.iter().cartesian_product(af_case).minmax_by_key(
             |&(&af_normal, af_tumor)| {
                 let af_tumor = AlleleFreq(af_tumor);
                 let p = likelihood_tumor(af_tumor, Some(af_normal)) +
                         likelihood_normal(af_normal, None);
-                debug!("L(f_t={}, f_n={})={}", *af_tumor, *af_normal, *p);
+                //println!("lh normal af={}: {:?}", af_normal, likelihood_normal(af_normal, None));
                 NotNaN::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");

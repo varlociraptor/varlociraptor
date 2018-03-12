@@ -8,7 +8,7 @@ use bio::stats::{LogProb, Prob};
 use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 use priors::InfiniteSitesNeutralVariationModel;
-use priors::{PairModel, normal};
+use priors::PairModel;
 
 
 /// Tumor-normal prior model using ploidy, heterozygosity (in normal tissue) and tumor mutation rate
@@ -78,7 +78,9 @@ impl TumorNormalModel {
             insertion_factor: insertion_factor,
             genome_size: genome_size,
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive( 0.0..1.0 ),
-            allele_freqs_normal: normal::allele_freqs(ploidy),
+            // TODO make max_amplification parameter (=1) configurable and consider it properly
+            // in the normal model.
+            allele_freqs_normal: DiscreteAlleleFreqs::feasible(ploidy),
             grid_points: 51,
             af_min: af_min,
             ploidy: ploidy
@@ -160,6 +162,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
                 LogProb::ln_simpsons_integrate_exp(&density, *af_tumor.start, *af_tumor.end, self.grid_points)
             };
             let p_normal = likelihood_normal(af_normal, None);
+            println!("prior model probs: af={} {:?} {:?}", af_normal, p_tumor, p_normal);
             let prob = p_tumor + p_normal;
 
             prob
@@ -191,7 +194,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
             // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
                 &ContinuousAlleleFreqs::inclusive( 0.0..0.0 ),
-                &vec![AlleleFreq(0.0)],
+                &DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]),
                 likelihood_tumor,
                 likelihood_normal,
                 variant,
@@ -239,7 +242,7 @@ mod tests {
     use bio::stats::{Prob, LogProb};
     use model::{ContinuousAlleleFreqs, AlleleFreq, likelihood, PairPileup, Variant};
     use model::priors::PairModel;
-    use model::sample::{Observation, Evidence};
+    use model::priors::tests::create_obs_vector;
 
     #[test]
     fn print_priors() {
@@ -255,35 +258,6 @@ mod tests {
         }
     }
 
-    fn create_obs_vector(
-        n_obs_ref: usize,
-        n_obs_alt: usize
-    ) -> Vec<Observation> {
-        let obs_ref_abs = Observation {
-            prob_mapping: LogProb::ln_one(),
-            prob_alt: LogProb::ln_zero(),
-            prob_ref: LogProb::ln_one(),
-            prob_mismapped: LogProb::ln_one(),
-            evidence: Evidence::dummy_alignment()
-        };
-        let obs_alt_abs = Observation {
-            prob_mapping: LogProb::ln_one(),
-            prob_alt: LogProb::ln_one(),
-            prob_ref: LogProb::ln_zero(),
-            prob_mismapped: LogProb::ln_one(),
-            evidence: Evidence::dummy_alignment()
-        };
-
-        let mut obs = Vec::new();
-        for _ in 0..n_obs_ref {
-            obs.push(obs_ref_abs.clone());
-        }
-        for _ in 0..n_obs_alt {
-            obs.push(obs_alt_abs.clone());
-        }
-        obs
-    }
-
     #[test]
     fn test_tnm_het_zero() {
 
@@ -292,7 +266,7 @@ mod tests {
 
         // tumor and normal both hom ref
         let af_tumor = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
-        let af_normal = vec![AlleleFreq(0.0)];
+        let af_normal = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let variant = Variant::SNV(b'T');
 
@@ -324,7 +298,7 @@ mod tests {
 
         // tumor and normal both hom ref
         let af_tumor = ContinuousAlleleFreqs::inclusive( 0.0..0.0);
-        let af_normal = vec![AlleleFreq(0.0)];
+        let af_normal = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let variant = Variant::SNV(b'T');
 

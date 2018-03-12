@@ -3,6 +3,10 @@ use rust_htslib::bam::record::{Cigar, CigarStringView};
 
 pub mod reads;
 pub mod fragments;
+pub mod observation;
+
+pub use self::observation::Observation;
+pub use self::observation::Evidence;
 
 
 pub struct Clips {
@@ -66,6 +70,15 @@ impl Clips {
     }
 }
 
+
+/// Return maximum indel operation in given cigar string.
+pub fn max_indel(cigar: &CigarStringView) -> u32 {
+    cigar.iter().map(|op| match op {
+            &Cigar::Ins(l) => l,
+            &Cigar::Del(l) => l,
+            _ => 0
+    }).max().unwrap_or(0)
+}
 
 
 /// Calculate the full read length including hard clipped bases.

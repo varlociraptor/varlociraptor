@@ -6,6 +6,7 @@ use std::error::Error;
 use std::cell::RefCell;
 
 use ordered_float::NotNaN;
+use itertools::Itertools;
 
 pub mod likelihood;
 pub mod priors;
@@ -14,11 +15,11 @@ pub mod evidence;
 
 use bio::stats::LogProb;
 
-use model::sample::{Sample, Observation};
+use model::sample::Sample;
+use model::evidence::{observation, Observation};
 
 
 pub type AlleleFreq = NotNaN<f64>;
-pub type DiscreteAlleleFreqs = Vec<AlleleFreq>;
 
 
 #[allow(non_snake_case)]
@@ -30,6 +31,70 @@ pub fn AlleleFreq(af: f64) -> AlleleFreq {
 pub trait AlleleFreqs: Debug {}
 impl AlleleFreqs for DiscreteAlleleFreqs {}
 impl AlleleFreqs for ContinuousAlleleFreqs {}
+
+
+#[derive(Debug, Clone)]
+pub struct DiscreteAlleleFreqs {
+    inner: Vec<AlleleFreq>
+}
+
+
+impl DiscreteAlleleFreqs {
+    /// Create spectrum of discrete allele frequencies with given values.
+    pub fn new(spectrum: Vec<AlleleFreq>) -> Self {
+        DiscreteAlleleFreqs {
+            inner: spectrum
+        }
+    }
+
+    /// Return spectrum of all feasible allele frequencies for a given ploidy and maximum
+    /// number of amplification.
+    ///
+    /// In principle, a ploidy of, e.g., 2 allows allele frequencies 0, 0.5, 1.0. However,
+    /// if a locus is amplified e.g. 1 time, allele frequencies can be effectively
+    /// 0, 0.25, 0.5, 0.75, 1.0, because all reads are projected to the original location in the
+    /// reference genome, and it is unclear whether the first, the second, or both loci contain
+    /// the variant.
+    ///
+    /// # Arguments
+    /// * ploidy - the assumed overall ploidy
+    /// * max_amplification - the maximum amplification factor (1 means no amplification, 2 means
+    ///   at most one duplicate, ...).
+    fn _feasible(ploidy: u32, max_amplification: u32) -> Self {
+        let n = ploidy * max_amplification;
+        DiscreteAlleleFreqs {
+            inner: (0..n + 1).map(|m| AlleleFreq(m as f64 / n as f64)).collect_vec()
+        }
+    }
+
+    /// Return spectrum of possible allele frequencies given a ploidy.
+    pub fn feasible(ploidy: u32) -> Self {
+        Self::_feasible(ploidy, 1)
+    }
+
+    /// Return all frequencies except 0.0.
+    pub fn not_absent(&self) -> Self {
+        DiscreteAlleleFreqs {
+            inner: self.inner[1..].to_owned()
+        }
+    }
+
+    pub fn absent() -> Self {
+        DiscreteAlleleFreqs {
+            inner: vec![AlleleFreq(0.0)]
+        }
+    }
+}
+
+
+impl Deref for DiscreteAlleleFreqs {
+    type Target = Vec<AlleleFreq>;
+
+    fn deref(&self) -> &Vec<AlleleFreq> {
+        &self.inner
+    }
+}
+
 
 /// An allele frequency range
 #[derive(Debug)]
@@ -85,6 +150,7 @@ impl Deref for ContinuousAlleleFreqs {
     }
 }
 
+
 #[derive(Debug)]
 pub enum VariantType {
     Insertion(Option<Range<u32>>),
@@ -113,6 +179,13 @@ impl Variant {
         }
     }
 
+    pub fn is_snv(&self) -> bool {
+        match self {
+            &Variant::SNV(_)       => true,
+            _ => false
+        }
+    }
+
     pub fn is_indel(&self) -> bool {
         match self {
             &Variant::Deletion(_)  => true,
@@ -135,6 +208,22 @@ impl Variant {
             (&Variant::SNV(_), &VariantType::SNV) => true,
             (&Variant::None, &VariantType::None) => true,
             _ => false
+        }
+    }
+
+    pub fn end(&self, start: u32) -> u32 {
+        match self {
+            &Variant::Deletion(length)  => start + length,
+            &Variant::Insertion(_) => start + 1,  // end of insertion is the next regular base
+            &Variant::SNV(_) | &Variant::None => start
+        }
+    }
+
+    pub fn centerpoint(&self, start: u32) -> u32 {
+        match self {
+            &Variant::Deletion(length)  => start + length / 2,
+            &Variant::Insertion(_) => start,  // end of insertion is the next regular base
+            &Variant::SNV(_) | &Variant::None => start
         }
     }
 
@@ -182,8 +271,15 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
     /// # Returns
     /// The `SinglePileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<SinglePileup<A, P>, Box<Error>> {
-        let pileup = try!(self.sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
+        let mut common_obs = observation::Common::new(&variant);
+        self.sample.borrow_mut().extract_common_observations(
+            chrom, start, &variant, &mut common_obs
+        )?;
+        let pileup = self.sample.borrow_mut().extract_observations(
+            chrom, start, &variant, chrom, chrom_seq, &common_obs
+        )?;
         debug!("Obtained pileups ({} observations).", pileup.len());
+
         Ok(SinglePileup::new(
             pileup,
             variant,
@@ -242,7 +338,7 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
         self.marginal_prob.get().unwrap()
     }
 
-    fn joint_prob(&self, af: &A) -> LogProb {
+    pub fn joint_prob(&self, af: &A) -> LogProb {
         let likelihood = |af: AlleleFreq| {
             self.likelihood(af)
         };
@@ -268,7 +364,9 @@ impl<'a, A: AlleleFreqs, P: priors::Model<A>> SinglePileup<'a, A, P> {
     }
 
     fn likelihood(&self, af: AlleleFreq) -> LogProb {
-        self.sample_model.likelihood_pileup(&self.observations, *af, None)
+        self.sample_model.likelihood_pileup(
+            &self.observations, af, None
+        )
     }
 
     pub fn observations(&self) -> &[Observation] {
@@ -314,10 +412,23 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
     /// # Returns
     /// The `PairPileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<PairPileup<A, B, P>, Box<Error>> {
+        let mut common_obs = observation::Common::new(&variant);
+        self.case_sample.borrow_mut().extract_common_observations(
+            chrom, start, &variant, &mut common_obs
+        )?;
+        self.control_sample.borrow_mut().extract_common_observations(
+            chrom, start, &variant, &mut common_obs
+        )?;
+
         debug!("Case pileup");
-        let case_pileup = try!(self.case_sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
+        let case_pileup = self.case_sample.borrow_mut().extract_observations(
+            chrom, start, &variant, chrom, chrom_seq, &common_obs
+        )?;
         debug!("Control pileup");
-        let control_pileup = try!(self.control_sample.borrow_mut().extract_observations(chrom, start, &variant, chrom_seq));
+        let control_pileup = self.control_sample.borrow_mut().extract_observations(
+            chrom, start, &variant, chrom, chrom_seq, &common_obs
+        )?;
+
         debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
         Ok(PairPileup::new(
             case_pileup,
@@ -392,7 +503,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         self.marginal_prob.get().unwrap()
     }
 
-    fn joint_prob(&self, af_case: &A, af_control: &B) -> LogProb {
+    pub fn joint_prob(&self, af_case: &A, af_control: &B) -> LogProb {
         let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
             self.case_likelihood(af_case, af_control)
         };
@@ -401,17 +512,14 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         };
 
         let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len());
-        debug!("Pr(D, f_case={:?}, f_control={:?}) = {}", af_case, af_control, p.exp());
         p
     }
 
     /// Calculate posterior probability of given allele frequencies.
     pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
-        debug!("Calculating posterior probability. for case={:?} and control={:?}", af_case, af_control);
         let p = self.joint_prob(af_case, af_control);
         let marginal = self.marginal_prob();
         let prob = p - marginal;
-        debug!("Posterior probability: {}.", prob.exp());
         prob
     }
 
@@ -427,11 +535,13 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     }
 
     fn case_likelihood(&self, af_case: AlleleFreq, af_control: Option<AlleleFreq>) -> LogProb {
-        self.case_sample_model.likelihood_pileup(&self.case, *af_case, af_control.map(|af| *af))
+        let p = self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control);
+        p
     }
 
     fn control_likelihood(&self, af_control: AlleleFreq, af_case: Option<AlleleFreq>) -> LogProb {
-        self.control_sample_model.likelihood_pileup(&self.control, *af_control, af_case.map(|af| *af))
+        let p = self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case);
+        p
     }
 
     pub fn case_observations(&self) -> &[Observation] {
@@ -450,8 +560,9 @@ mod tests {
     use likelihood::LatentVariableModel;
     use Sample;
     use InsertSize;
-    use model::sample::{Observation, Evidence};
+    use model::evidence::{Observation, Evidence};
     use constants;
+    use model::evidence::observation;
 
     use rust_htslib::bam;
     use bio::stats::{LogProb, Prob};
@@ -459,8 +570,6 @@ mod tests {
     use std::fs::File;
     #[cfg(feature="flame_it")]
     use flame;
-    use csv;
-    use itertools::Itertools;
 
     fn setup_pairwise_test<'a>() -> PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
         let insert_size = InsertSize{ mean: 250.0, sd: 50.0 };
@@ -478,7 +587,6 @@ mod tests {
             constants::PROB_ILLUMINA_DEL,
             Prob(0.0),
             Prob(0.0),
-            20,
             10
         );
         let control_sample = Sample::new(
@@ -494,7 +602,6 @@ mod tests {
             constants::PROB_ILLUMINA_DEL,
             Prob(0.0),
             Prob(0.0),
-            20,
             10
         );
 
@@ -507,24 +614,46 @@ mod tests {
         model
     }
 
+    pub fn common_observation() -> observation::Common {
+        observation::Common {
+            leading_softclip_obs: None,
+            trailing_softclip_obs: None,
+            softclip_coverage: None,
+            enclosing_possible: true,
+            max_read_len: 100
+        }
+    }
+
+    pub fn observation(
+        prob_mapping: LogProb,
+        prob_alt: LogProb,
+        prob_ref: LogProb
+    ) -> Observation {
+        Observation::new(
+            prob_mapping,
+            prob_alt,
+            prob_ref,
+            LogProb::ln_one(),
+            Evidence::dummy_alignment()
+        )
+    }
+
     /// scenario 1: same pileup -> germline call
     #[test]
     fn test_same_pileup() {
         let variant = Variant::Deletion(3);
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
+        let normal_alt = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5), AlleleFreq(1.0)]);
+        let normal_ref = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let mut observations = Vec::new();
         for _ in 0..5 {
-            observations.push(Observation{
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_one(),
-                prob_ref: LogProb::ln_zero(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            });
+            observations.push(observation(
+                LogProb::ln_one(),
+                LogProb::ln_one(),
+                LogProb::ln_zero()
+            ));
         }
 
         let model = setup_pairwise_test();
@@ -552,18 +681,16 @@ mod tests {
         let variant = Variant::Deletion(3);
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
+        let normal_alt = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5), AlleleFreq(1.0)]);
+        let normal_ref = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let mut observations = Vec::new();
         for _ in 0..5 {
-            observations.push(Observation{
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_one(),
-                prob_ref: LogProb::ln_zero(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            });
+            observations.push(observation(
+                LogProb::ln_one(),
+                LogProb::ln_one(),
+                LogProb::ln_zero()
+            ));
         }
 
         let model = setup_pairwise_test();
@@ -592,27 +719,23 @@ mod tests {
         let variant = Variant::Deletion(3);
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
+        let normal_alt = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5), AlleleFreq(1.0)]);
+        let normal_ref = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let mut observations = Vec::new();
         for _ in 0..5 {
-            observations.push(Observation{
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_one(),
-                prob_ref: LogProb::ln_zero(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            });
+            observations.push(observation(
+                LogProb::ln_one(),
+                LogProb::ln_one(),
+                LogProb::ln_zero()
+            ));
         }
         for _ in 0..50 {
-            observations.push(Observation{
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_zero(),
-                prob_ref: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            });
+            observations.push(observation(
+                LogProb::ln_one(),
+                LogProb::ln_zero(),
+                LogProb::ln_one()
+            ));
         }
 
         let model = setup_pairwise_test();
@@ -639,18 +762,16 @@ mod tests {
         let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
         let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
         let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
+        let normal_alt = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5), AlleleFreq(1.0)]);
+        let normal_ref = DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]);
 
         let mut observations = Vec::new();
         for _ in 0..10 {
-            observations.push(Observation{
-                prob_mapping: LogProb::ln_one(),
-                prob_alt: LogProb::ln_zero(),
-                prob_ref: LogProb::ln_one(),
-                prob_mismapped: LogProb::ln_one(),
-                evidence: Evidence::dummy_alignment()
-            });
+            observations.push(observation(
+                LogProb::ln_one(),
+                LogProb::ln_zero(),
+                LogProb::ln_one()
+            ));
         }
 
         let model = setup_pairwise_test();
@@ -672,304 +793,5 @@ mod tests {
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon=0.02);
         // absent
         assert_relative_eq!(p_absent.exp(), 1.0, epsilon=0.02);
-    }
-
-    #[test]
-    fn test_example1() {
-        let variant = Variant::Insertion(b"AC".to_vec());
-        let case_obs = vec![Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0025150465111820103), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031672882261573254), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.507675873696745), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.007974998278512672), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_one(), prob_ref: LogProb::ln_zero(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0031723009285603327), prob_alt: LogProb(-111.18254428986242), prob_ref: LogProb(-109.23587762319576), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.003994511005101995), prob_alt: LogProb(-113.14698873430689), prob_ref: LogProb(-111.18254428986242), prob_mismapped: LogProb::ln_one() }];
-        let control_obs = vec![Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.0010005003335835337), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(), prob_mapping: LogProb(-0.00025122019630215495), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0001585018800054507), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0006311564818346603), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.00000000010000000000499996), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.0005013128699288086), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }, Observation { evidence: Evidence::dummy_alignment(),prob_mapping: LogProb(-0.003989017266406586), prob_alt: LogProb::ln_zero(), prob_ref: LogProb::ln_one(), prob_mismapped: LogProb::ln_one() }];
-
-        let insert_size = InsertSize{ mean: 112.0, sd: 15.0 };
-        let prior_model = priors::TumorNormalModel::new(2, 40000.0, 0.5, 0.5, 3e9 as u64, Prob(1.25E-4));
-        let case_sample = Sample::new(
-            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
-            true,
-            false,
-            insert_size,
-            LatentVariableModel::new(0.75),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            20,
-            10
-        );
-        let control_sample = Sample::new(
-            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
-            true,
-            false,
-            insert_size,
-            LatentVariableModel::new(1.0),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            20,
-            10
-        );
-
-        let model = PairCaller::new(
-            case_sample,
-            control_sample,
-            prior_model
-        );
-
-        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
-        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
-        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.001 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
-
-        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
-
-        let p_absent = pileup.posterior_prob(&tumor_ref, &normal_ref);
-        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
-        println!("{} {} {}", p_absent.exp(), p_somatic.exp(), p_germline.exp());
-
-        assert!(p_somatic.exp() > 0.9);
-        assert!(p_somatic > p_germline);
-        assert!(p_somatic > p_absent);
-    }
-
-    fn recode_evidence(string: String) -> Evidence {
-        match &*string.to_string() {
-            "Alignment" => Evidence::Alignment(string),
-            _ => Evidence::InsertSize(string)
-        }
-    }
-
-    #[derive(Debug, Deserialize)]
-    struct Row {
-        chrom: String,
-        pos: u32,
-        allele: u32,
-        sample: String,
-        prob_mapping: LogProb,
-        prob_alt: LogProb,
-        prob_ref: LogProb,
-        prob_mismapped: LogProb,
-        evidence: String
-    }
-
-    fn setup_example(path: &str, deletion_factor: f64, insertion_factor: f64) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel>) {
-        let mut reader = csv::ReaderBuilder::new().has_headers(true).delimiter(b'\t').from_path(path).expect("error reading example");
-        let mut case_obs = vec![];
-        let mut control_obs = vec![];
-        for row in reader.deserialize() {
-            let record: Row = row.unwrap();
-            let ev = recode_evidence(record.evidence);
-            let obs = Observation {
-                prob_mapping: record.prob_mapping,
-                prob_alt: record.prob_alt,
-                prob_ref: record.prob_ref,
-                prob_mismapped: record.prob_mismapped,
-                evidence: ev
-            };
-            match &*record.sample.to_string() {
-                "case" => case_obs.push(obs),
-                "control" => control_obs.push(obs),
-                _ => panic!("unknown sample type: neither case nor control")
-            }
-        }
-
-        let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
-        let case_sample = Sample::new(
-            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
-            true,
-            false,
-            insert_size,
-            LatentVariableModel::new(0.75),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            20,
-            10
-        );
-        let control_sample = Sample::new(
-            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
-            true,
-            false,
-            insert_size,
-            LatentVariableModel::new(1.0),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            20,
-            10
-        );
-
-
-        let prior_model = priors::TumorNormalModel::new(2, 40000.0, deletion_factor, insertion_factor, 3e9 as u64, Prob(1.25E-4));
-        let model = PairCaller::new(
-            case_sample,
-            control_sample,
-            prior_model
-        );
-
-        (case_obs, control_obs, model)
-    }
-
-    #[allow(dead_code)]
-    fn setup_example_flat(path: &str) -> (Vec<Observation>, Vec<Observation>, PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::FlatTumorNormalModel>) {
-        let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(path).expect("error reading example");
-        let mut case_obs = vec![];
-        let mut control_obs = vec![];
-        for row in reader.deserialize() {
-            let record: Row = row.unwrap();
-            let ev = recode_evidence(record.evidence);
-            let obs = Observation {
-                prob_mapping: record.prob_mapping,
-                prob_alt: record.prob_alt,
-                prob_ref: record.prob_ref,
-                prob_mismapped: record.prob_mismapped,
-                evidence: ev
-            };
-            match &*record.sample.to_string() {
-                "case" => case_obs.push(obs),
-                "control" => control_obs.push(obs),
-                _ => panic!("unknown sample type: neither case nor control")
-            }
-        }
-
-        let insert_size = InsertSize{ mean: 312.0, sd: 15.0 };
-        let case_sample = Sample::new(
-            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
-            true,
-            false,
-            insert_size,
-            LatentVariableModel::new(0.75),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            20,
-            10
-        );
-        let control_sample = Sample::new(
-            bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
-            true,
-            false,
-            insert_size,
-            LatentVariableModel::new(1.0),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            20,
-            10
-        );
-
-
-        let prior_model = priors::FlatTumorNormalModel::new(2);
-        let model = PairCaller::new(
-            case_sample,
-            control_sample,
-            prior_model
-        );
-
-        (case_obs, control_obs, model)
-    }
-
-    /// Test example where variant is subclonal and mapping quality is good
-    #[test]
-    fn test_example2() {
-        let (case_obs, control_obs, model) = setup_example("tests/example2.obs.txt", 0.01, 0.03);
-        println!("{:?}", case_obs);
-
-        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
-        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
-
-        let variant = Variant::Insertion(b"CTAT".to_vec());
-        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
-
-        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
-        let (af_case, _) = pileup.map_allele_freqs();
-        println!("{} {}", p_somatic.exp(), p_germline.exp());
-
-        assert!(p_somatic > p_germline);
-        assert_relative_eq!(*af_case, 0.1, epsilon = 0.01);
-    }
-
-    /// Test example where variant is subclonal, but mapping quality is too bad
-    #[test]
-    fn test_example3() {
-        let (case_obs, control_obs, model) = setup_example("tests/example3.obs.txt", 0.01, 0.03);
-
-        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
-        let tumor_alt = ContinuousAlleleFreqs::inclusive( 0.05..1.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
-
-        let variant = Variant::Insertion(b"C".to_vec());
-        let pileup = PairPileup::new(case_obs, control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
-
-        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
-        let (af_case, af_control) = pileup.map_allele_freqs();
-        println!("{} {} {} {}", p_somatic.exp(), p_germline.exp(), af_case, af_control);
-        assert!(p_somatic >= p_germline);
-        assert!(*af_case <= 0.1);
-        assert_relative_eq!(*af_control, 0.0);
-    }
-
-    /// Test example where variant is subclonal, but mapping quality is too bad
-    #[test]
-    fn test_example4() {
-        let (case_obs, control_obs, model) = setup_example("tests/example4.obs.txt", 0.5, 0.5);
-        /*for obs in case_obs.iter_mut() {
-            obs.prob_mapping = LogProb(0.999f64.ln());
-        }*/
-
-        let tumor_all = ContinuousAlleleFreqs::inclusive( 0.0..1.0 );
-        let tumor_alt = ContinuousAlleleFreqs::left_exclusive( 0.0..1.0 );
-        let tumor_ref = ContinuousAlleleFreqs::inclusive( 0.0..0.0 );
-        let normal_alt = vec![AlleleFreq(0.5), AlleleFreq(1.0)];
-        let normal_ref = vec![AlleleFreq(0.0)];
-        //let lh = model.case_sample().likelihood_model().likelihood_pileup(&case_obs[..100], 0.07, 0.0);
-        let variant = Variant::Insertion(b"C".to_vec());
-        /*let p_absent = model.joint_prob(&case_obs, &control_obs, &tumor_ref, &normal_ref, variant);
-        let p_somatic = model.joint_prob(&case_obs, &control_obs, &tumor_alt, &normal_ref, variant);
-        let p_germline = model.joint_prob(&case_obs, &control_obs, &tumor_all, &normal_alt, variant);
-        let p_marginal = model.marginal_prob(&case_obs, &control_obs, variant);
-        let norm = LogProb::ln_sum_exp(&[p_absent, p_somatic, p_germline]);
-
-        println!("marginal={:e}, absent={}, somatic={}, germline={:e}, sum={:e}", p_marginal.exp(), (p_absent - norm).exp(), (p_somatic - norm).exp(), (p_germline - norm).exp(), norm.exp());
-        assert!(false);*/
-
-        let pileup = PairPileup::new(case_obs.to_owned(), control_obs, variant, &model.prior_model, model.case_sample.borrow().likelihood_model(), model.control_sample.borrow().likelihood_model());
-
-        let p_somatic = pileup.posterior_prob(&tumor_alt, &normal_ref);
-        let p_germline = pileup.posterior_prob(&tumor_all, &normal_alt);
-        let p_absent = pileup.posterior_prob(&tumor_ref, &normal_ref);
-        let (af_case, af_control) = pileup.map_allele_freqs();
-        println!("{} {} {} {} {}", p_somatic.exp(), p_germline.exp(), p_absent.exp(), af_case, af_control);
-        assert!(p_somatic >= p_germline);
-        assert!(*af_case <= 0.1);
-        assert_relative_eq!(*af_control, 0.0);
     }
 }

@@ -23,6 +23,8 @@ extern crate csv;
 #[macro_use]
 extern crate lazy_static;
 extern crate statrs;
+extern crate vec_map;
+extern crate regex;
 
 #[cfg(feature="flame_it")]
 extern crate flame;
@@ -38,8 +40,6 @@ pub use model::sample::Sample;
 pub use model::likelihood;
 pub use model::priors;
 pub use model::sample::InsertSize;
-
-use std::ascii::AsciiExt;
 
 
 quick_error! {

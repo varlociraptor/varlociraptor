@@ -8,9 +8,9 @@ readme = "README.md"
 license = "GPL-3.0"
 
 [dependencies]
-bio = "0.16"
+bio = { git="https://github.com/rust-bio/rust-bio.git", branch="master" } # "0.14"
 log = "0.3.*"
-rust-htslib = "0.16"
+rust-htslib = { git="https://github.com/rust-bio/rust-htslib.git", branch="master" } # "0.16"
 GSL = "0.4.*"
 itertools = "0.6"
 itertools-num = "0.1.*"
@@ -21,6 +21,8 @@ ndarray = "0.6"
 flame = { version = "^0.1.2", optional = true }
 flamer = { version = "^0.1.2", optional = true }
 quick-error = "1.2"
+vec_map = "0.8"
+regex = "0.2"
 
 serde = "1"
 serde_derive = "1"

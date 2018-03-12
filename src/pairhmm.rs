@@ -32,7 +32,7 @@ pub trait StartEndGapParameters {
         if self.free_start_gap_x() {
             LogProb::ln_one()
         } else {
-            /// For global alignment, this has to return 0.0.
+            // For global alignment, this has to return 0.0.
             LogProb::ln_zero()
         }
     }
@@ -208,15 +208,6 @@ mod tests {
     use super::*;
     use bio::stats::{Prob, LogProb};
     use constants;
-
-
-    fn prob_emit_xy(x: &[u8], y: &[u8], i: usize, j: usize) -> LogProb {
-        if x[i] == y[j] {
-            LogProb::from(Prob(1.0) - constants::PROB_ILLUMINA_SUBST)
-        } else {
-            LogProb::from(constants::PROB_ILLUMINA_SUBST / Prob(3.0))
-        }
-    }
 
     fn prob_emit_x_or_y() -> LogProb {
         LogProb::from(Prob(1.0) - constants::PROB_ILLUMINA_SUBST)

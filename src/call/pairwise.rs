@@ -14,7 +14,6 @@ use bio::io::fasta;
 use model::AlleleFreqs;
 use model::priors;
 use model::PairCaller;
-use model::sample::Evidence;
 use model;
 use Event;
 use utils;
@@ -148,7 +147,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
         // write header for observations
         writer.write_record(
             ["chrom", "pos", "allele", "sample", "prob_mapping",
-            "prob_alt", "prob_ref", "prob_mismapped", "evidence"].iter()
+            "prob_alt", "prob_ref", "prob_sample_alt", "evidence"].iter()
         )?;
         Some(writer)
     } else { None };
@@ -164,6 +163,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
             }
         }
         i += 1;
+        debug!("processing record {}.", i);
 
         // translate to header of the writer
         outbcf.translate(&mut record);
@@ -194,9 +194,9 @@ pub fn call<A, B, P, M, R, W, X, F>(
             for (i, event) in events.iter().enumerate() {
                 for (j, pileup) in pileups.iter().enumerate() {
                     let p = if let &Some(ref pileup) = pileup {
-                        // TODO use joint probability instead of posterior since we do the
-                        // normalization below.
-                        Some(pileup.posterior_prob(&event.af_case, &event.af_control))
+                        // use joint probability instead of posterior since we do the
+                        // normalization below, turning joint probabilities into posteriors.
+                        Some(pileup.joint_prob(&event.af_case, &event.af_control))
                     } else {
                         // indicate missing value
                         None
@@ -204,10 +204,6 @@ pub fn call<A, B, P, M, R, W, X, F>(
 
                     posterior_probs[(i, j)] = p;
                 }
-                try!(record.push_info_float(
-                    event.tag_name("PROB").as_bytes(),
-                    &phred_scale(posterior_probs.row(i).iter())
-                ));
             }
 
             for (j, pileup) in pileups.iter().enumerate() {

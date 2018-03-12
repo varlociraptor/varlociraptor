@@ -2,13 +2,6 @@ language: rust
 
 rust:
   - stable
-  - beta
-  - nightly
-
-matrix:
-  allow_failures:
-    - rust: nightly
-    - rust: beta
 
 cache: cargo
 
@@ -28,13 +21,13 @@ addons:
       - kalakris-cmake
 
 before_script:
-  - cargo install --force cargo-travis
+  - which cargo-coveralls || cargo install cargo-travis
   - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
   - |
       cargo build &&
-      cargo test
+      cargo test -- --test-threads=1
 
 after_success:
   - cargo coveralls
