@@ -27,7 +27,7 @@ before_script:
 script:
   - |
       cargo build &&
-      cargo test --test-threads=1
+      cargo test -- --test-threads=1
 
 after_success:
   - cargo coveralls
