@@ -241,9 +241,9 @@ impl IndelEvidence {
     pub fn prob_sample_alt(
         &self,
         read_len: u32,
-        enclosing_possible: bool,
         variant: &Variant
     ) -> ProbSampleAlt {
+        // TODO for long reads, always return One
         let delta = match variant {
             &Variant::Deletion(_)  => variant.len() as u32,
             &Variant::Insertion(_) => variant.len() as u32,
@@ -258,11 +258,7 @@ impl IndelEvidence {
             LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
         };
 
-        if !enclosing_possible {
-            ProbSampleAlt::Dependent((0..read_len + 1).map(&prob).collect_vec())
-        } else {
-            ProbSampleAlt::Independent(prob(read_len))
-        }
+        ProbSampleAlt::Dependent((0..read_len + 1).map(&prob).collect_vec())
     }
 }
 

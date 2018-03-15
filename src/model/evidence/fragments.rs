@@ -152,7 +152,6 @@ impl IndelEvidence {
         &self,
         left_read_len: u32,
         right_read_len: u32,
-        enclosing_possible: bool,
         variant: &Variant
     ) -> ProbSampleAlt {
         let expected_prob_enclose = |max_softclip, delta| {
@@ -188,38 +187,26 @@ impl IndelEvidence {
             LogProb((n_alt_valid as f64).ln() - ((n_alt_left + n_alt_right) as f64).ln())
         };
 
-        let max_softclip = cmp::max(left_read_len, right_read_len);
+        let max_feasible = cmp::max(left_read_len, right_read_len);
 
         match variant {
             &Variant::Deletion(_)  => {
                 // Deletion length does not affect sampling because the reads come from the allele
                 // where the deleted sequence is not present ;-).
                 let delta = 0;
-                if enclosing_possible {
-                    ProbSampleAlt::Independent(
-                        expected_prob_enclose(max_softclip, delta)
-                    )
-                } else {
-                    ProbSampleAlt::Dependent(
-                        (0..max_softclip + 1).map(
-                            |s| expected_prob_enclose(s, delta)
-                        ).collect_vec()
-                    )
-                }
+                ProbSampleAlt::Dependent(
+                    (0..max_feasible + 1).map(
+                        |s| expected_prob_enclose(s, delta)
+                    ).collect_vec()
+                )
             },
             &Variant::Insertion(ref seq) => {
                 let delta = seq.len() as u32;
-                if enclosing_possible {
-                    ProbSampleAlt::Independent(
-                        expected_prob_overlap(max_softclip, delta)
-                    )
-                } else {
-                    ProbSampleAlt::Dependent(
-                        (0..max_softclip + 1).map(
-                            |s| expected_prob_overlap(s, delta)
-                        ).collect_vec()
-                    )
-                }
+                ProbSampleAlt::Dependent(
+                    (0..max_feasible + 1).map(
+                        |s| expected_prob_overlap(s, delta)
+                    ).collect_vec()
+                )
             },
             // for SNVs sampling is unbiased
             &Variant::SNV(_) | &Variant::None => return ProbSampleAlt::One

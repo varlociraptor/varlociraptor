@@ -271,7 +271,7 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
     /// # Returns
     /// The `SinglePileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<SinglePileup<A, P>, Box<Error>> {
-        let mut common_obs = observation::Common::new(&variant);
+        let mut common_obs = observation::Common::default();
         self.sample.borrow_mut().extract_common_observations(
             chrom, start, &variant, &mut common_obs
         )?;
@@ -412,7 +412,7 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
     /// # Returns
     /// The `PairPileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<PairPileup<A, B, P>, Box<Error>> {
-        let mut common_obs = observation::Common::new(&variant);
+        let mut common_obs = observation::Common::default();
         self.case_sample.borrow_mut().extract_common_observations(
             chrom, start, &variant, &mut common_obs
         )?;
@@ -615,13 +615,9 @@ mod tests {
     }
 
     pub fn common_observation() -> observation::Common {
-        observation::Common {
-            leading_softclip_obs: None,
-            trailing_softclip_obs: None,
-            softclip_coverage: None,
-            enclosing_possible: true,
-            max_read_len: 100
-        }
+        let mut c = observation::Common::default();
+        c.max_read_len = 100;
+        c
     }
 
     pub fn observation(
