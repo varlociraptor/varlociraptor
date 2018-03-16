@@ -95,6 +95,14 @@ impl ProbSampleAlt {
             &ProbSampleAlt::One => LogProb::ln_one(),
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
+                // TODO move to common obs, calculate likelihoods only once
+
+                if common_obs.total_indel_count() == 1 {
+                    // we have only one indel. Since we cannot infer a distribution from this,
+                    // we assume that all positions are feasible.
+                    return *probs.iter().last().unwrap();
+                }
+
                 let read_len = probs.len() - 1;
 
                 let feasible_range = || 0..read_len as u32 + 1;
@@ -123,10 +131,14 @@ impl ProbSampleAlt {
                                 |pos| common_obs.indel_count(pos),
                                 feasible_range()
                             );
-
-                            let f = (end - start) as usize;
+                            //println!("{}-{}: {:?}", start, end, lh);
                             for max_softclip in feasible_range() {
-                                let f = cmp::min(read_len, f + max_softclip as usize);
+                                let infeasible = start.saturating_sub(
+                                    max_softclip
+                                ) + (read_len as u32).saturating_sub(
+                                    max_softclip
+                                ).saturating_sub(end);
+                                let f = read_len.saturating_sub(infeasible as usize);
                                 likelihoods[f] = likelihoods[f].ln_add_exp(
                                     lh + likelihood_softclip[max_softclip as usize]
                                 );
@@ -362,6 +374,10 @@ impl Common {
     pub fn not_enough_softclips(&self) -> bool {
         self.leading_softclip_obs.as_ref().unwrap().total_count() < 2 ||
         self.trailing_softclip_obs.as_ref().unwrap().total_count() < 2
+    }
+
+    pub fn total_indel_count(&self) -> u32 {
+        self.indel_obs.as_ref().unwrap().total_count()
     }
 
     pub fn max_softclip(&self) -> u32 {
