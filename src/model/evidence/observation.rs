@@ -95,38 +95,48 @@ impl ProbSampleAlt {
             &ProbSampleAlt::One => LogProb::ln_one(),
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
-                let read_len = probs.len();
-                if common_obs.not_enough_softclips() {
+                let read_len = probs.len() - 1;
+
+                let feasible_range = || 0..read_len as u32 + 1;
+
+                let likelihood_softclip = if !common_obs.not_enough_softclips() {
+                    let softclip_cov = common_obs.softclip_coverage.unwrap();
+                    feasible_range().map(|max_softclip| {
+                        Self::likelihood_feasible(|s| s <= max_softclip, softclip_cov, |s| common_obs.softclip_count(s), feasible_range())
+                    }).collect_vec()
+                } else {
                     // Not enough softclips observed.
                     // We take the maximum observed softclip as the true maximum.
                     let s = common_obs.max_softclip() as usize;
-                    return probs[cmp::min(read_len - 1, s)];
-                }
+                    let mut likelihoods = vec![LogProb::ln_zero(); read_len + 1];
+                    likelihoods[cmp::min(read_len - 1, s)] = LogProb::ln_one();
+                    likelihoods
+                };
 
-                let feasible_range = || 0..read_len as u32;
-                let softclip_cov = common_obs.softclip_coverage.unwrap();
-                let indel_cov = common_obs.indel_coverage.unwrap();
+                let likelihoods = if let Some(indel_cov) = common_obs.indel_coverage {
+                    let mut likelihoods = vec![LogProb::ln_zero(); read_len + 1];
+                    for start in 0..common_obs.min_indel_pos() {
+                        for end in cmp::max(start, common_obs.max_indel_pos())..read_len as u32 {
+                            let lh = Self::likelihood_feasible(
+                                |pos| pos >= start && pos < end,
+                                indel_cov,
+                                |pos| common_obs.indel_count(pos),
+                                feasible_range()
+                            );
 
-                let likelihood_softclip = feasible_range().map(|max_softclip| {
-                    Self::likelihood_feasible(|s| s <= max_softclip, softclip_cov, |s| common_obs.softclip_count(s), feasible_range())
-                }).collect_vec();
-                let mut likelihoods = vec![LogProb::ln_zero(); read_len];
-                for start in feasible_range() {
-                    for end in start..read_len as u32 {
-                        let lh = Self::likelihood_feasible(
-                            |pos| pos >= start && pos < end,
-                            indel_cov,
-                            |pos| common_obs.indel_count(pos),
-                            feasible_range()
-                        );
-                        let f = (end - start) as usize;
-                        for max_softclip in 0..read_len {
-                            likelihoods[
-                                cmp::min(read_len, f + max_softclip)
-                            ] = lh + likelihood_softclip[max_softclip];
+                            let f = (end - start) as usize;
+                            for max_softclip in feasible_range() {
+                                let f = cmp::min(read_len, f + max_softclip as usize);
+                                likelihoods[f] = likelihoods[f].ln_add_exp(
+                                    lh + likelihood_softclip[max_softclip as usize]
+                                );
+                            }
                         }
                     }
-                }
+                    likelihoods
+                } else {
+                    likelihood_softclip
+                };
 
                 // calculate joint probability to sample alt allele given the feasible position
                 // distribution
@@ -359,6 +369,14 @@ impl Common {
             self.leading_softclip_obs.as_ref().unwrap().max_observation().unwrap_or(0),
             self.trailing_softclip_obs.as_ref().unwrap().max_observation().unwrap_or(0)
         )
+    }
+
+    pub fn min_indel_pos(&self) -> u32 {
+        self.indel_obs.as_ref().unwrap().start.unwrap()
+    }
+
+    pub fn max_indel_pos(&self) -> u32 {
+        self.indel_obs.as_ref().unwrap().end.unwrap()
     }
 
     /// Update common observation with new reads.
