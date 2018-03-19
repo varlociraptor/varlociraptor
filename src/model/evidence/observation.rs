@@ -34,26 +34,6 @@ pub enum ProbSampleAlt {
 
 impl ProbSampleAlt {
 
-    fn likelihood_feasible<V: Fn(u32) -> bool, C: Fn(u32) -> u32>(
-        is_valid: V, varcov: f64, count: C, feasible_range: Range<u32>
-    ) -> LogProb {
-        let mut lh = LogProb::ln_one();
-        for s in feasible_range {
-            //let count = common_obs.softclip_count(s);
-            let count = count(s);
-            //let mu = if s <= max_softclip { varcov } else { 0.0 };
-            let mu = if is_valid(s) { varcov } else { 0.0 };
-            lh += poisson_pmf(count, mu);
-            if lh == LogProb::ln_zero() {
-                // stop early if we reach probability zero
-                break;
-            }
-        }
-        assert!(lh.is_valid());
-
-        lh
-    }
-
     /// Calculate probability to sample reads from alt allele.
     /// For SNVs this is always 1.0.
     /// Otherwise, this has two components.
@@ -95,7 +75,6 @@ impl ProbSampleAlt {
             &ProbSampleAlt::One => LogProb::ln_one(),
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
-                // TODO move to common obs, calculate likelihoods only once
 
                 if common_obs.total_indel_count() == 1 {
                     // we have only one indel. Since we cannot infer a distribution from this,
@@ -103,65 +82,13 @@ impl ProbSampleAlt {
                     return *probs.iter().last().unwrap();
                 }
 
-                let read_len = probs.len() - 1;
-
-                let feasible_range = || 0..read_len as u32 + 1;
-
-                let likelihood_softclip = if !common_obs.not_enough_softclips() {
-                    let softclip_cov = common_obs.softclip_coverage.unwrap();
-                    feasible_range().map(|max_softclip| {
-                        Self::likelihood_feasible(|s| s <= max_softclip, softclip_cov, |s| common_obs.softclip_count(s), feasible_range())
-                    }).collect_vec()
-                } else {
-                    // Not enough softclips observed.
-                    // We take the maximum observed softclip as the true maximum.
-                    let s = common_obs.max_softclip() as usize;
-                    let mut likelihoods = vec![LogProb::ln_zero(); read_len + 1];
-                    likelihoods[cmp::min(read_len - 1, s)] = LogProb::ln_one();
-                    likelihoods
-                };
-
-                let likelihoods = if let Some(indel_cov) = common_obs.indel_coverage {
-                    let mut likelihoods = vec![LogProb::ln_zero(); read_len + 1];
-                    for start in 0..common_obs.min_indel_pos() {
-                        for end in cmp::max(start, common_obs.max_indel_pos())..read_len as u32 {
-                            let lh = Self::likelihood_feasible(
-                                |pos| pos >= start && pos < end,
-                                indel_cov,
-                                |pos| common_obs.indel_count(pos),
-                                feasible_range()
-                            );
-                            //println!("{}-{}: {:?}", start, end, lh);
-                            for max_softclip in feasible_range() {
-                                let infeasible = start.saturating_sub(
-                                    max_softclip
-                                ) + (read_len as u32).saturating_sub(
-                                    max_softclip
-                                ).saturating_sub(end);
-                                let f = read_len.saturating_sub(infeasible as usize);
-                                likelihoods[f] = likelihoods[f].ln_add_exp(
-                                    lh + likelihood_softclip[max_softclip as usize]
-                                );
-                            }
-                        }
-                    }
-                    likelihoods
-                } else {
-                    likelihood_softclip
-                };
-
-                // calculate joint probability to sample alt allele given the feasible position
-                // distribution
-                let marginal = LogProb::ln_sum_exp(&likelihoods);
-                assert!(!marginal.is_nan());
-                assert!(marginal != LogProb::ln_zero(), "bug: marginal softclip dist prob of zero");
+                let prob_feasible = common_obs.prob_feasible.as_ref().unwrap();
 
                 let p = LogProb::ln_sum_exp(&probs.iter().enumerate().map(
                     |(feasible, prob_sample_alt)| {
-                        // posterior probability for maximum softclip s
-                        let prob_feasible = likelihoods[feasible as usize] - marginal;
-                        // probability to sample from alt allele with this maximum softclip
-                        prob_feasible + prob_sample_alt
+                        // probability to sample from alt allele with this number of feasible
+                        // positions
+                        prob_feasible[feasible as usize] + prob_sample_alt
                     }
                 ).collect_vec()).cap_numerical_overshoot(NUMERICAL_EPSILON);
                 assert!(p.is_valid(), "invalid probability {:?}", p);
@@ -357,7 +284,8 @@ pub struct Common {
     /// Average number of reads starting at any position in the region.
     pub softclip_coverage: Option<f64>,
     pub indel_coverage: Option<f64>,
-    pub max_read_len: u32
+    pub max_read_len: u32,
+    prob_feasible: Option<Vec<LogProb>>
 }
 
 
@@ -494,5 +422,87 @@ impl Common {
         }
 
         Ok(())
+    }
+
+    pub fn finalize(&mut self) {
+        if self.softclip_coverage.is_none() && self.indel_coverage.is_none() {
+            let mut prob_feasible = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
+            prob_feasible[0] = LogProb::ln_one();
+            self.prob_feasible = Some(prob_feasible);
+            return;
+        }
+
+        let likelihoods = {
+            let feasible_range = || 0..self.max_read_len as u32 + 1;
+
+            let likelihood_softclip = if !self.not_enough_softclips() {
+                let softclip_cov = self.softclip_coverage.unwrap();
+                feasible_range().map(|max_softclip| {
+                    Self::likelihood_feasible(|s| s <= max_softclip, softclip_cov, |s| self.softclip_count(s), feasible_range())
+                }).collect_vec()
+            } else {
+                // Not enough softclips observed.
+                // We take the maximum observed softclip as the true maximum.
+                let s = self.max_softclip() as usize;
+                let mut likelihoods = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
+                likelihoods[s] = LogProb::ln_one();
+                likelihoods
+            };
+
+            if let Some(indel_cov) = self.indel_coverage {
+                let mut likelihoods = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
+                for start in 0..self.min_indel_pos() {
+                    for end in cmp::max(start, self.max_indel_pos())..self.max_read_len as u32 {
+                        let lh = Self::likelihood_feasible(
+                            |pos| pos >= start && pos < end,
+                            indel_cov,
+                            |pos| self.indel_count(pos),
+                            feasible_range()
+                        );
+                        for max_softclip in feasible_range() {
+                            let infeasible = start.saturating_sub(
+                                max_softclip
+                            ) + (self.max_read_len as u32).saturating_sub(
+                                max_softclip
+                            ).saturating_sub(end);
+                            let f = (self.max_read_len as usize).saturating_sub(infeasible as usize);
+                            likelihoods[f] = likelihoods[f].ln_add_exp(
+                                lh + likelihood_softclip[max_softclip as usize]
+                            );
+                        }
+                    }
+                }
+                likelihoods
+            } else {
+                likelihood_softclip
+            }
+        };
+        // calculate joint probability to sample alt allele given the feasible position
+        // distribution
+        let marginal = LogProb::ln_sum_exp(&likelihoods);
+        assert!(!marginal.is_nan());
+        assert!(marginal != LogProb::ln_zero(), "bug: marginal softclip dist prob of zero");
+
+        self.prob_feasible = Some(likelihoods.iter().map(|lh| lh - marginal).collect_vec());
+    }
+
+    fn likelihood_feasible<V: Fn(u32) -> bool, C: Fn(u32) -> u32>(
+        is_valid: V, varcov: f64, count: C, feasible_range: Range<u32>
+    ) -> LogProb {
+        let mut lh = LogProb::ln_one();
+        for s in feasible_range {
+            //let count = common_obs.softclip_count(s);
+            let count = count(s);
+            //let mu = if s <= max_softclip { varcov } else { 0.0 };
+            let mu = if is_valid(s) { varcov } else { 0.0 };
+            lh += poisson_pmf(count, mu);
+            if lh == LogProb::ln_zero() {
+                // stop early if we reach probability zero
+                break;
+            }
+        }
+        assert!(lh.is_valid());
+
+        lh
     }
 }

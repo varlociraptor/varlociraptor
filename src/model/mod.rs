@@ -275,6 +275,8 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
         self.sample.borrow_mut().extract_common_observations(
             chrom, start, &variant, &mut common_obs
         )?;
+        common_obs.finalize();
+
         let pileup = self.sample.borrow_mut().extract_observations(
             chrom, start, &variant, chrom, chrom_seq, &common_obs
         )?;
@@ -419,6 +421,7 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
         self.control_sample.borrow_mut().extract_common_observations(
             chrom, start, &variant, &mut common_obs
         )?;
+        common_obs.finalize();
 
         debug!("Case pileup");
         let case_pileup = self.case_sample.borrow_mut().extract_observations(
