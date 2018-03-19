@@ -2,6 +2,7 @@ use std::str;
 use std::error::Error;
 use std::cmp;
 use std::ops::Range;
+use std::f64;
 
 use vec_map::VecMap;
 use serde::Serialize;
@@ -252,7 +253,8 @@ impl CigarObservation {
     }
 
     pub fn interval_len(&self) ->  u32 {
-        self.end.map_or(0, |e| e - self.start.unwrap())
+        // we have to add 1 to the end position in order to get the correct length.
+        self.end.map_or(0, |e| (e + 1) - self.start.unwrap())
     }
 
     pub fn total_count(&self) -> u32 {
@@ -495,6 +497,7 @@ impl Common {
             let count = count(s);
             //let mu = if s <= max_softclip { varcov } else { 0.0 };
             let mu = if is_valid(s) { varcov } else { 0.0 };
+            assert!(mu != f64::INFINITY);
             lh += poisson_pmf(count, mu);
             if lh == LogProb::ln_zero() {
                 // stop early if we reach probability zero

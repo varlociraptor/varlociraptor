@@ -587,12 +587,11 @@ fn test22() {
     //check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
 }
 
-
 #[test]
 fn test23() {
     call_tumor_normal("test23", false, "chr14");
     let mut call = load_call("test23");
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.6, 0.01); // weak enough
+    assert!(false);
     //check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
 }
 
