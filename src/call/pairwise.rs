@@ -165,7 +165,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
         i += 1;
         if let Some(rid) = record.rid() {
             info!(
-                "processing record {}: {}:{}.", i,
+                "processing record {}: {}:{}", i,
                 str::from_utf8(inbcf.header().rid2name(rid))?,
                 record.pos() + 1
             );

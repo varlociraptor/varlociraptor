@@ -608,6 +608,17 @@ fn test24() {
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
 
+/// Test a small lancet deletion that is a clear germline variant.
+#[test]
+fn test25() {
+    call_tumor_normal("test25", false, "chr11");
+    let mut call = load_call("test25");
+    check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC", 624.47, 0.01);
+    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.01);
+}
+
 
 #[test]
 fn test_fdr_ev1() {

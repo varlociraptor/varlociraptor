@@ -382,17 +382,36 @@ impl Common {
                     // record indel operations
                     let mut qpos = 0;
                     for c in &cigar {
-                        match (c, variant) {
-                            (&Cigar::Del(l), &Variant::Deletion(m)) if l >= m => {
-                                indel_obs.insert(qpos, qpos);
+                        match c {
+                            &Cigar::Del(l) => {
+                                if let &Variant::Deletion(m) = variant {
+                                    if l >= m {
+                                        indel_obs.insert(qpos, qpos);
+                                    }
+                                }
+                                // do not increase qpos in case of a deletion
                             },
-                            (&Cigar::Ins(l), &Variant::Insertion(ref seq)) if l >= seq.len() as u32 => {
-                                indel_obs.insert(qpos, qpos);
+                            &Cigar::Ins(l) => {
+                                if let &Variant::Insertion(ref seq) = variant {
+                                    if l >= seq.len() as u32 {
+                                        indel_obs.insert(qpos, qpos);
+                                    }
+                                }
+                                qpos += l;
                             },
-                            _ => ()
+                            &Cigar::SoftClip(l) | &Cigar::Match(l) | &Cigar::Equal(l) |
+                            &Cigar::Diff(l) | &Cigar::Pad(l) => {
+                                qpos += l;
+                            },
+                            &Cigar::RefSkip(_) | &Cigar::HardClip(_) => {
+                                // do nothing
+                            }
                         }
 
-                        qpos += c.len();
+                        assert!(
+                            qpos <= rec.seq().len() as u32,
+                            format!("bug: qpos larger than read len ({})", cigar)
+                        );
                     }
                 }
 
