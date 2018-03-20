@@ -450,10 +450,8 @@ impl Common {
                 likelihoods[s] = LogProb::ln_one();
                 likelihoods
             };
-            println!("lhs {:?}", likelihood_softclip);
 
             if let Some(indel_cov) = self.indel_coverage {
-                println!("{:?} {} {}", self.indel_obs, self.max_indel_pos(), self.min_indel_pos());
                 let mut likelihoods = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
                 for start in 0..self.min_indel_pos() + 1 {
                     for end in self.max_indel_pos()..self.max_read_len as u32 + 1 {
@@ -463,7 +461,6 @@ impl Common {
                             |pos| self.indel_count(pos),
                             feasible_range()
                         );
-                        println!("lh {}-{}: {:?}", start, end, lh);
                         for max_softclip in feasible_range() {
                             let infeasible = start.saturating_sub(
                                 max_softclip
@@ -483,8 +480,6 @@ impl Common {
                 likelihood_softclip
             }
         };
-
-        println!("lhs {:?}", likelihoods);
 
         // calculate joint probability to sample alt allele given the feasible position
         // distribution

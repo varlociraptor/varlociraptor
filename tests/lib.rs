@@ -424,7 +424,7 @@ fn test7() {
     call_tumor_normal("test7", false, "chr1");
     let mut call = load_call("test7");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
+    check_info_float(&mut call, b"CASE_AF", 0.125, 0.12);
     check_info_float(&mut call, b"PROB_SOMATIC", 0.71, 0.01);
     check_info_float(&mut call, b"PROB_GERMLINE", 9.88, 0.01);
 }
