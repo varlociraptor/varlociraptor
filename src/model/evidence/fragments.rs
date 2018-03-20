@@ -66,7 +66,6 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u
     // as defined by Torsten Seemann
     // (http://thegenomefactory.blogspot.nl/2013/08/paired-end-read-confusion-library.html)
     let inner_mate_distance = right_start as i32 - left_end as i32;
-    debug!("inner mate distance: {} {} {}", inner_mate_distance, right_start, left_end);
 
     let insert_size = inner_mate_distance +
                       (left_end - left_start) as i32 +
