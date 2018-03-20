@@ -450,17 +450,20 @@ impl Common {
                 likelihoods[s] = LogProb::ln_one();
                 likelihoods
             };
+            println!("lhs {:?}", likelihood_softclip);
 
             if let Some(indel_cov) = self.indel_coverage {
+                println!("{:?} {} {}", self.indel_obs, self.max_indel_pos(), self.min_indel_pos());
                 let mut likelihoods = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
-                for start in 0..self.min_indel_pos() {
-                    for end in cmp::max(start, self.max_indel_pos())..self.max_read_len as u32 {
+                for start in 0..self.min_indel_pos() + 1 {
+                    for end in self.max_indel_pos()..self.max_read_len as u32 + 1 {
                         let lh = Self::likelihood_feasible(
-                            |pos| pos >= start && pos < end,
+                            |pos| pos >= start && pos <= end,
                             indel_cov,
                             |pos| self.indel_count(pos),
                             feasible_range()
                         );
+                        println!("lh {}-{}: {:?}", start, end, lh);
                         for max_softclip in feasible_range() {
                             let infeasible = start.saturating_sub(
                                 max_softclip
@@ -468,6 +471,7 @@ impl Common {
                                 max_softclip
                             ).saturating_sub(end);
                             let f = (self.max_read_len as usize).saturating_sub(infeasible as usize);
+                            //let f = cmp::min(end - start + max_softclip, self.max_read_len) as usize;
                             likelihoods[f] = likelihoods[f].ln_add_exp(
                                 lh + likelihood_softclip[max_softclip as usize]
                             );
@@ -479,11 +483,14 @@ impl Common {
                 likelihood_softclip
             }
         };
+
+        println!("lhs {:?}", likelihoods);
+
         // calculate joint probability to sample alt allele given the feasible position
         // distribution
         let marginal = LogProb::ln_sum_exp(&likelihoods);
         assert!(!marginal.is_nan());
-        assert!(marginal != LogProb::ln_zero(), "bug: marginal softclip dist prob of zero");
+        assert!(marginal != LogProb::ln_zero(), "bug: marginal feasibility dist prob of zero");
 
         self.prob_feasible = Some(likelihoods.iter().map(|lh| lh - marginal).collect_vec());
     }

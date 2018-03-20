@@ -587,12 +587,25 @@ fn test22() {
     //check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
 }
 
+/// Test a manta deletion that is not somatic. Seems to be absent.
 #[test]
 fn test23() {
     call_tumor_normal("test23", false, "chr14");
     let mut call = load_call("test23");
-    assert!(false);
-    //check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_ABSENT", 3.65, 0.01);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+}
+
+/// Test a small strelka deletion. It is not somatic, and should be called as absent.
+#[test]
+fn test24() {
+    call_tumor_normal("test24", false, "chr6");
+    let mut call = load_call("test24");
+    check_info_float(&mut call, b"PROB_SOMATIC", 5.3, 0.01);
+    check_info_float(&mut call, b"PROB_ABSENT", 2.13, 0.01);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
 
 

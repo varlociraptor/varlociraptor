@@ -248,7 +248,6 @@ impl Sample {
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,
-        chrom: &[u8],
         start: u32,
         variant: &Variant,
         chrom_name: &[u8],
@@ -259,8 +258,6 @@ impl Sample {
 
         let mut observations = Vec::new();
         let mut candidate_records = HashMap::new();
-
-        debug!("variant: {}:{} {:?}", str::from_utf8(chrom).unwrap(), start, variant);
 
         match variant {
             //TODO: make &Variant::Ref add reads with position deleted if we want to check against indel alt alleles
