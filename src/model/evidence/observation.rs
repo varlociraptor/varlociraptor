@@ -3,8 +3,8 @@ use std::error::Error;
 use std::cmp;
 use std::ops::Range;
 use std::f64;
+use std::collections::BTreeMap;
 
-use vec_map::VecMap;
 use serde::Serialize;
 use serde::ser::{Serializer, SerializeStruct};
 use itertools::Itertools;
@@ -76,13 +76,6 @@ impl ProbSampleAlt {
             &ProbSampleAlt::One => LogProb::ln_one(),
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
-
-                if common_obs.total_indel_count() == 1 {
-                    // we have only one indel. Since we cannot infer a distribution from this,
-                    // we assume that all positions are feasible.
-                    return *probs.iter().last().unwrap();
-                }
-
                 let prob_feasible = common_obs.prob_feasible.as_ref().unwrap();
 
                 let p = LogProb::ln_sum_exp(&probs.iter().enumerate().map(
@@ -233,97 +226,68 @@ impl Evidence {
 }
 
 
-#[derive(Default, Clone, Debug)]
-pub struct CigarObservation {
-    counts: VecMap<u32>,
-    start: Option<u32>,
-    end: Option<u32>
-}
+// #[derive(Default, Clone, Debug)]
+// pub struct CigarObservation {
+//     counts: BTreeMap<u32, u32>,
+//     start: Option<u32>,
+//     end: Option<u32>
+// }
+//
+//
+// impl CigarObservation {
+//     pub fn insert(&mut self, pos: u32, observation: u32) {
+//         *self.counts.entry(observation).or_insert(0) += 1;
+//         self.start = Some(self.start.map_or(pos, |s| cmp::min(s, pos)));
+//         self.end = Some(self.end.map_or(pos, |e| cmp::max(e, pos)));
+//     }
+//
+//     pub fn count(&self, observation: u32) -> u32 {
+//         self.counts.get(observation).cloned().unwrap_or(0)
+//     }
+//
+//     pub fn interval_count(&self, interval: Range<u32>) -> u32 {
+//         self.counts.range(interval).map(|(_, count)| count).sum()
+//     }
+//
+//     pub fn interval_len(&self) ->  u32 {
+//         // we have to add 1 to the end position in order to get the correct length.
+//         self.end.map_or(0, |e| (e + 1) - self.start.unwrap())
+//     }
+//
+//     pub fn total_count(&self) -> u32 {
+//         self.counts.values().sum()
+//     }
+//
+//     pub fn is_empty(&self) -> bool {
+//         self.counts.is_empty()
+//     }
+//
+//     /// Maximum observation, zero if nothing observed.
+//     pub fn max_observation(&self) -> Option<u32> {
+//         self.counts.keys().last().map(|o| o as u32)
+//     }
+//
+//     /// Minimum observation, zero if nothing observed.
+//     pub fn min_observation(&self) -> Option<u32> {
+//         self.counts.keys().next().map(|o| o as u32)
+//     }
+// }
 
 
-impl CigarObservation {
-    pub fn insert(&mut self, pos: u32, observation: u32) {
-        *self.counts.entry(observation as usize).or_insert(0) += 1;
-        self.start = Some(self.start.map_or(pos, |s| cmp::min(s, pos)));
-        self.end = Some(self.end.map_or(pos, |e| cmp::max(e, pos)));
-    }
-
-    pub fn count(&self, observation: u32) -> u32 {
-        self.counts.get(observation as usize).cloned().unwrap_or(0)
-    }
-
-    pub fn interval_len(&self) ->  u32 {
-        // we have to add 1 to the end position in order to get the correct length.
-        self.end.map_or(0, |e| (e + 1) - self.start.unwrap())
-    }
-
-    pub fn total_count(&self) -> u32 {
-        self.counts.values().sum()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.counts.is_empty()
-    }
-
-    /// Maximum observation, zero if nothing observed.
-    pub fn max_observation(&self) -> Option<u32> {
-        self.counts.keys().last().map(|o| o as u32)
-    }
-
-    /// Minimum observation, zero if nothing observed.
-    pub fn min_observation(&self) -> Option<u32> {
-        self.counts.keys().next().map(|o| o as u32)
-    }
-}
+type CigarObservations = BTreeMap<u32, u32>;
 
 
 /// Data that is shared among all observations over a locus.
 #[derive(Clone, Debug, Default)]
 pub struct Common {
-    pub leading_softclip_obs: Option<CigarObservation>,
-    pub trailing_softclip_obs: Option<CigarObservation>,
-    pub indel_obs: Option<CigarObservation>,
-    /// Average number of reads starting at any position in the region.
-    pub softclip_coverage: Option<f64>,
-    pub indel_coverage: Option<f64>,
+    softclip_obs: BTreeMap<u32, u32>,
+    indel_obs: BTreeMap<u32, u32>,
     pub max_read_len: u32,
     prob_feasible: Option<Vec<LogProb>>
 }
 
 
 impl Common {
-    pub fn indel_count(&self, qpos: u32) -> u32 {
-        self.indel_obs.as_ref().unwrap().count(qpos)
-    }
-
-    pub fn softclip_count(&self, softclip: u32) -> u32 {
-        self.leading_softclip_obs.as_ref().unwrap().count(softclip) +
-        self.trailing_softclip_obs.as_ref().unwrap().count(softclip)
-    }
-
-    pub fn not_enough_softclips(&self) -> bool {
-        self.leading_softclip_obs.as_ref().unwrap().total_count() < 2 ||
-        self.trailing_softclip_obs.as_ref().unwrap().total_count() < 2
-    }
-
-    pub fn total_indel_count(&self) -> u32 {
-        self.indel_obs.as_ref().unwrap().total_count()
-    }
-
-    pub fn max_softclip(&self) -> u32 {
-        cmp::max(
-            self.leading_softclip_obs.as_ref().unwrap().max_observation().unwrap_or(0),
-            self.trailing_softclip_obs.as_ref().unwrap().max_observation().unwrap_or(0)
-        )
-    }
-
-    pub fn min_indel_pos(&self) -> u32 {
-        self.indel_obs.as_ref().unwrap().start.unwrap()
-    }
-
-    pub fn max_indel_pos(&self) -> u32 {
-        self.indel_obs.as_ref().unwrap().end.unwrap()
-    }
 
     /// Update common observation with new reads.
     pub fn update(
@@ -341,16 +305,6 @@ impl Common {
 
         match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
-                let leading_softclip_obs = self.leading_softclip_obs.get_or_insert_with(
-                    || CigarObservation::default()
-                );
-                let trailing_softclip_obs = self.trailing_softclip_obs.get_or_insert_with(
-                    || CigarObservation::default()
-                );
-                let indel_obs = self.indel_obs.get_or_insert_with(
-                    || CigarObservation::default()
-                );
-
                 for rec in valid_records() {
                     let cigar = rec.cigar();
 
@@ -365,18 +319,11 @@ impl Common {
                     // record softclips
                     let leading_soft = evidence::Clips::leading(&cigar).soft();
                     let trailing_soft = evidence::Clips::trailing(&cigar).soft();
-                    if leading_soft > 0 || trailing_soft > 0 {
-                        if leading_soft > trailing_soft {
-                            leading_softclip_obs.insert(
-                                (rec.pos() as u32).saturating_sub(leading_soft),
-                                leading_soft
-                            );
-                        } else {
-                            trailing_softclip_obs.insert(
-                                (rec.pos() as u32).saturating_sub(leading_soft),
-                                trailing_soft
-                            );
-                        }
+                    if leading_soft > 0 {
+                        *self.softclip_obs.entry(leading_soft).or_insert(0) += 1;
+                    }
+                    if trailing_soft > 0 {
+                        *self.softclip_obs.entry(trailing_soft).or_insert(0) += 1;
                     }
 
                     // record indel operations
@@ -386,7 +333,7 @@ impl Common {
                             &Cigar::Del(l) => {
                                 if let &Variant::Deletion(m) = variant {
                                     if l >= m {
-                                        indel_obs.insert(qpos, qpos);
+                                        *self.indel_obs.entry(qpos).or_insert(0) += 1;
                                     }
                                 }
                                 // do not increase qpos in case of a deletion
@@ -394,7 +341,7 @@ impl Common {
                             &Cigar::Ins(l) => {
                                 if let &Variant::Insertion(ref seq) = variant {
                                     if l >= seq.len() as u32 {
-                                        indel_obs.insert(qpos, qpos);
+                                        *self.indel_obs.entry(qpos).or_insert(0) += 1;
                                     }
                                 }
                                 qpos += l;
@@ -414,39 +361,15 @@ impl Common {
                         );
                     }
                 }
-
-                // update coverage
-                self.softclip_coverage = if leading_softclip_obs.total_count() >= 2 ||
-                                            trailing_softclip_obs.total_count() >= 2 {
-                    Some((
-                        leading_softclip_obs.total_count() +
-                        trailing_softclip_obs.total_count()
-                    ) as f64 / (
-                        leading_softclip_obs.interval_len() + trailing_softclip_obs.interval_len()
-                    ) as f64)
-                } else {
-                    None
-                };
-
-                self.indel_coverage = if indel_obs.total_count() >= 2 {
-                    Some(indel_obs.total_count() as f64 / indel_obs.interval_len() as f64)
-                } else {
-                    None
-                };
             },
-            &Variant::SNV(_) | &Variant::None => {
-                self.leading_softclip_obs = None;
-                self.trailing_softclip_obs = None;
-                self.softclip_coverage = None;
-                self.indel_coverage = None;
-            }
+            &Variant::SNV(_) | &Variant::None => ()
         }
 
         Ok(())
     }
 
     pub fn finalize(&mut self) {
-        if self.softclip_coverage.is_none() && self.indel_coverage.is_none() {
+        if self.softclip_obs.is_empty() && self.indel_obs.is_empty() {
             let mut prob_feasible = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
             prob_feasible[0] = LogProb::ln_one();
             self.prob_feasible = Some(prob_feasible);
@@ -454,33 +377,25 @@ impl Common {
         }
 
         let likelihoods = {
-            let feasible_range = || 0..self.max_read_len as u32 + 1;
 
-            let likelihood_softclip = if !self.not_enough_softclips() {
-                let softclip_cov = self.softclip_coverage.unwrap();
-                feasible_range().map(|max_softclip| {
-                    Self::likelihood_feasible(|s| s <= max_softclip, softclip_cov, |s| self.softclip_count(s), feasible_range())
+            let likelihood_softclip = if !self.softclip_obs.is_empty() {
+                (0..self.max_read_len + 1).map(|max_softclip| {
+                    self.likelihood_feasible(0..max_softclip, &self.softclip_obs)
                 }).collect_vec()
             } else {
-                // Not enough softclips observed.
-                // We take the maximum observed softclip as the true maximum.
-                let s = self.max_softclip() as usize;
-                let mut likelihoods = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
-                likelihoods[s] = LogProb::ln_one();
-                likelihoods
+                let mut l = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
+                l[0] = LogProb::ln_one();
+                l
             };
 
-            if let Some(indel_cov) = self.indel_coverage {
+            if !self.indel_obs.is_empty() {
                 let mut likelihoods = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
-                for start in 0..self.min_indel_pos() + 1 {
-                    for end in self.max_indel_pos()..self.max_read_len as u32 + 1 {
-                        let lh = Self::likelihood_feasible(
-                            |pos| pos >= start && pos <= end,
-                            indel_cov,
-                            |pos| self.indel_count(pos),
-                            feasible_range()
-                        );
-                        for max_softclip in feasible_range() {
+                let first = *self.indel_obs.keys().next().unwrap();
+                let last = *self.indel_obs.keys().last().unwrap();
+                for start in 0.. first + 1 {
+                    for end in last..self.max_read_len as u32 + 1 {
+                        let lh = self.likelihood_feasible(start..end, &self.indel_obs);
+                        for max_softclip in 0..self.max_read_len + 1 {
                             let infeasible = start.saturating_sub(
                                 max_softclip
                             ) + (self.max_read_len as u32).saturating_sub(
@@ -509,16 +424,24 @@ impl Common {
         self.prob_feasible = Some(likelihoods.iter().map(|lh| lh - marginal).collect_vec());
     }
 
-    fn likelihood_feasible<V: Fn(u32) -> bool, C: Fn(u32) -> u32>(
-        is_valid: V, varcov: f64, count: C, feasible_range: Range<u32>
+    fn likelihood_feasible(
+        &self, range: Range<u32>, obs: &CigarObservations
     ) -> LogProb {
+        assert!(range.start <= range.end);
+        let coverage = if range.start == range.end {
+            0.0
+        } else {
+            obs.range(range.clone()).map(|(_, count)| count).sum::<u32>() as f64 /
+            (range.end - range.start) as f64
+        };
+        assert!(coverage != f64::INFINITY);
+
         let mut lh = LogProb::ln_one();
-        for s in feasible_range {
+        for s in 0..self.max_read_len as u32 + 1 {
             //let count = common_obs.softclip_count(s);
-            let count = count(s);
+            let count = *obs.get(&s).unwrap_or(&0);
             //let mu = if s <= max_softclip { varcov } else { 0.0 };
-            let mu = if is_valid(s) { varcov } else { 0.0 };
-            assert!(mu != f64::INFINITY);
+            let mu = if s >= range.start && s < range.end { coverage } else { 0.0 };
             lh += poisson_pmf(count, mu);
             if lh == LogProb::ln_zero() {
                 // stop early if we reach probability zero
