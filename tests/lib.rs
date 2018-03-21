@@ -367,7 +367,7 @@ fn test2() {
 
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.06);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.37, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.29, 0.01);
 }
 
 
