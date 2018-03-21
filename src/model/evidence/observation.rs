@@ -390,23 +390,15 @@ impl Common {
 
             if !self.indel_obs.is_empty() {
                 let mut likelihoods = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
-                let first = *self.indel_obs.keys().next().unwrap();
-                let last = *self.indel_obs.keys().last().unwrap();
-                for start in 0.. first + 1 {
-                    for end in last..self.max_read_len as u32 + 1 {
-                        let lh = self.likelihood_feasible(start..end, &self.indel_obs);
-                        for max_softclip in 0..self.max_read_len + 1 {
-                            let infeasible = start.saturating_sub(
-                                max_softclip
-                            ) + (self.max_read_len as u32).saturating_sub(
-                                max_softclip
-                            ).saturating_sub(end);
-                            let f = (self.max_read_len as usize).saturating_sub(infeasible as usize);
-                            //let f = cmp::min(end - start + max_softclip, self.max_read_len) as usize;
-                            likelihoods[f] = likelihoods[f].ln_add_exp(
-                                lh + likelihood_softclip[max_softclip as usize]
-                            );
-                        }
+                for start in 0..self.max_read_len / 2 {
+                    let end = self.max_read_len - start + 1;
+                    let lh = self.likelihood_feasible(start..end, &self.indel_obs);
+                    for max_softclip in 0..self.max_read_len + 1 {
+                        let infeasible = start.saturating_sub(max_softclip) + (self.max_read_len - (end - 1));
+                        let f = (self.max_read_len as usize).saturating_sub(infeasible as usize);
+                        likelihoods[f] = likelihoods[f].ln_add_exp(
+                            lh + likelihood_softclip[max_softclip as usize]
+                        );
                     }
                 }
                 likelihoods

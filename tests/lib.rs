@@ -365,9 +365,9 @@ fn test2() {
     call_tumor_normal("test2", false, "chr1");
     let mut call = load_call("test2");
 
-    check_info_float(&mut call, b"CASE_AF", 0.125, 0.05);
+    check_info_float(&mut call, b"CASE_AF", 0.125, 0.06);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.35, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.37, 0.01);
 }
 
 
@@ -401,7 +401,7 @@ fn test5() {
     call_tumor_normal("test5", true, "chr1");
     let mut call = load_call("test5");
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 45.5, 0.1);
+    check_info_float(&mut call, b"PROB_SOMATIC", 46.59, 0.1);
 }
 
 
@@ -425,8 +425,8 @@ fn test7() {
     let mut call = load_call("test7");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.07);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.87, 0.01);
-    check_info_float(&mut call, b"PROB_GERMLINE", 8.5, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.93, 0.01);
+    check_info_float(&mut call, b"PROB_GERMLINE", 8.13, 0.01);
 }
 
 
@@ -593,7 +593,7 @@ fn test22() {
 fn test23() {
     call_tumor_normal("test23", false, "chr14");
     let mut call = load_call("test23");
-    check_info_float(&mut call, b"PROB_ABSENT", 3.62, 0.01);
+    check_info_float(&mut call, b"PROB_ABSENT", 4.34, 0.01);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
 }
@@ -603,8 +603,8 @@ fn test23() {
 fn test24() {
     call_tumor_normal("test24", false, "chr6");
     let mut call = load_call("test24");
-    check_info_float(&mut call, b"PROB_SOMATIC", 5.3, 0.01);
-    check_info_float(&mut call, b"PROB_ABSENT", 2.13, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 5.27, 0.01);
+    check_info_float(&mut call, b"PROB_ABSENT", 2.19, 0.01);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
@@ -658,5 +658,5 @@ fn test_sc_bulk_indel() {
     let mut call = load_call("test_sc_bulk_indel");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_HET", 10.32, 0.01);
+    check_info_float(&mut call, b"PROB_HET", 11.11, 0.01);
 }
