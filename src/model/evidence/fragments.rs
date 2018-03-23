@@ -66,7 +66,6 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u
     // as defined by Torsten Seemann
     // (http://thegenomefactory.blogspot.nl/2013/08/paired-end-read-confusion-library.html)
     let inner_mate_distance = right_start as i32 - left_end as i32;
-    debug!("inner mate distance: {} {} {}", inner_mate_distance, right_start, left_end);
 
     let insert_size = inner_mate_distance +
                       (left_end - left_start) as i32 +
@@ -140,10 +139,8 @@ impl IndelEvidence {
         Ok((p_ref, p_alt))
     }
 
-    /// Probability to sample read from alt allele for each possible max softclip up to a given
-    /// theoretical maximum.
-    /// If variant is small enough to be in CIGAR, max_softclip should be set to None
-    /// (i.e., ignored), and the method will only return one value.
+    /// Probability to sample read from alt allele for each possible number of feasible positions
+    /// up to a given theoretical maximum.
     ///
     /// The key idea is to take the insert size distribution and calculate the expected probability
     /// by considering the number of valid placements over all placements for each possible insert
@@ -152,12 +149,12 @@ impl IndelEvidence {
         &self,
         left_read_len: u32,
         right_read_len: u32,
-        enclosing_possible: bool,
         variant: &Variant
     ) -> ProbSampleAlt {
-        let expected_prob_enclose = |max_softclip, delta| {
-            let read_offsets = left_read_len.saturating_sub(max_softclip) +
-                               right_read_len.saturating_sub(max_softclip);
+        // TODO for long reads always return one
+        let expected_prob_enclose = |feasible, delta| {
+            let read_offsets = left_read_len.saturating_sub(feasible) +
+                               right_read_len.saturating_sub(feasible);
 
             let expected_p_alt = LogProb::ln_sum_exp(
                 &self.pmf_range().filter_map(|x| {
@@ -179,47 +176,35 @@ impl IndelEvidence {
 
             expected_p_alt
         };
-        let expected_prob_overlap = |max_softclip, delta| {
+        let expected_prob_overlap = |feasible, delta| {
             let n_alt_left = cmp::min(delta, left_read_len);
             let n_alt_right = cmp::min(delta, right_read_len);
-            let n_alt_valid = cmp::min(n_alt_left, max_softclip) +
-                              cmp::min(n_alt_right, max_softclip);
+            let n_alt_valid = cmp::min(n_alt_left, feasible) +
+                              cmp::min(n_alt_right, feasible);
 
             LogProb((n_alt_valid as f64).ln() - ((n_alt_left + n_alt_right) as f64).ln())
         };
 
-        let max_softclip = cmp::max(left_read_len, right_read_len);
+        let max_feasible = cmp::max(left_read_len, right_read_len);
 
         match variant {
             &Variant::Deletion(_)  => {
                 // Deletion length does not affect sampling because the reads come from the allele
                 // where the deleted sequence is not present ;-).
                 let delta = 0;
-                if enclosing_possible {
-                    ProbSampleAlt::Independent(
-                        expected_prob_enclose(max_softclip, delta)
-                    )
-                } else {
-                    ProbSampleAlt::Dependent(
-                        (0..max_softclip + 1).map(
-                            |s| expected_prob_enclose(s, delta)
-                        ).collect_vec()
-                    )
-                }
+                ProbSampleAlt::Dependent(
+                    (0..max_feasible + 1).map(
+                        |s| expected_prob_enclose(s, delta)
+                    ).collect_vec()
+                )
             },
             &Variant::Insertion(ref seq) => {
                 let delta = seq.len() as u32;
-                if enclosing_possible {
-                    ProbSampleAlt::Independent(
-                        expected_prob_overlap(max_softclip, delta)
-                    )
-                } else {
-                    ProbSampleAlt::Dependent(
-                        (0..max_softclip + 1).map(
-                            |s| expected_prob_overlap(s, delta)
-                        ).collect_vec()
-                    )
-                }
+                ProbSampleAlt::Dependent(
+                    (0..max_feasible + 1).map(
+                        |s| expected_prob_overlap(s, delta)
+                    ).collect_vec()
+                )
             },
             // for SNVs sampling is unbiased
             &Variant::SNV(_) | &Variant::None => return ProbSampleAlt::One

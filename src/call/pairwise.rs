@@ -163,7 +163,14 @@ pub fn call<A, B, P, M, R, W, X, F>(
             }
         }
         i += 1;
-        debug!("processing record {}.", i);
+        if let Some(rid) = record.rid() {
+            info!(
+                "processing record {}: {}:{}", i,
+                str::from_utf8(inbcf.header().rid2name(rid))?,
+                record.pos() + 1
+            );
+        }
+
 
         // translate to header of the writer
         outbcf.translate(&mut record);

@@ -1,8 +1,10 @@
 use std::str;
 use std::error::Error;
 use std::cmp;
+use std::ops::Range;
+use std::f64;
+use std::collections::BTreeMap;
 
-use vec_map::VecMap;
 use serde::Serialize;
 use serde::ser::{Serializer, SerializeStruct};
 use itertools::Itertools;
@@ -10,7 +12,7 @@ use rgsl::randist::poisson::poisson_pdf;
 
 use bio::stats::LogProb;
 use rust_htslib::bam;
-use rust_htslib::bam::record::CigarString;
+use rust_htslib::bam::record::{CigarString, Cigar};
 
 use model::Variant;
 use model::evidence;
@@ -35,7 +37,7 @@ impl ProbSampleAlt {
 
     /// Calculate probability to sample reads from alt allele.
     /// For SNVs this is always 1.0.
-    /// Otherwise, this has two components.
+    /// Otherwise, this has three components.
     ///
     /// # Component 1: maximum softclip
     /// First, we estimate the probability distribution of
@@ -50,21 +52,27 @@ impl ProbSampleAlt {
     /// Instead, we calculate the probability distribution of the maximum softclip, by assuming
     /// that read start positions are poisson distributed with a certain mean.
     /// The mean is calculated by counting start positions of reads with leading or trailing
-    /// softclips that overlap the variant and dividing by the interval length between the
-    /// first and the last start position. This is an estimate for the average number of softclipped
-    /// reads from the variant allele per position.
-    /// Then, we can calculate the likelihood of the observed softclips given a true maximum
+    /// softclips that overlap the variant and dividing by the interval length.
+    /// Then, we can calculate the likelihood of the observed softclips given an assumed maximum
     /// softclip by taking the product of the poisson distributed probabilities for each observed
     /// softclip count.
-    /// By applying Bayes theorem, we obtain a posterior probability for each possible maximum
-    /// softclip.
     ///
-    /// # Component 2:
-    /// We calculate the probability to sample a fragment from the alt allele given a maximum
-    /// softclip and the read lengths. If the variant is small enough to be encoded in the CIGAR
-    /// string, we can simply ignore the maximum softclip distribution.
+    /// # Component 2: feasible indel cigar positions
+    /// Indel operations in cigar strings tend to be harder to obtain towards the end of the read.
+    /// Hence, difficult (longer) indels are often only observed towards the center of the read,
+    /// leading to an underestimation of allele frequencies. We again assume poisson distributed
+    /// reads, calculate the mean over a given assumed feasible interval and obtain the likelihood
+    /// for a given feasible interval by a product of poisson distributed probabilities.
+    /// Then, we calculate the overall likelihood for a given number of feasible positions considering
+    /// both softclips and indel positions via dynamic programming.
+    /// By applying Bayes theorem, we obtain a posterior probability for each number of feasible
+    /// positions.
     ///
-    /// # Total probability
+    /// # Component 3:
+    /// We calculate the probability to sample a fragment from the alt allele given a number of
+    /// feasible positions and the read lengths.
+    ///
+    /// # Joint probability
     /// The final result is obtained by combining the two components to a total probability.
     ///
     /// # Arguments
@@ -74,47 +82,13 @@ impl ProbSampleAlt {
             &ProbSampleAlt::One => LogProb::ln_one(),
             &ProbSampleAlt::Independent(p) => p,
             &ProbSampleAlt::Dependent(ref probs) => {
-                if common_obs.not_enough_softclips() {
-                    // Not enough softclips observed.
-                    // We take the maximum observed softclip as the true maximum.
-                    let s = common_obs.max_softclip() as usize;
-                    return probs[cmp::min(probs.len() - 1, s)];
-                }
-
-                let softclip_range = || 0..probs.len() as u32;
-                let varcov = common_obs.softclip_coverage.unwrap();
-
-                let likelihood_max_softclip = |max_softclip| {
-                    let mut lh = LogProb::ln_one();
-                    for s in softclip_range() {
-                        let count = common_obs.softclip_count(s);
-                        let mu = if s <= max_softclip { varcov } else { 0.0 };
-                        lh += poisson_pmf(count, mu);
-                        if lh == LogProb::ln_zero() {
-                            // stop early if we reach probability zero
-                            break;
-                        }
-                    }
-                    assert!(lh.is_valid());
-
-                    lh
-                };
-
-                // calculate total probability to sample alt allele given the max_softclip
-                // distribution
-                let likelihoods: Vec<LogProb> = softclip_range().map(
-                    |s| likelihood_max_softclip(s)
-                ).collect_vec();
-                let marginal = LogProb::ln_sum_exp(&likelihoods);
-                assert!(!marginal.is_nan());
-                assert!(marginal != LogProb::ln_zero(), "bug: marginal softclip dist prob of zero");
+                let prob_feasible = common_obs.prob_feasible.as_ref().unwrap();
 
                 let p = LogProb::ln_sum_exp(&probs.iter().enumerate().map(
-                    |(max_softclip, prob_sample_alt)| {
-                        // posterior probability for maximum softclip s
-                        let prob_max_softclip = likelihoods[max_softclip as usize] - marginal;
-                        // probability to sample from alt allele with this maximum softclip
-                        prob_max_softclip + prob_sample_alt
+                    |(feasible, prob_sample_alt)| {
+                        // probability to sample from alt allele with this number of feasible
+                        // positions
+                        prob_feasible[feasible as usize] + prob_sample_alt
                     }
                 ).collect_vec()).cap_numerical_overshoot(NUMERICAL_EPSILON);
                 assert!(p.is_valid(), "invalid probability {:?}", p);
@@ -258,91 +232,20 @@ impl Evidence {
 }
 
 
-#[derive(Default, Clone, Debug)]
-pub struct SoftclipObservation {
-    counts: VecMap<u32>,
-    start: Option<u32>,
-    end: Option<u32>
-}
-
-
-impl SoftclipObservation {
-    pub fn insert(&mut self, pos: u32, softclip: u32) {
-        *self.counts.entry(softclip as usize).or_insert(0) += 1;
-        self.start = Some(self.start.map_or(pos, |s| cmp::min(s, pos)));
-        self.end = Some(self.end.map_or(pos, |e| cmp::max(e, pos)));
-    }
-
-    pub fn count(&self, softclip: u32) -> u32 {
-        self.counts.get(softclip as usize).cloned().unwrap_or(0)
-    }
-
-    pub fn interval_len(&self) ->  u32 {
-        self.end.map_or(0, |e| e - self.start.unwrap())
-    }
-
-    pub fn total_count(&self) -> u32 {
-        self.counts.values().sum()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.counts.is_empty()
-    }
-
-    /// Maximum observed softclip, zero if nothing observed.
-    pub fn max_softclip(&self) -> u32 {
-        self.counts.keys().last().unwrap_or(0) as u32
-    }
-}
+type CigarObservations = BTreeMap<u32, u32>;
 
 
 /// Data that is shared among all observations over a locus.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Common {
-    pub leading_softclip_obs: Option<SoftclipObservation>,
-    pub trailing_softclip_obs: Option<SoftclipObservation>,
-    /// Average number of reads starting at any position in the region.
-    pub softclip_coverage: Option<f64>,
+    softclip_obs: BTreeMap<u32, u32>,
+    indel_obs: BTreeMap<u32, u32>,
     pub max_read_len: u32,
-    pub enclosing_possible: bool
+    prob_feasible: Option<Vec<LogProb>>
 }
 
 
 impl Common {
-    pub fn new(variant: &Variant) -> Self {
-        let enclosing_possible = variant.is_snv();
-
-        Common {
-            leading_softclip_obs: None,
-            trailing_softclip_obs: None,
-            max_read_len: 0,
-            softclip_coverage: None,
-            enclosing_possible: enclosing_possible
-        }
-    }
-
-    pub fn softclip_count(&self, softclip: u32) -> u32 {
-        if self.enclosing_possible {
-            panic!("invalid operation: enclosing possible and softclips accessed");
-        }
-        self.leading_softclip_obs.as_ref().unwrap().count(softclip) +
-        self.trailing_softclip_obs.as_ref().unwrap().count(softclip)
-    }
-
-    pub fn not_enough_softclips(&self) -> bool {
-        if self.enclosing_possible {
-            panic!("invalid operation: enclosing possible and softclips accessed");
-        }
-        self.leading_softclip_obs.as_ref().unwrap().total_count() < 2 ||
-        self.trailing_softclip_obs.as_ref().unwrap().total_count() < 2
-    }
-
-    pub fn max_softclip(&self) -> u32 {
-        cmp::max(
-            self.leading_softclip_obs.as_ref().unwrap().max_softclip(),
-            self.trailing_softclip_obs.as_ref().unwrap().max_softclip()
-        )
-    }
 
     /// Update common observation with new reads.
     pub fn update(
@@ -358,69 +261,145 @@ impl Common {
             ).max().unwrap_or(0) as u32
         );
 
-        // determine if variant can be enclosed
-        self.enclosing_possible |= {
-            let max_indel_cigar = valid_records().map(|rec| {
-                evidence::max_indel(&rec.cigar())
-            }).max().unwrap_or(0);
-            variant.len() <= max_indel_cigar
-        };
+        match variant {
+            &Variant::Deletion(_) | &Variant::Insertion(_) => {
+                for rec in valid_records() {
+                    let cigar = rec.cigar();
 
-        if !self.enclosing_possible {
-            let leading_softclip_obs = self.leading_softclip_obs.get_or_insert_with(
-                || SoftclipObservation::default()
-            );
-            let trailing_softclip_obs = self.trailing_softclip_obs.get_or_insert_with(
-                || SoftclipObservation::default()
-            );
+                    let overlap = Overlap::new(
+                        rec, &cigar, start, variant, true
+                    )?;
 
-            for rec in valid_records() {
-                let cigar = rec.cigar();
+                    if overlap.is_none() {
+                        continue;
+                    }
 
-                let leading_soft = evidence::Clips::leading(&cigar).soft();
-                let trailing_soft = evidence::Clips::trailing(&cigar).soft();
+                    // record softclips
+                    let leading_soft = evidence::Clips::leading(&cigar).soft();
+                    let trailing_soft = evidence::Clips::trailing(&cigar).soft();
+                    if leading_soft > 0 {
+                        *self.softclip_obs.entry(leading_soft).or_insert(0) += 1;
+                    }
+                    if trailing_soft > 0 {
+                        *self.softclip_obs.entry(trailing_soft).or_insert(0) += 1;
+                    }
 
-                let overlap = Overlap::new(
-                    rec, &cigar, start, variant, true
-                )?;
+                    // record indel operations
+                    let mut qpos = 0;
+                    for c in &cigar {
+                        match c {
+                            &Cigar::Del(l) => {
+                                if let &Variant::Deletion(m) = variant {
+                                    if l >= m {
+                                        *self.indel_obs.entry(qpos).or_insert(0) += 1;
+                                    }
+                                }
+                                // do not increase qpos in case of a deletion
+                            },
+                            &Cigar::Ins(l) => {
+                                if let &Variant::Insertion(ref seq) = variant {
+                                    if l >= seq.len() as u32 {
+                                        *self.indel_obs.entry(qpos).or_insert(0) += 1;
+                                    }
+                                }
+                                qpos += l;
+                            },
+                            &Cigar::SoftClip(l) | &Cigar::Match(l) | &Cigar::Equal(l) |
+                            &Cigar::Diff(l) | &Cigar::Pad(l) => {
+                                qpos += l;
+                            },
+                            &Cigar::RefSkip(_) | &Cigar::HardClip(_) => {
+                                // do nothing
+                            }
+                        }
 
-                if overlap.is_none() {
-                    continue;
-                }
-                if leading_soft > 0 || trailing_soft > 0 {
-                    if leading_soft > trailing_soft {
-                        leading_softclip_obs.insert(
-                            (rec.pos() as u32).saturating_sub(leading_soft),
-                            leading_soft
-                        );
-                    } else {
-                        trailing_softclip_obs.insert(
-                            (rec.pos() as u32).saturating_sub(leading_soft),
-                            trailing_soft
+                        assert!(
+                            qpos <= rec.seq().len() as u32,
+                            format!("bug: qpos larger than read len ({})", cigar)
                         );
                     }
                 }
-            }
-
-            // update coverage
-            self.softclip_coverage = if leading_softclip_obs.total_count() >= 2 ||
-                                        trailing_softclip_obs.total_count() >= 2 {
-                Some((
-                    leading_softclip_obs.total_count() +
-                    trailing_softclip_obs.total_count()
-                ) as f64 / (
-                    leading_softclip_obs.interval_len() + trailing_softclip_obs.interval_len()
-                ) as f64)
-            } else {
-                None
-            };
-
-        } else {
-            self.leading_softclip_obs = None;
-            self.trailing_softclip_obs = None;
-            self.softclip_coverage = None;
+            },
+            &Variant::SNV(_) | &Variant::None => ()
         }
 
         Ok(())
+    }
+
+    pub fn finalize(&mut self) {
+        if self.softclip_obs.is_empty() && self.indel_obs.is_empty() {
+            let mut prob_feasible = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
+            prob_feasible[0] = LogProb::ln_one();
+            self.prob_feasible = Some(prob_feasible);
+            return;
+        }
+
+        let likelihoods = {
+
+            let likelihood_softclip = if !self.softclip_obs.is_empty() {
+                (0..self.max_read_len + 1).map(|max_softclip| {
+                    self.likelihood_feasible(0..max_softclip, &self.softclip_obs)
+                }).collect_vec()
+            } else {
+                let mut l = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
+                l[0] = LogProb::ln_one();
+                l
+            };
+
+            if !self.indel_obs.is_empty() {
+                let mut likelihoods = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
+                for start in 0..self.max_read_len / 2 {
+                    let end = self.max_read_len - start + 1;
+                    let lh = self.likelihood_feasible(start..end, &self.indel_obs);
+                    for max_softclip in 0..self.max_read_len + 1 {
+                        let infeasible = start.saturating_sub(max_softclip) + (self.max_read_len - (end - 1));
+                        let f = (self.max_read_len as usize).saturating_sub(infeasible as usize);
+                        likelihoods[f] = likelihoods[f].ln_add_exp(
+                            lh + likelihood_softclip[max_softclip as usize]
+                        );
+                    }
+                }
+                likelihoods
+            } else {
+                likelihood_softclip
+            }
+        };
+
+        // calculate joint probability to sample alt allele given the feasible position
+        // distribution
+        let marginal = LogProb::ln_sum_exp(&likelihoods);
+        assert!(!marginal.is_nan());
+        assert!(marginal != LogProb::ln_zero(), "bug: marginal feasibility dist prob of zero");
+
+        self.prob_feasible = Some(likelihoods.iter().map(|lh| lh - marginal).collect_vec());
+    }
+
+    fn likelihood_feasible(
+        &self, range: Range<u32>, obs: &CigarObservations
+    ) -> LogProb {
+        assert!(range.start <= range.end);
+        let coverage = if range.start == range.end {
+            0.0
+        } else {
+            obs.range(range.clone()).map(|(_, count)| count).sum::<u32>() as f64 /
+            (range.end - range.start) as f64
+        };
+        assert!(coverage != f64::INFINITY);
+
+        let mut lh = LogProb::ln_one();
+        for s in 0..self.max_read_len as u32 + 1 {
+            //let count = common_obs.softclip_count(s);
+            let count = *obs.get(&s).unwrap_or(&0);
+            //let mu = if s <= max_softclip { varcov } else { 0.0 };
+            let mu = if s >= range.start && s < range.end { coverage } else { 0.0 };
+            lh += poisson_pmf(count, mu);
+            if lh == LogProb::ln_zero() {
+                // stop early if we reach probability zero
+                break;
+            }
+        }
+        assert!(lh.is_valid());
+
+        lh
     }
 }
