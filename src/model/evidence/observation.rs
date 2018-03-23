@@ -37,7 +37,7 @@ impl ProbSampleAlt {
 
     /// Calculate probability to sample reads from alt allele.
     /// For SNVs this is always 1.0.
-    /// Otherwise, this has two components.
+    /// Otherwise, this has three components.
     ///
     /// # Component 1: maximum softclip
     /// First, we estimate the probability distribution of
@@ -52,21 +52,27 @@ impl ProbSampleAlt {
     /// Instead, we calculate the probability distribution of the maximum softclip, by assuming
     /// that read start positions are poisson distributed with a certain mean.
     /// The mean is calculated by counting start positions of reads with leading or trailing
-    /// softclips that overlap the variant and dividing by the interval length between the
-    /// first and the last start position. This is an estimate for the average number of softclipped
-    /// reads from the variant allele per position.
-    /// Then, we can calculate the likelihood of the observed softclips given a true maximum
+    /// softclips that overlap the variant and dividing by the interval length.
+    /// Then, we can calculate the likelihood of the observed softclips given an assumed maximum
     /// softclip by taking the product of the poisson distributed probabilities for each observed
     /// softclip count.
-    /// By applying Bayes theorem, we obtain a posterior probability for each possible maximum
-    /// softclip.
     ///
-    /// # Component 2:
-    /// We calculate the probability to sample a fragment from the alt allele given a maximum
-    /// softclip and the read lengths. If the variant is small enough to be encoded in the CIGAR
-    /// string, we can simply ignore the maximum softclip distribution.
+    /// # Component 2: feasible indel cigar positions
+    /// Indel operations in cigar strings tend to be harder to obtain towards the end of the read.
+    /// Hence, difficult (longer) indels are often only observed towards the center of the read,
+    /// leading to an underestimation of allele frequencies. We again assume poisson distributed
+    /// reads, calculate the mean over a given assumed feasible interval and obtain the likelihood
+    /// for a given feasible interval by a product of poisson distributed probabilities.
+    /// Then, we calculate the overall likelihood for a given number of feasible positions considering
+    /// both softclips and indel positions via dynamic programming.
+    /// By applying Bayes theorem, we obtain a posterior probability for each number of feasible
+    /// positions.
     ///
-    /// # Total probability
+    /// # Component 3:
+    /// We calculate the probability to sample a fragment from the alt allele given a number of
+    /// feasible positions and the read lengths.
+    ///
+    /// # Joint probability
     /// The final result is obtained by combining the two components to a total probability.
     ///
     /// # Arguments
@@ -224,54 +230,6 @@ impl Evidence {
         ))
     }
 }
-
-
-// #[derive(Default, Clone, Debug)]
-// pub struct CigarObservation {
-//     counts: BTreeMap<u32, u32>,
-//     start: Option<u32>,
-//     end: Option<u32>
-// }
-//
-//
-// impl CigarObservation {
-//     pub fn insert(&mut self, pos: u32, observation: u32) {
-//         *self.counts.entry(observation).or_insert(0) += 1;
-//         self.start = Some(self.start.map_or(pos, |s| cmp::min(s, pos)));
-//         self.end = Some(self.end.map_or(pos, |e| cmp::max(e, pos)));
-//     }
-//
-//     pub fn count(&self, observation: u32) -> u32 {
-//         self.counts.get(observation).cloned().unwrap_or(0)
-//     }
-//
-//     pub fn interval_count(&self, interval: Range<u32>) -> u32 {
-//         self.counts.range(interval).map(|(_, count)| count).sum()
-//     }
-//
-//     pub fn interval_len(&self) ->  u32 {
-//         // we have to add 1 to the end position in order to get the correct length.
-//         self.end.map_or(0, |e| (e + 1) - self.start.unwrap())
-//     }
-//
-//     pub fn total_count(&self) -> u32 {
-//         self.counts.values().sum()
-//     }
-//
-//     pub fn is_empty(&self) -> bool {
-//         self.counts.is_empty()
-//     }
-//
-//     /// Maximum observation, zero if nothing observed.
-//     pub fn max_observation(&self) -> Option<u32> {
-//         self.counts.keys().last().map(|o| o as u32)
-//     }
-//
-//     /// Minimum observation, zero if nothing observed.
-//     pub fn min_observation(&self) -> Option<u32> {
-//         self.counts.keys().next().map(|o| o as u32)
-//     }
-// }
 
 
 type CigarObservations = BTreeMap<u32, u32>;

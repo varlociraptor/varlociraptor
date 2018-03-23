@@ -231,10 +231,8 @@ impl IndelEvidence {
         Ok((prob_ref, prob_alt))
     }
 
-    /// Probability to sample read from alt allele for each possible max softclip up to a given
-    /// theoretical maximum.
-    /// If variant is small enough to be in CIGAR, max_softclip should be set to None
-    /// (i.e., ignored), and the method will only return one value.
+    /// Probability to sample read from alt allele for each number of feasible positions up to a
+    /// given theoretical maximum.
     ///
     /// The key idea is calculate the probability as number of valid placements (considering the
     /// max softclip allowed by the mapper) over all possible placements.
@@ -251,9 +249,9 @@ impl IndelEvidence {
 
         };
 
-        let prob = |max_softclip| {
+        let prob = |feasible| {
             let n_alt = cmp::min(delta, read_len);
-            let n_alt_valid = cmp::min(n_alt, max_softclip);
+            let n_alt_valid = cmp::min(n_alt, feasible);
 
             LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
         };

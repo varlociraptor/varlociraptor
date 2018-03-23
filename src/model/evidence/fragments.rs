@@ -139,10 +139,8 @@ impl IndelEvidence {
         Ok((p_ref, p_alt))
     }
 
-    /// Probability to sample read from alt allele for each possible max softclip up to a given
-    /// theoretical maximum.
-    /// If variant is small enough to be in CIGAR, max_softclip should be set to None
-    /// (i.e., ignored), and the method will only return one value.
+    /// Probability to sample read from alt allele for each possible number of feasible positions
+    /// up to a given theoretical maximum.
     ///
     /// The key idea is to take the insert size distribution and calculate the expected probability
     /// by considering the number of valid placements over all placements for each possible insert
@@ -153,9 +151,10 @@ impl IndelEvidence {
         right_read_len: u32,
         variant: &Variant
     ) -> ProbSampleAlt {
-        let expected_prob_enclose = |max_softclip, delta| {
-            let read_offsets = left_read_len.saturating_sub(max_softclip) +
-                               right_read_len.saturating_sub(max_softclip);
+        // TODO for long reads always return one
+        let expected_prob_enclose = |feasible, delta| {
+            let read_offsets = left_read_len.saturating_sub(feasible) +
+                               right_read_len.saturating_sub(feasible);
 
             let expected_p_alt = LogProb::ln_sum_exp(
                 &self.pmf_range().filter_map(|x| {
@@ -177,11 +176,11 @@ impl IndelEvidence {
 
             expected_p_alt
         };
-        let expected_prob_overlap = |max_softclip, delta| {
+        let expected_prob_overlap = |feasible, delta| {
             let n_alt_left = cmp::min(delta, left_read_len);
             let n_alt_right = cmp::min(delta, right_read_len);
-            let n_alt_valid = cmp::min(n_alt_left, max_softclip) +
-                              cmp::min(n_alt_right, max_softclip);
+            let n_alt_valid = cmp::min(n_alt_left, feasible) +
+                              cmp::min(n_alt_right, feasible);
 
             LogProb((n_alt_valid as f64).ln() - ((n_alt_left + n_alt_right) as f64).ln())
         };
