@@ -4,7 +4,11 @@ use std::cmp;
 use std::error::Error;
 use std::f64::consts;
 use std::cell::RefCell;
+use std::io;
+use std::f64;
+use std::str::FromStr;
 
+use csv;
 use ordered_float::NotNaN;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
@@ -138,10 +142,40 @@ impl<'a> Candidate<'a> {
 
 /// Expected insert size in terms of mean and standard deviation.
 /// This should be estimated from unsorted(!) bam files to avoid positional biases.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct InsertSize {
     pub mean: f64,
     pub sd: f64
+}
+
+
+impl InsertSize {
+    /// Obtain insert size from samtools stats output.
+    pub fn from_samtools_stats<R: io::Read>(
+        samtools_stats: &mut R
+    ) -> Result<InsertSize, Box<Error>> {
+        let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t')
+                                               .comment(Some(b'#'))
+                                               .has_headers(false)
+                                               .flexible(true)
+                                               .from_reader(samtools_stats);
+
+        let mut insert_size = InsertSize::default();
+
+        for rec in rdr.records() {
+            let rec = rec?;
+            if &rec[0] == "SN" {
+                if &rec[1] == "insert size average:" {
+                    insert_size.mean = f64::from_str(&rec[2])?;
+                } else if &rec[1] == "insert size standard deviation:" {
+                    insert_size.sd = f64::from_str(&rec[2])?;
+                    break;
+                }
+            }
+        }
+
+        Ok(insert_size)
+    }
 }
 
 
@@ -606,6 +640,7 @@ mod tests {
     use constants;
 
     use std::str;
+    use std::fs;
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
@@ -734,5 +769,16 @@ mod tests {
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
             assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
         }
+    }
+
+    #[test]
+    fn test_parse_insert_size() {
+        let insert_size = InsertSize::from_samtools_stats(
+            &mut io::BufReader::new(
+                fs::File::open("tests/resources/samtools_stats.example.txt").unwrap()
+            )
+        ).unwrap();
+        assert_relative_eq!(insert_size.mean, 311.7);
+        assert_relative_eq!(insert_size.sd, 15.5);
     }
 }
