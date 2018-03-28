@@ -158,18 +158,18 @@ impl IndelEvidence {
 
             let expected_p_alt = LogProb::ln_sum_exp(
                 &self.pmf_range().filter_map(|x| {
-                    if x < delta {
+                    if x <= delta || x <= delta + read_offsets {
                         // if x is too small to enclose the variant, we skip it as it adds zero to the sum
                         None
                     } else {
-                        Some(
-                            self.pmf(x, 0.0) +
-                            // probability to sample a valid placement
-                            LogProb(
-                                (x.saturating_sub(delta).saturating_sub(read_offsets) as f64).ln() -
-                                (x.saturating_sub(delta) as f64).ln()
-                            )
-                        )
+                        let p = self.pmf(x, 0.0) +
+                        // probability to sample a valid placement
+                        LogProb(
+                            (x.saturating_sub(delta).saturating_sub(read_offsets) as f64).ln() -
+                            (x.saturating_sub(delta) as f64).ln()
+                        );
+                        assert!(p.is_valid(), "bug: invalid probability {:?}", p);
+                        Some(p)
                     }
                 }).collect_vec()
             );
