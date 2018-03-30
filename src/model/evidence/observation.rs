@@ -337,9 +337,19 @@ impl Common {
         let likelihoods = {
 
             let likelihood_softclip = if !self.softclip_obs.is_empty() {
-                (0..self.max_read_len + 1).map(|max_softclip| {
+                let mut lhs = (0..self.max_read_len + 1).map(|max_softclip| {
                     self.likelihood_feasible(0..max_softclip, &self.softclip_obs)
-                }).collect_vec()
+                }).collect_vec();
+
+                if lhs.iter().all(|lh| *lh == LogProb::ln_zero()) {
+                    // There is apparently no max softclip that can explain the observed counts
+                    // when assuming they are poisson distributed.
+                    // The best we can do now is to simply take the maximum observation.
+                    let max_softclip = *self.softclip_obs.keys().max().unwrap();
+                    lhs[max_softclip as usize] = LogProb::ln_one();
+                }
+
+                lhs
             } else {
                 let mut l = vec![LogProb::ln_zero(); self.max_read_len as usize + 1];
                 l[0] = LogProb::ln_one();
@@ -388,9 +398,7 @@ impl Common {
 
         let mut lh = LogProb::ln_one();
         for s in 0..self.max_read_len as u32 + 1 {
-            //let count = common_obs.softclip_count(s);
             let count = *obs.get(&s).unwrap_or(&0);
-            //let mu = if s <= max_softclip { varcov } else { 0.0 };
             let mu = if s >= range.start && s < range.end { coverage } else { 0.0 };
             lh += poisson_pmf(count, mu);
             if lh == LogProb::ln_zero() {
