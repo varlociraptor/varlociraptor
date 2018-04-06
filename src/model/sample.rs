@@ -98,7 +98,7 @@ impl RecordBuffer {
                 }
 
                 let pos = record.pos();
-                if record.is_duplicate() || record.is_unmapped() {
+                if record.is_duplicate() || record.is_unmapped() || record.is_quality_check_failed() {
                     continue;
                 }
                 if !self.use_secondary && record.is_secondary() {
