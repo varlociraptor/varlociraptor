@@ -636,9 +636,10 @@ mod tests {
 
         let vpos = 4;
         let variant = model::Variant::None;
-        for (i, rec) in records.iter().enumerate() {
+        for (i, mut rec) in records.into_iter().enumerate() {
+            rec.unpack_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_none(rec, &rec.cigar(), vpos, &variant, &ref_seq) {
+            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_none(&rec, rec.cigar().unwrap(), vpos, &variant, &ref_seq) {
                 println!("{:?}", rec.cigar());
                 println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
                 assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
@@ -717,9 +718,10 @@ mod tests {
 
         let vpos = 5;
         let variant = model::Variant::SNV(b'G');
-        for (i, rec) in records.iter().enumerate() {
+        for (i, mut rec) in records.into_iter().enumerate() {
+            rec.unpack_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_snv(rec, &rec.cigar(), vpos, &variant, &ref_seq) {
+            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_snv(&rec, rec.cigar().unwrap(), vpos, &variant, &ref_seq) {
                 println!("{:?}", rec.cigar());
                 println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
                 assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
