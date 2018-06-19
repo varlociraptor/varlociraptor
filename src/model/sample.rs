@@ -299,6 +299,11 @@ impl Sample {
             &Variant::SNV(_) | &Variant::None => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
+                    if record.pos() as u32 > start {
+                        // the read cannot overlap the variant
+                        continue;
+                    }
+
                     let cigar = record.cigar();
                     let overlap = Overlap::new(
                         record, &cigar, start, variant, false
