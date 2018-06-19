@@ -6,7 +6,7 @@ use std::str;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use csv;
-use rust_htslib::bcf;
+use rust_htslib::bcf::{self, Read};
 use rust_htslib::bcf::record::Numeric;
 use bio::stats::{PHREDProb, LogProb};
 use bio::io::fasta;
@@ -120,7 +120,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
         None    => bcf::Reader::from_stdin()?
     };
 
-    let mut header = bcf::Header::with_template(inbcf.header());
+    let mut header = bcf::Header::from_template(inbcf.header());
     for event in events {
         header.push_record(
             event.header_entry("PROB", "PHRED-scaled probability for").as_bytes()

@@ -16,6 +16,7 @@ use std::process::Command;
 
 use itertools::Itertools;
 use rust_htslib::{bam,bcf};
+use rust_htslib::bcf::Read;
 use bio::stats::Prob;
 
 use libprosic::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs};

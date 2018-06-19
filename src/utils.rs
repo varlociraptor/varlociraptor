@@ -5,6 +5,7 @@ use std::str;
 
 use itertools::Itertools;
 use rust_htslib::{bcf,bam};
+use rust_htslib::bcf::Read;
 use bio::io::fasta;
 use bio::stats::{LogProb, PHREDProb};
 use ordered_float::NotNaN;
@@ -173,8 +174,10 @@ impl ReferenceBuffer {
                 return Ok(&self.sequence);
             }
         }
+        self.reader.fetch_all(str::from_utf8(chrom)?)?;
+        self.reader.read(&mut self.sequence)?;
 
-        try!(self.reader.read_all(try!(str::from_utf8(chrom)), &mut self.sequence));
+        //try!(self.reader.read_all(try!(str::from_utf8(chrom)), &mut self.sequence));
         self.chrom = Some(chrom.to_owned());
 
         Ok(&self.sequence)
@@ -410,7 +413,7 @@ impl Overlap {
 mod tests {
     use super::*;
 
-    use rust_htslib::bcf;
+    use rust_htslib::bcf::{self, Read};
     use bio::stats::{Prob, LogProb};
     use model::VariantType;
     use ComplementEvent;
