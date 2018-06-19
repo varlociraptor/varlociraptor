@@ -249,6 +249,7 @@ impl Sample {
     /// better than for any alternative hit. If this is not the case, the read was most likely
     /// mapped to the current position because of its mate. Such placements can easily lead to
     /// false positives, especially in repetetive regions. Hence, we choose to rather ignore them.
+    /// TODO: determine whether this helps with performance of indel and/or SNV detection
     fn is_reliable_read(&self, record: &bam::Record) -> bool {
         if let Some(astag) = record.aux(b"AS") {
             if let Some(xstag) = record.aux(b"XS") {
@@ -300,10 +301,6 @@ impl Sample {
             &Variant::SNV(_) | &Variant::None => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
-                    // TODO remove
-                    if !self.is_reliable_read(record) {
-                        continue;
-                    }
                     let cigar = record.cigar().unwrap();
                     let overlap = Overlap::new(
                         record, cigar, start, variant, false
