@@ -264,10 +264,10 @@ impl Common {
         match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
                 for rec in valid_records() {
-                    let cigar = rec.cigar();
+                    let cigar = rec.cigar().unwrap();
 
                     let overlap = Overlap::new(
-                        rec, &cigar, start, variant, true
+                        rec, cigar, start, variant, true
                     )?;
 
                     if overlap.is_none() {
@@ -286,7 +286,7 @@ impl Common {
 
                     // record indel operations
                     let mut qpos = 0;
-                    for c in &cigar {
+                    for c in cigar {
                         match c {
                             &Cigar::Del(l) => {
                                 if let &Variant::Deletion(m) = variant {
