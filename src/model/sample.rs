@@ -761,9 +761,10 @@ mod tests {
         // variant (obtained via bcftools)
         let start = 546;
         let variant = model::Variant::Insertion(b"GCATCCTGCG".to_vec());
-        for (i, rec) in records.iter().enumerate() {
+        for (i, mut rec) in records.into_iter().enumerate() {
+            rec.unpack_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let (prob_ref, prob_alt) = sample.indel_read_evidence.borrow_mut().prob(rec, rec.cigar().unwrap(), start, &variant, &ref_seq).unwrap();
+            let (prob_ref, prob_alt) = sample.indel_read_evidence.borrow_mut().prob(&rec, rec.cigar().unwrap(), start, &variant, &ref_seq).unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar());
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
