@@ -92,6 +92,7 @@ fn pileups<'a, A, B, P>(
 /// # Returns
 ///
 /// `Result` object with eventual error message.
+
 pub fn call<A, B, P, M, R, W, X, F>(
     inbcf: Option<R>,
     outbcf: Option<W>,
