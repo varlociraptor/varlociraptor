@@ -104,6 +104,8 @@ impl RecordBuffer {
                 if !self.use_secondary && record.is_secondary() {
                     continue;
                 }
+                // unpack cigar string
+                record.unpack_cigar();
                 self.inner.push_back(record);
                 if pos > end as i32 + self.window as i32 {
                     break;
@@ -302,14 +304,14 @@ impl Sample {
                     if !self.is_reliable_read(record) {
                         continue;
                     }
-                    let cigar = record.cigar();
+                    let cigar = record.cigar().unwrap();
                     let overlap = Overlap::new(
-                        record, &cigar, start, variant, false
+                        record, cigar, start, variant, false
                     )?;
 
                     if overlap.is_enclosing() {
                         if let Some( obs ) = self.read_observation(
-                            &record, &cigar, start, variant, chrom_name, chrom_seq, common_obs
+                            &record, cigar, start, variant, chrom_name, chrom_seq, common_obs
                         )? {
                             observations.push( obs );
                         } else {
@@ -358,16 +360,16 @@ impl Sample {
                     if let Some(right) = candidate.right {
                         // this is a pair
                         let start_pos = (candidate.left.pos() as u32).saturating_sub(
-                            evidence::Clips::leading(&candidate.left.cigar()).soft()
+                            evidence::Clips::leading(candidate.left.cigar().unwrap()).soft()
                         );
                         if start_pos > centerpoint {
                             // ignore fragments that start beyond the centerpoint
                             continue;
                         }
 
-                        let cigar = right.cigar();
+                        let cigar = right.cigar().unwrap();
                         let end_pos = cigar.end_pos()? as u32 +
-                                      evidence::Clips::trailing(&cigar).soft();
+                                      evidence::Clips::trailing(cigar).soft();
 
                         if end_pos < centerpoint {
                             continue;
@@ -381,13 +383,13 @@ impl Sample {
                     } else {
                         // this is a single alignment with unmapped mate or mate outside of the
                         // region of interest
-                        let cigar = candidate.left.cigar();
+                        let cigar = candidate.left.cigar().unwrap();
                         let overlap = Overlap::new(
-                            candidate.left, &cigar, start, variant, true
+                            candidate.left, cigar, start, variant, true
                         )?;
                         if !overlap.is_none() && candidate.left.is_mate_unmapped() {
                             if let Some(obs) = self.read_observation(
-                                    candidate.left, &cigar, start, variant, chrom_name,
+                                    candidate.left, cigar, start, variant, chrom_name,
                                     chrom_seq, common_obs
                             )? {
                                 observations.push(obs);
@@ -523,21 +525,21 @@ impl Sample {
                                        .prob(record, cigar, start, variant, chrom_seq)?)
         };
 
-        let left_cigar = left_record.cigar();
-        let right_cigar = right_record.cigar();
+        let left_cigar = left_record.cigar().unwrap();
+        let right_cigar = right_record.cigar().unwrap();
         let left_overlap = Overlap::new(
-            left_record, &left_cigar, start, variant, true
+            left_record, left_cigar, start, variant, true
         )?;
         let right_overlap = Overlap::new(
-            right_record, &right_cigar, start, variant, true
+            right_record, right_cigar, start, variant, true
         )?;
 
         if !self.use_fragment_evidence && left_overlap.is_none() && right_overlap.is_none() {
             return Ok(None);
         }
 
-        let (p_ref_left, p_alt_left) = prob_read(left_record, &left_cigar)?;
-        let (p_ref_right, p_alt_right) = prob_read(right_record, &right_cigar)?;
+        let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
+        let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
 
         let left_read_len = left_record.seq().len() as u32;
         let right_read_len = right_record.seq().len() as u32;
@@ -577,8 +579,8 @@ impl Sample {
             prob_sample_alt.joint_prob(common_obs),
             Evidence::insert_size(
                 insert_size as u32,
-                &left_record.cigar(),
-                &right_record.cigar(),
+                left_record.cigar().unwrap(),
+                right_record.cigar().unwrap(),
                 left_record,
                 right_record,
                 p_ref_left,
@@ -714,9 +716,10 @@ mod tests {
         let common = common_observation();
 
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
-            let record = record.unwrap();
-            let cigar = record.cigar();
-            if let Some( obs ) = sample.read_observation(&record, &cigar, varpos, &variant, b"17", &ref_seq, &common).unwrap() {
+            let mut record = record.unwrap();
+            record.unpack_cigar();
+            let cigar = record.cigar().unwrap();
+            if let Some( obs ) = sample.read_observation(&record, cigar, varpos, &variant, b"17", &ref_seq, &common).unwrap() {
                 println!("{:?}", obs);
                 assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
                 assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
@@ -763,7 +766,7 @@ mod tests {
         let variant = model::Variant::Insertion(b"GCATCCTGCG".to_vec());
         for (i, rec) in records.iter().enumerate() {
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let (prob_ref, prob_alt) = sample.indel_read_evidence.borrow_mut().prob(rec, &rec.cigar(), start, &variant, &ref_seq).unwrap();
+            let (prob_ref, prob_alt) = sample.indel_read_evidence.borrow_mut().prob(rec, rec.cigar().unwrap(), start, &variant, &ref_seq).unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar());
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
