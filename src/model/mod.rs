@@ -460,8 +460,8 @@ pub struct PairPileup<'a, A, B, P> where
     case_sample_model: likelihood::LatentVariableModel,
     control_sample_model: likelihood::LatentVariableModel,
     // these two caches are useful for PairModels where case and control are independent of each other and Events are just combinations of across the two axes, as e.g. in the single-cell-bulk model
-    case_likelihood_cache: BTreeMap<AlleleFreq, LogProb>,
-    control_likelihood_cache: BTreeMap<AlleleFreq, LogProb>,
+    case_likelihood_cache: &'a mut BTreeMap<AlleleFreq, LogProb>,
+    control_likelihood_cache: &'a mut BTreeMap<AlleleFreq, LogProb>,
     variant: Variant,
     a: PhantomData<A>,
     b: PhantomData<B>
@@ -481,8 +481,8 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         PairPileup {
             case: case,
             control: control,
-            case_likelihood_cache: BTreeMap::new(),
-            control_likelihood_cache: BTreeMap::new(),
+            case_likelihood_cache: &mut BTreeMap::new(),
+            control_likelihood_cache: &mut BTreeMap::new(),
             marginal_prob: Cell::new(None),
             variant: variant,
             prior_model: prior_model,
@@ -503,7 +503,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
                 self.control_likelihood(af_control, af_case)
             };
-            let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len());
+            let p = self.prior_model.marginal_prob(&mut self);
             debug!("Marginal probability: {}.", p.exp());
 
             self.marginal_prob.set(Some(p));
@@ -520,7 +520,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             self.control_likelihood(af_control, af_case)
         };
 
-        let p = self.prior_model.joint_prob(af_case, af_control, &mut self, &self.variant, self.case.len(), self.control.len());
+        let p = self.prior_model.joint_prob(af_case, af_control, &mut self);
         p
     }
 
@@ -540,7 +540,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             self.control_likelihood(af_control, af_case)
         };
 
-        self.prior_model.map(&case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len())
+        self.prior_model.map(&mut self)
     }
 
     fn case_likelihood(&mut self, af_case: AlleleFreq, af_control: Option<AlleleFreq>) -> LogProb {
