@@ -493,7 +493,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         }
     }
 
-    fn marginal_prob(&mut self) -> LogProb {
+    fn marginal_prob(&self) -> LogProb {
         if self.marginal_prob.get().is_none() {
             debug!("Calculating marginal probability.");
 
@@ -503,7 +503,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
                 self.control_likelihood(af_control, af_case)
             };
-            let p = self.prior_model.marginal_prob(&mut self);
+            let p = self.prior_model.marginal_prob(self);
             debug!("Marginal probability: {}.", p.exp());
 
             self.marginal_prob.set(Some(p));
@@ -512,7 +512,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         self.marginal_prob.get().unwrap()
     }
 
-    pub fn joint_prob(&mut self, af_case: &A, af_control: &B) -> LogProb {
+    pub fn joint_prob(&self, af_case: &A, af_control: &B) -> LogProb {
         let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
             self.case_likelihood(af_case, af_control)
         };
@@ -520,12 +520,12 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             self.control_likelihood(af_control, af_case)
         };
 
-        let p = self.prior_model.joint_prob(af_case, af_control, &mut self);
+        let p = self.prior_model.joint_prob(&self, af_case, af_control);
         p
     }
 
     /// Calculate posterior probability of given allele frequencies.
-    pub fn posterior_prob(&mut self, af_case: &A, af_control: &B) -> LogProb {
+    pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
         let p = self.joint_prob(af_case, af_control);
         let marginal = self.marginal_prob();
         let prob = p - marginal;
@@ -540,19 +540,19 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             self.control_likelihood(af_control, af_case)
         };
 
-        self.prior_model.map(&mut self)
+        self.prior_model.map(&self)
     }
 
     fn case_likelihood(&mut self, af_case: AlleleFreq, af_control: Option<AlleleFreq>) -> LogProb {
         // no af_control given, because case and control are independent
         if af_control.is_none() {
             // check whether likelihood is already cached
-            if let Some(p) = self.case_likelihood_cache.get(&af_case) {
+            if let Some(p) = self.case_likelihood_cache.get_mut().get(&af_case) {
                 *p
             // compute likelihood and cache it
             } else {
                 let p = self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control);
-                self.case_likelihood_cache.insert(af_case, p);
+                self.case_likelihood_cache.get_mut().insert(af_case, p);
                 p
             }
         // cache cannot be used
@@ -565,12 +565,12 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         // no af_control given, because case and control are independent
         if af_case.is_none() {
             // check whether likelihood is already cached
-            if let Some(p) = self.control_likelihood_cache.get(&af_control) {
+            if let Some(p) = self.control_likelihood_cache.get_mut().get(&af_control) {
                 *p
             // compute likelihood and cache it
             } else {
                 let p = self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case);
-                self.control_likelihood_cache.insert(af_control, p);
+                self.control_likelihood_cache.get_mut().insert(af_control, p);
                 p
             }
         // cache cannot be used

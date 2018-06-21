@@ -139,7 +139,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
 
     fn joint_prob(
         &self,
-        pileup: &mut PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs>>,
+        pileup: &PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, Self>,
         af_tumor: &ContinuousAlleleFreqs,
         af_normal: &DiscreteAlleleFreqs,
     ) -> LogProb
@@ -147,7 +147,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
             let density = |af_tumor| {
                 let af_tumor = AlleleFreq(af_tumor);
-                self.prior_prob(af_tumor, af_normal, pileup.variant) +
+                self.prior_prob(af_tumor, af_normal, &pileup.variant) +
                 pileup.case_likelihood(af_tumor, Some(af_normal))
             };
 
@@ -168,7 +168,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
 
     fn marginal_prob(
         &self,
-        pileup: &mut PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs>>,
+        pileup: &PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, Self>,
     ) -> LogProb
     {
         let p = self.joint_prob(
@@ -188,14 +188,14 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
 
     fn map(
         &self,
-        pileup: &mut PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs>>,
+        pileup: &PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, Self>,
     ) -> (AlleleFreq, AlleleFreq)
     {
         let af_case = linspace(*self.allele_freqs_tumor.start, *self.allele_freqs_tumor.end, self.grid_points);
         let (_, (map_normal, map_tumor)) = self.allele_freqs_normal.iter().cartesian_product(af_case).minmax_by_key(
             |&(&af_normal, af_tumor)| {
                 let af_tumor = AlleleFreq(af_tumor);
-                let p = self.prior_prob(af_tumor, af_normal, pileup.variant) +
+                let p = self.prior_prob(af_tumor, af_normal, &pileup.variant) +
                         pileup.case_likelihood(af_tumor, Some(af_normal)) +
                         pileup.control_likelihood(af_normal, None);
                 NotNaN::new(*p).expect("posterior probability is NaN")
