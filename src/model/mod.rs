@@ -460,8 +460,8 @@ pub struct PairPileup<'a, A, B, P> where
     case_sample_model: likelihood::LatentVariableModel,
     control_sample_model: likelihood::LatentVariableModel,
     // these two caches are useful for PairModels where case and control are independent of each other and Events are just combinations of across the two axes, as e.g. in the single-cell-bulk model
-    case_likelihood_cache: &'a mut BTreeMap<AlleleFreq, LogProb>,
-    control_likelihood_cache: &'a mut BTreeMap<AlleleFreq, LogProb>,
+    case_likelihood_cache: Cell<BTreeMap<AlleleFreq, LogProb>>,
+    control_likelihood_cache: Cell<BTreeMap<AlleleFreq, LogProb>>,
     variant: Variant,
     a: PhantomData<A>,
     b: PhantomData<B>
@@ -481,13 +481,13 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         PairPileup {
             case: case,
             control: control,
-            case_likelihood_cache: &mut BTreeMap::new(),
-            control_likelihood_cache: &mut BTreeMap::new(),
             marginal_prob: Cell::new(None),
             variant: variant,
             prior_model: prior_model,
             case_sample_model: case_sample_model,
             control_sample_model: control_sample_model,
+            case_likelihood_cache: Cell::new(BTreeMap::new()),
+            control_likelihood_cache: Cell::new(BTreeMap::new()),
             a: PhantomData,
             b: PhantomData
         }
