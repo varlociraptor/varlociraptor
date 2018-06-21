@@ -497,12 +497,6 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         if self.marginal_prob.get().is_none() {
             debug!("Calculating marginal probability.");
 
-            let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
-                self.case_likelihood(af_case, af_control)
-            };
-            let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
-                self.control_likelihood(af_control, af_case)
-            };
             let p = self.prior_model.marginal_prob(self);
             debug!("Marginal probability: {}.", p.exp());
 
@@ -513,13 +507,6 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     }
 
     pub fn joint_prob(&self, af_case: &A, af_control: &B) -> LogProb {
-        let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
-            self.case_likelihood(af_case, af_control)
-        };
-        let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
-            self.control_likelihood(af_control, af_case)
-        };
-
         let p = self.prior_model.joint_prob(&self, af_case, af_control);
         p
     }
@@ -533,13 +520,6 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     }
 
     pub fn map_allele_freqs(&mut self) -> (AlleleFreq, AlleleFreq) {
-        let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
-            self.case_likelihood(af_case, af_control)
-        };
-        let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
-            self.control_likelihood(af_control, af_case)
-        };
-
         self.prior_model.map(&self)
     }
 
