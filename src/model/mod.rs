@@ -447,7 +447,7 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
 
 
 /// Pileup of observations associated with marginal probability.
-pub struct PairPileup<'a, A, B, P> where
+pub struct PairPileup<'a, A, B, P: ?Sized> where
     A: AlleleFreqs,
     B: AlleleFreqs,
     P: 'a + priors::PairModel<A, B>
