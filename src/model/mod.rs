@@ -545,20 +545,38 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
 
     fn case_likelihood(
         &self,
+        case_l_cache: &mut BTreeMap<AlleleFreq, LogProb>,
         af_case: AlleleFreq,
         af_control: Option<AlleleFreq>
     ) -> LogProb {
-        let p = self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control);
-        p
+        // no af_control given, because case and control are independent
+        if af_control.is_none() {
+                // get likelihood if already cached
+            *case_l_cache.entry(af_case)
+                // compute and insert otherwise
+                .or_insert( self.case_sample_model.likelihood_pileup(&self.case, af_case, None) )
+        // cache cannot be used
+        } else {
+            self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control)
+        }
     }
 
     fn control_likelihood(
         &self,
+        control_l_cache: &mut BTreeMap<AlleleFreq, LogProb>,
         af_control: AlleleFreq,
         af_case: Option<AlleleFreq>
     ) -> LogProb {
-        let p = self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case);
-        p
+        // no af_control given, because case and control are independent
+        if af_case.is_none() {
+                    // get likelihood if already cached
+            *control_l_cache.entry(af_control)
+                    // compute and insert otherwise
+                    .or_insert( self.control_sample_model.likelihood_pileup(&self.control, af_control, None) )
+        // cache cannot be used
+        } else {
+            self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case)
+        }
     }
 
     pub fn case_observations(&self) -> &[Observation] {
