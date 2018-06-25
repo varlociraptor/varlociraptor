@@ -537,12 +537,20 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         self.prior_model.map(&case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len())
     }
 
-    fn case_likelihood(&self, af_case: AlleleFreq, af_control: Option<AlleleFreq>) -> LogProb {
+    fn case_likelihood(
+        &self,
+        af_case: AlleleFreq,
+        af_control: Option<AlleleFreq>
+    ) -> LogProb {
         let p = self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control);
         p
     }
 
-    fn control_likelihood(&self, af_control: AlleleFreq, af_case: Option<AlleleFreq>) -> LogProb {
+    fn control_likelihood(
+        &self,
+        af_control: AlleleFreq,
+        af_case: Option<AlleleFreq>
+    ) -> LogProb {
         let p = self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case);
         p
     }
