@@ -4,6 +4,7 @@ use std::ops::{Range, Deref};
 use std::fmt::Debug;
 use std::error::Error;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 use ordered_float::NotNaN;
 use itertools::Itertools;
@@ -458,6 +459,9 @@ pub struct PairPileup<'a, A, B, P> where
     prior_model: &'a P,
     case_sample_model: likelihood::LatentVariableModel,
     control_sample_model: likelihood::LatentVariableModel,
+    // these two caches are useful for PairModels where case and control are independent of each other and Events are just combinations of across the two axes, as e.g. in the single-cell-bulk model
+    case_likelihood_cache: BTreeMap<AlleleFreq, LogProb>,
+    control_likelihood_cache: BTreeMap<AlleleFreq, LogProb>,
     variant: Variant,
     a: PhantomData<A>,
     b: PhantomData<B>
@@ -482,6 +486,8 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             prior_model: prior_model,
             case_sample_model: case_sample_model,
             control_sample_model: control_sample_model,
+            case_likelihood_cache: BTreeMap::new(),
+            control_likelihood_cache: BTreeMap::new(),
             a: PhantomData,
             b: PhantomData
         }
