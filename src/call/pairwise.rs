@@ -175,7 +175,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
 
         // translate to header of the writer
         outbcf.translate(&mut record);
-        let pileups = pileups(
+        let mut pileups = pileups(
             &inbcf, &mut record, pair_model, &mut reference_buffer,
             omit_snvs, omit_indels, max_indel_len, exclusive_end
         )?;
@@ -200,8 +200,8 @@ pub fn call<A, B, P, M, R, W, X, F>(
             // write posterior probabilities
             let mut posterior_probs = Array::default((events.len(), pileups.len()));
             for (i, event) in events.iter().enumerate() {
-                for (j, pileup) in pileups.iter().enumerate() {
-                    let p = if let &Some(ref pileup) = pileup {
+                for (j, pileup) in pileups.iter_mut().enumerate() {
+                    let p = if let &mut Some(ref mut pileup) = pileup {
                         // use joint probability instead of posterior since we do the
                         // normalization below, turning joint probabilities into posteriors.
                         Some(pileup.joint_prob(&event.af_case, &event.af_control))
@@ -236,8 +236,8 @@ pub fn call<A, B, P, M, R, W, X, F>(
             // write allele frequency estimates
             let mut case_afs = Vec::with_capacity(pileups.len());
             let mut control_afs = Vec::with_capacity(pileups.len());
-            for pileup in &pileups {
-                if let &Some(ref pileup) = pileup {
+            for pileup in &mut pileups {
+                if let &mut Some(ref mut pileup) = pileup {
                     let (case_af, control_af) = pileup.map_allele_freqs();
                     case_afs.push(*case_af as f32);
                     control_afs.push(*control_af as f32);
