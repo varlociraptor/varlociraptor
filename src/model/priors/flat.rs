@@ -3,7 +3,7 @@ use itertools_num::linspace;
 use ordered_float::NotNaN;
 use bio::stats::LogProb;
 
-use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
+use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq, PairPileup};
 
 use priors::PairModel;
 
@@ -28,25 +28,19 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
         LogProb::ln_one()
     }
 
-    fn joint_prob<L, O>(
+    fn joint_prob(
         &self,
         af_first: &DiscreteAlleleFreqs,
         af_second: &DiscreteAlleleFreqs,
-        likelihood_first: &L,
-        likelihood_second: &O,
-        _: &Variant,
-        _: usize,
-        _: usize
-    ) -> LogProb where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
+        pileup: &mut PairPileup<DiscreteAlleleFreqs, DiscreteAlleleFreqs, Self>
+    ) -> LogProb
     {
         let p_second = LogProb::ln_sum_exp(&af_second.iter().map(|&af_second| {
-            likelihood_second(af_second, None)
+            pileup.control_likelihood(af_second, None)
         }).collect_vec());
 
         let prob = LogProb::ln_sum_exp(&af_first.iter().map(|&af_first| {
-            let p_first = likelihood_first(af_first, None);
+            let p_first = pileup.case_likelihood(af_first, None);
             let prob = p_first + p_second;
 
             prob
@@ -55,40 +49,24 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
         prob
     }
 
-    fn marginal_prob<L, O>(
+    fn marginal_prob(
         &self,
-        likelihood_first: &L,
-        likelihood_second: &O,
-        variant: &Variant,
-        n_obs_first: usize,
-        n_obs_second: usize
-    ) -> LogProb where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
+        pileup: &mut PairPileup<DiscreteAlleleFreqs, DiscreteAlleleFreqs, Self>
+    ) -> LogProb
     {
         let p = self.joint_prob(
             self.allele_freqs().0,
             self.allele_freqs().1,
-            likelihood_first,
-            likelihood_second,
-            variant,
-            n_obs_first,
-            n_obs_second
+            pileup
         );
 
         p
     }
 
-    fn map<L, O>(
+    fn map(
         &self,
-        likelihood_first: &L,
-        likelihood_second: &O,
-        _: &Variant,
-        _: usize,
-        _: usize
-    ) -> (AlleleFreq, AlleleFreq) where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
+        pileup: &mut PairPileup<DiscreteAlleleFreqs, DiscreteAlleleFreqs, Self>
+    ) -> (AlleleFreq, AlleleFreq)
     {
         fn calc_map<L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb>(likelihood: &L, afs: &DiscreteAlleleFreqs) -> AlleleFreq {
             let (_, map) = afs.iter().minmax_by_key(|&af| {
@@ -98,8 +76,8 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
             *map
         }
 
-        let map_first = calc_map(likelihood_first, self.allele_freqs().0);
-        let map_second = calc_map(likelihood_second, self.allele_freqs().1);
+        let map_first = calc_map(pileup.case_likelihood, self.allele_freqs().0);
+        let map_second = calc_map(pileup.control_likelihood, self.allele_freqs().1);
 
         (map_first, map_second)
     }
@@ -134,34 +112,28 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         LogProb::ln_one()
     }
 
-    fn joint_prob<L, O>(
+    fn joint_prob(
         &self,
         af_tumor: &ContinuousAlleleFreqs,
         af_normal: &DiscreteAlleleFreqs,
-        likelihood_tumor: &L,
-        likelihood_normal: &O,
-        _: &Variant,
-        _: usize,
-        _: usize
-    ) -> LogProb where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
+        pileup: &mut PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, Self>
+    ) -> LogProb
     {
         let grid_points = self.grid_points;
         let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
             let density = |af_tumor| {
                 let af_tumor = AlleleFreq(af_tumor);
-                likelihood_tumor(af_tumor, Some(af_normal))
+                pileup.case_likelihood(af_tumor, Some(af_normal))
             };
 
             let p_tumor = if af_tumor.start == af_tumor.end {
                 density(*af_tumor.start)
             } else {
                 LogProb::ln_simpsons_integrate_exp(
-                    &density, *af_tumor.start, *af_tumor.end, grid_points
+                    density, *af_tumor.start, *af_tumor.end, grid_points
                 )
             };
-            let p_normal = likelihood_normal(af_normal, None);
+            let p_normal = pileup.control_likelihood(af_normal, None);
             let prob = p_tumor + p_normal;
 
             prob
@@ -170,62 +142,42 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
         prob
     }
 
-    fn marginal_prob<L, O>(
+    fn marginal_prob(
         &self,
-        likelihood_tumor: &L,
-        likelihood_normal: &O,
-        variant: &Variant,
-        n_obs_tumor: usize,
-        n_obs_normal: usize
-    ) -> LogProb where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
+        pileup: &mut PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, Self>
+    ) -> LogProb
     {
         let p = self.joint_prob(
             self.allele_freqs().0,
             self.allele_freqs().1,
-            likelihood_tumor,
-            likelihood_normal,
-            variant,
-            n_obs_tumor,
-            n_obs_normal
+            pileup
         ).ln_add_exp(
             // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
                 &ContinuousAlleleFreqs::inclusive( 0.0..0.0 ),
                 &DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]),
-                likelihood_tumor,
-                likelihood_normal,
-                variant,
-                n_obs_tumor,
-                n_obs_normal
+                pileup
             )
         );
         p
     }
 
-    fn map<L, O>(
+    fn map(
         &self,
-        likelihood_tumor: &L,
-        likelihood_normal: &O,
-        _: &Variant,
-        n_obs_tumor: usize,
-        _: usize
-    ) -> (AlleleFreq, AlleleFreq) where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
+        pileup: &mut PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, Self>
+    ) -> (AlleleFreq, AlleleFreq)
     {
         let af_case = linspace(
             *self.allele_freqs_tumor.start,
             *self.allele_freqs_tumor.end,
-            n_obs_tumor + 1
+            pileup.case.len() + 1
         );
 
         let (_, (map_normal, map_tumor)) = self.allele_freqs().1.iter().cartesian_product(af_case).minmax_by_key(
             |&(&af_normal, af_tumor)| {
                 let af_tumor = AlleleFreq(af_tumor);
-                let p = likelihood_tumor(af_tumor, Some(af_normal)) +
-                        likelihood_normal(af_normal, None);
+                let p = pileup.case_likelihood(af_tumor, Some(af_normal)) +
+                        pileup.control_likelihood(af_normal, None);
                 //println!("lh normal af={}: {:?}", af_normal, likelihood_normal(af_normal, None));
                 NotNaN::new(*p).expect("posterior probability is NaN")
             }

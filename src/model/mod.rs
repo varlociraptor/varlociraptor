@@ -662,7 +662,7 @@ mod tests {
         }
 
         let model = setup_pairwise_test();
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             observations.clone(), observations.clone(),
             variant,
             &model.prior_model,
@@ -699,7 +699,7 @@ mod tests {
         }
 
         let model = setup_pairwise_test();
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             observations.clone(), vec![],
             variant,
             &model.prior_model,
@@ -744,7 +744,7 @@ mod tests {
         }
 
         let model = setup_pairwise_test();
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             observations.clone(), vec![],
             variant,
             &model.prior_model,
@@ -780,7 +780,7 @@ mod tests {
         }
 
         let model = setup_pairwise_test();
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             observations.clone(), observations.clone(),
             variant,
             &model.prior_model,

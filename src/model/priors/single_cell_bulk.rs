@@ -4,7 +4,7 @@ use bio::stats::LogProb;
 use statrs::function::beta::ln_beta;
 use statrs::function::factorial::ln_binomial;
 
-use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
+use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq, PairPileup};
 
 use priors::PairModel;
 
@@ -177,33 +177,27 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         self.prior_single(af_single, variant) + self.prior_bulk(af_bulk, variant)
     }
 
-    fn joint_prob<L, O>(
+    fn joint_prob(
         &self,
         af_single: &DiscreteAlleleFreqs,
         af_bulk: &ContinuousAlleleFreqs,
-        likelihood_single_distorted: &L,
-        likelihood_bulk: &O,
-        variant: &Variant,
-        n_obs_single: usize,
-        n_obs_bulk: usize
-    ) -> LogProb where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
+        pileup: &mut PairPileup<DiscreteAlleleFreqs, ContinuousAlleleFreqs, Self>
+    ) -> LogProb
     {
-        let n_single = self.cap_n_s(n_obs_single);
+        let n_single = self.cap_n_s(pileup.case.len());
         let k_single = 0..n_single + 1;
 
-        let n_bulk = self.adjust_n_b(n_obs_bulk);
+        let n_bulk = self.adjust_n_b(pileup.control.len());
         let (k_start, k_end) = self.determine_k_b(af_bulk, n_bulk);
         let k_bulk = k_start..k_end;
         // sum up all possible discrete bulk allele frequencies with current number of observations
         let p_bulk = LogProb::ln_sum_exp(&k_bulk.map(|k_b| {
             let af_bulk = AlleleFreq(k_b as f64/n_bulk as f64);
             let p: LogProb;
-            if n_obs_bulk == 0 { // speedup for zero coverage sites
-                p = self.prior_bulk(af_bulk, variant)
+            if pileup.case.len() == 0 { // speedup for zero coverage sites
+                p = self.prior_bulk(af_bulk, &pileup.variant)
             } else {
-                p = self.prior_bulk(af_bulk, variant) + likelihood_bulk(af_bulk, None)
+                p = self.prior_bulk(af_bulk, &pileup.variant) + pileup.control_likelihood(af_bulk, None)
             }
             p
         }).collect_vec() );
@@ -238,11 +232,11 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
             let p_single =
                     LogProb::ln_sum_exp(&k_single.clone().map(|k_s| { // sum up all possible discrete single cell allele frequencies with current number of observations
                         if n_single == 0 {
-                            self.prior_single(af_single, variant)
+                            self.prior_single(af_single, &pileup.variant)
                         } else {
                             let af_single_distorted = AlleleFreq(k_s as f64/n_single as f64);
-                            self.prior_single(af_single, variant) +
-                            likelihood_single_distorted(af_single_distorted, None) +
+                            self.prior_single(af_single, &pileup.variant) +
+                            pileup.case_likelihood(af_single_distorted, None) +
                             self.prob_rho(&af_single, &n_single, &k_s)
                         }
                     }).collect_vec());
@@ -254,40 +248,24 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
         prob
     }
 
-    fn marginal_prob<L, O>(
+    fn marginal_prob(
         &self,
-        likelihood_single_distorted: &L,
-        likelihood_bulk: &O,
-        variant: &Variant,
-        n_obs_single: usize,
-        n_obs_bulk: usize
-    ) -> LogProb where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
+        pileup: &mut PairPileup<DiscreteAlleleFreqs, ContinuousAlleleFreqs, Self>
+    ) -> LogProb
     {
         self.joint_prob(
             self.allele_freqs().0,
             self.allele_freqs().1,
-            likelihood_single_distorted,
-            likelihood_bulk,
-            variant,
-            n_obs_single,
-            n_obs_bulk
+            pileup
         )
     }
 
-    fn map<L, O>(
+    fn map(
         &self,
-        likelihood_single_distorted: &L,
-        likelihood_bulk: &O,
-        variant: &Variant,
-        n_obs_single: usize,
-        n_obs_bulk: usize
-    ) -> (AlleleFreq, AlleleFreq) where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb
+        pileup: &mut PairPileup<DiscreteAlleleFreqs, ContinuousAlleleFreqs, Self>
+    ) -> (AlleleFreq, AlleleFreq)
     {
-        let n_single = self.cap_n_s(n_obs_single);
+        let n_single = self.cap_n_s(pileup.case.len());
         let k_single = 0..n_single + 1;
 
         let (_, map_single) = self.allele_freqs().0.iter().minmax_by_key(
@@ -295,11 +273,11 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                 let p_single =
                     LogProb::ln_sum_exp(&k_single.clone().map(|k_s| { // sum up all possible discrete single cell allele frequencies with current number of observations
                         if n_single == 0 { // avoid division by zero, and speedup
-                            self.prior_single(af_single, variant)
+                            self.prior_single(af_single, &pileup.variant)
                         } else {
                             let af_single_distorted = AlleleFreq(k_s as f64/n_single as f64);
-                            self.prior_single(af_single, variant) +
-                            likelihood_single_distorted(af_single_distorted, None) +
+                            self.prior_single(af_single, &pileup.variant) +
+                            pileup.case_likelihood(af_single_distorted, None) +
                             self.prob_rho(&af_single, &n_single, &k_s)
                         }
                     }).collect_vec());
@@ -307,12 +285,12 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
 
-        let n_bulk = self.adjust_n_b(n_obs_bulk);
+        let n_bulk = self.adjust_n_b(pileup.control.len());
         let k_bulk = 0..n_bulk + 1;
         let afs_bulk = k_bulk.map(|k| AlleleFreq(k as f64/n_bulk as f64));
         let (_, map_bulk) = afs_bulk.minmax_by_key(
             |af_bulk| {
-                let p_bulk = self.prior_bulk(*af_bulk, variant) + likelihood_bulk(*af_bulk, None);
+                let p_bulk = self.prior_bulk(*af_bulk, &pileup.variant) + pileup.control_likelihood(*af_bulk, None);
                 NotNaN::new(*p_bulk).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
@@ -428,7 +406,7 @@ mod tests {
         println!("SCBM bulk ranges discretization sum test with:");
         println!("  * {} bulk ranges", rs_b.len() );
         println!("  * bulk Observations: {:?}", b_obs );
-        let pileup = create_test_snv_pileup(model, s_obs, b_obs);
+        let mut pileup = create_test_snv_pileup(model, s_obs, b_obs);
         let p_j: Vec<LogProb> = rs_b.iter().map(|r| pileup.joint_prob(afs_s, r)).collect();
         for (i, r) in rs_b.iter().enumerate() {
             println!("  Bulk range: {:?}; pileup.joint_prob() = {}", r, p_j[i].exp() );
@@ -448,7 +426,7 @@ mod tests {
         fraction: f64
     ) {
         println!("SCBM bulk ranges discretization ratio test with bulk observations: {:?}.", b_obs);
-        let pileup = create_test_snv_pileup(model, s_obs, b_obs);
+        let mut pileup = create_test_snv_pileup(model, s_obs, b_obs);
         let p_j = pileup.joint_prob(afs_s, r_b);
         let p_m = pileup.marginal_prob();
         println!("  pileup.marginal_prob() = {}; bulk range: {:?}; pileup.joint_prob() = {}", p_m.exp(), r_b, p_j.exp() );
@@ -545,7 +523,7 @@ mod tests {
         let single_obs = create_obs_vector(3, 3);
         let bulk_obs = create_obs_vector(3, 3);
 
-        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
+        let mut pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
         println!("SCBM het: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 0.00019473983947767667, epsilon = 0.000000000000000001 );
@@ -561,7 +539,7 @@ mod tests {
         let single_obs = create_obs_vector(3, 7);
         let bulk_obs = create_obs_vector(3, 7);
 
-        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
+        let mut pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM het: pileup.map_allele_freqs: ({} {})", sc, blk );
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.5), AlleleFreq(0.7) ) );
@@ -579,7 +557,7 @@ mod tests {
         let single_obs = create_obs_vector(5, 0);
         let bulk_obs = create_obs_vector(5, 0);
 
-        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
+        let mut pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
         println!("SCBM hom ref: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 1.2409982197541034, epsilon = 0.0000000000000001 );
@@ -595,7 +573,7 @@ mod tests {
         let single_obs = create_obs_vector(57, 3);
         let bulk_obs = create_obs_vector(27, 3);
 
-        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
+        let mut pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM hom ref: pileup.map_allele_freqs: ({} {})", sc, blk );
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(0.0), AlleleFreq(0.1) ) );
@@ -613,7 +591,7 @@ mod tests {
         let single_obs = create_obs_vector(0, 5);
         let bulk_obs = create_obs_vector(0, 5);
 
-        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
+        let mut pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
         println!("SCBM hom alt: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 1.2409982197541034, epsilon = 0.0000000000000001 );
@@ -629,7 +607,7 @@ mod tests {
         let single_obs = create_obs_vector(3, 57);
         let bulk_obs = create_obs_vector(3, 27);
 
-        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
+        let mut pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk );
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(1.0), AlleleFreq(0.9) ) );
@@ -647,7 +625,7 @@ mod tests {
         let single_obs = create_obs_vector(0, 4);
         let bulk_obs = create_obs_vector(3, 1);
 
-        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
+        let mut pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
 
         println!("SCBM hom alt: pileup.joint_prob(af_single, af_bulk): {}", pileup.joint_prob(&af_single, &af_bulk).exp() );
         assert_relative_eq!( pileup.joint_prob(&af_single, &af_bulk).exp(), 0.06996173990713889, epsilon = 0.0000000000000001 );
@@ -663,7 +641,7 @@ mod tests {
         let single_obs = create_obs_vector(4, 56);
         let bulk_obs = create_obs_vector(21, 9);
 
-        let pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
+        let mut pileup = create_test_snv_pileup(&model, &single_obs, &bulk_obs);
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk );
         assert_eq!( pileup.map_allele_freqs(), ( AlleleFreq(1.0), AlleleFreq(0.3) ) );

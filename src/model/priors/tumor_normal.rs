@@ -176,13 +176,13 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
         let p = self.joint_prob(
             self.allele_freqs().0,
             self.allele_freqs().1,
-            pileup,
+            pileup
         ).ln_add_exp(
             // add prob for allele frequency zero (the density is non-continuous there)
             self.joint_prob(
                 &ContinuousAlleleFreqs::inclusive( 0.0..0.0 ),
                 &DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]),
-                pileup,
+                pileup
             )
         );
         p
@@ -253,7 +253,7 @@ mod tests {
         let tumor_obs = create_obs_vector(5, 0);
         let normal_obs = create_obs_vector(5, 0);
 
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             tumor_obs.clone(),
             normal_obs.clone(),
             variant.clone(),
@@ -285,7 +285,7 @@ mod tests {
         let tumor_obs = create_obs_vector(5, 0);
         let normal_obs = create_obs_vector(5, 0);
 
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             tumor_obs.clone(),
             normal_obs.clone(),
             variant.clone(),
