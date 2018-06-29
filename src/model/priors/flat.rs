@@ -68,16 +68,29 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
         pileup: &mut PairPileup<DiscreteAlleleFreqs, DiscreteAlleleFreqs, Self>
     ) -> (AlleleFreq, AlleleFreq)
     {
-        fn calc_map<L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb>(likelihood: &L, afs: &DiscreteAlleleFreqs) -> AlleleFreq {
+        fn calc_map<L: FnMut(AlleleFreq) -> LogProb>(likelihood: &mut L, afs: &DiscreteAlleleFreqs) -> AlleleFreq {
             let (_, map) = afs.iter().minmax_by_key(|&af| {
-                let p = likelihood(*af, None);
+                let p = likelihood(*af);
                 NotNaN::new(*p).expect("probability is NaN")
             }).into_option().expect("prior has empty allele frequency spectrum");
             *map
         }
 
-        let map_first = calc_map(pileup.case_likelihood, self.allele_freqs().0);
-        let map_second = calc_map(pileup.control_likelihood, self.allele_freqs().1);
+        let map_first: AlleleFreq;
+        let map_second: AlleleFreq;
+
+        {
+            let mut first_likelihood = |af_first: AlleleFreq| {
+                    pileup.case_likelihood(af_first, None)
+                };
+                map_first = calc_map(&mut first_likelihood, self.allele_freqs().0);
+        }
+        {
+            let mut second_likelihood = |af_second: AlleleFreq| {
+                    pileup.control_likelihood(af_second, None)
+                };
+            map_second = calc_map(&mut second_likelihood, self.allele_freqs().1);
+        }
 
         (map_first, map_second)
     }
@@ -121,18 +134,21 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
     {
         let grid_points = self.grid_points;
         let prob = LogProb::ln_sum_exp(&af_normal.iter().map(|&af_normal| {
-            let density = |af_tumor| {
-                let af_tumor = AlleleFreq(af_tumor);
-                pileup.case_likelihood(af_tumor, Some(af_normal))
-            };
+            let p_tumor: LogProb;
+            {
+                let mut density = |af_tumor| {
+                    let af_tumor = AlleleFreq(af_tumor);
+                    pileup.case_likelihood(af_tumor, Some(af_normal))
+                };
 
-            let p_tumor = if af_tumor.start == af_tumor.end {
-                density(*af_tumor.start)
-            } else {
-                LogProb::ln_simpsons_integrate_exp(
-                    density, *af_tumor.start, *af_tumor.end, grid_points
-                )
-            };
+                p_tumor = if af_tumor.start == af_tumor.end {
+                    density(*af_tumor.start)
+                } else {
+                    LogProb::ln_simpsons_integrate_exp(
+                        density, *af_tumor.start, *af_tumor.end, grid_points
+                    )
+                };
+            }
             let p_normal = pileup.control_likelihood(af_normal, None);
             let prob = p_tumor + p_normal;
 
