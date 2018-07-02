@@ -49,42 +49,24 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
     fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, variant: &Variant) -> LogProb;
 
     /// Calculate joint probability of prior with likelihoods for given allele frequency ranges.
-    fn joint_prob<L, O>(
+    fn joint_prob(
         &self,
         af1: &A,
         af2: &B,
-        likelihood1: &L,
-        likelihood2: &O,
-        variant: &Variant,
-        n_obs1: usize,
-        n_obs2: usize
-    ) -> LogProb where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb;
+        pileup: &mut PairPileup<A, B, Self>,
+    ) -> LogProb;
 
     /// Calculate marginal probability.
-    fn marginal_prob<L, O>(
+    fn marginal_prob(
         &self,
-        likelihood1: &L,
-        likelihood2: &O,
-        variant: &Variant,
-        n_obs1: usize,
-        n_obs2: usize
-    ) -> LogProb where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb;
+        pileup: &mut PairPileup<A, B, Self>,
+    ) -> LogProb;
 
     /// Calculate maximum a posteriori probability estimate of allele frequencies.
-    fn map<L, O>(
+    fn map(
         &self,
-        likelihood1: &L,
-        likelihood2: &O,
-        variant: &Variant,
-        n_obs1: usize,
-        n_obs2: usize
-    ) -> (AlleleFreq, AlleleFreq) where
-        L: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb,
-        O: Fn(AlleleFreq, Option<AlleleFreq>) -> LogProb;
+        pileup: &mut PairPileup<A, B, Self>,
+    ) -> (AlleleFreq, AlleleFreq);
 
     /// Return allele frequency spectra.
     fn allele_freqs(&self) -> (&A, &B);

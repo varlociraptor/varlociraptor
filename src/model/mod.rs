@@ -4,6 +4,7 @@ use std::ops::{Range, Deref};
 use std::fmt::Debug;
 use std::error::Error;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 use ordered_float::NotNaN;
 use itertools::Itertools;
@@ -446,7 +447,7 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
 
 
 /// Pileup of observations associated with marginal probability.
-pub struct PairPileup<'a, A, B, P> where
+pub struct PairPileup<'a, A, B, P: ?Sized> where
     A: AlleleFreqs,
     B: AlleleFreqs,
     P: 'a + priors::PairModel<A, B>
@@ -458,6 +459,9 @@ pub struct PairPileup<'a, A, B, P> where
     prior_model: &'a P,
     case_sample_model: likelihood::LatentVariableModel,
     control_sample_model: likelihood::LatentVariableModel,
+    // these two caches are useful for PairModels where case and control are independent of each other and Events are just combinations of across the two axes, as e.g. in the single-cell-bulk model
+    case_likelihood_cache: BTreeMap<AlleleFreq, LogProb>,
+    control_likelihood_cache: BTreeMap<AlleleFreq, LogProb>,
     variant: Variant,
     a: PhantomData<A>,
     b: PhantomData<B>
@@ -482,22 +486,18 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
             prior_model: prior_model,
             case_sample_model: case_sample_model,
             control_sample_model: control_sample_model,
+            case_likelihood_cache: BTreeMap::new(),
+            control_likelihood_cache: BTreeMap::new(),
             a: PhantomData,
             b: PhantomData
         }
     }
 
-    fn marginal_prob(&self) -> LogProb {
+    fn marginal_prob(&mut self) -> LogProb {
         if self.marginal_prob.get().is_none() {
             debug!("Calculating marginal probability.");
 
-            let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
-                self.case_likelihood(af_case, af_control)
-            };
-            let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
-                self.control_likelihood(af_control, af_case)
-            };
-            let p = self.prior_model.marginal_prob(&case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len());
+            let p = self.prior_model.marginal_prob(self);
             debug!("Marginal probability: {}.", p.exp());
 
             self.marginal_prob.set(Some(p));
@@ -506,45 +506,55 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         self.marginal_prob.get().unwrap()
     }
 
-    pub fn joint_prob(&self, af_case: &A, af_control: &B) -> LogProb {
-        let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
-            self.case_likelihood(af_case, af_control)
-        };
-        let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
-            self.control_likelihood(af_control, af_case)
-        };
-
-        let p = self.prior_model.joint_prob(af_case, af_control, &case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len());
+    pub fn joint_prob(&mut self, af_case: &A, af_control: &B) -> LogProb {
+        let p = self.prior_model.joint_prob(af_case, af_control, self);
         p
     }
 
     /// Calculate posterior probability of given allele frequencies.
-    pub fn posterior_prob(&self, af_case: &A, af_control: &B) -> LogProb {
+    pub fn posterior_prob(&mut self, af_case: &A, af_control: &B) -> LogProb {
         let p = self.joint_prob(af_case, af_control);
         let marginal = self.marginal_prob();
         let prob = p - marginal;
         prob
     }
 
-    pub fn map_allele_freqs(&self) -> (AlleleFreq, AlleleFreq) {
-        let case_likelihood = |af_case: AlleleFreq, af_control: Option<AlleleFreq>| {
-            self.case_likelihood(af_case, af_control)
-        };
-        let control_likelihood = |af_control: AlleleFreq, af_case: Option<AlleleFreq>| {
-            self.control_likelihood(af_control, af_case)
-        };
-
-        self.prior_model.map(&case_likelihood, &control_likelihood, &self.variant, self.case.len(), self.control.len())
+    pub fn map_allele_freqs(&mut self) -> (AlleleFreq, AlleleFreq) {
+        self.prior_model.map(self)
     }
 
-    fn case_likelihood(&self, af_case: AlleleFreq, af_control: Option<AlleleFreq>) -> LogProb {
-        let p = self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control);
-        p
+    fn case_likelihood(
+        &mut self,
+        af_case: AlleleFreq,
+        af_control: Option<AlleleFreq>
+    ) -> LogProb {
+        // no af_control given, because case and control are independent
+        if af_control.is_none() {
+                // get likelihood if already cached
+            *self.case_likelihood_cache.entry(af_case)
+                // compute and insert otherwise
+                .or_insert( self.case_sample_model.likelihood_pileup(&self.case, af_case, None) )
+        // cache cannot be used
+        } else {
+            self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control)
+        }
     }
 
-    fn control_likelihood(&self, af_control: AlleleFreq, af_case: Option<AlleleFreq>) -> LogProb {
-        let p = self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case);
-        p
+    fn control_likelihood(
+        &mut self,
+        af_control: AlleleFreq,
+        af_case: Option<AlleleFreq>
+    ) -> LogProb {
+        // no af_control given, because case and control are independent
+        if af_case.is_none() {
+                    // get likelihood if already cached
+            *self.control_likelihood_cache.entry(af_control)
+                    // compute and insert otherwise
+                    .or_insert( self.control_sample_model.likelihood_pileup(&self.control, af_control, None) )
+        // cache cannot be used
+        } else {
+            self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case)
+        }
     }
 
     pub fn case_observations(&self) -> &[Observation] {
@@ -652,7 +662,7 @@ mod tests {
         }
 
         let model = setup_pairwise_test();
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             observations.clone(), observations.clone(),
             variant,
             &model.prior_model,
@@ -689,7 +699,7 @@ mod tests {
         }
 
         let model = setup_pairwise_test();
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             observations.clone(), vec![],
             variant,
             &model.prior_model,
@@ -734,7 +744,7 @@ mod tests {
         }
 
         let model = setup_pairwise_test();
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             observations.clone(), vec![],
             variant,
             &model.prior_model,
@@ -770,7 +780,7 @@ mod tests {
         }
 
         let model = setup_pairwise_test();
-        let pileup = PairPileup::new(
+        let mut pileup = PairPileup::new(
             observations.clone(), observations.clone(),
             variant,
             &model.prior_model,
