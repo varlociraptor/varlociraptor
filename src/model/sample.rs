@@ -15,7 +15,7 @@ use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::CigarStringView;
-use bio::stats::{LogProb, Prob};
+use bio::stats::{LogProb, Prob, PHREDProb};
 
 use model;
 use model::Variant;
@@ -213,7 +213,6 @@ impl Sample {
         use_fragment_evidence: bool,
         // TODO remove this parameter, it will lead to wrong insert size estimations and is not necessary
         use_secondary: bool,
-        // TODO remove this parameter, we should always use MAPQ
         use_mapq: bool,
         // TODO remove this parameter, it is not needed anymore
         adjust_mapq: bool,
@@ -325,7 +324,6 @@ impl Sample {
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
-
                     // We look at the whole fragment at once.
 
                     // We ensure fair sampling by checking if the whole fragment overlaps the
@@ -437,9 +435,7 @@ impl Sample {
     fn prob_mapping(
         &self,
         record: &bam::Record,
-        cigar: &bam::record::CigarStringView,
-        chrom_name: &[u8],
-        chrom_seq: &[u8]
+        common_obs: &observation::Common
     ) -> Result<LogProb, Box<Error>> {
         if self.use_mapq {
             if self.adjust_mapq {
@@ -454,8 +450,16 @@ impl Sample {
                 Ok(evidence::reads::prob_mapping(record))
             }
         } else {
-            // Only penalize reads with mapq 0, all others treat the same.
-            Ok(if record.mapq() == 0 { LogProb::ln_zero() } else { LogProb::ln_one() })
+            // Only penalize reads with mapq 0, all others treat the same, by giving them the
+            // maximum observed mapping quality.
+            // This is good, because it removes biases with esp. SV reads that usually get lower
+            // MAPQ. By using the maximum observed MAPQ, we still calibrate to the general
+            // certainty of the mapper at this locus!
+            Ok(if record.mapq() == 0 {
+                LogProb::ln_zero()
+            } else {
+                LogProb::from(PHREDProb(common_obs.max_mapq as f64)).ln_one_minus_exp()
+            })
         }
     }
 
@@ -484,7 +488,7 @@ impl Sample {
         };
 
         if let Some( (prob_ref, prob_alt) ) = probs {
-            let prob_mapping = self.prob_mapping(record, cigar, chrom_name, chrom_seq)?;
+            let prob_mapping = self.prob_mapping(record, common_obs)?;
 
             let prob_sample_alt = self.indel_read_evidence.borrow().prob_sample_alt(
                 record.seq().len() as u32,
@@ -586,8 +590,8 @@ impl Sample {
         assert!(p_ref_right.is_valid());
 
         let obs = Observation::new(
-            (self.prob_mapping(left_record, &left_cigar, chrom_name, chrom_seq)?.ln_one_minus_exp() +
-            self.prob_mapping(right_record, &right_cigar, chrom_name, chrom_seq)?.ln_one_minus_exp()).ln_one_minus_exp(),
+            (self.prob_mapping(left_record, common_obs)?.ln_one_minus_exp() +
+            self.prob_mapping(right_record, common_obs)?.ln_one_minus_exp()).ln_one_minus_exp(),
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
             prob_sample_alt.joint_prob(common_obs),

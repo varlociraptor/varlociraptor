@@ -241,6 +241,7 @@ pub struct Common {
     softclip_obs: BTreeMap<u32, u32>,
     indel_obs: BTreeMap<u32, u32>,
     pub max_read_len: u32,
+    pub max_mapq: u8,
     prob_feasible: Option<Vec<LogProb>>
 }
 
@@ -253,13 +254,10 @@ impl Common {
     ) -> Result<(), Box<Error>> {
         let valid_records = || records.iter().filter(|rec| !rec.is_supplementary());
 
-        // obtain maximum read len
-        self.max_read_len = cmp::max(
-            self.max_read_len,
-            valid_records().map(
-                |rec| rec.seq().len()
-            ).max().unwrap_or(0) as u32
-        );
+        for rec in valid_records() {
+            self.max_read_len = cmp::max(self.max_read_len, rec.seq().len() as u32);
+            self.max_mapq = cmp::max(self.max_mapq, rec.mapq());
+        }
 
         match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {

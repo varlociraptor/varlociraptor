@@ -350,7 +350,7 @@ fn test1() {
     let mut call = load_call("test1");
 
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.01);
+    check_info_float(&mut call, b"PROB_GERMLINE", 0.01, 0.01);
 }
 
 
@@ -362,7 +362,7 @@ fn test2() {
 
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.06);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 0.0000008, 0.0000001);
+    check_info_float(&mut call, b"PROB_SOMATIC", 0.000006, 0.000001);
 }
 
 
@@ -384,7 +384,7 @@ fn test4() {
     call_tumor_normal("test4", false, "chr1");
     let mut call = load_call("test4");
 
-    check_info_float(&mut call, b"CASE_AF", 0.042, 0.11);
+    check_info_float(&mut call, b"CASE_AF", 0.042, 0.13);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"PROB_SOMATIC", 3.87513e-08, 0.1);
 }
@@ -421,7 +421,7 @@ fn test7() {
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.125, 0.082);
     check_info_float(&mut call, b"PROB_SOMATIC", 4.05949e-09, 0.00000001);
-    check_info_float(&mut call, b"PROB_GERMLINE", 90.0, 0.5);
+    check_info_float(&mut call, b"PROB_GERMLINE", 90.9, 0.1);
 }
 
 
@@ -521,11 +521,12 @@ fn test16() {
 fn test17() {
     call_tumor_normal("test17", true, "chr11");
     let mut call = load_call("test17");
-    check_info_float(&mut call, b"CASE_AF", 0.0, 0.05);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.04);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     // TODO this is not called as absent currently, because the two fragments in case which support
-    // the variant are pretty strong.
-    //check_info_float(&mut call, b"PROB_ABSENT", 0.17, 0.01);
+    // the variant are pretty strong. But, prob_somatic is weak enough to properly reflect that it
+    // is not a certain call.
+    check_info_float(&mut call, b"PROB_SOMATIC", 1.55, 0.01);
 }
 
 /// A large lancet deletion that is not somatic and a likely homozygous germline variant.
@@ -585,17 +586,17 @@ fn test22() {
 fn test23() {
     call_tumor_normal("test23", false, "chr14");
     let mut call = load_call("test23");
-    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.01);
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_ABSENT", 1.56, 0.01);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
 }
 
-/// Test a small strelka deletion that is not somatic but germline.
+/// Test a small strelka deletion that is not somatic.
 #[test]
 fn test24() {
     call_tumor_normal("test24", false, "chr6");
     let mut call = load_call("test24");
-    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.01);
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
 }
 
 /// Test a small lancet deletion that is a clear germline variant.
@@ -605,7 +606,7 @@ fn test25() {
     let mut call = load_call("test25");
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 2648.44, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 1973.05, 0.01);
     check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.01);
 }
 
