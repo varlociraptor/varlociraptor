@@ -403,6 +403,16 @@ impl Sample {
         }
 
         if !observations.is_empty() {
+            // We artificially set all observations that neither support the reference nor the alt
+            // allele to supporting the reference allele for now (TODO). In reality, they will support
+            // a third allele though, which we should consider instead. However, keeping such observations
+            // at -inf/-inf will cause numerical issues because they turn all likelihoods into -inf.
+            for obs in &mut observations {
+                if obs.prob_alt == LogProb::ln_zero() && obs.prob_ref == LogProb::ln_zero() {
+                    obs.prob_ref = LogProb::ln_one();
+                }
+            }
+
             // We scale all probabilities by the maximum value. This is just an unbiased scaling
             // that does not affect the final certainties (because of Bayes' theorem application
             // in the end). However, we avoid numerical issues (e.g., during integration).
@@ -411,7 +421,7 @@ impl Sample {
             }).max().unwrap());
             if max_prob != LogProb::ln_zero() {
                 // only scale if the maximum probability is not zero
-                for obs in observations.iter_mut() {
+                for obs in &mut observations {
                     obs.prob_ref = obs.prob_ref - max_prob;
                     obs.prob_alt = obs.prob_alt - max_prob;
                     assert!(obs.prob_ref.is_valid());
@@ -433,17 +443,19 @@ impl Sample {
     ) -> Result<LogProb, Box<Error>> {
         if self.use_mapq {
             if self.adjust_mapq {
-                Ok(evidence::reads::prob_mapping_adjusted(
-                    record,
-                    cigar,
-                    chrom_name,
-                    chrom_seq
-                )?)
+                Ok(evidence::reads::prob_mapping_se(record))
+                // Ok(evidence::reads::prob_mapping_adjusted(
+                //     record,
+                //     cigar,
+                //     chrom_name,
+                //     chrom_seq
+                // )?)
             } else {
                 Ok(evidence::reads::prob_mapping(record))
             }
         } else {
-            Ok(LogProb::ln_one())
+            // Only penalize reads with mapq 0, all others treat the same.
+            Ok(if record.mapq() == 0 { LogProb::ln_zero() } else { LogProb::ln_one() })
         }
     }
 
@@ -574,8 +586,8 @@ impl Sample {
         assert!(p_ref_right.is_valid());
 
         let obs = Observation::new(
-            self.prob_mapping(left_record, &left_cigar, chrom_name, chrom_seq)? +
-            self.prob_mapping(right_record, &right_cigar, chrom_name, chrom_seq)?,
+            (self.prob_mapping(left_record, &left_cigar, chrom_name, chrom_seq)?.ln_one_minus_exp() +
+            self.prob_mapping(right_record, &right_cigar, chrom_name, chrom_seq)?.ln_one_minus_exp()).ln_one_minus_exp(),
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
             prob_sample_alt.joint_prob(common_obs),
