@@ -365,7 +365,7 @@ pub fn prob_mapping_se(
 pub fn alignment_len(record: &bam::Record) -> (u32, u32) {
     let mut qlen = record.seq().len() as u32;
     let mut rlen = record.seq().len() as u32;
-    for c in record.cigar().unwrap().iter() {
+    for c in record.cigar_cached().unwrap().iter() {
         match c {
             &Cigar::SoftClip(l) | &Cigar::HardClip(l) => qlen -= l,
             &Cigar::Del(l) => rlen += l,
