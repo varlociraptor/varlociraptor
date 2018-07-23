@@ -637,7 +637,7 @@ mod tests {
         let vpos = 4;
         let variant = model::Variant::None;
         for (i, mut rec) in records.into_iter().enumerate() {
-            rec.cache_cigar_cached();
+            rec.cache_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
             if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_none(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq) {
                 println!("{:?}", rec.cigar_cached());
@@ -719,7 +719,7 @@ mod tests {
         let vpos = 5;
         let variant = model::Variant::SNV(b'G');
         for (i, mut rec) in records.into_iter().enumerate() {
-            rec.cache_cigar_cached();
+            rec.cache_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
             if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_snv(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq) {
                 println!("{:?}", rec.cigar_cached());

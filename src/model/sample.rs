@@ -105,7 +105,7 @@ impl RecordBuffer {
                     continue;
                 }
                 // unpack cigar string
-                record.cache_cigar_cached();
+                record.cache_cigar();
                 self.inner.push_back(record);
                 if pos > end as i32 + self.window as i32 {
                     break;
@@ -719,7 +719,7 @@ mod tests {
 
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let mut record = record.unwrap();
-            record.cache_cigar_cached();
+            record.cache_cigar();
             let cigar = record.cigar_cached().unwrap();
             if let Some( obs ) = sample.read_observation(&record, cigar, varpos, &variant, b"17", &ref_seq, &common).unwrap() {
                 println!("{:?}", obs);
@@ -767,7 +767,7 @@ mod tests {
         let start = 546;
         let variant = model::Variant::Insertion(b"GCATCCTGCG".to_vec());
         for (i, mut rec) in records.into_iter().enumerate() {
-            rec.cache_cigar_cached();
+            rec.cache_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
             let (prob_ref, prob_alt) = sample.indel_read_evidence.borrow_mut().prob(&rec, rec.cigar_cached().unwrap(), start, &variant, &ref_seq).unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
