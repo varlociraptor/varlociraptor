@@ -187,6 +187,7 @@ pub struct Sample {
     use_fragment_evidence: bool,
     use_mapq: bool,
     adjust_mapq: bool,
+    est_prob_sample_alt: bool,
     likelihood_model: model::likelihood::LatentVariableModel,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>
@@ -216,6 +217,7 @@ impl Sample {
         use_mapq: bool,
         // TODO remove this parameter, it is not needed anymore
         adjust_mapq: bool,
+        est_prob_sample_alt: bool,
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_insertion_artifact: Prob,
@@ -229,6 +231,7 @@ impl Sample {
             use_fragment_evidence: use_fragment_evidence,
             use_mapq: use_mapq,
             adjust_mapq: adjust_mapq,
+            est_prob_sample_alt: est_prob_sample_alt,
             likelihood_model: likelihood_model,
             indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
                 LogProb::from(prob_insertion_artifact),
@@ -490,10 +493,14 @@ impl Sample {
         if let Some( (prob_ref, prob_alt) ) = probs {
             let prob_mapping = self.prob_mapping(record, common_obs)?;
 
-            let prob_sample_alt = self.indel_read_evidence.borrow().prob_sample_alt(
-                record.seq().len() as u32,
-                variant
-            );
+            let prob_sample_alt = if self.est_prob_sample_alt {
+                self.indel_read_evidence.borrow().prob_sample_alt(
+                    record.seq().len() as u32,
+                    variant
+                )
+            } else {
+                observation::ProbSampleAlt::One
+            };
             Ok( Some (
                 Observation::new(
                     prob_mapping,
@@ -576,11 +583,15 @@ impl Sample {
             }
         };
 
-        let prob_sample_alt = self.indel_fragment_evidence.borrow().prob_sample_alt(
-            left_read_len,
-            right_read_len,
-            variant
-        );
+        let prob_sample_alt = if self.est_prob_sample_alt {
+            self.indel_fragment_evidence.borrow().prob_sample_alt(
+                left_read_len,
+                right_read_len,
+                variant
+            )
+        } else {
+            observation::ProbSampleAlt::One
+        };
 
         assert!(p_alt_isize.is_valid());
         assert!(p_ref_isize.is_valid());
