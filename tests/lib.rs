@@ -582,7 +582,7 @@ fn test22() {
 fn test23() {
     call_tumor_normal("test23", false, "chr14");
     let mut call = load_call("test23");
-    check_info_float(&mut call, b"PROB_ABSENT", 1.56, 0.01);
+    check_info_float(&mut call, b"PROB_ABSENT", 2.25, 0.01);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
 }

@@ -397,16 +397,6 @@ impl Sample {
         }
 
         if !observations.is_empty() {
-            // We artificially set all observations that neither support the reference nor the alt
-            // allele to supporting the reference allele for now (TODO). In reality, they will support
-            // a third allele though, which we should consider instead. However, keeping such observations
-            // at -inf/-inf will cause numerical issues because they turn all likelihoods into -inf.
-            for obs in &mut observations {
-                if obs.prob_alt == LogProb::ln_zero() && obs.prob_ref == LogProb::ln_zero() {
-                    obs.prob_ref = LogProb::ln_one();
-                }
-            }
-
             // We scale all probabilities by the maximum value. This is just an unbiased scaling
             // that does not affect the final certainties (because of Bayes' theorem application
             // in the end). However, we avoid numerical issues (e.g., during integration).
