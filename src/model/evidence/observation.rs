@@ -264,7 +264,7 @@ impl Common {
         match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
                 for rec in valid_records() {
-                    let cigar = rec.cigar().unwrap();
+                    let cigar = rec.cigar_cached().unwrap();
 
                     let overlap = Overlap::new(
                         rec, cigar, start, variant, true
