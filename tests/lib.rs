@@ -263,7 +263,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
         },
         libprosic::call::pairwise::PairEvent {
             name: "err_ref".to_owned(),
-            af_case: DiscreteAlleleFreqs::feasible(2).not_absent(),
+            af_case: DiscreteAlleleFreqs::new( vec![AlleleFreq(0.0), AlleleFreq(0.5)] ),
             af_control: ContinuousAlleleFreqs::inclusive( 1.0..1.0 )
         }
     ];
