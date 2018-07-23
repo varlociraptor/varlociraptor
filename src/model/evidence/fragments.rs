@@ -51,8 +51,8 @@ pub fn n_fragment_positions(
 /// * `left` - left read of the pair
 /// * `right` - right read of the pair
 pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u32, Box<Error>> {
-    let left_cigar = left.cigar().unwrap();
-    let right_cigar = right.cigar().unwrap();
+    let left_cigar = left.cigar_cached().unwrap();
+    let right_cigar = right.cigar_cached().unwrap();
 
     let aln = |rec: &bam::Record, cigar| -> Result<(u32, u32), Box<Error>> {
         Ok((
