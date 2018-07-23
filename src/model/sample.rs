@@ -186,7 +186,6 @@ pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
     use_mapq: bool,
-    adjust_mapq: bool,
     likelihood_model: model::likelihood::LatentVariableModel,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>
@@ -214,8 +213,6 @@ impl Sample {
         // TODO remove this parameter, it will lead to wrong insert size estimations and is not necessary
         use_secondary: bool,
         use_mapq: bool,
-        // TODO remove this parameter, it is not needed anymore
-        adjust_mapq: bool,
         insert_size: InsertSize,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_insertion_artifact: Prob,
@@ -228,7 +225,6 @@ impl Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
             use_mapq: use_mapq,
-            adjust_mapq: adjust_mapq,
             likelihood_model: likelihood_model,
             indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
                 LogProb::from(prob_insertion_artifact),
@@ -430,25 +426,14 @@ impl Sample {
         Ok(observations)
     }
 
-    /// Obtain mapping quality. If adjust_mapq is set, the mapping quality is adjusted with the
-    /// certainty of the aligment score compared to the best alternative alignment score.
+    /// Obtain mapping quality.
     fn prob_mapping(
         &self,
         record: &bam::Record,
         common_obs: &observation::Common
     ) -> Result<LogProb, Box<Error>> {
         if self.use_mapq {
-            if self.adjust_mapq {
-                Ok(evidence::reads::prob_mapping_se(record))
-                // Ok(evidence::reads::prob_mapping_adjusted(
-                //     record,
-                //     cigar,
-                //     chrom_name,
-                //     chrom_seq
-                // )?)
-            } else {
-                Ok(evidence::reads::prob_mapping(record))
-            }
+            Ok(evidence::reads::prob_mapping(record))
         } else {
             // Only penalize reads with mapq 0, all others treat the same, by giving them the
             // maximum observed mapping quality.
@@ -705,7 +690,6 @@ mod tests {
             true,
             true,
             true,
-            false,
             InsertSize { mean: isize_mean, sd: 20.0 },
             likelihood::LatentVariableModel::new(1.0),
             constants::PROB_ILLUMINA_INS,
