@@ -533,7 +533,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
                 // get likelihood if already cached
             *self.case_likelihood_cache.entry(af_case)
                 // compute and insert otherwise
-                .or_insert( self.case_sample_model.likelihood_pileup(&self.case, af_case, None) )
+                .or_insert_with( || self.case_sample_model.likelihood_pileup(&self.case, af_case, None) )
         // cache cannot be used
         } else {
             self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control)
@@ -550,7 +550,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
                     // get likelihood if already cached
             *self.control_likelihood_cache.entry(af_control)
                     // compute and insert otherwise
-                    .or_insert( self.control_sample_model.likelihood_pileup(&self.control, af_control, None) )
+                    .or_insert_with( || self.control_sample_model.likelihood_pileup(&self.control, af_control, None) )
         // cache cannot be used
         } else {
             self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case)
