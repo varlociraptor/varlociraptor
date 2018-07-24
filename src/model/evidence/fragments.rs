@@ -11,7 +11,6 @@ use rust_htslib::bam;
 use model::Variant;
 use estimation::alignment_properties::AlignmentProperties;
 use model::evidence;
-use model::evidence::observation::ProbSampleAlt;
 
 
 /// Calculate the number of positions a fragment can have in a given window according to
@@ -139,8 +138,8 @@ impl IndelEvidence {
         Ok((p_ref, p_alt))
     }
 
-    /// Probability to sample read from alt allele for each possible number of feasible positions
-    /// up to a given theoretical maximum.
+    /// Probability to sample read from alt allele for globally observed number of feasible
+    /// positions.
     ///
     /// The key idea is to take the insert size distribution and calculate the expected probability
     /// by considering the number of valid placements over all placements for each possible insert
@@ -150,12 +149,16 @@ impl IndelEvidence {
         left_read_len: u32,
         right_read_len: u32,
         variant: &Variant
-    ) -> ProbSampleAlt {
-        // TODO for long reads always return one
-        let expected_prob_enclose = |feasible, delta| {
-            let read_offsets = left_read_len.saturating_sub(feasible) +
-                               right_read_len.saturating_sub(feasible);
+    ) -> LogProb {
+        // TODO for long reads always return one?
+        let expected_prob_enclose = |left_feasible, right_feasible, delta| {
+            let read_offsets = left_read_len.saturating_sub(left_feasible) +
+                               right_read_len.saturating_sub(right_feasible);
 
+            // Calculate over each possible true insert size instead of the concrete insert size
+            // of this fragment. This way we get a global value. Otherwise, we would obtain a
+            // bias for each fragment that is too small to enclose the variant,
+            // e.g., a ref fragment.
             let expected_p_alt = LogProb::ln_sum_exp(
                 &self.pmf_range().filter_map(|x| {
                     if x <= delta || x <= delta + read_offsets {
@@ -176,38 +179,31 @@ impl IndelEvidence {
 
             expected_p_alt
         };
-        let expected_prob_overlap = |feasible, delta| {
+        let expected_prob_overlap = |left_feasible, right_feasible, delta| {
             let n_alt_left = cmp::min(delta, left_read_len);
             let n_alt_right = cmp::min(delta, right_read_len);
-            let n_alt_valid = cmp::min(n_alt_left, feasible) +
-                              cmp::min(n_alt_right, feasible);
+            let n_alt_valid = cmp::min(n_alt_left, left_feasible) +
+                              cmp::min(n_alt_right, right_feasible);
 
             LogProb((n_alt_valid as f64).ln() - ((n_alt_left + n_alt_right) as f64).ln())
         };
 
-        let max_feasible = cmp::max(left_read_len, right_read_len);
+        let left_feasible = self.alignment_properties.feasible_bases(left_read_len, variant);
+        let right_feasible = self.alignment_properties.feasible_bases(right_read_len, variant);
 
         match variant {
             &Variant::Deletion(_)  => {
                 // Deletion length does not affect sampling because the reads come from the allele
                 // where the deleted sequence is not present ;-).
                 let delta = 0;
-                ProbSampleAlt::Dependent(
-                    (0..max_feasible + 1).map(
-                        |s| expected_prob_enclose(s, delta)
-                    ).collect_vec()
-                )
+                expected_prob_enclose(left_feasible, right_feasible, delta)
             },
             &Variant::Insertion(ref seq) => {
                 let delta = seq.len() as u32;
-                ProbSampleAlt::Dependent(
-                    (0..max_feasible + 1).map(
-                        |s| expected_prob_overlap(s, delta)
-                    ).collect_vec()
-                )
+                expected_prob_overlap(left_feasible, right_feasible, delta)
             },
             // for SNVs sampling is unbiased
-            &Variant::SNV(_) | &Variant::None => return ProbSampleAlt::One
+            &Variant::SNV(_) | &Variant::None => LogProb::ln_one()
         }
     }
 }

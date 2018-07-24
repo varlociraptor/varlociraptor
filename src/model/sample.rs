@@ -144,7 +144,6 @@ impl<'a> Candidate<'a> {
 pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
-    use_mapq: bool,
     likelihood_model: model::likelihood::LatentVariableModel,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>
@@ -183,7 +182,6 @@ impl Sample {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
-            use_mapq: use_mapq,
             likelihood_model: likelihood_model,
             indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
                 LogProb::from(prob_insertion_artifact),
@@ -191,28 +189,13 @@ impl Sample {
                 LogProb::from(prob_insertion_extend_artifact),
                 LogProb::from(prob_deletion_extend_artifact),
                 indel_haplotype_window,
-                alignment_properties
+                alignment_properties,
+                use_mapq
             )),
             indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new(
                 alignment_properties
             ))
         }
-    }
-
-    /// Return true if MAPQ appears to be reliable.
-    /// Currently, this checks if AS > XS, i.e., the alignment score of the current position is
-    /// better than for any alternative hit. If this is not the case, the read was most likely
-    /// mapped to the current position because of its mate. Such placements can easily lead to
-    /// false positives, especially in repetetive regions. Hence, we choose to rather ignore them.
-    /// TODO: determine whether this helps with performance of indel and/or SNV detection
-    fn is_reliable_read(&self, record: &bam::Record) -> bool {
-        if let Some(astag) = record.aux(b"AS") {
-            if let Some(xstag) = record.aux(b"XS") {
-                return astag.integer() > xstag.integer();
-            }
-        }
-
-        true
     }
 
     /// Return likelihood model.
@@ -376,28 +359,6 @@ impl Sample {
         Ok(observations)
     }
 
-    /// Obtain mapping quality.
-    fn prob_mapping(
-        &self,
-        record: &bam::Record,
-        common_obs: &observation::Common
-    ) -> Result<LogProb, Box<Error>> {
-        if self.use_mapq {
-            Ok(evidence::reads::prob_mapping(record))
-        } else {
-            // Only penalize reads with mapq 0, all others treat the same, by giving them the
-            // maximum observed mapping quality.
-            // This is good, because it removes biases with esp. SV reads that usually get lower
-            // MAPQ. By using the maximum observed MAPQ, we still calibrate to the general
-            // certainty of the mapper at this locus!
-            Ok(if record.mapq() == 0 {
-                LogProb::ln_zero()
-            } else {
-                LogProb::from(PHREDProb(common_obs.max_mapq as f64)).ln_one_minus_exp()
-            })
-        }
-    }
-
     /// extract within-read evidence for reads covering an indel or SNV of interest
     fn read_observation(
         &self,
@@ -423,7 +384,7 @@ impl Sample {
         };
 
         if let Some( (prob_ref, prob_alt) ) = probs {
-            let prob_mapping = self.prob_mapping(record, common_obs)?;
+            let prob_mapping = self.indel_read_evidence.borrow().prob_mapping(record);
 
             let prob_sample_alt = self.indel_read_evidence.borrow().prob_sample_alt(
                 record.seq().len() as u32,
@@ -434,7 +395,7 @@ impl Sample {
                     prob_mapping,
                     prob_alt,
                     prob_ref,
-                    prob_sample_alt.joint_prob(common_obs),
+                    prob_sample_alt,
                     Evidence::alignment(cigar, record)
                 )
             ))
@@ -525,11 +486,12 @@ impl Sample {
         assert!(p_ref_right.is_valid());
 
         let obs = Observation::new(
-            (self.prob_mapping(left_record, common_obs)?.ln_one_minus_exp() +
-            self.prob_mapping(right_record, common_obs)?.ln_one_minus_exp()).ln_one_minus_exp(),
+            (self.indel_read_evidence.borrow().prob_mapping(left_record).ln_one_minus_exp() +
+             self.indel_read_evidence.borrow().prob_mapping(right_record).ln_one_minus_exp()
+            ).ln_one_minus_exp(),
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
-            prob_sample_alt.joint_prob(common_obs),
+            prob_sample_alt,
             Evidence::insert_size(
                 insert_size as u32,
                 left_record.cigar_cached().unwrap(),
