@@ -572,7 +572,7 @@ mod tests {
     use super::*;
     use likelihood::LatentVariableModel;
     use Sample;
-    use InsertSize;
+    use estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use model::evidence::{Observation, Evidence};
     use constants;
     use model::evidence::observation;
@@ -589,7 +589,7 @@ mod tests {
             true,
             true,
             true,
-            insert_size,
+            AlignmentProperties::default(insert_size),
             LatentVariableModel::new(1.0),
             constants::PROB_ILLUMINA_INS,
             constants::PROB_ILLUMINA_DEL,
@@ -603,7 +603,7 @@ mod tests {
             true,
             true,
             true,
-            insert_size,
+            AlignmentProperties::default(insert_size),
             LatentVariableModel::new(1.0),
             constants::PROB_ILLUMINA_INS,
             constants::PROB_ILLUMINA_DEL,

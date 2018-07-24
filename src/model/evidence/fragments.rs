@@ -9,7 +9,7 @@ use bio::stats::LogProb;
 use rust_htslib::bam;
 
 use model::Variant;
-use model::sample::InsertSize;
+use estimation::alignment_properties::AlignmentProperties;
 use model::evidence;
 use model::evidence::observation::ProbSampleAlt;
 
@@ -78,26 +78,26 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u
 
 /// Calculate read evindence for an indel.
 pub struct IndelEvidence {
-    insert_size: InsertSize
+    alignment_properties: AlignmentProperties
 }
 
 
 impl IndelEvidence {
     /// Create a new instance.
     pub fn new(
-        insert_size: InsertSize
+        alignment_properties: AlignmentProperties
     ) -> Self {
 
         IndelEvidence {
-            insert_size: insert_size
+            alignment_properties
         }
     }
 
     /// Get range of insert sizes with probability above zero.
     /// We use 6 SDs around the mean.
     fn pmf_range(&self) -> Range<u32> {
-        let m = self.insert_size.mean.round() as u32;
-        let s = self.insert_size.sd.ceil() as u32 * 6;
+        let m = self.alignment_properties.insert_size().mean.round() as u32;
+        let s = self.alignment_properties.insert_size().sd.ceil() as u32 * 6;
         m.saturating_sub(s)..m + s
     }
 
@@ -105,14 +105,14 @@ impl IndelEvidence {
     fn pmf(&self,  insert_size: u32, shift: f64) -> LogProb {
         isize_pmf(
             insert_size as f64,
-            self.insert_size.mean + shift,
-            self.insert_size.sd
+            self.alignment_properties.insert_size().mean + shift,
+            self.alignment_properties.insert_size().sd
         )
     }
 
     /// Returns true if insert size is discriminative.
     pub fn is_discriminative(&self, variant: &Variant) -> bool {
-        variant.len() as f64 > self.insert_size.sd
+        variant.len() as f64 > self.alignment_properties.insert_size().sd
     }
 
     /// Calculate probability for reference and alternative allele.

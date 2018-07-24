@@ -39,7 +39,7 @@ pub mod constants;
 pub use model::sample::Sample;
 pub use model::likelihood;
 pub use model::priors;
-pub use model::sample::InsertSize;
+pub use estimation::alignment_properties::{AlignmentProperties, InsertSize};
 
 
 quick_error! {

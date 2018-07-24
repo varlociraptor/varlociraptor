@@ -11,6 +11,7 @@ use rust_htslib::bam::record::{CigarStringView, Cigar, CigarString};
 use rust_htslib::bam;
 
 use model::Variant;
+use estimation::alignment_properties::AlignmentProperties;
 use model::evidence::observation::ProbSampleAlt;
 use pairhmm;
 
@@ -75,7 +76,8 @@ pub fn prob_none(
 pub struct IndelEvidence {
     gap_params: IndelGapParams,
     pairhmm: pairhmm::PairHMM,
-    window: u32
+    window: u32,
+    alignment_properties: AlignmentProperties
 }
 
 
@@ -86,7 +88,8 @@ impl IndelEvidence {
         prob_deletion_artifact: LogProb,
         prob_insertion_extend_artifact: LogProb,
         prob_deletion_extend_artifact: LogProb,
-        window: u32
+        window: u32,
+        alignment_properties: AlignmentProperties
     ) -> Self {
         IndelEvidence {
             gap_params: IndelGapParams {
@@ -96,7 +99,8 @@ impl IndelEvidence {
                 prob_deletion_extend_artifact: prob_deletion_extend_artifact
             },
             pairhmm: pairhmm::PairHMM::new(),
-            window: window
+            window,
+            alignment_properties
         }
     }
 

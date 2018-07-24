@@ -91,9 +91,9 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
     cleanup_file(&output);
     cleanup_file(&observations);
 
-    let insert_size = libprosic::InsertSize {
-        mean: 312.0,
-        sd: 15.0
+    let alignment_properties = {
+        let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
+        libprosic::AlignmentProperties::estimate(&mut bam).unwrap()
     };
     let purity = 0.75;
 
@@ -103,7 +103,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         true,
         false,
         false,
-        insert_size,
+        alignment_properties,
         libprosic::likelihood::LatentVariableModel::new(purity),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,
@@ -118,7 +118,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         true,
         false,
         false,
-        insert_size,
+        alignment_properties,
         libprosic::likelihood::LatentVariableModel::new(1.0),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,
@@ -198,6 +198,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
         mean: 312.0,
         sd: 15.0
     };
+    let alignment_properties = libprosic::AlignmentProperties::default(insert_size);
 
     let sc = libprosic::Sample::new(
         sc_bam,
@@ -205,7 +206,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
         true,
         true,
         true,
-        insert_size,
+        alignment_properties,
         libprosic::likelihood::LatentVariableModel::with_single_sample(),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,
@@ -220,7 +221,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
         true,
         true,
         true,
-        insert_size,
+        alignment_properties,
         libprosic::likelihood::LatentVariableModel::with_single_sample(),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,

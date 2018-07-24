@@ -4,11 +4,8 @@ use std::cmp;
 use std::error::Error;
 use std::f64::consts;
 use std::cell::RefCell;
-use std::io;
 use std::f64;
-use std::str::FromStr;
 
-use csv;
 use ordered_float::NotNaN;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
@@ -22,6 +19,7 @@ use model::Variant;
 use model::evidence;
 use model::evidence::{observation, Observation, Evidence};
 use utils::Overlap;
+use estimation::alignment_properties;
 
 
 quick_error! {
@@ -142,45 +140,6 @@ impl<'a> Candidate<'a> {
 }
 
 
-/// Expected insert size in terms of mean and standard deviation.
-/// This should be estimated from unsorted(!) bam files to avoid positional biases.
-#[derive(Copy, Clone, Debug, Default)]
-pub struct InsertSize {
-    pub mean: f64,
-    pub sd: f64
-}
-
-
-impl InsertSize {
-    /// Obtain insert size from samtools stats output.
-    pub fn from_samtools_stats<R: io::Read>(
-        samtools_stats: &mut R
-    ) -> Result<InsertSize, Box<Error>> {
-        let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t')
-                                               .comment(Some(b'#'))
-                                               .has_headers(false)
-                                               .flexible(true)
-                                               .from_reader(samtools_stats);
-
-        let mut insert_size = InsertSize::default();
-
-        for rec in rdr.records() {
-            let rec = rec?;
-            if &rec[0] == "SN" {
-                if &rec[1] == "insert size average:" {
-                    insert_size.mean = f64::from_str(&rec[2])?;
-                } else if &rec[1] == "insert size standard deviation:" {
-                    insert_size.sd = f64::from_str(&rec[2])?;
-                    break;
-                }
-            }
-        }
-
-        Ok(insert_size)
-    }
-}
-
-
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample {
     record_buffer: RecordBuffer,
@@ -213,7 +172,7 @@ impl Sample {
         // TODO remove this parameter, it will lead to wrong insert size estimations and is not necessary
         use_secondary: bool,
         use_mapq: bool,
-        insert_size: InsertSize,
+        alignment_properties: alignment_properties::AlignmentProperties,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_insertion_artifact: Prob,
         prob_deletion_artifact: Prob,
@@ -231,10 +190,11 @@ impl Sample {
                 LogProb::from(prob_deletion_artifact),
                 LogProb::from(prob_insertion_extend_artifact),
                 LogProb::from(prob_deletion_extend_artifact),
-                indel_haplotype_window
+                indel_haplotype_window,
+                alignment_properties
             )),
             indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new(
-                insert_size
+                alignment_properties
             ))
         }
     }
@@ -642,6 +602,7 @@ mod tests {
     use bio::stats::{LogProb, PHREDProb, Prob};
     use bio::io::fasta;
     use model::tests::common_observation;
+    use estimation::alignment_properties::{InsertSize, AlignmentProperties};
 
 
     #[test]
@@ -680,7 +641,7 @@ mod tests {
             true,
             true,
             true,
-            InsertSize { mean: isize_mean, sd: 20.0 },
+            AlignmentProperties::default(InsertSize { mean: isize_mean, sd: 20.0 }),
             likelihood::LatentVariableModel::new(1.0),
             constants::PROB_ILLUMINA_INS,
             constants::PROB_ILLUMINA_DEL,
@@ -765,16 +726,5 @@ mod tests {
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
             assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
         }
-    }
-
-    #[test]
-    fn test_parse_insert_size() {
-        let insert_size = InsertSize::from_samtools_stats(
-            &mut io::BufReader::new(
-                fs::File::open("tests/resources/samtools_stats.example.txt").unwrap()
-            )
-        ).unwrap();
-        assert_relative_eq!(insert_size.mean, 311.7);
-        assert_relative_eq!(insert_size.sd, 15.5);
     }
 }
