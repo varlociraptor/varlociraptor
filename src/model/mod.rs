@@ -530,10 +530,16 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     ) -> LogProb {
         // no af_control given, because case and control are independent
         if af_control.is_none() {
+            let l: LogProb;
+            if let Some(likelihood) = self.case_likelihood_cache.get(&af_case) {
                 // get likelihood if already cached
-            *self.case_likelihood_cache.entry(af_case)
-                // compute and insert otherwise
-                .or_insert_with( || self.case_sample_model.likelihood_pileup(&self.case, af_case, None) )
+                return *likelihood
+            } else {
+                // compute otherwise
+                l = self.case_sample_model.likelihood_pileup(&self.case, af_case, None);
+            }
+            self.case_likelihood_cache.insert(af_case, l);
+            l
         // cache cannot be used
         } else {
             self.case_sample_model.likelihood_pileup(&self.case, af_case, af_control)
@@ -547,10 +553,17 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
     ) -> LogProb {
         // no af_control given, because case and control are independent
         if af_case.is_none() {
-                    // get likelihood if already cached
-            *self.control_likelihood_cache.entry(af_control)
-                    // compute and insert otherwise
-                    .or_insert_with( || self.control_sample_model.likelihood_pileup(&self.control, af_control, None) )
+            let l: LogProb;
+            if let Some(likelihood) = self.control_likelihood_cache.get(&af_control) {
+                // get likelihood if already cached
+                return *likelihood
+            } else {
+                // compute otherwise
+                l = self.control_sample_model.likelihood_pileup(&self.control, af_control, None);
+            }
+            //insert into cache before returning
+            self.control_likelihood_cache.insert(af_control, l);
+            l
         // cache cannot be used
         } else {
             self.control_sample_model.likelihood_pileup(&self.control, af_control, af_case)
