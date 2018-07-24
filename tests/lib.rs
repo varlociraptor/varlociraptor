@@ -644,5 +644,5 @@ fn test_sc_bulk_indel() {
     let mut call = load_call("test_sc_bulk_indel");
     check_info_float(&mut call, b"CONTROL_AF", 0.12195122, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_HET", 11.11, 0.01);
+    check_info_float(&mut call, b"PROB_HET", 3.74, 0.01);
 }
