@@ -66,6 +66,7 @@ impl LatentVariableModel {
                     observation.prob_mapping.ln_one_minus_exp() +
                     prob_mismapped
                 );
+                //println!("afs {}:{}, case {:?} control {:?} total {:?}", allele_freq_case, allele_freq_control, prob_case, prob_control, total);
                 assert!(!total.is_nan());
                 total
             },
@@ -112,9 +113,10 @@ impl LatentVariableModel {
         let likelihood = pileup.iter().fold(
             LogProb::ln_one(),
             |prob, obs| {
-                prob + self.likelihood_observation(
+                let lh = self.likelihood_observation(
                     obs, allele_freq_case, allele_freq_control
-                )
+                );
+                prob + lh
             }
         );
         assert!(!likelihood.is_nan());
