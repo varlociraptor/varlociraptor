@@ -642,8 +642,7 @@ fn test_sc_bulk_hom_ref() {
 fn test_sc_bulk_indel() {
     call_single_cell_bulk("test_sc_bulk_indel", true, "chr1");
     let mut call = load_call("test_sc_bulk_indel");
-    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    // TODO case AF seems to be > 0, also from looking at IGV. Are you sure the test case is correct?
+    check_info_float(&mut call, b"CONTROL_AF", 0.12195122, 0.0);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
     check_info_float(&mut call, b"PROB_HET", 11.11, 0.01);
 }
