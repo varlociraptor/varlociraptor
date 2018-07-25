@@ -206,6 +206,7 @@ impl Sample {
     }
 
     /// Extract observations for the given variant.
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn extract_observations(
         &mut self,
         start: u32,

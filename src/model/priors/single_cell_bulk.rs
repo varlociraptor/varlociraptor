@@ -45,8 +45,15 @@ impl SingleCellBulkModel {
     // Lodato et al. 2015, Science, Supplementary Information, pages 8f and Fig. S5 (A, C, E)
     // TODO: allow for non-default Lodato model parameters, e.g. learned from the data at hand
     // TODO: allow for non-Lodato models
-    fn prob_rho(&self, af_single_underlying: &f64, n_obs: &usize, k: &usize) -> LogProb {
-        let binomial_coeff = ln_binomial(*n_obs as u64, *k as u64);
+    #[cfg_attr(feature="flame_it", flame)]
+    fn prob_rho(
+        &self,
+        af_single_underlying: &f64,
+        n_obs: &usize,
+        k: &usize
+    ) -> LogProb
+    {
+        let binomial_coeff = ln_binomial(*n_obs as u64,*k as u64);
 
         match *af_single_underlying {
             // model for hom ref sites

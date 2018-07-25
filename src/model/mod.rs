@@ -495,6 +495,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         self.marginal_prob.get().unwrap()
     }
 
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn joint_prob(&mut self, af_case: &A, af_control: &B) -> LogProb {
         let p = self.prior_model.joint_prob(af_case, af_control, self);
         p
@@ -508,11 +509,17 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         prob
     }
 
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn map_allele_freqs(&mut self) -> (AlleleFreq, AlleleFreq) {
         self.prior_model.map(self)
     }
 
-    fn case_likelihood(&mut self, af_case: AlleleFreq, af_control: Option<AlleleFreq>) -> LogProb {
+    #[cfg_attr(feature="flame_it", flame)]
+    fn case_likelihood(
+        &mut self,
+        af_case: AlleleFreq,
+        af_control: Option<AlleleFreq>
+    ) -> LogProb {
         // no af_control given, because case and control are independent
         if af_control.is_none() {
             // get likelihood if already cached
@@ -533,6 +540,7 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
         }
     }
 
+    #[cfg_attr(feature="flame_it", flame)]
     fn control_likelihood(
         &mut self,
         af_control: AlleleFreq,

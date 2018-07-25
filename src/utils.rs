@@ -173,6 +173,7 @@ impl ReferenceBuffer {
     }
 
     /// Load given chromosome and return it as a slice. This is O(1) if chromosome was loaded before.
+    #[cfg_attr(feature="flame_it", flame)]
     pub fn seq(&mut self, chrom: &[u8]) -> Result<&[u8], Box<Error>> {
         if let Some(ref last_chrom) = self.chrom {
             if last_chrom == &chrom {
