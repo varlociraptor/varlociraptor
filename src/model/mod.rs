@@ -17,7 +17,7 @@ pub mod evidence;
 use bio::stats::LogProb;
 
 use model::sample::Sample;
-use model::evidence::{observation, Observation};
+use model::evidence::{Observation};
 
 
 pub type AlleleFreq = NotNaN<f64>;
@@ -272,14 +272,8 @@ impl<A: AlleleFreqs, P: priors::Model<A>> SingleCaller<A, P> {
     /// # Returns
     /// The `SinglePileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<SinglePileup<A, P>, Box<Error>> {
-        let mut common_obs = observation::Common::default();
-        self.sample.borrow_mut().extract_common_observations(
-            chrom, start, &variant, &mut common_obs
-        )?;
-        common_obs.finalize();
-
         let pileup = self.sample.borrow_mut().extract_observations(
-            start, &variant, chrom, chrom_seq, &common_obs
+            start, &variant, chrom, chrom_seq
         )?;
         debug!("Obtained pileups ({} observations).", pileup.len());
 
@@ -415,22 +409,13 @@ impl<A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairCaller<A, B
     /// # Returns
     /// The `PairPileup`, or an error message.
     pub fn pileup(&self, chrom: &[u8], start: u32, variant: Variant, chrom_seq: &[u8]) -> Result<PairPileup<A, B, P>, Box<Error>> {
-        let mut common_obs = observation::Common::default();
-        self.case_sample.borrow_mut().extract_common_observations(
-            chrom, start, &variant, &mut common_obs
-        )?;
-        self.control_sample.borrow_mut().extract_common_observations(
-            chrom, start, &variant, &mut common_obs
-        )?;
-        common_obs.finalize();
-
         debug!("Case pileup");
         let case_pileup = self.case_sample.borrow_mut().extract_observations(
-            start, &variant, chrom, chrom_seq, &common_obs
+            start, &variant, chrom, chrom_seq
         )?;
         debug!("Control pileup");
         let control_pileup = self.control_sample.borrow_mut().extract_observations(
-            start, &variant, chrom, chrom_seq, &common_obs
+            start, &variant, chrom, chrom_seq
         )?;
 
         debug!("Obtained pileups (case: {} observations, control: {} observations).", case_pileup.len(), control_pileup.len());
@@ -575,7 +560,6 @@ mod tests {
     use estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use model::evidence::{Observation, Evidence};
     use constants;
-    use model::evidence::observation;
 
     use rust_htslib::bam;
     use bio::stats::{LogProb, Prob};
@@ -619,12 +603,6 @@ mod tests {
         );
 
         model
-    }
-
-    pub fn common_observation() -> observation::Common {
-        let mut c = observation::Common::default();
-        c.max_read_len = 100;
-        c
     }
 
     pub fn observation(

@@ -1,18 +1,12 @@
 use std::cmp;
-use std::str;
 use std::error::Error;
-use std::str::FromStr;
-
-use itertools::Itertools;
-use regex::Regex;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
-use rust_htslib::bam::record::{CigarStringView, Cigar, CigarString};
+use rust_htslib::bam::record::{CigarStringView};
 use rust_htslib::bam;
 
 use model::Variant;
 use estimation::alignment_properties::AlignmentProperties;
-use model::evidence::observation::ProbSampleAlt;
 use pairhmm;
 
 

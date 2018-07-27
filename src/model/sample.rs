@@ -12,12 +12,12 @@ use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::CigarStringView;
-use bio::stats::{LogProb, Prob, PHREDProb};
+use bio::stats::{LogProb, Prob};
 
 use model;
 use model::Variant;
 use model::evidence;
-use model::evidence::{observation, Observation, Evidence};
+use model::evidence::{Observation, Evidence};
 use utils::Overlap;
 use estimation::alignment_properties;
 
@@ -203,33 +203,17 @@ impl Sample {
         self.likelihood_model
     }
 
-    pub fn extract_common_observations(
-        &mut self,
-        chrom: &[u8],
-        start: u32,
-        variant: &Variant,
-        common_obs: &mut observation::Common
-    ) -> Result<(), Box<Error>> {
-        let end = variant.end(start);
-        // move window to the current variant
-        self.record_buffer.fill(chrom, start, end)?;
-
-        // Obtain common observations.
-        common_obs.update(&self.record_buffer, start, variant)?;
-
-        Ok(())
-    }
-
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,
         start: u32,
         variant: &Variant,
-        chrom_name: &[u8],
-        chrom_seq: &[u8],
-        common_obs: &observation::Common
+        chrom: &[u8],
+        chrom_seq: &[u8]
     ) -> Result<Vec<Observation>, Box<Error>> {
         let centerpoint = variant.centerpoint(start);
+
+        self.record_buffer.fill(chrom, start, variant.end(start))?;
 
         let mut observations = Vec::new();
         let mut candidate_records = HashMap::new();
@@ -251,7 +235,7 @@ impl Sample {
 
                     if overlap.is_enclosing() {
                         if let Some( obs ) = self.read_observation(
-                            &record, cigar, start, variant, chrom_name, chrom_seq, common_obs
+                            &record, cigar, start, variant, chrom_seq
                         )? {
                             observations.push( obs );
                         } else {
@@ -314,8 +298,7 @@ impl Sample {
                             continue;
                         }
                         if let Some(obs) = self.fragment_observation(
-                            candidate.left, right, start, variant, chrom_name, chrom_seq,
-                            common_obs
+                            candidate.left, right, start, variant, chrom_seq
                         )? {
                             observations.push(obs);
                         }
@@ -328,8 +311,8 @@ impl Sample {
                         )?;
                         if !overlap.is_none() && candidate.left.is_mate_unmapped() {
                             if let Some(obs) = self.read_observation(
-                                    candidate.left, cigar, start, variant, chrom_name,
-                                    chrom_seq, common_obs
+                                    candidate.left, cigar, start, variant,
+                                    chrom_seq
                             )? {
                                 observations.push(obs);
                             }
@@ -366,9 +349,7 @@ impl Sample {
         cigar: &CigarStringView,
         start: u32,
         variant: &Variant,
-        chrom_name: &[u8],
         chrom_seq: &[u8],
-        common_obs: &observation::Common
     ) -> Result<Option<Observation>, Box<Error>> {
         let probs = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
@@ -424,9 +405,7 @@ impl Sample {
         right_record: &bam::Record,
         start: u32,
         variant: &Variant,
-        chrom_name: &[u8],
         chrom_seq: &[u8],
-        common_obs: &observation::Common
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |
@@ -557,13 +536,11 @@ mod tests {
     use constants;
 
     use std::str;
-    use std::fs;
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
     use bio::stats::{LogProb, PHREDProb, Prob};
     use bio::io::fasta;
-    use model::tests::common_observation;
     use estimation::alignment_properties::{InsertSize, AlignmentProperties};
 
 
@@ -628,13 +605,11 @@ mod tests {
 
         let true_alt_probs = [-0.09, -0.02, -73.09, -16.95, -73.09];
 
-        let common = common_observation();
-
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let mut record = record.unwrap();
             record.cache_cigar();
             let cigar = record.cigar_cached().unwrap();
-            if let Some( obs ) = sample.read_observation(&record, cigar, varpos, &variant, b"17", &ref_seq, &common).unwrap() {
+            if let Some( obs ) = sample.read_observation(&record, cigar, varpos, &variant, &ref_seq).unwrap() {
                 println!("{:?}", obs);
                 assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
                 assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
