@@ -4,11 +4,8 @@ use std::cmp;
 use std::error::Error;
 use std::f64::consts;
 use std::cell::RefCell;
-use std::io;
 use std::f64;
-use std::str::FromStr;
 
-use csv;
 use ordered_float::NotNaN;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
@@ -20,8 +17,9 @@ use bio::stats::{LogProb, Prob, PHREDProb};
 use model;
 use model::Variant;
 use model::evidence;
-use model::evidence::{observation, Observation, Evidence};
+use model::evidence::{Observation, Evidence};
 use utils::Overlap;
+use estimation::alignment_properties;
 
 
 quick_error! {
@@ -142,50 +140,10 @@ impl<'a> Candidate<'a> {
 }
 
 
-/// Expected insert size in terms of mean and standard deviation.
-/// This should be estimated from unsorted(!) bam files to avoid positional biases.
-#[derive(Copy, Clone, Debug, Default)]
-pub struct InsertSize {
-    pub mean: f64,
-    pub sd: f64
-}
-
-
-impl InsertSize {
-    /// Obtain insert size from samtools stats output.
-    pub fn from_samtools_stats<R: io::Read>(
-        samtools_stats: &mut R
-    ) -> Result<InsertSize, Box<Error>> {
-        let mut rdr = csv::ReaderBuilder::new().delimiter(b'\t')
-                                               .comment(Some(b'#'))
-                                               .has_headers(false)
-                                               .flexible(true)
-                                               .from_reader(samtools_stats);
-
-        let mut insert_size = InsertSize::default();
-
-        for rec in rdr.records() {
-            let rec = rec?;
-            if &rec[0] == "SN" {
-                if &rec[1] == "insert size average:" {
-                    insert_size.mean = f64::from_str(&rec[2])?;
-                } else if &rec[1] == "insert size standard deviation:" {
-                    insert_size.sd = f64::from_str(&rec[2])?;
-                    break;
-                }
-            }
-        }
-
-        Ok(insert_size)
-    }
-}
-
-
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
-    use_mapq: bool,
     likelihood_model: model::likelihood::LatentVariableModel,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>
@@ -213,7 +171,7 @@ impl Sample {
         // TODO remove this parameter, it will lead to wrong insert size estimations and is not necessary
         use_secondary: bool,
         use_mapq: bool,
-        insert_size: InsertSize,
+        alignment_properties: alignment_properties::AlignmentProperties,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_insertion_artifact: Prob,
         prob_deletion_artifact: Prob,
@@ -224,35 +182,20 @@ impl Sample {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
-            use_mapq: use_mapq,
             likelihood_model: likelihood_model,
             indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
                 LogProb::from(prob_insertion_artifact),
                 LogProb::from(prob_deletion_artifact),
                 LogProb::from(prob_insertion_extend_artifact),
                 LogProb::from(prob_deletion_extend_artifact),
-                indel_haplotype_window
+                indel_haplotype_window,
+                alignment_properties,
+                use_mapq
             )),
             indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new(
-                insert_size
+                alignment_properties
             ))
         }
-    }
-
-    /// Return true if MAPQ appears to be reliable.
-    /// Currently, this checks if AS > XS, i.e., the alignment score of the current position is
-    /// better than for any alternative hit. If this is not the case, the read was most likely
-    /// mapped to the current position because of its mate. Such placements can easily lead to
-    /// false positives, especially in repetetive regions. Hence, we choose to rather ignore them.
-    /// TODO: determine whether this helps with performance of indel and/or SNV detection
-    fn is_reliable_read(&self, record: &bam::Record) -> bool {
-        if let Some(astag) = record.aux(b"AS") {
-            if let Some(xstag) = record.aux(b"XS") {
-                return astag.integer() > xstag.integer();
-            }
-        }
-
-        true
     }
 
     /// Return likelihood model.
@@ -260,33 +203,17 @@ impl Sample {
         self.likelihood_model
     }
 
-    pub fn extract_common_observations(
-        &mut self,
-        chrom: &[u8],
-        start: u32,
-        variant: &Variant,
-        common_obs: &mut observation::Common
-    ) -> Result<(), Box<Error>> {
-        let end = variant.end(start);
-        // move window to the current variant
-        self.record_buffer.fill(chrom, start, end)?;
-
-        // Obtain common observations.
-        common_obs.update(&self.record_buffer, start, variant)?;
-
-        Ok(())
-    }
-
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,
         start: u32,
         variant: &Variant,
-        chrom_name: &[u8],
-        chrom_seq: &[u8],
-        common_obs: &observation::Common
+        chrom: &[u8],
+        chrom_seq: &[u8]
     ) -> Result<Vec<Observation>, Box<Error>> {
         let centerpoint = variant.centerpoint(start);
+
+        self.record_buffer.fill(chrom, start, variant.end(start))?;
 
         let mut observations = Vec::new();
         let mut candidate_records = HashMap::new();
@@ -308,7 +235,7 @@ impl Sample {
 
                     if overlap.is_enclosing() {
                         if let Some( obs ) = self.read_observation(
-                            &record, cigar, start, variant, chrom_name, chrom_seq, common_obs
+                            &record, cigar, start, variant, chrom_seq
                         )? {
                             observations.push( obs );
                         } else {
@@ -371,8 +298,7 @@ impl Sample {
                             continue;
                         }
                         if let Some(obs) = self.fragment_observation(
-                            candidate.left, right, start, variant, chrom_name, chrom_seq,
-                            common_obs
+                            candidate.left, right, start, variant, chrom_seq
                         )? {
                             observations.push(obs);
                         }
@@ -385,8 +311,8 @@ impl Sample {
                         )?;
                         if !overlap.is_none() && candidate.left.is_mate_unmapped() {
                             if let Some(obs) = self.read_observation(
-                                    candidate.left, cigar, start, variant, chrom_name,
-                                    chrom_seq, common_obs
+                                    candidate.left, cigar, start, variant,
+                                    chrom_seq
                             )? {
                                 observations.push(obs);
                             }
@@ -416,28 +342,6 @@ impl Sample {
         Ok(observations)
     }
 
-    /// Obtain mapping quality.
-    fn prob_mapping(
-        &self,
-        record: &bam::Record,
-        common_obs: &observation::Common
-    ) -> Result<LogProb, Box<Error>> {
-        if self.use_mapq {
-            Ok(evidence::reads::prob_mapping(record))
-        } else {
-            // Only penalize reads with mapq 0, all others treat the same, by giving them the
-            // maximum observed mapping quality.
-            // This is good, because it removes biases with esp. SV reads that usually get lower
-            // MAPQ. By using the maximum observed MAPQ, we still calibrate to the general
-            // certainty of the mapper at this locus!
-            Ok(if record.mapq() == 0 {
-                LogProb::ln_zero()
-            } else {
-                LogProb::from(PHREDProb(common_obs.max_mapq as f64)).ln_one_minus_exp()
-            })
-        }
-    }
-
     /// extract within-read evidence for reads covering an indel or SNV of interest
     fn read_observation(
         &self,
@@ -445,9 +349,7 @@ impl Sample {
         cigar: &CigarStringView,
         start: u32,
         variant: &Variant,
-        chrom_name: &[u8],
         chrom_seq: &[u8],
-        common_obs: &observation::Common
     ) -> Result<Option<Observation>, Box<Error>> {
         let probs = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => {
@@ -463,7 +365,7 @@ impl Sample {
         };
 
         if let Some( (prob_ref, prob_alt) ) = probs {
-            let prob_mapping = self.prob_mapping(record, common_obs)?;
+            let prob_mapping = self.indel_read_evidence.borrow().prob_mapping(record);
 
             let prob_sample_alt = self.indel_read_evidence.borrow().prob_sample_alt(
                 record.seq().len() as u32,
@@ -474,7 +376,7 @@ impl Sample {
                     prob_mapping,
                     prob_alt,
                     prob_ref,
-                    prob_sample_alt.joint_prob(common_obs),
+                    prob_sample_alt,
                     Evidence::alignment(cigar, record)
                 )
             ))
@@ -503,9 +405,7 @@ impl Sample {
         right_record: &bam::Record,
         start: u32,
         variant: &Variant,
-        chrom_name: &[u8],
         chrom_seq: &[u8],
-        common_obs: &observation::Common
     ) -> Result<Option<Observation>, Box<Error>> {
 
         let prob_read = |
@@ -565,11 +465,12 @@ impl Sample {
         assert!(p_ref_right.is_valid());
 
         let obs = Observation::new(
-            (self.prob_mapping(left_record, common_obs)?.ln_one_minus_exp() +
-            self.prob_mapping(right_record, common_obs)?.ln_one_minus_exp()).ln_one_minus_exp(),
+            (self.indel_read_evidence.borrow().prob_mapping(left_record).ln_one_minus_exp() +
+             self.indel_read_evidence.borrow().prob_mapping(right_record).ln_one_minus_exp()
+            ).ln_one_minus_exp(),
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
-            prob_sample_alt.joint_prob(common_obs),
+            prob_sample_alt,
             Evidence::insert_size(
                 insert_size as u32,
                 left_record.cigar_cached().unwrap(),
@@ -635,13 +536,12 @@ mod tests {
     use constants;
 
     use std::str;
-    use std::fs;
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
     use bio::stats::{LogProb, PHREDProb, Prob};
     use bio::io::fasta;
-    use model::tests::common_observation;
+    use estimation::alignment_properties::{InsertSize, AlignmentProperties};
 
 
     #[test]
@@ -680,7 +580,7 @@ mod tests {
             true,
             true,
             true,
-            InsertSize { mean: isize_mean, sd: 20.0 },
+            AlignmentProperties::default(InsertSize { mean: isize_mean, sd: 20.0 }),
             likelihood::LatentVariableModel::new(1.0),
             constants::PROB_ILLUMINA_INS,
             constants::PROB_ILLUMINA_DEL,
@@ -705,13 +605,11 @@ mod tests {
 
         let true_alt_probs = [-0.09, -0.02, -73.09, -16.95, -73.09];
 
-        let common = common_observation();
-
         for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
             let mut record = record.unwrap();
             record.cache_cigar();
             let cigar = record.cigar_cached().unwrap();
-            if let Some( obs ) = sample.read_observation(&record, cigar, varpos, &variant, b"17", &ref_seq, &common).unwrap() {
+            if let Some( obs ) = sample.read_observation(&record, cigar, varpos, &variant, &ref_seq).unwrap() {
                 println!("{:?}", obs);
                 assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
                 assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
@@ -765,16 +663,5 @@ mod tests {
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
             assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
         }
-    }
-
-    #[test]
-    fn test_parse_insert_size() {
-        let insert_size = InsertSize::from_samtools_stats(
-            &mut io::BufReader::new(
-                fs::File::open("tests/resources/samtools_stats.example.txt").unwrap()
-            )
-        ).unwrap();
-        assert_relative_eq!(insert_size.mean, 311.7);
-        assert_relative_eq!(insert_size.sd, 15.5);
     }
 }

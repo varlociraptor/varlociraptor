@@ -1,17 +1,12 @@
 use std::cmp;
-use std::str;
 use std::error::Error;
-use std::str::FromStr;
-
-use itertools::Itertools;
-use regex::Regex;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
-use rust_htslib::bam::record::{CigarStringView, Cigar, CigarString};
+use rust_htslib::bam::record::{CigarStringView};
 use rust_htslib::bam;
 
 use model::Variant;
-use model::evidence::observation::ProbSampleAlt;
+use estimation::alignment_properties::AlignmentProperties;
 use pairhmm;
 
 
@@ -75,7 +70,9 @@ pub fn prob_none(
 pub struct IndelEvidence {
     gap_params: IndelGapParams,
     pairhmm: pairhmm::PairHMM,
-    window: u32
+    window: u32,
+    alignment_properties: AlignmentProperties,
+    use_mapq: bool
 }
 
 
@@ -86,7 +83,9 @@ impl IndelEvidence {
         prob_deletion_artifact: LogProb,
         prob_insertion_extend_artifact: LogProb,
         prob_deletion_extend_artifact: LogProb,
-        window: u32
+        window: u32,
+        alignment_properties: AlignmentProperties,
+        use_mapq: bool
     ) -> Self {
         IndelEvidence {
             gap_params: IndelGapParams {
@@ -96,7 +95,9 @@ impl IndelEvidence {
                 prob_deletion_extend_artifact: prob_deletion_extend_artifact
             },
             pairhmm: pairhmm::PairHMM::new(),
-            window: window
+            window,
+            alignment_properties,
+            use_mapq
         }
     }
 
@@ -231,8 +232,8 @@ impl IndelEvidence {
         Ok((prob_ref, prob_alt))
     }
 
-    /// Probability to sample read from alt allele for each number of feasible positions up to a
-    /// given theoretical maximum.
+    /// Probability to sample read from alt allele given the average feasible positions observed
+    /// from a subsample of the mapped reads.
     ///
     /// The key idea is calculate the probability as number of valid placements (considering the
     /// max softclip allowed by the mapper) over all possible placements.
@@ -240,23 +241,42 @@ impl IndelEvidence {
         &self,
         read_len: u32,
         variant: &Variant
-    ) -> ProbSampleAlt {
+    ) -> LogProb {
         // TODO for long reads, always return One
         let delta = match variant {
             &Variant::Deletion(_)  => variant.len() as u32,
             &Variant::Insertion(_) => variant.len() as u32,
-            &Variant::SNV(_) | &Variant::None => return ProbSampleAlt::One,
-
+            &Variant::SNV(_) | &Variant::None => return LogProb::ln_one(),
         };
 
-        let prob = |feasible| {
+        let feasible = self.alignment_properties.feasible_bases(read_len, variant);
+
+        let prob = {
             let n_alt = cmp::min(delta, read_len);
             let n_alt_valid = cmp::min(n_alt, feasible);
 
             LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
         };
 
-        ProbSampleAlt::Dependent((0..read_len + 1).map(&prob).collect_vec())
+        prob
+    }
+
+    /// Calculate mapping probability of given record.
+    pub fn prob_mapping(&self, record: &bam::Record) -> LogProb {
+        if self.use_mapq {
+            prob_mapping(record)
+        } else {
+            // Only penalize reads with mapq 0, all others treat the same, by giving them the
+            // maximum observed mapping quality.
+            // This is good, because it removes biases with esp. SV reads that usually get lower
+            // MAPQ. By using the maximum observed MAPQ, we still calibrate to the general
+            // certainty of the mapper at this locus!
+            if record.mapq() == 0 {
+                LogProb::ln_zero()
+            } else {
+                LogProb::from(self.alignment_properties.max_mapq()).ln_one_minus_exp()
+            }
+        }
     }
 }
 
