@@ -264,7 +264,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
         },
         libprosic::call::pairwise::PairEvent {
             name: "err_ref".to_owned(),
-            af_case: DiscreteAlleleFreqs::feasible(2).not_absent(),
+            af_case: DiscreteAlleleFreqs::new( vec![AlleleFreq(0.0), AlleleFreq(0.5)] ),
             af_control: ContinuousAlleleFreqs::inclusive( 1.0..1.0 )
         }
     ];
@@ -643,5 +643,8 @@ fn test_sc_bulk_indel() {
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     // TODO case AF seems to be > 0, also from looking at IGV. Are you sure the test case is correct?
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_HET", 11.11, 0.01);
+    println!("PROB_HOM_REF: {}", call.info(b"PROB_HOM_REF").float().unwrap().unwrap()[0] );
+    check_info_float(&mut call, b"PROB_HOM_REF", 2.40, 0.01);
+    println!("PROB_HET: {}", call.info(b"PROB_HET").float().unwrap().unwrap()[0] );
+    check_info_float(&mut call, b"PROB_HET", 3.74, 0.01);
 }

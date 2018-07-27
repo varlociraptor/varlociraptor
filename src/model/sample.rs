@@ -12,7 +12,7 @@ use rgsl::error::erfc;
 use rust_htslib::bam;
 use rust_htslib::bam::Read;
 use rust_htslib::bam::record::CigarStringView;
-use bio::stats::{LogProb, Prob};
+use bio::stats::{LogProb, Prob, PHREDProb};
 
 use model;
 use model::Variant;
