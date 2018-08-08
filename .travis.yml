@@ -25,7 +25,7 @@ before_script:
   - export PATH=$HOME/.cargo/bin:$PATH
 
 script:
-  - cargo fmt -- --check
+  - cargo fmt -- --check || echo "Invalid code formatting: run `cargo fmt`!"
   - cargo build
   - cargo test -- --test-threads=1
 
