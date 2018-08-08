@@ -1,33 +1,32 @@
-use std::path::Path;
 use std::error::Error;
 use std::f32;
+use std::path::Path;
 use std::str;
 
+use bio::io::fasta;
+use bio::stats::{LogProb, PHREDProb};
+use csv;
 use itertools::Itertools;
 use ndarray::prelude::*;
-use csv;
-use rust_htslib::bcf::{self, Read};
 use rust_htslib::bcf::record::Numeric;
-use bio::stats::{PHREDProb, LogProb};
-use bio::io::fasta;
+use rust_htslib::bcf::{self, Read};
 
-use model::AlleleFreqs;
-use model::priors;
-use model::PairCaller;
 use model;
-use Event;
+use model::priors;
+use model::AlleleFreqs;
+use model::PairCaller;
 use utils;
+use Event;
 
-
-fn phred_scale<'a, I: IntoIterator<Item=&'a Option<LogProb>>>(probs: I) -> Vec<f32> {
-    probs.into_iter().map(|&p| {
-        match p {
+fn phred_scale<'a, I: IntoIterator<Item = &'a Option<LogProb>>>(probs: I) -> Vec<f32> {
+    probs
+        .into_iter()
+        .map(|&p| match p {
             Some(p) => PHREDProb::from(p).abs() as f32,
-            None    => f32::missing()
-        }
-    }).collect_vec()
+            None => f32::missing(),
+        })
+        .collect_vec()
 }
-
 
 pub struct PairEvent<A: AlleleFreqs, B: AlleleFreqs> {
     /// event name
@@ -35,16 +34,14 @@ pub struct PairEvent<A: AlleleFreqs, B: AlleleFreqs> {
     /// allele frequencies for case sample
     pub af_case: A,
     /// allele frequencies for control sample
-    pub af_control: B
+    pub af_control: B,
 }
-
 
 impl<A: AlleleFreqs, B: AlleleFreqs> Event for PairEvent<A, B> {
     fn name(&self) -> &str {
         &self.name
     }
 }
-
 
 fn pileups<'a, A, B, P>(
     inbcf: &bcf::Reader,
@@ -54,21 +51,33 @@ fn pileups<'a, A, B, P>(
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: Option<u32>,
-    exclusive_end: bool
-) -> Result<Vec<Option<model::PairPileup<'a, A, B, P>>>, Box<Error>> where
+    exclusive_end: bool,
+) -> Result<Vec<Option<model::PairPileup<'a, A, B, P>>>, Box<Error>>
+where
     A: AlleleFreqs,
     B: AlleleFreqs,
-    P: priors::PairModel<A, B>
+    P: priors::PairModel<A, B>,
 {
     let chrom = chrom(&inbcf, &record);
-    let variants = try!(utils::collect_variants(record, omit_snvs, omit_indels, max_indel_len.map(|l| 0..l), exclusive_end));
+    let variants = try!(utils::collect_variants(
+        record,
+        omit_snvs,
+        omit_indels,
+        max_indel_len.map(|l| 0..l),
+        exclusive_end
+    ));
 
     let chrom_seq = try!(reference_buffer.seq(&chrom));
 
     let mut pileups = Vec::with_capacity(variants.len());
     for variant in variants {
         pileups.push(if let Some(variant) = variant {
-            Some(try!(joint_model.pileup(chrom, record.pos(), variant, chrom_seq)))
+            Some(try!(joint_model.pileup(
+                chrom,
+                record.pos(),
+                variant,
+                chrom_seq
+            )))
         } else {
             None
         });
@@ -103,28 +112,31 @@ pub fn call<A, B, P, M, R, W, X, F>(
     omit_indels: bool,
     max_indel_len: Option<u32>,
     outobs: Option<&X>,
-    exclusive_end: bool
-) -> Result<(), Box<Error>> where
+    exclusive_end: bool,
+) -> Result<(), Box<Error>>
+where
     A: AlleleFreqs,
     B: AlleleFreqs,
     P: priors::PairModel<A, B>,
     R: AsRef<Path>,
     W: AsRef<Path>,
     X: AsRef<Path>,
-    F: AsRef<Path>
+    F: AsRef<Path>,
 {
     let fasta = fasta::IndexedReader::from_file(fasta)?;
     let mut reference_buffer = utils::ReferenceBuffer::new(fasta);
 
     let mut inbcf = match inbcf {
         Some(f) => bcf::Reader::from_path(f)?,
-        None    => bcf::Reader::from_stdin()?
+        None => bcf::Reader::from_stdin()?,
     };
 
     let mut header = bcf::Header::from_template(inbcf.header());
     for event in events {
         header.push_record(
-            event.header_entry("PROB", "PHRED-scaled probability for").as_bytes()
+            event
+                .header_entry("PROB", "PHRED-scaled probability for")
+                .as_bytes(),
         );
     }
 
@@ -140,25 +152,41 @@ pub fn call<A, B, P, M, R, W, X, F>(
 
     let mut outbcf = match outbcf {
         Some(f) => bcf::Writer::from_path(f, &header, false, false)?,
-        None    => bcf::Writer::from_stdout(&header, false, false)?
+        None => bcf::Writer::from_stdout(&header, false, false)?,
     };
 
     let mut outobs = if let Some(f) = outobs {
-        let mut writer = try!(csv::WriterBuilder::new().has_headers(false).delimiter(b'\t').from_path(f) );
+        let mut writer = try!(
+            csv::WriterBuilder::new()
+                .has_headers(false)
+                .delimiter(b'\t')
+                .from_path(f)
+        );
         // write header for observations
         writer.write_record(
-            ["chrom", "pos", "allele", "sample", "prob_mapping",
-            "prob_alt", "prob_ref", "prob_sample_alt", "evidence"].iter()
+            [
+                "chrom",
+                "pos",
+                "allele",
+                "sample",
+                "prob_mapping",
+                "prob_alt",
+                "prob_ref",
+                "prob_sample_alt",
+                "evidence",
+            ].iter(),
         )?;
         Some(writer)
-    } else { None };
+    } else {
+        None
+    };
     let mut record = inbcf.empty_record();
     let mut i = 0;
     loop {
         // read BCF
         if let Err(e) = inbcf.read(&mut record) {
             if e.is_eof() {
-                return Ok(())
+                return Ok(());
             } else {
                 return Err(Box::new(e));
             }
@@ -166,18 +194,24 @@ pub fn call<A, B, P, M, R, W, X, F>(
         i += 1;
         if let Some(rid) = record.rid() {
             info!(
-                "processing record {}: {}:{}", i,
+                "processing record {}: {}:{}",
+                i,
                 str::from_utf8(inbcf.header().rid2name(rid))?,
                 record.pos() + 1
             );
         }
 
-
         // translate to header of the writer
         outbcf.translate(&mut record);
         let mut pileups = pileups(
-            &inbcf, &mut record, pair_model, &mut reference_buffer,
-            omit_snvs, omit_indels, max_indel_len, exclusive_end
+            &inbcf,
+            &mut record,
+            pair_model,
+            &mut reference_buffer,
+            omit_snvs,
+            omit_indels,
+            max_indel_len,
+            exclusive_end,
         )?;
 
         if !pileups.is_empty() {
@@ -217,7 +251,11 @@ pub fn call<A, B, P, M, R, W, X, F>(
             for (j, pileup) in pileups.iter().enumerate() {
                 if pileup.is_some() {
                     let total = LogProb::ln_sum_exp(
-                        &posterior_probs.column(j).iter().map(|v| v.unwrap()).collect_vec()
+                        &posterior_probs
+                            .column(j)
+                            .iter()
+                            .map(|v| v.unwrap())
+                            .collect_vec(),
                     );
                     for i in 0..events.len() {
                         // normalize by total probability
@@ -229,7 +267,7 @@ pub fn call<A, B, P, M, R, W, X, F>(
             for (i, event) in events.iter().enumerate() {
                 record.push_info_float(
                     event.tag_name("PROB").as_bytes(),
-                    &phred_scale(posterior_probs.row(i).iter())
+                    &phred_scale(posterior_probs.row(i).iter()),
                 )?;
             }
 

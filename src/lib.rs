@@ -1,19 +1,19 @@
-#![cfg_attr(feature="flame_it", feature(plugin))]
-#![cfg_attr(feature="flame_it", plugin(flamer))]
+#![cfg_attr(feature = "flame_it", feature(plugin))]
+#![cfg_attr(feature = "flame_it", plugin(flamer))]
 // activate flame for the whole crate
 
 extern crate bio;
 extern crate rust_htslib;
 #[macro_use]
 extern crate log;
-extern crate rgsl;
 extern crate itertools;
 extern crate itertools_num;
+extern crate rgsl;
 #[macro_use]
 extern crate approx;
-extern crate rusty_machine;
-extern crate ordered_float;
 extern crate ndarray;
+extern crate ordered_float;
+extern crate rusty_machine;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -22,25 +22,24 @@ extern crate quick_error;
 extern crate csv;
 #[macro_use]
 extern crate lazy_static;
+extern crate regex;
 extern crate statrs;
 extern crate vec_map;
-extern crate regex;
 
-#[cfg(feature="flame_it")]
+#[cfg(feature = "flame_it")]
 extern crate flame;
 
-pub mod model;
-pub mod estimation;
 pub mod call;
-pub mod utils;
-pub mod pairhmm;
 pub mod constants;
+pub mod estimation;
+pub mod model;
+pub mod pairhmm;
+pub mod utils;
 
-pub use model::sample::Sample;
+pub use estimation::alignment_properties::{AlignmentProperties, InsertSize};
 pub use model::likelihood;
 pub use model::priors;
-pub use estimation::alignment_properties::{AlignmentProperties, InsertSize};
-
+pub use model::sample::Sample;
 
 quick_error! {
     #[derive(Debug)]
@@ -56,7 +55,6 @@ quick_error! {
     }
 }
 
-
 /// Event to call.
 pub trait Event {
     fn name(&self) -> &str;
@@ -68,21 +66,19 @@ pub trait Event {
     fn header_entry(&self, prefix: &str, desc: &str) -> String {
         format!(
             "##INFO=<ID={tag_name},Number=A,Type=Float,\
-            Description=\"{desc} {name} variant\">",
-            name=self.name(),
-            desc=desc,
-            tag_name=&self.tag_name(prefix)
+             Description=\"{desc} {name} variant\">",
+            name = self.name(),
+            desc = desc,
+            tag_name = &self.tag_name(prefix)
         )
     }
 }
 
-
 /// Complement of other given events (i.e. 1 - Pr(other events)).
 pub struct ComplementEvent {
     /// event name
-    pub name: String
+    pub name: String,
 }
-
 
 impl Event for ComplementEvent {
     fn name(&self) -> &str {
@@ -90,13 +86,11 @@ impl Event for ComplementEvent {
     }
 }
 
-
 /// A simple event that just has a name.
 pub struct SimpleEvent {
     /// event name
-    pub name: String
+    pub name: String,
 }
-
 
 impl Event for SimpleEvent {
     fn name(&self) -> &str {

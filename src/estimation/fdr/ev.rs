@@ -6,16 +6,15 @@
 use std::error::Error;
 use std::io;
 
-use bio::stats::{LogProb, PHREDProb, bayesian};
+use bio::stats::{bayesian, LogProb, PHREDProb};
+use csv;
 use itertools::Itertools;
 use rust_htslib::bcf;
-use csv;
 
-use Event;
 use estimation::fdr::{Record, ALPHAS};
 use model;
 use utils;
-
+use Event;
 
 /// Print thresholds to control FDR of given calls at multiple levels.
 ///
@@ -30,8 +29,12 @@ pub fn control_fdr<E: Event, W: io::Write>(
     calls: &mut bcf::Reader,
     writer: &mut W,
     events: &[E],
-    vartype: &model::VariantType) -> Result<(), Box<Error>> {
-    let mut writer = csv::WriterBuilder::new().has_headers(false).delimiter(b'\t').from_writer(writer);
+    vartype: &model::VariantType,
+) -> Result<(), Box<Error>> {
+    let mut writer = csv::WriterBuilder::new()
+        .has_headers(false)
+        .delimiter(b'\t')
+        .from_writer(writer);
     try!(writer.write_record(["FDR", "max-prob"].into_iter()));
 
     let prob_dist = utils::collect_prob_dist(calls, events, vartype)?;
@@ -44,7 +47,11 @@ pub fn control_fdr<E: Event, W: io::Write>(
     }
 
     // estimate FDR
-    let pep_dist = prob_dist.into_iter().rev().map(|p| LogProb(*p).ln_one_minus_exp()).collect_vec();
+    let pep_dist = prob_dist
+        .into_iter()
+        .rev()
+        .map(|p| LogProb(*p).ln_one_minus_exp())
+        .collect_vec();
     let fdrs = bayesian::expected_fdr(&pep_dist);
 
     for &alpha in &ALPHAS {
@@ -56,7 +63,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
                 let pep = pep_dist[i];
                 writer.serialize(&Record {
                     alpha: alpha,
-                    gamma: PHREDProb::from(pep.ln_one_minus_exp())
+                    gamma: PHREDProb::from(pep.ln_one_minus_exp()),
                 })?;
                 break;
             }

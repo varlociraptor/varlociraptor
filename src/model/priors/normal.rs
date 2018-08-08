@@ -8,7 +8,6 @@
 // use model::{Variant, DiscreteAlleleFreqs, AlleleFreq};
 // use priors::{Model, InfiniteSitesNeutralVariationModel, PairModel};
 
-
 /*
 pub struct NormalNormalModel {
     inner: InfiniteSitesNeutralVariationModel,

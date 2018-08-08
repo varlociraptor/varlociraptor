@@ -1,15 +1,13 @@
-use std::str;
 use std::f64;
+use std::str;
 
-use serde::Serialize;
-use serde::ser::{Serializer, SerializeStruct};
 use rgsl::randist::poisson::poisson_pdf;
+use serde::ser::{SerializeStruct, Serializer};
+use serde::Serialize;
 
 use bio::stats::LogProb;
 use rust_htslib::bam;
-use rust_htslib::bam::record::{CigarString};
-
-
+use rust_htslib::bam::record::CigarString;
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug)]
@@ -23,9 +21,8 @@ pub struct Observation {
     /// Probability to sample the alt allele
     pub prob_sample_alt: LogProb,
     /// Type of evidence.
-    pub evidence: Evidence
+    pub evidence: Evidence,
 }
-
 
 impl Observation {
     pub fn new(
@@ -33,7 +30,7 @@ impl Observation {
         prob_alt: LogProb,
         prob_ref: LogProb,
         prob_sample_alt: LogProb,
-        evidence: Evidence
+        evidence: Evidence,
     ) -> Self {
         Observation {
             prob_mapping: prob_mapping,
@@ -53,7 +50,6 @@ impl Observation {
     }
 }
 
-
 pub fn poisson_pmf(count: u32, mu: f64) -> LogProb {
     if mu == 0.0 {
         if count == 0 {
@@ -66,10 +62,11 @@ pub fn poisson_pmf(count: u32, mu: f64) -> LogProb {
     }
 }
 
-
 impl Serialize for Observation {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+    where
+        S: Serializer,
+    {
         let mut s = serializer.serialize_struct("Observation", 3)?;
         s.serialize_field("prob_mapping", &self.prob_mapping)?;
         s.serialize_field("prob_alt", &self.prob_alt)?;
@@ -80,7 +77,6 @@ impl Serialize for Observation {
     }
 }
 
-
 /// Types of evidence that lead to an observation.
 /// The contained information is intended for debugging and will be printed together with
 /// observations.
@@ -89,9 +85,8 @@ pub enum Evidence {
     /// Insert size of fragment
     InsertSize(String),
     /// Alignment of a single read
-    Alignment(String)
+    Alignment(String),
 }
-
 
 impl Evidence {
     /// Create a dummy alignment.
@@ -116,7 +111,7 @@ impl Evidence {
         p_right_ref: LogProb,
         p_right_alt: LogProb,
         p_isize_ref: LogProb,
-        p_isize_alt: LogProb
+        p_isize_alt: LogProb,
     ) -> Self {
         Evidence::InsertSize(format!(
             "left: cigar={} ({:e} vs {:e}), right: cigar={} ({:e} vs {:e}), insert-size={} ({:e} vs {:e}), qname={}, left: AS={:?}, XS={:?}, right: AS={:?}, XS={:?}",
@@ -135,7 +130,8 @@ impl Evidence {
     pub fn alignment(cigar: &CigarString, record: &bam::Record) -> Self {
         Evidence::Alignment(format!(
             "cigar={}, qname={}, AS={:?}, XS={:?}",
-            cigar, str::from_utf8(record.qname()).unwrap(),
+            cigar,
+            str::from_utf8(record.qname()).unwrap(),
             record.aux(b"AS").map(|a| a.integer()),
             record.aux(b"XS").map(|a| a.integer())
         ))
