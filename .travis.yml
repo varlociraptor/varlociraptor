@@ -23,6 +23,7 @@ addons:
 before_script:
   - which cargo-coveralls || cargo install cargo-travis
   - export PATH=$HOME/.cargo/bin:$PATH
+  - rustup component add rustfmt-preview
 
 script:
   - cargo fmt -- --check || echo "Invalid code formatting: run `cargo fmt`!"
