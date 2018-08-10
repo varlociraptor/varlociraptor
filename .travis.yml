@@ -26,7 +26,7 @@ before_script:
   - rustup component add rustfmt-preview
 
 script:
-  - cargo fmt -- --check || echo "Invalid code formatting: run `cargo fmt`!"
+  - cargo fmt -- --check
   - cargo build
   - cargo test -- --test-threads=1
 
