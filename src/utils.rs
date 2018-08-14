@@ -388,6 +388,7 @@ impl Overlap {
         Ok(overlap)
     }
 
+    #[cfg_attr(feature="flame_it_details", flame)]
     pub fn is_enclosing(&self) -> bool {
         if let &Overlap::Enclosing(_) = self {
             true
