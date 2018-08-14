@@ -40,4 +40,5 @@ hyper = "0.10"
 [features]
 default = []
 flame_it = ["flame", "flamer"]
+flame_it_details = ["flame", "flamer", "bio/flame_it_details", "rust-htslib/flame_it_details"]
 gslv2 = ["GSL/v2"]
