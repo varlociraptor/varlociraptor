@@ -1,19 +1,17 @@
 use rust_htslib::bam;
 use rust_htslib::bam::record::{Cigar, CigarStringView};
 
-pub mod reads;
 pub mod fragments;
 pub mod observation;
+pub mod reads;
 
-pub use self::observation::Observation;
 pub use self::observation::Evidence;
-
+pub use self::observation::Observation;
 
 pub struct Clips {
     hard: u32,
-    soft: u32
+    soft: u32,
 }
-
 
 impl Clips {
     fn new(cigar: &CigarStringView, trailing: bool) -> Self {
@@ -32,7 +30,7 @@ impl Clips {
             (Some(&Cigar::HardClip(j)), Some(&Cigar::SoftClip(i))) => Clips { hard: j, soft: i },
             (Some(&Cigar::SoftClip(i)), _) => Clips { hard: 0, soft: i },
             (Some(&Cigar::HardClip(j)), _) => Clips { hard: j, soft: 0 },
-            _ => Clips { hard: 0, soft: 0 }
+            _ => Clips { hard: 0, soft: 0 },
         }
     }
 
@@ -70,16 +68,18 @@ impl Clips {
     }
 }
 
-
 /// Return maximum indel operation in given cigar string.
 pub fn max_indel(cigar: &CigarStringView) -> u32 {
-    cigar.iter().map(|op| match op {
+    cigar
+        .iter()
+        .map(|op| match op {
             &Cigar::Ins(l) => l,
             &Cigar::Del(l) => l,
-            _ => 0
-    }).max().unwrap_or(0)
+            _ => 0,
+        })
+        .max()
+        .unwrap_or(0)
 }
-
 
 /// Calculate the full read length including hard clipped bases.
 pub fn read_len(record: &bam::Record, cigar: &CigarStringView) -> u32 {

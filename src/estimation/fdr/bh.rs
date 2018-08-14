@@ -5,24 +5,22 @@
 use std::error::Error;
 use std::io;
 
+use bio::stats::{LogProb, PHREDProb, Prob};
 use csv;
 use itertools::Itertools;
-use rust_htslib::bcf;
-use bio::stats::{LogProb, PHREDProb, Prob};
 use ordered_float::NotNaN;
+use rust_htslib::bcf;
 
+use estimation::fdr::{Record, ALPHAS};
+use model;
 use utils;
 use Event;
-use model;
-use estimation::fdr::{Record, ALPHAS};
-
 
 fn pval(x: NotNaN<f64>, dist: &[NotNaN<f64>]) -> LogProb {
     let i = dist.binary_search(&x).unwrap_or_else(|i| i);
     let f0 = LogProb::from(Prob(i as f64 / dist.len() as f64));
     f0.ln_one_minus_exp()
 }
-
 
 /// Print thresholds to control FDR of given calls at multiple levels.
 ///
@@ -38,8 +36,12 @@ pub fn control_fdr<E: Event, W: io::Write>(
     null_calls: &mut bcf::Reader,
     writer: &mut W,
     events: &[E],
-    vartype: &model::VariantType) -> Result<(), Box<Error>> {
-    let mut writer = csv::WriterBuilder::new().has_headers(false).delimiter(b'\t').from_writer(writer);
+    vartype: &model::VariantType,
+) -> Result<(), Box<Error>> {
+    let mut writer = csv::WriterBuilder::new()
+        .has_headers(false)
+        .delimiter(b'\t')
+        .from_writer(writer);
     try!(writer.write_record(["FDR", "max-prob"].into_iter()));
 
     let null_dist = utils::collect_prob_dist(null_calls, events, vartype)?;
@@ -56,11 +58,17 @@ pub fn control_fdr<E: Event, W: io::Write>(
     debug!("{} observations in call distribution.", prob_dist.len());
     let pvals = prob_dist.iter().map(|&p| pval(p, &null_dist)).collect_vec();
     let m = pvals.len() as f64;
-    let mk_pvals = pvals.iter().enumerate().map(|(k, &p)| (*p) + m.ln() - (m - k as f64 + 1.0).ln()).collect_vec(); // p * m / (m - k + 1)
-
+    let mk_pvals = pvals
+        .iter()
+        .enumerate()
+        .map(|(k, &p)| (*p) + m.ln() - (m - k as f64 + 1.0).ln())
+        .collect_vec(); // p * m / (m - k + 1)
 
     for &alpha in &ALPHAS {
-        let mut record = Record { alpha: alpha, gamma: PHREDProb::from(Prob(1.0)) };
+        let mut record = Record {
+            alpha: alpha,
+            gamma: PHREDProb::from(Prob(1.0)),
+        };
         let alpha = alpha.ln();
         for (&mkp, &event_prob) in mk_pvals.iter().zip(prob_dist.iter()) {
             // the pvalues will be monotonically decreasing

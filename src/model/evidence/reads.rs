@@ -2,21 +2,19 @@ use std::cmp;
 use std::error::Error;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
-use rust_htslib::bam::record::{CigarStringView};
 use rust_htslib::bam;
+use rust_htslib::bam::record::CigarStringView;
 
-use model::Variant;
 use estimation::alignment_properties::AlignmentProperties;
+use model::Variant;
 use pairhmm;
-
-
 
 pub fn prob_snv(
     record: &bam::Record,
     cigar: &CigarStringView,
     start: u32,
     variant: &Variant,
-    ref_seq: &[u8]
+    ref_seq: &[u8],
 ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
     if let &Variant::SNV(base) = variant {
         if let Some(qpos) = cigar.read_pos(start, false, false)? {
@@ -24,12 +22,12 @@ pub fn prob_snv(
             let base_qual = record.qual()[qpos as usize];
             let prob_alt = prob_read_base(read_base, base, base_qual);
             let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
-            Ok( Some( (prob_ref, prob_alt) ) )
+            Ok(Some((prob_ref, prob_alt)))
         } else {
             // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
             // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
             // but instead needs to know NOT to add those reads (as observations) further up
-            Ok( None )
+            Ok(None)
         }
     } else {
         panic!("bug: unsupported variant");
@@ -42,7 +40,7 @@ pub fn prob_none(
     cigar: &CigarStringView,
     start: u32,
     variant: &Variant,
-    ref_seq: &[u8]
+    ref_seq: &[u8],
 ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
     if let &Variant::None = variant {
         if let Some(qpos) = cigar.read_pos(start, false, false)? {
@@ -51,15 +49,15 @@ pub fn prob_none(
             let miscall = prob_read_base_miscall(base_qual);
             // here, prob_alt is the probability of any alternative allele / nucleotide, NOT of a particular alternative allele
             if read_base.to_ascii_uppercase() == ref_seq[start as usize].to_ascii_uppercase() {
-                Ok( Some( (miscall.ln_one_minus_exp(), miscall) ) )
+                Ok(Some((miscall.ln_one_minus_exp(), miscall)))
             } else {
-                Ok( Some( (miscall, miscall.ln_one_minus_exp()) ) )
+                Ok(Some((miscall, miscall.ln_one_minus_exp())))
             }
         } else {
             // a read that spans a potential Ref site might have the respective position deleted (Cigar op 'D')
             // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
             // but instead needs to know NOT to add those reads (as observations) further up
-            Ok( None )
+            Ok(None)
         }
     } else {
         panic!("bug: unsupported variant");
@@ -72,9 +70,8 @@ pub struct IndelEvidence {
     pairhmm: pairhmm::PairHMM,
     window: u32,
     alignment_properties: AlignmentProperties,
-    use_mapq: bool
+    use_mapq: bool,
 }
-
 
 impl IndelEvidence {
     /// Create a new instance.
@@ -85,29 +82,30 @@ impl IndelEvidence {
         prob_deletion_extend_artifact: LogProb,
         window: u32,
         alignment_properties: AlignmentProperties,
-        use_mapq: bool
+        use_mapq: bool,
     ) -> Self {
         IndelEvidence {
             gap_params: IndelGapParams {
                 prob_insertion_artifact: prob_insertion_artifact,
                 prob_deletion_artifact: prob_deletion_artifact,
                 prob_insertion_extend_artifact: prob_insertion_extend_artifact,
-                prob_deletion_extend_artifact: prob_deletion_extend_artifact
+                prob_deletion_extend_artifact: prob_deletion_extend_artifact,
             },
             pairhmm: pairhmm::PairHMM::new(),
             window,
             alignment_properties,
-            use_mapq
+            use_mapq,
         }
     }
 
     /// Calculate probability for reference and alternative allele.
-    pub fn prob(&mut self,
+    pub fn prob(
+        &mut self,
         record: &bam::Record,
         cigar: &CigarStringView,
         start: u32,
         variant: &Variant,
-        ref_seq: &[u8]
+        ref_seq: &[u8],
     ) -> Result<(LogProb, LogProb), Box<Error>> {
         let read_seq = record.seq();
         let read_qual = record.qual();
@@ -117,42 +115,33 @@ impl IndelEvidence {
                 &Variant::Deletion(_) => (start, start + variant.len()),
                 &Variant::Insertion(_) => (start, start + 1),
                 //TODO: add support for &Variant::Ref if we want to check against potential indel alt alleles
-                &Variant::SNV(_) | &Variant::None => panic!("bug: unsupported variant")
+                &Variant::SNV(_) | &Variant::None => panic!("bug: unsupported variant"),
             };
 
             match (
                 cigar.read_pos(varstart, true, true)?,
-                cigar.read_pos(varend, true, true)?
+                cigar.read_pos(varend, true, true)?,
             ) {
                 // read encloses variant
                 (Some(qstart), Some(qend)) => {
                     let qstart = qstart as usize;
                     let qend = qend as usize;
                     let read_offset = qstart.saturating_sub(self.window as usize);
-                    let read_end = cmp::min(
-                        qend + self.window as usize,
-                        read_seq.len()
-                    );
+                    let read_end = cmp::min(qend + self.window as usize, read_seq.len());
                     (read_offset, read_end, varstart as usize, true)
-                },
+                }
                 (Some(qstart), None) => {
                     let qstart = qstart as usize;
                     let read_offset = qstart.saturating_sub(self.window as usize);
-                    let read_end = cmp::min(
-                        qstart + self.window as usize,
-                        read_seq.len()
-                    );
+                    let read_end = cmp::min(qstart + self.window as usize, read_seq.len());
                     (read_offset, read_end, varstart as usize, true)
-                },
+                }
                 (None, Some(qend)) => {
                     let qend = qend as usize;
                     let read_offset = qend.saturating_sub(self.window as usize);
-                    let read_end = cmp::min(
-                        qend + self.window as usize,
-                        read_seq.len()
-                    );
+                    let read_end = cmp::min(qend + self.window as usize, read_seq.len());
                     (read_offset, read_end, varend as usize, true)
-                },
+                }
                 (None, None) => {
                     let m = read_seq.len() / 2;
                     let read_offset = m.saturating_sub(self.window as usize);
@@ -179,28 +168,26 @@ impl IndelEvidence {
                 read_end: read_end,
                 ref_offset: breakpoint.saturating_sub(ref_window),
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
-            }
+            },
         );
 
         // alt allele
         let prob_alt = if overlap {
             match variant {
-                &Variant::Deletion(_) => {
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &DeletionEmissionParams {
-                            ref_seq: ref_seq,
-                            read_seq: &read_seq,
-                            read_qual: read_qual,
-                            read_offset: read_offset,
-                            read_end: read_end,
-                            ref_offset: start.saturating_sub(ref_window),
-                            ref_end: cmp::min(start + ref_window, ref_seq.len()),
-                            del_start: start,
-                            del_len: variant.len() as usize
-                        }
-                    )
-                },
+                &Variant::Deletion(_) => self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &DeletionEmissionParams {
+                        ref_seq: ref_seq,
+                        read_seq: &read_seq,
+                        read_qual: read_qual,
+                        read_offset: read_offset,
+                        read_end: read_end,
+                        ref_offset: start.saturating_sub(ref_window),
+                        ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                        del_start: start,
+                        del_len: variant.len() as usize,
+                    },
+                ),
                 &Variant::Insertion(ref ins_seq) => {
                     let l = ins_seq.len() as usize;
                     self.pairhmm.prob_related(
@@ -216,10 +203,10 @@ impl IndelEvidence {
                             ins_start: start,
                             ins_len: l,
                             ins_end: start + l,
-                            ins_seq: ins_seq
-                        }
+                            ins_seq: ins_seq,
+                        },
                     )
-                },
+                }
                 _ => {
                     panic!("bug: unsupported variant");
                 }
@@ -237,14 +224,10 @@ impl IndelEvidence {
     ///
     /// The key idea is calculate the probability as number of valid placements (considering the
     /// max softclip allowed by the mapper) over all possible placements.
-    pub fn prob_sample_alt(
-        &self,
-        read_len: u32,
-        variant: &Variant
-    ) -> LogProb {
+    pub fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb {
         // TODO for long reads, always return One
         let delta = match variant {
-            &Variant::Deletion(_)  => variant.len() as u32,
+            &Variant::Deletion(_) => variant.len() as u32,
             &Variant::Insertion(_) => variant.len() as u32,
             &Variant::SNV(_) | &Variant::None => return LogProb::ln_one(),
         };
@@ -280,11 +263,9 @@ impl IndelEvidence {
     }
 }
 
-
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
 }
-
 
 /// Calculate probability of read_base given ref_base.
 pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
@@ -298,27 +279,23 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
     }
 }
 
-
 /// unpack miscall probability of read_base.
 pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
     LogProb::from(PHREDProb::from((base_qual) as f64))
 }
-
 
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps correctly.
 pub fn prob_mapping(record: &bam::Record) -> LogProb {
     LogProb::from(PHREDProb(record.mapq() as f64)).ln_one_minus_exp()
 }
 
-
 /// Gap parameters for PairHMM.
 pub struct IndelGapParams {
     pub prob_insertion_artifact: LogProb,
     pub prob_deletion_artifact: LogProb,
     pub prob_insertion_extend_artifact: LogProb,
-    pub prob_deletion_extend_artifact: LogProb
+    pub prob_deletion_extend_artifact: LogProb,
 }
-
 
 impl pairhmm::GapParameters for IndelGapParams {
     #[inline]
@@ -342,7 +319,6 @@ impl pairhmm::GapParameters for IndelGapParams {
     }
 }
 
-
 impl pairhmm::StartEndGapParameters for IndelGapParams {
     /// Semiglobal alignment: return true.
     #[inline]
@@ -362,7 +338,6 @@ impl pairhmm::StartEndGapParameters for IndelGapParams {
         LogProb::ln_one()
     }
 }
-
 
 macro_rules! default_emission {
     () => (
@@ -395,7 +370,6 @@ macro_rules! default_emission {
     )
 }
 
-
 /// Emission parameters for PairHMM over reference allele.
 pub struct ReferenceEmissionParams<'a> {
     ref_seq: &'a [u8],
@@ -404,9 +378,8 @@ pub struct ReferenceEmissionParams<'a> {
     read_offset: usize,
     ref_offset: usize,
     read_end: usize,
-    ref_end: usize
+    ref_end: usize,
 }
-
 
 impl<'a> ReferenceEmissionParams<'a> {
     #[inline]
@@ -420,11 +393,9 @@ impl<'a> ReferenceEmissionParams<'a> {
     }
 }
 
-
 impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
     default_emission!();
 }
-
 
 /// Emission parameters for PairHMM over deletion allele.
 pub struct DeletionEmissionParams<'a> {
@@ -436,9 +407,8 @@ pub struct DeletionEmissionParams<'a> {
     read_end: usize,
     ref_end: usize,
     del_start: usize,
-    del_len: usize
+    del_len: usize,
 }
-
 
 impl<'a> DeletionEmissionParams<'a> {
     #[inline]
@@ -457,11 +427,9 @@ impl<'a> DeletionEmissionParams<'a> {
     }
 }
 
-
 impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
     default_emission!();
 }
-
 
 /// Emission parameters for PairHMM over insertion allele.
 pub struct InsertionEmissionParams<'a> {
@@ -475,9 +443,8 @@ pub struct InsertionEmissionParams<'a> {
     ins_start: usize,
     ins_end: usize,
     ins_len: usize,
-    ins_seq: &'a [u8]
+    ins_seq: &'a [u8],
 }
-
 
 impl<'a> InsertionEmissionParams<'a> {
     #[inline]
@@ -498,7 +465,6 @@ impl<'a> InsertionEmissionParams<'a> {
     }
 }
 
-
 impl<'a> pairhmm::EmissionParameters for InsertionEmissionParams<'a> {
     default_emission!();
 }
@@ -509,8 +475,8 @@ mod tests {
     use super::*;
     use model;
 
-    use std::str;
     use rust_htslib::bam::record::{Cigar, CigarString};
+    use std::str;
 
     #[test]
     fn test_prob_none() {
@@ -522,8 +488,12 @@ mod tests {
 
         // Ignore leading HardClip, skip leading SoftClip, reference nucleotide
         qname = b"HC_SC_ref";
-        let cigar = CigarString( vec![Cigar::HardClip(3), Cigar::SoftClip(1), Cigar::Match(5)] );
-        seq  = b"TATTaC";
+        let cigar = CigarString(vec![
+            Cigar::HardClip(3),
+            Cigar::SoftClip(1),
+            Cigar::Match(5),
+        ]);
+        seq = b"TATTaC";
         let qual = [20, 30, 30, 30, 40, 30];
         let mut record1 = bam::Record::new();
         record1.set(qname, &cigar, seq, &qual);
@@ -532,8 +502,12 @@ mod tests {
 
         // Ignore leading HardClip, skip leading SoftClip, non-reference nucleotide
         qname = b"HC_SC_non-ref";
-        let cigar = CigarString( vec![Cigar::HardClip(5), Cigar::SoftClip(2), Cigar::Match(4)] );
-        seq  = b"TTTTCC";
+        let cigar = CigarString(vec![
+            Cigar::HardClip(5),
+            Cigar::SoftClip(2),
+            Cigar::Match(4),
+        ]);
+        seq = b"TTTTCC";
         let qual = [15, 15, 20, 20, 30, 20];
         let mut record2 = bam::Record::new();
         record2.set(qname, &cigar, seq, &qual);
@@ -542,8 +516,12 @@ mod tests {
 
         // reference nucleotide, trailing SoftClip, trailing HardClip
         qname = b"ref_SC_HC";
-        let cigar = CigarString( vec![ Cigar::Match(3), Cigar::SoftClip(2), Cigar::HardClip(7) ] );
-        seq  = b"ACATA";
+        let cigar = CigarString(vec![
+            Cigar::Match(3),
+            Cigar::SoftClip(2),
+            Cigar::HardClip(7),
+        ]);
+        seq = b"ACATA";
         let qual = [50, 20, 20, 20, 20, 20];
         let mut record3 = bam::Record::new();
         record3.set(qname, &cigar, seq, &qual);
@@ -552,37 +530,41 @@ mod tests {
 
         // three nucleotide Deletion covering Ref position
         qname = b"M_3Del_M";
-        let cigar = CigarString( vec![Cigar::Match(3), Cigar::Del(3), Cigar::Match(1)] );
-        seq  = b"GATA";
+        let cigar = CigarString(vec![Cigar::Match(3), Cigar::Del(3), Cigar::Match(1)]);
+        seq = b"GATA";
         let qual = [10, 30, 30, 30];
         let mut record4 = bam::Record::new();
         record4.set(qname, &cigar, seq, &qual);
         record4.set_pos(0);
         records.push(record4);
 
-
         // truth
-        let probs_ref = [0.9999,  0.001,  0.99999 ];
-        let probs_alt = [0.0001,  0.999,  0.00001 ];
-        let eps       = [0.00001, 0.0001, 0.000001];
+        let probs_ref = [0.9999, 0.001, 0.99999];
+        let probs_alt = [0.0001, 0.999, 0.00001];
+        let eps = [0.00001, 0.0001, 0.000001];
 
         let vpos = 4;
         let variant = model::Variant::None;
         for (i, mut rec) in records.into_iter().enumerate() {
             rec.cache_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_none(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq) {
+            if let Ok(Some((prob_ref, prob_alt))) =
+                prob_none(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq)
+            {
                 println!("{:?}", rec.cigar_cached());
-                println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
-                assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
-                assert_relative_eq!( (*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
+                println!(
+                    "Pr(ref)={} Pr(alt)={}",
+                    (*prob_ref).exp(),
+                    (*prob_alt).exp()
+                );
+                assert_relative_eq!((*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
+                assert_relative_eq!((*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
             } else {
                 // tests for reference position not being covered should be pushed onto records last
                 // and should have 10 as the quality value of the first base in seq
                 assert_eq!(rec.qual()[0], 10);
             }
         }
-
     }
     #[test]
     fn test_prob_snv() {
@@ -594,8 +576,12 @@ mod tests {
 
         // Ignore leading HardClip, skip leading SoftClip, reference nucleotide
         qname = b"HC_SC_M";
-        let cigar = CigarString( vec![Cigar::HardClip(5), Cigar::SoftClip(2), Cigar::Match(6)] );
-        seq  = b"AATATACG";
+        let cigar = CigarString(vec![
+            Cigar::HardClip(5),
+            Cigar::SoftClip(2),
+            Cigar::Match(6),
+        ]);
+        seq = b"AATATACG";
         let qual = [20, 20, 30, 30, 30, 40, 30, 30];
         let mut record1 = bam::Record::new();
         record1.set(qname, &cigar, seq, &qual);
@@ -604,8 +590,8 @@ mod tests {
 
         // Ignore leading HardClip, skip leading Insertion, alternative nucleotide
         qname = b"HC_Ins_M";
-        let cigar = CigarString( vec![Cigar::HardClip(2), Cigar::Ins(2), Cigar::Match(6)] );
-        seq  = b"TTTATGCG";
+        let cigar = CigarString(vec![Cigar::HardClip(2), Cigar::Ins(2), Cigar::Match(6)]);
+        seq = b"TTTATGCG";
         let qual = [20, 20, 20, 20, 20, 30, 20, 20];
         let mut record2 = bam::Record::new();
         record2.set(qname, &cigar, seq, &qual);
@@ -614,8 +600,13 @@ mod tests {
 
         // Matches and deletion before position, reference nucleotide
         qname = b"Eq_Diff_Del_Eq";
-        let cigar = CigarString( vec![Cigar::Equal(2), Cigar::Diff(1), Cigar::Del(2), Cigar::Equal(5)] );
-        seq  = b"CCAACGCG";
+        let cigar = CigarString(vec![
+            Cigar::Equal(2),
+            Cigar::Diff(1),
+            Cigar::Del(2),
+            Cigar::Equal(5),
+        ]);
+        seq = b"CCAACGCG";
         let qual = [30, 30, 30, 50, 30, 30, 30, 30];
         let mut record3 = bam::Record::new();
         record3.set(qname, &cigar, seq, &qual);
@@ -624,8 +615,8 @@ mod tests {
 
         // single nucleotide Deletion covering SNV position
         qname = b"M_Del_M";
-        let cigar = CigarString( vec![Cigar::Match(4), Cigar::Del(1), Cigar::Match(4)] );
-        seq  = b"CTATCGCG";
+        let cigar = CigarString(vec![Cigar::Match(4), Cigar::Del(1), Cigar::Match(4)]);
+        seq = b"CTATCGCG";
         let qual = [10, 30, 30, 30, 30, 30, 30, 30];
         let mut record4 = bam::Record::new();
         record4.set(qname, &cigar, seq, &qual);
@@ -634,30 +625,41 @@ mod tests {
 
         // three nucleotide RefSkip covering SNV position
         qname = b"M_RefSkip_M";
-        let cigar = CigarString( vec![Cigar::Equal(1), Cigar::Diff(1), Cigar::Equal(2), Cigar::RefSkip(3), Cigar::Match(4)] );
-        seq  = b"CTTAGCGT";
+        let cigar = CigarString(vec![
+            Cigar::Equal(1),
+            Cigar::Diff(1),
+            Cigar::Equal(2),
+            Cigar::RefSkip(3),
+            Cigar::Match(4),
+        ]);
+        seq = b"CTTAGCGT";
         let qual = [10, 30, 30, 30, 30, 30, 30, 30];
         let mut record5 = bam::Record::new();
         record5.set(qname, &cigar, seq, &qual);
         record5.set_pos(0);
         records.push(record5);
 
-
         // truth
-        let probs_ref = [0.9999,   0.00033, 0.99999  ];
-        let probs_alt = [0.000033, 0.999,   0.0000033];
-        let eps       = [0.000001, 0.00001, 0.0000001];
+        let probs_ref = [0.9999, 0.00033, 0.99999];
+        let probs_alt = [0.000033, 0.999, 0.0000033];
+        let eps = [0.000001, 0.00001, 0.0000001];
 
         let vpos = 5;
         let variant = model::Variant::SNV(b'G');
         for (i, mut rec) in records.into_iter().enumerate() {
             rec.cache_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            if let Ok( Some( (prob_ref, prob_alt) ) ) = prob_snv(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq) {
+            if let Ok(Some((prob_ref, prob_alt))) =
+                prob_snv(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq)
+            {
                 println!("{:?}", rec.cigar_cached());
-                println!("Pr(ref)={} Pr(alt)={}", (*prob_ref).exp(), (*prob_alt).exp() );
-                assert_relative_eq!( (*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
-                assert_relative_eq!( (*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
+                println!(
+                    "Pr(ref)={} Pr(alt)={}",
+                    (*prob_ref).exp(),
+                    (*prob_alt).exp()
+                );
+                assert_relative_eq!((*prob_ref).exp(), probs_ref[i], epsilon = eps[i]);
+                assert_relative_eq!((*prob_alt).exp(), probs_alt[i], epsilon = eps[i]);
             } else {
                 // tests for reference position not being covered should be pushed onto records last
                 // and should have 10 as the quality value of the first base in seq

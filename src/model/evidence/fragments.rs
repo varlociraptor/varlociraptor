@@ -1,17 +1,16 @@
 use std::cmp;
 use std::error::Error;
-use std::ops::Range;
 use std::f64;
+use std::ops::Range;
 
+use bio::stats::LogProb;
 use itertools::Itertools;
 use rgsl::randist::gaussian::ugaussian_P;
-use bio::stats::LogProb;
 use rust_htslib::bam;
 
-use model::Variant;
 use estimation::alignment_properties::AlignmentProperties;
 use model::evidence;
-
+use model::Variant;
 
 /// Calculate the number of positions a fragment can have in a given window according to
 /// Sahlin et al. biorxiv 2015
@@ -27,19 +26,20 @@ pub fn n_fragment_positions(
     insert_size: u32,
     left_read_len: u32,
     right_read_len: u32,
-    window: u32
+    window: u32,
 ) -> u32 {
-
     cmp::min(
         // The fragment needs to enclose the centerpoint on the reference.
         // TODO add +1 or not?
-        cmp::max(insert_size as i32 - left_read_len as i32 - right_read_len as i32, 0),
+        cmp::max(
+            insert_size as i32 - left_read_len as i32 - right_read_len as i32,
+            0,
+        ),
         // The insert size needs to be shorter than the window on the reference sequence
         // (upper boundary)
-        cmp::max(window as i32 - insert_size as i32 + 1, 0)
+        cmp::max(window as i32 - insert_size as i32 + 1, 0),
     ) as u32
 }
-
 
 /// Estimate the insert size from read pair projected on reference sequence including clips.
 /// Note that this is is not the insert size of the real fragment but rather the insert size of
@@ -56,7 +56,7 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u
     let aln = |rec: &bam::Record, cigar| -> Result<(u32, u32), Box<Error>> {
         Ok((
             (rec.pos() as u32).saturating_sub(evidence::Clips::leading(cigar).both()),
-            cigar.end_pos()? as u32 + evidence::Clips::trailing(cigar).both()
+            cigar.end_pos()? as u32 + evidence::Clips::trailing(cigar).both(),
         ))
     };
 
@@ -66,29 +66,27 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u
     // (http://thegenomefactory.blogspot.nl/2013/08/paired-end-read-confusion-library.html)
     let inner_mate_distance = right_start as i32 - left_end as i32;
 
-    let insert_size = inner_mate_distance +
-                      (left_end - left_start) as i32 +
-                      (right_end - right_start) as i32;
-    assert!(insert_size > 0, "bug: insert size {} is smaller than zero", insert_size);
+    let insert_size =
+        inner_mate_distance + (left_end - left_start) as i32 + (right_end - right_start) as i32;
+    assert!(
+        insert_size > 0,
+        "bug: insert size {} is smaller than zero",
+        insert_size
+    );
 
     Ok(insert_size as u32)
 }
 
-
 /// Calculate read evindence for an indel.
 pub struct IndelEvidence {
-    alignment_properties: AlignmentProperties
+    alignment_properties: AlignmentProperties,
 }
-
 
 impl IndelEvidence {
     /// Create a new instance.
-    pub fn new(
-        alignment_properties: AlignmentProperties
-    ) -> Self {
-
+    pub fn new(alignment_properties: AlignmentProperties) -> Self {
         IndelEvidence {
-            alignment_properties
+            alignment_properties,
         }
     }
 
@@ -101,11 +99,11 @@ impl IndelEvidence {
     }
 
     /// Get probability of given insert size from distribution shifted by the given value.
-    fn pmf(&self,  insert_size: u32, shift: f64) -> LogProb {
+    fn pmf(&self, insert_size: u32, shift: f64) -> LogProb {
         isize_pmf(
             insert_size as f64,
             self.alignment_properties.insert_size().mean + shift,
-            self.alignment_properties.insert_size().sd
+            self.alignment_properties.insert_size().sd,
         )
     }
 
@@ -115,21 +113,24 @@ impl IndelEvidence {
     }
 
     /// Calculate probability for reference and alternative allele.
-    pub fn prob(&self,
+    pub fn prob(
+        &self,
         insert_size: u32,
-        variant: &Variant
+        variant: &Variant,
     ) -> Result<(LogProb, LogProb), Box<Error>> {
         let shift = match variant {
-            &Variant::Deletion(_)  => variant.len() as f64,
+            &Variant::Deletion(_) => variant.len() as f64,
             &Variant::Insertion(_) => {
                 //(-(variant.len() as f64), variant.len())
                 // We don't support insertions for now because it is not possible to reliably
                 // detect that the fragment only overlaps the insertion at the inner read ends.
                 // See Sample::overlap.
-                panic!("bug: insert-size based probability for insertions is currently unsupported");
-            },
+                panic!(
+                    "bug: insert-size based probability for insertions is currently unsupported"
+                );
+            }
             &Variant::SNV(_) => panic!("no fragment observations for SNV"),
-            &Variant::None => panic!("no fragment observations for None")
+            &Variant::None => panic!("no fragment observations for None"),
         };
 
         let p_ref = self.pmf(insert_size, 0.0);
@@ -148,33 +149,36 @@ impl IndelEvidence {
         &self,
         left_read_len: u32,
         right_read_len: u32,
-        variant: &Variant
+        variant: &Variant,
     ) -> LogProb {
         // TODO for long reads always return one?
         let expected_prob_enclose = |left_feasible, right_feasible, delta| {
-            let read_offsets = left_read_len.saturating_sub(left_feasible) +
-                               right_read_len.saturating_sub(right_feasible);
+            let read_offsets = left_read_len.saturating_sub(left_feasible)
+                + right_read_len.saturating_sub(right_feasible);
 
             // Calculate over each possible true insert size instead of the concrete insert size
             // of this fragment. This way we get a global value. Otherwise, we would obtain a
             // bias for each fragment that is too small to enclose the variant,
             // e.g., a ref fragment.
             let expected_p_alt = LogProb::ln_sum_exp(
-                &self.pmf_range().filter_map(|x| {
-                    if x <= delta || x <= delta + read_offsets {
-                        // if x is too small to enclose the variant, we skip it as it adds zero to the sum
-                        None
-                    } else {
-                        let p = self.pmf(x, 0.0) +
+                &self
+                    .pmf_range()
+                    .filter_map(|x| {
+                        if x <= delta || x <= delta + read_offsets {
+                            // if x is too small to enclose the variant, we skip it as it adds zero to the sum
+                            None
+                        } else {
+                            let p = self.pmf(x, 0.0) +
                         // probability to sample a valid placement
                         LogProb(
                             (x.saturating_sub(delta).saturating_sub(read_offsets) as f64).ln() -
                             (x.saturating_sub(delta) as f64).ln()
                         );
-                        assert!(p.is_valid(), "bug: invalid probability {:?}", p);
-                        Some(p)
-                    }
-                }).collect_vec()
+                            assert!(p.is_valid(), "bug: invalid probability {:?}", p);
+                            Some(p)
+                        }
+                    })
+                    .collect_vec(),
             );
 
             expected_p_alt
@@ -182,44 +186,43 @@ impl IndelEvidence {
         let expected_prob_overlap = |left_feasible, right_feasible, delta| {
             let n_alt_left = cmp::min(delta, left_read_len);
             let n_alt_right = cmp::min(delta, right_read_len);
-            let n_alt_valid = cmp::min(n_alt_left, left_feasible) +
-                              cmp::min(n_alt_right, right_feasible);
+            let n_alt_valid =
+                cmp::min(n_alt_left, left_feasible) + cmp::min(n_alt_right, right_feasible);
 
             LogProb((n_alt_valid as f64).ln() - ((n_alt_left + n_alt_right) as f64).ln())
         };
 
-        let left_feasible = self.alignment_properties.feasible_bases(left_read_len, variant);
-        let right_feasible = self.alignment_properties.feasible_bases(right_read_len, variant);
+        let left_feasible = self
+            .alignment_properties
+            .feasible_bases(left_read_len, variant);
+        let right_feasible = self
+            .alignment_properties
+            .feasible_bases(right_read_len, variant);
 
         match variant {
-            &Variant::Deletion(_)  => {
+            &Variant::Deletion(_) => {
                 // Deletion length does not affect sampling because the reads come from the allele
                 // where the deleted sequence is not present ;-).
                 let delta = 0;
                 expected_prob_enclose(left_feasible, right_feasible, delta)
-            },
+            }
             &Variant::Insertion(ref seq) => {
                 let delta = seq.len() as u32;
                 expected_prob_overlap(left_feasible, right_feasible, delta)
-            },
+            }
             // for SNVs sampling is unbiased
-            &Variant::SNV(_) | &Variant::None => LogProb::ln_one()
+            &Variant::SNV(_) | &Variant::None => LogProb::ln_one(),
         }
     }
 }
-
 
 /// as shown in http://www.milefoot.com/math/stat/pdfc-normaldisc.htm
 pub fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
     // TODO fix density in paper
     LogProb(
-        (
-            ugaussian_P((value + 0.5 - mean) / sd) -
-            ugaussian_P((value - 0.5 - mean) / sd)
-        ).ln()// - ugaussian_P(-mean / sd).ln()
+        (ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln(), // - ugaussian_P(-mean / sd).ln()
     )
 }
-
 
 #[cfg(test)]
 mod tests {

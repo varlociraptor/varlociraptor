@@ -1,26 +1,25 @@
-use std::str;
-use std::collections::{HashMap, VecDeque, vec_deque};
-use std::cmp;
-use std::error::Error;
-use std::f64::consts;
 use std::cell::RefCell;
+use std::cmp;
+use std::collections::{vec_deque, HashMap, VecDeque};
+use std::error::Error;
 use std::f64;
+use std::f64::consts;
+use std::str;
 
+use bio::stats::{LogProb, PHREDProb, Prob};
 use ordered_float::NotNaN;
-use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rgsl::error::erfc;
+use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rust_htslib::bam;
-use rust_htslib::bam::Read;
 use rust_htslib::bam::record::CigarStringView;
-use bio::stats::{LogProb, Prob, PHREDProb};
+use rust_htslib::bam::Read;
 
-use model;
-use model::Variant;
-use model::evidence;
-use model::evidence::{Observation, Evidence};
-use utils::Overlap;
 use estimation::alignment_properties;
-
+use model;
+use model::evidence;
+use model::evidence::{Evidence, Observation};
+use model::Variant;
+use utils::Overlap;
 
 quick_error! {
     #[derive(Debug)]
@@ -32,20 +31,17 @@ quick_error! {
     }
 }
 
-
 /// Ringbuffer of BAM records. This data structure ensures that no bam record is read twice while
 /// extracting observations for given variants.
 pub struct RecordBuffer {
     reader: bam::IndexedReader,
     inner: VecDeque<bam::Record>,
     pub window: u32,
-    use_secondary: bool
+    use_secondary: bool,
 }
-
 
 unsafe impl Sync for RecordBuffer {}
 unsafe impl Send for RecordBuffer {}
-
 
 impl RecordBuffer {
     /// Create a new `RecordBuffer`.
@@ -54,7 +50,7 @@ impl RecordBuffer {
             reader: bam,
             inner: VecDeque::with_capacity(window as usize * 2),
             window: window as u32,
-            use_secondary: use_secondary
+            use_secondary: use_secondary,
         }
     }
 
@@ -71,14 +67,21 @@ impl RecordBuffer {
     pub fn fill(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<(), Box<Error>> {
         if let Some(tid) = self.reader.header().tid(chrom) {
             let window_start = cmp::max(start as i32 - self.window as i32 - 1, 0) as u32;
-            if self.inner.is_empty() || self.end().unwrap() < window_start || self.tid().unwrap() != tid as i32 {
+            if self.inner.is_empty()
+                || self.end().unwrap() < window_start
+                || self.tid().unwrap() != tid as i32
+            {
                 let end = self.reader.header().target_len(tid).unwrap();
                 try!(self.reader.fetch(tid, window_start, end));
                 debug!("Clearing ringbuffer");
                 self.inner.clear();
             } else {
                 // remove records too far left
-                let to_remove = self.inner.iter().take_while(|rec| rec.pos() < window_start as i32).count();
+                let to_remove = self
+                    .inner
+                    .iter()
+                    .take_while(|rec| rec.pos() < window_start as i32)
+                    .count();
                 debug!("Removing {} records", to_remove);
                 for _ in 0..to_remove {
                     self.inner.pop_front();
@@ -96,7 +99,8 @@ impl RecordBuffer {
                 }
 
                 let pos = record.pos();
-                if record.is_duplicate() || record.is_unmapped() || record.is_quality_check_failed() {
+                if record.is_duplicate() || record.is_unmapped() || record.is_quality_check_failed()
+                {
                     continue;
                 }
                 if !self.use_secondary && record.is_secondary() {
@@ -114,7 +118,9 @@ impl RecordBuffer {
 
             Ok(())
         } else {
-            Err(Box::new(RecordBufferError::UnknownSequence(str::from_utf8(chrom).unwrap().to_owned())))
+            Err(Box::new(RecordBufferError::UnknownSequence(
+                str::from_utf8(chrom).unwrap().to_owned(),
+            )))
         }
     }
 
@@ -123,22 +129,19 @@ impl RecordBuffer {
     }
 }
 
-
 struct Candidate<'a> {
     left: &'a bam::Record,
-    right: Option<&'a bam::Record>
+    right: Option<&'a bam::Record>,
 }
-
 
 impl<'a> Candidate<'a> {
     fn new(record: &'a bam::Record) -> Self {
         Candidate {
             left: record,
-            right: None
+            right: None,
         }
     }
 }
-
 
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample {
@@ -146,9 +149,8 @@ pub struct Sample {
     use_fragment_evidence: bool,
     likelihood_model: model::likelihood::LatentVariableModel,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
-    pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>
+    pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
 }
-
 
 impl Sample {
     /// Create a new `Sample`.
@@ -177,7 +179,7 @@ impl Sample {
         prob_deletion_artifact: Prob,
         prob_insertion_extend_artifact: Prob,
         prob_deletion_extend_artifact: Prob,
-        indel_haplotype_window: u32
+        indel_haplotype_window: u32,
     ) -> Self {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
@@ -190,11 +192,11 @@ impl Sample {
                 LogProb::from(prob_deletion_extend_artifact),
                 indel_haplotype_window,
                 alignment_properties,
-                use_mapq
+                use_mapq,
             )),
             indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new(
-                alignment_properties
-            ))
+                alignment_properties,
+            )),
         }
     }
 
@@ -209,7 +211,7 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom: &[u8],
-        chrom_seq: &[u8]
+        chrom_seq: &[u8],
     ) -> Result<Vec<Observation>, Box<Error>> {
         let centerpoint = variant.centerpoint(start);
 
@@ -229,21 +231,19 @@ impl Sample {
                     }
 
                     let cigar = record.cigar_cached().unwrap();
-                    let overlap = Overlap::new(
-                        record, cigar, start, variant, false
-                    )?;
+                    let overlap = Overlap::new(record, cigar, start, variant, false)?;
 
                     if overlap.is_enclosing() {
-                        if let Some( obs ) = self.read_observation(
-                            &record, cigar, start, variant, chrom_seq
-                        )? {
-                            observations.push( obs );
+                        if let Some(obs) =
+                            self.read_observation(&record, cigar, start, variant, chrom_seq)?
+                        {
+                            observations.push(obs);
                         } else {
-                             debug!("Did not add read to observations, SNV position deleted (Cigar op 'D') or skipped (Cigar op 'N').");
+                            debug!("Did not add read to observations, SNV position deleted (Cigar op 'D') or skipped (Cigar op 'N').");
                         }
                     }
                 }
-            },
+            }
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
@@ -258,20 +258,15 @@ impl Sample {
 
                     // We always choose the leftmost and the rightmost alignment, thereby also
                     // considering supplementary alignments.
-                    if !candidate_records.contains_key(record.qname())
-                    {
+                    if !candidate_records.contains_key(record.qname()) {
                         // this is the first (primary or supplementary alignment in the pair
-                        candidate_records.insert(
-                            record.qname().to_owned(),
-                            Candidate::new(record)
-                        );
+                        candidate_records.insert(record.qname().to_owned(), Candidate::new(record));
                     } else if let Some(candidate) = candidate_records.get_mut(record.qname()) {
                         // this is either the last alignment or one in the middle
-                        if (
-                            candidate.left.is_first_in_template() && record.is_first_in_template()
-                        ) && (
-                            candidate.left.is_last_in_template() && record.is_last_in_template()
-                        ) {
+                        if (candidate.left.is_first_in_template() && record.is_first_in_template())
+                            && (candidate.left.is_last_in_template()
+                                && record.is_last_in_template())
+                        {
                             // ignore another partial alignment right of the first
                             continue;
                         }
@@ -283,7 +278,7 @@ impl Sample {
                     if let Some(right) = candidate.right {
                         // this is a pair
                         let start_pos = (candidate.left.pos() as u32).saturating_sub(
-                            evidence::Clips::leading(candidate.left.cigar_cached().unwrap()).soft()
+                            evidence::Clips::leading(candidate.left.cigar_cached().unwrap()).soft(),
                         );
                         if start_pos > centerpoint {
                             // ignore fragments that start beyond the centerpoint
@@ -291,14 +286,18 @@ impl Sample {
                         }
 
                         let cigar = right.cigar_cached().unwrap();
-                        let end_pos = cigar.end_pos()? as u32 +
-                                      evidence::Clips::trailing(cigar).soft();
+                        let end_pos =
+                            cigar.end_pos()? as u32 + evidence::Clips::trailing(cigar).soft();
 
                         if end_pos < centerpoint {
                             continue;
                         }
                         if let Some(obs) = self.fragment_observation(
-                            candidate.left, right, start, variant, chrom_seq
+                            candidate.left,
+                            right,
+                            start,
+                            variant,
+                            chrom_seq,
                         )? {
                             observations.push(obs);
                         }
@@ -306,13 +305,14 @@ impl Sample {
                         // this is a single alignment with unmapped mate or mate outside of the
                         // region of interest
                         let cigar = candidate.left.cigar_cached().unwrap();
-                        let overlap = Overlap::new(
-                            candidate.left, cigar, start, variant, true
-                        )?;
+                        let overlap = Overlap::new(candidate.left, cigar, start, variant, true)?;
                         if !overlap.is_none() && candidate.left.is_mate_unmapped() {
                             if let Some(obs) = self.read_observation(
-                                    candidate.left, cigar, start, variant,
-                                    chrom_seq
+                                candidate.left,
+                                cigar,
+                                start,
+                                variant,
+                                chrom_seq,
                             )? {
                                 observations.push(obs);
                             }
@@ -326,9 +326,13 @@ impl Sample {
             // We scale all probabilities by the maximum value. This is just an unbiased scaling
             // that does not affect the final certainties (because of Bayes' theorem application
             // in the end). However, we avoid numerical issues (e.g., during integration).
-            let max_prob = LogProb(*observations.iter().map(|obs| {
-                cmp::max(NotNaN::from(obs.prob_ref), NotNaN::from(obs.prob_alt))
-            }).max().unwrap());
+            let max_prob = LogProb(
+                *observations
+                    .iter()
+                    .map(|obs| cmp::max(NotNaN::from(obs.prob_ref), NotNaN::from(obs.prob_alt)))
+                    .max()
+                    .unwrap(),
+            );
             if max_prob != LogProb::ln_zero() {
                 // only scale if the maximum probability is not zero
                 for obs in &mut observations {
@@ -352,36 +356,35 @@ impl Sample {
         chrom_seq: &[u8],
     ) -> Result<Option<Observation>, Box<Error>> {
         let probs = match variant {
-            &Variant::Deletion(_) | &Variant::Insertion(_) => {
-                Some( self.indel_read_evidence.borrow_mut()
-                                        .prob(record, cigar, start, variant, chrom_seq)? )
-            },
+            &Variant::Deletion(_) | &Variant::Insertion(_) => Some(
+                self.indel_read_evidence
+                    .borrow_mut()
+                    .prob(record, cigar, start, variant, chrom_seq)?,
+            ),
             &Variant::SNV(_) => {
                 evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)?
-            },
+            }
             &Variant::None => {
                 evidence::reads::prob_none(record, &cigar, start, variant, chrom_seq)?
             }
         };
 
-        if let Some( (prob_ref, prob_alt) ) = probs {
+        if let Some((prob_ref, prob_alt)) = probs {
             let prob_mapping = self.indel_read_evidence.borrow().prob_mapping(record);
 
-            let prob_sample_alt = self.indel_read_evidence.borrow().prob_sample_alt(
-                record.seq().len() as u32,
-                variant
-            );
-            Ok( Some (
-                Observation::new(
-                    prob_mapping,
-                    prob_alt,
-                    prob_ref,
-                    prob_sample_alt,
-                    Evidence::alignment(cigar, record)
-                )
-            ))
+            let prob_sample_alt = self
+                .indel_read_evidence
+                .borrow()
+                .prob_sample_alt(record.seq().len() as u32, variant);
+            Ok(Some(Observation::new(
+                prob_mapping,
+                prob_alt,
+                prob_ref,
+                prob_sample_alt,
+                Evidence::alignment(cigar, record),
+            )))
         } else {
-            Ok( None )
+            Ok(None)
         }
     }
 
@@ -407,25 +410,22 @@ impl Sample {
         variant: &Variant,
         chrom_seq: &[u8],
     ) -> Result<Option<Observation>, Box<Error>> {
-
-        let prob_read = |
-            record: &bam::Record, cigar: &CigarStringView
-        | -> Result<(LogProb, LogProb), Box<Error>> {
+        let prob_read = |record: &bam::Record,
+                         cigar: &CigarStringView|
+         -> Result<(LogProb, LogProb), Box<Error>> {
             // Calculate read evidence.
             // We also calculate it in case of no overlap. Otherwise, there would be a bias due to
             // non-overlapping fragments having higher likelihoods.
-            Ok(self.indel_read_evidence.borrow_mut()
-                                       .prob(record, cigar, start, variant, chrom_seq)?)
+            Ok(self
+                .indel_read_evidence
+                .borrow_mut()
+                .prob(record, cigar, start, variant, chrom_seq)?)
         };
 
         let left_cigar = left_record.cigar_cached().unwrap();
         let right_cigar = right_record.cigar_cached().unwrap();
-        let left_overlap = Overlap::new(
-            left_record, left_cigar, start, variant, true
-        )?;
-        let right_overlap = Overlap::new(
-            right_record, right_cigar, start, variant, true
-        )?;
+        let left_overlap = Overlap::new(left_record, left_cigar, start, variant, true)?;
+        let right_overlap = Overlap::new(right_record, right_cigar, start, variant, true)?;
 
         if !self.use_fragment_evidence && left_overlap.is_none() && right_overlap.is_none() {
             return Ok(None);
@@ -439,9 +439,10 @@ impl Sample {
 
         let insert_size = evidence::fragments::estimate_insert_size(left_record, right_record)?;
         let (p_ref_isize, p_alt_isize) = match variant {
-            &Variant::Deletion(_) if self.use_fragment_evidence => {
-                self.indel_fragment_evidence.borrow().prob(insert_size, variant)?
-            },
+            &Variant::Deletion(_) if self.use_fragment_evidence => self
+                .indel_fragment_evidence
+                .borrow()
+                .prob(insert_size, variant)?,
             _ => {
                 // Ignore isize for insertions. The reason is that we cannot reliably determine if a
                 // fragment encloses the insertion properly (with overlaps at the inner read ends).
@@ -454,7 +455,7 @@ impl Sample {
         let prob_sample_alt = self.indel_fragment_evidence.borrow().prob_sample_alt(
             left_read_len,
             right_read_len,
-            variant
+            variant,
         );
 
         assert!(p_alt_isize.is_valid());
@@ -465,9 +466,17 @@ impl Sample {
         assert!(p_ref_right.is_valid());
 
         let obs = Observation::new(
-            (self.indel_read_evidence.borrow().prob_mapping(left_record).ln_one_minus_exp() +
-             self.indel_read_evidence.borrow().prob_mapping(right_record).ln_one_minus_exp()
-            ).ln_one_minus_exp(),
+            (self
+                .indel_read_evidence
+                .borrow()
+                .prob_mapping(left_record)
+                .ln_one_minus_exp()
+                + self
+                    .indel_read_evidence
+                    .borrow()
+                    .prob_mapping(right_record)
+                    .ln_one_minus_exp())
+                .ln_one_minus_exp(),
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
             prob_sample_alt,
@@ -482,8 +491,8 @@ impl Sample {
                 p_ref_right,
                 p_alt_right,
                 p_ref_isize,
-                p_alt_isize
-            )
+                p_alt_isize,
+            ),
         );
         assert!(obs.prob_alt.is_valid());
         assert!(obs.prob_ref.is_valid());
@@ -496,34 +505,35 @@ impl Sample {
 pub fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
     // TODO fix density in paper
     LogProb(
-        (
-            ugaussian_P((value + 0.5 - mean) / sd) -
-            ugaussian_P((value - 0.5 - mean) / sd)
-        ).ln()// - ugaussian_P(-mean / sd).ln()
+        (ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln(), // - ugaussian_P(-mean / sd).ln()
     )
 }
-
 
 /// Continuous normal density (obsolete).
 pub fn isize_density(value: f64, mean: f64, sd: f64) -> LogProb {
     LogProb(gaussian_pdf(value - mean, sd).ln())
 }
 
-
 /// Manual normal density (obsolete, we can use GSL (see above)).
 pub fn isize_density_louis(value: f64, mean: f64, sd: f64) -> LogProb {
     let mut p = 0.5 / (1.0 - 0.5 * erfc((mean + 0.5) / sd * consts::FRAC_1_SQRT_2));
-    p *= erfc((-value - 0.5 + mean)/sd * consts::FRAC_1_SQRT_2) - erfc((-value + 0.5 + mean)/sd * consts::FRAC_1_SQRT_2);
+    p *= erfc((-value - 0.5 + mean) / sd * consts::FRAC_1_SQRT_2)
+        - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2);
 
     LogProb(p.ln())
 }
 
-
 pub fn isize_mixture_density_louis(value: f64, d: f64, mean: f64, sd: f64, rate: f64) -> LogProb {
-    let p = 0.5 / ( rate*(1.0 - 0.5*erfc((mean + 0.5)/sd*consts::FRAC_1_SQRT_2)) + (1.0 - rate)*(1.0 - 0.5*erfc((mean + d + 0.5)/sd* consts::FRAC_1_SQRT_2)) );
-    LogProb((p * (
-        rate*( erfc((-value - 0.5 + mean)/sd*consts::FRAC_1_SQRT_2) - erfc((-value + 0.5 + mean)/sd*consts::FRAC_1_SQRT_2) ) + (1.0 - rate)*( erfc((-value - 0.5 + mean + d)/sd*consts::FRAC_1_SQRT_2) - erfc((-value + 0.5 + mean + d)/sd*consts::FRAC_1_SQRT_2) )
-    )).ln())
+    let p = 0.5 / (rate * (1.0 - 0.5 * erfc((mean + 0.5) / sd * consts::FRAC_1_SQRT_2))
+        + (1.0 - rate) * (1.0 - 0.5 * erfc((mean + d + 0.5) / sd * consts::FRAC_1_SQRT_2)));
+    LogProb(
+        (p * (rate * (erfc((-value - 0.5 + mean) / sd * consts::FRAC_1_SQRT_2)
+            - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2))
+            + (1.0 - rate)
+                * (erfc((-value - 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2)
+                    - erfc((-value + 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2))))
+            .ln(),
+    )
 }
 
 #[cfg(test)]
@@ -531,18 +541,17 @@ mod tests {
     extern crate env_logger;
 
     use super::*;
-    use model;
-    use likelihood;
     use constants;
+    use likelihood;
+    use model;
 
-    use std::str;
+    use bio::io::fasta;
+    use bio::stats::{LogProb, PHREDProb, Prob};
+    use estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
-    use bio::stats::{LogProb, PHREDProb, Prob};
-    use bio::io::fasta;
-    use estimation::alignment_properties::{InsertSize, AlignmentProperties};
-
+    use std::str;
 
     #[test]
     fn test_isize_density() {
@@ -562,12 +571,7 @@ mod tests {
             )
         ).ln_add_exp(
             // case: no indel, false positive call
-            rate +
-            isize_pmf(
-                212.0,
-                312.0,
-                15.0
-            )
+            rate + isize_pmf(212.0, 312.0, 15.0),
         );
 
         println!("{} {}", d_mix.exp(), p_alt.exp());
@@ -580,13 +584,16 @@ mod tests {
             true,
             true,
             true,
-            AlignmentProperties::default(InsertSize { mean: isize_mean, sd: 20.0 }),
+            AlignmentProperties::default(InsertSize {
+                mean: isize_mean,
+                sd: 20.0,
+            }),
             likelihood::LatentVariableModel::new(1.0),
             constants::PROB_ILLUMINA_INS,
             constants::PROB_ILLUMINA_DEL,
             Prob(0.0),
             Prob(0.0),
-            10
+            10,
         )
     }
 
@@ -609,10 +616,16 @@ mod tests {
             let mut record = record.unwrap();
             record.cache_cigar();
             let cigar = record.cigar_cached().unwrap();
-            if let Some( obs ) = sample.read_observation(&record, cigar, varpos, &variant, &ref_seq).unwrap() {
+            if let Some(obs) = sample
+                .read_observation(&record, cigar, varpos, &variant, &ref_seq)
+                .unwrap()
+            {
                 println!("{:?}", obs);
-                assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon=0.01);
-                assert_relative_eq!(*obs.prob_mapping, *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp()));
+                assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon = 0.01);
+                assert_relative_eq!(
+                    *obs.prob_mapping,
+                    *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp())
+                );
             } else {
                 panic!("read_observation() test for indels failed; it returned 'None'.")
             }
@@ -657,11 +670,15 @@ mod tests {
         for (i, mut rec) in records.into_iter().enumerate() {
             rec.cache_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let (prob_ref, prob_alt) = sample.indel_read_evidence.borrow_mut().prob(&rec, rec.cigar_cached().unwrap(), start, &variant, &ref_seq).unwrap();
+            let (prob_ref, prob_alt) = sample
+                .indel_read_evidence
+                .borrow_mut()
+                .prob(&rec, rec.cigar_cached().unwrap(), start, &variant, &ref_seq)
+                .unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar_cached());
-            assert_relative_eq!(*prob_ref, probs_ref[i], epsilon=0.1);
-            assert_relative_eq!(*prob_alt, probs_alt[i], epsilon=0.1);
+            assert_relative_eq!(*prob_ref, probs_ref[i], epsilon = 0.1);
+            assert_relative_eq!(*prob_alt, probs_alt[i], epsilon = 0.1);
         }
     }
 }
