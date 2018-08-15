@@ -340,7 +340,7 @@ fn check_control_fdr(test: &str) {
     for result in reader.deserialize() {
         let (fdr, threshold): (Prob, PHREDProb) = result.unwrap();
         let threshold = Prob::from(threshold);
-        assert!(fdr >= threshold);
+        assert!(fdr >= Prob(1.0) - threshold, "calculated threshold exceeds desired fdr ({} > {}). This cannot be because the expected FDR is the sum of all 1-probs up to this threshold!", *(Prob(1.0) - threshold), *fdr);
     }
 }
 
