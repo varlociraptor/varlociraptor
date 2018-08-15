@@ -6,6 +6,7 @@ extern crate itertools;
 extern crate libprosic;
 extern crate log;
 extern crate rust_htslib;
+extern crate csv;
 
 use std::fs;
 use std::io;
@@ -329,6 +330,20 @@ fn check_info_float(rec: &mut bcf::Record, tag: &[u8], truth: f32, maxerr: f32) 
     );
 }
 
+use bio::stats::{PHREDProb};
+
+fn check_control_fdr(test: &str) {
+    let basedir = basedir(test);
+    let output = format!("{}/thresholds.tsv", basedir);
+
+    let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(&output).unwrap();
+    for result in reader.deserialize() {
+        let (fdr, threshold): (Prob, PHREDProb) = result.unwrap();
+        let threshold = Prob::from(threshold);
+        assert!(fdr >= threshold);
+    }
+}
+
 fn control_fdr_ev(test: &str) {
     let basedir = basedir(test);
     let mut calls = bcf::Reader::from_path(format!("{}/calls.matched.bcf", basedir)).unwrap();
@@ -603,13 +618,13 @@ fn test25() {
 #[test]
 fn test_fdr_ev1() {
     control_fdr_ev("test_fdr_ev_1");
-    // TODO add a reasonable assertion
+    check_control_fdr("test_fdr_ev_1");
 }
 
 #[test]
 fn test_fdr_ev2() {
     control_fdr_ev("test_fdr_ev_2");
-    // TODO add a reasonable assertion
+    check_control_fdr("test_fdr_ev_1");
 }
 
 #[test]
