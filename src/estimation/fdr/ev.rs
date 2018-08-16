@@ -35,7 +35,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
         .has_headers(false)
         .delimiter(b'\t')
         .from_writer(writer);
-    try!(writer.write_record(["FDR", "max-prob"].into_iter()));
+    try!(writer.write_record(["FDR", "max-prob", "#calls"].into_iter()));
 
     let prob_dist = utils::collect_prob_dist(calls, events, vartype)?;
 
@@ -64,6 +64,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
                 writer.serialize(&Record {
                     alpha: alpha,
                     gamma: PHREDProb::from(pep.ln_one_minus_exp()),
+                    n: Some(i)
                 })?;
                 break;
             }

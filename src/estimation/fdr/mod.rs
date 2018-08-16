@@ -13,4 +13,5 @@ pub const ALPHAS: [f64; 32] = [
 struct Record {
     alpha: f64,
     gamma: PHREDProb,
+    n: Option<usize>
 }

@@ -42,7 +42,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
         .has_headers(false)
         .delimiter(b'\t')
         .from_writer(writer);
-    try!(writer.write_record(["FDR", "max-prob"].into_iter()));
+    try!(writer.write_record(["FDR", "max-prob", "#calls"].into_iter()));
 
     let null_dist = utils::collect_prob_dist(null_calls, events, vartype)?;
 
@@ -68,6 +68,7 @@ pub fn control_fdr<E: Event, W: io::Write>(
         let mut record = Record {
             alpha: alpha,
             gamma: PHREDProb::from(Prob(1.0)),
+            n: None
         };
         let alpha = alpha.ln();
         for (&mkp, &event_prob) in mk_pvals.iter().zip(prob_dist.iter()) {

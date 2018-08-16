@@ -6,7 +6,7 @@ use std::f64;
 use std::f64::consts;
 use std::str;
 
-use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::stats::{LogProb, Prob};
 use ordered_float::NotNaN;
 use rgsl::error::erfc;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
