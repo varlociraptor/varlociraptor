@@ -29,12 +29,12 @@ impl LatentVariableModel {
     }
 
     /// Likelihood to observe a read given allele frequencies for case and control.
-    #[cfg_attr(feature="flame_it_details", flame)]
+    #[cfg_attr(feature = "flame_it_details", flame)]
     fn likelihood_observation(
         &self,
         observation: &Observation,
         allele_freq_case: AlleleFreq,
-        allele_freq_control: Option<AlleleFreq>
+        allele_freq_control: Option<AlleleFreq>,
     ) -> LogProb {
         let prob_mismapped = LogProb::ln_one();
 

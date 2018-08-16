@@ -64,7 +64,7 @@ impl RecordBuffer {
     }
 
     /// Fill buffer around the given interval.
-    #[cfg_attr(feature="flame_it_details", flame)]
+    #[cfg_attr(feature = "flame_it_details", flame)]
     pub fn fill(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<(), Box<Error>> {
         if let Some(tid) = self.reader.header().tid(chrom) {
             let window_start = cmp::max(start as i32 - self.window as i32 - 1, 0) as u32;
@@ -207,7 +207,7 @@ impl Sample {
     }
 
     /// Extract observations for the given variant.
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn extract_observations(
         &mut self,
         start: u32,
@@ -349,7 +349,7 @@ impl Sample {
     }
 
     /// extract within-read evidence for reads covering an indel or SNV of interest
-    #[cfg_attr(feature="flame_it_details", flame)]
+    #[cfg_attr(feature = "flame_it_details", flame)]
     fn read_observation(
         &self,
         record: &bam::Record,
@@ -405,7 +405,7 @@ impl Sample {
     /// * Since there is only one observation per fragment, there is no double counting when
     ///   estimating allele frequencies. Before, we had one observation for an overlapping read
     ///   and potentially another observation for the corresponding fragment.
-    #[cfg_attr(feature="flame_it_details", flame)]
+    #[cfg_attr(feature = "flame_it_details", flame)]
     fn fragment_observation(
         &self,
         left_record: &bam::Record,

@@ -43,8 +43,7 @@ impl<A: AlleleFreqs, B: AlleleFreqs> Event for PairEvent<A, B> {
     }
 }
 
-
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 fn pileups<'a, A, B, P>(
     inbcf: &bcf::Reader,
     record: &mut bcf::Record,
@@ -104,7 +103,7 @@ where
 ///
 /// `Result` object with eventual error message.
 
-#[cfg_attr(feature="flame_it", flame)]
+#[cfg_attr(feature = "flame_it", flame)]
 pub fn call<A, B, P, M, R, W, X, F>(
     inbcf: Option<R>,
     outbcf: Option<W>,

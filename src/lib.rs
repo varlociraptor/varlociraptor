@@ -1,6 +1,6 @@
 // activate flame levels for the whole crate
-#![cfg_attr(any(feature="flame_it", feature="flame_it_details"), feature(plugin))]
-#![cfg_attr(any(feature="flame_it", feature="flame_it_details"), plugin(flamer))]
+#![cfg_attr(any(feature = "flame_it", feature = "flame_it_details"), feature(plugin))]
+#![cfg_attr(any(feature = "flame_it", feature = "flame_it_details"), plugin(flamer))]
 
 extern crate bio;
 extern crate rust_htslib;

@@ -173,7 +173,7 @@ impl ReferenceBuffer {
     }
 
     /// Load given chromosome and return it as a slice. This is O(1) if chromosome was loaded before.
-    #[cfg_attr(feature="flame_it", flame)]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn seq(&mut self, chrom: &[u8]) -> Result<&[u8], Box<Error>> {
         if let Some(ref last_chrom) = self.chrom {
             if last_chrom == &chrom {
@@ -388,7 +388,7 @@ impl Overlap {
         Ok(overlap)
     }
 
-    #[cfg_attr(feature="flame_it_details", flame)]
+    #[cfg_attr(feature = "flame_it_details", flame)]
     pub fn is_enclosing(&self) -> bool {
         if let &Overlap::Enclosing(_) = self {
             true
