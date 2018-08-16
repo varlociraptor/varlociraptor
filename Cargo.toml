@@ -19,7 +19,7 @@ rusty-machine="0.4"
 ordered-float = "0.5"
 ndarray = "0.6"
 # flame = { version = "0.2.2", optional = true }
-flame = { git = "https://github.com/TyOverby/flame.git", branch = "master", optional = true }
+flame = "0.2.1-pre2"
 flamer = { version = "^0.2.3", optional = true }
 quick-error = "1.2"
 vec_map = "0.8"
