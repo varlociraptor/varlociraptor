@@ -330,25 +330,10 @@ fn check_info_float(rec: &mut bcf::Record, tag: &[u8], truth: f32, maxerr: f32) 
     );
 }
 
-use bio::stats::{PHREDProb};
-
-fn check_control_fdr(test: &str) {
-    let basedir = basedir(test);
-    let output = format!("{}/thresholds.tsv", basedir);
-
-    let mut reader = csv::ReaderBuilder::new().delimiter(b'\t').from_path(&output).unwrap();
-    for result in reader.deserialize() {
-        let (fdr, threshold): (Prob, PHREDProb) = result.unwrap();
-        let threshold = Prob::from(threshold);
-        assert!(fdr >= Prob(1.0) - threshold, "calculated threshold exceeds desired fdr ({} > {}). This cannot be because the expected FDR is the sum of all 1-probs up to this threshold!", *(Prob(1.0) - threshold), *fdr);
-    }
-}
-
 fn control_fdr_ev(test: &str, alpha: f64) {
     let basedir = basedir(test);
     let output = format!("{}/calls.filtered.bcf", basedir);
     cleanup_file(&output);
-    let mut writer = fs::File::create(&output).unwrap();
     libprosic::estimation::fdr::ev::control_fdr(
         &format!("{}/calls.matched.bcf", basedir),
         Some(&output),

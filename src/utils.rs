@@ -294,16 +294,20 @@ pub fn filter_by_threshold<E: Event>(
         }
 
         let probs = utils::tags_prob_sum(&mut record, &tags, vartype)?;
-        let remove = probs.into_iter().map(|p| {
+        let mut remove = vec![false]; // don't remove the reference allele
+        remove.extend(probs.into_iter().map(|p| {
             match (p, threshold) {
-                (Some(p), Some(threshold)) if p < threshold || relative_eq!(*p, *threshold) => false,
+                // we allow some numerical instability in case of equality
+                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => false,
                 _ => true
             }
-        }).collect_vec();
+        }));
 
-        record.remove_alleles(&remove)?;
-
-        out.write(&record)?;
+        // Write trimmed record if any allele remains. Otherwise skip the record.
+        if !remove[1..].iter().all(|r| *r) {
+            record.remove_alleles(&remove)?;
+            out.write(&record)?;
+        }
     }
 }
 
