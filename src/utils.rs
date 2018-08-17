@@ -201,24 +201,31 @@ fn tags_prob_sum(
     record: &mut bcf::Record,
     tags: &[String],
     vartype: &model::VariantType,
-) -> Result<LogProb, Box<Error>> {
+) -> Result<Vec<Option<LogProb>>, Box<Error>> {
     let variants = (utils::collect_variants(record, false, false, None, false))?;
-    let mut tags_probs_out = Vec::with_capacity(variants.len() * tags.len());
+    let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
     for tag in tags {
         if let Some(tags_probs_in) = (record.info(tag.as_bytes()).float())? {
             //tag present
-            for (variant, tag_prob) in (&variants).into_iter().zip(tags_probs_in.into_iter()) {
+            for (i, (variant, tag_prob)) in variants.iter().zip(tags_probs_in.into_iter()).enumerate() {
                 if let Some(ref variant) = *variant {
                     if !variant.is_type(vartype) || tag_prob.is_nan() {
                         continue;
                     }
-                    tags_probs_out.push(LogProb::from(PHREDProb(*tag_prob as f64)));
+                    tags_probs_out[i].push(LogProb::from(PHREDProb(*tag_prob as f64)));
                 }
             }
         }
     }
-    Ok(LogProb::ln_sum_exp(&tags_probs_out).cap_numerical_overshoot(NUMERICAL_EPSILON))
+
+    Ok(tags_probs_out.into_iter().map(|probs| {
+        if !probs.is_empty() {
+            Some(LogProb::ln_sum_exp(&probs).cap_numerical_overshoot(NUMERICAL_EPSILON))
+        } else {
+            None
+        }
+    }).collect_vec())
 }
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
@@ -246,8 +253,11 @@ pub fn collect_prob_dist<E: Event>(
             }
         }
 
-        let events_prob_sum = utils::tags_prob_sum(&mut record, &tags, &vartype)?;
-        prob_dist.push(try!(NotNaN::new(*events_prob_sum)));
+        for p in utils::tags_prob_sum(&mut record, &tags, &vartype)? {
+            if let Some(p) = p {
+                prob_dist.push(NotNaN::new(*p)?);
+            }
+        }
     }
     prob_dist.sort();
     Ok(prob_dist)
@@ -267,14 +277,13 @@ pub fn collect_prob_dist<E: Event>(
 /// * `vartype` - the variant type to consider
 pub fn filter_by_threshold<E: Event>(
     calls: &mut bcf::Reader,
-    threshold: &f64,
+    threshold: Option<LogProb>,
     out: &mut bcf::Writer,
     events: &[E],
     vartype: &model::VariantType,
 ) -> Result<(), Box<Error>> {
     let mut record = calls.empty_record();
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
-    let lp_threshold = LogProb::from(PHREDProb(*threshold + 0.000000001)); // the manual epsilon is required, because the threshold output by `control-fdr` has some digits cut off, which can lead to the threshold being lower than the values reread from the BCF record only due to a higher precision
     loop {
         if let Err(e) = calls.read(&mut record) {
             if e.is_eof() {
@@ -284,10 +293,17 @@ pub fn filter_by_threshold<E: Event>(
             }
         }
 
-        let events_prob_sum = utils::tags_prob_sum(&mut record, &tags, &vartype)?;
-        if events_prob_sum >= lp_threshold {
-            out.write(&record)?
-        };
+        let probs = utils::tags_prob_sum(&mut record, &tags, vartype)?;
+        let remove = probs.into_iter().map(|p| {
+            match (p, threshold) {
+                (Some(p), Some(threshold)) if p < threshold || relative_eq!(*p, *threshold) => false,
+                _ => true
+            }
+        }).collect_vec();
+
+        record.remove_alleles(&remove)?;
+
+        out.write(&record)?;
     }
 }
 
@@ -446,7 +462,8 @@ mod tests {
         let snv = VariantType::SNV;
 
         if let Ok(prob_sum) = tags_prob_sum(&mut record, &alt_tags, &snv) {
-            assert_eq!(LogProb::ln_one(), prob_sum);
+
+            assert_eq!(LogProb::ln_one(), prob_sum[0].unwrap());
         } else {
             panic!("tags_prob_sum(&overshoot_calls, &alt_events, &snv) returned Error")
         }
@@ -476,16 +493,16 @@ mod tests {
         let mut del_calls_1 = bcf::Reader::from_path(test_file).unwrap();
         if let Ok(prob_del) = collect_prob_dist(&mut del_calls_1, &events, &del) {
             println!("prob_del[0]: {:?}", prob_del[0].into_inner());
-            assert_eq!(prob_del.len(), 3);
-            assert_relative_eq!(prob_del[2].into_inner(), Prob(0.8).ln(), epsilon = 0.000005);
+            assert_eq!(prob_del.len(), 1);
+            assert_relative_eq!(prob_del[0].into_inner(), Prob(0.8).ln(), epsilon = 0.000005);
         } else {
             panic!("collect_prob_dist(&calls, &events, &del) returned Error")
         }
         let mut del_calls_2 = bcf::Reader::from_path(test_file).unwrap();
         if let Ok(prob_del_abs) = collect_prob_dist(&mut del_calls_2, &absent_event, &del) {
-            assert_eq!(prob_del_abs.len(), 3);
+            assert_eq!(prob_del_abs.len(), 1);
             assert_relative_eq!(
-                prob_del_abs[2].into_inner(),
+                prob_del_abs[0].into_inner(),
                 Prob(0.2).ln(),
                 epsilon = 0.000005
             );
@@ -498,16 +515,16 @@ mod tests {
 
         let mut ins_calls_1 = bcf::Reader::from_path(test_file).unwrap();
         if let Ok(prob_ins) = collect_prob_dist(&mut ins_calls_1, &events, &ins) {
-            assert_eq!(prob_ins.len(), 3);
-            assert_relative_eq!(prob_ins[2].into_inner(), Prob(0.2).ln(), epsilon = 0.000005);
+            assert_eq!(prob_ins.len(), 1);
+            assert_relative_eq!(prob_ins[0].into_inner(), Prob(0.2).ln(), epsilon = 0.000005);
         } else {
             panic!("collect_prob_dist(&calls, &events, &ins) returned Error")
         }
         let mut ins_calls_2 = bcf::Reader::from_path(test_file).unwrap();
         if let Ok(prob_ins_abs) = collect_prob_dist(&mut ins_calls_2, &absent_event, &ins) {
-            assert_eq!(prob_ins_abs.len(), 3);
+            assert_eq!(prob_ins_abs.len(), 1);
             assert_relative_eq!(
-                prob_ins_abs[2].into_inner(),
+                prob_ins_abs[0].into_inner(),
                 Prob(0.8).ln(),
                 epsilon = 0.000005
             );
