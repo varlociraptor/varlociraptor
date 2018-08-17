@@ -17,6 +17,7 @@ use Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-6;
 
+
 /// Collect variants from a given ´bcf::Record`.
 pub fn collect_variants(
     record: &mut bcf::Record,
@@ -59,6 +60,14 @@ pub fn collect_variants(
         true
     };
 
+    let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele:  &[u8] | {
+        ref_allele.len() < alt_allele.len() && ref_allele == &alt_allele[..ref_allele.len()]
+    };
+
+    let is_valid_deletion_alleles = |ref_allele: &[u8], alt_allele: &[u8] | {
+        ref_allele.len() > alt_allele.len() && &ref_allele[..alt_allele.len()] == alt_allele
+    };
+
     let variants = if let Some(svtype) = svtype {
         vec![if omit_indels {
             None
@@ -79,7 +88,7 @@ pub fn collect_variants(
             } else {
                 let len = alt_allele.len() - ref_allele.len();
 
-                if is_valid_len(len as u32) {
+                if is_valid_insertion_alleles(ref_allele, alt_allele) && is_valid_len(len as u32) {
                     Some(model::Variant::Insertion(
                         alt_allele[ref_allele.len()..].to_owned(),
                     ))
@@ -95,8 +104,21 @@ pub fn collect_variants(
                     return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
                 }
             };
-            if is_valid_len(svlen) {
-                Some(model::Variant::Deletion(svlen))
+            let alleles = record.alleles();
+            if alleles.len() > 2 {
+                return Err(Box::new(BCFError::InvalidRecord(
+                    "SVTYPE=DEL but more than one ALT allele".to_owned(),
+                )));
+            }
+            let ref_allele = alleles[0];
+            let alt_allele = alleles[1];
+
+            if alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele) {
+                if is_valid_len(svlen) {
+                    Some(model::Variant::Deletion(svlen))
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -134,19 +156,22 @@ pub fn collect_variants(
                 } else {
                     let indel_len =
                         (alt_allele.len() as i32 - ref_allele.len() as i32).abs() as u32;
+                    // TODO fix position if variant is like this: cttt -> ct
 
                     if omit_indels {
                         None
                     } else if !is_valid_len(indel_len) {
                         None
-                    } else if alt_allele.len() < ref_allele.len() {
+                    } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
                         Some(model::Variant::Deletion(
                             (ref_allele.len() - alt_allele.len()) as u32,
                         ))
-                    } else {
+                    } else if is_valid_insertion_alleles(ref_allele, alt_allele) {
                         Some(model::Variant::Insertion(
                             alt_allele[ref_allele.len()..].to_owned(),
                         ))
+                    } else {
+                        None
                     }
                 }
             })

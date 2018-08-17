@@ -47,25 +47,29 @@ W: AsRef<Path>
         None => bcf::Writer::from_stdout(&header, false, false)?
     };
 
-    let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, events, vartype)?;
-
-    // estimate FDR
-    let pep_dist = prob_dist
-        .into_iter()
-        .rev()
-        .map(|p| LogProb(*p).ln_one_minus_exp())
-        .collect_vec();
-    let fdrs = bayesian::expected_fdr(&pep_dist);
     let mut threshold = None;
 
-    // find the largest pep for which fdr <= alpha
-    // do not let peps with the same value cross the boundary
-    for i in (0..fdrs.len()).rev() {
-        if fdrs[i] <= alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
-            let pep = pep_dist[i];
+    if alpha != LogProb::ln_one() {
+        // do not filter by FDR if alpha is 1.0
+        let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, events, vartype)?;
 
-            threshold = Some(pep.ln_one_minus_exp());
-            break;
+        // estimate FDR
+        let pep_dist = prob_dist
+            .into_iter()
+            .rev()
+            .map(|p| LogProb(*p).ln_one_minus_exp())
+            .collect_vec();
+        let fdrs = bayesian::expected_fdr(&pep_dist);
+
+        // find the largest pep for which fdr <= alpha
+        // do not let peps with the same value cross the boundary
+        for i in (0..fdrs.len()).rev() {
+            if fdrs[i] <= alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
+                let pep = pep_dist[i];
+
+                threshold = Some(pep.ln_one_minus_exp());
+                break;
+            }
         }
     }
 
