@@ -1,4 +1,5 @@
 extern crate bio;
+extern crate csv;
 extern crate fern;
 extern crate flate2;
 extern crate hyper;
@@ -6,7 +7,6 @@ extern crate itertools;
 extern crate libprosic;
 extern crate log;
 extern crate rust_htslib;
-extern crate csv;
 
 use std::fs;
 use std::io;
@@ -15,7 +15,7 @@ use std::process::Command;
 use std::str;
 use std::{thread, time};
 
-use bio::stats::{Prob, LogProb};
+use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf};
@@ -341,7 +341,7 @@ fn control_fdr_ev(test: &str, alpha: f64) {
             name: "SOMATIC".to_owned(),
         }],
         &libprosic::model::VariantType::Deletion(Some(1..30)),
-        LogProb::from(Prob(alpha))
+        LogProb::from(Prob(alpha)),
     ).unwrap();
 }
 

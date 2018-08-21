@@ -17,7 +17,6 @@ use Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-6;
 
-
 /// Collect variants from a given ´bcf::Record`.
 pub fn collect_variants(
     record: &mut bcf::Record,
@@ -60,14 +59,16 @@ pub fn collect_variants(
         true
     };
 
-    let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele:  &[u8] | {
-        alt_allele == b"<INS>" ||
-        (ref_allele.len() < alt_allele.len() && ref_allele == &alt_allele[..ref_allele.len()])
+    let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
+        alt_allele == b"<INS>"
+            || (ref_allele.len() < alt_allele.len()
+                && ref_allele == &alt_allele[..ref_allele.len()])
     };
 
-    let is_valid_deletion_alleles = |ref_allele: &[u8], alt_allele: &[u8] | {
-        alt_allele == b"<DEL>" ||
-        (ref_allele.len() > alt_allele.len() && &ref_allele[..alt_allele.len()] == alt_allele)
+    let is_valid_deletion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
+        alt_allele == b"<DEL>"
+            || (ref_allele.len() > alt_allele.len()
+                && &ref_allele[..alt_allele.len()] == alt_allele)
     };
 
     let variants = if let Some(svtype) = svtype {
@@ -235,7 +236,9 @@ fn tags_prob_sum(
     for tag in tags {
         if let Some(tags_probs_in) = (record.info(tag.as_bytes()).float())? {
             //tag present
-            for (i, (variant, tag_prob)) in variants.iter().zip(tags_probs_in.into_iter()).enumerate() {
+            for (i, (variant, tag_prob)) in
+                variants.iter().zip(tags_probs_in.into_iter()).enumerate()
+            {
                 if let Some(ref variant) = *variant {
                     if !variant.is_type(vartype) || tag_prob.is_nan() {
                         continue;
@@ -246,13 +249,16 @@ fn tags_prob_sum(
         }
     }
 
-    Ok(tags_probs_out.into_iter().map(|probs| {
-        if !probs.is_empty() {
-            Some(LogProb::ln_sum_exp(&probs).cap_numerical_overshoot(NUMERICAL_EPSILON))
-        } else {
-            None
-        }
-    }).collect_vec())
+    Ok(tags_probs_out
+        .into_iter()
+        .map(|probs| {
+            if !probs.is_empty() {
+                Some(LogProb::ln_sum_exp(&probs).cap_numerical_overshoot(NUMERICAL_EPSILON))
+            } else {
+                None
+            }
+        })
+        .collect_vec())
 }
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
@@ -325,9 +331,11 @@ pub fn filter_by_threshold<E: Event>(
         remove.extend(probs.into_iter().map(|p| {
             match (p, threshold) {
                 // we allow some numerical instability in case of equality
-                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => false,
+                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => {
+                    false
+                }
                 (Some(_), None) => false,
-                _ => true
+                _ => true,
             }
         }));
 
@@ -494,7 +502,6 @@ mod tests {
         let snv = VariantType::SNV;
 
         if let Ok(prob_sum) = tags_prob_sum(&mut record, &alt_tags, &snv) {
-
             assert_eq!(LogProb::ln_one(), prob_sum[0].unwrap());
         } else {
             panic!("tags_prob_sum(&overshoot_calls, &alt_events, &snv) returned Error")
