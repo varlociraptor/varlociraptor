@@ -326,6 +326,7 @@ pub fn filter_by_threshold<E: Event>(
             match (p, threshold) {
                 // we allow some numerical instability in case of equality
                 (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => false,
+                (Some(_), None) => false,
                 _ => true
             }
         }));
