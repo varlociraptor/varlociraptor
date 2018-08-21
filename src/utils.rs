@@ -61,11 +61,13 @@ pub fn collect_variants(
     };
 
     let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele:  &[u8] | {
-        ref_allele.len() < alt_allele.len() && ref_allele == &alt_allele[..ref_allele.len()]
+        alt_allele == b"<INS>" ||
+        (ref_allele.len() < alt_allele.len() && ref_allele == &alt_allele[..ref_allele.len()])
     };
 
     let is_valid_deletion_alleles = |ref_allele: &[u8], alt_allele: &[u8] | {
-        ref_allele.len() > alt_allele.len() && &ref_allele[..alt_allele.len()] == alt_allele
+        alt_allele == b"<DEL>" ||
+        (ref_allele.len() > alt_allele.len() && &ref_allele[..alt_allele.len()] == alt_allele)
     };
 
     let variants = if let Some(svtype) = svtype {
