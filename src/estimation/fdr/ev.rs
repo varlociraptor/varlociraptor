@@ -4,14 +4,13 @@
 //! Basically, the expected FDR is calculated directly from the posterior error probabilities.
 
 use std::error::Error;
-use std::io;
+use std::path::Path;
 
-use bio::stats::{bayesian, LogProb, PHREDProb};
-use csv;
+use bio::stats::{bayesian, LogProb};
 use itertools::Itertools;
 use rust_htslib::bcf;
+use rust_htslib::bcf::Read;
 
-use estimation::fdr::{Record, ALPHAS};
 use model;
 use utils;
 use Event;
@@ -20,56 +19,63 @@ use Event;
 ///
 /// # Arguments
 ///
-/// * `calls` - BCF reader with prosic calls
+/// * `inbcf` - path to BCF with prosic calls (None for stdin)
+/// * `outbcf` - path to BCF with filtered prosic calls (None for stdout)
 /// * `null_calls` - calls under the null model, e.g. obtained by swapping tumor and normal sample
 /// * `writer` - writer for resulting thresholds
 /// * `events` - the set of events to control (sum of the probabilities of the individual events at a site)
 /// * `vartype` - the variant type to consider
-pub fn control_fdr<E: Event, W: io::Write>(
-    calls: &mut bcf::Reader,
-    writer: &mut W,
+/// * `alpha` - the FDR threshold to control for
+pub fn control_fdr<E: Event, R, W>(
+    inbcf: R,
+    outbcf: Option<W>,
     events: &[E],
     vartype: &model::VariantType,
-) -> Result<(), Box<Error>> {
-    let mut writer = csv::WriterBuilder::new()
-        .has_headers(false)
-        .delimiter(b'\t')
-        .from_writer(writer);
-    try!(writer.write_record(["FDR", "max-prob"].into_iter()));
+    alpha: LogProb,
+) -> Result<(), Box<Error>>
+where
+    R: AsRef<Path>,
+    W: AsRef<Path>,
+{
+    // first pass on bcf file
+    let mut inbcf_reader = bcf::Reader::from_path(&inbcf)?;
 
-    let prob_dist = utils::collect_prob_dist(calls, events, vartype)?;
+    // setup output file
+    let header = bcf::Header::from_template(inbcf_reader.header());
+    let mut outbcf = match outbcf {
+        Some(p) => bcf::Writer::from_path(p, &header, false, false)?,
+        None => bcf::Writer::from_stdout(&header, false, false)?,
+    };
 
-    if prob_dist.is_empty() {
-        for &alpha in &ALPHAS {
-            writer.write_record([&format!("{}", alpha), ""].iter())?;
-        }
-        return Ok(());
-    }
+    let mut threshold = None;
 
-    // estimate FDR
-    let pep_dist = prob_dist
-        .into_iter()
-        .rev()
-        .map(|p| LogProb(*p).ln_one_minus_exp())
-        .collect_vec();
-    let fdrs = bayesian::expected_fdr(&pep_dist);
+    if alpha != LogProb::ln_one() {
+        // do not filter by FDR if alpha is 1.0
+        let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, events, vartype)?;
 
-    for &alpha in &ALPHAS {
-        let ln_alpha = LogProb(alpha.ln());
+        // estimate FDR
+        let pep_dist = prob_dist
+            .into_iter()
+            .rev()
+            .map(|p| LogProb(*p).ln_one_minus_exp())
+            .collect_vec();
+        let fdrs = bayesian::expected_fdr(&pep_dist);
+
         // find the largest pep for which fdr <= alpha
         // do not let peps with the same value cross the boundary
         for i in (0..fdrs.len()).rev() {
-            if fdrs[i] <= ln_alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
+            if fdrs[i] <= alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
                 let pep = pep_dist[i];
-                writer.serialize(&Record {
-                    alpha: alpha,
-                    gamma: PHREDProb::from(pep.ln_one_minus_exp()),
-                })?;
+
+                threshold = Some(pep.ln_one_minus_exp());
                 break;
             }
         }
     }
-    writer.flush()?;
+
+    // second pass on bcf file
+    let mut inbcf_reader = bcf::Reader::from_path(&inbcf)?;
+    utils::filter_by_threshold(&mut inbcf_reader, threshold, &mut outbcf, events, vartype)?;
 
     Ok(())
 }

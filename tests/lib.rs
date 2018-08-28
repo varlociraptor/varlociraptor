@@ -1,4 +1,5 @@
 extern crate bio;
+extern crate csv;
 extern crate fern;
 extern crate flate2;
 extern crate hyper;
@@ -14,7 +15,7 @@ use std::process::Command;
 use std::str;
 use std::{thread, time};
 
-use bio::stats::Prob;
+use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf};
@@ -329,19 +330,18 @@ fn check_info_float(rec: &mut bcf::Record, tag: &[u8], truth: f32, maxerr: f32) 
     );
 }
 
-fn control_fdr_ev(test: &str) {
+fn control_fdr_ev(test: &str, alpha: f64) {
     let basedir = basedir(test);
-    let mut calls = bcf::Reader::from_path(format!("{}/calls.matched.bcf", basedir)).unwrap();
-    let output = format!("{}/thresholds.tsv", basedir);
+    let output = format!("{}/calls.filtered.bcf", basedir);
     cleanup_file(&output);
-    let mut writer = fs::File::create(&output).unwrap();
     libprosic::estimation::fdr::ev::control_fdr(
-        &mut calls,
-        &mut writer,
+        &format!("{}/calls.matched.bcf", basedir),
+        Some(&output),
         &[libprosic::SimpleEvent {
             name: "SOMATIC".to_owned(),
         }],
         &libprosic::model::VariantType::Deletion(Some(1..30)),
+        LogProb::from(Prob(alpha)),
     ).unwrap();
 }
 
@@ -602,14 +602,14 @@ fn test25() {
 
 #[test]
 fn test_fdr_ev1() {
-    control_fdr_ev("test_fdr_ev_1");
-    // TODO add a reasonable assertion
+    control_fdr_ev("test_fdr_ev_1", 0.05);
+    //check_control_fdr("test_fdr_ev_1");
 }
 
 #[test]
 fn test_fdr_ev2() {
-    control_fdr_ev("test_fdr_ev_2");
-    // TODO add a reasonable assertion
+    control_fdr_ev("test_fdr_ev_2", 0.05);
+    //check_control_fdr("test_fdr_ev_1");
 }
 
 #[test]
