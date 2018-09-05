@@ -7,7 +7,7 @@ use rust_htslib::bam::record::CigarStringView;
 
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
-use pairhmm;
+use bio::stats::pairhmm;
 
 pub fn prob_snv(
     record: &bam::Record,

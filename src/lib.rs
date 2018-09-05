@@ -33,7 +33,6 @@ pub mod call;
 pub mod constants;
 pub mod estimation;
 pub mod model;
-pub mod pairhmm;
 pub mod utils;
 
 pub use estimation::alignment_properties::{AlignmentProperties, InsertSize};
