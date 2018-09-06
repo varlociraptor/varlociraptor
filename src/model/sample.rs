@@ -662,7 +662,7 @@ mod tests {
 
         // truth
         let probs_alt = [-0.09, -16.95, -73.09, -0.022, -0.011, -0.03];
-        let probs_ref = [-151.13, -163.03, -0.01, -67.75, -67.74, -67.76];
+        let probs_ref = [-150.50, -163.03, -0.01, -67.75, -67.74, -67.76];
 
         // variant (obtained via bcftools)
         let start = 546;
