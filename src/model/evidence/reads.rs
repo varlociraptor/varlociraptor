@@ -5,9 +5,9 @@ use bio::stats::{LogProb, PHREDProb, Prob};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 
+use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
-use bio::stats::pairhmm;
 
 pub fn prob_snv(
     record: &bam::Record,
