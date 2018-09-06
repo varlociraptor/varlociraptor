@@ -5,7 +5,7 @@
 [![Crates.io](https://img.shields.io/crates/d/libprosic.svg)](https://crates.io/crates/libprosic)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 
-A Rust library for calling genomic variants using a latent variable model. This library is under active development and can break at any time.
+A Rust library for calling genomic variants using a latent variable model. This library is under active development. A preprint describing an early version of the model can be found here: https://doi.org/10.1101/121954.
 
 ## Authors
 
