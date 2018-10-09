@@ -198,8 +198,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                             + pileup.control_likelihood(af_bulk, None)
                     }
                     p
-                })
-                .collect_vec(),
+                }).collect_vec(),
         );
 
         /*
@@ -308,8 +307,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                 let p_bulk = self.prior_bulk(*af_bulk, &pileup.variant)
                     + pileup.control_likelihood(*af_bulk, None);
                 NotNaN::new(*p_bulk).expect("posterior probability is NaN")
-            })
-            .into_option()
+            }).into_option()
             .expect("prior has empty allele frequency spectrum");
 
         (*map_single, map_bulk)

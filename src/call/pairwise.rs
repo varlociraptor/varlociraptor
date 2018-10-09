@@ -24,8 +24,7 @@ fn phred_scale<'a, I: IntoIterator<Item = &'a Option<LogProb>>>(probs: I) -> Vec
         .map(|&p| match p {
             Some(p) => PHREDProb::from(p).abs() as f32,
             None => f32::missing(),
-        })
-        .collect_vec()
+        }).collect_vec()
 }
 
 pub struct PairEvent<A: AlleleFreqs, B: AlleleFreqs> {
@@ -174,7 +173,8 @@ where
                 "prob_ref",
                 "prob_sample_alt",
                 "evidence",
-            ].iter(),
+            ]
+                .iter(),
         )?;
         Some(writer)
     } else {

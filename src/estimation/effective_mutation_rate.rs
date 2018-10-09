@@ -36,8 +36,7 @@ pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Es
         .scan(0.0, |s, c| {
             *s += *c as f64;
             Some(*s)
-        })
-        .collect_vec();
+        }).collect_vec();
 
     let observations = reciprocal_freqs
         .iter()

@@ -475,8 +475,7 @@ impl Sample {
                     .indel_read_evidence
                     .borrow()
                     .prob_mapping(right_record)
-                    .ln_one_minus_exp())
-                .ln_one_minus_exp(),
+                    .ln_one_minus_exp()).ln_one_minus_exp(),
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
             prob_sample_alt,
@@ -524,15 +523,16 @@ pub fn isize_density_louis(value: f64, mean: f64, sd: f64) -> LogProb {
 }
 
 pub fn isize_mixture_density_louis(value: f64, d: f64, mean: f64, sd: f64, rate: f64) -> LogProb {
-    let p = 0.5 / (rate * (1.0 - 0.5 * erfc((mean + 0.5) / sd * consts::FRAC_1_SQRT_2))
-        + (1.0 - rate) * (1.0 - 0.5 * erfc((mean + d + 0.5) / sd * consts::FRAC_1_SQRT_2)));
+    let p = 0.5
+        / (rate * (1.0 - 0.5 * erfc((mean + 0.5) / sd * consts::FRAC_1_SQRT_2))
+            + (1.0 - rate) * (1.0 - 0.5 * erfc((mean + d + 0.5) / sd * consts::FRAC_1_SQRT_2)));
     LogProb(
-        (p * (rate * (erfc((-value - 0.5 + mean) / sd * consts::FRAC_1_SQRT_2)
-            - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2))
+        (p * (rate
+            * (erfc((-value - 0.5 + mean) / sd * consts::FRAC_1_SQRT_2)
+                - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2))
             + (1.0 - rate)
                 * (erfc((-value - 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2)
-                    - erfc((-value + 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2))))
-            .ln(),
+                    - erfc((-value + 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2)))).ln(),
     )
 }
 
