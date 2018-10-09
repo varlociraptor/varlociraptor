@@ -26,6 +26,9 @@ extern crate regex;
 extern crate statrs;
 extern crate vec_map;
 
+#[macro_use]
+extern crate cached;
+
 #[cfg(feature = "flame_it")]
 extern crate flame;
 

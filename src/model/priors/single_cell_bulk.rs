@@ -4,6 +4,8 @@ use ordered_float::NotNaN;
 use statrs::function::beta::ln_beta;
 use statrs::function::factorial::ln_binomial;
 
+use cached::UnboundCache;
+
 use model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
 
 use priors::PairModel;
@@ -19,6 +21,79 @@ pub struct SingleCellBulkModel {
     allele_freqs_bulk: ContinuousAlleleFreqs,
     n_bulk_min: usize,
     n_bulk_max: usize,
+}
+
+cached! {
+    AMPLIF_CACHE: UnboundCache<(AlleleFreq, usize, usize), LogProb> = UnboundCache::new();
+    // Lodato et al. 2015, Science, Supplementary Information, pages 8f and Fig. S5 (A, C, E)
+    // TODO: allow for non-default Lodato model parameters, e.g. learned from the data at hand
+    // TODO: allow for non-Lodato models
+    fn prob_rho(af_single_underlying: AlleleFreq, n_obs: usize, k: usize) -> LogProb = {
+
+        // not worth caching, takes only 0.01% of runtime
+        let binomial_coeff = ln_binomial(n_obs as u64, k as u64);
+
+        match af_single_underlying {
+            // model for hom ref sites
+            f if f == AlleleFreq(0.0) => {
+                let alpha = |cov| {
+                    -0.000027183 * cov as f64 + 0.068567471
+                };
+                let beta = |cov| {
+                    0.007454388 * cov as f64 + 2.367486659
+                };
+                let a = alpha(n_obs);
+                let b = beta(n_obs);
+
+                LogProb(
+                    binomial_coeff +
+                        ln_beta((k as f64) + a,  (n_obs) as f64 - (k as f64) + b) - ln_beta(a,b)
+                )
+            },
+            // model for heterozygous sites
+            f if f == AlleleFreq(0.5) => {
+                let weight = |cov| {
+                    0.000548761 * cov as f64 + 0.540396786
+                };
+                let alpha_1 = |cov| {
+                    0.057378844 * cov as f64 + 0.669733191
+                };
+                let alpha_2 = |cov| {
+                    0.003233912 * cov as f64 + 0.399261625
+                };
+
+                let a1 = alpha_1(n_obs);
+                let a2 = alpha_2(n_obs);
+                let w = weight(n_obs);
+
+                // Lodato et al. 2015, Science, Supplementary Information, pages 8f and Fig. S5 (A, C, E)
+                LogProb(
+                    w.ln() + binomial_coeff +
+                        ln_beta((k as f64) + a1,  (n_obs) as f64 - (k as f64) + a1) - ln_beta(a1,a1)
+                    ).ln_add_exp(
+                        LogProb(
+                            ((-w).ln_1p()) + binomial_coeff +
+                            ln_beta((k as f64) + a2, (n_obs) as f64 - (k as f64) + a2) - ln_beta(a2,a2) )
+                )
+            },
+            // model for hom alt sites (hom ref density mirrored)
+            f if f == AlleleFreq(1.0) => {
+                let alpha = |cov| {
+                    0.007454388 * cov as f64 + 2.367486659
+                };
+                let beta = |cov| {
+                    -0.000027183 * cov as f64 + 0.068567471
+                };
+                let a = alpha(n_obs);
+                let b = beta(n_obs);
+                LogProb(
+                    binomial_coeff +
+                    ln_beta((k as f64) + a,  (n_obs) as f64 - (k as f64) + b) - ln_beta(a,b)
+                )
+            },
+            _ => panic!("SingleCellBulkModel is currently only implemented for the diploid case with allele frequencies 0.0, 0.5 and 1.0.")
+        }
+    }
 }
 
 impl SingleCellBulkModel {
@@ -39,75 +114,6 @@ impl SingleCellBulkModel {
             allele_freqs_bulk: ContinuousAlleleFreqs::inclusive(0.0..1.0),
             n_bulk_min: n_bulk_min, // TODO: implement initialization via command line arguments in ProSolo, i.e. via n_bulk_per_event_min and iteration over events defined in ProSolo
             n_bulk_max: n_bulk_max, // TODO: implement initialization via command line arguments in ProSolo
-        }
-    }
-
-    // Lodato et al. 2015, Science, Supplementary Information, pages 8f and Fig. S5 (A, C, E)
-    // TODO: allow for non-default Lodato model parameters, e.g. learned from the data at hand
-    // TODO: allow for non-Lodato models
-    fn prob_rho(&self, af_single_underlying: &f64, n_obs: &usize, k: &usize) -> LogProb {
-        let binomial_coeff = ln_binomial(*n_obs as u64, *k as u64);
-
-        match *af_single_underlying {
-            // model for hom ref sites
-            f if f == 0.0 => {
-                let alpha = |cov| {
-                    -0.000027183 * cov as f64 + 0.068567471
-                };
-                let beta = |cov| {
-                    0.007454388 * cov as f64 + 2.367486659
-                };
-                let a = alpha(*n_obs);
-                let b = beta(*n_obs);
-
-                LogProb(
-                    binomial_coeff +
-                        ln_beta((*k as f64) + a,  (*n_obs) as f64 - (*k as f64) + b) - ln_beta(a,b)
-                )
-            },
-            // model for heterozygous sites
-            f if f == 0.5 => {
-                let weight = |cov| {
-                    0.000548761 * cov as f64 + 0.540396786
-                };
-                let alpha_1 = |cov| {
-                    0.057378844 * cov as f64 + 0.669733191
-                };
-                let alpha_2 = |cov| {
-                    0.003233912 * cov as f64 + 0.399261625
-                };
-
-                let a1 = alpha_1(*n_obs);
-                let a2 = alpha_2(*n_obs);
-                let w = weight(*n_obs);
-
-                // Lodato et al. 2015, Science, Supplementary Information, pages 8f and Fig. S5 (A, C, E)
-                LogProb(
-                    w.ln() + binomial_coeff +
-                        ln_beta((*k as f64) + a1,  (*n_obs) as f64 - (*k as f64) + a1) - ln_beta(a1,a1)
-                ).ln_add_exp(
-                    LogProb(
-                        ((-w).ln_1p()) + binomial_coeff +
-                            ln_beta((*k as f64) + a2, (*n_obs) as f64 - (*k as f64) + a2) - ln_beta(a2,a2) )
-                )
-            },
-            // model for hom alt sites (hom ref density mirrored)
-            f if f == 1.0 => {
-                let alpha = |cov| {
-                    0.007454388 * cov as f64 + 2.367486659
-                };
-                let beta = |cov| {
-                    -0.000027183 * cov as f64 + 0.068567471
-                };
-                let a = alpha(*n_obs);
-                let b = beta(*n_obs);
-
-                LogProb(
-                    binomial_coeff +
-                        ln_beta((*k as f64) + a,  (*n_obs) as f64 - (*k as f64) + b) - ln_beta(a,b)
-                )
-            },
-            _ => panic!("SingleCellBulkModel is currently only implemented for the diploid case with allele frequencies 0.0, 0.5 and 1.0.")
         }
     }
 
@@ -192,8 +198,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                             + pileup.control_likelihood(af_bulk, None)
                     }
                     p
-                })
-                .collect_vec(),
+                }).collect_vec(),
         );
 
         /*
@@ -238,7 +243,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                                         AlleleFreq(k_s as f64 / n_single as f64);
                                     self.prior_single(af_single, &pileup.variant)
                                         + pileup.case_likelihood(af_single_distorted, None)
-                                        + self.prob_rho(&af_single, &n_single, &k_s)
+                                        + prob_rho(af_single, n_single, k_s)
                                 }
                             })
                             .collect_vec(),
@@ -284,7 +289,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                                 let af_single_distorted = AlleleFreq(k_s as f64 / n_single as f64);
                                 self.prior_single(af_single, &pileup.variant)
                                     + pileup.case_likelihood(af_single_distorted, None)
-                                    + self.prob_rho(&af_single, &n_single, &k_s)
+                                    + prob_rho(af_single, n_single, k_s)
                             }
                         })
                         .collect_vec(),
@@ -302,8 +307,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                 let p_bulk = self.prior_bulk(*af_bulk, &pileup.variant)
                     + pileup.control_likelihood(*af_bulk, None);
                 NotNaN::new(*p_bulk).expect("posterior probability is NaN")
-            })
-            .into_option()
+            }).into_option()
             .expect("prior has empty allele frequency spectrum");
 
         (*map_single, map_bulk)
@@ -326,7 +330,6 @@ mod tests {
 
     #[test]
     fn test_prob_rho() {
-        let model = SingleCellBulkModel::new(2, 5, 100);
         // all expected results calculated with implementation in R version 3.3.3, using
         // dbetabinom.ab() from the R package VGAM_1.0-2
 
@@ -549,19 +552,19 @@ mod tests {
         // test all models
         for k in 0..5 + 1 {
             assert_relative_eq!(
-                model.prob_rho(&AlleleFreq(0.0), &5, &(k as usize)).exp(),
+                prob_rho(AlleleFreq(0.0), 5, k as usize).exp(),
                 results_5_hom_ref[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
             );
             assert_relative_eq!(
-                model.prob_rho(&AlleleFreq(0.5), &5, &(k as usize)).exp(),
+                prob_rho(AlleleFreq(0.5), 5, k as usize).exp(),
                 results_5_het[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
             );
             assert_relative_eq!(
-                model.prob_rho(&AlleleFreq(1.0), &5, &(k as usize)).exp(),
+                prob_rho(AlleleFreq(1.0), 5, k as usize).exp(),
                 results_5_hom_alt[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
@@ -569,19 +572,19 @@ mod tests {
         }
         for k in 0..60 + 1 {
             assert_relative_eq!(
-                model.prob_rho(&AlleleFreq(0.0), &60, &(k as usize)).exp(),
+                prob_rho(AlleleFreq(0.0), 60, k as usize).exp(),
                 results_60_hom_ref[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
             );
             assert_relative_eq!(
-                model.prob_rho(&AlleleFreq(0.5), &60, &(k as usize)).exp(),
+                prob_rho(AlleleFreq(0.5), 60, k as usize).exp(),
                 results_60_het[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
             );
             assert_relative_eq!(
-                model.prob_rho(&AlleleFreq(1.0), &60, &(k as usize)).exp(),
+                prob_rho(AlleleFreq(1.0), 60, k as usize).exp(),
                 results_60_hom_alt[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001

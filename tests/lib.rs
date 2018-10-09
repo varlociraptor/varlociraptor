@@ -54,8 +54,7 @@ fn download_reference(chrom: &str) -> String {
             .get(&format!(
                 "http://hgdownload.cse.ucsc.edu/goldenpath/hg18/chromosomes/{}.fa.gz",
                 chrom
-            ))
-            .send()
+            )).send()
             .unwrap();
         let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
         let mut reference_file = fs::File::create(&reference).unwrap();
