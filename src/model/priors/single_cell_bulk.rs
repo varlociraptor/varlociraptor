@@ -552,19 +552,19 @@ mod tests {
         // test all models
         for k in 0..5 + 1 {
             assert_relative_eq!(
-                prob_rho(AlleleFreq(0.0), 5, k as usize ).exp(),
+                prob_rho(AlleleFreq(0.0), 5, k as usize).exp(),
                 results_5_hom_ref[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
             );
             assert_relative_eq!(
-                prob_rho(AlleleFreq(0.5), 5, k as usize ).exp(),
+                prob_rho(AlleleFreq(0.5), 5, k as usize).exp(),
                 results_5_het[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
             );
             assert_relative_eq!(
-                prob_rho(AlleleFreq(1.0), 5, k as usize ).exp(),
+                prob_rho(AlleleFreq(1.0), 5, k as usize).exp(),
                 results_5_hom_alt[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
@@ -572,19 +572,19 @@ mod tests {
         }
         for k in 0..60 + 1 {
             assert_relative_eq!(
-                prob_rho(AlleleFreq(0.0), 60, k as usize ).exp(),
+                prob_rho(AlleleFreq(0.0), 60, k as usize).exp(),
                 results_60_hom_ref[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
             );
             assert_relative_eq!(
-                prob_rho(AlleleFreq(0.5), 60, k as usize ).exp(),
+                prob_rho(AlleleFreq(0.5), 60, k as usize).exp(),
                 results_60_het[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
             );
             assert_relative_eq!(
-                prob_rho(AlleleFreq(1.0), 60, k as usize ).exp(),
+                prob_rho(AlleleFreq(1.0), 60, k as usize).exp(),
                 results_60_hom_alt[k] as f64,
                 max_relative = 1.0,
                 epsilon = 0.000000000001
