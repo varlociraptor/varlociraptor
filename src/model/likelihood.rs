@@ -8,6 +8,7 @@ use model::AlleleFreq;
 pub struct LatentVariableModel {
     /// Purity of the case sample.
     purity: Option<LogProb>,
+    impurity: Option<LogProb>,
 }
 
 impl LatentVariableModel {
@@ -16,16 +17,15 @@ impl LatentVariableModel {
         assert!(purity > 0.0 && purity <= 1.0);
         LatentVariableModel {
             purity: Some(LogProb(purity.ln())),
+            impurity: Some(LogProb(purity.ln()).ln_one_minus_exp()),
         }
     }
 
     pub fn with_single_sample() -> Self {
-        LatentVariableModel { purity: None }
-    }
-
-    /// Impurity of the case sample (fraction of control cells in the case sample).
-    fn impurity(&self) -> LogProb {
-        self.purity.unwrap().ln_one_minus_exp()
+        LatentVariableModel {
+            purity: None,
+            impurity: None,
+        }
     }
 
     /// Likelihood to observe a read given allele frequencies for case and control.
@@ -46,7 +46,7 @@ impl LatentVariableModel {
                     LogProb(allele_freq_control.ln()) + observation.prob_sample_alt;
 
                 // Step 2: read comes from control sample and is correctly mapped
-                let prob_control = self.impurity()
+                let prob_control = self.impurity.unwrap()
                     + (prob_sample_alt_control + observation.prob_alt).ln_add_exp(
                         prob_sample_alt_control.ln_one_minus_exp() + observation.prob_ref,
                     );
