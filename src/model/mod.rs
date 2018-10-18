@@ -119,6 +119,9 @@ impl ContinuousAlleleFreqs {
 
     /// create a left-exclusive allele frequency range
     pub fn left_exclusive(range: Range<f64>) -> Self {
+        if range.start == range.end {
+            panic!("ContinuousAlleleFreqs::left_exclusive({}..{}) does not make sense with identical start and end point.", range.start, range.end);
+        }
         ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
@@ -128,6 +131,9 @@ impl ContinuousAlleleFreqs {
 
     /// create a right-exclusive allele frequency range
     pub fn right_exclusive(range: Range<f64>) -> Self {
+        if range.start == range.end {
+            panic!("ContinuousAlleleFreqs::right_exclusive({}..{}) does not make sense with identical start and end point.", range.start, range.end);
+        }
         ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
