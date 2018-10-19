@@ -32,16 +32,16 @@ impl LatentVariableModel {
     fn likelihood_observation_case_control(
         &self,
         observation: &Observation,
-        allele_freq_case: AlleleFreq,
-        allele_freq_control: AlleleFreq,
+        allele_freq_case: LogProb,
+        allele_freq_control: LogProb,
     ) -> LogProb {
         let prob_mismapped = LogProb::ln_one();
 
            // Step 1: probability to sample observation: AF * placement induced probability
         let prob_sample_alt_case =
-            LogProb(allele_freq_case.ln()) + observation.prob_sample_alt;
+            allele_freq_case + observation.prob_sample_alt;
         let prob_sample_alt_control =
-            LogProb(allele_freq_control.ln()) + observation.prob_sample_alt;
+            allele_freq_control + observation.prob_sample_alt;
 
         // Step 2: read comes from control sample and is correctly mapped
         let prob_control = self.impurity.unwrap()
@@ -67,12 +67,12 @@ impl LatentVariableModel {
     /// Likelihood to observe a read given allele frequency for a single sample.
     fn likelihood_observation_single_sample(
         observation: &Observation,
-        allele_freq_case: AlleleFreq,
+        allele_freq_case: LogProb,
     ) -> LogProb {
         let prob_mismapped = LogProb::ln_one();
 
         // Step 1: calculate probability to sample from alt allele
-        let prob_sample_alt = LogProb(allele_freq_case.ln()) + observation.prob_sample_alt;
+        let prob_sample_alt = allele_freq_case + observation.prob_sample_alt;
 
         // Step 2: read comes from case sample and is correctly mapped
         let prob_case = (prob_sample_alt + observation.prob_alt)
@@ -96,9 +96,11 @@ impl LatentVariableModel {
         let likelihood;
         match allele_freq_control {
             Some(allele_freq_control) => {
+                let ln_af_case = LogProb(allele_freq_case.ln());
+                let ln_af_control = LogProb(allele_freq_control.ln());
                 // calculate product of per-read likelihoods in log space
                 likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-                    let lh = self.likelihood_observation_case_control(obs, allele_freq_case, allele_freq_control);
+                    let lh = self.likelihood_observation_case_control(obs, ln_af_case, ln_af_control);
                     prob + lh
                 });
             },
@@ -110,9 +112,10 @@ impl LatentVariableModel {
                         "no control allele frequency given but purity is not 1.0"
                     );
                 }
+                let ln_af_case = LogProb(allele_freq_case.ln());
                 // calculate product of per-read likelihoods in log space
                 likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-                    let lh = Self::likelihood_observation_single_sample(obs, allele_freq_case);
+                    let lh = Self::likelihood_observation_single_sample(obs, ln_af_case);
                     prob + lh
                 });
             },
@@ -133,7 +136,7 @@ mod tests {
     fn test_likelihood_observation_absent_single() {
         let observation = observation(LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_one());
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, AlleleFreq(0.0));
+        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, LogProb(AlleleFreq(0.0).ln()));
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
@@ -142,7 +145,7 @@ mod tests {
         let model = LatentVariableModel::new(1.0);
         let observation = observation(LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_one());
 
-        let lh = model.likelihood_observation_case_control(&observation, AlleleFreq(0.0), AlleleFreq(0.0));
+        let lh = model.likelihood_observation_case_control(&observation, LogProb(AlleleFreq(0.0).ln()), LogProb(AlleleFreq(0.0).ln()));
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
@@ -183,25 +186,25 @@ mod tests {
         let model = LatentVariableModel::new(1.0);
         let observation = observation(LogProb::ln_one(), LogProb::ln_one(), LogProb::ln_zero());
 
-        let lh = model.likelihood_observation_case_control(&observation, AlleleFreq(1.0), AlleleFreq(0.0));
+        let lh = model.likelihood_observation_case_control(&observation, LogProb(AlleleFreq(1.0).ln()), LogProb(AlleleFreq(0.0).ln()));
         assert_relative_eq!(*lh, *LogProb::ln_one());
 
-        let lh = model.likelihood_observation_case_control(&observation, AlleleFreq(0.0), AlleleFreq(0.0));
+        let lh = model.likelihood_observation_case_control(&observation, LogProb(AlleleFreq(0.0).ln()), LogProb(AlleleFreq(0.0).ln()));
         assert_relative_eq!(*lh, *LogProb::ln_zero());
 
-        let lh = model.likelihood_observation_case_control(&observation, AlleleFreq(0.5), AlleleFreq(0.0));
+        let lh = model.likelihood_observation_case_control(&observation, LogProb(AlleleFreq(0.5).ln()), LogProb(AlleleFreq(0.0).ln()));
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = model.likelihood_observation_case_control(&observation, AlleleFreq(0.5), AlleleFreq(0.5));
+        let lh = model.likelihood_observation_case_control(&observation, LogProb(AlleleFreq(0.5).ln()), LogProb(AlleleFreq(0.5).ln()));
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = model.likelihood_observation_case_control(&observation, AlleleFreq(0.1), AlleleFreq(0.0));
+        let lh = model.likelihood_observation_case_control(&observation, LogProb(AlleleFreq(0.1).ln()), LogProb(AlleleFreq(0.0).ln()));
         assert_relative_eq!(*lh, 0.1f64.ln());
 
         // test with 50% purity
         let model = LatentVariableModel::new(0.5);
 
-        let lh = model.likelihood_observation_case_control(&observation, AlleleFreq(0.0), AlleleFreq(1.0));
+        let lh = model.likelihood_observation_case_control(&observation, LogProb(AlleleFreq(0.0).ln()), LogProb(AlleleFreq(1.0).ln()));
         assert_relative_eq!(*lh, 0.5f64.ln());
     }
 
@@ -215,16 +218,16 @@ mod tests {
                                 // prob_ref
                                 LogProb::ln_zero());
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, AlleleFreq(1.0));
+        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, LogProb(AlleleFreq(1.0).ln()));
         assert_relative_eq!(*lh, *LogProb::ln_one());
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, AlleleFreq(0.0));
+        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, LogProb(AlleleFreq(0.0).ln()));
         assert_relative_eq!(*lh, *LogProb::ln_zero());
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, AlleleFreq(0.5));
+        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, LogProb(AlleleFreq(0.5).ln()));
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, AlleleFreq(0.1));
+        let lh = LatentVariableModel::likelihood_observation_single_sample(&observation, LogProb(AlleleFreq(0.1).ln()));
         assert_relative_eq!(*lh, 0.1f64.ln());
     }
 
