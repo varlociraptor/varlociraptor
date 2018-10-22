@@ -141,7 +141,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         },
         libprosic::call::pairwise::PairEvent {
             name: "absent".to_owned(),
-            af_case: ContinuousAlleleFreqs::left_exclusive(0.0..0.0),
+            af_case: ContinuousAlleleFreqs::exclusive(0.0..0.0),
             af_control: DiscreteAlleleFreqs::absent(),
         },
     ];
