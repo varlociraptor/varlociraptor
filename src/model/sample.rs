@@ -370,7 +370,10 @@ impl Sample {
         };
 
         if let Some((prob_ref, prob_alt)) = probs {
-            let (prob_mapping, prob_mismapping) = self.indel_read_evidence.borrow().prob_mapping_mismapping(record);
+            let (prob_mapping, prob_mismapping) = self
+                .indel_read_evidence
+                .borrow()
+                .prob_mapping_mismapping(record);
 
             let prob_sample_alt = self
                 .indel_read_evidence
@@ -467,13 +470,13 @@ impl Sample {
         assert!(p_ref_right.is_valid());
 
         let (_, prob_mismapping_left) = self
-                                            .indel_read_evidence
-                                            .borrow()
-                                            .prob_mapping_mismapping(left_record);
+            .indel_read_evidence
+            .borrow()
+            .prob_mapping_mismapping(left_record);
         let (_, prob_mismapping_right) = self
-                                            .indel_read_evidence
-                                            .borrow()
-                                            .prob_mapping_mismapping(right_record);
+            .indel_read_evidence
+            .borrow()
+            .prob_mapping_mismapping(right_record);
         let prob_mismapping = prob_mismapping_left + prob_mismapping_right;
         let obs = Observation::new(
             prob_mismapping.ln_one_minus_exp(),
