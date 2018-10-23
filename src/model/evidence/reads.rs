@@ -244,10 +244,10 @@ impl IndelEvidence {
         prob
     }
 
-    /// Calculate mapping probability of given record.
-    pub fn prob_mapping(&self, record: &bam::Record) -> LogProb {
+    /// Calculate mapping and mismapping probability of given record.
+    pub fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
         if self.use_mapq {
-            prob_mapping(record)
+            prob_mapping_mismapping(record)
         } else {
             // Only penalize reads with mapq 0, all others treat the same, by giving them the
             // maximum observed mapping quality.
@@ -255,9 +255,11 @@ impl IndelEvidence {
             // MAPQ. By using the maximum observed MAPQ, we still calibrate to the general
             // certainty of the mapper at this locus!
             if record.mapq() == 0 {
-                LogProb::ln_zero()
+                (LogProb::ln_zero(), LogProb::ln_one())
             } else {
-                LogProb::from(self.alignment_properties.max_mapq()).ln_one_minus_exp()
+                let prob_mismapping = LogProb::from(self.alignment_properties.max_mapq());
+                let prob_mapping = prob_mismapping.ln_one_minus_exp();
+                (prob_mapping, prob_mismapping)
             }
         }
     }
@@ -284,9 +286,11 @@ pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
     LogProb::from(PHREDProb::from((base_qual) as f64))
 }
 
-/// Convert MAPQ (from read mapper) to LogProb for the event that the read maps correctly.
-pub fn prob_mapping(record: &bam::Record) -> LogProb {
-    LogProb::from(PHREDProb(record.mapq() as f64)).ln_one_minus_exp()
+/// Convert MAPQ (from read mapper) to LogProb for the event that the read maps correctly and the event that it maps incorrectly.
+pub fn prob_mapping_mismapping(record: &bam::Record) -> (LogProb, LogProb) {
+    let prob_mismapping = LogProb::from(PHREDProb(record.mapq() as f64));
+    let prob_mapping = prob_mismapping.ln_one_minus_exp();
+    (prob_mapping, prob_mismapping)
 }
 
 /// Gap parameters for PairHMM.

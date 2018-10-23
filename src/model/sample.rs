@@ -370,7 +370,7 @@ impl Sample {
         };
 
         if let Some((prob_ref, prob_alt)) = probs {
-            let prob_mapping = self.indel_read_evidence.borrow().prob_mapping(record);
+            let (prob_mapping, prob_mismapping) = self.indel_read_evidence.borrow().prob_mapping_mismapping(record);
 
             let prob_sample_alt = self
                 .indel_read_evidence
@@ -378,6 +378,7 @@ impl Sample {
                 .prob_sample_alt(record.seq().len() as u32, variant);
             Ok(Some(Observation::new(
                 prob_mapping,
+                prob_mismapping,
                 prob_alt,
                 prob_ref,
                 prob_sample_alt,
@@ -465,17 +466,18 @@ impl Sample {
         assert!(p_ref_left.is_valid());
         assert!(p_ref_right.is_valid());
 
+        let (_, prob_mismapping_left) = self
+                                            .indel_read_evidence
+                                            .borrow()
+                                            .prob_mapping_mismapping(left_record);
+        let (_, prob_mismapping_right) = self
+                                            .indel_read_evidence
+                                            .borrow()
+                                            .prob_mapping_mismapping(right_record);
+        let prob_mismapping = prob_mismapping_left + prob_mismapping_right;
         let obs = Observation::new(
-            (self
-                .indel_read_evidence
-                .borrow()
-                .prob_mapping(left_record)
-                .ln_one_minus_exp()
-                + self
-                    .indel_read_evidence
-                    .borrow()
-                    .prob_mapping(right_record)
-                    .ln_one_minus_exp()).ln_one_minus_exp(),
+            prob_mismapping.ln_one_minus_exp(),
+            prob_mismapping,
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
             prob_sample_alt,

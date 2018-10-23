@@ -629,6 +629,7 @@ mod tests {
     pub fn observation(prob_mapping: LogProb, prob_alt: LogProb, prob_ref: LogProb) -> Observation {
         Observation::new(
             prob_mapping,
+            prob_mapping.ln_one_minus_exp(),
             prob_alt,
             prob_ref,
             LogProb::ln_one(),

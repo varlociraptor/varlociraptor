@@ -169,6 +169,7 @@ where
                 "allele",
                 "sample",
                 "prob_mapping",
+                "prob_one_minus_mapping",
                 "prob_alt",
                 "prob_ref",
                 "prob_sample_alt",
