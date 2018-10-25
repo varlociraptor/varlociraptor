@@ -35,8 +35,6 @@ impl LatentVariableModel {
         allele_freq_case: LogProb,
         allele_freq_control: LogProb,
     ) -> LogProb {
-        let prob_mismapped = LogProb::ln_one();
-
         // Step 1: probability to sample observation: AF * placement induced probability
         let prob_sample_alt_case = allele_freq_case + observation.prob_sample_alt;
         let prob_sample_alt_control = allele_freq_control + observation.prob_sample_alt;
@@ -55,7 +53,7 @@ impl LatentVariableModel {
 
         // Step 4: total probability
         let total = (observation.prob_mapping + prob_control.ln_add_exp(prob_case))
-            .ln_add_exp(observation.prob_one_minus_mapping + prob_mismapped);
+            .ln_add_exp(observation.prob_mismapping);
         //println!("afs {}:{}, case {:?} control {:?} total {:?}", allele_freq_case, allele_freq_control, prob_case, prob_control, total);
         assert!(!total.is_nan());
         total
@@ -66,8 +64,6 @@ impl LatentVariableModel {
         observation: &Observation,
         allele_freq_case: LogProb,
     ) -> LogProb {
-        let prob_mismapped = LogProb::ln_one();
-
         // Step 1: calculate probability to sample from alt allele
         let prob_sample_alt = allele_freq_case + observation.prob_sample_alt;
 
@@ -77,8 +73,7 @@ impl LatentVariableModel {
         assert!(!prob_case.is_nan());
 
         // Step 3: total probability
-        let total = (observation.prob_mapping + prob_case)
-            .ln_add_exp(observation.prob_one_minus_mapping + prob_mismapped);
+        let total = (observation.prob_mapping + prob_case).ln_add_exp(observation.prob_mismapping);
         assert!(!total.is_nan());
         total
     }

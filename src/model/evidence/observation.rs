@@ -15,7 +15,7 @@ pub struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     pub prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
-    pub prob_one_minus_mapping: LogProb,
+    pub prob_mismapping: LogProb,
     /// Probability that the read/read-pair comes from the alternative allele.
     pub prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
@@ -29,7 +29,7 @@ pub struct Observation {
 impl Observation {
     pub fn new(
         prob_mapping: LogProb,
-        prob_one_minus_mapping: LogProb,
+        prob_mismapping: LogProb,
         prob_alt: LogProb,
         prob_ref: LogProb,
         prob_sample_alt: LogProb,
@@ -37,7 +37,7 @@ impl Observation {
     ) -> Self {
         Observation {
             prob_mapping: prob_mapping,
-            prob_one_minus_mapping: prob_one_minus_mapping,
+            prob_mismapping: prob_mismapping,
             prob_alt: prob_alt,
             prob_ref: prob_ref,
             prob_sample_alt: prob_sample_alt,
@@ -73,7 +73,7 @@ impl Serialize for Observation {
     {
         let mut s = serializer.serialize_struct("Observation", 3)?;
         s.serialize_field("prob_mapping", &self.prob_mapping)?;
-        s.serialize_field("prob_one_minus_mapping", &self.prob_one_minus_mapping)?;
+        s.serialize_field("prob_mismapping", &self.prob_mismapping)?;
         s.serialize_field("prob_alt", &self.prob_alt)?;
         s.serialize_field("prob_ref", &self.prob_ref)?;
         s.serialize_field("prob_sample_alt", &self.prob_sample_alt)?;
