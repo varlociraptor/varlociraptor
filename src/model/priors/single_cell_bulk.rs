@@ -245,14 +245,12 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                                         + pileup.case_likelihood(af_single_distorted, None)
                                         + prob_rho(af_single, n_single, k_s)
                                 }
-                            })
-                            .collect_vec(),
+                            }).collect_vec(),
                     );
                     let prob = p_bulk + p_single;
 
                     prob
-                })
-                .collect_vec(),
+                }).collect_vec(),
         );
 
         prob
@@ -291,12 +289,10 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                                     + pileup.case_likelihood(af_single_distorted, None)
                                     + prob_rho(af_single, n_single, k_s)
                             }
-                        })
-                        .collect_vec(),
+                        }).collect_vec(),
                 );
                 NotNaN::new(*p_single).expect("posterior probability is NaN")
-            })
-            .into_option()
+            }).into_option()
             .expect("prior has empty allele frequency spectrum");
 
         let n_bulk = self.adjust_n_b(pileup.control.len());
