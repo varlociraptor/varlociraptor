@@ -10,6 +10,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   - caching likelihood point estimates for reuse in different (two-dimensional) Events (see PRs [36](https://github.com/PROSIC/libprosic/pull/36) and [40](https://github.com/PROSIC/libprosic/pull/40))
   - [caching of `prob_rho()` function in the SingleCellBulkModel](https://github.com/PROSIC/libprosic/pull/46)
   - [minimize the number of `ln` operations performed, caching some values per program run, per pileup or per observation](https://github.com/PROSIC/libprosic/pull/48)
+- remove use of flamegraphing crates in favor of [perf flamegraphing](https://gist.github.com/dlaehnemann/df31787c41bd50c0fe223df07cf6eb89)
 - [minor bugfix for `ContinuousAlleleFreqs` ranges depicting points](https://github.com/PROSIC/libprosic/pull/47)
 - introduced `cargo fmt` use, including in continuous integration tests
 - [insert size estimation from data and handling as `alignment_properties`, removing the necessity to provide them for each run via command-line arguments](https://github.com/PROSIC/libprosic/pull/41)
