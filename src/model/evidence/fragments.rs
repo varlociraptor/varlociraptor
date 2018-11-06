@@ -177,8 +177,7 @@ impl IndelEvidence {
                             assert!(p.is_valid(), "bug: invalid probability {:?}", p);
                             Some(p)
                         }
-                    })
-                    .collect_vec(),
+                    }).collect_vec(),
             );
 
             expected_p_alt

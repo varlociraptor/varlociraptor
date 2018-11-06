@@ -177,8 +177,7 @@ pub fn collect_variants(
                         None
                     }
                 }
-            })
-            .collect_vec()
+            }).collect_vec()
     };
 
     Ok(variants)

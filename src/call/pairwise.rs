@@ -193,14 +193,6 @@ where
             }
         }
         i += 1;
-        if let Some(rid) = record.rid() {
-            info!(
-                "processing record {}: {}:{}",
-                i,
-                str::from_utf8(inbcf.header().rid2name(rid))?,
-                record.pos() + 1
-            );
-        }
 
         // translate to header of the writer
         outbcf.translate(&mut record);
