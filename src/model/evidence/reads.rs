@@ -157,17 +157,19 @@ impl IndelEvidence {
         // indels. But it should not be so large that the read can align outside of the breakpoint.
         let ref_window = (self.window as f64 * 1.5) as usize;
 
+        // read emission
+        let read_emission = ReadEmission::new(
+            &read_seq, read_qual, read_offset, read_end
+        );
+
         // ref allele
         let prob_ref = self.pairhmm.prob_related(
             &self.gap_params,
             &ReferenceEmissionParams {
                 ref_seq: ref_seq,
-                read_seq: &read_seq,
-                read_qual: read_qual,
-                read_offset: read_offset,
-                read_end: read_end,
                 ref_offset: breakpoint.saturating_sub(ref_window),
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
+                read_emission: &read_emission,
             },
         );
 
@@ -178,14 +180,11 @@ impl IndelEvidence {
                     &self.gap_params,
                     &DeletionEmissionParams {
                         ref_seq: ref_seq,
-                        read_seq: &read_seq,
-                        read_qual: read_qual,
-                        read_offset: read_offset,
-                        read_end: read_end,
                         ref_offset: start.saturating_sub(ref_window),
                         ref_end: cmp::min(start + ref_window, ref_seq.len()),
                         del_start: start,
                         del_len: variant.len() as usize,
+                        read_emission: &read_emission,
                     },
                 ),
                 &Variant::Insertion(ref ins_seq) => {
@@ -194,16 +193,13 @@ impl IndelEvidence {
                         &self.gap_params,
                         &InsertionEmissionParams {
                             ref_seq: ref_seq,
-                            read_seq: &read_seq,
-                            read_qual: read_qual,
-                            read_offset: read_offset,
-                            read_end: read_end,
                             ref_offset: start.saturating_sub(ref_window),
                             ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
                             ins_start: start,
                             ins_len: l,
                             ins_end: start + l,
                             ins_seq: ins_seq,
+                            read_emission: &read_emission,
                         },
                     )
                 }
@@ -267,18 +263,6 @@ impl IndelEvidence {
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
-}
-
-/// Calculate probability of read_base given ref_base.
-pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
-    let prob_miscall = prob_read_base_miscall(base_qual);
-
-    if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
-        prob_miscall.ln_one_minus_exp()
-    } else {
-        // TODO replace the second term with technology specific confusion matrix
-        prob_miscall + *PROB_CONFUSION
-    }
 }
 
 /// unpack miscall probability of read_base.
@@ -348,8 +332,7 @@ macro_rules! default_emission {
         #[inline]
         fn prob_emit_xy(&self, i: usize, j: usize) -> LogProb {
             let r = self.ref_base(i);
-            let j_ = self.project_j(j);
-            prob_read_base(self.read_seq[j_], r, self.read_qual[j_])
+            self.read_emission.prob_match_mismatch(j, r)
         }
 
         #[inline]
@@ -359,7 +342,7 @@ macro_rules! default_emission {
 
         #[inline]
         fn prob_emit_y(&self, j: usize) -> LogProb {
-            prob_read_base_miscall(self.read_qual[self.project_j(j)])
+            self.read_emission.prob_insertion(j)
         }
 
         #[inline]
@@ -369,31 +352,80 @@ macro_rules! default_emission {
 
         #[inline]
         fn len_y(&self) -> usize {
-            self.read_end - self.read_offset
+            self.read_emission.read_end - self.read_emission.read_offset
         }
     )
 }
 
+
+pub struct ReadEmission<'a> {
+    read_seq: &'a bam::record::Seq<'a>,
+    any_miscall: Vec<LogProb>,
+    no_miscall: Vec<LogProb>,
+    read_offset: usize,
+    read_end: usize
+}
+
+
+impl<'a> ReadEmission<'a> {
+    pub fn new(
+        read_seq: &'a bam::record::Seq<'a>,
+        qual: &[u8],
+        read_offset: usize,
+        read_end: usize
+    ) -> Self {
+        let mut any_miscall = vec![LogProb::ln_zero(); read_end - read_offset];
+        let mut no_miscall = any_miscall.clone();
+        for (j, j_) in (read_offset..read_end).enumerate() {
+            let prob_miscall = prob_read_base_miscall(qual[j_]);
+            any_miscall[j] = prob_miscall;
+            no_miscall[j] = prob_miscall.ln_one_minus_exp();
+        }
+        ReadEmission {
+            read_seq, any_miscall, no_miscall, read_offset, read_end
+        }
+    }
+
+    fn particular_miscall(&self, j: usize) -> LogProb {
+        self.any_miscall[j] + *PROB_CONFUSION
+    }
+
+    /// Calculate probability of read_base given ref_base.
+    pub fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> LogProb {
+        let read_base = self.read_seq[self.project_j(j)];
+
+        if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
+            self.no_miscall[j]
+        } else {
+            // TODO replace the second term with technology specific confusion matrix
+            self.particular_miscall(j)
+        }
+    }
+
+    pub fn prob_insertion(&self, j: usize) -> LogProb {
+        self.any_miscall[j]
+    }
+
+
+    #[inline]
+    fn project_j(&self, j: usize) -> usize {
+        j + self.read_offset
+    }
+}
+
+
 /// Emission parameters for PairHMM over reference allele.
 pub struct ReferenceEmissionParams<'a> {
     ref_seq: &'a [u8],
-    read_seq: &'a bam::record::Seq<'a>,
-    read_qual: &'a [u8],
-    read_offset: usize,
     ref_offset: usize,
-    read_end: usize,
     ref_end: usize,
+    read_emission: &'a ReadEmission<'a>,
 }
 
 impl<'a> ReferenceEmissionParams<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         self.ref_seq[i + self.ref_offset]
-    }
-
-    #[inline]
-    fn project_j(&self, j: usize) -> usize {
-        j + self.read_offset
     }
 }
 
@@ -404,14 +436,11 @@ impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
 /// Emission parameters for PairHMM over deletion allele.
 pub struct DeletionEmissionParams<'a> {
     ref_seq: &'a [u8],
-    read_seq: &'a bam::record::Seq<'a>,
-    read_qual: &'a [u8],
-    read_offset: usize,
     ref_offset: usize,
-    read_end: usize,
     ref_end: usize,
     del_start: usize,
     del_len: usize,
+    read_emission: &'a ReadEmission<'a>,
 }
 
 impl<'a> DeletionEmissionParams<'a> {
@@ -424,11 +453,6 @@ impl<'a> DeletionEmissionParams<'a> {
             self.ref_seq[i_ + self.del_len]
         }
     }
-
-    #[inline]
-    fn project_j(&self, j: usize) -> usize {
-        j + self.read_offset
-    }
 }
 
 impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
@@ -438,16 +462,13 @@ impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
 /// Emission parameters for PairHMM over insertion allele.
 pub struct InsertionEmissionParams<'a> {
     ref_seq: &'a [u8],
-    read_seq: &'a bam::record::Seq<'a>,
-    read_qual: &'a [u8],
-    read_offset: usize,
     ref_offset: usize,
-    read_end: usize,
     ref_end: usize,
     ins_start: usize,
     ins_end: usize,
     ins_len: usize,
     ins_seq: &'a [u8],
+    read_emission: &'a ReadEmission<'a>,
 }
 
 impl<'a> InsertionEmissionParams<'a> {
@@ -461,11 +482,6 @@ impl<'a> InsertionEmissionParams<'a> {
         } else {
             self.ins_seq[i_ - (self.ins_start + 1)]
         }
-    }
-
-    #[inline]
-    fn project_j(&self, j: usize) -> usize {
-        j + self.read_offset
     }
 }
 
