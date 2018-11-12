@@ -158,9 +158,7 @@ impl IndelEvidence {
         let ref_window = (self.window as f64 * 1.5) as usize;
 
         // read emission
-        let read_emission = ReadEmission::new(
-            &read_seq, read_qual, read_offset, read_end
-        );
+        let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
 
         // ref allele
         let prob_ref = self.pairhmm.prob_related(
@@ -265,7 +263,6 @@ lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
 }
 
-
 /// Calculate probability of read_base given ref_base.
 pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
     let prob_miscall = prob_read_base_miscall(base_qual);
@@ -277,7 +274,6 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
         prob_miscall + *PROB_CONFUSION
     }
 }
-
 
 /// unpack miscall probability of read_base.
 pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
@@ -371,22 +367,20 @@ macro_rules! default_emission {
     )
 }
 
-
 pub struct ReadEmission<'a> {
     read_seq: &'a bam::record::Seq<'a>,
     any_miscall: Vec<LogProb>,
     no_miscall: Vec<LogProb>,
     read_offset: usize,
-    read_end: usize
+    read_end: usize,
 }
-
 
 impl<'a> ReadEmission<'a> {
     pub fn new(
         read_seq: &'a bam::record::Seq<'a>,
         qual: &[u8],
         read_offset: usize,
-        read_end: usize
+        read_end: usize,
     ) -> Self {
         let mut any_miscall = vec![LogProb::ln_zero(); read_end - read_offset];
         let mut no_miscall = any_miscall.clone();
@@ -396,7 +390,11 @@ impl<'a> ReadEmission<'a> {
             no_miscall[j] = prob_miscall.ln_one_minus_exp();
         }
         ReadEmission {
-            read_seq, any_miscall, no_miscall, read_offset, read_end
+            read_seq,
+            any_miscall,
+            no_miscall,
+            read_offset,
+            read_end,
         }
     }
 
@@ -420,13 +418,11 @@ impl<'a> ReadEmission<'a> {
         self.any_miscall[j]
     }
 
-
     #[inline]
     fn project_j(&self, j: usize) -> usize {
         j + self.read_offset
     }
 }
-
 
 /// Emission parameters for PairHMM over reference allele.
 pub struct ReferenceEmissionParams<'a> {
