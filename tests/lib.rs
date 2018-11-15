@@ -306,7 +306,6 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
     thread::sleep(time::Duration::from_secs(1));
 }
 
-
 fn load_call(test: &str) -> bcf::Record {
     let basedir = basedir(test);
 
@@ -338,7 +337,6 @@ fn assert_call_number(test: &str, expected_calls: usize) {
     let calls = reader.records().map(|r| r.unwrap()).collect_vec();
     assert_eq!(calls.len(), expected_calls, "unexpected number of calls");
 }
-
 
 fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
     let basedir = basedir(test);
@@ -627,7 +625,6 @@ fn test_fdr_ev2_low_alpha() {
     control_fdr_ev("test_fdr_ev_2", "ABSENT", 0.001);
     assert_call_number("test_fdr_ev_2", 0);
 }
-
 
 #[test]
 fn test_sc_bulk() {
