@@ -306,6 +306,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
     thread::sleep(time::Duration::from_secs(1));
 }
 
+
 fn load_call(test: &str) -> bcf::Record {
     let basedir = basedir(test);
 
@@ -329,7 +330,17 @@ fn check_info_float(rec: &mut bcf::Record, tag: &[u8], truth: f32, maxerr: f32) 
     );
 }
 
-fn control_fdr_ev(test: &str, alpha: f64) {
+fn assert_call_number(test: &str, expected_calls: usize) {
+    let basedir = basedir(test);
+
+    let mut reader = bcf::Reader::from_path(format!("{}/calls.filtered.bcf", basedir)).unwrap();
+
+    let calls = reader.records().map(|r| r.unwrap()).collect_vec();
+    assert_eq!(calls.len(), expected_calls, "unexpected number of calls");
+}
+
+
+fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
     let basedir = basedir(test);
     let output = format!("{}/calls.filtered.bcf", basedir);
     cleanup_file(&output);
@@ -337,7 +348,7 @@ fn control_fdr_ev(test: &str, alpha: f64) {
         &format!("{}/calls.matched.bcf", basedir),
         Some(&output),
         &[libprosic::SimpleEvent {
-            name: "SOMATIC".to_owned(),
+            name: event_str.to_owned(),
         }],
         &libprosic::model::VariantType::Deletion(Some(1..30)),
         LogProb::from(Prob(alpha)),
@@ -601,15 +612,22 @@ fn test25() {
 
 #[test]
 fn test_fdr_ev1() {
-    control_fdr_ev("test_fdr_ev_1", 0.05);
-    //check_control_fdr("test_fdr_ev_1");
+    control_fdr_ev("test_fdr_ev_1", "SOMATIC", 0.05);
+    assert_call_number("test_fdr_ev_1", 974);
 }
 
 #[test]
 fn test_fdr_ev2() {
-    control_fdr_ev("test_fdr_ev_2", 0.05);
-    //check_control_fdr("test_fdr_ev_1");
+    control_fdr_ev("test_fdr_ev_2", "SOMATIC", 0.05);
+    assert_call_number("test_fdr_ev_2", 950);
 }
+
+#[test]
+fn test_fdr_ev2_low_alpha() {
+    control_fdr_ev("test_fdr_ev_2", "ABSENT", 0.001);
+    assert_call_number("test_fdr_ev_2", 0);
+}
+
 
 #[test]
 fn test_sc_bulk() {
