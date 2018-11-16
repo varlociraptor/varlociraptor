@@ -46,7 +46,10 @@ impl LatentVariableModel {
         assert!(!prob_control.is_nan());
 
         // Step 3: read comes from case sample and is correctly mapped
-        println!("{} {} {}", *prob_sample_alt_case, *observation.prob_sample_alt, *allele_freq_case);
+        println!(
+            "{} {} {}",
+            *prob_sample_alt_case, *observation.prob_sample_alt, *allele_freq_case
+        );
         let prob_case = self.purity.unwrap()
             + (prob_sample_alt_case + observation.prob_alt)
                 .ln_add_exp(prob_sample_alt_case.ln_one_minus_exp() + observation.prob_ref);
@@ -230,7 +233,7 @@ mod tests {
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(1.0).ln()),
         );
-        assert_relative_eq!(*lh, 0.5f64.ln(), epsilon=0.0000000001);
+        assert_relative_eq!(*lh, 0.5f64.ln(), epsilon = 0.0000000001);
     }
 
     #[test]
