@@ -61,14 +61,18 @@ where
             .collect_vec();
         let fdrs = bayesian::expected_fdr(&pep_dist);
 
-        // find the largest pep for which fdr <= alpha
-        // do not let peps with the same value cross the boundary
-        for i in (0..fdrs.len()).rev() {
-            if fdrs[i] <= alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
-                let pep = pep_dist[i];
+        if fdrs[0] > alpha {
+            threshold = Some(LogProb::ln_one());
+        } else {
+            // find the largest pep for which fdr <= alpha
+            // do not let peps with the same value cross the boundary
+            for i in (0..fdrs.len()).rev() {
+                if fdrs[i] <= alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
+                    let pep = pep_dist[i];
 
-                threshold = Some(pep.ln_one_minus_exp());
-                break;
+                    threshold = Some(pep.ln_one_minus_exp());
+                    break;
+                }
             }
         }
     }
