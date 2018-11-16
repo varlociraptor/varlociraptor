@@ -230,7 +230,7 @@ mod tests {
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(1.0).ln()),
         );
-        assert_relative_eq!(*lh, 0.5f64.ln());
+        assert_relative_eq!(*lh, 0.5f64.ln(), epsilon=0.0000000001);
     }
 
     #[test]

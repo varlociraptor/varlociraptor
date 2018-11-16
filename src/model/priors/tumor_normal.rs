@@ -339,9 +339,10 @@ mod tests {
             af_normal[0],
             model.normal_prior_prob(af_normal[0], &variant).exp()
         );
-        assert_eq!(
+        assert_relative_eq!(
             model.normal_prior_prob(af_normal[0], &variant).exp(),
-            normal_prior_prob
+            normal_prior_prob,
+            epsilon=0.000001
         );
         println!(
             "TNM.prior_prob(af_tumor.start = {}, af_normal[0] = {}): {}",
@@ -351,17 +352,19 @@ mod tests {
                 .prior_prob(af_tumor.start, af_normal[0], &variant)
                 .exp()
         );
-        assert_eq!(
+        assert_relative_eq!(
             model
                 .prior_prob(af_tumor.start, af_normal[0], &variant)
                 .exp(),
-            normal_prior_prob
+            normal_prior_prob,
+            epsilon=0.000001
         );
         let aft_full = model.allele_freqs().0;
         let afn_full = model.allele_freqs().1;
-        assert_eq!(
+        assert_relative_eq!(
             pileup.joint_prob(&af_tumor, &af_normal).exp(),
-            normal_prior_prob
+            normal_prior_prob,
+            epsilon=0.0000001
         );
         println!(
             "pileup.joint_prob(af_tumor, af_normal): {}",
@@ -376,9 +379,10 @@ mod tests {
             "pileup.posterior_prob: {}",
             pileup.posterior_prob(&af_tumor, &af_normal).exp()
         );
-        assert_eq!(
+        assert_relative_eq!(
             pileup.posterior_prob(&af_tumor, &af_normal).exp(),
-            0.9933008088509733
+            0.9933008088509733,
+            epsilon=0.00000001
         );
         assert_eq!(
             pileup.map_allele_freqs(),

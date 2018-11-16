@@ -629,8 +629,9 @@ mod tests {
         println!("  pileup.marginal_prob(): {}", p_m.exp());
         let p_sum = p_j
             .iter()
-            .fold(LogProb::ln_zero(), |sum, p| sum.ln_add_exp(p - p_m));
-        assert_relative_eq!(p_sum.exp(), 1.0, epsilon = 0.0000000001);
+            .fold(LogProb::ln_zero(), |sum, p| sum.ln_add_exp(p - p_m))
+            .cap_numerical_overshoot(0.000001);
+        assert_relative_eq!(p_sum.exp(), 1.0, epsilon = 0.000001);
     }
 
     fn bulk_test_range_fraction<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>>(
@@ -654,7 +655,7 @@ mod tests {
             r_b,
             p_j.exp()
         );
-        assert_relative_eq!((p_j - p_m).exp(), fraction, epsilon = 0.0000000001);
+        assert_relative_eq!((p_j - p_m).exp(), fraction, epsilon = 0.000001);
     }
 
     // tests that bulk range discretization includes and excludes the right discrete values per
@@ -853,7 +854,7 @@ mod tests {
         assert_relative_eq!(
             pileup.joint_prob(&af_single, &af_bulk).exp(),
             0.00019473983947767667,
-            epsilon = 0.000000000000000001
+            epsilon = 0.0000001
         );
         println!(
             "SCBM het: pileup.marginal_prob: {}",
@@ -862,7 +863,7 @@ mod tests {
         assert_relative_eq!(
             pileup.marginal_prob().exp(),
             0.00027403381880824275,
-            epsilon = 0.000000000000000001
+            epsilon = 0.00000001
         );
         println!(
             "SCBM het: pileup.posterior_prob: {}",
@@ -871,7 +872,7 @@ mod tests {
         assert_relative_eq!(
             pileup.posterior_prob(&af_single, &af_bulk).exp(),
             0.710641629287177,
-            epsilon = 0.000000000000001
+            epsilon = 0.00001
         );
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM het: pileup.map_allele_freqs: ({} {})", sc, blk);
@@ -913,7 +914,7 @@ mod tests {
         assert_relative_eq!(
             pileup.joint_prob(&af_single, &af_bulk).exp(),
             1.2409982197541034,
-            epsilon = 0.0000000000000001
+            epsilon = 0.00001
         );
         println!(
             "SCBM hom ref: pileup.marginal_prob: {}",
@@ -922,7 +923,7 @@ mod tests {
         assert_relative_eq!(
             pileup.marginal_prob().exp(),
             1.719859092473503,
-            epsilon = 0.000000000000001
+            epsilon = 0.00001
         );
         println!(
             "SCBM hom ref: pileup.posterior_prob: {}",
@@ -931,7 +932,7 @@ mod tests {
         assert_relative_eq!(
             pileup.posterior_prob(&af_single, &af_bulk).exp(),
             0.7215697060212639,
-            epsilon = 0.0000000000000001
+            epsilon = 0.000001
         );
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM hom ref: pileup.map_allele_freqs: ({} {})", sc, blk);
@@ -973,7 +974,7 @@ mod tests {
         assert_relative_eq!(
             pileup.joint_prob(&af_single, &af_bulk).exp(),
             1.2409982197541034,
-            epsilon = 0.0000000000000001
+            epsilon = 0.000001
         );
         println!(
             "SCBM hom alt: pileup.marginal_prob: {}",
@@ -982,7 +983,7 @@ mod tests {
         assert_relative_eq!(
             pileup.marginal_prob().exp(),
             1.7198590924735035,
-            epsilon = 0.0000000000000001
+            epsilon = 0.0001
         );
         println!(
             "SCBM hom alt: pileup.posterior_prob: {}",
@@ -991,7 +992,7 @@ mod tests {
         assert_relative_eq!(
             pileup.posterior_prob(&af_single, &af_bulk).exp(),
             0.7215697060212638,
-            epsilon = 0.0000000000000001
+            epsilon = 0.00001
         );
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk);
@@ -1033,7 +1034,7 @@ mod tests {
         assert_relative_eq!(
             pileup.joint_prob(&af_single, &af_bulk).exp(),
             0.06996173990713889,
-            epsilon = 0.0000000000000001
+            epsilon = 0.0000001
         );
         println!(
             "SCBM hom alt: pileup.marginal_prob: {}",
@@ -1042,7 +1043,7 @@ mod tests {
         assert_relative_eq!(
             pileup.marginal_prob().exp(),
             0.2267813569619291,
-            epsilon = 0.0000000000000001
+            epsilon = 0.00001
         );
         println!(
             "SCBM hom alt: pileup.posterior_prob: {}",
@@ -1051,7 +1052,7 @@ mod tests {
         assert_relative_eq!(
             pileup.posterior_prob(&af_single, &af_bulk).exp(),
             0.30849863870813554,
-            epsilon = 0.00000000000000001
+            epsilon = 0.000001
         );
         let (sc, blk) = pileup.map_allele_freqs();
         println!("SCBM hom alt: pileup.map_allele_freqs: ({} {})", sc, blk);

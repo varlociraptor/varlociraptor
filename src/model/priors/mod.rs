@@ -155,7 +155,7 @@ mod tests {
         let model = InfiniteSitesNeutralVariationModel::new(1, ploidy, het);
         assert_relative_eq!(model.prior_prob(1).exp(), 0.001);
         assert_relative_eq!(model.prior_prob(2).exp(), 0.0005);
-        assert_relative_eq!(model.prior_prob(0).exp(), 0.9985);
+        assert_relative_eq!(model.prior_prob(0).exp(), 0.9985, epsilon=0.00001);
     }
 
     #[test]
