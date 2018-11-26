@@ -1,7 +1,7 @@
 // use std::f64;
 //
 
-// use ordered_float::NotNaN;
+// use ordered_float::NotNan;
 // use bio::stats::{LogProb, Prob};
 // use bio::stats::combinatorics::combinations;
 //
@@ -93,7 +93,7 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for NormalNormalModel {
         fn calc_map<L: Fn(AlleleFreq, AlleleFreq) -> LogProb>(likelihood: &L, afs: &DiscreteAlleleFreqs) -> AlleleFreq {
             let (_, map) = afs.iter().minmax_by_key(|&af| {
                 let p = likelihood(*af, AlleleFreq(0.0));
-                NotNaN::new(*p).expect("probability is NaN")
+                NotNan::new(*p).expect("probability is NaN")
             }).into_option().expect("prior has empty allele frequency spectrum");
             *map
         }

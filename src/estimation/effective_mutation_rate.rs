@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use itertools::Itertools;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 use rusty_machine::learning::lin_reg::LinRegressor;
 use rusty_machine::learning::SupModel;
 use rusty_machine::linalg::{Matrix, Vector};
@@ -26,7 +26,7 @@ pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Es
     for f in allele_frequencies {
         // count occurrences of 1 / f
         *observations
-            .entry(NotNaN::new(1.0).unwrap() / f)
+            .entry(NotNan::new(1.0).unwrap() / f)
             .or_insert(0) += 1u64;
     }
     let reciprocal_freqs = observations.keys().map(|f| **f).collect_vec();

@@ -7,7 +7,7 @@ use std::f64::consts;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 use rgsl::error::erfc;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rust_htslib::bam;
@@ -329,7 +329,7 @@ impl Sample {
             let max_prob = LogProb(
                 *observations
                     .iter()
-                    .map(|obs| cmp::max(NotNaN::from(obs.prob_ref), NotNaN::from(obs.prob_alt)))
+                    .map(|obs| cmp::max(NotNan::from(obs.prob_ref), NotNan::from(obs.prob_alt)))
                     .max()
                     .unwrap(),
             );

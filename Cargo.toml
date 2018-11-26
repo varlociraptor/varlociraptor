@@ -9,7 +9,7 @@ license = "GPL-3.0"
 include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE"]
 
 [dependencies]
-bio = "0.23"
+bio = { git = "https://github.com/rust-bio/rust-bio.git", branch = "banded-pairhmm" }
 log = "0.3"
 rust-htslib = "0.22"
 GSL = "1.0"
@@ -17,12 +17,11 @@ itertools = "0.6"
 itertools-num = "0.1"
 approx = "0.1"
 rusty-machine="0.4"
-ordered-float = "0.5"
+ordered-float = "1.0"
 ndarray = "0.6"
 quick-error = "1.2"
 vec_map = "0.8"
 regex = "0.2"
-
 serde = "1"
 serde_derive = "1"
 csv = "1.0.0-beta.5"

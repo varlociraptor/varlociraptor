@@ -8,7 +8,7 @@ use std::u32;
 use bio::stats::PHREDProb;
 use csv;
 use itertools::Itertools;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
 use statrs::statistics::{OrderStatistics, Statistics};
 
@@ -40,7 +40,7 @@ impl AlignmentProperties {
     pub fn estimate<R: bam::Read>(bam: &mut R) -> Result<Self, Box<Error>> {
         let mut record = bam::Record::new();
         let mut tlens = Vec::new();
-        let mut max_softclip = NotNaN::new(0.0).unwrap();
+        let mut max_softclip = NotNan::new(0.0).unwrap();
         let mut max_del_cigar_len = 0;
         let mut max_ins_cigar_len = 0;
         let mut max_mapq = 0;
@@ -65,7 +65,7 @@ impl AlignmentProperties {
 
             max_mapq = cmp::max(max_mapq, record.mapq());
 
-            let norm = |j| NotNaN::new(j as f64 / record.seq().len() as f64).unwrap();
+            let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
 
             for c in record.cigar().iter() {
                 match c {

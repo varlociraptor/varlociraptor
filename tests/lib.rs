@@ -335,7 +335,11 @@ fn assert_call_number(test: &str, expected_calls: usize) {
     let mut reader = bcf::Reader::from_path(format!("{}/calls.filtered.bcf", basedir)).unwrap();
 
     let calls = reader.records().map(|r| r.unwrap()).collect_vec();
-    assert_eq!(calls.len(), expected_calls, "unexpected number of calls");
+    // allow one more or less, in order to be robust to numeric fluctuations
+    assert!(
+        (calls.len() as i32 - expected_calls as i32).abs() <= 1,
+        "unexpected number of calls"
+    );
 }
 
 fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
@@ -604,7 +608,7 @@ fn test25() {
     let mut call = load_call("test25");
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 1973.05, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 1981.247, 0.01);
     check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.01);
 }
 

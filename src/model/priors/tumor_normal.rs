@@ -3,7 +3,7 @@ use std::f64;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use itertools_num::linspace;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 
 use model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
 
@@ -219,7 +219,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
                 let p = self.prior_prob(af_tumor, af_normal, &pileup.variant)
                     + pileup.case_likelihood(af_tumor, Some(af_normal))
                     + pileup.control_likelihood(af_normal, None);
-                NotNaN::new(*p).expect("posterior probability is NaN")
+                NotNan::new(*p).expect("posterior probability is NaN")
             }).into_option()
             .expect("prior has empty allele frequency spectrum");
 
@@ -339,9 +339,10 @@ mod tests {
             af_normal[0],
             model.normal_prior_prob(af_normal[0], &variant).exp()
         );
-        assert_eq!(
+        assert_relative_eq!(
             model.normal_prior_prob(af_normal[0], &variant).exp(),
-            normal_prior_prob
+            normal_prior_prob,
+            epsilon = 0.000001
         );
         println!(
             "TNM.prior_prob(af_tumor.start = {}, af_normal[0] = {}): {}",
@@ -351,17 +352,19 @@ mod tests {
                 .prior_prob(af_tumor.start, af_normal[0], &variant)
                 .exp()
         );
-        assert_eq!(
+        assert_relative_eq!(
             model
                 .prior_prob(af_tumor.start, af_normal[0], &variant)
                 .exp(),
-            normal_prior_prob
+            normal_prior_prob,
+            epsilon = 0.000001
         );
         let aft_full = model.allele_freqs().0;
         let afn_full = model.allele_freqs().1;
-        assert_eq!(
+        assert_relative_eq!(
             pileup.joint_prob(&af_tumor, &af_normal).exp(),
-            normal_prior_prob
+            normal_prior_prob,
+            epsilon = 0.0000001
         );
         println!(
             "pileup.joint_prob(af_tumor, af_normal): {}",
@@ -376,9 +379,10 @@ mod tests {
             "pileup.posterior_prob: {}",
             pileup.posterior_prob(&af_tumor, &af_normal).exp()
         );
-        assert_eq!(
+        assert_relative_eq!(
             pileup.posterior_prob(&af_tumor, &af_normal).exp(),
-            0.9933008088509733
+            0.9933008088509733,
+            epsilon = 0.00000001
         );
         assert_eq!(
             pileup.map_allele_freqs(),

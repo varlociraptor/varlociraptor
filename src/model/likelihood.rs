@@ -54,7 +54,6 @@ impl LatentVariableModel {
         // Step 4: total probability
         let total = (observation.prob_mapping + prob_control.ln_add_exp(prob_case))
             .ln_add_exp(observation.prob_mismapping);
-        //println!("afs {}:{}, case {:?} control {:?} total {:?}", allele_freq_case, allele_freq_control, prob_case, prob_control, total);
         assert!(!total.is_nan());
         total
     }
@@ -229,7 +228,7 @@ mod tests {
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(1.0).ln()),
         );
-        assert_relative_eq!(*lh, 0.5f64.ln());
+        assert_relative_eq!(*lh, 0.5f64.ln(), epsilon = 0.0000000001);
     }
 
     #[test]

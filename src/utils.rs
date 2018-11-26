@@ -6,7 +6,7 @@ use std::str;
 use bio::io::fasta;
 use bio::stats::{LogProb, PHREDProb};
 use itertools::Itertools;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf};
 
@@ -271,7 +271,7 @@ pub fn collect_prob_dist<E: Event>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: &model::VariantType,
-) -> Result<Vec<NotNaN<f64>>, Box<Error>> {
+) -> Result<Vec<NotNan<f64>>, Box<Error>> {
     let mut record = calls.empty_record();
     let mut prob_dist = Vec::new();
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
@@ -286,7 +286,7 @@ pub fn collect_prob_dist<E: Event>(
 
         for p in utils::tags_prob_sum(&mut record, &tags, &vartype)? {
             if let Some(p) = p {
-                prob_dist.push(NotNaN::new(*p)?);
+                prob_dist.push(NotNan::new(*p)?);
             }
         }
     }
