@@ -336,7 +336,10 @@ fn assert_call_number(test: &str, expected_calls: usize) {
 
     let calls = reader.records().map(|r| r.unwrap()).collect_vec();
     // allow one more or less, in order to be robust to numeric fluctuations
-    assert!((calls.len() as i32 - expected_calls as i32).abs() <= 1, "unexpected number of calls");
+    assert!(
+        (calls.len() as i32 - expected_calls as i32).abs() <= 1,
+        "unexpected number of calls"
+    );
 }
 
 fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
