@@ -1,6 +1,6 @@
 use bio::stats::LogProb;
 use itertools::Itertools;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 use statrs::function::beta::ln_beta;
 use statrs::function::factorial::ln_binomial;
 
@@ -291,7 +291,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                             }
                         }).collect_vec(),
                 );
-                NotNaN::new(*p_single).expect("posterior probability is NaN")
+                NotNan::new(*p_single).expect("posterior probability is NaN")
             }).into_option()
             .expect("prior has empty allele frequency spectrum");
 
@@ -302,7 +302,7 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
             .minmax_by_key(|af_bulk| {
                 let p_bulk = self.prior_bulk(*af_bulk, &pileup.variant)
                     + pileup.control_likelihood(*af_bulk, None);
-                NotNaN::new(*p_bulk).expect("posterior probability is NaN")
+                NotNan::new(*p_bulk).expect("posterior probability is NaN")
             }).into_option()
             .expect("prior has empty allele frequency spectrum");
 

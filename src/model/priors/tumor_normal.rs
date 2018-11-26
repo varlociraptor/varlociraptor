@@ -3,7 +3,7 @@ use std::f64;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use itertools_num::linspace;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 
 use model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
 
@@ -219,7 +219,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for TumorNormalModel 
                 let p = self.prior_prob(af_tumor, af_normal, &pileup.variant)
                     + pileup.case_likelihood(af_tumor, Some(af_normal))
                     + pileup.control_likelihood(af_normal, None);
-                NotNaN::new(*p).expect("posterior probability is NaN")
+                NotNan::new(*p).expect("posterior probability is NaN")
             }).into_option()
             .expect("prior has empty allele frequency spectrum");
 

@@ -169,6 +169,7 @@ impl IndelEvidence {
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                 read_emission: &read_emission,
             },
+            None,
         );
 
         // alt allele
@@ -184,6 +185,7 @@ impl IndelEvidence {
                         del_len: variant.len() as usize,
                         read_emission: &read_emission,
                     },
+                    None,
                 ),
                 &Variant::Insertion(ref ins_seq) => {
                     let l = ins_seq.len() as usize;
@@ -199,6 +201,7 @@ impl IndelEvidence {
                             ins_seq: ins_seq,
                             read_emission: &read_emission,
                         },
+                        None,
                     )
                 }
                 _ => {
@@ -340,7 +343,7 @@ impl pairhmm::StartEndGapParameters for IndelGapParams {
 macro_rules! default_emission {
     () => (
         #[inline]
-        fn prob_emit_xy(&self, i: usize, j: usize) -> LogProb {
+        fn prob_emit_xy(&self, i: usize, j: usize) -> pairhmm::XYEmission {
             let r = self.ref_base(i);
             self.read_emission.prob_match_mismatch(j, r)
         }
@@ -403,14 +406,14 @@ impl<'a> ReadEmission<'a> {
     }
 
     /// Calculate probability of read_base given ref_base.
-    pub fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> LogProb {
+    pub fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> pairhmm::XYEmission {
         let read_base = self.read_seq[self.project_j(j)];
 
         if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
-            self.no_miscall[j]
+            pairhmm::XYEmission::Match(self.no_miscall[j])
         } else {
             // TODO replace the second term with technology specific confusion matrix
-            self.particular_miscall(j)
+            pairhmm::XYEmission::Mismatch(self.particular_miscall(j))
         }
     }
 

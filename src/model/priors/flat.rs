@@ -1,7 +1,7 @@
 use bio::stats::LogProb;
 use itertools::Itertools;
 use itertools_num::linspace;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 
 use model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
 
@@ -72,7 +72,7 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
                 .iter()
                 .minmax_by_key(|&af| {
                     let p = likelihood(*af);
-                    NotNaN::new(*p).expect("probability is NaN")
+                    NotNan::new(*p).expect("probability is NaN")
                 }).into_option()
                 .expect("prior has empty allele frequency spectrum");
             *map
@@ -196,7 +196,7 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
                 let af_tumor = AlleleFreq(af_tumor);
                 let p = pileup.case_likelihood(af_tumor, Some(af_normal))
                     + pileup.control_likelihood(af_normal, None);
-                NotNaN::new(*p).expect("posterior probability is NaN")
+                NotNan::new(*p).expect("posterior probability is NaN")
             }).into_option()
             .expect("prior has empty allele frequency spectrum");
 

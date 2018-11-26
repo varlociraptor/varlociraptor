@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, Range};
 
 use itertools::Itertools;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 
 pub mod evidence;
 pub mod likelihood;
@@ -19,11 +19,11 @@ use bio::stats::LogProb;
 use model::evidence::Observation;
 use model::sample::Sample;
 
-pub type AlleleFreq = NotNaN<f64>;
+pub type AlleleFreq = NotNan<f64>;
 
 #[allow(non_snake_case)]
 pub fn AlleleFreq(af: f64) -> AlleleFreq {
-    NotNaN::new(af).unwrap()
+    NotNan::new(af).unwrap()
 }
 
 pub trait AlleleFreqs: Debug {}

@@ -2,7 +2,7 @@
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools
 use itertools_num::linspace;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 
 use priors::{PairModel, TumorNormalModel, InfiniteSitesNeutralVariationModel};
 use priors::TrioModel;
@@ -175,7 +175,7 @@ impl TrioModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs, DiscreteAlleleFreqs
                         likelihood_relapse(af_relapse, af_normal) +
                         likelihood_normal(af_normal, AlleleFreq(0.0));
                 //println!("af {} vs {} = {} (prior={} tumor={} normal={})", *af_tumor, af_normal, *p, *self.prior_prob(af_tumor, af_normal, variant), *likelihood_tumor(af_tumor, af_normal), *likelihood_normal(af_normal, AlleleFreq(0.0)));
-                NotNaN::new(*p).expect("posterior probability is NaN")
+                NotNan::new(*p).expect("posterior probability is NaN")
             }
         ).into_option().expect("prior has empty allele frequency spectrum");
 
