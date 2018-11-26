@@ -595,7 +595,7 @@ fn test25() {
     let mut call = load_call("test25");
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC", 1973.05, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC", 1981.247, 0.01);
     check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.01);
 }
 

@@ -6,6 +6,7 @@ use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 
 use bio::stats::pairhmm;
+use bio::pattern_matching::myers::Myers;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
@@ -160,48 +161,61 @@ impl IndelEvidence {
         // read emission
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
 
+        let edit_dist = EditDistanceEstimation::new(
+            (read_offset..read_end).map(|i| read_seq[i])
+        );
+
+
         // ref allele
-        let prob_ref = self.pairhmm.prob_related(
-            &self.gap_params,
-            &ReferenceEmissionParams {
+        let prob_ref = {
+            let ref_params = ReferenceEmissionParams {
                 ref_seq: ref_seq,
                 ref_offset: breakpoint.saturating_sub(ref_window),
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                 read_emission: &read_emission,
-            },
-            None,
-        );
+            };
+
+            self.pairhmm.prob_related(
+                &self.gap_params,
+                &ref_params,
+                Some(edit_dist.estimate_upper_bound(&ref_params)),
+            )
+        };
 
         // alt allele
         let prob_alt = if overlap {
             match variant {
-                &Variant::Deletion(_) => self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &DeletionEmissionParams {
+                &Variant::Deletion(_) => {
+                    let p = DeletionEmissionParams {
                         ref_seq: ref_seq,
                         ref_offset: start.saturating_sub(ref_window),
                         ref_end: cmp::min(start + ref_window, ref_seq.len()),
                         del_start: start,
                         del_len: variant.len() as usize,
                         read_emission: &read_emission,
-                    },
-                    None,
-                ),
-                &Variant::Insertion(ref ins_seq) => {
-                    let l = ins_seq.len() as usize;
+                    };
                     self.pairhmm.prob_related(
                         &self.gap_params,
-                        &InsertionEmissionParams {
-                            ref_seq: ref_seq,
-                            ref_offset: start.saturating_sub(ref_window),
-                            ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
-                            ins_start: start,
-                            ins_len: l,
-                            ins_end: start + l,
-                            ins_seq: ins_seq,
-                            read_emission: &read_emission,
-                        },
-                        None,
+                        &p,
+                        Some(edit_dist.estimate_upper_bound(&p)),
+                    )
+                },
+                &Variant::Insertion(ref ins_seq) => {
+                    let l = ins_seq.len() as usize;
+                    let p = InsertionEmissionParams {
+                        ref_seq: ref_seq,
+                        ref_offset: start.saturating_sub(ref_window),
+                        ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
+                        ins_start: start,
+                        ins_len: l,
+                        ins_end: start + l,
+                        ins_seq: ins_seq,
+                        read_emission: &read_emission,
+                    };
+                    self.pairhmm.prob_related(
+                        &self.gap_params,
+                        &p,
+                        Some(edit_dist.estimate_upper_bound(&p)),
                     )
                 }
                 _ => {
@@ -427,6 +441,10 @@ impl<'a> ReadEmission<'a> {
     }
 }
 
+pub trait RefBaseEmission {
+    fn ref_base(&self, i: usize) -> u8;
+}
+
 /// Emission parameters for PairHMM over reference allele.
 pub struct ReferenceEmissionParams<'a> {
     ref_seq: &'a [u8],
@@ -435,7 +453,7 @@ pub struct ReferenceEmissionParams<'a> {
     read_emission: &'a ReadEmission<'a>,
 }
 
-impl<'a> ReferenceEmissionParams<'a> {
+impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         self.ref_seq[i + self.ref_offset]
@@ -456,7 +474,7 @@ pub struct DeletionEmissionParams<'a> {
     read_emission: &'a ReadEmission<'a>,
 }
 
-impl<'a> DeletionEmissionParams<'a> {
+impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -484,7 +502,7 @@ pub struct InsertionEmissionParams<'a> {
     read_emission: &'a ReadEmission<'a>,
 }
 
-impl<'a> InsertionEmissionParams<'a> {
+impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -500,6 +518,32 @@ impl<'a> InsertionEmissionParams<'a> {
 
 impl<'a> pairhmm::EmissionParameters for InsertionEmissionParams<'a> {
     default_emission!();
+}
+
+pub struct EditDistanceEstimation {
+    myers: Myers<u128>,
+}
+
+impl EditDistanceEstimation {
+    /// Create new instance.
+    ///
+    /// # Arguments
+    /// * `read_seq` - read sequence in window (may not exceed 128 bases).
+    pub fn new<P>(read_seq: P) -> Self
+    where
+        P: Iterator<Item=u8> + DoubleEndedIterator + ExactSizeIterator
+    {
+        EditDistanceEstimation {
+            myers: Myers::new(read_seq.rev())
+        }
+    }
+    /// Returns end position with minimal edit distance as a tuple.
+    pub fn estimate_upper_bound<E: pairhmm::EmissionParameters + RefBaseEmission>(
+        &self, emission_params: &E
+    ) -> usize {
+        let ref_seq = (0..emission_params.len_x()).rev().map(|i| emission_params.ref_base(i));
+        self.myers.find_best_end(ref_seq).1 as usize * 2
+    }
 }
 
 #[cfg(test)]
