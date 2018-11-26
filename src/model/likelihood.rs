@@ -46,10 +46,6 @@ impl LatentVariableModel {
         assert!(!prob_control.is_nan());
 
         // Step 3: read comes from case sample and is correctly mapped
-        println!(
-            "{} {} {}",
-            *prob_sample_alt_case, *observation.prob_sample_alt, *allele_freq_case
-        );
         let prob_case = self.purity.unwrap()
             + (prob_sample_alt_case + observation.prob_alt)
                 .ln_add_exp(prob_sample_alt_case.ln_one_minus_exp() + observation.prob_ref);
@@ -58,7 +54,6 @@ impl LatentVariableModel {
         // Step 4: total probability
         let total = (observation.prob_mapping + prob_control.ln_add_exp(prob_case))
             .ln_add_exp(observation.prob_mismapping);
-        //println!("afs {}:{}, case {:?} control {:?} total {:?}", allele_freq_case, allele_freq_control, prob_case, prob_control, total);
         assert!(!total.is_nan());
         total
     }
