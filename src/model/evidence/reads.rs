@@ -5,8 +5,8 @@ use bio::stats::{LogProb, PHREDProb, Prob};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 
-use bio::stats::pairhmm;
 use bio::pattern_matching::myers::Myers;
+use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
@@ -161,10 +161,7 @@ impl IndelEvidence {
         // read emission
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
 
-        let edit_dist = EditDistanceEstimation::new(
-            (read_offset..read_end).map(|i| read_seq[i])
-        );
-
+        let edit_dist = EditDistanceEstimation::new((read_offset..read_end).map(|i| read_seq[i]));
 
         // ref allele
         let prob_ref = {
@@ -199,7 +196,7 @@ impl IndelEvidence {
                         &p,
                         Some(edit_dist.estimate_upper_bound(&p)),
                     )
-                },
+                }
                 &Variant::Insertion(ref ins_seq) => {
                     let l = ins_seq.len() as usize;
                     let p = InsertionEmissionParams {
@@ -531,17 +528,20 @@ impl EditDistanceEstimation {
     /// * `read_seq` - read sequence in window (may not exceed 128 bases).
     pub fn new<P>(read_seq: P) -> Self
     where
-        P: Iterator<Item=u8> + DoubleEndedIterator + ExactSizeIterator
+        P: Iterator<Item = u8> + DoubleEndedIterator + ExactSizeIterator,
     {
         EditDistanceEstimation {
-            myers: Myers::new(read_seq.rev())
+            myers: Myers::new(read_seq.rev()),
         }
     }
     /// Returns end position with minimal edit distance as a tuple.
     pub fn estimate_upper_bound<E: pairhmm::EmissionParameters + RefBaseEmission>(
-        &self, emission_params: &E
+        &self,
+        emission_params: &E,
     ) -> usize {
-        let ref_seq = (0..emission_params.len_x()).rev().map(|i| emission_params.ref_base(i));
+        let ref_seq = (0..emission_params.len_x())
+            .rev()
+            .map(|i| emission_params.ref_base(i));
         self.myers.find_best_end(ref_seq).1 as usize * 2
     }
 }
