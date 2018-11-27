@@ -361,22 +361,14 @@ impl Sample {
         chrom_seq: &[u8],
     ) -> Result<Option<Observation>, Box<Error>> {
         let mut evidence: RefMut<evidence::reads::AbstractReadEvidence> = match variant {
-            &Variant::Deletion(_) | &Variant::Insertion(_) => {
-                self.indel_read_evidence
-                    .borrow_mut()
-            },
-            &Variant::SNV(_) => {
-                self.snv_read_evidence
-                    .borrow_mut()
-            }
-            &Variant::None => {
-                self.none_read_evidence.borrow_mut()
-            }
+            &Variant::Deletion(_) | &Variant::Insertion(_) => self.indel_read_evidence.borrow_mut(),
+            &Variant::SNV(_) => self.snv_read_evidence.borrow_mut(),
+            &Variant::None => self.none_read_evidence.borrow_mut(),
         };
 
-        if let Some((prob_ref, prob_alt)) = evidence.prob(
-            record, cigar, start, variant, chrom_seq
-        )? {
+        if let Some((prob_ref, prob_alt)) =
+            evidence.prob(record, cigar, start, variant, chrom_seq)?
+        {
             let (prob_mapping, prob_mismapping) = evidence.prob_mapping_mismapping(record);
 
             let prob_sample_alt = self
@@ -427,7 +419,8 @@ impl Sample {
             Ok(self
                 .indel_read_evidence
                 .borrow_mut()
-                .prob(record, cigar, start, variant, chrom_seq)?.unwrap())
+                .prob(record, cigar, start, variant, chrom_seq)?
+                .unwrap())
         };
 
         let left_cigar = left_record.cigar_cached().unwrap();
@@ -683,7 +676,8 @@ mod tests {
                 .indel_read_evidence
                 .borrow_mut()
                 .prob(&rec, rec.cigar_cached().unwrap(), start, &variant, &ref_seq)
-                .unwrap().unwrap();
+                .unwrap()
+                .unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar_cached());
             assert_relative_eq!(*prob_ref, probs_ref[i], epsilon = 0.1);

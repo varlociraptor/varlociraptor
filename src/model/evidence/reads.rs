@@ -10,7 +10,6 @@ use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
-
 pub trait AbstractReadEvidence {
     /// Calculate probability for reference and alternative allele.
     fn prob(
@@ -32,7 +31,6 @@ pub trait AbstractReadEvidence {
     }
 }
 
-
 pub struct NoneEvidence;
 
 impl NoneEvidence {
@@ -41,9 +39,7 @@ impl NoneEvidence {
     }
 }
 
-
 impl AbstractReadEvidence for NoneEvidence {
-
     fn prob(
         &mut self,
         record: &bam::Record,
@@ -76,16 +72,13 @@ impl AbstractReadEvidence for NoneEvidence {
     }
 }
 
-
 pub struct SNVEvidence;
-
 
 impl SNVEvidence {
     pub fn new() -> Self {
         SNVEvidence
     }
 }
-
 
 impl AbstractReadEvidence for SNVEvidence {
     fn prob(
@@ -114,7 +107,6 @@ impl AbstractReadEvidence for SNVEvidence {
         }
     }
 }
-
 
 /// Calculate read evindence for an indel.
 pub struct IndelEvidence {
