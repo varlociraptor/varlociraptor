@@ -10,7 +10,6 @@ use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
-
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
 /// correctly and the event that it maps incorrectly.
 fn prob_mapping_mismapping(record: &bam::Record) -> (LogProb, LogProb) {
@@ -18,7 +17,6 @@ fn prob_mapping_mismapping(record: &bam::Record) -> (LogProb, LogProb) {
     let prob_mapping = prob_mismapping.ln_one_minus_exp();
     (prob_mapping, prob_mismapping)
 }
-
 
 pub trait AbstractReadEvidence {
     /// Calculate probability for reference and alternative allele.
