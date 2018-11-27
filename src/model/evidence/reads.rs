@@ -10,6 +10,16 @@ use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
+
+/// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
+/// correctly and the event that it maps incorrectly.
+fn prob_mapping_mismapping(record: &bam::Record) -> (LogProb, LogProb) {
+    let prob_mismapping = LogProb::from(PHREDProb(record.mapq() as f64));
+    let prob_mapping = prob_mismapping.ln_one_minus_exp();
+    (prob_mapping, prob_mismapping)
+}
+
+
 pub trait AbstractReadEvidence {
     /// Calculate probability for reference and alternative allele.
     fn prob(
@@ -22,12 +32,8 @@ pub trait AbstractReadEvidence {
     ) -> Result<Option<(LogProb, LogProb)>, Box<Error>>;
 
     /// Calculate mapping and mismapping probability of given record.
-    /// By default, convert MAPQ (from read mapper) to LogProb for the event that the read maps
-    /// correctly and the event that it maps incorrectly.
     fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
-        let prob_mismapping = LogProb::from(PHREDProb(record.mapq() as f64));
-        let prob_mapping = prob_mismapping.ln_one_minus_exp();
-        (prob_mapping, prob_mismapping)
+        prob_mapping_mismapping(record)
     }
 }
 
@@ -300,7 +306,7 @@ impl AbstractReadEvidence for IndelEvidence {
     /// Calculate mapping and mismapping probability of given record.
     fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
         if self.use_mapq {
-            AbstractReadEvidence::prob_mapping_mismapping(self, record)
+            prob_mapping_mismapping(record)
         } else {
             // Only penalize reads with mapq 0, all others treat the same, by giving them the
             // maximum observed mapping quality.
