@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::cmp;
 use std::collections::{vec_deque, HashMap, VecDeque};
 use std::error::Error;
@@ -17,6 +17,7 @@ use rust_htslib::bam::Read;
 use estimation::alignment_properties;
 use model;
 use model::evidence;
+use model::evidence::reads::AbstractReadEvidence;
 use model::evidence::{Evidence, Observation};
 use model::Variant;
 use utils::Overlap;
@@ -150,6 +151,8 @@ pub struct Sample {
     likelihood_model: model::likelihood::LatentVariableModel,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
+    pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
+    pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
 }
 
 impl Sample {
@@ -194,9 +197,11 @@ impl Sample {
                 alignment_properties,
                 use_mapq,
             )),
+            snv_read_evidence: RefCell::new(evidence::reads::SNVEvidence::new()),
             indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new(
                 alignment_properties,
             )),
+            none_read_evidence: RefCell::new(evidence::reads::NoneEvidence::new()),
         }
     }
 
@@ -355,30 +360,18 @@ impl Sample {
         variant: &Variant,
         chrom_seq: &[u8],
     ) -> Result<Option<Observation>, Box<Error>> {
-        let probs = match variant {
-            &Variant::Deletion(_) | &Variant::Insertion(_) => Some(
-                self.indel_read_evidence
-                    .borrow_mut()
-                    .prob(record, cigar, start, variant, chrom_seq)?,
-            ),
-            &Variant::SNV(_) => {
-                evidence::reads::prob_snv(record, &cigar, start, variant, chrom_seq)?
-            }
-            &Variant::None => {
-                evidence::reads::prob_none(record, &cigar, start, variant, chrom_seq)?
-            }
+        let mut evidence: RefMut<evidence::reads::AbstractReadEvidence> = match variant {
+            &Variant::Deletion(_) | &Variant::Insertion(_) => self.indel_read_evidence.borrow_mut(),
+            &Variant::SNV(_) => self.snv_read_evidence.borrow_mut(),
+            &Variant::None => self.none_read_evidence.borrow_mut(),
         };
 
-        if let Some((prob_ref, prob_alt)) = probs {
-            let (prob_mapping, prob_mismapping) = self
-                .indel_read_evidence
-                .borrow()
-                .prob_mapping_mismapping(record);
+        if let Some((prob_ref, prob_alt)) =
+            evidence.prob(record, cigar, start, variant, chrom_seq)?
+        {
+            let (prob_mapping, prob_mismapping) = evidence.prob_mapping_mismapping(record);
 
-            let prob_sample_alt = self
-                .indel_read_evidence
-                .borrow()
-                .prob_sample_alt(record.seq().len() as u32, variant);
+            let prob_sample_alt = evidence.prob_sample_alt(record.seq().len() as u32, variant);
             Ok(Some(Observation::new(
                 prob_mapping,
                 prob_mismapping,
@@ -423,7 +416,8 @@ impl Sample {
             Ok(self
                 .indel_read_evidence
                 .borrow_mut()
-                .prob(record, cigar, start, variant, chrom_seq)?)
+                .prob(record, cigar, start, variant, chrom_seq)?
+                .unwrap())
         };
 
         let left_cigar = left_record.cigar_cached().unwrap();
@@ -679,6 +673,7 @@ mod tests {
                 .indel_read_evidence
                 .borrow_mut()
                 .prob(&rec, rec.cigar_cached().unwrap(), start, &variant, &ref_seq)
+                .unwrap()
                 .unwrap();
             println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
             println!("{:?}", rec.cigar_cached());
