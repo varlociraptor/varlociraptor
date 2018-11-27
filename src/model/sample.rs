@@ -371,10 +371,7 @@ impl Sample {
         {
             let (prob_mapping, prob_mismapping) = evidence.prob_mapping_mismapping(record);
 
-            let prob_sample_alt = self
-                .indel_read_evidence
-                .borrow()
-                .prob_sample_alt(record.seq().len() as u32, variant);
+            let prob_sample_alt = evidence.prob_sample_alt(record.seq().len() as u32, variant);
             Ok(Some(Observation::new(
                 prob_mapping,
                 prob_mismapping,

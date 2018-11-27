@@ -33,6 +33,8 @@ pub trait AbstractReadEvidence {
     fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
         prob_mapping_mismapping(record)
     }
+
+    fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb;
 }
 
 pub struct NoneEvidence;
@@ -74,6 +76,10 @@ impl AbstractReadEvidence for NoneEvidence {
             panic!("bug: unsupported variant");
         }
     }
+
+    fn prob_sample_alt(&self, _: u32, _: &Variant) -> LogProb {
+        LogProb::ln_one()
+    }
 }
 
 pub struct SNVEvidence;
@@ -110,6 +116,10 @@ impl AbstractReadEvidence for SNVEvidence {
             panic!("bug: unsupported variant");
         }
     }
+
+    fn prob_sample_alt(&self, _: u32, _: &Variant) -> LogProb {
+        LogProb::ln_one()
+    }
 }
 
 /// Calculate read evindence for an indel.
@@ -144,31 +154,6 @@ impl IndelEvidence {
             alignment_properties,
             use_mapq,
         }
-    }
-
-    /// Probability to sample read from alt allele given the average feasible positions observed
-    /// from a subsample of the mapped reads.
-    ///
-    /// The key idea is calculate the probability as number of valid placements (considering the
-    /// max softclip allowed by the mapper) over all possible placements.
-    pub fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb {
-        // TODO for long reads, always return One
-        let delta = match variant {
-            &Variant::Deletion(_) => variant.len() as u32,
-            &Variant::Insertion(_) => variant.len() as u32,
-            &Variant::SNV(_) | &Variant::None => return LogProb::ln_one(),
-        };
-
-        let feasible = self.alignment_properties.feasible_bases(read_len, variant);
-
-        let prob = {
-            let n_alt = cmp::min(delta, read_len);
-            let n_alt_valid = cmp::min(n_alt, feasible);
-
-            LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
-        };
-
-        prob
     }
 }
 
@@ -319,6 +304,31 @@ impl AbstractReadEvidence for IndelEvidence {
                 (prob_mapping, prob_mismapping)
             }
         }
+    }
+
+    /// Probability to sample read from alt allele given the average feasible positions observed
+    /// from a subsample of the mapped reads.
+    ///
+    /// The key idea is calculate the probability as number of valid placements (considering the
+    /// max softclip allowed by the mapper) over all possible placements.
+    fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb {
+        // TODO for long reads, always return One
+        let delta = match variant {
+            &Variant::Deletion(_) => variant.len() as u32,
+            &Variant::Insertion(_) => variant.len() as u32,
+            &Variant::SNV(_) | &Variant::None => panic!("unsupported variant"),
+        };
+
+        let feasible = self.alignment_properties.feasible_bases(read_len, variant);
+
+        let prob = {
+            let n_alt = cmp::min(delta, read_len);
+            let n_alt_valid = cmp::min(n_alt, feasible);
+
+            LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
+        };
+
+        prob
     }
 }
 
