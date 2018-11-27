@@ -10,60 +10,111 @@ use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
-pub fn prob_snv(
-    record: &bam::Record,
-    cigar: &CigarStringView,
-    start: u32,
-    variant: &Variant,
-    ref_seq: &[u8],
-) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
-    if let &Variant::SNV(base) = variant {
-        if let Some(qpos) = cigar.read_pos(start, false, false)? {
-            let read_base = record.seq()[qpos as usize];
-            let base_qual = record.qual()[qpos as usize];
-            let prob_alt = prob_read_base(read_base, base, base_qual);
-            let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
-            Ok(Some((prob_ref, prob_alt)))
-        } else {
-            // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
-            // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
-            // but instead needs to know NOT to add those reads (as observations) further up
-            Ok(None)
-        }
-    } else {
-        panic!("bug: unsupported variant");
+
+pub trait AbstractReadEvidence {
+    /// Calculate probability for reference and alternative allele.
+    fn prob(
+        &mut self,
+        record: &bam::Record,
+        cigar: &CigarStringView,
+        start: u32,
+        variant: &Variant,
+        ref_seq: &[u8],
+    ) -> Result<Option<(LogProb, LogProb)>, Box<Error>>;
+
+    /// Calculate mapping and mismapping probability of given record.
+    /// By default, convert MAPQ (from read mapper) to LogProb for the event that the read maps
+    /// correctly and the event that it maps incorrectly.
+    fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
+        let prob_mismapping = LogProb::from(PHREDProb(record.mapq() as f64));
+        let prob_mapping = prob_mismapping.ln_one_minus_exp();
+        (prob_mapping, prob_mismapping)
     }
 }
 
-// TODO: Should we make this check against potential indel alt alleles, as well? Would need to collect respective observations / reads, then.
-pub fn prob_none(
-    record: &bam::Record,
-    cigar: &CigarStringView,
-    start: u32,
-    variant: &Variant,
-    ref_seq: &[u8],
-) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
-    if let &Variant::None = variant {
-        if let Some(qpos) = cigar.read_pos(start, false, false)? {
-            let read_base = record.seq()[qpos as usize];
-            let base_qual = record.qual()[qpos as usize];
-            let miscall = prob_read_base_miscall(base_qual);
-            // here, prob_alt is the probability of any alternative allele / nucleotide, NOT of a particular alternative allele
-            if read_base.to_ascii_uppercase() == ref_seq[start as usize].to_ascii_uppercase() {
-                Ok(Some((miscall.ln_one_minus_exp(), miscall)))
-            } else {
-                Ok(Some((miscall, miscall.ln_one_minus_exp())))
-            }
-        } else {
-            // a read that spans a potential Ref site might have the respective position deleted (Cigar op 'D')
-            // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
-            // but instead needs to know NOT to add those reads (as observations) further up
-            Ok(None)
-        }
-    } else {
-        panic!("bug: unsupported variant");
+
+pub struct NoneEvidence;
+
+impl NoneEvidence {
+    pub fn new() -> Self {
+        NoneEvidence
     }
 }
+
+
+impl AbstractReadEvidence for NoneEvidence {
+
+    fn prob(
+        &mut self,
+        record: &bam::Record,
+        cigar: &CigarStringView,
+        start: u32,
+        variant: &Variant,
+        ref_seq: &[u8],
+    ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
+        // TODO: Should we make this check against potential indel alt alleles, as well? Would need to collect respective observations / reads, then.
+        if let &Variant::None = variant {
+            if let Some(qpos) = cigar.read_pos(start, false, false)? {
+                let read_base = record.seq()[qpos as usize];
+                let base_qual = record.qual()[qpos as usize];
+                let miscall = prob_read_base_miscall(base_qual);
+                // here, prob_alt is the probability of any alternative allele / nucleotide, NOT of a particular alternative allele
+                if read_base.to_ascii_uppercase() == ref_seq[start as usize].to_ascii_uppercase() {
+                    Ok(Some((miscall.ln_one_minus_exp(), miscall)))
+                } else {
+                    Ok(Some((miscall, miscall.ln_one_minus_exp())))
+                }
+            } else {
+                // a read that spans a potential Ref site might have the respective position deleted (Cigar op 'D')
+                // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
+                // but instead needs to know NOT to add those reads (as observations) further up
+                Ok(None)
+            }
+        } else {
+            panic!("bug: unsupported variant");
+        }
+    }
+}
+
+
+pub struct SNVEvidence;
+
+
+impl SNVEvidence {
+    pub fn new() -> Self {
+        SNVEvidence
+    }
+}
+
+
+impl AbstractReadEvidence for SNVEvidence {
+    fn prob(
+        &mut self,
+        record: &bam::Record,
+        cigar: &CigarStringView,
+        start: u32,
+        variant: &Variant,
+        ref_seq: &[u8],
+    ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
+        if let &Variant::SNV(base) = variant {
+            if let Some(qpos) = cigar.read_pos(start, false, false)? {
+                let read_base = record.seq()[qpos as usize];
+                let base_qual = record.qual()[qpos as usize];
+                let prob_alt = prob_read_base(read_base, base, base_qual);
+                let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
+                Ok(Some((prob_ref, prob_alt)))
+            } else {
+                // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
+                // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
+                // but instead needs to know NOT to add those reads (as observations) further up
+                Ok(None)
+            }
+        } else {
+            panic!("bug: unsupported variant");
+        }
+    }
+}
+
 
 /// Calculate read evindence for an indel.
 pub struct IndelEvidence {
@@ -99,15 +150,42 @@ impl IndelEvidence {
         }
     }
 
-    /// Calculate probability for reference and alternative allele.
-    pub fn prob(
+    /// Probability to sample read from alt allele given the average feasible positions observed
+    /// from a subsample of the mapped reads.
+    ///
+    /// The key idea is calculate the probability as number of valid placements (considering the
+    /// max softclip allowed by the mapper) over all possible placements.
+    pub fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb {
+        // TODO for long reads, always return One
+        let delta = match variant {
+            &Variant::Deletion(_) => variant.len() as u32,
+            &Variant::Insertion(_) => variant.len() as u32,
+            &Variant::SNV(_) | &Variant::None => return LogProb::ln_one(),
+        };
+
+        let feasible = self.alignment_properties.feasible_bases(read_len, variant);
+
+        let prob = {
+            let n_alt = cmp::min(delta, read_len);
+            let n_alt_valid = cmp::min(n_alt, feasible);
+
+            LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
+        };
+
+        prob
+    }
+}
+
+impl AbstractReadEvidence for IndelEvidence {
+    /// Calculate probability for reference and alternative indel allele. Always returns Some().
+    fn prob(
         &mut self,
         record: &bam::Record,
         cigar: &CigarStringView,
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<(LogProb, LogProb), Box<Error>> {
+    ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
         let read_seq = record.seq();
         let read_qual = record.qual();
 
@@ -224,38 +302,13 @@ impl IndelEvidence {
             prob_ref
         };
 
-        Ok((prob_ref, prob_alt))
-    }
-
-    /// Probability to sample read from alt allele given the average feasible positions observed
-    /// from a subsample of the mapped reads.
-    ///
-    /// The key idea is calculate the probability as number of valid placements (considering the
-    /// max softclip allowed by the mapper) over all possible placements.
-    pub fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb {
-        // TODO for long reads, always return One
-        let delta = match variant {
-            &Variant::Deletion(_) => variant.len() as u32,
-            &Variant::Insertion(_) => variant.len() as u32,
-            &Variant::SNV(_) | &Variant::None => return LogProb::ln_one(),
-        };
-
-        let feasible = self.alignment_properties.feasible_bases(read_len, variant);
-
-        let prob = {
-            let n_alt = cmp::min(delta, read_len);
-            let n_alt_valid = cmp::min(n_alt, feasible);
-
-            LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
-        };
-
-        prob
+        Ok(Some((prob_ref, prob_alt)))
     }
 
     /// Calculate mapping and mismapping probability of given record.
-    pub fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
+    fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
         if self.use_mapq {
-            prob_mapping_mismapping(record)
+            AbstractReadEvidence::prob_mapping_mismapping(self, record)
         } else {
             // Only penalize reads with mapq 0, all others treat the same, by giving them the
             // maximum observed mapping quality.
@@ -292,13 +345,6 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 /// unpack miscall probability of read_base.
 pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
     LogProb::from(PHREDProb::from((base_qual) as f64))
-}
-
-/// Convert MAPQ (from read mapper) to LogProb for the event that the read maps correctly and the event that it maps incorrectly.
-pub fn prob_mapping_mismapping(record: &bam::Record) -> (LogProb, LogProb) {
-    let prob_mismapping = LogProb::from(PHREDProb(record.mapq() as f64));
-    let prob_mapping = prob_mismapping.ln_one_minus_exp();
-    (prob_mapping, prob_mismapping)
 }
 
 /// Gap parameters for PairHMM.
@@ -563,6 +609,8 @@ mod tests {
         let mut qname: &[u8];
         let mut seq: &[u8];
 
+        let mut none_evidence = NoneEvidence::new();
+
         // Ignore leading HardClip, skip leading SoftClip, reference nucleotide
         qname = b"HC_SC_ref";
         let cigar = CigarString(vec![
@@ -626,7 +674,7 @@ mod tests {
             rec.cache_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
             if let Ok(Some((prob_ref, prob_alt))) =
-                prob_none(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq)
+                none_evidence.prob(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq)
             {
                 println!("{:?}", rec.cigar_cached());
                 println!(
@@ -650,6 +698,8 @@ mod tests {
         let mut records: Vec<bam::Record> = Vec::new();
         let mut qname: &[u8];
         let mut seq: &[u8];
+
+        let mut snv_evidence = SNVEvidence::new();
 
         // Ignore leading HardClip, skip leading SoftClip, reference nucleotide
         qname = b"HC_SC_M";
@@ -727,7 +777,7 @@ mod tests {
             rec.cache_cigar();
             println!("{}", str::from_utf8(rec.qname()).unwrap());
             if let Ok(Some((prob_ref, prob_alt))) =
-                prob_snv(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq)
+                snv_evidence.prob(&rec, rec.cigar_cached().unwrap(), vpos, &variant, &ref_seq)
             {
                 println!("{:?}", rec.cigar_cached());
                 println!(
