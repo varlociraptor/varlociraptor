@@ -61,7 +61,7 @@ where
             .collect_vec();
         let fdrs = bayesian::expected_fdr(&pep_dist);
 
-        if fdrs[0] > alpha {
+        if fdrs.is_empty() || fdrs[0] > alpha {
             threshold = Some(LogProb::ln_one());
         } else {
             // find the largest pep for which fdr <= alpha
