@@ -51,6 +51,9 @@ where
 
     if alpha != LogProb::ln_one() {
         // do not filter by FDR if alpha is 1.0
+        // TODO: remove hits where another event has a higher probability
+        // Otherwise, if there are just enough calls, events like PROB_SOMATIC=8, PROB_ABSENT=2
+        // can end up in the filtered results.
         let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, events, vartype)?;
 
         // estimate FDR
@@ -62,7 +65,7 @@ where
         let fdrs = bayesian::expected_fdr(&pep_dist);
 
         if fdrs.is_empty() || fdrs[0] > alpha {
-            threshold = Some(LogProb::ln_one());
+            threshold = None;
         } else {
             // find the largest pep for which fdr <= alpha
             // do not let peps with the same value cross the boundary
