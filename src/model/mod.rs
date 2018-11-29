@@ -99,6 +99,18 @@ pub struct ContinuousAlleleFreqs {
 }
 
 impl ContinuousAlleleFreqs {
+    pub fn absent() -> Self {
+        Self::singleton(0.0)
+    }
+
+    pub fn singleton(value: f64) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(value)..AlleleFreq(value),
+            left_exclusive: false,
+            right_exclusive: false
+        }
+    }
+
     /// create a left- and right-inclusive allele frequency range
     pub fn inclusive(range: Range<f64>) -> Self {
         ContinuousAlleleFreqs {
@@ -139,6 +151,10 @@ impl ContinuousAlleleFreqs {
             left_exclusive: false,
             right_exclusive: true,
         }
+    }
+
+    pub fn is_singleton(&self) -> bool {
+        self.start == self.end
     }
 }
 
