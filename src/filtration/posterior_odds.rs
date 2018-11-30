@@ -30,6 +30,7 @@ where
 
     let other_event_tags = inbcf_reader.header().header_records().iter().filter_map(|rec| {
         if let bcf::header::HeaderRecord::Info { key: ref tag, .. } = rec {
+            eprintln!("tag: {}", tag);
             if tag.starts_with("PROB_") {
                 Some(tag.to_owned())
             } else {
