@@ -29,7 +29,7 @@ where
     };
 
     let other_event_tags = inbcf_reader.header().header_records().iter().filter_map(|rec| {
-        if let bcf::header::HeaderRecord::Info { values: ref values } = rec {
+        if let bcf::header::HeaderRecord::Info { values: ref values, .. } = rec {
             if values["ID"].starts_with("PROB_") {
                 Some(values["ID"].clone())
             } else {
