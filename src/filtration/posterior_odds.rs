@@ -51,6 +51,8 @@ where
     let filter = |record: &mut bcf::Record| {
         let target_probs = utils::tags_prob_sum(record, &event_tags, None)?;
         let other_probs = utils::tags_prob_sum(record, &other_event_tags, None)?;
+        eprintln!("rec: {}", record.pos());
+        eprintln!("{:?} {:?}", target_probs, other_probs);
         Ok(
             target_probs.into_iter().zip(other_probs.into_iter()).map(|probs| {
                 match probs {
