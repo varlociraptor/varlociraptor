@@ -39,6 +39,7 @@ where
             None
         }
     }).collect_vec();
+    eprintln!("{:?}", other_event_tags);
     let event_tags = utils::events_to_tags(events);
 
     // setup output file
