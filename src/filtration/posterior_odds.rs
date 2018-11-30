@@ -12,17 +12,21 @@ use utils;
 
 /// Filter calls by posterior odds against the given events.
 /// If odds against the events is at least the given `KassRaftery` score, remove allele.
-pub fn filter_by_odds<E, W>(
+pub fn filter_by_odds<E, R, W>(
+    inbcf: Option<R>,
     outbcf: Option<W>,
     events: &[E],
     min_evidence: KassRaftery,
 ) -> Result<(), Box<Error>>
 where
     E: Event,
+    R: AsRef<Path>,
     W: AsRef<Path>,
 {
-    // first pass on bcf file
-    let mut inbcf_reader = bcf::Reader::from_stdin()?;
+    let mut inbcf_reader = match inbcf {
+        Some(p) => bcf::Reader::from_path(p)?,
+        None => bcf::Reader::from_stdin()?,
+    };
 
     let other_event_tags = inbcf_reader.header().header_records().iter().filter_map(|rec| {
         if let bcf::header::HeaderRecord::Info { key: ref tag, .. } = rec {
