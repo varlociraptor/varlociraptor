@@ -360,7 +360,7 @@ fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
     let basedir = basedir(test);
     let output = format!("{}/calls.filtered.bcf", basedir);
     cleanup_file(&output);
-    libprosic::estimation::fdr::ev::control_fdr(
+    libprosic::filtration::fdr::control_fdr(
         &format!("{}/calls.matched.bcf", basedir),
         Some(&output),
         &[libprosic::SimpleEvent {

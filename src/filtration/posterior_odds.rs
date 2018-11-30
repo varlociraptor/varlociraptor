@@ -6,7 +6,6 @@ use rust_htslib::bcf::Read;
 use itertools::Itertools;
 use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
 
-use model;
 use Event;
 use utils;
 
@@ -17,7 +16,6 @@ pub fn filter_by_odds<E, R, W>(
     inbcf: R,
     outbcf: Option<W>,
     events: &[E],
-    vartype: &model::VariantType,
     min_evidence: KassRaftery,
 ) -> Result<(), Box<Error>>
 where
@@ -49,8 +47,8 @@ where
     };
 
     let filter = |record: &mut bcf::Record| {
-        let target_probs = utils::tags_prob_sum(record, &event_tags, vartype)?;
-        let other_probs = utils::tags_prob_sum(record, &other_event_tags, vartype)?;
+        let target_probs = utils::tags_prob_sum(record, &event_tags, None)?;
+        let other_probs = utils::tags_prob_sum(record, &other_event_tags, None)?;
         Ok(
             target_probs.into_iter().zip(other_probs.into_iter()).map(|probs| {
                 match probs {

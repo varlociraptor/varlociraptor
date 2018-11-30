@@ -227,7 +227,7 @@ impl ReferenceBuffer {
 pub fn tags_prob_sum(
     record: &mut bcf::Record,
     tags: &[String],
-    vartype: &model::VariantType
+    vartype: Option<&model::VariantType>
 ) -> Result<Vec<Option<LogProb>>, Box<Error>> {
     let variants = (utils::collect_variants(record, false, false, None, false))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
@@ -239,7 +239,7 @@ pub fn tags_prob_sum(
                 variants.iter().zip(tags_probs_in.into_iter()).enumerate()
             {
                 if let Some(ref variant) = *variant {
-                    if !variant.is_type(vartype) || tag_prob.is_nan() {
+                    if (vartype.is_some() && !variant.is_type(vartype.unwrap())) || tag_prob.is_nan() {
                         continue;
                     }
                     tags_probs_out[i].push(LogProb::from(PHREDProb(*tag_prob as f64)));
@@ -294,7 +294,7 @@ where
             }
         }
 
-        for p in utils::tags_prob_sum(&mut record, &tags, &vartype)? {
+        for p in utils::tags_prob_sum(&mut record, &tags, Some(&vartype))? {
             if let Some(p) = p {
                 prob_dist.push(NotNan::new(*p)?);
             }
@@ -325,7 +325,7 @@ pub fn filter_by_threshold<E: Event>(
 ) -> Result<(), Box<Error>> {
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     let filter = |record: &mut bcf::Record| {
-        let probs = utils::tags_prob_sum(record, &tags, vartype)?;
+        let probs = utils::tags_prob_sum(record, &tags, Some(vartype))?;
         Ok(probs.into_iter().map(|p| {
             match (p, threshold) {
                 // we allow some numerical instability in case of equality
