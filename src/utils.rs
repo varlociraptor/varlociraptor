@@ -224,10 +224,10 @@ impl ReferenceBuffer {
 /// * `record` - BCF record
 /// * `tags` - tags of the set of events to sum up for a particular site and variant
 /// * `vartype` - the variant type to consider
-fn tags_prob_sum(
+pub fn tags_prob_sum(
     record: &mut bcf::Record,
     tags: &[String],
-    vartype: &model::VariantType,
+    vartype: &model::VariantType
 ) -> Result<Vec<Option<LogProb>>, Box<Error>> {
     let variants = (utils::collect_variants(record, false, false, None, false))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
@@ -259,6 +259,13 @@ fn tags_prob_sum(
         }).collect_vec())
 }
 
+pub fn events_to_tags<E>(events: &[E]) -> Vec<String>
+where
+    E: Event
+{
+    events.iter().map(|e| e.tag_name("PROB")).collect_vec()
+}
+
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
 /// libprosic.
 ///
@@ -267,14 +274,17 @@ fn tags_prob_sum(
 /// * `calls` - BCF reader with libprosic calls
 /// * `events` - the set of events to sum up for a particular site
 /// * `vartype` - the variant type to consider
-pub fn collect_prob_dist<E: Event>(
+pub fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: &model::VariantType,
-) -> Result<Vec<NotNan<f64>>, Box<Error>> {
+) -> Result<Vec<NotNan<f64>>, Box<Error>>
+where
+    E: Event
+{
     let mut record = calls.empty_record();
     let mut prob_dist = Vec::new();
-    let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
+    let tags = events_to_tags(events);
     loop {
         if let Err(e) = calls.read(&mut record) {
             if e.is_eof() {
@@ -313,8 +323,72 @@ pub fn filter_by_threshold<E: Event>(
     events: &[E],
     vartype: &model::VariantType,
 ) -> Result<(), Box<Error>> {
-    let mut record = calls.empty_record();
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
+    let filter = |record: &mut bcf::Record| {
+        let probs = utils::tags_prob_sum(record, &tags, vartype)?;
+        Ok(probs.into_iter().map(|p| {
+            match (p, threshold) {
+                // we allow some numerical instability in case of equality
+                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => {
+                    true
+                }
+                (Some(_), None) => true,
+                _ => false,
+            }
+        }))
+    };
+    filter_calls(calls, out, filter)
+
+    // let mut record = calls.empty_record();
+    // let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
+    // loop {
+    //     if let Err(e) = calls.read(&mut record) {
+    //         if e.is_eof() {
+    //             return Ok(());
+    //         } else {
+    //             return Err(Box::new(e));
+    //         }
+    //     }
+    //
+    //     let probs = utils::tags_prob_sum(&mut record, &tags, vartype)?;
+    //     let mut remove = vec![false]; // don't remove the reference allele
+    //     remove.extend(probs.into_iter().map(|p| {
+    //         match (p, threshold) {
+    //             // we allow some numerical instability in case of equality
+    //             (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => {
+    //                 false
+    //             }
+    //             (Some(_), None) => false,
+    //             _ => true,
+    //         }
+    //     }));
+    //
+    //     // Write trimmed record if any allele remains. Otherwise skip the record.
+    //     if !remove[1..].iter().all(|r| *r) {
+    //         record.remove_alleles(&remove)?;
+    //         out.write(&record)?;
+    //     }
+    // }
+}
+
+/// Filter calls by a given function.
+///
+/// # Arguments
+/// * `calls` - the calls to filter
+/// * `out` - output BCF
+/// * `filter` - function to filter by. Has to return a bool for every alternative allele.
+///   True means to keep the allele.
+pub fn filter_calls<F, I, II>(
+    calls: &mut bcf::Reader,
+    out: &mut bcf::Writer,
+    filter: F,
+) -> Result<(), Box<Error>>
+where
+    F: Fn(&mut bcf::Record) -> Result<II, Box<Error>>,
+    I: Iterator<Item=bool>,
+    II: IntoIterator<Item=bool, IntoIter=I>,
+{
+    let mut record = calls.empty_record();
     loop {
         if let Err(e) = calls.read(&mut record) {
             if e.is_eof() {
@@ -324,18 +398,13 @@ pub fn filter_by_threshold<E: Event>(
             }
         }
 
-        let probs = utils::tags_prob_sum(&mut record, &tags, vartype)?;
         let mut remove = vec![false]; // don't remove the reference allele
-        remove.extend(probs.into_iter().map(|p| {
-            match (p, threshold) {
-                // we allow some numerical instability in case of equality
-                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => {
-                    false
-                }
-                (Some(_), None) => false,
-                _ => true,
-            }
-        }));
+        remove.extend(filter(&mut record)?.into_iter().map(|keep| !keep));
+
+        assert_eq!(
+            remove.len(), record.allele_count() as usize,
+            "bug: filter passed to filter_calls has to return a bool for each alt allele."
+        );
 
         // Write trimmed record if any allele remains. Otherwise skip the record.
         if !remove[1..].iter().all(|r| *r) {

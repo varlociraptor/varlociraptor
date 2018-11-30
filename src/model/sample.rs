@@ -545,6 +545,7 @@ mod tests {
     use model;
 
     use bio::io::fasta;
+    use bio::io::fasta::FastaRead;
     use bio::stats::{LogProb, PHREDProb, Prob};
     use estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use itertools::Itertools;
