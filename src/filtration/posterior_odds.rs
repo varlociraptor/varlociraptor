@@ -29,10 +29,9 @@ where
     };
 
     let other_event_tags = inbcf_reader.header().header_records().iter().filter_map(|rec| {
-        if let bcf::header::HeaderRecord::Info { key: ref tag, .. } = rec {
-            eprintln!("tag: {}", tag);
-            if tag.starts_with("PROB_") {
-                Some(tag.to_owned())
+        if let bcf::header::HeaderRecord::Info { values: ref values } = rec {
+            if values["ID"].starts_with("PROB_") {
+                Some(values["ID"].clone())
             } else {
                 None
             }
@@ -40,7 +39,6 @@ where
             None
         }
     }).collect_vec();
-    eprintln!("{:?}", other_event_tags);
     let event_tags = utils::events_to_tags(events);
 
     // setup output file
@@ -53,8 +51,6 @@ where
     let filter = |record: &mut bcf::Record| {
         let target_probs = utils::tags_prob_sum(record, &event_tags, None)?;
         let other_probs = utils::tags_prob_sum(record, &other_event_tags, None)?;
-        eprintln!("rec: {}", record.pos());
-        eprintln!("{:?} {:?}", target_probs, other_probs);
         Ok(
             target_probs.into_iter().zip(other_probs.into_iter()).map(|probs| {
                 match probs {
