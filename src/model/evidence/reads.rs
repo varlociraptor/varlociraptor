@@ -586,7 +586,8 @@ impl EditDistanceEstimation {
             myers: Myers::new(read_seq.rev()),
         }
     }
-    /// Returns end position with minimal edit distance as a tuple.
+    /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
+    /// We use the best edit distance and add 5.
     pub fn estimate_upper_bound<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &self,
         emission_params: &E,
@@ -594,7 +595,7 @@ impl EditDistanceEstimation {
         let ref_seq = (0..emission_params.len_x())
             .rev()
             .map(|i| emission_params.ref_base(i));
-        self.myers.find_best_end(ref_seq).1 as usize * 2
+        self.myers.find_best_end(ref_seq).1 as usize + 5
     }
 }
 

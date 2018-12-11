@@ -1,14 +1,12 @@
-
-use std::error::Error;
-use std::path::Path;
+use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
+use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
-use itertools::Itertools;
-use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
+use std::error::Error;
+use std::path::Path;
 
-use Event;
 use utils;
-
+use Event;
 
 /// Filter calls by posterior odds against the given events.
 /// If odds against the events is at least the given `KassRaftery` score, remove allele.
@@ -28,17 +26,21 @@ where
         None => bcf::Reader::from_stdin()?,
     };
 
-    let other_event_tags = inbcf_reader.header().header_records().iter().filter_map(|rec| {
-        if let bcf::header::HeaderRecord::Info { values: ref values, .. } = rec {
-            if values["ID"].starts_with("PROB_") {
-                Some(values["ID"].clone())
+    let other_event_tags = inbcf_reader
+        .header()
+        .header_records()
+        .iter()
+        .filter_map(|rec| {
+            if let bcf::header::HeaderRecord::Info { ref values, .. } = rec {
+                if values["ID"].starts_with("PROB_") {
+                    Some(values["ID"].clone())
+                } else {
+                    None
+                }
             } else {
                 None
             }
-        } else {
-            None
-        }
-    }).collect_vec();
+        }).collect_vec();
     let event_tags = utils::events_to_tags(events);
 
     // setup output file
@@ -51,8 +53,10 @@ where
     let filter = |record: &mut bcf::Record| {
         let target_probs = utils::tags_prob_sum(record, &event_tags, None)?;
         let other_probs = utils::tags_prob_sum(record, &other_event_tags, None)?;
-        Ok(
-            target_probs.into_iter().zip(other_probs.into_iter()).map(|probs| {
+        Ok(target_probs
+            .into_iter()
+            .zip(other_probs.into_iter())
+            .map(|probs| {
                 match probs {
                     (Some(tp), Some(op)) => {
                         // If the odds for the other events are barely more likely or
@@ -61,10 +65,9 @@ where
                     }
                     // Variant does not fit in given vartype.
                     (None, None) => false,
-                    _ => panic!("bug: divergence in variant filtration")
+                    _ => panic!("bug: divergence in variant filtration"),
                 }
-            })
-        )
+            }))
     };
 
     utils::filter_calls(&mut inbcf_reader, &mut outbcf, filter)

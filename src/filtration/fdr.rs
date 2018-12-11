@@ -66,8 +66,7 @@ where
 
         if fdrs.is_empty() {
             threshold = None;
-        }
-        else if fdrs[0] > alpha {
+        } else if fdrs[0] > alpha {
             threshold = Some(LogProb::ln_one());
         } else {
             // find the largest pep for which fdr <= alpha

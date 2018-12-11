@@ -107,7 +107,7 @@ impl ContinuousAlleleFreqs {
         ContinuousAlleleFreqs {
             inner: AlleleFreq(value)..AlleleFreq(value),
             left_exclusive: false,
-            right_exclusive: false
+            right_exclusive: false,
         }
     }
 

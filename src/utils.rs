@@ -227,7 +227,7 @@ impl ReferenceBuffer {
 pub fn tags_prob_sum(
     record: &mut bcf::Record,
     tags: &[String],
-    vartype: Option<&model::VariantType>
+    vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>, Box<Error>> {
     let variants = (utils::collect_variants(record, false, false, None, false))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
@@ -239,7 +239,9 @@ pub fn tags_prob_sum(
                 variants.iter().zip(tags_probs_in.into_iter()).enumerate()
             {
                 if let Some(ref variant) = *variant {
-                    if (vartype.is_some() && !variant.is_type(vartype.unwrap())) || tag_prob.is_nan() {
+                    if (vartype.is_some() && !variant.is_type(vartype.unwrap()))
+                        || tag_prob.is_nan()
+                    {
                         continue;
                     }
                     tags_probs_out[i].push(LogProb::from(PHREDProb(*tag_prob as f64)));
@@ -261,7 +263,7 @@ pub fn tags_prob_sum(
 
 pub fn events_to_tags<E>(events: &[E]) -> Vec<String>
 where
-    E: Event
+    E: Event,
 {
     events.iter().map(|e| e.tag_name("PROB")).collect_vec()
 }
@@ -280,7 +282,7 @@ pub fn collect_prob_dist<E>(
     vartype: &model::VariantType,
 ) -> Result<Vec<NotNan<f64>>, Box<Error>>
 where
-    E: Event
+    E: Event,
 {
     let mut record = calls.empty_record();
     let mut prob_dist = Vec::new();
@@ -329,9 +331,7 @@ pub fn filter_by_threshold<E: Event>(
         Ok(probs.into_iter().map(|p| {
             match (p, threshold) {
                 // we allow some numerical instability in case of equality
-                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => {
-                    true
-                }
+                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => true,
                 (Some(_), None) => true,
                 _ => false,
             }
@@ -385,8 +385,8 @@ pub fn filter_calls<F, I, II>(
 ) -> Result<(), Box<Error>>
 where
     F: Fn(&mut bcf::Record) -> Result<II, Box<Error>>,
-    I: Iterator<Item=bool>,
-    II: IntoIterator<Item=bool, IntoIter=I>,
+    I: Iterator<Item = bool>,
+    II: IntoIterator<Item = bool, IntoIter = I>,
 {
     let mut record = calls.empty_record();
     loop {
@@ -402,7 +402,8 @@ where
         remove.extend(filter(&mut record)?.into_iter().map(|keep| !keep));
 
         assert_eq!(
-            remove.len(), record.allele_count() as usize,
+            remove.len(),
+            record.allele_count() as usize,
             "bug: filter passed to filter_calls has to return a bool for each alt allele."
         );
 
@@ -568,7 +569,7 @@ mod tests {
 
         let snv = VariantType::SNV;
 
-        if let Ok(prob_sum) = tags_prob_sum(&mut record, &alt_tags, &snv) {
+        if let Ok(prob_sum) = tags_prob_sum(&mut record, &alt_tags, Some(&snv)) {
             assert_eq!(LogProb::ln_one(), prob_sum[0].unwrap());
         } else {
             panic!("tags_prob_sum(&overshoot_calls, &alt_events, &snv) returned Error")

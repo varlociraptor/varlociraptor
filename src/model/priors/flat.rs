@@ -111,9 +111,8 @@ pub struct FlatTumorNormalModel {
 impl FlatTumorNormalModel {
     pub fn new(ploidy: u32) -> Self {
         let allele_freqs_normal_germline = DiscreteAlleleFreqs::feasible(ploidy).not_absent();
-        let allele_freqs_normal_somatic = ContinuousAlleleFreqs::inclusive(
-            0.0..*allele_freqs_normal_germline[0]
-        );
+        let allele_freqs_normal_somatic =
+            ContinuousAlleleFreqs::inclusive(0.0..*allele_freqs_normal_germline[0]);
         FlatTumorNormalModel {
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
             allele_freqs_normal_germline: allele_freqs_normal_germline,
@@ -177,7 +176,7 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
                 density,
                 *af_normal.start,
                 *af_normal.end,
-                grid_points_normal
+                grid_points_normal,
             )
         };
 
@@ -204,8 +203,10 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         let af_normal = linspace(
             *self.allele_freqs_normal_somatic.start,
             *self.allele_freqs_normal_somatic.end,
-            5
-        ).rev().skip(1).chain(self.allele_freqs_normal_germline.iter().map(|af| **af));
+            5,
+        ).rev()
+        .skip(1)
+        .chain(self.allele_freqs_normal_germline.iter().map(|af| **af));
 
         let (map_normal, map_tumor) = af_normal
             .cartesian_product(af_tumor)

@@ -55,8 +55,7 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
         let res = client
             .get(&format!(
                 "http://hgdownload.cse.ucsc.edu/goldenpath/{}/chromosomes/{}.fa.gz",
-                build,
-                chrom
+                build, chrom
             )).send()
             .unwrap();
         let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
