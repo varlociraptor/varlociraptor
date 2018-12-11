@@ -586,7 +586,7 @@ mod tests {
     use rust_htslib::bam;
 
     fn setup_pairwise_test<'a>(
-) -> PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
+    ) -> PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
         let insert_size = InsertSize {
             mean: 250.0,
             sd: 50.0,

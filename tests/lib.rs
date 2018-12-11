@@ -54,7 +54,8 @@ fn download_reference(chrom: &str) -> String {
             .get(&format!(
                 "http://hgdownload.cse.ucsc.edu/goldenpath/hg18/chromosomes/{}.fa.gz",
                 chrom
-            )).send()
+            ))
+            .send()
             .unwrap();
         let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
         let mut reference_file = fs::File::create(&reference).unwrap();
@@ -174,7 +175,8 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         Some(10000),
         Some(&observations),
         exclusive_end,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
@@ -300,7 +302,8 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
         Some(10000),
         Some(&observations),
         exclusive_end,
-    ).unwrap();
+    )
+    .unwrap();
 
     // sleep a second in order to wait for filesystem flushing
     thread::sleep(time::Duration::from_secs(1));
@@ -354,7 +357,8 @@ fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
         }],
         &libprosic::model::VariantType::Deletion(Some(1..30)),
         LogProb::from(Prob(alpha)),
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Test a Pindel call in a repeat region. It is either germline or absent, and could be called either

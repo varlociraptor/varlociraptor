@@ -15,7 +15,7 @@ use utils;
 use BCFError;
 use Event;
 
-pub const NUMERICAL_EPSILON: f64 = 1e-6;
+pub const NUMERICAL_EPSILON: f64 = 1e-4;
 
 /// Collect variants from a given ´bcf::Record`.
 pub fn collect_variants(
@@ -177,7 +177,8 @@ pub fn collect_variants(
                         None
                     }
                 }
-            }).collect_vec()
+            })
+            .collect_vec()
     };
 
     Ok(variants)
@@ -256,7 +257,8 @@ fn tags_prob_sum(
             } else {
                 None
             }
-        }).collect_vec())
+        })
+        .collect_vec())
 }
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
