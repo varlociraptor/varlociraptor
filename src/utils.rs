@@ -15,7 +15,7 @@ use utils;
 use BCFError;
 use Event;
 
-pub const NUMERICAL_EPSILON: f64 = 1e-6;
+pub const NUMERICAL_EPSILON: f64 = 1e-4;
 
 /// Collect variants from a given ´bcf::Record`.
 pub fn collect_variants(
