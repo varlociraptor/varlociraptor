@@ -177,7 +177,8 @@ pub fn collect_variants(
                         None
                     }
                 }
-            }).collect_vec()
+            })
+            .collect_vec()
     };
 
     Ok(variants)
@@ -256,7 +257,8 @@ fn tags_prob_sum(
             } else {
                 None
             }
-        }).collect_vec())
+        })
+        .collect_vec())
 }
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by

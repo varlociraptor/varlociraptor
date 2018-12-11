@@ -531,7 +531,8 @@ pub fn isize_mixture_density_louis(value: f64, d: f64, mean: f64, sd: f64, rate:
                 - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2))
             + (1.0 - rate)
                 * (erfc((-value - 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2)
-                    - erfc((-value + 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2)))).ln(),
+                    - erfc((-value + 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2))))
+        .ln(),
     )
 }
 
@@ -563,12 +564,9 @@ mod tests {
         let rate = LogProb(0.05f64.ln());
         let p_alt = (
             // case: correctly called indel
-            rate.ln_one_minus_exp() + isize_pmf(
-                212.0,
-                312.0 - 100.0,
-                15.0
-            )
-        ).ln_add_exp(
+            rate.ln_one_minus_exp() + isize_pmf(212.0, 312.0 - 100.0, 15.0)
+        )
+        .ln_add_exp(
             // case: no indel, false positive call
             rate + isize_pmf(212.0, 312.0, 15.0),
         );

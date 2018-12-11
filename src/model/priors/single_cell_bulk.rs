@@ -198,33 +198,34 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                             + pileup.control_likelihood(af_bulk, None)
                     }
                     p
-                }).collect_vec(),
+                })
+                .collect_vec(),
         );
 
         /*
-        // do Simpson's integration instead of point-wise evaluation above
-        let density = |af_bulk| {
-            let af_bulk = AlleleFreq(af_bulk);
-            self.prior_bulk(af_bulk, variant) +
-            likelihood_bulk(af_bulk, None)
-        };
-        let grid_points = k_end - k_start;
-        println!("bulk grid_points: {}", grid_points);
+                // do Simpson's integration instead of point-wise evaluation above
+                let density = |af_bulk| {
+                    let af_bulk = AlleleFreq(af_bulk);
+                    self.prior_bulk(af_bulk, variant) +
+                    likelihood_bulk(af_bulk, None)
+                };
+                let grid_points = k_end - k_start;
+                println!("bulk grid_points: {}", grid_points);
 
-        let p_bulk = if af_bulk.start == af_bulk.end {
-                density(*af_bulk.start)
-            } else {
-                LogProb::ln_simpsons_integrate_exp(
-                    &density,
-                    *af_bulk.start,
-                    *af_bulk.end,
-                    if grid_points % 2 == 1 {
-                        grid_points
+                let p_bulk = if af_bulk.start == af_bulk.end {
+                        density(*af_bulk.start)
                     } else {
-                        grid_points + 1
-                    })
-            };
-*/
+                        LogProb::ln_simpsons_integrate_exp(
+                            &density,
+                            *af_bulk.start,
+                            *af_bulk.end,
+                            if grid_points % 2 == 1 {
+                                grid_points
+                            } else {
+                                grid_points + 1
+                            })
+                    };
+        */
 
         // go through all possible underlying single cell allele frequencies
         let prob = LogProb::ln_sum_exp(
@@ -245,12 +246,14 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                                         + pileup.case_likelihood(af_single_distorted, None)
                                         + prob_rho(af_single, n_single, k_s)
                                 }
-                            }).collect_vec(),
+                            })
+                            .collect_vec(),
                     );
                     let prob = p_bulk + p_single;
 
                     prob
-                }).collect_vec(),
+                })
+                .collect_vec(),
         );
 
         prob
@@ -289,10 +292,12 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                                     + pileup.case_likelihood(af_single_distorted, None)
                                     + prob_rho(af_single, n_single, k_s)
                             }
-                        }).collect_vec(),
+                        })
+                        .collect_vec(),
                 );
                 NotNan::new(*p_single).expect("posterior probability is NaN")
-            }).into_option()
+            })
+            .into_option()
             .expect("prior has empty allele frequency spectrum");
 
         let n_bulk = self.adjust_n_b(pileup.control.len());
@@ -303,7 +308,8 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
                 let p_bulk = self.prior_bulk(*af_bulk, &pileup.variant)
                     + pileup.control_likelihood(*af_bulk, None);
                 NotNan::new(*p_bulk).expect("posterior probability is NaN")
-            }).into_option()
+            })
+            .into_option()
             .expect("prior has empty allele frequency spectrum");
 
         (*map_single, map_bulk)
