@@ -122,7 +122,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
     let tumor = libprosic::Sample::new(
         tumor_bam,
         2500,
-        false,
+        true,
         false,
         false,
         alignment_properties,
@@ -137,7 +137,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
     let normal = libprosic::Sample::new(
         normal_bam,
         2500,
-        false,
+        true,
         false,
         false,
         alignment_properties,
@@ -168,7 +168,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
         libprosic::call::pairwise::PairEvent {
             name: "somatic_normal".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
-            af_control: ContinuousAlleleFreqs::exclusive(0.1..0.5),
+            af_control: ContinuousAlleleFreqs::exclusive(0.0..0.5),
         },
         libprosic::call::pairwise::PairEvent {
             name: "absent".to_owned(),

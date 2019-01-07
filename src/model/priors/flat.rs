@@ -140,8 +140,9 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         af_normal: &ContinuousAlleleFreqs,
         pileup: &mut PairPileup<ContinuousAlleleFreqs, ContinuousAlleleFreqs, Self>,
     ) -> LogProb {
-        let grid_points_normal = 5;
+        let grid_points_normal = 11;
         let grid_points_tumor = Self::grid_points_tumor(pileup.case.len());
+        let temp = 1.0 / pileup.control.len() as f64;
 
         let mut density = |af_normal| {
             let af_normal = AlleleFreq(af_normal);
@@ -164,6 +165,7 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
             };
 
             let p_normal = pileup.control_likelihood(af_normal, None);
+            println!("DEBUG: {}\t={:?}", *af_normal, p_normal);
             let prob = p_tumor + p_normal;
 
             prob
@@ -174,7 +176,8 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         } else {
             LogProb::ln_simpsons_integrate_exp(
                 density,
-                *af_normal.start,
+                //*af_normal.start,
+                temp,
                 *af_normal.end,
                 grid_points_normal,
             )
@@ -203,7 +206,7 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         let af_normal = linspace(
             *self.allele_freqs_normal_somatic.start,
             *self.allele_freqs_normal_somatic.end,
-            5,
+            101,
         ).rev()
         .skip(1)
         .chain(self.allele_freqs_normal_germline.iter().map(|af| **af));
