@@ -3,11 +3,14 @@ extern crate csv;
 extern crate fern;
 extern crate flate2;
 extern crate hyper;
+extern crate ftp;
 extern crate itertools;
 extern crate libprosic;
 extern crate log;
 extern crate rust_htslib;
 
+use std::time::Duration;
+use ftp::FtpStream;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -51,17 +54,33 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
     let reference = Path::new(&p);
     fs::create_dir_all(reference.parent().unwrap()).unwrap();
     if !reference.exists() {
-        let client = hyper::Client::new();
-        let res = client
-            .get(&format!(
-                "http://hgdownload.cse.ucsc.edu/goldenpath/{}/chromosomes/{}.fa.gz",
+        if build.starts_with("hg") {
+            // Download from UCSC
+            let client = hyper::Client::new();
+            let res = client.get(
+                &format!(
+                    "http://hgdownload.cse.ucsc.edu/goldenpath/{}/chromosomes/{}.fa.gz",
+                    build, chrom
+                )
+            ).send().unwrap();
+            let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
+            let mut reference_file = fs::File::create(&reference).unwrap();
+            io::copy(&mut reference_stream, &mut reference_file).unwrap();
+        } else if build.starts_with("GRCh") {
+            // Download from ENSEMBL
+            let mut ftp_stream = FtpStream::connect("ftp.ensembl.org:20").unwrap();
+            ftp_stream.get_ref().set_read_timeout(Some(Duration::from_secs(120))).unwrap();
+            let res = ftp_stream.get(&format!(
+                "pub/release-94/fasta/homo_sapiens/dna/Homo_sapiens.{}.dna.chromosome.{}.fa.gz",
                 build, chrom
-            )).send()
-            .unwrap();
-        let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
-        let mut reference_file = fs::File::create(&reference).unwrap();
-
-        io::copy(&mut reference_stream, &mut reference_file).unwrap();
+            )).unwrap();
+            let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
+            let mut reference_file = fs::File::create(&reference).unwrap();
+            io::copy(&mut reference_stream, &mut reference_file).unwrap();
+            ftp_stream.quit().unwrap();
+        } else {
+            panic!("invalid genome build: {}", build);
+        }
     }
     assert!(Path::new(&reference).exists());
     if !reference.with_extension("fa.fai").exists() {
@@ -625,20 +644,12 @@ fn test25() {
     check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.01);
 }
 
-/// Test a small lancet deletion (on real data) that is a germline variant with low allele freq.
+/// Test a delly deletion (on real data) that is a germline variant with low allele freq.
 #[test]
 fn test26() {
-    call_tumor_normal("test26", false, "chr1", "hg38");
+    call_tumor_normal("test26", false, "chr1", "GRCh38");
     let mut call = load_call("test26");
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-}
-
-/// Test a small lancet deletion (on real data) that is a germline variant with low allele freq.
-#[test]
-fn test27() {
-    call_tumor_normal("test27", false, "chr1", "hg38");
-    let mut call = load_call("test27");
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC_NORMAL", 0.001, 0.01);
 }
 
 #[test]
