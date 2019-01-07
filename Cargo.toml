@@ -35,6 +35,7 @@ fern = "0.4"
 flate2 = "0.2"
 hyper = "0.10"
 ftp = "3.0"
+serde_json = "1"
 
 [features]
 default = []

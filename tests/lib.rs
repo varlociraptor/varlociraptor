@@ -1,20 +1,16 @@
 extern crate bio;
 extern crate csv;
 extern crate fern;
-extern crate flate2;
-extern crate hyper;
-extern crate ftp;
 extern crate itertools;
 extern crate libprosic;
 extern crate log;
 extern crate rust_htslib;
+extern crate serde_json;
 
-use std::time::Duration;
-use ftp::FtpStream;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::str;
 use std::{thread, time};
 
@@ -54,34 +50,33 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
     let reference = Path::new(&p);
     fs::create_dir_all(reference.parent().unwrap()).unwrap();
     if !reference.exists() {
-        if build.starts_with("hg") {
-            // Download from UCSC
-            let client = hyper::Client::new();
-            let res = client.get(
-                &format!(
-                    "http://hgdownload.cse.ucsc.edu/goldenpath/{}/chromosomes/{}.fa.gz",
-                    build, chrom
-                )
-            ).send().unwrap();
-            let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
-            let mut reference_file = fs::File::create(&reference).unwrap();
-            io::copy(&mut reference_stream, &mut reference_file).unwrap();
-        } else if build.starts_with("GRCh") {
-            // Download from ENSEMBL
-            let mut ftp_stream = FtpStream::connect("ftp.ensembl.org:20").unwrap();
-            ftp_stream.get_ref().set_read_timeout(Some(Duration::from_secs(120))).unwrap();
-            let res = ftp_stream.get(&format!(
-                "pub/release-94/fasta/homo_sapiens/dna/Homo_sapiens.{}.dna.chromosome.{}.fa.gz",
+        let url = if build.starts_with("hg") {
+            format!(
+                "http://hgdownload.cse.ucsc.edu/goldenpath/{}/chromosomes/{}.fa.gz",
                 build, chrom
-            )).unwrap();
-            let mut reference_stream = flate2::read::GzDecoder::new(res).unwrap();
-            let mut reference_file = fs::File::create(&reference).unwrap();
-            io::copy(&mut reference_stream, &mut reference_file).unwrap();
-            ftp_stream.quit().unwrap();
+            )
+        } else if build.starts_with("GRCh") {
+            format!(
+                "ftp://ftp.ensembl.org/pub/release-94/fasta/homo_sapiens/dna/Homo_sapiens.{}.dna.chromosome.{}.fa.gz",
+                build, chrom
+            )
         } else {
             panic!("invalid genome build: {}", build);
-        }
+        };
+
+        let mut curl = Command::new("curl")
+            .arg(&url)
+            .stdout(Stdio::piped())
+            .spawn().unwrap();
+        let mut gzip = Command::new("gzip")
+            .arg("-d")
+            .stdin(curl.stdout.unwrap())
+            .stdout(Stdio::piped())
+            .spawn().unwrap();
+        let mut reference_file = fs::File::create(&reference).unwrap();
+        io::copy(gzip.stdout.as_mut().unwrap(), &mut reference_file).unwrap();
     }
+
     assert!(Path::new(&reference).exists());
     if !reference.with_extension("fa.fai").exists() {
         Command::new("samtools")
@@ -100,29 +95,34 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
 
     let basedir = basedir(test);
 
-    let tumor_bam = format!("{}/tumor.bam", basedir);
-    let normal_bam = format!("{}/normal.bam", basedir);
+    let tumor_bam_path = format!("{}/tumor.bam", basedir);
+    let normal_bam_path = format!("{}/normal.bam", basedir);
 
-    let tumor_bam = bam::IndexedReader::from_path(&tumor_bam).unwrap();
-    let normal_bam = bam::IndexedReader::from_path(&normal_bam).unwrap();
+    let tumor_bam = bam::IndexedReader::from_path(&tumor_bam_path).unwrap();
+    let normal_bam = bam::IndexedReader::from_path(&normal_bam_path).unwrap();
 
     let candidates = format!("{}/candidates.vcf", basedir);
+    let alignment_properties_def = format!("{}/alignment_properties.json", basedir);
 
     let output = format!("{}/calls.bcf", basedir);
     let observations = format!("{}/observations.tsv", basedir);
     cleanup_file(&output);
     cleanup_file(&observations);
 
-    let alignment_properties = {
+    let alignment_properties = if Path::new(&alignment_properties_def).exists() {
+        serde_json::from_reader(fs::File::open(alignment_properties_def).unwrap()).unwrap()
+    } else {
         let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
+        //let mut bam = bam::Reader::from_path(&normal_bam_path).unwrap();
         libprosic::AlignmentProperties::estimate(&mut bam).unwrap()
     };
+    println!("{:?}", alignment_properties);
     let purity = 0.75;
 
     let tumor = libprosic::Sample::new(
         tumor_bam,
         2500,
-        true,
+        false,
         false,
         false,
         alignment_properties,
@@ -137,7 +137,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
     let normal = libprosic::Sample::new(
         normal_bam,
         2500,
-        true,
+        false,
         false,
         false,
         alignment_properties,
@@ -647,7 +647,7 @@ fn test25() {
 /// Test a delly deletion (on real data) that is a germline variant with low allele freq.
 #[test]
 fn test26() {
-    call_tumor_normal("test26", false, "chr1", "GRCh38");
+    call_tumor_normal("test26", true, "1", "GRCh38");
     let mut call = load_call("test26");
     check_info_float(&mut call, b"PROB_SOMATIC_NORMAL", 0.001, 0.01);
 }

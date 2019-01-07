@@ -14,7 +14,7 @@ use statrs::statistics::{OrderStatistics, Statistics};
 
 use model::Variant;
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, Deserialize, Serialize)]
 pub struct AlignmentProperties {
     insert_size: InsertSize,
     max_del_cigar_len: u32,
@@ -56,32 +56,40 @@ impl AlignmentProperties {
                 continue;
             }
 
-            if !record.is_mate_unmapped()
-                && record.is_first_in_template()
-                && record.tid() == record.mtid()
-            {
-                tlens.push(record.insert_size().abs() as f64);
-            }
-
             max_mapq = cmp::max(max_mapq, record.mapq());
 
             let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
 
+            let mut is_regular = true;
             for c in record.cigar().iter() {
                 match c {
                     &Cigar::SoftClip(l) => {
                         let s = norm(l);
                         max_softclip = cmp::max(s, max_softclip);
+                        is_regular = false;
                     }
                     &Cigar::Del(l) => {
                         max_del_cigar_len = cmp::max(l, max_del_cigar_len);
+                        is_regular = false;
                     }
                     &Cigar::Ins(l) => {
                         max_ins_cigar_len = cmp::max(l, max_ins_cigar_len);
+                        is_regular = false;
                     }
                     _ => continue,
                 }
             }
+
+            if is_regular
+               &&!record.is_mate_unmapped()
+               && record.is_first_in_template()
+               && record.tid() == record.mtid()
+               && record.mapq() > 0
+            {
+                // record insert size
+                tlens.push(record.insert_size().abs() as f64);
+            }
+
             i += 1;
         }
 
@@ -129,7 +137,7 @@ impl AlignmentProperties {
 
 /// Expected insert size in terms of mean and standard deviation.
 /// This should be estimated from unsorted(!) bam files to avoid positional biases.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, Serialize, Deserialize)]
 pub struct InsertSize {
     pub mean: f64,
     pub sd: f64,
