@@ -186,7 +186,7 @@ mod tests {
         println!("{:?}", props);
 
         assert_relative_eq!(props.insert_size.mean, 312.0);
-        assert_relative_eq!(props.insert_size.sd, 11.815093635647647);
+        assert_relative_eq!(props.insert_size.sd, 11.89254089203071);
         assert_eq!(props.max_mapq, PHREDProb(60.0));
         assert_eq!(props.max_del_cigar_len, 30);
         assert_eq!(props.max_ins_cigar_len, 12);

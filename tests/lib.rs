@@ -396,8 +396,7 @@ fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
 fn test01() {
     call_tumor_normal("test1", false, "chr1", "hg18");
     let mut call = load_call("test1");
-    // this is weak enough for now
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.01, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 150.62, 0.01);
 }
 
 /// Test a Pindel call that is a somatic call in reality (case af: 0.125).
@@ -406,9 +405,12 @@ fn test02() {
     call_tumor_normal("test2", false, "chr1", "hg18");
     let mut call = load_call("test2");
 
-    check_info_float(&mut call, b"CASE_AF", 0.125, 0.06);
-    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.00009, 0.00001);
+    check_info_float(&mut call, b"CASE_AF", 0.125, 0.08);
+    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.05);
+    // There are some fragments with increased insert size that let prosic think there is a bit of
+    // evidence for having a somatic normal call. This makes the probability for somatic tumor weak.
+    // TODO We could avoid this by raising the lower AF bound for somatic normal calls.
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 2.64, 0.01);
 }
 
 /// Test a Pindel call that is a germline call in reality (case af: 0.5, control af: 0.5).
@@ -417,9 +419,9 @@ fn test03() {
     call_tumor_normal("test3", false, "chr1", "hg18");
     let mut call = load_call("test3");
 
-    check_info_float(&mut call, b"CASE_AF", 0.5, 0.15);
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_GERMLINE", 7.0e-5, 7.0e-5);
+    check_info_float(&mut call, b"CASE_AF", 0.5, 0.04);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.05);
+    check_info_float(&mut call, b"PROB_GERMLINE_HET", 0.77, 0.01);
 }
 
 /// Test a Pindel call (insertion) that is a somatic call in reality (case af: 0.042, control af: 0.0).
@@ -428,9 +430,9 @@ fn test04() {
     call_tumor_normal("test4", false, "chr1", "hg18");
     let mut call = load_call("test4");
 
-    check_info_float(&mut call, b"CASE_AF", 0.042, 0.13);
+    check_info_float(&mut call, b"CASE_AF", 0.042, 0.11);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 3.87513e-08, 0.1);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.199, 0.001);
 }
 
 /// Test a Delly call in a repeat region. This should not be a somatic call.
@@ -438,8 +440,7 @@ fn test04() {
 fn test05() {
     call_tumor_normal("test5", true, "chr1", "hg18");
     let mut call = load_call("test5");
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.1);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 741.19, 0.01);
 }
 
 /// Test a large deletion that should not be a somatic call. It seems to be germline but a bit
@@ -448,10 +449,7 @@ fn test05() {
 fn test06() {
     call_tumor_normal("test6", false, "chr16", "hg18");
     let mut call = load_call("test6");
-    check_info_float(&mut call, b"PROB_GERMLINE", 0.025, 0.001);
-    //check_info_float(&mut call, b"PROB_ABSENT", 0.76, 0.01);
-    //check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    //check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 6.56, 0.01);
 }
 
 /// Test a small Lancet deletion. It is a somatic call (AF=0.125) in reality.
@@ -460,9 +458,8 @@ fn test07() {
     call_tumor_normal("test7", false, "chr1", "hg18");
     let mut call = load_call("test7");
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"CASE_AF", 0.125, 0.02);
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 1.62933e-11, 0.00000001);
-    check_info_float(&mut call, b"PROB_GERMLINE", 114.3, 0.1);
+    check_info_float(&mut call, b"CASE_AF", 0.125, 0.06);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.18, 0.01);
 }
 
 /// Test a Delly deletion. It is a germline call in reality.
@@ -470,8 +467,7 @@ fn test07() {
 fn test08() {
     call_tumor_normal("test8", true, "chr2", "hg18");
     let mut call = load_call("test8");
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.8);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 1473.13, 0.01);
 }
 
 /// Test a Delly deletion. It should not be a somatic call.
@@ -479,8 +475,7 @@ fn test08() {
 fn test09() {
     call_tumor_normal("test9", true, "chr2", "hg18");
     let mut call = load_call("test9");
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 598.25, 0.01);
 }
 
 /// Test a Lancet insertion. It seems to be a germline variant from venters genome. Evidence is
@@ -489,8 +484,7 @@ fn test09() {
 fn test10() {
     call_tumor_normal("test10", false, "chr20", "hg18");
     let mut call = load_call("test10");
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
-    check_info_float(&mut call, b"PROB_GERMLINE", 0.0, 0.05);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 1790.78, 0.01);
 }
 
 // A delly deletion that has very low coverage and very weak evidence. We cannot really infer
@@ -508,7 +502,8 @@ fn test12() {
     call_tumor_normal("test12", false, "chr10", "hg18");
     let mut call = load_call("test12");
     check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"CASE_AF", 1.0, 0.05);
+    check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
+    check_info_float(&mut call, b"PROB_GERMLINE_HOM", 0.0, 0.01);
 }
 
 /// A delly deletion that is a somatic mutation in reality (AF=0.33).
@@ -516,7 +511,7 @@ fn test12() {
 fn test13() {
     call_tumor_normal("test13", true, "chr1", "hg18");
     let mut call = load_call("test13");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.00000001, 0.00000001);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.18, 0.01);
     check_info_float(&mut call, b"CASE_AF", 0.33, 0.1);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
@@ -530,7 +525,8 @@ fn test13() {
 fn test14() {
     call_tumor_normal("test14", true, "chr15", "hg18");
     let mut call = load_call("test14");
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.0);
+    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.3);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 456.814, 0.01)
 }
 
 /// A small lancet deletion that is a true and strong somatic variant (AF=1.0).
