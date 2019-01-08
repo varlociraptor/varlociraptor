@@ -337,7 +337,9 @@ impl Sample {
                 //obs.prob_ref = obs.prob_ref - max_prob;
                 //obs.prob_alt = obs.prob_alt - max_prob;
                 let prob_total = obs.prob_ref.ln_add_exp(obs.prob_alt);
-                if prob_total != LogProb::ln_zero() {
+                if *cmp::min(NotNan::new(*obs.prob_ref).unwrap(), NotNan::new(*obs.prob_alt).unwrap()) > *LogProb::ln_zero() &&
+                   prob_total != LogProb::ln_zero()
+                {
                     obs.prob_ref = obs.prob_ref - prob_total;
                     obs.prob_alt = obs.prob_alt - prob_total;
                 }
@@ -345,6 +347,29 @@ impl Sample {
                 assert!(obs.prob_alt.is_valid());
             }
         }
+
+        // if !observations.is_empty() {
+        //     // We scale all probabilities by the maximum value. This is just an unbiased scaling
+        //     // that does not affect the final certainties (because of Bayes' theorem application
+        //     // in the end). However, we avoid numerical issues (e.g., during integration).
+        //     let max_prob = LogProb(
+        //         *observations
+        //             .iter()
+        //             .map(|obs| cmp::max(NotNan::from(obs.prob_ref), NotNan::from(obs.prob_alt)))
+        //             .max()
+        //             .unwrap(),
+        //     );
+        //     if max_prob != LogProb::ln_zero() {
+        //         // only scale if the maximum probability is not zero
+        //         for obs in &mut observations {
+        //             obs.prob_ref = obs.prob_ref - max_prob;
+        //             obs.prob_alt = obs.prob_alt - max_prob;
+        //             assert!(obs.prob_ref.is_valid());
+        //             assert!(obs.prob_alt.is_valid());
+        //          }
+        //      }
+        //  }
+
         Ok(observations)
     }
 
