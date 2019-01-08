@@ -164,8 +164,6 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
             };
 
             let p_normal = pileup.control_likelihood(af_normal, None);
-            println!("DEBUG: {}\t={:?}", *af_normal, p_normal);
-            println!("DEBUG real: {}\t={:?}", 0.23, pileup.control_likelihood(AlleleFreq(0.23208191126279865), None));
             let prob = p_tumor + p_normal;
 
             prob

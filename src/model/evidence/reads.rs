@@ -222,8 +222,6 @@ impl AbstractReadEvidence for IndelEvidence {
 
         let edit_dist = EditDistanceEstimation::new((read_offset..read_end).map(|i| read_seq[i]));
 
-        println!("DEBUG {} {} {}", breakpoint.saturating_sub(ref_window), breakpoint + ref_window, ref_seq.len());
-
         // ref allele
         let prob_ref = {
             let ref_params = ReferenceEmissionParams {
@@ -425,7 +423,6 @@ macro_rules! default_emission {
 
         #[inline]
         fn len_x(&self) -> usize {
-            println!("{} {}", self.ref_end, self.ref_offset);
             self.ref_end - self.ref_offset
         }
 
