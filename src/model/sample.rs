@@ -334,12 +334,14 @@ impl Sample {
             // lower probabilities just because there are leading or trailing mismatches outside
             // of the variant.
             for obs in &mut observations {
-                //obs.prob_ref = obs.prob_ref - max_prob;
-                //obs.prob_alt = obs.prob_alt - max_prob;
-                let prob_total = obs.prob_ref.ln_add_exp(obs.prob_alt);
-                if *cmp::min(NotNan::new(*obs.prob_ref).unwrap(), NotNan::new(*obs.prob_alt).unwrap()) > *LogProb::ln_zero() &&
-                   prob_total != LogProb::ln_zero()
-                {
+                let min_prob = *cmp::min(
+                    NotNan::new(*obs.prob_ref).unwrap(), NotNan::new(*obs.prob_alt).unwrap()
+                );
+                // If any of the alleles has probability zero, no normalization is required.
+                // In fact, it would even hurt because the summation can erase a minor uncertainty
+                // in the other allele.
+                if min_prob > *LogProb::ln_zero() {
+                    let prob_total = obs.prob_ref.ln_add_exp(obs.prob_alt);
                     obs.prob_ref = obs.prob_ref - prob_total;
                     obs.prob_alt = obs.prob_alt - prob_total;
                 }
