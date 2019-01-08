@@ -64,9 +64,10 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
             panic!("invalid genome build: {}", build);
         };
 
-        let mut curl = Command::new("curl")
+        let curl = Command::new("curl")
             .arg(&url)
             .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn().unwrap();
         let mut gzip = Command::new("gzip")
             .arg("-d")

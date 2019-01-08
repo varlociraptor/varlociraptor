@@ -192,6 +192,13 @@ impl Variant {
         }
     }
 
+    pub fn is_single_base(&self) -> bool {
+        match self {
+            &Variant::SNV(_) | &Variant::None => true,
+            _ => false
+        }
+    }
+
     pub fn is_snv(&self) -> bool {
         match self {
             &Variant::SNV(_) => true,
