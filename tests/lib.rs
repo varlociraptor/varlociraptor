@@ -534,7 +534,7 @@ fn test14() {
 fn test15() {
     call_tumor_normal("test15", false, "chr1", "hg18");
     let mut call = load_call("test15");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.19, 0.001);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.19, 0.01);
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.06);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
@@ -546,7 +546,7 @@ fn test16() {
     let mut call = load_call("test16");
     check_info_float(&mut call, b"CASE_AF", 0.333, 0.11);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.17, 0.001);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.17, 0.01);
 }
 
 /// A delly call that is a false positive. It should be called as absent.
@@ -567,7 +567,7 @@ fn test18() {
     let mut call = load_call("test18");
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 4057.59, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 4073.52, 0.01);
 }
 
 /// A delly deletion that is not somatic but a heterozygous germline variant.
@@ -577,7 +577,7 @@ fn test18() {
 fn test19() {
     call_tumor_normal("test19", true, "chr8", "hg18");
     let mut call = load_call("test19");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 540.463, 0.001);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 540.34, 0.01);
 }
 
 /// A delly deletion that is not a somatic variant but germline. It is in a highly repetetive
@@ -623,7 +623,7 @@ fn test23() {
 fn test24() {
     call_tumor_normal("test24", false, "chr6", "hg18");
     let mut call = load_call("test24");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 163.497, 0.0);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 163.49, 0.01);
 }
 
 /// Test a small lancet deletion that is a clear germline variant.
@@ -633,7 +633,7 @@ fn test25() {
     let mut call = load_call("test25");
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 150.006, 0.001);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 2648.42, 0.01);
 }
 
 /// Test a delly deletion (on real data) that is a germline variant.

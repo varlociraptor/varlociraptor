@@ -30,11 +30,20 @@ pub trait AbstractReadEvidence {
     ) -> Result<Option<(LogProb, LogProb)>, Box<Error>>;
 
     /// Calculate mapping and mismapping probability of given record.
-    fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
+    fn prob_mapping_mismapping(
+        &self,
+        record: &bam::Record,
+        _: &AlignmentProperties,
+    ) -> (LogProb, LogProb) {
         prob_mapping_mismapping(record)
     }
 
-    fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb;
+    fn prob_sample_alt(
+        &self,
+        read_len: u32,
+        variant: &Variant,
+        alignment_properties: &AlignmentProperties,
+    ) -> LogProb;
 }
 
 pub struct NoneEvidence;
@@ -77,7 +86,11 @@ impl AbstractReadEvidence for NoneEvidence {
         }
     }
 
-    fn prob_sample_alt(&self, _: u32, _: &Variant) -> LogProb {
+    fn prob_sample_alt(
+        &self, _: u32,
+        _: &Variant,
+        _: &AlignmentProperties,
+    ) -> LogProb {
         LogProb::ln_one()
     }
 }
@@ -117,7 +130,12 @@ impl AbstractReadEvidence for SNVEvidence {
         }
     }
 
-    fn prob_sample_alt(&self, _: u32, _: &Variant) -> LogProb {
+    fn prob_sample_alt(
+        &self,
+        _: u32,
+        _: &Variant,
+        _: &AlignmentProperties,
+    ) -> LogProb {
         LogProb::ln_one()
     }
 }
@@ -127,7 +145,6 @@ pub struct IndelEvidence {
     gap_params: IndelGapParams,
     pairhmm: pairhmm::PairHMM,
     window: u32,
-    alignment_properties: AlignmentProperties,
     use_mapq: bool,
 }
 
@@ -139,7 +156,6 @@ impl IndelEvidence {
         prob_insertion_extend_artifact: LogProb,
         prob_deletion_extend_artifact: LogProb,
         window: u32,
-        alignment_properties: AlignmentProperties,
         use_mapq: bool,
     ) -> Self {
         IndelEvidence {
@@ -151,7 +167,6 @@ impl IndelEvidence {
             },
             pairhmm: pairhmm::PairHMM::new(),
             window,
-            alignment_properties,
             use_mapq,
         }
     }
@@ -287,7 +302,11 @@ impl AbstractReadEvidence for IndelEvidence {
     }
 
     /// Calculate mapping and mismapping probability of given record.
-    fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
+    fn prob_mapping_mismapping(
+        &self,
+        record: &bam::Record,
+        alignment_properties: &AlignmentProperties,
+    ) -> (LogProb, LogProb) {
         if self.use_mapq {
             prob_mapping_mismapping(record)
         } else {
@@ -299,7 +318,7 @@ impl AbstractReadEvidence for IndelEvidence {
             if record.mapq() == 0 {
                 (LogProb::ln_zero(), LogProb::ln_one())
             } else {
-                let prob_mismapping = LogProb::from(self.alignment_properties.max_mapq());
+                let prob_mismapping = LogProb::from(alignment_properties.max_mapq());
                 let prob_mapping = prob_mismapping.ln_one_minus_exp();
                 (prob_mapping, prob_mismapping)
             }
@@ -311,7 +330,12 @@ impl AbstractReadEvidence for IndelEvidence {
     ///
     /// The key idea is calculate the probability as number of valid placements (considering the
     /// max softclip allowed by the mapper) over all possible placements.
-    fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb {
+    fn prob_sample_alt(
+        &self,
+        read_len: u32,
+        variant: &Variant,
+        alignment_properties: &AlignmentProperties,
+    ) -> LogProb {
         // TODO for long reads, always return One
         let delta = match variant {
             &Variant::Deletion(_) => variant.len() as u32,
@@ -319,7 +343,7 @@ impl AbstractReadEvidence for IndelEvidence {
             &Variant::SNV(_) | &Variant::None => panic!("unsupported variant"),
         };
 
-        let feasible = self.alignment_properties.feasible_bases(read_len, variant);
+        let feasible = alignment_properties.feasible_bases(read_len, variant);
 
         let prob = {
             let n_alt = cmp::min(delta, read_len);

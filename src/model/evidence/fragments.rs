@@ -78,38 +78,43 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u
 }
 
 /// Calculate read evindence for an indel.
-pub struct IndelEvidence {
-    alignment_properties: AlignmentProperties,
-}
+pub struct IndelEvidence {}
 
 impl IndelEvidence {
     /// Create a new instance.
-    pub fn new(alignment_properties: AlignmentProperties) -> Self {
-        IndelEvidence {
-            alignment_properties,
-        }
+    pub fn new() -> Self {
+        IndelEvidence {}
     }
 
     /// Get range of insert sizes with probability above zero.
     /// We use 6 SDs around the mean.
-    fn pmf_range(&self) -> Range<u32> {
-        let m = self.alignment_properties.insert_size().mean.round() as u32;
-        let s = self.alignment_properties.insert_size().sd.ceil() as u32 * 6;
+    fn pmf_range(&self, alignment_properties: &AlignmentProperties) -> Range<u32> {
+        let m = alignment_properties.insert_size().mean.round() as u32;
+        let s = alignment_properties.insert_size().sd.ceil() as u32 * 6;
         m.saturating_sub(s)..m + s
     }
 
     /// Get probability of given insert size from distribution shifted by the given value.
-    fn pmf(&self, insert_size: u32, shift: f64) -> LogProb {
+    fn pmf(
+        &self,
+        insert_size: u32,
+        shift: f64,
+        alignment_properties: &AlignmentProperties,
+    ) -> LogProb {
         isize_pmf(
             insert_size as f64,
-            self.alignment_properties.insert_size().mean + shift,
-            self.alignment_properties.insert_size().sd,
+            alignment_properties.insert_size().mean + shift,
+            alignment_properties.insert_size().sd,
         )
     }
 
     /// Returns true if insert size is discriminative.
-    pub fn is_discriminative(&self, variant: &Variant) -> bool {
-        variant.len() as f64 > self.alignment_properties.insert_size().sd
+    pub fn is_discriminative(
+        &self,
+        variant: &Variant,
+        alignment_properties: &AlignmentProperties,
+    ) -> bool {
+        variant.len() as f64 > alignment_properties.insert_size().sd
     }
 
     /// Calculate probability for reference and alternative allele.
@@ -117,6 +122,7 @@ impl IndelEvidence {
         &self,
         insert_size: u32,
         variant: &Variant,
+        alignment_properties: &AlignmentProperties,
     ) -> Result<(LogProb, LogProb), Box<Error>> {
         let shift = match variant {
             &Variant::Deletion(_) => variant.len() as f64,
@@ -133,8 +139,8 @@ impl IndelEvidence {
             &Variant::None => panic!("no fragment observations for None"),
         };
 
-        let p_ref = self.pmf(insert_size, 0.0);
-        let p_alt = self.pmf(insert_size, shift);
+        let p_ref = self.pmf(insert_size, 0.0, alignment_properties);
+        let p_alt = self.pmf(insert_size, shift, alignment_properties);
 
         Ok((p_ref, p_alt))
     }
@@ -150,6 +156,7 @@ impl IndelEvidence {
         left_read_len: u32,
         right_read_len: u32,
         variant: &Variant,
+        alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         // TODO for long reads always return one?
         let expected_prob_enclose = |left_feasible, right_feasible, delta| {
@@ -162,13 +169,13 @@ impl IndelEvidence {
             // e.g., a ref fragment.
             let expected_p_alt = LogProb::ln_sum_exp(
                 &self
-                    .pmf_range()
+                    .pmf_range(alignment_properties)
                     .filter_map(|x| {
                         if x <= delta || x <= delta + read_offsets {
                             // if x is too small to enclose the variant, we skip it as it adds zero to the sum
                             None
                         } else {
-                            let p = self.pmf(x, 0.0) +
+                            let p = self.pmf(x, 0.0, alignment_properties) +
                         // probability to sample a valid placement
                         LogProb(
                             (x.saturating_sub(delta).saturating_sub(read_offsets) as f64).ln() -
@@ -191,12 +198,8 @@ impl IndelEvidence {
             LogProb((n_alt_valid as f64).ln() - ((n_alt_left + n_alt_right) as f64).ln())
         };
 
-        let left_feasible = self
-            .alignment_properties
-            .feasible_bases(left_read_len, variant);
-        let right_feasible = self
-            .alignment_properties
-            .feasible_bases(right_read_len, variant);
+        let left_feasible = alignment_properties.feasible_bases(left_read_len, variant);
+        let right_feasible = alignment_properties.feasible_bases(right_read_len, variant);
 
         match variant {
             &Variant::Deletion(_) => {

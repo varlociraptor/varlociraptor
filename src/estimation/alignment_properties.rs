@@ -35,14 +35,52 @@ impl AlignmentProperties {
         }
     }
 
+    /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
+    /// was found in the cigar string.
+    pub fn update_max_cigar_ops_len(&mut self, record: &bam::Record) -> bool {
+        let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
+
+        let mut is_regular = true;
+        for c in record.cigar().iter() {
+            match c {
+                &Cigar::SoftClip(l) => {
+                    let s = norm(l);
+                    self.frac_max_softclip = *cmp::max(
+                        s, NotNan::new(self.frac_max_softclip).unwrap()
+                    );
+                    is_regular = false;
+                }
+                &Cigar::Del(l) => {
+                    self.max_del_cigar_len = cmp::max(l, self.max_del_cigar_len);
+                    is_regular = false;
+                }
+                &Cigar::Ins(l) => {
+                    self.max_ins_cigar_len = cmp::max(l, self.max_ins_cigar_len);
+                    is_regular = false;
+                }
+                &Cigar::HardClip(_) => {
+                    is_regular = false;
+                },
+                _ => continue,
+            }
+        }
+
+        is_regular
+    }
+
     /// Estimate `AlignmentProperties` from first 10000 fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
     pub fn estimate<R: bam::Read>(bam: &mut R) -> Result<Self, Box<Error>> {
+        let mut properties = AlignmentProperties {
+            insert_size: InsertSize::default(),
+            max_del_cigar_len: 0,
+            max_ins_cigar_len: 0,
+            frac_max_softclip: 0.0,
+            max_mapq: PHREDProb(0.0),
+        };
+
         let mut record = bam::Record::new();
         let mut tlens = Vec::new();
-        let mut max_softclip = NotNan::new(0.0).unwrap();
-        let mut max_del_cigar_len = 0;
-        let mut max_ins_cigar_len = 0;
         let mut max_mapq = 0;
         let mut i = 0;
         while i <= 10000 {
@@ -58,27 +96,7 @@ impl AlignmentProperties {
 
             max_mapq = cmp::max(max_mapq, record.mapq());
 
-            let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
-
-            let mut is_regular = true;
-            for c in record.cigar().iter() {
-                match c {
-                    &Cigar::SoftClip(l) => {
-                        let s = norm(l);
-                        max_softclip = cmp::max(s, max_softclip);
-                        is_regular = false;
-                    }
-                    &Cigar::Del(l) => {
-                        max_del_cigar_len = cmp::max(l, max_del_cigar_len);
-                        is_regular = false;
-                    }
-                    &Cigar::Ins(l) => {
-                        max_ins_cigar_len = cmp::max(l, max_ins_cigar_len);
-                        is_regular = false;
-                    }
-                    _ => continue,
-                }
-            }
+            let is_regular = properties.update_max_cigar_ops_len(&record);
 
             if is_regular
                &&!record.is_mate_unmapped()
@@ -93,29 +111,20 @@ impl AlignmentProperties {
             i += 1;
         }
 
-        let insert_size = {
-            let upper = tlens.percentile(95);
-            let lower = tlens.percentile(5);
-            let mut valid = tlens
-                .into_iter()
-                .filter(|l| *l <= upper && *l >= lower)
-                .collect_vec();
-            InsertSize {
-                mean: valid.median(),
-                sd: valid.iter().std_dev(),
-            }
-        };
+        let upper = tlens.percentile(95);
+        let lower = tlens.percentile(5);
+        let mut valid = tlens
+            .into_iter()
+            .filter(|l| *l <= upper && *l >= lower)
+            .collect_vec();
+        properties.insert_size.mean = valid.median();
+        properties.insert_size.sd = valid.iter().std_dev();
+        properties.max_mapq = PHREDProb(max_mapq as f64);
 
-        Ok(AlignmentProperties {
-            insert_size,
-            max_del_cigar_len,
-            max_ins_cigar_len,
-            frac_max_softclip: *max_softclip,
-            max_mapq: PHREDProb(max_mapq as f64),
-        })
+        Ok(properties)
     }
 
-    // Number of bases that are feasible for overlapping the variant.
+    /// Number of bases that are feasible for overlapping the variant.
     pub fn feasible_bases(&self, read_len: u32, variant: &Variant) -> u32 {
         match variant {
             &Variant::Deletion(l) if l <= self.max_del_cigar_len => read_len,

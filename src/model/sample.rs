@@ -149,6 +149,7 @@ pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
     likelihood_model: model::likelihood::LatentVariableModel,
+    alignment_properties: alignment_properties::AlignmentProperties,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
@@ -188,19 +189,17 @@ impl Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
             likelihood_model: likelihood_model,
+            alignment_properties: alignment_properties,
             indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
                 LogProb::from(prob_insertion_artifact),
                 LogProb::from(prob_deletion_artifact),
                 LogProb::from(prob_insertion_extend_artifact),
                 LogProb::from(prob_deletion_extend_artifact),
                 indel_haplotype_window,
-                alignment_properties,
                 use_mapq,
             )),
             snv_read_evidence: RefCell::new(evidence::reads::SNVEvidence::new()),
-            indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new(
-                alignment_properties,
-            )),
+            indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new()),
             none_read_evidence: RefCell::new(evidence::reads::NoneEvidence::new()),
         }
     }
@@ -252,6 +251,11 @@ impl Sample {
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
+                    // First, we check whether the record contains an indel in the cigar.
+                    // We store the maximum indel size to update the global estimates, in case
+                    // it is larger in this region.
+                    self.alignment_properties.update_max_cigar_ops_len(record);
+
                     // We look at the whole fragment at once.
 
                     // We ensure fair sampling by checking if the whole fragment overlaps the
@@ -350,28 +354,6 @@ impl Sample {
             }
         }
 
-        // if !observations.is_empty() {
-        //     // We scale all probabilities by the maximum value. This is just an unbiased scaling
-        //     // that does not affect the final certainties (because of Bayes' theorem application
-        //     // in the end). However, we avoid numerical issues (e.g., during integration).
-        //     let max_prob = LogProb(
-        //         *observations
-        //             .iter()
-        //             .map(|obs| cmp::max(NotNan::from(obs.prob_ref), NotNan::from(obs.prob_alt)))
-        //             .max()
-        //             .unwrap(),
-        //     );
-        //     if max_prob != LogProb::ln_zero() {
-        //         // only scale if the maximum probability is not zero
-        //         for obs in &mut observations {
-        //             obs.prob_ref = obs.prob_ref - max_prob;
-        //             obs.prob_alt = obs.prob_alt - max_prob;
-        //             assert!(obs.prob_ref.is_valid());
-        //             assert!(obs.prob_alt.is_valid());
-        //          }
-        //      }
-        //  }
-
         Ok(observations)
     }
 
@@ -393,9 +375,13 @@ impl Sample {
         if let Some((prob_ref, prob_alt)) =
             evidence.prob(record, cigar, start, variant, chrom_seq)?
         {
-            let (prob_mapping, prob_mismapping) = evidence.prob_mapping_mismapping(record);
+            let (prob_mapping, prob_mismapping) = evidence.prob_mapping_mismapping(
+                record, &self.alignment_properties
+            );
 
-            let prob_sample_alt = evidence.prob_sample_alt(record.seq().len() as u32, variant);
+            let prob_sample_alt = evidence.prob_sample_alt(
+                record.seq().len() as u32, variant, &self.alignment_properties
+            );
             Ok(Some(Observation::new(
                 prob_mapping,
                 prob_mismapping,
@@ -464,7 +450,7 @@ impl Sample {
             &Variant::Deletion(_) if self.use_fragment_evidence => self
                 .indel_fragment_evidence
                 .borrow()
-                .prob(insert_size, variant)?,
+                .prob(insert_size, variant, &self.alignment_properties)?,
             _ => {
                 // Ignore isize for insertions. The reason is that we cannot reliably determine if a
                 // fragment encloses the insertion properly (with overlaps at the inner read ends).
@@ -478,6 +464,7 @@ impl Sample {
             left_read_len,
             right_read_len,
             variant,
+            &self.alignment_properties,
         );
 
         assert!(p_alt_isize.is_valid());
@@ -490,11 +477,11 @@ impl Sample {
         let (_, prob_mismapping_left) = self
             .indel_read_evidence
             .borrow()
-            .prob_mapping_mismapping(left_record);
+            .prob_mapping_mismapping(left_record, &self.alignment_properties);
         let (_, prob_mismapping_right) = self
             .indel_read_evidence
             .borrow()
-            .prob_mapping_mismapping(right_record);
+            .prob_mapping_mismapping(right_record, &self.alignment_properties);
         let prob_mismapping = prob_mismapping_left + prob_mismapping_right;
         let obs = Observation::new(
             prob_mismapping.ln_one_minus_exp(),
