@@ -203,7 +203,7 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         let af_normal = linspace(
             *self.allele_freqs_normal_somatic.start,
             *self.allele_freqs_normal_somatic.end,
-            101,
+            5,
         ).rev()
         .skip(1)
         .chain(self.allele_freqs_normal_germline.iter().map(|af| **af));
