@@ -238,7 +238,7 @@ impl AbstractReadEvidence for IndelEvidence {
         let edit_dist = EditDistanceEstimation::new((read_offset..read_end).map(|i| read_seq[i]));
 
         // ref allele
-        let prob_ref = {
+        let mut prob_ref = {
             let ref_params = ReferenceEmissionParams {
                 ref_seq: ref_seq,
                 ref_offset: breakpoint.saturating_sub(ref_window),
@@ -254,7 +254,7 @@ impl AbstractReadEvidence for IndelEvidence {
         };
 
         // alt allele
-        let prob_alt = if overlap {
+        let mut prob_alt = if overlap {
             match variant {
                 &Variant::Deletion(_) => {
                     let p = DeletionEmissionParams {
@@ -297,6 +297,16 @@ impl AbstractReadEvidence for IndelEvidence {
             // if no overlap, we can simply use prob_ref again
             prob_ref
         };
+
+        // Normalize probabilities. By this, we avoid biases due to proximal variants that are in
+        // cis with the considered one. They are normalized away since they affect both ref and alt.
+        // In a sense, this assumes that thw two considered alleles are the only possible ones.
+        // However, if the read actually comes from a third allele, both probabilities will be
+        // equally bad, and the normalized one will not prefer any of them.
+
+        let prob_total = prob_alt.ln_add_exp(prob_ref);
+        prob_ref -= prob_total;
+        prob_alt -= prob_total;
 
         Ok(Some((prob_ref, prob_alt)))
     }

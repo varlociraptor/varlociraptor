@@ -331,28 +331,27 @@ impl Sample {
             }
         }
 
-        if !variant.is_single_base() {
-            // We normalize allele probabilities. This ensures that proximal variants that
-            // are in cis with the considered one cause a systematic bias against the variant.
-            // Otherwise, it could happen that fragments coming from the variant allele have
-            // lower probabilities just because there are leading or trailing mismatches outside
-            // of the variant.
-            for obs in &mut observations {
-                let min_prob = *cmp::min(
-                    NotNan::new(*obs.prob_ref).unwrap(), NotNan::new(*obs.prob_alt).unwrap()
-                );
-                // If any of the alleles has probability zero, no normalization is required.
-                // In fact, it would even hurt because the summation can erase a minor uncertainty
-                // in the other allele.
-                if min_prob > *LogProb::ln_zero() {
-                    let prob_total = obs.prob_ref.ln_add_exp(obs.prob_alt);
-                    obs.prob_ref = obs.prob_ref - prob_total;
-                    obs.prob_alt = obs.prob_alt - prob_total;
-                }
-                assert!(obs.prob_ref.is_valid());
-                assert!(obs.prob_alt.is_valid());
-            }
-        }
+        // if !observations.is_empty() {
+        //     // We scale all probabilities by the maximum value. This is just an unbiased scaling
+        //     // that does not affect the final certainties (because of Bayes' theorem application
+        //     // in the end). However, we avoid numerical issues (e.g., during integration).
+        //     let max_prob = LogProb(
+        //         *observations
+        //             .iter()
+        //             .map(|obs| cmp::max(NotNan::from(obs.prob_ref), NotNan::from(obs.prob_alt)))
+        //             .max()
+        //             .unwrap(),
+        //     );
+        //     if max_prob != LogProb::ln_zero() {
+        //         // only scale if the maximum probability is not zero
+        //         for obs in &mut observations {
+        //             obs.prob_ref = obs.prob_ref - max_prob;
+        //             obs.prob_alt = obs.prob_alt - max_prob;
+        //             assert!(obs.prob_ref.is_valid());
+        //             assert!(obs.prob_alt.is_valid());
+        //         }
+        //     }
+        // }
 
         Ok(observations)
     }
