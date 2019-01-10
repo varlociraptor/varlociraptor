@@ -434,7 +434,9 @@ impl Sample {
         let left_overlap = Overlap::new(left_record, left_cigar, start, variant, true)?;
         let right_overlap = Overlap::new(right_record, right_cigar, start, variant, true)?;
 
-        if !self.use_fragment_evidence && left_overlap.is_none() && right_overlap.is_none() {
+        if left_overlap.is_none() && right_overlap.is_none() {
+            // We omit all fragments with no overlap, because insert size alone is too unreliable.
+            // E.g., it can be biased due to repeat-induced misplacement of reads.
             return Ok(None);
         }
 

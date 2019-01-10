@@ -222,7 +222,7 @@ impl IndelEvidence {
 pub fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
     // TODO fix density in paper
     LogProb(
-        (ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln(), // - ugaussian_P(-mean / sd).ln()
+        (ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln(),
     )
 }
 

@@ -148,7 +148,8 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
             let p_tumor = {
                 let mut tumor_density = |af_tumor| {
                     let af_tumor = AlleleFreq(af_tumor);
-                    pileup.case_likelihood(af_tumor, Some(af_normal))
+                    let p = pileup.case_likelihood(af_tumor, Some(af_normal));
+                    p
                 };
 
                 if af_tumor.is_singleton() {

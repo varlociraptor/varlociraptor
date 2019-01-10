@@ -656,6 +656,14 @@ fn test27() {
     check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 2648.42, 0.01);
 }
 
+/// Test a delly deletion that is not a somatic variant. It is likely absent.
+#[test]
+fn test28() {
+    call_tumor_normal("test28", true, "chr5", "hg18");
+    let mut call = load_call("test28");
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 2648.42, 0.01);
+}
+
 #[test]
 fn test_fdr_ev1() {
     control_fdr_ev("test_fdr_ev_1", "SOMATIC", 0.05);
