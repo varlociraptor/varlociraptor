@@ -4,6 +4,7 @@ use std::error::Error;
 use bio::stats::{LogProb, PHREDProb, Prob};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
+use ordered_float::NotNan;
 
 use bio::pattern_matching::myers::Myers;
 use bio::stats::pairhmm;
@@ -304,9 +305,13 @@ impl AbstractReadEvidence for IndelEvidence {
         // However, if the read actually comes from a third allele, both probabilities will be
         // equally bad, and the normalized one will not prefer any of them.
 
-        let prob_total = prob_alt.ln_add_exp(prob_ref);
-        prob_ref -= prob_total;
-        prob_alt -= prob_total;
+        let min_prob = cmp::min(NotNan::from(prob_ref), NotNan::from(prob_alt));
+
+        if *min_prob != *LogProb::ln_zero() {
+            let prob_total = prob_alt.ln_add_exp(prob_ref);
+            prob_ref -= prob_total;
+            prob_alt -= prob_total;
+        }
 
         Ok(Some((prob_ref, prob_alt)))
     }
