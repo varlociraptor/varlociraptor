@@ -311,6 +311,20 @@ impl AbstractReadEvidence for IndelEvidence {
             let prob_total = prob_alt.ln_add_exp(prob_ref);
             prob_ref -= prob_total;
             prob_alt -= prob_total;
+            let certainty_est = {
+                let mut p = LogProb::ln_one();
+                for &q in &read_qual[read_offset..read_end] {
+                    let prob_miscall = prob_read_base_miscall(q);
+                    p += prob_miscall.ln_one_minus_exp();
+                }
+                p
+            };
+            // Rescale prob ref and alt with the overall certainty given the read base qualities
+            // in the aligned region.
+            // This allows us to scale the probabilties to about the same magnitude as
+            // before the normalization.
+            prob_ref += certainty_est;
+            prob_alt += certainty_est;
         }
 
         Ok(Some((prob_ref, prob_alt)))
