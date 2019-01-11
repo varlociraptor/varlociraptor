@@ -323,6 +323,10 @@ impl AbstractReadEvidence for IndelEvidence {
             // in the aligned region.
             // This allows us to scale the probabilties to about the same magnitude as
             // before the normalization.
+            // In other words, although we normalize away common parts of alt and ref
+            // alignment, we restore the original magnitude of the probabilties.
+            // This is important because otherwise we put too much emphasis on insert
+            // size in cases where the read does not overlap the variant.
             prob_ref += certainty_est;
             prob_alt += certainty_est;
         }
