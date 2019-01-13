@@ -225,7 +225,7 @@ impl Sample {
         let mut candidate_records = HashMap::new();
 
         match variant {
-            //TODO: make &Variant::Ref add reads with position deleted if we want to check against indel alt alleles
+            //TODO: make &Variant::None add reads with position deleted if we want to check against indel alt alleles
             &Variant::SNV(_) | &Variant::None => {
                 // iterate over records
                 for record in self.record_buffer.iter() {
