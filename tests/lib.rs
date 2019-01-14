@@ -133,6 +133,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
         Prob(0.0),
         Prob(0.0),
         100,
+        500,
     );
 
     let normal = libprosic::Sample::new(
@@ -148,6 +149,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
         Prob(0.0),
         Prob(0.0),
         100,
+        500,
     );
 
     let events = [
@@ -249,6 +251,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
         Prob(0.0),
         Prob(0.0),
         100,
+        500,
     );
 
     let bulk = libprosic::Sample::new(
@@ -264,6 +267,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
         Prob(0.0),
         Prob(0.0),
         100,
+        500,
     );
 
     // setup events: case = single cell; control = bulk
@@ -484,7 +488,7 @@ fn test09() {
 fn test10() {
     call_tumor_normal("test10", false, "chr20", "hg18");
     let mut call = load_call("test10");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 589.43, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 589.44, 0.01);
 }
 
 // A delly deletion that has very low coverage and very weak evidence. We cannot really infer
@@ -615,7 +619,7 @@ fn test22() {
 fn test23() {
     call_tumor_normal("test23", false, "chr14", "hg18");
     let mut call = load_call("test23");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 2.61, 0.01); // weak enough for now
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 2.50, 0.01); // weak enough for now
 }
 
 /// Test a small strelka deletion that is not somatic.
@@ -643,7 +647,7 @@ fn test25() {
 fn test26() {
     call_tumor_normal("test26", true, "1", "GRCh38");
     let mut call = load_call("test26");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 4216.04, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 031.29, 0.01);
     check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.2);
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.01);
 }
@@ -661,7 +665,7 @@ fn test27() {
 fn test28() {
     call_tumor_normal("test28", true, "chr5", "hg18");
     let mut call = load_call("test28");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 15.98, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 15.84, 0.01);
 }
 
 #[test]

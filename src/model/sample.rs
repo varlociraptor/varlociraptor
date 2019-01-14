@@ -1,6 +1,6 @@
 use std::cell::{RefCell, RefMut};
 use std::cmp;
-use std::collections::{vec_deque, HashMap, VecDeque};
+use std::collections::{vec_deque, HashMap, VecDeque, BTreeMap};
 use std::error::Error;
 use std::f64;
 use std::f64::consts;
@@ -146,23 +146,36 @@ impl<'a> Candidate<'a> {
     }
 }
 
-pub struct SubsampleCandidates {
-    rng: StdRng,
-    prob: f64,
-    prob_range: distributions::Range<f64>
+pub enum SubsampleCandidates {
+    Necessary {
+        rng: StdRng,
+        prob: f64,
+        prob_range: distributions::Range<f64>
+    },
+    None
 }
 
 impl SubsampleCandidates {
     pub fn new(max_depth: usize, depth: usize) -> Self {
-        SubsampleCandidates {
-            rng: StdRng::from_seed(&[48074578]),
-            prob: max_depth as f64 / depth as f64,
-            prob_range: distributions::Range::new(0.0, 1.0),
+        if depth > max_depth {
+            SubsampleCandidates::Necessary {
+                rng: StdRng::from_seed(&[48074578]),
+                prob: max_depth as f64 / depth as f64,
+                prob_range: distributions::Range::new(0.0, 1.0),
+            }
+        } else {
+            SubsampleCandidates::None
         }
+
     }
 
     pub fn keep(&mut self) -> bool {
-        self.prob_range.ind_sample(&mut self.rng) <= self.prob
+        match self {
+            SubsampleCandidates::Necessary {rng, prob, prob_range} => {
+                prob_range.ind_sample(rng) <= *prob
+            },
+            SubsampleCandidates::None => true,
+        }
     }
 }
 
@@ -226,7 +239,7 @@ impl Sample {
             snv_read_evidence: RefCell::new(evidence::reads::SNVEvidence::new()),
             indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new()),
             none_read_evidence: RefCell::new(evidence::reads::NoneEvidence::new()),
-            max_depth: usize,
+            max_depth: max_depth,
         }
     }
 
@@ -286,7 +299,10 @@ impl Sample {
                 }
             }
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
-                let mut candidate_records = HashMap::new();
+                // We cannot use a hash function here because candidates have to be considered
+                // in a deterministic order. Otherwise, subsampling high-depth regions will result
+                // in slightly different probabilities each time.
+                let mut candidate_records = BTreeMap::new();
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
@@ -331,7 +347,7 @@ impl Sample {
                     if !subsample_candidates.keep() {
                         continue;
                     }
-                    
+
                     if let Some(right) = candidate.right {
                         // this is a pair
                         let start_pos = (candidate.left.pos() as u32).saturating_sub(
@@ -632,6 +648,7 @@ mod tests {
             Prob(0.0),
             Prob(0.0),
             10,
+            500,
         )
     }
 
