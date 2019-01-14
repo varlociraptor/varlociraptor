@@ -1,13 +1,13 @@
 use std::cell::{RefCell, RefMut};
 use std::cmp;
-use std::collections::{vec_deque, HashMap, VecDeque, BTreeMap};
+use std::collections::{vec_deque, VecDeque, BTreeMap};
 use std::error::Error;
 use std::f64;
 use std::f64::consts;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
-use rand::{Rng, SeedableRng, StdRng};
+use rand::{SeedableRng, StdRng};
 use rand::distributions;
 use rand::distributions::IndependentSample;
 use rgsl::error::erfc;
