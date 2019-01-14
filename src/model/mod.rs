@@ -158,19 +158,27 @@ impl ContinuousAlleleFreqs {
     }
 
     pub fn observable_min(&self, n_obs: usize) -> AlleleFreq {
-        let mut obs_count = Self::expected_observation_count(self.start, n_obs);
-        if self.left_exclusive && obs_count % 1.0 == 0.0 {
-            obs_count += 1.0;
+        if n_obs == 0 {
+            self.start
+        } else {
+            let mut obs_count = Self::expected_observation_count(self.start, n_obs);
+            if self.left_exclusive && obs_count % 1.0 == 0.0 {
+                obs_count += 1.0;
+            }
+            AlleleFreq(obs_count.ceil() / n_obs as f64)
         }
-        AlleleFreq(obs_count.ceil() / n_obs as f64)
     }
 
     pub fn observable_max(&self, n_obs: usize) -> AlleleFreq {
-        let mut obs_count = Self::expected_observation_count(self.end, n_obs);
-        if self.right_exclusive && obs_count % 1.0 == 0.0 {
-            obs_count -= 1.0;
+        if n_obs == 0 {
+            self.end
+        } else {
+            let mut obs_count = Self::expected_observation_count(self.end, n_obs);
+            if self.right_exclusive && obs_count % 1.0 == 0.0 {
+                obs_count -= 1.0;
+            }
+            AlleleFreq(obs_count.floor() / n_obs as f64)
         }
-        AlleleFreq(obs_count.floor() / n_obs as f64)
     }
 
     fn expected_observation_count(freq: AlleleFreq, n_obs: usize) -> f64 {
