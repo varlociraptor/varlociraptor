@@ -140,8 +140,10 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         af_normal: &ContinuousAlleleFreqs,
         pileup: &mut PairPileup<ContinuousAlleleFreqs, ContinuousAlleleFreqs, Self>,
     ) -> LogProb {
+        let n_obs_tumor = pileup.case.len();
+        let n_obs_normal = pileup.control.len();
         let grid_points_normal = 5;
-        let grid_points_tumor = Self::grid_points_tumor(pileup.case.len());
+        let grid_points_tumor = Self::grid_points_tumor(n_obs_tumor);
 
         let mut density = |af_normal| {
             let af_normal = AlleleFreq(af_normal);
@@ -157,8 +159,8 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
                 } else {
                     LogProb::ln_simpsons_integrate_exp(
                         tumor_density,
-                        *af_tumor.start,
-                        *af_tumor.end,
+                        *af_tumor.observable_min(n_obs_tumor),
+                        *af_tumor.observable_max(n_obs_tumor),
                         grid_points_tumor,
                     )
                 }
@@ -175,8 +177,8 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         } else {
             LogProb::ln_simpsons_integrate_exp(
                 density,
-                *af_normal.start,
-                *af_normal.end,
+                *af_normal.observable_min(n_obs_normal),
+                *af_normal.observable_max(n_obs_normal),
                 grid_points_normal,
             )
         };
@@ -195,15 +197,18 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         &self,
         pileup: &mut PairPileup<ContinuousAlleleFreqs, ContinuousAlleleFreqs, Self>,
     ) -> (AlleleFreq, AlleleFreq) {
+        let n_obs_tumor = pileup.case.len();
+        let n_obs_normal = pileup.control.len();
+
         let af_tumor = linspace(
-            *self.allele_freqs_tumor.start,
-            *self.allele_freqs_tumor.end,
+            *self.allele_freqs_tumor.observable_min(n_obs_tumor),
+            *self.allele_freqs_tumor.observable_max(n_obs_tumor),
             Self::grid_points_tumor(pileup.case.len()),
         );
         // build the entire normal allele freq spectrum
         let af_normal = linspace(
-            *self.allele_freqs_normal_somatic.start,
-            *self.allele_freqs_normal_somatic.end,
+            *self.allele_freqs_normal_somatic.observable_min(n_obs_normal),
+            *self.allele_freqs_normal_somatic.observable_max(n_obs_normal),
             5,
         ).rev()
         .skip(1)

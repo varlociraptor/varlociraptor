@@ -156,6 +156,26 @@ impl ContinuousAlleleFreqs {
     pub fn is_singleton(&self) -> bool {
         self.start == self.end
     }
+
+    pub fn observable_min(&self, n_obs: usize) -> AlleleFreq {
+        let mut obs_count = Self::expected_observation_count(self.start, n_obs);
+        if self.left_exclusive && obs_count % 1.0 == 0.0 {
+            obs_count += 1.0;
+        }
+        AlleleFreq(obs_count.ceil() / n_obs as f64)
+    }
+
+    pub fn observable_max(&self, n_obs: usize) -> AlleleFreq {
+        let mut obs_count = Self::expected_observation_count(self.end, n_obs);
+        if self.right_exclusive && obs_count % 1.0 == 0.0 {
+            obs_count -= 1.0;
+        }
+        AlleleFreq(obs_count.floor() / n_obs as f64)
+    }
+
+    fn expected_observation_count(freq: AlleleFreq, n_obs: usize) -> f64 {
+        n_obs as f64 * *freq
+    }
 }
 
 impl Deref for ContinuousAlleleFreqs {
@@ -833,5 +853,16 @@ mod tests {
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon = 0.02);
         // absent
         assert_relative_eq!(p_absent.exp(), 1.0, epsilon = 0.02);
+    }
+
+    #[test]
+    fn test_allele_freq_observable() {
+        let afs = ContinuousAlleleFreqs::left_exclusive(0.0..0.5);
+        assert_relative_eq!(*afs.observable_min(15), 0.0666666666666667);
+        assert_relative_eq!(*afs.observable_max(15), 0.4666666666666667);
+
+        let afs = ContinuousAlleleFreqs::right_exclusive(0.0..0.5);
+        assert_relative_eq!(*afs.observable_min(12), 0.0);
+        assert_relative_eq!(*afs.observable_max(12), 0.4166666666666667);
     }
 }
