@@ -7,7 +7,9 @@ use std::f64::consts;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
-use ordered_float::NotNan;
+use rand::{Rng, SeedableRng, StdRng};
+use rand::distributions;
+use rand::distributions::IndependentSample;
 use rgsl::error::erfc;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rust_htslib::bam;
@@ -144,6 +146,27 @@ impl<'a> Candidate<'a> {
     }
 }
 
+pub struct SubsampleCandidates {
+    rng: StdRng,
+    prob: f64,
+    prob_range: distributions::Range<f64>
+}
+
+impl SubsampleCandidates {
+    pub fn new(max_depth: usize, depth: usize) -> Self {
+        SubsampleCandidates {
+            rng: StdRng::from_seed(&[48074578]),
+            prob: max_depth as f64 / depth as f64,
+            prob_range: distributions::Range::new(0.0, 1.0),
+        }
+    }
+
+    pub fn keep(&mut self) -> bool {
+        self.prob_range.ind_sample(&mut self.rng) <= self.prob
+    }
+}
+
+
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample {
     record_buffer: RecordBuffer,
@@ -154,6 +177,7 @@ pub struct Sample {
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
     pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
+    max_depth: usize,
 }
 
 impl Sample {
@@ -184,6 +208,7 @@ impl Sample {
         prob_insertion_extend_artifact: Prob,
         prob_deletion_extend_artifact: Prob,
         indel_haplotype_window: u32,
+        max_depth: usize,
     ) -> Self {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
@@ -201,6 +226,7 @@ impl Sample {
             snv_read_evidence: RefCell::new(evidence::reads::SNVEvidence::new()),
             indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new()),
             none_read_evidence: RefCell::new(evidence::reads::NoneEvidence::new()),
+            max_depth: usize,
         }
     }
 
@@ -222,11 +248,11 @@ impl Sample {
         self.record_buffer.fill(chrom, start, variant.end(start))?;
 
         let mut observations = Vec::new();
-        let mut candidate_records = HashMap::new();
 
         match variant {
             //TODO: make &Variant::None add reads with position deleted if we want to check against indel alt alleles
             &Variant::SNV(_) | &Variant::None => {
+                let mut candidate_records = Vec::new();
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     if record.pos() as u32 > start {
@@ -238,8 +264,19 @@ impl Sample {
                     let overlap = Overlap::new(record, cigar, start, variant, false)?;
 
                     if overlap.is_enclosing() {
+                        candidate_records.push(record);
+                    }
+                }
+                let mut subsample_candidates = SubsampleCandidates::new(
+                    self.max_depth, candidate_records.len()
+                );
+
+                for record in candidate_records {
+                    if subsample_candidates.keep() {
                         if let Some(obs) =
-                            self.read_observation(&record, cigar, start, variant, chrom_seq)?
+                            self.read_observation(
+                                &record, record.cigar_cached().unwrap(), start, variant, chrom_seq
+                            )?
                         {
                             observations.push(obs);
                         } else {
@@ -249,6 +286,8 @@ impl Sample {
                 }
             }
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
+                let mut candidate_records = HashMap::new();
+
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     // First, we check whether the record contains an indel in the cigar.
@@ -283,7 +322,16 @@ impl Sample {
                         candidate.right = Some(record);
                     }
                 }
+
+                let mut subsample_candidates = SubsampleCandidates::new(
+                    self.max_depth, candidate_records.len()
+                );
+
                 for candidate in candidate_records.values() {
+                    if !subsample_candidates.keep() {
+                        continue;
+                    }
+                    
                     if let Some(right) = candidate.right {
                         // this is a pair
                         let start_pos = (candidate.left.pos() as u32).saturating_sub(
