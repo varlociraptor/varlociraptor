@@ -668,6 +668,14 @@ fn test28() {
     check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 17.32, 0.01);
 }
 
+/// Test a delly deletion that is likely an artifact of a repeat region.
+#[test]
+fn test29() {
+    call_tumor_normal("test29", true, "1", "GRCh38");
+    let mut call = load_call("test29");
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 17.32, 0.01);
+}
+
 #[test]
 fn test_fdr_ev1() {
     control_fdr_ev("test_fdr_ev_1", "SOMATIC", 0.05);
