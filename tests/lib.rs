@@ -688,6 +688,12 @@ fn test_fdr_ev3() {
 }
 
 #[test]
+fn test_fdr_ev4() {
+    control_fdr_ev("test_fdr_ev_4", "SOMATIC_TUMOR", 0.05);
+    assert_call_number("test_fdr_ev_4", 0);
+}
+
+#[test]
 fn test_sc_bulk() {
     call_single_cell_bulk("test_sc_bulk", true, "chr1", "hg18");
     let mut call = load_call("test_sc_bulk");
