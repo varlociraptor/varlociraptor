@@ -159,9 +159,17 @@ impl IndelEvidence {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         // TODO for long reads always return one?
-        let expected_prob_enclose = |left_feasible, right_feasible, delta_ref, delta_alt| {
-            let infeasible_read_pos = left_read_len.saturating_sub(left_feasible)
-                + right_read_len.saturating_sub(right_feasible);
+        let expected_prob = |left_feasible, right_feasible, delta_ref, delta_alt, enclose_only: bool| {
+            let mut infeasible_read_pos_left = left_read_len.saturating_sub(left_feasible);
+            let mut infeasible_read_pos_right = right_read_len.saturating_sub(right_feasible);
+            if !enclose_only {
+                // If we don't need enclosing, the fragment may also overlap on the far right or left.
+                // Hence, the are less infeasible positions (by the maximal feasible overlap).
+                infeasible_read_pos_left = infeasible_read_pos_left.saturating_sub(left_feasible);
+                infeasible_read_pos_right = infeasible_read_pos_left.saturating_sub(right_feasible);
+            }
+            let infeasible_read_pos = infeasible_read_pos_left + infeasible_read_pos_right;
+
 
             // Calculate over each possible true insert size instead of the concrete insert size
             // of this fragment. This way we get a global value. Otherwise, we would obtain a
@@ -179,6 +187,10 @@ impl IndelEvidence {
                         let infeasible_pos_alt = infeasible_read_pos + infeasible_internal_pos_alt;
                         let infeasible_pos_ref = (internal_segment + 1).saturating_sub(delta_ref);
 
+                        let valid_pos_alt = x.saturating_sub(delta_alt)
+                                             .saturating_sub(infeasible_pos_alt);
+                        let valid_pos_ref = x.saturating_sub(infeasible_pos_ref);
+
                         if x <= delta_alt || x <= delta_alt + infeasible_pos_alt || x <= infeasible_pos_ref {
                             // if x is too small to enclose the variant, we skip it as it adds zero to the sum
                             None
@@ -187,10 +199,9 @@ impl IndelEvidence {
                             // probability to sample a valid placement
                             LogProb(
                                 (
-                                    x.saturating_sub(delta_alt)
-                                     .saturating_sub(infeasible_pos_alt) as f64
+                                    valid_pos_alt as f64
                                 ).ln() -
-                                (x.saturating_sub(infeasible_pos_ref) as f64).ln()
+                                (valid_pos_ref as f64).ln()
                             );
 
                             assert!(
@@ -204,15 +215,6 @@ impl IndelEvidence {
 
             expected_p_alt
         };
-        let expected_prob_overlap = |left_feasible, right_feasible, delta_ref, delta_alt| {
-            // TODO also make use of delta_ref here
-            let n_alt_left = cmp::min(delta_alt, left_read_len);
-            let n_alt_right = cmp::min(delta_alt, right_read_len);
-            let n_alt_valid =
-                cmp::min(n_alt_left, left_feasible) + cmp::min(n_alt_right, right_feasible);
-
-            LogProb((n_alt_valid as f64).ln() - ((n_alt_left + n_alt_right) as f64).ln())
-        };
 
         let left_feasible = alignment_properties.feasible_bases(left_read_len, variant);
         let right_feasible = alignment_properties.feasible_bases(right_read_len, variant);
@@ -222,12 +224,12 @@ impl IndelEvidence {
                 // Deletion length does not affect sampling from alt allele because the reads come
                 // from the allele where the deleted sequence is not present.
                 let delta_alt = 0;
-                expected_prob_enclose(left_feasible, right_feasible, delta_ref, delta_alt)
+                expected_prob(left_feasible, right_feasible, delta_ref, delta_alt, true)
             }
             &Variant::Insertion(ref seq) => {
                 let delta_ref = 0;
                 let delta_alt = seq.len() as u32;
-                expected_prob_overlap(left_feasible, right_feasible, delta_ref, delta_alt)
+                expected_prob(left_feasible, right_feasible, delta_ref, delta_alt, false)
             }
             // for SNVs sampling is unbiased
             &Variant::SNV(_) | &Variant::None => LogProb::ln_one(),
