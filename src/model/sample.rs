@@ -476,7 +476,9 @@ impl Sample {
         let left_overlap = Overlap::new(left_record, left_cigar, start, variant, true)?;
         let right_overlap = Overlap::new(right_record, right_cigar, start, variant, true)?;
 
-        if !self.use_fragment_evidence && left_overlap.is_none() && right_overlap.is_none() {
+        if left_overlap.is_none() && right_overlap.is_none() {
+            // Skip fragment if none of the reads overlaps the variant.
+            // This increases robustness, because insert size is never considered alone.
             return Ok(None);
         }
 

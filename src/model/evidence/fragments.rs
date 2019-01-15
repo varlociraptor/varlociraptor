@@ -160,7 +160,7 @@ impl IndelEvidence {
     ) -> LogProb {
         // TODO for long reads always return one?
         let expected_prob_enclose = |left_feasible, right_feasible, delta| {
-            let read_offsets = left_read_len.saturating_sub(left_feasible)
+            let infeasible_read_pos = left_read_len.saturating_sub(left_feasible)
                 + right_read_len.saturating_sub(right_feasible);
 
             // Calculate over each possible true insert size instead of the concrete insert size
@@ -171,17 +171,30 @@ impl IndelEvidence {
                 &self
                     .pmf_range(alignment_properties)
                     .filter_map(|x| {
-                        if x <= delta || x <= delta + read_offsets {
+                        let internal_segment = x.saturating_sub(left_read_len)
+                                                .saturating_sub(right_read_len);
+                        // Number of positition in the internal segment where variant may not start,
+                        // because it would lead to zero overlap.
+                        let infeasible_internal_pos = (internal_segment + 1).saturating_sub(delta);
+                        let infeasible_pos = infeasible_read_pos + infeasible_internal_pos;
+
+                        if x <= delta || x <= delta + infeasible_pos {
                             // if x is too small to enclose the variant, we skip it as it adds zero to the sum
                             None
                         } else {
                             let p = self.pmf(x, 0.0, alignment_properties) +
-                        // probability to sample a valid placement
-                        LogProb(
-                            (x.saturating_sub(delta).saturating_sub(read_offsets) as f64).ln() -
-                            (x.saturating_sub(delta) as f64).ln()
-                        );
-                            assert!(p.is_valid(), "bug: invalid probability {:?}", p);
+                            // probability to sample a valid placement
+                            LogProb(
+                                (
+                                    x.saturating_sub(delta).saturating_sub(infeasible_pos) as f64
+                                ).ln() -
+                                (x as f64).ln()
+                            );
+
+                            assert!(
+                                p.is_valid(),
+                                "bug: invalid probability sampling probability {:?}", p
+                            );
                             Some(p)
                         }
                     }).collect_vec(),
