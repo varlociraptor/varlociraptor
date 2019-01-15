@@ -7,4 +7,9 @@
 Cargo.lock
 
 tests/resources/test*/*
-tests/resources/*.fa
+!tests/resources/test*/tumor.bam
+!tests/resources/test*/normal.bam
+!tests/resources/test*/candidates.vcf
+!tests/resources/test*/alignment_properties.json
+tests/resources/*/*.fa
+tests/resources/*/*.fa.fai
