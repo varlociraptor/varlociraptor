@@ -21,8 +21,8 @@ use model;
 use model::evidence;
 use model::evidence::reads::AbstractReadEvidence;
 use model::evidence::{Evidence, Observation};
-use model::Variant;
-use utils::Overlap;
+use model::{Variant, VariantType};
+use utils::{Overlap, is_repeat_variant};
 
 quick_error! {
     #[derive(Debug)]
@@ -191,6 +191,7 @@ pub struct Sample {
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
     pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
     max_depth: usize,
+    omit_repeat_regions: Vec<VariantType>,
 }
 
 impl Sample {
@@ -222,6 +223,7 @@ impl Sample {
         prob_deletion_extend_artifact: Prob,
         indel_haplotype_window: u32,
         max_depth: usize,
+        omit_repeat_regions: &[VariantType]
     ) -> Self {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
@@ -240,6 +242,7 @@ impl Sample {
             indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new()),
             none_read_evidence: RefCell::new(evidence::reads::NoneEvidence::new()),
             max_depth: max_depth,
+            omit_repeat_regions: omit_repeat_regions.to_vec(),
         }
     }
 
@@ -257,6 +260,13 @@ impl Sample {
         chrom_seq: &[u8],
     ) -> Result<Vec<Observation>, Box<Error>> {
         let centerpoint = variant.centerpoint(start);
+
+        for vartype in &self.omit_repeat_regions {
+            if variant.is_type(vartype) && is_repeat_variant(start, variant, chrom_seq) {
+                // Do not return evidence, in order to mark variant in output as unclear.
+                return Ok(Vec::new());
+            }
+        }
 
         self.record_buffer.fill(chrom, start, variant.end(start))?;
 
@@ -649,6 +659,7 @@ mod tests {
             Prob(0.0),
             10,
             500,
+            &[],
         )
     }
 

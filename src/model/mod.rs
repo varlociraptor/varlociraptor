@@ -194,7 +194,7 @@ impl Deref for ContinuousAlleleFreqs {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum VariantType {
     Insertion(Option<Range<u32>>),
     Deletion(Option<Range<u32>>),
@@ -657,6 +657,7 @@ mod tests {
             Prob(0.0),
             10,
             500,
+            &[],
         );
         let control_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
@@ -672,6 +673,7 @@ mod tests {
             Prob(0.0),
             10,
             500,
+            &[],
         );
 
         let model = PairCaller::new(case_sample, control_sample, prior_model);

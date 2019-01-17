@@ -538,6 +538,24 @@ impl Overlap {
     }
 }
 
+
+/// Returns true if given variant is located in a repeat region.
+pub fn is_repeat_variant(start: u32, variant: &model::Variant, chrom_seq: &[u8]) -> bool {
+    let end = match variant {
+        &model::Variant::SNV(_) | &model::Variant::None | &model::Variant::Insertion(_) => start + 1,
+        &model::Variant::Deletion(l) => start + l,
+    } as usize;
+    for nuc in &chrom_seq[start as usize..end] {
+
+        if (*nuc as char).is_lowercase() {
+            return true;
+        }
+    }
+
+    false
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

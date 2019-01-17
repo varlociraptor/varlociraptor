@@ -20,7 +20,7 @@ use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf};
 
 use libprosic::constants;
-use libprosic::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs};
+use libprosic::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, VariantType};
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
@@ -57,7 +57,8 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
             )
         } else if build.starts_with("GRCh") {
             format!(
-                "ftp://ftp.ensembl.org/pub/release-94/fasta/homo_sapiens/dna/Homo_sapiens.{}.dna.chromosome.{}.fa.gz",
+                // use soft-masked DNA sequence because we need it to omit variants within repeats.
+                "ftp://ftp.ensembl.org/pub/release-94/fasta/homo_sapiens/dna/Homo_sapiens.{}.dna_sm.chromosome.{}.fa.gz",
                 build, chrom
             )
         } else {
@@ -134,6 +135,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
         Prob(0.0),
         100,
         500,
+        &[VariantType::Deletion(None), VariantType::Insertion(None)],
     );
 
     let normal = libprosic::Sample::new(
@@ -150,6 +152,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
         Prob(0.0),
         100,
         500,
+        &[VariantType::Deletion(None), VariantType::Insertion(None)],
     );
 
     let events = [
@@ -252,6 +255,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
         Prob(0.0),
         100,
         500,
+        &[],
     );
 
     let bulk = libprosic::Sample::new(
@@ -268,6 +272,7 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
         Prob(0.0),
         100,
         500,
+        &[],
     );
 
     // setup events: case = single cell; control = bulk
@@ -673,7 +678,7 @@ fn test28() {
 fn test29() {
     call_tumor_normal("test29", true, "1", "GRCh38");
     let mut call = load_call("test29");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 17.32, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 6.53, 0.01);
 }
 
 #[test]
