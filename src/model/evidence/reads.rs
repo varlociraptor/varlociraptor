@@ -5,6 +5,7 @@ use bio::stats::{LogProb, PHREDProb, Prob};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 use ordered_float::NotNan;
+use itertools::Itertools;
 
 use bio::pattern_matching::myers::Myers;
 use bio::stats::pairhmm;
@@ -239,23 +240,27 @@ impl AbstractReadEvidence for IndelEvidence {
         let edit_dist = EditDistanceEstimation::new((read_offset..read_end).map(|i| read_seq[i]));
 
         // ref allele
-        let mut prob_ref = {
+        let (mut prob_ref, edit_dist_ref) = {
             let ref_params = ReferenceEmissionParams {
                 ref_seq: ref_seq,
                 ref_offset: breakpoint.saturating_sub(ref_window),
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                 read_emission: &read_emission,
             };
+            let edit_dist_ref = edit_dist.estimate_upper_bound(&ref_params);
 
-            self.pairhmm.prob_related(
-                &self.gap_params,
-                &ref_params,
-                Some(edit_dist.estimate_upper_bound(&ref_params)),
+            (
+                self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &ref_params,
+                    Some(edit_dist_ref),
+                ),
+                edit_dist_ref
             )
         };
 
         // alt allele
-        let mut prob_alt = if overlap {
+        let (mut prob_alt, edit_dist_alt) = if overlap {
             match variant {
                 &Variant::Deletion(_) => {
                     let p = DeletionEmissionParams {
@@ -266,10 +271,14 @@ impl AbstractReadEvidence for IndelEvidence {
                         del_len: variant.len() as usize,
                         read_emission: &read_emission,
                     };
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &p,
-                        Some(edit_dist.estimate_upper_bound(&p)),
+                    let edit_dist_alt = edit_dist.estimate_upper_bound(&p);
+                    (
+                        self.pairhmm.prob_related(
+                            &self.gap_params,
+                            &p,
+                            Some(edit_dist_alt),
+                        ),
+                        edit_dist_alt
                     )
                 }
                 &Variant::Insertion(ref ins_seq) => {
@@ -284,10 +293,14 @@ impl AbstractReadEvidence for IndelEvidence {
                         ins_seq: ins_seq,
                         read_emission: &read_emission,
                     };
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &p,
-                        Some(edit_dist.estimate_upper_bound(&p)),
+                    let edit_dist_alt = edit_dist.estimate_upper_bound(&p);
+                    (
+                        self.pairhmm.prob_related(
+                            &self.gap_params,
+                            &p,
+                            Some(edit_dist_alt),
+                        ),
+                        edit_dist_alt
                     )
                 }
                 _ => {
@@ -296,12 +309,15 @@ impl AbstractReadEvidence for IndelEvidence {
             }
         } else {
             // if no overlap, we can simply use prob_ref again
-            prob_ref
+            (
+                prob_ref,
+                edit_dist_ref
+            )
         };
 
         // Normalize probabilities. By this, we avoid biases due to proximal variants that are in
         // cis with the considered one. They are normalized away since they affect both ref and alt.
-        // In a sense, this assumes that thw two considered alleles are the only possible ones.
+        // In a sense, this assumes that the two considered alleles are the only possible ones.
         // However, if the read actually comes from a third allele, both probabilities will be
         // equally bad, and the normalized one will not prefer any of them.
 
@@ -311,14 +327,33 @@ impl AbstractReadEvidence for IndelEvidence {
             let prob_total = prob_alt.ln_add_exp(prob_ref);
             prob_ref -= prob_total;
             prob_alt -= prob_total;
-            let certainty_est = {
-                let mut p = LogProb::ln_one();
-                for &q in &read_qual[read_offset..read_end] {
-                    let prob_miscall = prob_read_base_miscall(q);
-                    p += prob_miscall.ln_one_minus_exp();
-                }
-                p
-            };
+            let window_len = read_end - read_offset;
+            let expected_miscall_rate = LogProb(
+                *LogProb::ln_sum_exp(
+                    &read_qual[read_offset..read_end]
+                    .iter()
+                    .cloned()
+                    .map(prob_read_base_miscall)
+                    .collect_vec()
+                ) - (window_len as f64).ln()
+            );
+
+            // We tolerate 4 edit operations in order to normalize away proximal SNVs.
+            let considered_edits = cmp::min(edit_dist_ref, edit_dist_alt).saturating_sub(4);
+
+            // The certainty estimate is then the probability for no error in the matching bases
+            // or tolerated edits, and the probability for errors in the rest.
+            // By this, we ensure that reads mapping badly to both alleles still get
+            // weak probabilities for both.
+            let certainty_est = LogProb(
+                                    *expected_miscall_rate.ln_one_minus_exp() *
+                                    window_len.saturating_sub(considered_edits) as f64
+                                ) +
+                                LogProb(
+                                    *expected_miscall_rate *
+                                    considered_edits as f64
+                                );
+
             // Rescale prob ref and alt with the overall certainty given the read base qualities
             // in the aligned region.
             // This allows us to scale the probabilties to about the same magnitude as

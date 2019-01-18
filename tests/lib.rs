@@ -135,7 +135,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
         Prob(0.0),
         100,
         500,
-        &[VariantType::Deletion(None), VariantType::Insertion(None)],
+        &[],
     );
 
     let normal = libprosic::Sample::new(
@@ -152,7 +152,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str, build: &str) 
         Prob(0.0),
         100,
         500,
-        &[VariantType::Deletion(None), VariantType::Insertion(None)],
+        &[],
     );
 
     let events = [
@@ -678,6 +678,7 @@ fn test28() {
 fn test29() {
     call_tumor_normal("test29", true, "1", "GRCh38");
     let mut call = load_call("test29");
+    assert!(false);
     check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 6.53, 0.01);
 }
 
