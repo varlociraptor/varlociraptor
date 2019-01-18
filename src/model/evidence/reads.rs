@@ -686,7 +686,7 @@ impl EditDistanceEstimation {
     ) -> usize {
         let ref_seq = (0..emission_params.len_x())
             .rev()
-            .map(|i| emission_params.ref_base(i));
+            .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
         self.myers.find_best_end(ref_seq).1 as usize + 5
     }
 }

@@ -349,15 +349,9 @@ impl Sample {
                     }
                 }
 
-                let mut subsample_candidates = SubsampleCandidates::new(
-                    self.max_depth, candidate_records.len()
-                );
-
+                let mut candidate_fragments = Vec::new();
+                let mut candidate_reads = Vec::new();
                 for candidate in candidate_records.values() {
-                    if !subsample_candidates.keep() {
-                        continue;
-                    }
-
                     if let Some(right) = candidate.right {
                         // this is a pair
                         let start_pos = (candidate.left.pos() as u32).saturating_sub(
@@ -375,31 +369,62 @@ impl Sample {
                         if end_pos < centerpoint {
                             continue;
                         }
-                        if let Some(obs) = self.fragment_observation(
-                            candidate.left,
-                            right,
-                            start,
-                            variant,
-                            chrom_seq,
-                        )? {
-                            observations.push(obs);
+
+                        let left_cigar = candidate.left.cigar_cached().unwrap();
+                        let right_cigar = right.cigar_cached().unwrap();
+                        let left_overlap = Overlap::new(candidate.left, left_cigar, start, variant, true)?;
+                        let right_overlap = Overlap::new(right, right_cigar, start, variant, true)?;
+
+                        if left_overlap.is_none() && right_overlap.is_none() {
+                            // Skip fragment if none of the reads overlaps the variant.
+                            // This increases robustness, because insert size is never considered alone.
+                            continue;
                         }
+
+                        candidate_fragments.push(candidate);
                     } else {
                         // this is a single alignment with unmapped mate or mate outside of the
                         // region of interest
                         let cigar = candidate.left.cigar_cached().unwrap();
                         let overlap = Overlap::new(candidate.left, cigar, start, variant, true)?;
                         if !overlap.is_none() && candidate.left.is_mate_unmapped() {
-                            if let Some(obs) = self.read_observation(
-                                candidate.left,
-                                cigar,
-                                start,
-                                variant,
-                                chrom_seq,
-                            )? {
-                                observations.push(obs);
-                            }
+                            candidate_reads.push(candidate);
                         }
+                    }
+                }
+
+                let mut subsample_candidates = SubsampleCandidates::new(
+                    self.max_depth, candidate_fragments.len() + candidate_reads.len()
+                );
+
+                for candidate in candidate_fragments {
+                    if !subsample_candidates.keep() {
+                        continue;
+                    }
+
+                    if let Some(obs) = self.fragment_observation(
+                        candidate.left,
+                        candidate.right.unwrap(),
+                        start,
+                        variant,
+                        chrom_seq,
+                    )? {
+                        observations.push(obs);
+                    }
+                }
+
+                for candidate in candidate_reads {
+                    if !subsample_candidates.keep() {
+                        continue;
+                    }
+                    if let Some(obs) = self.read_observation(
+                        candidate.left,
+                        candidate.left.cigar_cached().unwrap(),
+                        start,
+                        variant,
+                        chrom_seq,
+                    )? {
+                        observations.push(obs);
                     }
                 }
             }
@@ -483,14 +508,6 @@ impl Sample {
 
         let left_cigar = left_record.cigar_cached().unwrap();
         let right_cigar = right_record.cigar_cached().unwrap();
-        let left_overlap = Overlap::new(left_record, left_cigar, start, variant, true)?;
-        let right_overlap = Overlap::new(right_record, right_cigar, start, variant, true)?;
-
-        if left_overlap.is_none() && right_overlap.is_none() {
-            // Skip fragment if none of the reads overlaps the variant.
-            // This increases robustness, because insert size is never considered alone.
-            return Ok(None);
-        }
 
         let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
         let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
