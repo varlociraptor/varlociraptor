@@ -677,16 +677,16 @@ fn test28() {
 fn test29() {
     call_tumor_normal("test29", true, 1.0, "1", "GRCh38");
     let mut call = load_call("test29");
-    assert!(false);
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 6.53, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 12.38, 0.01);
+    check_info_float(&mut call, b"PROB_ABSENT", 0.26, 0.01);
 }
 
-/// Test a delly deletion that is a germline variant.
+/// Test a delly deletion that is likely a germline variant.
 #[test]
 fn test30() {
     call_tumor_normal("test30", true, 1.0, "2", "GRCh38");
     let mut call = load_call("test30");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 6.53, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 3.13, 0.01);
 }
 
 #[test]
