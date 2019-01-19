@@ -473,7 +473,7 @@ macro_rules! default_emission {
         #[inline]
         fn prob_emit_xy(&self, i: usize, j: usize, edit_dist: usize) -> pairhmm::XYEmission {
             let r = self.ref_base(i);
-            self.read_emission.prob_match_mismatch(j, r, edit_dist <= self.tolerate_edit_dist)
+            self.read_emission.prob_match_mismatch(j, r, edit_dist < self.tolerate_edit_dist)
         }
 
         #[inline]

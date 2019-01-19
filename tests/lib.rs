@@ -686,7 +686,8 @@ fn test29() {
 fn test30() {
     call_tumor_normal("test30", true, 1.0, "2", "GRCh38");
     let mut call = load_call("test30");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 3.13, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 1799.32, 0.01);
+    check_info_float(&mut call, b"PROB_GERMLINE_HET", 0.41, 0.01);
 }
 
 #[test]
