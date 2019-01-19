@@ -243,50 +243,63 @@ impl AbstractReadEvidence for IndelEvidence {
         let edit_dist_upper_bound = |edit_dist| edit_dist + 5;
 
         // ref allele
-        let (mut prob_ref, edit_dist_ref) = {
-            let ref_params = ReferenceEmissionParams {
-                ref_seq: ref_seq,
-                ref_offset: breakpoint.saturating_sub(ref_window),
-                ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
-                read_emission: &read_emission,
-            };
-            let edit_dist_ref = edit_dist.calc_edit_dist(&ref_params);
+        let mut ref_params = ReferenceEmissionParams {
+            ref_seq: ref_seq,
+            ref_offset: breakpoint.saturating_sub(ref_window),
+            ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
+            read_emission: &read_emission,
+            tolerate_edit_dist: 0,
+        };
+        let edit_dist_ref = edit_dist.calc_edit_dist(&ref_params);
 
-            (
-                self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &ref_params,
-                    Some(edit_dist_upper_bound(edit_dist_ref)),
-                ),
-                edit_dist_ref
+        let calc_prob_ref = |pairhmm: &mut pairhmm::PairHMM, gap_params, ref_params| {
+            pairhmm.prob_related(
+                gap_params,
+                ref_params,
+                Some(edit_dist_upper_bound(edit_dist_ref)),
             )
         };
 
+        // We tolerate as many edit operations (mismatches) as there are in the better
+        // of the two alleles, with a maximum of `TOLERATED_EDIT_DIST` (4).
+        // By that, we allow some proximal SNVs without penalizing the likelihoods.
+        // This is important, because otherwise we get systematically lower likelihoods if the
+        // considered variant is in cis with some proximal SNVs.
+        let calc_tolerated_edit_dist = |edit_dist_alt, edit_dist_ref| {
+            cmp::min(cmp::min(edit_dist_alt, edit_dist_ref), TOLERATED_EDIT_DIST)
+        };
+
         // alt allele
-        let (mut prob_alt, edit_dist_alt) = if overlap {
+        let (prob_alt, prob_ref, edit_dist_alt) = if overlap {
             match variant {
                 &Variant::Deletion(_) => {
-                    let p = DeletionEmissionParams {
+                    let mut p = DeletionEmissionParams {
                         ref_seq: ref_seq,
                         ref_offset: start.saturating_sub(ref_window),
                         ref_end: cmp::min(start + ref_window, ref_seq.len()),
                         del_start: start,
                         del_len: variant.len() as usize,
                         read_emission: &read_emission,
+                        tolerate_edit_dist: 0,
                     };
                     let edit_dist_alt = edit_dist.calc_edit_dist(&p);
+                    let tolerate_edit_dist = calc_tolerated_edit_dist(edit_dist_alt, edit_dist_ref);
+                    ref_params.tolerate_edit_dist = tolerate_edit_dist;
+                    p.tolerate_edit_dist = tolerate_edit_dist;
+
                     (
                         self.pairhmm.prob_related(
                             &self.gap_params,
                             &p,
                             Some(edit_dist_upper_bound(edit_dist_alt)),
                         ),
+                        calc_prob_ref(&mut self.pairhmm, &self.gap_params, &ref_params),
                         edit_dist_alt
                     )
                 }
                 &Variant::Insertion(ref ins_seq) => {
                     let l = ins_seq.len() as usize;
-                    let p = InsertionEmissionParams {
+                    let mut p = InsertionEmissionParams {
                         ref_seq: ref_seq,
                         ref_offset: start.saturating_sub(ref_window),
                         ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
@@ -295,14 +308,20 @@ impl AbstractReadEvidence for IndelEvidence {
                         ins_end: start + l,
                         ins_seq: ins_seq,
                         read_emission: &read_emission,
+                        tolerate_edit_dist: 0,
                     };
                     let edit_dist_alt = edit_dist.calc_edit_dist(&p);
+                    let tolerate_edit_dist = calc_tolerated_edit_dist(edit_dist_alt, edit_dist_ref);
+                    ref_params.tolerate_edit_dist = tolerate_edit_dist;
+                    p.tolerate_edit_dist = tolerate_edit_dist;
+
                     (
                         self.pairhmm.prob_related(
                             &self.gap_params,
                             &p,
                             Some(edit_dist_upper_bound(edit_dist_alt)),
                         ),
+                        calc_prob_ref(&mut self.pairhmm, &self.gap_params, &ref_params),
                         edit_dist_alt
                     )
                 }
@@ -311,63 +330,14 @@ impl AbstractReadEvidence for IndelEvidence {
                 }
             }
         } else {
-            // if no overlap, we can simply use prob_ref again
+            // if no overlap, we can simply use prob_ref two times
+            let prob_ref = calc_prob_ref(&mut self.pairhmm, &self.gap_params, &ref_params);
             (
+                prob_ref,
                 prob_ref,
                 edit_dist_ref
             )
         };
-
-        // Normalize probabilities. By this, we avoid biases due to proximal variants that are in
-        // cis with the considered one. They are normalized away since they affect both ref and alt.
-        // In a sense, this assumes that the two considered alleles are the only possible ones.
-        // However, if the read actually comes from a third allele, both probabilities will be
-        // equally bad, and the normalized one will not prefer any of them.
-
-        let min_prob = cmp::min(NotNan::from(prob_ref), NotNan::from(prob_alt));
-
-        if *min_prob != *LogProb::ln_zero() {
-            let prob_total = prob_alt.ln_add_exp(prob_ref);
-            prob_ref -= prob_total;
-            prob_alt -= prob_total;
-            let window_len = read_end - read_offset;
-            let expected_miscall_rate = LogProb(
-                *LogProb::ln_sum_exp(
-                    &read_qual[read_offset..read_end]
-                    .iter()
-                    .cloned()
-                    .map(prob_read_base_miscall)
-                    .collect_vec()
-                ) - (window_len as f64).ln()
-            );
-
-            // We tolerate 4 edit operations in order to normalize away proximal SNVs.
-            let considered_edits = cmp::min(edit_dist_ref, edit_dist_alt).saturating_sub(TOLERATED_EDIT_DIST);
-
-            // The certainty estimate is then the probability for no error in the matching bases
-            // or tolerated edits, and the probability for errors in the rest.
-            // By this, we ensure that reads mapping badly to both alleles still get
-            // weak probabilities for both.
-            let certainty_est = LogProb(
-                                    *expected_miscall_rate.ln_one_minus_exp() *
-                                    window_len.saturating_sub(considered_edits) as f64
-                                ) +
-                                LogProb(
-                                    *expected_miscall_rate *
-                                    considered_edits as f64
-                                );
-
-            // Rescale prob ref and alt with the overall certainty given the read base qualities
-            // in the aligned region.
-            // This allows us to scale the probabilties to about the same magnitude as
-            // before the normalization.
-            // In other words, although we normalize away common parts of alt and ref
-            // alignment, we restore the original magnitude of the probabilties.
-            // This is important because otherwise we put too much emphasis on insert
-            // size in cases where the read does not overlap the variant.
-            prob_ref += certainty_est;
-            prob_alt += certainty_est;
-        }
 
         Ok(Some((prob_ref, prob_alt)))
     }
@@ -501,9 +471,9 @@ impl pairhmm::StartEndGapParameters for IndelGapParams {
 macro_rules! default_emission {
     () => (
         #[inline]
-        fn prob_emit_xy(&self, i: usize, j: usize) -> pairhmm::XYEmission {
+        fn prob_emit_xy(&self, i: usize, j: usize, edit_dist: usize) -> pairhmm::XYEmission {
             let r = self.ref_base(i);
-            self.read_emission.prob_match_mismatch(j, r)
+            self.read_emission.prob_match_mismatch(j, r, edit_dist <= self.tolerate_edit_dist)
         }
 
         #[inline]
@@ -564,12 +534,18 @@ impl<'a> ReadEmission<'a> {
     }
 
     /// Calculate probability of read_base given ref_base.
-    pub fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> pairhmm::XYEmission {
+    pub fn prob_match_mismatch(
+        &self, j: usize, ref_base: u8, tolerate_mismatch: bool
+    ) -> pairhmm::XYEmission {
         let read_base = self.read_seq[self.project_j(j)];
 
         if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
             pairhmm::XYEmission::Match(self.no_miscall[j])
-        } else {
+        } else if tolerate_mismatch {
+            // Emit probability for a match, but still record a mismatch for increasing edit
+            // distance.
+            pairhmm::XYEmission::Mismatch(self.no_miscall[j])
+        } else  {
             // TODO replace the second term with technology specific confusion matrix
             pairhmm::XYEmission::Mismatch(self.particular_miscall(j))
         }
@@ -595,6 +571,7 @@ pub struct ReferenceEmissionParams<'a> {
     ref_offset: usize,
     ref_end: usize,
     read_emission: &'a ReadEmission<'a>,
+    tolerate_edit_dist: usize,
 }
 
 impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
@@ -616,6 +593,7 @@ pub struct DeletionEmissionParams<'a> {
     del_start: usize,
     del_len: usize,
     read_emission: &'a ReadEmission<'a>,
+    tolerate_edit_dist: usize,
 }
 
 impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
@@ -644,6 +622,7 @@ pub struct InsertionEmissionParams<'a> {
     ins_len: usize,
     ins_seq: &'a [u8],
     read_emission: &'a ReadEmission<'a>,
+    tolerate_edit_dist: usize,
 }
 
 impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {

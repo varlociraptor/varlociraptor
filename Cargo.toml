@@ -9,7 +9,7 @@ license = "GPL-3.0"
 include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE"]
 
 [dependencies]
-bio = { git="https://github.com/rust-bio/rust-bio.git" }
+bio = { git="https://github.com/rust-bio/rust-bio.git", branch="pairhmm-tolerate-edit-dist" }
 log = "0.3"
 rust-htslib = "0.22"
 GSL = "1.0"
