@@ -12,6 +12,8 @@ use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
+pub const TOLERATED_EDIT_DIST: usize = 4;
+
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
 /// correctly and the event that it maps incorrectly.
 fn prob_mapping_mismapping(record: &bam::Record) -> (LogProb, LogProb) {
@@ -237,7 +239,8 @@ impl AbstractReadEvidence for IndelEvidence {
         // read emission
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
 
-        let edit_dist = EditDistanceEstimation::new((read_offset..read_end).map(|i| read_seq[i]));
+        let edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
+        let edit_dist_upper_bound = |edit_dist| edit_dist + 5;
 
         // ref allele
         let (mut prob_ref, edit_dist_ref) = {
@@ -247,13 +250,13 @@ impl AbstractReadEvidence for IndelEvidence {
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                 read_emission: &read_emission,
             };
-            let edit_dist_ref = edit_dist.estimate_upper_bound(&ref_params);
+            let edit_dist_ref = edit_dist.calc_edit_dist(&ref_params);
 
             (
                 self.pairhmm.prob_related(
                     &self.gap_params,
                     &ref_params,
-                    Some(edit_dist_ref),
+                    Some(edit_dist_upper_bound(edit_dist_ref)),
                 ),
                 edit_dist_ref
             )
@@ -271,12 +274,12 @@ impl AbstractReadEvidence for IndelEvidence {
                         del_len: variant.len() as usize,
                         read_emission: &read_emission,
                     };
-                    let edit_dist_alt = edit_dist.estimate_upper_bound(&p);
+                    let edit_dist_alt = edit_dist.calc_edit_dist(&p);
                     (
                         self.pairhmm.prob_related(
                             &self.gap_params,
                             &p,
-                            Some(edit_dist_alt),
+                            Some(edit_dist_upper_bound(edit_dist_alt)),
                         ),
                         edit_dist_alt
                     )
@@ -293,12 +296,12 @@ impl AbstractReadEvidence for IndelEvidence {
                         ins_seq: ins_seq,
                         read_emission: &read_emission,
                     };
-                    let edit_dist_alt = edit_dist.estimate_upper_bound(&p);
+                    let edit_dist_alt = edit_dist.calc_edit_dist(&p);
                     (
                         self.pairhmm.prob_related(
                             &self.gap_params,
                             &p,
-                            Some(edit_dist_alt),
+                            Some(edit_dist_upper_bound(edit_dist_alt)),
                         ),
                         edit_dist_alt
                     )
@@ -339,7 +342,7 @@ impl AbstractReadEvidence for IndelEvidence {
             );
 
             // We tolerate 4 edit operations in order to normalize away proximal SNVs.
-            let considered_edits = cmp::min(edit_dist_ref, edit_dist_alt).saturating_sub(4);
+            let considered_edits = cmp::min(edit_dist_ref, edit_dist_alt).saturating_sub(TOLERATED_EDIT_DIST);
 
             // The certainty estimate is then the probability for no error in the matching bases
             // or tolerated edits, and the probability for errors in the rest.
@@ -661,11 +664,11 @@ impl<'a> pairhmm::EmissionParameters for InsertionEmissionParams<'a> {
     default_emission!();
 }
 
-pub struct EditDistanceEstimation {
+pub struct EditDistanceCalculation {
     myers: Myers<u128>,
 }
 
-impl EditDistanceEstimation {
+impl EditDistanceCalculation {
     /// Create new instance.
     ///
     /// # Arguments
@@ -674,20 +677,21 @@ impl EditDistanceEstimation {
     where
         P: Iterator<Item = u8> + DoubleEndedIterator + ExactSizeIterator,
     {
-        EditDistanceEstimation {
+        EditDistanceCalculation {
             myers: Myers::new(read_seq.rev()),
         }
     }
+
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
     /// We use the best edit distance and add 5.
-    pub fn estimate_upper_bound<E: pairhmm::EmissionParameters + RefBaseEmission>(
+    pub fn calc_edit_dist<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &self,
         emission_params: &E,
     ) -> usize {
         let ref_seq = (0..emission_params.len_x())
             .rev()
             .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
-        self.myers.find_best_end(ref_seq).1 as usize + 5
+        self.myers.find_best_end(ref_seq).1 as usize
     }
 }
 
