@@ -641,19 +641,15 @@ fn test25() {
     let mut call = load_call("test25");
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 1.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 1569.89, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 1092.11, 0.01);
 }
 
-/// Test a delly deletion (on real data) that is a germline variant.
-/// It seems to be subject to loss of heterozygosity, because the allele frequency in the tumor
-/// is 1.0 while it is 0.5 in the normal.
+/// Test a delly deletion (on real data) that is likely a repeat artifact.
 #[test]
 fn test26() {
     call_tumor_normal("test26", true, 1.0, "1", "GRCh38");
     let mut call = load_call("test26");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 931.16, 0.01);
-    check_info_float(&mut call, b"CONTROL_AF", 0.5, 0.2);
-    check_info_float(&mut call, b"CASE_AF", 1.0, 0.01);
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 3.08, 0.01);
 }
 
 /// Test a delly deletion that is not a somatic variant. It is likely absent.

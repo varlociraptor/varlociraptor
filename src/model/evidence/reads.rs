@@ -12,7 +12,7 @@ use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
-pub const TOLERATED_EDIT_DIST: usize = 4;
+pub const TOLERATED_EDIT_DIST: usize = 3;
 
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
 /// correctly and the event that it maps incorrectly.
