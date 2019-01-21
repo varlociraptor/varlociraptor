@@ -105,28 +105,37 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
 
     let candidates = format!("{}/candidates.vcf", basedir);
     let alignment_properties_def = format!("{}/alignment_properties.json", basedir);
+    let alignment_properties_tumor_def = format!("{}/alignment_properties_tumor.json", basedir);
+    let alignment_properties_normal_def = format!("{}/alignment_properties_normal.json", basedir);
 
     let output = format!("{}/calls.bcf", basedir);
     let observations = format!("{}/observations.tsv", basedir);
     cleanup_file(&output);
     cleanup_file(&observations);
 
-    let alignment_properties = if Path::new(&alignment_properties_def).exists() {
-        serde_json::from_reader(fs::File::open(alignment_properties_def).unwrap()).unwrap()
+    let (alignment_properties_tumor, alignment_properties_normal) = if Path::new(&alignment_properties_tumor_def).exists() {
+        (
+            serde_json::from_reader(fs::File::open(alignment_properties_tumor_def).unwrap()).unwrap(),
+            serde_json::from_reader(fs::File::open(alignment_properties_normal_def).unwrap()).unwrap()
+        )
+    } else if Path::new(&alignment_properties_def).exists() {
+        let a = serde_json::from_reader(fs::File::open(alignment_properties_def).unwrap()).unwrap();
+        (a, a)
     } else {
         let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
         //let mut bam = bam::Reader::from_path(&normal_bam_path).unwrap();
-        libprosic::AlignmentProperties::estimate(&mut bam).unwrap()
+        let a = libprosic::AlignmentProperties::estimate(&mut bam).unwrap();
+        (a, a)
     };
-    println!("{:?}", alignment_properties);
+    println!("{:?}", alignment_properties_tumor);
+    println!("{:?}", alignment_properties_normal);
 
     let tumor = libprosic::Sample::new(
         tumor_bam,
-        2500,
         true,
         false,
         false,
-        alignment_properties,
+        alignment_properties_tumor,
         libprosic::likelihood::LatentVariableModel::new(purity),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,
@@ -139,11 +148,10 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
 
     let normal = libprosic::Sample::new(
         normal_bam,
-        2500,
         true,
         false,
         false,
-        alignment_properties,
+        alignment_properties_normal,
         libprosic::likelihood::LatentVariableModel::new(1.0),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,
@@ -242,7 +250,6 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
 
     let sc = libprosic::Sample::new(
         sc_bam,
-        2500,
         true,
         true,
         true,
@@ -259,7 +266,6 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
 
     let bulk = libprosic::Sample::new(
         bulk_bam,
-        2500,
         true,
         true,
         true,
@@ -690,6 +696,14 @@ fn test30() {
 fn test31() {
     call_tumor_normal("test31", true, 1.0, "1", "GRCh38");
     let mut call = load_call("test31");
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 3.13, 0.01);
+}
+
+/// Test a delly deletion that is not a somatic variant.
+#[test]
+fn test32() {
+    call_tumor_normal("test32", true, 1.0, "1", "GRCh38");
+    let mut call = load_call("test32");
     check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 3.13, 0.01);
 }
 

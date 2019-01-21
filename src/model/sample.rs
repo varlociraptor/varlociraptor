@@ -200,7 +200,6 @@ impl Sample {
     /// # Arguments
     ///
     /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
-    /// * `pileup_window` - Window around the variant that shall be searched for evidence (e.g. 5000).
     /// * `use_fragment_evidence` - Whether to use read pairs that are left and right of variant.
     /// * `use_secondary` - Whether to use secondary alignments.
     /// * `insert_size` - estimated insert size
@@ -210,7 +209,6 @@ impl Sample {
     /// * `indel_haplotype_window` - maximum number of considered bases around an indel breakpoint
     pub fn new(
         bam: bam::IndexedReader,
-        pileup_window: u32,
         use_fragment_evidence: bool,
         // TODO remove this parameter, it will lead to wrong insert size estimations and is not necessary
         use_secondary: bool,
@@ -225,6 +223,10 @@ impl Sample {
         max_depth: usize,
         omit_repeat_regions: &[VariantType]
     ) -> Self {
+        let pileup_window = (alignment_properties.insert_size().mean +
+                            alignment_properties.insert_size().sd * 6.0) as u32;
+        info!("Using window of {} bases on each side of variant.", pileup_window);
+
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
@@ -672,7 +674,6 @@ mod tests {
     fn setup_sample(isize_mean: f64) -> Sample {
         Sample::new(
             bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
-            2500,
             true,
             true,
             true,

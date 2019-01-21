@@ -659,7 +659,6 @@ mod tests {
         let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, Prob(0.001));
         let case_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
             true,
             true,
             true,
@@ -675,7 +674,6 @@ mod tests {
         );
         let control_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
             true,
             true,
             true,
