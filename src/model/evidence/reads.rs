@@ -325,37 +325,20 @@ impl AbstractReadEvidence for IndelEvidence {
         // equally bad, and the normalized one will not prefer any of them.
 
         let min_prob = cmp::min(NotNan::from(prob_ref), NotNan::from(prob_alt));
+        let min_edit_dist = cmp::min(edit_dist_ref, edit_dist_alt);
 
-        if *min_prob != *LogProb::ln_zero() {
+        if *min_prob != *LogProb::ln_zero() && min_edit_dist < TOLERATED_EDIT_DIST {
             let prob_total = prob_alt.ln_add_exp(prob_ref);
             prob_ref -= prob_total;
             prob_alt -= prob_total;
-            let window_len = read_end - read_offset;
-            let expected_miscall_rate = LogProb(
-                *LogProb::ln_sum_exp(
-                    &read_qual[read_offset..read_end]
-                    .iter()
-                    .cloned()
-                    .map(prob_read_base_miscall)
-                    .collect_vec()
-                ) - (window_len as f64).ln()
-            );
-
-            // We tolerate 4 edit operations in order to normalize away proximal SNVs.
-            let considered_edits = cmp::min(edit_dist_ref, edit_dist_alt).saturating_sub(TOLERATED_EDIT_DIST);
-
-            // The certainty estimate is then the probability for no error in the matching bases
-            // or tolerated edits, and the probability for errors in the rest.
-            // By this, we ensure that reads mapping badly to both alleles still get
-            // weak probabilities for both.
-            let certainty_est = LogProb(
-                                    *expected_miscall_rate.ln_one_minus_exp() *
-                                    window_len.saturating_sub(considered_edits) as f64
-                                ) +
-                                LogProb(
-                                    *expected_miscall_rate *
-                                    considered_edits as f64
-                                );
+            let certainty_est = {
+                let mut p = LogProb::ln_one();
+                for &q in &read_qual[read_offset..read_end] {
+                    let prob_miscall = prob_read_base_miscall(q);
+                    p += prob_miscall.ln_one_minus_exp();
+                }
+                p
+            };
 
             // Rescale prob ref and alt with the overall certainty given the read base qualities
             // in the aligned region.
