@@ -209,6 +209,7 @@ impl AbstractReadEvidence for IndelEvidence {
                     let read_end = cmp::min(qend + self.window as usize, read_seq.len());
                     (read_offset, read_end, varstart as usize, true)
                 }
+
                 (Some(qstart), None) => {
                     let qstart = qstart as usize;
                     let read_offset = qstart.saturating_sub(self.window as usize);
@@ -220,13 +221,18 @@ impl AbstractReadEvidence for IndelEvidence {
                     let read_offset = qend.saturating_sub(self.window as usize);
                     let read_end = cmp::min(qend + self.window as usize, read_seq.len());
                     (read_offset, read_end, varend as usize, true)
-                }
+                },
                 (None, None) => {
                     let m = read_seq.len() / 2;
                     let read_offset = m.saturating_sub(self.window as usize);
                     let read_end = cmp::min(m + self.window as usize, read_seq.len());
                     let breakpoint = record.pos() as usize + m;
-                    (read_offset, read_end, breakpoint, false)
+                    // The following should only happen with deletions.
+                    // It occurs if the read comes from ref allele and is mapped within start
+                    // and end of deletion. Usually, such reads strongly support the ref allele.
+                    let read_enclosed_by_variant = record.pos() >= varstart as i32 &&
+                                                   cigar.end_pos().unwrap() <= varend as i32;
+                    (read_offset, read_end, breakpoint, read_enclosed_by_variant)
                 }
             }
         };
@@ -310,7 +316,7 @@ impl AbstractReadEvidence for IndelEvidence {
                     panic!("bug: unsupported variant");
                 }
             }
-        } else {
+        } else  {
             // if no overlap, we can simply use prob_ref again
             (
                 prob_ref,
