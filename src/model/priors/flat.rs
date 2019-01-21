@@ -110,9 +110,9 @@ pub struct FlatTumorNormalModel {
 
 impl FlatTumorNormalModel {
     pub fn new(ploidy: u32) -> Self {
-        let allele_freqs_normal_germline = DiscreteAlleleFreqs::feasible(ploidy).not_absent();
+        let allele_freqs_normal_germline = DiscreteAlleleFreqs::feasible(ploidy);
         let allele_freqs_normal_somatic =
-            ContinuousAlleleFreqs::inclusive(0.0..*allele_freqs_normal_germline[0]);
+            ContinuousAlleleFreqs::exclusive(0.0..*allele_freqs_normal_germline[1]);
         FlatTumorNormalModel {
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
             allele_freqs_normal_germline: allele_freqs_normal_germline,
@@ -201,18 +201,16 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         let n_obs_normal = pileup.control.len();
 
         let af_tumor = linspace(
-            *self.allele_freqs_tumor.observable_min(n_obs_tumor),
-            *self.allele_freqs_tumor.observable_max(n_obs_tumor),
-            Self::grid_points_tumor(pileup.case.len()),
+            *self.allele_freqs_tumor.start,
+            *self.allele_freqs_tumor.end,
+            Self::grid_points_tumor(n_obs_tumor),
         );
         // build the entire normal allele freq spectrum
         let af_normal = linspace(
             *self.allele_freqs_normal_somatic.observable_min(n_obs_normal),
             *self.allele_freqs_normal_somatic.observable_max(n_obs_normal),
             5,
-        ).rev()
-        .skip(1)
-        .chain(self.allele_freqs_normal_germline.iter().map(|af| **af));
+        ).chain(self.allele_freqs_normal_germline.iter().map(|af| **af));
 
         let (map_normal, map_tumor) = af_normal
             .cartesian_product(af_tumor)

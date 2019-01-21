@@ -22,7 +22,7 @@ use model::evidence;
 use model::evidence::reads::AbstractReadEvidence;
 use model::evidence::{Evidence, Observation};
 use model::{Variant, VariantType};
-use utils::{Overlap, is_repeat_variant};
+use utils::{Overlap, is_repeat_variant, max_prob};
 
 quick_error! {
     #[derive(Debug)]
@@ -455,6 +455,10 @@ impl Sample {
                 record, &self.alignment_properties
             );
 
+            // This is an estimate of the allele likelihood at the true location in case the read is
+            // mismapped.
+            let prob_missed_allele = max_prob(prob_ref, prob_alt);
+
             let prob_sample_alt = evidence.prob_sample_alt(
                 record.seq().len() as u32, variant, &self.alignment_properties
             );
@@ -463,6 +467,7 @@ impl Sample {
                 prob_mismapping,
                 prob_alt,
                 prob_ref,
+                prob_missed_allele,
                 prob_sample_alt,
                 Evidence::alignment(cigar, record),
             )))
@@ -512,6 +517,11 @@ impl Sample {
         let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
         let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
 
+        // This is an estimate of the allele likelihood at the true location in case the read is
+        // mismapped.
+        let p_missed_left = max_prob(p_ref_left, p_alt_left);
+        let p_missed_right = max_prob(p_ref_right, p_alt_right);
+
         let left_read_len = left_record.seq().len() as u32;
         let right_read_len = right_record.seq().len() as u32;
 
@@ -558,6 +568,7 @@ impl Sample {
             prob_mismapping,
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
+            p_missed_left + p_missed_right,
             prob_sample_alt,
             Evidence::insert_size(
                 insert_size as u32,

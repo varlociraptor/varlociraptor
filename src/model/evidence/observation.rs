@@ -37,6 +37,10 @@ pub struct Observation {
     pub prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
     pub prob_ref: LogProb,
+    /// Probability that the read/read-pair comes from an unknown allele at an unknown true
+    /// locus (in case it is mismapped). This should usually be set as the product of the maxima
+    /// of prob_ref and prob_alt per read.
+    pub prob_missed_allele: LogProb,
     /// Probability to sample the alt allele
     pub prob_sample_alt: LogProb,
     /// Type of evidence.
@@ -49,6 +53,7 @@ impl Observation {
         prob_mismapping: LogProb,
         prob_alt: LogProb,
         prob_ref: LogProb,
+        prob_missed_allele: LogProb,
         prob_sample_alt: LogProb,
         evidence: Evidence,
     ) -> Self {
@@ -57,6 +62,7 @@ impl Observation {
             prob_mismapping: prob_mismapping,
             prob_alt: prob_alt,
             prob_ref: prob_ref,
+            prob_missed_allele: prob_missed_allele,
             prob_sample_alt: prob_sample_alt,
             evidence: evidence,
         }

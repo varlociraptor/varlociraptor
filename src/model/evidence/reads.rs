@@ -327,7 +327,7 @@ impl AbstractReadEvidence for IndelEvidence {
         let min_prob = cmp::min(NotNan::from(prob_ref), NotNan::from(prob_alt));
         let min_edit_dist = cmp::min(edit_dist_ref, edit_dist_alt);
 
-        if *min_prob != *LogProb::ln_zero() && min_edit_dist < TOLERATED_EDIT_DIST {
+        if *min_prob != *LogProb::ln_zero() && min_edit_dist <= TOLERATED_EDIT_DIST {
             let prob_total = prob_alt.ln_add_exp(prob_ref);
             prob_ref -= prob_total;
             prob_alt -= prob_total;

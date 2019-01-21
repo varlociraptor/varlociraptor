@@ -2,6 +2,7 @@ use bio::stats::LogProb;
 
 use model::evidence::Observation;
 use model::AlleleFreq;
+use itertools::Itertools;
 
 /// Variant calling model, taking purity and allele frequencies into account.
 #[derive(Clone, Copy, Debug)]
@@ -52,8 +53,12 @@ impl LatentVariableModel {
         assert!(!prob_case.is_nan());
 
         // Step 4: total probability
+        // Important note: we need to multiply a probability for a hypothetical missed allele
+        // in the mismapping case. Otherwise, it can happen that mismapping dominates subtle
+        // differences in the likelihood for alt and ref allele with low probabilities and very
+        // low allele frequencies, such that we loose sensitivity for those.
         let total = (observation.prob_mapping + prob_control.ln_add_exp(prob_case))
-            .ln_add_exp(observation.prob_mismapping);
+            .ln_add_exp(observation.prob_mismapping + observation.prob_missed_allele);
         assert!(!total.is_nan());
         total
     }
@@ -72,7 +77,13 @@ impl LatentVariableModel {
         assert!(!prob_case.is_nan());
 
         // Step 3: total probability
-        let total = (observation.prob_mapping + prob_case).ln_add_exp(observation.prob_mismapping);
+        // Important note: we need to multiply a probability for a hypothetical missed allele
+        // in the mismapping case. Otherwise, it can happen that mismapping dominates subtle
+        // differences in the likelihood for alt and ref allele with low probabilities and very
+        // low allele frequencies, such that we loose sensitivity for those.
+        let total = (observation.prob_mapping + prob_case).ln_add_exp(
+            observation.prob_mismapping + observation.prob_missed_allele
+        );
         assert!(!total.is_nan());
         total
     }

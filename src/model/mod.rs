@@ -170,6 +170,7 @@ impl ContinuousAlleleFreqs {
     }
 
     pub fn observable_max(&self, n_obs: usize) -> AlleleFreq {
+        assert!(*self.end != 0.0, "bug: observable_max may not be called if end=0.0.");
         if n_obs == 0 {
             self.end
         } else {
@@ -644,6 +645,7 @@ mod tests {
     use likelihood::LatentVariableModel;
     use model::evidence::{Evidence, Observation};
     use Sample;
+    use utils;
 
     use bio::stats::{LogProb, Prob};
     use rust_htslib::bam;
@@ -699,6 +701,7 @@ mod tests {
             prob_mapping.ln_one_minus_exp(),
             prob_alt,
             prob_ref,
+            utils::max_prob(prob_ref, prob_alt),
             LogProb::ln_one(),
             Evidence::dummy_alignment(),
         )

@@ -2,6 +2,7 @@ use std::error::Error;
 use std::fs;
 use std::ops::Range;
 use std::str;
+use std::cmp;
 
 use bio::io::fasta;
 use bio::stats::{LogProb, PHREDProb};
@@ -413,6 +414,11 @@ where
             out.write(&record)?;
         }
     }
+}
+
+/// Return the greater of two given probabilities.
+pub fn max_prob(prob_a: LogProb, prob_b: LogProb) -> LogProb {
+    LogProb(*cmp::max(NotNan::from(prob_a), NotNan::from(prob_b)))
 }
 
 /// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
