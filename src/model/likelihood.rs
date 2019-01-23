@@ -2,7 +2,6 @@ use bio::stats::LogProb;
 
 use model::evidence::Observation;
 use model::AlleleFreq;
-use itertools::Itertools;
 
 /// Variant calling model, taking purity and allele frequencies into account.
 #[derive(Clone, Copy, Debug)]

@@ -20,7 +20,7 @@ use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf};
 
 use libprosic::constants;
-use libprosic::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, VariantType};
+use libprosic::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs};
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
@@ -133,8 +133,6 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
     let tumor = libprosic::Sample::new(
         tumor_bam,
         true,
-        false,
-        false,
         alignment_properties_tumor,
         libprosic::likelihood::LatentVariableModel::new(purity),
         constants::PROB_ILLUMINA_INS,
@@ -149,8 +147,6 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
     let normal = libprosic::Sample::new(
         normal_bam,
         true,
-        false,
-        false,
         alignment_properties_normal,
         libprosic::likelihood::LatentVariableModel::new(1.0),
         constants::PROB_ILLUMINA_INS,
@@ -251,8 +247,6 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
     let sc = libprosic::Sample::new(
         sc_bam,
         true,
-        true,
-        true,
         alignment_properties,
         libprosic::likelihood::LatentVariableModel::with_single_sample(),
         constants::PROB_ILLUMINA_INS,
@@ -266,8 +260,6 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
 
     let bulk = libprosic::Sample::new(
         bulk_bam,
-        true,
-        true,
         true,
         alignment_properties,
         libprosic::likelihood::LatentVariableModel::with_single_sample(),
@@ -704,6 +696,14 @@ fn test31() {
 fn test32() {
     call_tumor_normal("test32", true, 1.0, "1", "GRCh38");
     let mut call = load_call("test32");
+    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 3.13, 0.01);
+}
+
+/// Test a delly deletion that is not a somatic variant.
+#[test]
+fn test33() {
+    call_tumor_normal("test33", true, 1.0, "1", "GRCh38");
+    let mut call = load_call("test33");
     check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 3.13, 0.01);
 }
 

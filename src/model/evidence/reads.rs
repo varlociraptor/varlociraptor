@@ -5,7 +5,6 @@ use bio::stats::{LogProb, PHREDProb, Prob};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 use ordered_float::NotNan;
-use itertools::Itertools;
 
 use bio::pattern_matching::myers::Myers;
 use bio::stats::pairhmm;
@@ -37,7 +36,6 @@ pub trait AbstractReadEvidence {
     fn prob_mapping_mismapping(
         &self,
         record: &bam::Record,
-        _: &AlignmentProperties,
     ) -> (LogProb, LogProb) {
         prob_mapping_mismapping(record)
     }
@@ -149,7 +147,6 @@ pub struct IndelEvidence {
     gap_params: IndelGapParams,
     pairhmm: pairhmm::PairHMM,
     window: u32,
-    use_mapq: bool,
 }
 
 impl IndelEvidence {
@@ -160,7 +157,6 @@ impl IndelEvidence {
         prob_insertion_extend_artifact: LogProb,
         prob_deletion_extend_artifact: LogProb,
         window: u32,
-        use_mapq: bool,
     ) -> Self {
         IndelEvidence {
             gap_params: IndelGapParams {
@@ -171,7 +167,6 @@ impl IndelEvidence {
             },
             pairhmm: pairhmm::PairHMM::new(),
             window,
-            use_mapq,
         }
     }
 }
@@ -359,30 +354,6 @@ impl AbstractReadEvidence for IndelEvidence {
         }
 
         Ok(Some((prob_ref, prob_alt)))
-    }
-
-    /// Calculate mapping and mismapping probability of given record.
-    fn prob_mapping_mismapping(
-        &self,
-        record: &bam::Record,
-        alignment_properties: &AlignmentProperties,
-    ) -> (LogProb, LogProb) {
-        if self.use_mapq {
-            prob_mapping_mismapping(record)
-        } else {
-            // Only penalize reads with mapq 0, all others treat the same, by giving them the
-            // maximum observed mapping quality.
-            // This is good, because it removes biases with esp. SV reads that usually get lower
-            // MAPQ. By using the maximum observed MAPQ, we still calibrate to the general
-            // certainty of the mapper at this locus!
-            if record.mapq() == 0 {
-                (LogProb::ln_zero(), LogProb::ln_one())
-            } else {
-                let prob_mismapping = LogProb::from(alignment_properties.max_mapq());
-                let prob_mapping = prob_mismapping.ln_one_minus_exp();
-                (prob_mapping, prob_mismapping)
-            }
-        }
     }
 
     /// Probability to sample read from alt allele given the average feasible positions observed

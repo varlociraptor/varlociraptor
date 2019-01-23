@@ -660,8 +660,6 @@ mod tests {
         let case_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
             true,
-            true,
-            true,
             AlignmentProperties::default(insert_size),
             LatentVariableModel::new(1.0),
             constants::PROB_ILLUMINA_INS,
@@ -674,8 +672,6 @@ mod tests {
         );
         let control_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            true,
-            true,
             true,
             AlignmentProperties::default(insert_size),
             LatentVariableModel::new(1.0),
