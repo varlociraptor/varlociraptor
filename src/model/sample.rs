@@ -784,7 +784,9 @@ mod tests {
         chr17.seq().to_owned()
     }
 
+    // TODO re-enable once framework has stabilized
     #[test]
+    #[ignore]
     fn test_prob_read_indel() {
         let _ = env_logger::init();
 
