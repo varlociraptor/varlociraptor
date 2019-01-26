@@ -428,7 +428,7 @@ impl Sample {
                     }
                 }
 
-                self.refine_prob_mapping(&mut observations);
+                //self.refine_prob_mapping(&mut observations);
             }
         }
 
