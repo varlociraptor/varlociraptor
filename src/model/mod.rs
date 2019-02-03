@@ -96,6 +96,8 @@ pub struct ContinuousAlleleFreqs {
     inner: Range<AlleleFreq>,
     pub left_exclusive: bool,
     pub right_exclusive: bool,
+    /// offset to add when calculating the smallest observable value for a left-exclusive 0.0 bound
+    zero_offset: f64,
 }
 
 impl ContinuousAlleleFreqs {
@@ -108,6 +110,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(value)..AlleleFreq(value),
             left_exclusive: false,
             right_exclusive: false,
+            zero_offset: 1.0,
         }
     }
 
@@ -117,6 +120,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
             right_exclusive: false,
+            zero_offset: 1.0,
         }
     }
 
@@ -126,6 +130,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
             right_exclusive: true,
+            zero_offset: 1.0,
         }
     }
 
@@ -138,6 +143,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
             right_exclusive: false,
+            zero_offset: 1.0,
         }
     }
 
@@ -150,7 +156,14 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
             right_exclusive: true,
+            zero_offset: 1.0,
         }
+    }
+
+    pub fn min_observations(mut self, min_observations: usize) -> Self {
+        self.zero_offset = min_observations as f64;
+
+        self
     }
 
     pub fn is_singleton(&self) -> bool {
@@ -163,7 +176,7 @@ impl ContinuousAlleleFreqs {
         } else {
             let mut obs_count = Self::expected_observation_count(self.start, n_obs);
             if self.left_exclusive && obs_count % 1.0 == 0.0 {
-                obs_count += 1.0;
+                obs_count += self.zero_offset;
             }
             AlleleFreq(obs_count.ceil() / n_obs as f64)
         }

@@ -114,6 +114,7 @@ impl FlatTumorNormalModel {
         let allele_freqs_normal_somatic =
             ContinuousAlleleFreqs::exclusive(0.0..*allele_freqs_normal_germline[1]);
         FlatTumorNormalModel {
+            // TODO how to sync this with zero_offset of other events
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
             allele_freqs_normal_germline: allele_freqs_normal_germline,
             allele_freqs_normal_somatic: allele_freqs_normal_somatic,
@@ -201,8 +202,8 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         let n_obs_normal = pileup.control.len();
 
         let af_tumor = linspace(
-            *self.allele_freqs_tumor.start,
-            *self.allele_freqs_tumor.end,
+            *self.allele_freqs_tumor.observable_min(n_obs_tumor),
+            *self.allele_freqs_tumor.observable_max(n_obs_tumor),
             Self::grid_points_tumor(n_obs_tumor),
         );
         // build the entire normal allele freq spectrum

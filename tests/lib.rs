@@ -161,23 +161,23 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
     let events = [
         libprosic::call::pairwise::PairEvent {
             name: "germline_het".to_owned(),
-            af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
+            af_case: ContinuousAlleleFreqs::inclusive(0.0..1.0),
             af_control: ContinuousAlleleFreqs::singleton(0.5),
         },
         libprosic::call::pairwise::PairEvent {
             name: "germline_hom".to_owned(),
-            af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
+            af_case: ContinuousAlleleFreqs::inclusive(0.0..1.0),
             af_control: ContinuousAlleleFreqs::singleton(1.0),
         },
         libprosic::call::pairwise::PairEvent {
             name: "somatic_tumor".to_owned(),
-            af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
+            af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0).min_observations(2),
             af_control: ContinuousAlleleFreqs::absent(),
         },
         libprosic::call::pairwise::PairEvent {
             name: "somatic_normal".to_owned(),
-            af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
-            af_control: ContinuousAlleleFreqs::exclusive(0.0..0.5),
+            af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0).min_observations(2),
+            af_control: ContinuousAlleleFreqs::exclusive(0.0..0.5).min_observations(2),
         },
         libprosic::call::pairwise::PairEvent {
             name: "absent".to_owned(),
@@ -460,7 +460,7 @@ fn test04() {
 
     check_info_float(&mut call, b"CASE_AF", 0.042, 0.1);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.06, 0.01);
+    check_info_float_at_most(&mut call, b"PROB_SOMATIC_TUMOR", 0.06);
 }
 
 /// Test a Delly call in a repeat region. This should not be a somatic call.
@@ -562,7 +562,7 @@ fn test14() {
 fn test15() {
     call_tumor_normal("test15", false, 0.75, "chr1", "hg18");
     let mut call = load_call("test15");
-    check_info_float(&mut call, b"PROB_SOMATIC_TUMOR", 0.08, 0.01);
+    check_info_float_at_most(&mut call, b"PROB_SOMATIC_TUMOR", 0.08);
     check_info_float(&mut call, b"CASE_AF", 1.0, 0.06);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
 }
