@@ -582,7 +582,7 @@ fn test16() {
 fn test17() {
     call_tumor_normal("test17", true, 0.75, "chr11", "hg18");
     let mut call = load_call("test17");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 18.09);
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 4.8);
     check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
     check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
     check_info_float(&mut call, b"PROB_ABSENT", 0.06, 0.01);
@@ -605,7 +605,7 @@ fn test18() {
 fn test19() {
     call_tumor_normal("test19", true, 0.75, "chr8", "hg18");
     let mut call = load_call("test19");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 449.0);
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 446.0);
 }
 
 /// A delly deletion that is not a somatic variant but germline. It is in a highly repetetive
@@ -694,7 +694,7 @@ fn test29() {
     call_tumor_normal("test29", true, 1.0, "1", "GRCh38");
     let mut call = load_call("test29");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 54.0);
-    check_info_float(&mut call, b"PROB_ABSENT", 0.26, 0.01);
+    check_info_float_at_most(&mut call, b"PROB_ABSENT", 0.26);
 }
 
 /// Test a delly deletion that is likely a germline variant.
@@ -718,7 +718,7 @@ fn test31() {
 fn test32() {
     call_tumor_normal("test32", true, 1.0, "1", "GRCh38");
     let mut call = load_call("test32");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 3.3);
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 1.1);
 }
 
 /// Test a delly deletion that is not a somatic variant.
@@ -790,10 +790,5 @@ fn test_sc_bulk_indel() {
         "PROB_HOM_REF: {}",
         call.info(b"PROB_HOM_REF").float().unwrap().unwrap()[0]
     );
-    check_info_float(&mut call, b"PROB_HOM_REF", 3.73, 0.01);
-    println!(
-        "PROB_HET: {}",
-        call.info(b"PROB_HET").float().unwrap().unwrap()[0]
-    );
-    check_info_float(&mut call, b"PROB_HET", 2.42, 0.01);
+    check_info_float_at_least(&mut call, b"PROB_HOM_REF", 3.7);
 }
