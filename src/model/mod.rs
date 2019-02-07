@@ -176,7 +176,12 @@ impl ContinuousAlleleFreqs {
         } else {
             let mut obs_count = Self::expected_observation_count(self.start, n_obs);
             if self.left_exclusive && obs_count % 1.0 == 0.0 {
-                obs_count += self.zero_offset;
+                if obs_count + self.zero_offset > n_obs as f64 {
+                    // Offset is too large for n_obs.
+                    obs_count += 1.0;
+                } else {
+                    obs_count += self.zero_offset;
+                }
             }
             AlleleFreq(obs_count.ceil() / n_obs as f64)
         }
