@@ -174,16 +174,31 @@ impl ContinuousAlleleFreqs {
         if n_obs == 0 {
             self.start
         } else {
-            let mut obs_count = Self::expected_observation_count(self.start, n_obs);
+            let obs_count = Self::expected_observation_count(self.start, n_obs);
+            let adjust_allelefreq = |obs_count: f64| AlleleFreq(obs_count.ceil() / n_obs as f64);
+
             if self.left_exclusive && obs_count % 1.0 == 0.0 {
-                if obs_count + self.zero_offset > n_obs as f64 {
-                    // Offset is too large for n_obs.
-                    obs_count += 1.0;
+                // We are left exclusive and need to find a supremum from the right.
+                let offsets = if *self.start == 0.0 {
+                    // The lower bound is zero, hence we apply first any given zero offset if
+                    // possible.
+                    vec![self.zero_offset, 1.0, 0.0]
                 } else {
-                    obs_count += self.zero_offset;
+                    vec![1.0, 0.0]
+                };
+
+                let adjusted_end = self.observable_max(n_obs);
+
+                for offset in offsets {
+                    let adjusted_obs_count = obs_count + offset;
+                    let adjusted_start = adjust_allelefreq(adjusted_obs_count);
+                    if *adjusted_start <= 1.0 && adjusted_start <= adjusted_end {
+                        return adjusted_start
+                    }
                 }
             }
-            AlleleFreq(obs_count.ceil() / n_obs as f64)
+
+            adjust_allelefreq(obs_count)
         }
     }
 

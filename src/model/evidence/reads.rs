@@ -243,6 +243,24 @@ impl AbstractReadEvidence for IndelEvidence {
         let edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
         let edit_dist_upper_bound = |edit_dist| edit_dist + 5;
 
+        // Estimate overall certainty of the read window (product of base qual complements) under
+        // the assumption that the read comes from one of the two alleles.
+        // This is needed to rescale normalized probabilities below.
+        let certainty_est = {
+            let mut p = LogProb::ln_one();
+            for &q in &read_qual[read_offset..read_end] {
+                let prob_miscall = prob_read_base_miscall(q);
+                p += prob_miscall.ln_one_minus_exp();
+            }
+            p
+        };
+
+        if !overlap {
+            // If there is no overlap, normalization below would any lead to 0.5 vs 0.5, multiplied
+            // with certainty estimate. Hence, we can skip the entire HMM calculation!
+            return Ok(Some((certainty_est, certainty_est)));
+        }
+
         // ref allele
         let (mut prob_ref, edit_dist_ref) = {
             let ref_params = ReferenceEmissionParams {
@@ -264,59 +282,51 @@ impl AbstractReadEvidence for IndelEvidence {
         };
 
         // alt allele
-        let (mut prob_alt, edit_dist_alt) = if overlap {
-            match variant {
-                &Variant::Deletion(_) => {
-                    let p = DeletionEmissionParams {
-                        ref_seq: ref_seq,
-                        ref_offset: start.saturating_sub(ref_window),
-                        ref_end: cmp::min(start + ref_window, ref_seq.len()),
-                        del_start: start,
-                        del_len: variant.len() as usize,
-                        read_emission: &read_emission,
-                    };
-                    let edit_dist_alt = edit_dist.calc_edit_dist(&p);
-                    (
-                        self.pairhmm.prob_related(
-                            &self.gap_params,
-                            &p,
-                            Some(edit_dist_upper_bound(edit_dist_alt)),
-                        ),
-                        edit_dist_alt
-                    )
-                }
-                &Variant::Insertion(ref ins_seq) => {
-                    let l = ins_seq.len() as usize;
-                    let p = InsertionEmissionParams {
-                        ref_seq: ref_seq,
-                        ref_offset: start.saturating_sub(ref_window),
-                        ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
-                        ins_start: start,
-                        ins_len: l,
-                        ins_end: start + l,
-                        ins_seq: ins_seq,
-                        read_emission: &read_emission,
-                    };
-                    let edit_dist_alt = edit_dist.calc_edit_dist(&p);
-                    (
-                        self.pairhmm.prob_related(
-                            &self.gap_params,
-                            &p,
-                            Some(edit_dist_upper_bound(edit_dist_alt)),
-                        ),
-                        edit_dist_alt
-                    )
-                }
-                _ => {
-                    panic!("bug: unsupported variant");
-                }
+        let (mut prob_alt, edit_dist_alt) = match variant {
+            &Variant::Deletion(_) => {
+                let p = DeletionEmissionParams {
+                    ref_seq: ref_seq,
+                    ref_offset: start.saturating_sub(ref_window),
+                    ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                    del_start: start,
+                    del_len: variant.len() as usize,
+                    read_emission: &read_emission,
+                };
+                let edit_dist_alt = edit_dist.calc_edit_dist(&p);
+                (
+                    self.pairhmm.prob_related(
+                        &self.gap_params,
+                        &p,
+                        Some(edit_dist_upper_bound(edit_dist_alt)),
+                    ),
+                    edit_dist_alt
+                )
             }
-        } else  {
-            // if no overlap, we can simply use prob_ref again
-            (
-                prob_ref,
-                edit_dist_ref
-            )
+            &Variant::Insertion(ref ins_seq) => {
+                let l = ins_seq.len() as usize;
+                let p = InsertionEmissionParams {
+                    ref_seq: ref_seq,
+                    ref_offset: start.saturating_sub(ref_window),
+                    ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
+                    ins_start: start,
+                    ins_len: l,
+                    ins_end: start + l,
+                    ins_seq: ins_seq,
+                    read_emission: &read_emission,
+                };
+                let edit_dist_alt = edit_dist.calc_edit_dist(&p);
+                (
+                    self.pairhmm.prob_related(
+                        &self.gap_params,
+                        &p,
+                        Some(edit_dist_upper_bound(edit_dist_alt)),
+                    ),
+                    edit_dist_alt
+                )
+            }
+            _ => {
+                panic!("bug: unsupported variant");
+            }
         };
 
         // Normalize probabilities. By this, we avoid biases due to proximal variants that are in
@@ -332,14 +342,6 @@ impl AbstractReadEvidence for IndelEvidence {
             let prob_total = prob_alt.ln_add_exp(prob_ref);
             prob_ref -= prob_total;
             prob_alt -= prob_total;
-            let certainty_est = {
-                let mut p = LogProb::ln_one();
-                for &q in &read_qual[read_offset..read_end] {
-                    let prob_miscall = prob_read_base_miscall(q);
-                    p += prob_miscall.ln_one_minus_exp();
-                }
-                p
-            };
 
             // Rescale prob ref and alt with the overall certainty given the read base qualities
             // in the aligned region.
