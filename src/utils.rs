@@ -178,7 +178,8 @@ pub fn collect_variants(
                         None
                     }
                 }
-            }).collect_vec()
+            })
+            .collect_vec()
     };
 
     Ok(variants)
@@ -259,7 +260,8 @@ pub fn tags_prob_sum(
             } else {
                 None
             }
-        }).collect_vec())
+        })
+        .collect_vec())
 }
 
 pub fn events_to_tags<E>(events: &[E]) -> Vec<String>

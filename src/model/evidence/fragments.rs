@@ -210,8 +210,10 @@ impl IndelEvidence {
                             );
                             Some(p)
                         }
-                    }).collect_vec(),
-            ).cap_numerical_overshoot(0.0001);
+                    })
+                    .collect_vec(),
+            )
+            .cap_numerical_overshoot(0.0001);
 
             expected_p_alt
         };

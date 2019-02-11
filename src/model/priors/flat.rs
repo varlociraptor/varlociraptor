@@ -47,7 +47,8 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
                     let prob = p_first + p_second;
 
                     prob
-                }).collect_vec(),
+                })
+                .collect_vec(),
         );
 
         prob
@@ -75,7 +76,8 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
                 .minmax_by_key(|&af| {
                     let p = likelihood(*af);
                     NotNan::new(*p).expect("probability is NaN")
-                }).into_option()
+                })
+                .into_option()
                 .expect("prior has empty allele frequency spectrum");
             *map
         }

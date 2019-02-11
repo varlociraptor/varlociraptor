@@ -215,7 +215,8 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
         Some(10000),
         Some(&observations),
         exclusive_end,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &str) {
@@ -339,7 +340,8 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
         Some(10000),
         Some(&observations),
         exclusive_end,
-    ).unwrap();
+    )
+    .unwrap();
 
     // sleep a second in order to wait for filesystem flushing
     thread::sleep(time::Duration::from_secs(1));
@@ -415,7 +417,8 @@ fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
         }],
         &libprosic::model::VariantType::Deletion(Some(1..30)),
         LogProb::from(Prob(alpha)),
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Test a Pindel call in a repeat region. It is either germline or absent, and could be called either

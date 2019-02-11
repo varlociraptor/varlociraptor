@@ -206,7 +206,8 @@ mod tests {
     fn test_parse_insert_size() {
         let insert_size = InsertSize::from_samtools_stats(&mut io::BufReader::new(
             fs::File::open("tests/resources/samtools_stats.example.txt").unwrap(),
-        )).unwrap();
+        ))
+        .unwrap();
         assert_relative_eq!(insert_size.mean, 311.7);
         assert_relative_eq!(insert_size.sd, 15.5);
     }
