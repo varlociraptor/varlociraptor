@@ -28,6 +28,18 @@ impl LatentVariableModel {
         }
     }
 
+    fn prob_sample_alt(observation: &Observation, allele_freq: LogProb) -> LogProb {
+        if allele_freq != LogProb::ln_one() {
+            // The effective sample probability for the alt allele is the allele frequency times
+            // the probability to obtain a feasible fragment (prob_sample_alt).
+            allele_freq + observation.prob_sample_alt
+        } else {
+            // If allele frequency is 1.0, sampling bias does have no effect because all reads
+            // should come from the alt allele.
+            allele_freq
+        }
+    }
+
     /// Likelihood to observe a read given allele frequencies for case and control.
     fn likelihood_observation_case_control(
         &self,
@@ -36,8 +48,8 @@ impl LatentVariableModel {
         allele_freq_control: LogProb,
     ) -> LogProb {
         // Step 1: probability to sample observation: AF * placement induced probability
-        let prob_sample_alt_case = allele_freq_case + observation.prob_sample_alt;
-        let prob_sample_alt_control = allele_freq_control + observation.prob_sample_alt;
+        let prob_sample_alt_case = Self::prob_sample_alt(observation, allele_freq_case);
+        let prob_sample_alt_control = Self::prob_sample_alt(observation, allele_freq_control);
 
         // Step 2: read comes from control sample and is correctly mapped
         let prob_control = self.impurity.unwrap()
@@ -68,7 +80,7 @@ impl LatentVariableModel {
         allele_freq_case: LogProb,
     ) -> LogProb {
         // Step 1: calculate probability to sample from alt allele
-        let prob_sample_alt = allele_freq_case + observation.prob_sample_alt;
+        let prob_sample_alt = Self::prob_sample_alt(observation, allele_freq_case);
 
         // Step 2: read comes from case sample and is correctly mapped
         let prob_case = (prob_sample_alt + observation.prob_alt)
