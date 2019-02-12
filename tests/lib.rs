@@ -82,7 +82,7 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
             let curl = Command::new("curl")
                 .arg("--silent")
                 .arg("--connect-timeout")
-                ,arg("300")
+                .arg("300")
                 .arg(&url)
                 .stdout(Stdio::piped())
                 .spawn()
