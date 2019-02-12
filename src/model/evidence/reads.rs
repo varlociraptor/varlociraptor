@@ -11,7 +11,6 @@ use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
-pub const TOLERATED_EDIT_DIST: usize = 3;
 
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
 /// correctly and the event that it maps incorrectly.
@@ -317,7 +316,6 @@ impl AbstractReadEvidence for IndelEvidence {
         let min_prob = cmp::min(NotNan::from(prob_ref), NotNan::from(prob_alt));
 
         if *min_prob != *LogProb::ln_zero() {
-            // TODO do we need to constrain this? } && min_edit_dist <= TOLERATED_EDIT_DIST {
             let prob_total = prob_alt.ln_add_exp(prob_ref);
             prob_ref -= prob_total;
             prob_alt -= prob_total;
