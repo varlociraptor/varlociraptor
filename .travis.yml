@@ -17,6 +17,7 @@ addons:
       - binutils-dev
       - cmake
       - libgsl0-dev
+      - samtools
     sources:
       - kalakris-cmake
 
