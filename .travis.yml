@@ -18,6 +18,7 @@ addons:
       - cmake
       - libgsl0-dev
       - samtools
+      - curl
     sources:
       - kalakris-cmake
 
