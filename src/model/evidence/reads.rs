@@ -250,7 +250,7 @@ impl AbstractReadEvidence for IndelEvidence {
         }
 
         // ref allele
-        let (mut prob_ref, edit_dist_ref) = {
+        let mut prob_ref = {
             let ref_params = ReferenceEmissionParams {
                 ref_seq: ref_seq,
                 ref_offset: breakpoint.saturating_sub(ref_window),
@@ -259,18 +259,15 @@ impl AbstractReadEvidence for IndelEvidence {
             };
             let edit_dist_ref = edit_dist.calc_edit_dist(&ref_params);
 
-            (
-                self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &ref_params,
-                    Some(edit_dist_upper_bound(edit_dist_ref)),
-                ),
-                edit_dist_ref,
+            self.pairhmm.prob_related(
+                &self.gap_params,
+                &ref_params,
+                Some(edit_dist_upper_bound(edit_dist_ref)),
             )
         };
 
         // alt allele
-        let (mut prob_alt, edit_dist_alt) = match variant {
+        let mut prob_alt = match variant {
             &Variant::Deletion(_) => {
                 let p = DeletionEmissionParams {
                     ref_seq: ref_seq,
@@ -281,13 +278,10 @@ impl AbstractReadEvidence for IndelEvidence {
                     read_emission: &read_emission,
                 };
                 let edit_dist_alt = edit_dist.calc_edit_dist(&p);
-                (
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &p,
-                        Some(edit_dist_upper_bound(edit_dist_alt)),
-                    ),
-                    edit_dist_alt,
+                self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &p,
+                    Some(edit_dist_upper_bound(edit_dist_alt)),
                 )
             }
             &Variant::Insertion(ref ins_seq) => {
@@ -303,13 +297,10 @@ impl AbstractReadEvidence for IndelEvidence {
                     read_emission: &read_emission,
                 };
                 let edit_dist_alt = edit_dist.calc_edit_dist(&p);
-                (
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &p,
-                        Some(edit_dist_upper_bound(edit_dist_alt)),
-                    ),
-                    edit_dist_alt,
+                self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &p,
+                    Some(edit_dist_upper_bound(edit_dist_alt)),
                 )
             }
             _ => {
@@ -324,7 +315,6 @@ impl AbstractReadEvidence for IndelEvidence {
         // equally bad, and the normalized one will not prefer any of them.
 
         let min_prob = cmp::min(NotNan::from(prob_ref), NotNan::from(prob_alt));
-        let min_edit_dist = cmp::min(edit_dist_ref, edit_dist_alt);
 
         if *min_prob != *LogProb::ln_zero() {
             // TODO do we need to constrain this? } && min_edit_dist <= TOLERATED_EDIT_DIST {

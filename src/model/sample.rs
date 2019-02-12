@@ -6,9 +6,7 @@ use std::f64;
 use std::f64::consts;
 use std::str;
 
-use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
 use bio::stats::{LogProb, Prob};
-use itertools::Itertools;
 use rand::distributions;
 use rand::distributions::IndependentSample;
 use rand::{SeedableRng, StdRng};
@@ -439,50 +437,6 @@ impl Sample {
         }
 
         Ok(observations)
-    }
-
-    /// Refine prob_mapping and prob_mismapping to the expected fraction of correctly
-    /// mapped reads among all ref allele reads.
-    /// By this, we get a general feeling of the ambiguity of this locus, while we avoid
-    /// having a bias against variant allele reads (coming from the mapper, they have
-    /// usually a reduced mapping quality because they do not perfectly align to the ref genome).
-    fn refine_prob_mapping(&self, observations: &mut [Observation]) {
-        let probs = observations
-            .iter()
-            .filter_map(|obs| {
-                if obs.prob_mapping > LogProb::ln_zero()
-                    && BayesFactor::new(obs.prob_ref, obs.prob_alt).evidence_kass_raftery()
-                        > KassRaftery::None
-                {
-                    Some(obs.prob_mapping)
-                } else {
-                    None
-                }
-            })
-            .collect_vec();
-        if probs.len() < 5 {
-            // Not enough reference observations to calculate a reliable estimate.
-            // Instead, we use the global maximum.
-            // This means that we only penalize reads with mapq 0, all others we treat the same.
-            // This is good, because it still removes biases with esp. SV reads that usually get
-            // lower MAPQ. By using the maximum observed MAPQ, we still calibrate to the general
-            // certainty of the mapper.
-            for obs in observations {
-                if obs.prob_mapping != LogProb::ln_zero() {
-                    obs.prob_mismapping = LogProb::from(self.alignment_properties.max_mapq());
-                    obs.prob_mapping = obs.prob_mismapping.ln_one_minus_exp();
-                }
-            }
-        } else {
-            let expected_mapping_rate =
-                LogProb(*LogProb::ln_sum_exp(&probs) - (probs.len() as f64).ln());
-            for obs in observations {
-                if obs.prob_mapping > LogProb::ln_zero() {
-                    obs.prob_mapping = expected_mapping_rate;
-                    obs.prob_mismapping = expected_mapping_rate.ln_one_minus_exp();
-                }
-            }
-        }
     }
 
     /// extract within-read evidence for reads covering an indel or SNV of interest
