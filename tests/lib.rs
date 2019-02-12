@@ -6,6 +6,10 @@ extern crate libprosic;
 extern crate log;
 extern crate rust_htslib;
 extern crate serde_json;
+#[macro_use]
+extern crate lazy_static;
+
+use std::sync::Mutex;
 
 use std::fs;
 use std::io;
@@ -45,9 +49,18 @@ pub fn setup_logger(test: &str) {
     println!("Debug output can be found here: {}", logfile);
 }
 
+
+lazy_static! {
+    static ref DOWNLOAD_MUTEX: Mutex<()> = Mutex::new(());
+}
+
 fn download_reference(chrom: &str, build: &str) -> PathBuf {
     let p = format!("tests/resources/{}/{}.fa", build, chrom);
     let reference = Path::new(&p);
+
+    // acquire lock, keep it until it goes out of scope
+    let _lock = DOWNLOAD_MUTEX.lock().unwrap();
+
     fs::create_dir_all(reference.parent().unwrap()).unwrap();
     if !reference.exists() {
         let url = if build.starts_with("hg") {
