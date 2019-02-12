@@ -11,7 +11,6 @@ use bio::stats::pairhmm;
 use estimation::alignment_properties::AlignmentProperties;
 use model::Variant;
 
-
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
 /// correctly and the event that it maps incorrectly.
 fn prob_mapping_mismapping(record: &bam::Record) -> (LogProb, LogProb) {
