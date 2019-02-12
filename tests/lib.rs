@@ -65,22 +65,29 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
             panic!("invalid genome build: {}", build);
         };
 
-        let curl = Command::new("curl")
-            .arg(&url)
-            .stdout(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let mut gzip = Command::new("gzip")
-            .arg("-d")
-            .stdin(curl.stdout.unwrap())
-            .stdout(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let mut reference_file = fs::File::create(&reference).unwrap();
-        io::copy(gzip.stdout.as_mut().unwrap(), &mut reference_file).unwrap();
+        let mut i = 0;
+        while i < 3 {
+            let curl = Command::new("curl")
+                .arg(&url)
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut gzip = Command::new("gzip")
+                .arg("-d")
+                .stdin(curl.stdout.unwrap())
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut reference_file = fs::File::create(&reference).unwrap();
+            io::copy(gzip.stdout.as_mut().unwrap(), &mut reference_file).unwrap();
 
-        let gzip_out = gzip.wait_with_output().unwrap();
-        if !gzip_out.status.success() {
+            let gzip_out = gzip.wait_with_output().unwrap();
+            if gzip_out.status.success() {
+                break;
+            }
+            i += 1;
+        }
+        if i == 3 {
             panic!("failed to download source");
         }
     }
