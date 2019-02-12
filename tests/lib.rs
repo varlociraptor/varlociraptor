@@ -695,13 +695,13 @@ fn test28() {
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 10.6);
 }
 
-/// Test a delly deletion that is likely an artifact of a repeat region.
+/// Test a delly deletion that is either an artifact of a repeat region or a subclonal variant
+/// in the normal sample.
 #[test]
 fn test29() {
     call_tumor_normal("test29", true, 1.0, "1", "GRCh38");
     let mut call = load_call("test29");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 54.0);
-    check_info_float_at_most(&mut call, b"PROB_ABSENT", 0.26);
 }
 
 /// Test a delly deletion that is likely a germline variant.
