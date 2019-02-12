@@ -68,7 +68,6 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
         let curl = Command::new("curl")
             .arg(&url)
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
             .spawn()
             .unwrap();
         let mut gzip = Command::new("gzip")
@@ -79,6 +78,11 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
             .unwrap();
         let mut reference_file = fs::File::create(&reference).unwrap();
         io::copy(gzip.stdout.as_mut().unwrap(), &mut reference_file).unwrap();
+
+        let gzip_out = gzip.wait_with_output().unwrap();
+        if !gzip_out.status.success() {
+            panic!("failed to download source");
+        }
     }
 
     assert!(Path::new(&reference).exists());
