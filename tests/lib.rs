@@ -49,7 +49,6 @@ pub fn setup_logger(test: &str) {
     println!("Debug output can be found here: {}", logfile);
 }
 
-
 lazy_static! {
     static ref DOWNLOAD_MUTEX: Mutex<()> = Mutex::new(());
 }
@@ -81,6 +80,9 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
         let mut i = 0;
         while i < 3 {
             let curl = Command::new("curl")
+                .arg("--silent")
+                .arg("--connect-timeout")
+                ,arg("300")
                 .arg(&url)
                 .stdout(Stdio::piped())
                 .spawn()
