@@ -193,7 +193,7 @@ impl ContinuousAlleleFreqs {
                     let adjusted_obs_count = obs_count + offset;
                     let adjusted_start = adjust_allelefreq(adjusted_obs_count);
                     if *adjusted_start <= 1.0 && adjusted_start <= adjusted_end {
-                        return adjusted_start
+                        return adjusted_start;
                     }
                 }
             }
@@ -203,7 +203,10 @@ impl ContinuousAlleleFreqs {
     }
 
     pub fn observable_max(&self, n_obs: usize) -> AlleleFreq {
-        assert!(*self.end != 0.0, "bug: observable_max may not be called if end=0.0.");
+        assert!(
+            *self.end != 0.0,
+            "bug: observable_max may not be called if end=0.0."
+        );
         if n_obs == 0 {
             self.end
         } else {
@@ -269,7 +272,7 @@ impl Variant {
     pub fn is_single_base(&self) -> bool {
         match self {
             &Variant::SNV(_) | &Variant::None => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -677,14 +680,14 @@ mod tests {
     use estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use likelihood::LatentVariableModel;
     use model::evidence::{Evidence, Observation};
-    use Sample;
     use utils;
+    use Sample;
 
     use bio::stats::{LogProb, Prob};
     use rust_htslib::bam;
 
     fn setup_pairwise_test<'a>(
-) -> PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
+    ) -> PairCaller<ContinuousAlleleFreqs, DiscreteAlleleFreqs, priors::TumorNormalModel> {
         let insert_size = InsertSize {
             mean: 250.0,
             sd: 50.0,

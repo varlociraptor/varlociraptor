@@ -40,7 +40,8 @@ where
             } else {
                 None
             }
-        }).collect_vec();
+        })
+        .collect_vec();
     let event_tags = utils::events_to_tags(events);
 
     // setup output file

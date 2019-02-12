@@ -69,12 +69,14 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
             .arg(&url)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn().unwrap();
+            .spawn()
+            .unwrap();
         let mut gzip = Command::new("gzip")
             .arg("-d")
             .stdin(curl.stdout.unwrap())
             .stdout(Stdio::piped())
-            .spawn().unwrap();
+            .spawn()
+            .unwrap();
         let mut reference_file = fs::File::create(&reference).unwrap();
         io::copy(gzip.stdout.as_mut().unwrap(), &mut reference_file).unwrap();
     }
@@ -113,20 +115,24 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
     cleanup_file(&output);
     cleanup_file(&observations);
 
-    let (alignment_properties_tumor, alignment_properties_normal) = if Path::new(&alignment_properties_tumor_def).exists() {
-        (
-            serde_json::from_reader(fs::File::open(alignment_properties_tumor_def).unwrap()).unwrap(),
-            serde_json::from_reader(fs::File::open(alignment_properties_normal_def).unwrap()).unwrap()
-        )
-    } else if Path::new(&alignment_properties_def).exists() {
-        let a = serde_json::from_reader(fs::File::open(alignment_properties_def).unwrap()).unwrap();
-        (a, a)
-    } else {
-        let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
-        //let mut bam = bam::Reader::from_path(&normal_bam_path).unwrap();
-        let a = libprosic::AlignmentProperties::estimate(&mut bam).unwrap();
-        (a, a)
-    };
+    let (alignment_properties_tumor, alignment_properties_normal) =
+        if Path::new(&alignment_properties_tumor_def).exists() {
+            (
+                serde_json::from_reader(fs::File::open(alignment_properties_tumor_def).unwrap())
+                    .unwrap(),
+                serde_json::from_reader(fs::File::open(alignment_properties_normal_def).unwrap())
+                    .unwrap(),
+            )
+        } else if Path::new(&alignment_properties_def).exists() {
+            let a =
+                serde_json::from_reader(fs::File::open(alignment_properties_def).unwrap()).unwrap();
+            (a, a)
+        } else {
+            let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
+            //let mut bam = bam::Reader::from_path(&normal_bam_path).unwrap();
+            let a = libprosic::AlignmentProperties::estimate(&mut bam).unwrap();
+            (a, a)
+        };
     println!("{:?}", alignment_properties_tumor);
     println!("{:?}", alignment_properties_normal);
 
@@ -215,7 +221,8 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
         Some(10000),
         Some(&observations),
         exclusive_end,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &str) {
@@ -339,7 +346,8 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str, build: &s
         Some(10000),
         Some(&observations),
         exclusive_end,
-    ).unwrap();
+    )
+    .unwrap();
 
     // sleep a second in order to wait for filesystem flushing
     thread::sleep(time::Duration::from_secs(1));
@@ -415,7 +423,8 @@ fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
         }],
         &libprosic::model::VariantType::Deletion(Some(1..30)),
         LogProb::from(Prob(alpha)),
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /// Test a Pindel call in a repeat region. It is either germline or absent, and could be called either

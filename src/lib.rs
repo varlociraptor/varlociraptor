@@ -18,10 +18,10 @@ extern crate quick_error;
 extern crate csv;
 #[macro_use]
 extern crate lazy_static;
+extern crate rand;
 extern crate regex;
 extern crate statrs;
 extern crate vec_map;
-extern crate rand;
 
 #[macro_use]
 extern crate cached;

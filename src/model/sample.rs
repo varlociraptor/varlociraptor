@@ -1,17 +1,17 @@
 use std::cell::{RefCell, RefMut};
 use std::cmp;
-use std::collections::{vec_deque, VecDeque, BTreeMap};
+use std::collections::{vec_deque, BTreeMap, VecDeque};
 use std::error::Error;
 use std::f64;
 use std::f64::consts;
 use std::str;
 
-use itertools::Itertools;
+use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
 use bio::stats::{LogProb, Prob};
-use bio::stats::bayesian::bayes_factors::{BayesFactor, evidence::KassRaftery};
-use rand::{SeedableRng, StdRng};
+use itertools::Itertools;
 use rand::distributions;
 use rand::distributions::IndependentSample;
+use rand::{SeedableRng, StdRng};
 use rgsl::error::erfc;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rust_htslib::bam;
@@ -24,7 +24,7 @@ use model::evidence;
 use model::evidence::reads::AbstractReadEvidence;
 use model::evidence::{Evidence, Observation};
 use model::{Variant, VariantType};
-use utils::{Overlap, is_repeat_variant, max_prob};
+use utils::{is_repeat_variant, max_prob, Overlap};
 
 quick_error! {
     #[derive(Debug)]
@@ -152,9 +152,9 @@ pub enum SubsampleCandidates {
     Necessary {
         rng: StdRng,
         prob: f64,
-        prob_range: distributions::Range<f64>
+        prob_range: distributions::Range<f64>,
     },
-    None
+    None,
 }
 
 impl SubsampleCandidates {
@@ -168,19 +168,19 @@ impl SubsampleCandidates {
         } else {
             SubsampleCandidates::None
         }
-
     }
 
     pub fn keep(&mut self) -> bool {
         match self {
-            SubsampleCandidates::Necessary {rng, prob, prob_range} => {
-                prob_range.ind_sample(rng) <= *prob
-            },
+            SubsampleCandidates::Necessary {
+                rng,
+                prob,
+                prob_range,
+            } => prob_range.ind_sample(rng) <= *prob,
             SubsampleCandidates::None => true,
         }
     }
 }
-
 
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample {
@@ -220,11 +220,14 @@ impl Sample {
         prob_deletion_extend_artifact: Prob,
         indel_haplotype_window: u32,
         max_depth: usize,
-        omit_repeat_regions: &[VariantType]
+        omit_repeat_regions: &[VariantType],
     ) -> Self {
-        let pileup_window = (alignment_properties.insert_size().mean +
-                            alignment_properties.insert_size().sd * 6.0) as u32;
-        info!("Using window of {} bases on each side of variant.", pileup_window);
+        let pileup_window = (alignment_properties.insert_size().mean
+            + alignment_properties.insert_size().sd * 6.0) as u32;
+        info!(
+            "Using window of {} bases on each side of variant.",
+            pileup_window
+        );
 
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, false),
@@ -290,17 +293,18 @@ impl Sample {
                         candidate_records.push(record);
                     }
                 }
-                let mut subsample_candidates = SubsampleCandidates::new(
-                    self.max_depth, candidate_records.len()
-                );
+                let mut subsample_candidates =
+                    SubsampleCandidates::new(self.max_depth, candidate_records.len());
 
                 for record in candidate_records {
                     if subsample_candidates.keep() {
-                        if let Some(obs) =
-                            self.read_observation(
-                                &record, record.cigar_cached().unwrap(), start, variant, chrom_seq
-                            )?
-                        {
+                        if let Some(obs) = self.read_observation(
+                            &record,
+                            record.cigar_cached().unwrap(),
+                            start,
+                            variant,
+                            chrom_seq,
+                        )? {
                             observations.push(obs);
                         } else {
                             debug!("Did not add read to observations, SNV position deleted (Cigar op 'D') or skipped (Cigar op 'N').");
@@ -372,7 +376,8 @@ impl Sample {
 
                         let left_cigar = candidate.left.cigar_cached().unwrap();
                         let right_cigar = right.cigar_cached().unwrap();
-                        let left_overlap = Overlap::new(candidate.left, left_cigar, start, variant, true)?;
+                        let left_overlap =
+                            Overlap::new(candidate.left, left_cigar, start, variant, true)?;
                         let right_overlap = Overlap::new(right, right_cigar, start, variant, true)?;
 
                         if left_overlap.is_none() && right_overlap.is_none() {
@@ -394,7 +399,8 @@ impl Sample {
                 }
 
                 let mut subsample_candidates = SubsampleCandidates::new(
-                    self.max_depth, candidate_fragments.len() + candidate_reads.len()
+                    self.max_depth,
+                    candidate_fragments.len() + candidate_reads.len(),
                 );
 
                 for candidate in candidate_fragments {
@@ -435,22 +441,25 @@ impl Sample {
         Ok(observations)
     }
 
-
     /// Refine prob_mapping and prob_mismapping to the expected fraction of correctly
     /// mapped reads among all ref allele reads.
     /// By this, we get a general feeling of the ambiguity of this locus, while we avoid
     /// having a bias against variant allele reads (coming from the mapper, they have
     /// usually a reduced mapping quality because they do not perfectly align to the ref genome).
     fn refine_prob_mapping(&self, observations: &mut [Observation]) {
-        let probs = observations.iter().filter_map(|obs| {
-            if obs.prob_mapping > LogProb::ln_zero() &&
-               BayesFactor::new(obs.prob_ref, obs.prob_alt).evidence_kass_raftery() > KassRaftery::None
-            {
-                Some(obs.prob_mapping)
-            } else {
-                None
-            }
-        }).collect_vec();
+        let probs = observations
+            .iter()
+            .filter_map(|obs| {
+                if obs.prob_mapping > LogProb::ln_zero()
+                    && BayesFactor::new(obs.prob_ref, obs.prob_alt).evidence_kass_raftery()
+                        > KassRaftery::None
+                {
+                    Some(obs.prob_mapping)
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
         if probs.len() < 5 {
             // Not enough reference observations to calculate a reliable estimate.
             // Instead, we use the global maximum.
@@ -465,9 +474,8 @@ impl Sample {
                 }
             }
         } else {
-            let expected_mapping_rate = LogProb(
-                *LogProb::ln_sum_exp(&probs) - (probs.len() as f64).ln()
-            );
+            let expected_mapping_rate =
+                LogProb(*LogProb::ln_sum_exp(&probs) - (probs.len() as f64).ln());
             for obs in observations {
                 if obs.prob_mapping > LogProb::ln_zero() {
                     obs.prob_mapping = expected_mapping_rate;
@@ -502,7 +510,9 @@ impl Sample {
             let prob_missed_allele = max_prob(prob_ref, prob_alt);
 
             let prob_sample_alt = evidence.prob_sample_alt(
-                record.seq().len() as u32, variant, &self.alignment_properties
+                record.seq().len() as u32,
+                variant,
+                &self.alignment_properties,
             );
             Ok(Some(Observation::new(
                 prob_mapping,
@@ -665,7 +675,8 @@ pub fn isize_mixture_density_louis(value: f64, d: f64, mean: f64, sd: f64, rate:
                 - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2))
             + (1.0 - rate)
                 * (erfc((-value - 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2)
-                    - erfc((-value + 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2)))).ln(),
+                    - erfc((-value + 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2))))
+        .ln(),
     )
 }
 
@@ -698,12 +709,9 @@ mod tests {
         let rate = LogProb(0.05f64.ln());
         let p_alt = (
             // case: correctly called indel
-            rate.ln_one_minus_exp() + isize_pmf(
-                212.0,
-                312.0 - 100.0,
-                15.0
-            )
-        ).ln_add_exp(
+            rate.ln_one_minus_exp() + isize_pmf(212.0, 312.0 - 100.0, 15.0)
+        )
+        .ln_add_exp(
             // case: no indel, false positive call
             rate + isize_pmf(212.0, 312.0, 15.0),
         );

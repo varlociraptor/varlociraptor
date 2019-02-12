@@ -76,7 +76,8 @@ pub fn max_indel(cigar: &CigarStringView) -> u32 {
             &Cigar::Ins(l) => l,
             &Cigar::Del(l) => l,
             _ => 0,
-        }).max()
+        })
+        .max()
         .unwrap_or(0)
 }
 

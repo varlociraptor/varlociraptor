@@ -159,7 +159,11 @@ impl IndelEvidence {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         // TODO for long reads always return one?
-        let expected_prob = |left_feasible, right_feasible, delta_ref, delta_alt, enclose_only: bool| {
+        let expected_prob = |left_feasible,
+                             right_feasible,
+                             delta_ref,
+                             delta_alt,
+                             enclose_only: bool| {
             let mut infeasible_read_pos_left = left_read_len.saturating_sub(left_feasible);
             let mut infeasible_read_pos_right = right_read_len.saturating_sub(right_feasible);
             if !enclose_only {
@@ -170,7 +174,6 @@ impl IndelEvidence {
             }
             let infeasible_read_pos = infeasible_read_pos_left + infeasible_read_pos_right;
 
-
             // Calculate over each possible true insert size instead of the concrete insert size
             // of this fragment. This way we get a global value. Otherwise, we would obtain a
             // bias for each fragment that is too small to enclose the variant,
@@ -179,19 +182,25 @@ impl IndelEvidence {
                 &self
                     .pmf_range(alignment_properties)
                     .filter_map(|x| {
-                        let internal_segment = x.saturating_sub(left_read_len)
-                                                .saturating_sub(right_read_len);
+                        let internal_segment = x
+                            .saturating_sub(left_read_len)
+                            .saturating_sub(right_read_len);
                         // Number of posititions in the internal segment where variant may not start,
                         // because it would lead to zero overlap.
-                        let infeasible_internal_pos_alt = (internal_segment + 1).saturating_sub(delta_alt);
+                        let infeasible_internal_pos_alt =
+                            (internal_segment + 1).saturating_sub(delta_alt);
                         let infeasible_pos_alt = infeasible_read_pos + infeasible_internal_pos_alt;
                         let infeasible_pos_ref = (internal_segment + 1).saturating_sub(delta_ref);
 
-                        let valid_pos_alt = x.saturating_sub(delta_alt)
-                                             .saturating_sub(infeasible_pos_alt);
+                        let valid_pos_alt = x
+                            .saturating_sub(delta_alt)
+                            .saturating_sub(infeasible_pos_alt);
                         let valid_pos_ref = x.saturating_sub(infeasible_pos_ref);
 
-                        if x <= delta_alt || x <= delta_alt + infeasible_pos_alt || x <= infeasible_pos_ref {
+                        if x <= delta_alt
+                            || x <= delta_alt + infeasible_pos_alt
+                            || x <= infeasible_pos_ref
+                        {
                             // if x is too small to enclose the variant, we skip it as it adds zero to the sum
                             None
                         } else {
@@ -206,12 +215,15 @@ impl IndelEvidence {
 
                             assert!(
                                 p.is_valid(),
-                                "bug: invalid probability sampling probability {:?}", p
+                                "bug: invalid probability sampling probability {:?}",
+                                p
                             );
                             Some(p)
                         }
-                    }).collect_vec(),
-            ).cap_numerical_overshoot(0.0001);
+                    })
+                    .collect_vec(),
+            )
+            .cap_numerical_overshoot(0.0001);
 
             expected_p_alt
         };
@@ -240,9 +252,7 @@ impl IndelEvidence {
 /// as shown in http://www.milefoot.com/math/stat/pdfc-normaldisc.htm
 pub fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
     // TODO fix density in paper
-    LogProb(
-        (ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln(),
-    )
+    LogProb((ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln())
 }
 
 #[cfg(test)]

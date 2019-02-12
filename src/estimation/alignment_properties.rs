@@ -45,9 +45,8 @@ impl AlignmentProperties {
             match c {
                 &Cigar::SoftClip(l) => {
                     let s = norm(l);
-                    self.frac_max_softclip = *cmp::max(
-                        s, NotNan::new(self.frac_max_softclip).unwrap()
-                    );
+                    self.frac_max_softclip =
+                        *cmp::max(s, NotNan::new(self.frac_max_softclip).unwrap());
                     is_regular = false;
                 }
                 &Cigar::Del(l) => {
@@ -60,7 +59,7 @@ impl AlignmentProperties {
                 }
                 &Cigar::HardClip(_) => {
                     is_regular = false;
-                },
+                }
                 _ => continue,
             }
         }
@@ -99,10 +98,10 @@ impl AlignmentProperties {
             let is_regular = properties.update_max_cigar_ops_len(&record);
 
             if is_regular
-               &&!record.is_mate_unmapped()
-               && record.is_first_in_template()
-               && record.tid() == record.mtid()
-               && record.mapq() > 0
+                && !record.is_mate_unmapped()
+                && record.is_first_in_template()
+                && record.tid() == record.mtid()
+                && record.mapq() > 0
             {
                 // record insert size
                 tlens.push(record.insert_size().abs() as f64);
@@ -206,7 +205,8 @@ mod tests {
     fn test_parse_insert_size() {
         let insert_size = InsertSize::from_samtools_stats(&mut io::BufReader::new(
             fs::File::open("tests/resources/samtools_stats.example.txt").unwrap(),
-        )).unwrap();
+        ))
+        .unwrap();
         assert_relative_eq!(insert_size.mean, 311.7);
         assert_relative_eq!(insert_size.sd, 15.5);
     }

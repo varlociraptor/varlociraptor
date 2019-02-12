@@ -2,9 +2,9 @@ use std::cmp;
 use std::error::Error;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
+use ordered_float::NotNan;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
-use ordered_float::NotNan;
 
 use bio::pattern_matching::myers::Myers;
 use bio::stats::pairhmm;
@@ -33,10 +33,7 @@ pub trait AbstractReadEvidence {
     ) -> Result<Option<(LogProb, LogProb)>, Box<Error>>;
 
     /// Calculate mapping and mismapping probability of given record.
-    fn prob_mapping_mismapping(
-        &self,
-        record: &bam::Record,
-    ) -> (LogProb, LogProb) {
+    fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
         prob_mapping_mismapping(record)
     }
 
@@ -88,11 +85,7 @@ impl AbstractReadEvidence for NoneEvidence {
         }
     }
 
-    fn prob_sample_alt(
-        &self, _: u32,
-        _: &Variant,
-        _: &AlignmentProperties,
-    ) -> LogProb {
+    fn prob_sample_alt(&self, _: u32, _: &Variant, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }
@@ -132,12 +125,7 @@ impl AbstractReadEvidence for SNVEvidence {
         }
     }
 
-    fn prob_sample_alt(
-        &self,
-        _: u32,
-        _: &Variant,
-        _: &AlignmentProperties,
-    ) -> LogProb {
+    fn prob_sample_alt(&self, _: u32, _: &Variant, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }
@@ -216,7 +204,7 @@ impl AbstractReadEvidence for IndelEvidence {
                     let read_offset = qend.saturating_sub(self.window as usize);
                     let read_end = cmp::min(qend + self.window as usize, read_seq.len());
                     (read_offset, read_end, varend as usize, true)
-                },
+                }
                 (None, None) => {
                     let m = read_seq.len() / 2;
                     let read_offset = m.saturating_sub(self.window as usize);
@@ -225,8 +213,8 @@ impl AbstractReadEvidence for IndelEvidence {
                     // The following should only happen with deletions.
                     // It occurs if the read comes from ref allele and is mapped within start
                     // and end of deletion. Usually, such reads strongly support the ref allele.
-                    let read_enclosed_by_variant = record.pos() >= varstart as i32 &&
-                                                   cigar.end_pos().unwrap() <= varend as i32;
+                    let read_enclosed_by_variant = record.pos() >= varstart as i32
+                        && cigar.end_pos().unwrap() <= varend as i32;
                     (read_offset, read_end, breakpoint, read_enclosed_by_variant)
                 }
             }
@@ -277,7 +265,7 @@ impl AbstractReadEvidence for IndelEvidence {
                     &ref_params,
                     Some(edit_dist_upper_bound(edit_dist_ref)),
                 ),
-                edit_dist_ref
+                edit_dist_ref,
             )
         };
 
@@ -299,7 +287,7 @@ impl AbstractReadEvidence for IndelEvidence {
                         &p,
                         Some(edit_dist_upper_bound(edit_dist_alt)),
                     ),
-                    edit_dist_alt
+                    edit_dist_alt,
                 )
             }
             &Variant::Insertion(ref ins_seq) => {
@@ -321,7 +309,7 @@ impl AbstractReadEvidence for IndelEvidence {
                         &p,
                         Some(edit_dist_upper_bound(edit_dist_alt)),
                     ),
-                    edit_dist_alt
+                    edit_dist_alt,
                 )
             }
             _ => {
@@ -338,7 +326,8 @@ impl AbstractReadEvidence for IndelEvidence {
         let min_prob = cmp::min(NotNan::from(prob_ref), NotNan::from(prob_alt));
         let min_edit_dist = cmp::min(edit_dist_ref, edit_dist_alt);
 
-        if *min_prob != *LogProb::ln_zero() { // TODO do we need to constrain this? } && min_edit_dist <= TOLERATED_EDIT_DIST {
+        if *min_prob != *LogProb::ln_zero() {
+            // TODO do we need to constrain this? } && min_edit_dist <= TOLERATED_EDIT_DIST {
             let prob_total = prob_alt.ln_add_exp(prob_ref);
             prob_ref -= prob_total;
             prob_alt -= prob_total;

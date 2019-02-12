@@ -47,7 +47,8 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
                     let prob = p_first + p_second;
 
                     prob
-                }).collect_vec(),
+                })
+                .collect_vec(),
         );
 
         prob
@@ -75,7 +76,8 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
                 .minmax_by_key(|&af| {
                     let p = likelihood(*af);
                     NotNan::new(*p).expect("probability is NaN")
-                }).into_option()
+                })
+                .into_option()
                 .expect("prior has empty allele frequency spectrum");
             *map
         }
@@ -208,10 +210,15 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
         );
         // build the entire normal allele freq spectrum
         let af_normal = linspace(
-            *self.allele_freqs_normal_somatic.observable_min(n_obs_normal),
-            *self.allele_freqs_normal_somatic.observable_max(n_obs_normal),
+            *self
+                .allele_freqs_normal_somatic
+                .observable_min(n_obs_normal),
+            *self
+                .allele_freqs_normal_somatic
+                .observable_max(n_obs_normal),
             5,
-        ).chain(self.allele_freqs_normal_germline.iter().map(|af| **af));
+        )
+        .chain(self.allele_freqs_normal_germline.iter().map(|af| **af));
 
         let (map_normal, map_tumor) = af_normal
             .cartesian_product(af_tumor)
@@ -221,7 +228,8 @@ impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormal
                 let p = pileup.case_likelihood(af_tumor, Some(af_normal))
                     + pileup.control_likelihood(af_normal, None);
                 NotNan::new(*p).expect("posterior probability is NaN")
-            }).expect("bug: prior has empty allele frequency spectrum");
+            })
+            .expect("bug: prior has empty allele frequency spectrum");
 
         (AlleleFreq(map_tumor), AlleleFreq(map_normal))
     }
