@@ -592,9 +592,7 @@ fn test17() {
     call_tumor_normal("test17", true, 0.75, "chr11", "hg18");
     let mut call = load_call("test17");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 4.8);
-    check_info_float(&mut call, b"CASE_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"CONTROL_AF", 0.0, 0.0);
-    check_info_float(&mut call, b"PROB_ABSENT", 0.06, 0.01);
+    check_info_float_at_most(&mut call, b"PROB_ABSENT", 1.6);
 }
 
 /// A large lancet deletion that is not somatic and a likely homozygous germline variant.
@@ -728,22 +726,6 @@ fn test32() {
     call_tumor_normal("test32", true, 1.0, "1", "GRCh38");
     let mut call = load_call("test32");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 1.1);
-}
-
-/// Test a delly deletion that is not a somatic variant.
-#[test]
-fn test33() {
-    call_tumor_normal("test33", true, 1.0, "1", "GRCh38");
-    let mut call = load_call("test33");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 3.13);
-}
-
-/// Test a delly deletion that is not a somatic variant.
-#[test]
-fn test34() {
-    call_tumor_normal("test34", true, 1.0, "18", "GRCh38");
-    let mut call = load_call("test34");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 3.13);
 }
 
 #[test]
