@@ -6,8 +6,25 @@ use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 
 use bio::stats::LogProb;
+// use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
+// use bio::stats::bayesian::BayesFactor;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarString;
+
+/// Count fragments strongly supporting alt according to Bayes factors
+/// (method of Kass and Raftery 1995).
+///
+/// # Returns
+/// alt counts
+// pub fn count_observation_evidence(observations: &[Observation]) -> usize {
+//     let mut alt_support = 0;
+//     for obs in observations {
+//         if let KassRaftery::Strong = obs.bayes_factor_alt().evidence_kass_raftery() {
+//             alt_support += 1;
+//         }
+//     }
+//     alt_support
+// }
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug)]
@@ -20,6 +37,10 @@ pub struct Observation {
     pub prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
     pub prob_ref: LogProb,
+    /// Probability that the read/read-pair comes from an unknown allele at an unknown true
+    /// locus (in case it is mismapped). This should usually be set as the product of the maxima
+    /// of prob_ref and prob_alt per read.
+    pub prob_missed_allele: LogProb,
     /// Probability to sample the alt allele
     pub prob_sample_alt: LogProb,
     /// Type of evidence.
@@ -32,6 +53,7 @@ impl Observation {
         prob_mismapping: LogProb,
         prob_alt: LogProb,
         prob_ref: LogProb,
+        prob_missed_allele: LogProb,
         prob_sample_alt: LogProb,
         evidence: Evidence,
     ) -> Self {
@@ -40,6 +62,7 @@ impl Observation {
             prob_mismapping: prob_mismapping,
             prob_alt: prob_alt,
             prob_ref: prob_ref,
+            prob_missed_allele: prob_missed_allele,
             prob_sample_alt: prob_sample_alt,
             evidence: evidence,
         }
@@ -52,6 +75,14 @@ impl Observation {
             false
         }
     }
+
+    // pub fn bayes_factor_alt(&self) -> BayesFactor {
+    //     BayesFactor::new(self.prob_alt, self.prob_ref)
+    // }
+    //
+    // pub fn bayes_factor_ref(&self) -> BayesFactor {
+    //     BayesFactor::new(self.prob_ref, self.prob_alt)
+    // }
 }
 
 pub fn poisson_pmf(count: u32, mu: f64) -> LogProb {

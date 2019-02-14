@@ -18,6 +18,7 @@ extern crate quick_error;
 extern crate csv;
 #[macro_use]
 extern crate lazy_static;
+extern crate rand;
 extern crate regex;
 extern crate statrs;
 extern crate vec_map;
@@ -28,6 +29,7 @@ extern crate cached;
 pub mod call;
 pub mod constants;
 pub mod estimation;
+pub mod filtration;
 pub mod model;
 pub mod utils;
 

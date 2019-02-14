@@ -1,13 +1,15 @@
 use std::cell::{RefCell, RefMut};
 use std::cmp;
-use std::collections::{vec_deque, HashMap, VecDeque};
+use std::collections::{vec_deque, BTreeMap, VecDeque};
 use std::error::Error;
 use std::f64;
 use std::f64::consts;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
-use ordered_float::NotNan;
+use rand::distributions;
+use rand::distributions::IndependentSample;
+use rand::{SeedableRng, StdRng};
 use rgsl::error::erfc;
 use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rust_htslib::bam;
@@ -19,8 +21,8 @@ use model;
 use model::evidence;
 use model::evidence::reads::AbstractReadEvidence;
 use model::evidence::{Evidence, Observation};
-use model::Variant;
-use utils::Overlap;
+use model::{Variant, VariantType};
+use utils::{is_repeat_variant, max_prob, Overlap};
 
 quick_error! {
     #[derive(Debug)]
@@ -144,15 +146,52 @@ impl<'a> Candidate<'a> {
     }
 }
 
+pub enum SubsampleCandidates {
+    Necessary {
+        rng: StdRng,
+        prob: f64,
+        prob_range: distributions::Range<f64>,
+    },
+    None,
+}
+
+impl SubsampleCandidates {
+    pub fn new(max_depth: usize, depth: usize) -> Self {
+        if depth > max_depth {
+            SubsampleCandidates::Necessary {
+                rng: StdRng::from_seed(&[48074578]),
+                prob: max_depth as f64 / depth as f64,
+                prob_range: distributions::Range::new(0.0, 1.0),
+            }
+        } else {
+            SubsampleCandidates::None
+        }
+    }
+
+    pub fn keep(&mut self) -> bool {
+        match self {
+            SubsampleCandidates::Necessary {
+                rng,
+                prob,
+                prob_range,
+            } => prob_range.ind_sample(rng) <= *prob,
+            SubsampleCandidates::None => true,
+        }
+    }
+}
+
 /// A sequenced sample, e.g., a tumor or a normal sample.
 pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
     likelihood_model: model::likelihood::LatentVariableModel,
+    alignment_properties: alignment_properties::AlignmentProperties,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
     pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
+    max_depth: usize,
+    omit_repeat_regions: Vec<VariantType>,
 }
 
 impl Sample {
@@ -161,7 +200,6 @@ impl Sample {
     /// # Arguments
     ///
     /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
-    /// * `pileup_window` - Window around the variant that shall be searched for evidence (e.g. 5000).
     /// * `use_fragment_evidence` - Whether to use read pairs that are left and right of variant.
     /// * `use_secondary` - Whether to use secondary alignments.
     /// * `insert_size` - estimated insert size
@@ -171,11 +209,7 @@ impl Sample {
     /// * `indel_haplotype_window` - maximum number of considered bases around an indel breakpoint
     pub fn new(
         bam: bam::IndexedReader,
-        pileup_window: u32,
         use_fragment_evidence: bool,
-        // TODO remove this parameter, it will lead to wrong insert size estimations and is not necessary
-        use_secondary: bool,
-        use_mapq: bool,
         alignment_properties: alignment_properties::AlignmentProperties,
         likelihood_model: model::likelihood::LatentVariableModel,
         prob_insertion_artifact: Prob,
@@ -183,25 +217,33 @@ impl Sample {
         prob_insertion_extend_artifact: Prob,
         prob_deletion_extend_artifact: Prob,
         indel_haplotype_window: u32,
+        max_depth: usize,
+        omit_repeat_regions: &[VariantType],
     ) -> Self {
+        let pileup_window = (alignment_properties.insert_size().mean
+            + alignment_properties.insert_size().sd * 6.0) as u32;
+        info!(
+            "Using window of {} bases on each side of variant.",
+            pileup_window
+        );
+
         Sample {
-            record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
+            record_buffer: RecordBuffer::new(bam, pileup_window, false),
             use_fragment_evidence: use_fragment_evidence,
             likelihood_model: likelihood_model,
+            alignment_properties: alignment_properties,
             indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
                 LogProb::from(prob_insertion_artifact),
                 LogProb::from(prob_deletion_artifact),
                 LogProb::from(prob_insertion_extend_artifact),
                 LogProb::from(prob_deletion_extend_artifact),
                 indel_haplotype_window,
-                alignment_properties,
-                use_mapq,
             )),
             snv_read_evidence: RefCell::new(evidence::reads::SNVEvidence::new()),
-            indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new(
-                alignment_properties,
-            )),
+            indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new()),
             none_read_evidence: RefCell::new(evidence::reads::NoneEvidence::new()),
+            max_depth: max_depth,
+            omit_repeat_regions: omit_repeat_regions.to_vec(),
         }
     }
 
@@ -220,14 +262,21 @@ impl Sample {
     ) -> Result<Vec<Observation>, Box<Error>> {
         let centerpoint = variant.centerpoint(start);
 
+        for vartype in &self.omit_repeat_regions {
+            if variant.is_type(vartype) && is_repeat_variant(start, variant, chrom_seq) {
+                // Do not return evidence, in order to mark variant in output as unclear.
+                return Ok(Vec::new());
+            }
+        }
+
         self.record_buffer.fill(chrom, start, variant.end(start))?;
 
         let mut observations = Vec::new();
-        let mut candidate_records = HashMap::new();
 
         match variant {
-            //TODO: make &Variant::Ref add reads with position deleted if we want to check against indel alt alleles
+            //TODO: make &Variant::None add reads with position deleted if we want to check against indel alt alleles
             &Variant::SNV(_) | &Variant::None => {
+                let mut candidate_records = Vec::new();
                 // iterate over records
                 for record in self.record_buffer.iter() {
                     if record.pos() as u32 > start {
@@ -239,9 +288,21 @@ impl Sample {
                     let overlap = Overlap::new(record, cigar, start, variant, false)?;
 
                     if overlap.is_enclosing() {
-                        if let Some(obs) =
-                            self.read_observation(&record, cigar, start, variant, chrom_seq)?
-                        {
+                        candidate_records.push(record);
+                    }
+                }
+                let mut subsample_candidates =
+                    SubsampleCandidates::new(self.max_depth, candidate_records.len());
+
+                for record in candidate_records {
+                    if subsample_candidates.keep() {
+                        if let Some(obs) = self.read_observation(
+                            &record,
+                            record.cigar_cached().unwrap(),
+                            start,
+                            variant,
+                            chrom_seq,
+                        )? {
                             observations.push(obs);
                         } else {
                             debug!("Did not add read to observations, SNV position deleted (Cigar op 'D') or skipped (Cigar op 'N').");
@@ -250,8 +311,18 @@ impl Sample {
                 }
             }
             &Variant::Insertion(_) | &Variant::Deletion(_) => {
+                // We cannot use a hash function here because candidates have to be considered
+                // in a deterministic order. Otherwise, subsampling high-depth regions will result
+                // in slightly different probabilities each time.
+                let mut candidate_records = BTreeMap::new();
+
                 // iterate over records
                 for record in self.record_buffer.iter() {
+                    // First, we check whether the record contains an indel in the cigar.
+                    // We store the maximum indel size to update the global estimates, in case
+                    // it is larger in this region.
+                    self.alignment_properties.update_max_cigar_ops_len(record);
+
                     // We look at the whole fragment at once.
 
                     // We ensure fair sampling by checking if the whole fragment overlaps the
@@ -279,6 +350,9 @@ impl Sample {
                         candidate.right = Some(record);
                     }
                 }
+
+                let mut candidate_fragments = Vec::new();
+                let mut candidate_reads = Vec::new();
                 for candidate in candidate_records.values() {
                     if let Some(right) = candidate.right {
                         // this is a pair
@@ -297,57 +371,71 @@ impl Sample {
                         if end_pos < centerpoint {
                             continue;
                         }
-                        if let Some(obs) = self.fragment_observation(
-                            candidate.left,
-                            right,
-                            start,
-                            variant,
-                            chrom_seq,
-                        )? {
-                            observations.push(obs);
+
+                        let left_cigar = candidate.left.cigar_cached().unwrap();
+                        let right_cigar = right.cigar_cached().unwrap();
+                        let left_overlap =
+                            Overlap::new(candidate.left, left_cigar, start, variant, true)?;
+                        let right_overlap = Overlap::new(right, right_cigar, start, variant, true)?;
+
+                        if left_overlap.is_none() && right_overlap.is_none() {
+                            // Skip fragment if none of the reads overlaps the variant.
+                            // This increases robustness, because insert size is never considered alone.
+                            continue;
                         }
+
+                        candidate_fragments.push(candidate);
                     } else {
                         // this is a single alignment with unmapped mate or mate outside of the
                         // region of interest
                         let cigar = candidate.left.cigar_cached().unwrap();
                         let overlap = Overlap::new(candidate.left, cigar, start, variant, true)?;
                         if !overlap.is_none() && candidate.left.is_mate_unmapped() {
-                            if let Some(obs) = self.read_observation(
-                                candidate.left,
-                                cigar,
-                                start,
-                                variant,
-                                chrom_seq,
-                            )? {
-                                observations.push(obs);
-                            }
+                            candidate_reads.push(candidate);
                         }
                     }
                 }
+
+                let mut subsample_candidates = SubsampleCandidates::new(
+                    self.max_depth,
+                    candidate_fragments.len() + candidate_reads.len(),
+                );
+
+                for candidate in candidate_fragments {
+                    if !subsample_candidates.keep() {
+                        continue;
+                    }
+
+                    if let Some(obs) = self.fragment_observation(
+                        candidate.left,
+                        candidate.right.unwrap(),
+                        start,
+                        variant,
+                        chrom_seq,
+                    )? {
+                        observations.push(obs);
+                    }
+                }
+
+                for candidate in candidate_reads {
+                    if !subsample_candidates.keep() {
+                        continue;
+                    }
+                    if let Some(obs) = self.read_observation(
+                        candidate.left,
+                        candidate.left.cigar_cached().unwrap(),
+                        start,
+                        variant,
+                        chrom_seq,
+                    )? {
+                        observations.push(obs);
+                    }
+                }
+
+                //self.refine_prob_mapping(&mut observations);
             }
         }
 
-        if !observations.is_empty() {
-            // We scale all probabilities by the maximum value. This is just an unbiased scaling
-            // that does not affect the final certainties (because of Bayes' theorem application
-            // in the end). However, we avoid numerical issues (e.g., during integration).
-            let max_prob = LogProb(
-                *observations
-                    .iter()
-                    .map(|obs| cmp::max(NotNan::from(obs.prob_ref), NotNan::from(obs.prob_alt)))
-                    .max()
-                    .unwrap(),
-            );
-            if max_prob != LogProb::ln_zero() {
-                // only scale if the maximum probability is not zero
-                for obs in &mut observations {
-                    obs.prob_ref = obs.prob_ref - max_prob;
-                    obs.prob_alt = obs.prob_alt - max_prob;
-                    assert!(obs.prob_ref.is_valid());
-                    assert!(obs.prob_alt.is_valid());
-                }
-            }
-        }
         Ok(observations)
     }
 
@@ -371,12 +459,21 @@ impl Sample {
         {
             let (prob_mapping, prob_mismapping) = evidence.prob_mapping_mismapping(record);
 
-            let prob_sample_alt = evidence.prob_sample_alt(record.seq().len() as u32, variant);
+            // This is an estimate of the allele likelihood at the true location in case the read is
+            // mismapped.
+            let prob_missed_allele = max_prob(prob_ref, prob_alt);
+
+            let prob_sample_alt = evidence.prob_sample_alt(
+                record.seq().len() as u32,
+                variant,
+                &self.alignment_properties,
+            );
             Ok(Some(Observation::new(
                 prob_mapping,
                 prob_mismapping,
                 prob_alt,
                 prob_ref,
+                prob_missed_allele,
                 prob_sample_alt,
                 Evidence::alignment(cigar, record),
             )))
@@ -422,15 +519,14 @@ impl Sample {
 
         let left_cigar = left_record.cigar_cached().unwrap();
         let right_cigar = right_record.cigar_cached().unwrap();
-        let left_overlap = Overlap::new(left_record, left_cigar, start, variant, true)?;
-        let right_overlap = Overlap::new(right_record, right_cigar, start, variant, true)?;
-
-        if !self.use_fragment_evidence && left_overlap.is_none() && right_overlap.is_none() {
-            return Ok(None);
-        }
 
         let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
         let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
+
+        // This is an estimate of the allele likelihood at the true location in case the read is
+        // mismapped.
+        let p_missed_left = max_prob(p_ref_left, p_alt_left);
+        let p_missed_right = max_prob(p_ref_right, p_alt_right);
 
         let left_read_len = left_record.seq().len() as u32;
         let right_read_len = right_record.seq().len() as u32;
@@ -440,7 +536,7 @@ impl Sample {
             &Variant::Deletion(_) if self.use_fragment_evidence => self
                 .indel_fragment_evidence
                 .borrow()
-                .prob(insert_size, variant)?,
+                .prob(insert_size, variant, &self.alignment_properties)?,
             _ => {
                 // Ignore isize for insertions. The reason is that we cannot reliably determine if a
                 // fragment encloses the insertion properly (with overlaps at the inner read ends).
@@ -454,6 +550,7 @@ impl Sample {
             left_read_len,
             right_read_len,
             variant,
+            &self.alignment_properties,
         );
 
         assert!(p_alt_isize.is_valid());
@@ -477,6 +574,7 @@ impl Sample {
             prob_mismapping,
             p_alt_isize + p_alt_left + p_alt_right,
             p_ref_isize + p_ref_left + p_ref_right,
+            p_missed_left + p_missed_right,
             prob_sample_alt,
             Evidence::insert_size(
                 insert_size as u32,
@@ -546,6 +644,7 @@ mod tests {
     use model;
 
     use bio::io::fasta;
+    use bio::io::fasta::FastaRead;
     use bio::stats::{LogProb, PHREDProb, Prob};
     use estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use itertools::Itertools;
@@ -577,9 +676,6 @@ mod tests {
     fn setup_sample(isize_mean: f64) -> Sample {
         Sample::new(
             bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
-            2500,
-            true,
-            true,
             true,
             AlignmentProperties::default(InsertSize {
                 mean: isize_mean,
@@ -591,6 +687,8 @@ mod tests {
             Prob(0.0),
             Prob(0.0),
             10,
+            500,
+            &[],
         )
     }
 
@@ -648,7 +746,9 @@ mod tests {
         chr17.seq().to_owned()
     }
 
+    // TODO re-enable once framework has stabilized
     #[test]
+    #[ignore]
     fn test_prob_read_indel() {
         let _ = env_logger::init();
 

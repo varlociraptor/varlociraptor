@@ -1,3 +1,5 @@
+use std::cmp;
+
 use bio::stats::LogProb;
 use itertools::Itertools;
 use itertools_num::linspace;
@@ -104,21 +106,33 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
 
 pub struct FlatTumorNormalModel {
     allele_freqs_tumor: ContinuousAlleleFreqs,
-    allele_freqs_normal: DiscreteAlleleFreqs,
-    grid_points: usize,
+    allele_freqs_normal_germline: DiscreteAlleleFreqs,
+    allele_freqs_normal_somatic: ContinuousAlleleFreqs,
 }
 
 impl FlatTumorNormalModel {
     pub fn new(ploidy: u32) -> Self {
+        let allele_freqs_normal_germline = DiscreteAlleleFreqs::feasible(ploidy);
+        let allele_freqs_normal_somatic =
+            ContinuousAlleleFreqs::exclusive(0.0..*allele_freqs_normal_germline[1]);
         FlatTumorNormalModel {
+            // TODO how to sync this with zero_offset of other events
             allele_freqs_tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-            allele_freqs_normal: DiscreteAlleleFreqs::feasible(ploidy),
-            grid_points: 201,
+            allele_freqs_normal_germline: allele_freqs_normal_germline,
+            allele_freqs_normal_somatic: allele_freqs_normal_somatic,
         }
+    }
+
+    fn grid_points_tumor(n_obs: usize) -> usize {
+        let mut n = cmp::max(n_obs + 1, 5);
+        if n % 2 == 0 {
+            n += 1;
+        }
+        n
     }
 }
 
-impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalModel {
+impl PairModel<ContinuousAlleleFreqs, ContinuousAlleleFreqs> for FlatTumorNormalModel {
     fn prior_prob(&self, _: AlleleFreq, _: AlleleFreq, _: &Variant) -> LogProb {
         LogProb::ln_one()
     }
@@ -126,88 +140,101 @@ impl PairModel<ContinuousAlleleFreqs, DiscreteAlleleFreqs> for FlatTumorNormalMo
     fn joint_prob(
         &self,
         af_tumor: &ContinuousAlleleFreqs,
-        af_normal: &DiscreteAlleleFreqs,
-        pileup: &mut PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, Self>,
+        af_normal: &ContinuousAlleleFreqs,
+        pileup: &mut PairPileup<ContinuousAlleleFreqs, ContinuousAlleleFreqs, Self>,
     ) -> LogProb {
-        let grid_points = self.grid_points;
-        let prob = LogProb::ln_sum_exp(
-            &af_normal
-                .iter()
-                .map(|&af_normal| {
-                    let p_tumor: LogProb;
-                    {
-                        let mut density = |af_tumor| {
-                            let af_tumor = AlleleFreq(af_tumor);
-                            pileup.case_likelihood(af_tumor, Some(af_normal))
-                        };
+        let n_obs_tumor = pileup.case.len();
+        let n_obs_normal = pileup.control.len();
+        let grid_points_normal = 5;
+        let grid_points_tumor = Self::grid_points_tumor(n_obs_tumor);
 
-                        p_tumor = if af_tumor.start == af_tumor.end {
-                            density(*af_tumor.start)
-                        } else {
-                            LogProb::ln_simpsons_integrate_exp(
-                                density,
-                                *af_tumor.start,
-                                *af_tumor.end,
-                                grid_points,
-                            )
-                        };
-                    }
-                    let p_normal = pileup.control_likelihood(af_normal, None);
-                    let prob = p_tumor + p_normal;
+        let mut density = |af_normal| {
+            let af_normal = AlleleFreq(af_normal);
+            let p_tumor = {
+                let mut tumor_density = |af_tumor| {
+                    let af_tumor = AlleleFreq(af_tumor);
+                    let p = pileup.case_likelihood(af_tumor, Some(af_normal));
+                    p
+                };
 
-                    prob
-                })
-                .collect_vec(),
-        );
+                if af_tumor.is_singleton() {
+                    tumor_density(*af_tumor.start)
+                } else {
+                    LogProb::ln_simpsons_integrate_exp(
+                        tumor_density,
+                        *af_tumor.observable_min(n_obs_tumor),
+                        *af_tumor.observable_max(n_obs_tumor),
+                        grid_points_tumor,
+                    )
+                }
+            };
+
+            let p_normal = pileup.control_likelihood(af_normal, None);
+            let prob = p_tumor + p_normal;
+
+            prob
+        };
+
+        let prob = if af_normal.is_singleton() {
+            density(*af_normal.start)
+        } else {
+            LogProb::ln_simpsons_integrate_exp(
+                density,
+                *af_normal.observable_min(n_obs_normal),
+                *af_normal.observable_max(n_obs_normal),
+                grid_points_normal,
+            )
+        };
 
         prob
     }
 
     fn marginal_prob(
         &self,
-        pileup: &mut PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, Self>,
+        _pileup: &mut PairPileup<ContinuousAlleleFreqs, ContinuousAlleleFreqs, Self>,
     ) -> LogProb {
-        let p = self
-            .joint_prob(self.allele_freqs().0, self.allele_freqs().1, pileup)
-            .ln_add_exp(
-                // add prob for allele frequency zero (the density is non-continuous there)
-                self.joint_prob(
-                    &ContinuousAlleleFreqs::inclusive(0.0..0.0),
-                    &DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0)]),
-                    pileup,
-                ),
-            );
-        p
+        panic!("deprecated");
     }
 
     fn map(
         &self,
-        pileup: &mut PairPileup<ContinuousAlleleFreqs, DiscreteAlleleFreqs, Self>,
+        pileup: &mut PairPileup<ContinuousAlleleFreqs, ContinuousAlleleFreqs, Self>,
     ) -> (AlleleFreq, AlleleFreq) {
-        let af_case = linspace(
-            *self.allele_freqs_tumor.start,
-            *self.allele_freqs_tumor.end,
-            pileup.case.len() + 1,
-        );
+        let n_obs_tumor = pileup.case.len();
+        let n_obs_normal = pileup.control.len();
 
-        let (_, (map_normal, map_tumor)) = self
-            .allele_freqs()
-            .1
-            .iter()
-            .cartesian_product(af_case)
-            .minmax_by_key(|&(&af_normal, af_tumor)| {
+        let af_tumor = linspace(
+            *self.allele_freqs_tumor.observable_min(n_obs_tumor),
+            *self.allele_freqs_tumor.observable_max(n_obs_tumor),
+            Self::grid_points_tumor(n_obs_tumor),
+        );
+        // build the entire normal allele freq spectrum
+        let af_normal = linspace(
+            *self
+                .allele_freqs_normal_somatic
+                .observable_min(n_obs_normal),
+            *self
+                .allele_freqs_normal_somatic
+                .observable_max(n_obs_normal),
+            5,
+        )
+        .chain(self.allele_freqs_normal_germline.iter().map(|af| **af));
+
+        let (map_normal, map_tumor) = af_normal
+            .cartesian_product(af_tumor)
+            .max_by_key(|&(af_normal, af_tumor)| {
                 let af_tumor = AlleleFreq(af_tumor);
+                let af_normal = AlleleFreq(af_normal);
                 let p = pileup.case_likelihood(af_tumor, Some(af_normal))
                     + pileup.control_likelihood(af_normal, None);
                 NotNan::new(*p).expect("posterior probability is NaN")
             })
-            .into_option()
-            .expect("prior has empty allele frequency spectrum");
+            .expect("bug: prior has empty allele frequency spectrum");
 
-        (AlleleFreq(map_tumor), *map_normal)
+        (AlleleFreq(map_tumor), AlleleFreq(map_normal))
     }
 
-    fn allele_freqs(&self) -> (&ContinuousAlleleFreqs, &DiscreteAlleleFreqs) {
-        (&self.allele_freqs_tumor, &self.allele_freqs_normal)
+    fn allele_freqs(&self) -> (&ContinuousAlleleFreqs, &ContinuousAlleleFreqs) {
+        panic!("deprecated");
     }
 }

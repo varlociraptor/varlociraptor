@@ -2,6 +2,7 @@ use std::cmp;
 use std::error::Error;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
+use ordered_float::NotNan;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 
@@ -34,7 +35,12 @@ pub trait AbstractReadEvidence {
         prob_mapping_mismapping(record)
     }
 
-    fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb;
+    fn prob_sample_alt(
+        &self,
+        read_len: u32,
+        variant: &Variant,
+        alignment_properties: &AlignmentProperties,
+    ) -> LogProb;
 }
 
 pub struct NoneEvidence;
@@ -77,7 +83,7 @@ impl AbstractReadEvidence for NoneEvidence {
         }
     }
 
-    fn prob_sample_alt(&self, _: u32, _: &Variant) -> LogProb {
+    fn prob_sample_alt(&self, _: u32, _: &Variant, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }
@@ -117,7 +123,7 @@ impl AbstractReadEvidence for SNVEvidence {
         }
     }
 
-    fn prob_sample_alt(&self, _: u32, _: &Variant) -> LogProb {
+    fn prob_sample_alt(&self, _: u32, _: &Variant, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }
@@ -127,8 +133,6 @@ pub struct IndelEvidence {
     gap_params: IndelGapParams,
     pairhmm: pairhmm::PairHMM,
     window: u32,
-    alignment_properties: AlignmentProperties,
-    use_mapq: bool,
 }
 
 impl IndelEvidence {
@@ -139,8 +143,6 @@ impl IndelEvidence {
         prob_insertion_extend_artifact: LogProb,
         prob_deletion_extend_artifact: LogProb,
         window: u32,
-        alignment_properties: AlignmentProperties,
-        use_mapq: bool,
     ) -> Self {
         IndelEvidence {
             gap_params: IndelGapParams {
@@ -151,8 +153,6 @@ impl IndelEvidence {
             },
             pairhmm: pairhmm::PairHMM::new(),
             window,
-            alignment_properties,
-            use_mapq,
         }
     }
 }
@@ -190,6 +190,7 @@ impl AbstractReadEvidence for IndelEvidence {
                     let read_end = cmp::min(qend + self.window as usize, read_seq.len());
                     (read_offset, read_end, varstart as usize, true)
                 }
+
                 (Some(qstart), None) => {
                     let qstart = qstart as usize;
                     let read_offset = qstart.saturating_sub(self.window as usize);
@@ -207,7 +208,12 @@ impl AbstractReadEvidence for IndelEvidence {
                     let read_offset = m.saturating_sub(self.window as usize);
                     let read_end = cmp::min(m + self.window as usize, read_seq.len());
                     let breakpoint = record.pos() as usize + m;
-                    (read_offset, read_end, breakpoint, false)
+                    // The following should only happen with deletions.
+                    // It occurs if the read comes from ref allele and is mapped within start
+                    // and end of deletion. Usually, such reads strongly support the ref allele.
+                    let read_enclosed_by_variant = record.pos() >= varstart as i32
+                        && cigar.end_pos().unwrap() <= varend as i32;
+                    (read_offset, read_end, breakpoint, read_enclosed_by_variant)
                 }
             }
         };
@@ -220,90 +226,112 @@ impl AbstractReadEvidence for IndelEvidence {
         // read emission
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
 
-        let edit_dist = EditDistanceEstimation::new((read_offset..read_end).map(|i| read_seq[i]));
+        let edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
+        let edit_dist_upper_bound = |edit_dist| edit_dist + 5;
+
+        // Estimate overall certainty of the read window (product of base qual complements) under
+        // the assumption that the read comes from one of the two alleles.
+        // This is needed to rescale normalized probabilities below.
+        let certainty_est = {
+            let mut p = LogProb::ln_one();
+            for &q in &read_qual[read_offset..read_end] {
+                let prob_miscall = prob_read_base_miscall(q);
+                p += prob_miscall.ln_one_minus_exp();
+            }
+            p
+        };
+
+        if !overlap {
+            // If there is no overlap, normalization below would any lead to 0.5 vs 0.5, multiplied
+            // with certainty estimate. Hence, we can skip the entire HMM calculation!
+            return Ok(Some((certainty_est, certainty_est)));
+        }
 
         // ref allele
-        let prob_ref = {
+        let mut prob_ref = {
             let ref_params = ReferenceEmissionParams {
                 ref_seq: ref_seq,
                 ref_offset: breakpoint.saturating_sub(ref_window),
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                 read_emission: &read_emission,
             };
+            let edit_dist_ref = edit_dist.calc_edit_dist(&ref_params);
 
             self.pairhmm.prob_related(
                 &self.gap_params,
                 &ref_params,
-                Some(edit_dist.estimate_upper_bound(&ref_params)),
+                Some(edit_dist_upper_bound(edit_dist_ref)),
             )
         };
 
         // alt allele
-        let prob_alt = if overlap {
-            match variant {
-                &Variant::Deletion(_) => {
-                    let p = DeletionEmissionParams {
-                        ref_seq: ref_seq,
-                        ref_offset: start.saturating_sub(ref_window),
-                        ref_end: cmp::min(start + ref_window, ref_seq.len()),
-                        del_start: start,
-                        del_len: variant.len() as usize,
-                        read_emission: &read_emission,
-                    };
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &p,
-                        Some(edit_dist.estimate_upper_bound(&p)),
-                    )
-                }
-                &Variant::Insertion(ref ins_seq) => {
-                    let l = ins_seq.len() as usize;
-                    let p = InsertionEmissionParams {
-                        ref_seq: ref_seq,
-                        ref_offset: start.saturating_sub(ref_window),
-                        ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
-                        ins_start: start,
-                        ins_len: l,
-                        ins_end: start + l,
-                        ins_seq: ins_seq,
-                        read_emission: &read_emission,
-                    };
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &p,
-                        Some(edit_dist.estimate_upper_bound(&p)),
-                    )
-                }
-                _ => {
-                    panic!("bug: unsupported variant");
-                }
+        let mut prob_alt = match variant {
+            &Variant::Deletion(_) => {
+                let p = DeletionEmissionParams {
+                    ref_seq: ref_seq,
+                    ref_offset: start.saturating_sub(ref_window),
+                    ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                    del_start: start,
+                    del_len: variant.len() as usize,
+                    read_emission: &read_emission,
+                };
+                let edit_dist_alt = edit_dist.calc_edit_dist(&p);
+                self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &p,
+                    Some(edit_dist_upper_bound(edit_dist_alt)),
+                )
             }
-        } else {
-            // if no overlap, we can simply use prob_ref again
-            prob_ref
+            &Variant::Insertion(ref ins_seq) => {
+                let l = ins_seq.len() as usize;
+                let p = InsertionEmissionParams {
+                    ref_seq: ref_seq,
+                    ref_offset: start.saturating_sub(ref_window),
+                    ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
+                    ins_start: start,
+                    ins_len: l,
+                    ins_end: start + l,
+                    ins_seq: ins_seq,
+                    read_emission: &read_emission,
+                };
+                let edit_dist_alt = edit_dist.calc_edit_dist(&p);
+                self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &p,
+                    Some(edit_dist_upper_bound(edit_dist_alt)),
+                )
+            }
+            _ => {
+                panic!("bug: unsupported variant");
+            }
         };
 
-        Ok(Some((prob_ref, prob_alt)))
-    }
+        // Normalize probabilities. By this, we avoid biases due to proximal variants that are in
+        // cis with the considered one. They are normalized away since they affect both ref and alt.
+        // In a sense, this assumes that the two considered alleles are the only possible ones.
+        // However, if the read actually comes from a third allele, both probabilities will be
+        // equally bad, and the normalized one will not prefer any of them.
 
-    /// Calculate mapping and mismapping probability of given record.
-    fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
-        if self.use_mapq {
-            prob_mapping_mismapping(record)
-        } else {
-            // Only penalize reads with mapq 0, all others treat the same, by giving them the
-            // maximum observed mapping quality.
-            // This is good, because it removes biases with esp. SV reads that usually get lower
-            // MAPQ. By using the maximum observed MAPQ, we still calibrate to the general
-            // certainty of the mapper at this locus!
-            if record.mapq() == 0 {
-                (LogProb::ln_zero(), LogProb::ln_one())
-            } else {
-                let prob_mismapping = LogProb::from(self.alignment_properties.max_mapq());
-                let prob_mapping = prob_mismapping.ln_one_minus_exp();
-                (prob_mapping, prob_mismapping)
-            }
+        let min_prob = cmp::min(NotNan::from(prob_ref), NotNan::from(prob_alt));
+
+        if *min_prob != *LogProb::ln_zero() {
+            let prob_total = prob_alt.ln_add_exp(prob_ref);
+            prob_ref -= prob_total;
+            prob_alt -= prob_total;
+
+            // Rescale prob ref and alt with the overall certainty given the read base qualities
+            // in the aligned region.
+            // This allows us to scale the probabilties to about the same magnitude as
+            // before the normalization.
+            // In other words, although we normalize away common parts of alt and ref
+            // alignment, we restore the original magnitude of the probabilties.
+            // This is important because otherwise we put too much emphasis on insert
+            // size in cases where the read does not overlap the variant.
+            prob_ref += certainty_est;
+            prob_alt += certainty_est;
         }
+
+        Ok(Some((prob_ref, prob_alt)))
     }
 
     /// Probability to sample read from alt allele given the average feasible positions observed
@@ -311,7 +339,12 @@ impl AbstractReadEvidence for IndelEvidence {
     ///
     /// The key idea is calculate the probability as number of valid placements (considering the
     /// max softclip allowed by the mapper) over all possible placements.
-    fn prob_sample_alt(&self, read_len: u32, variant: &Variant) -> LogProb {
+    fn prob_sample_alt(
+        &self,
+        read_len: u32,
+        variant: &Variant,
+        alignment_properties: &AlignmentProperties,
+    ) -> LogProb {
         // TODO for long reads, always return One
         let delta = match variant {
             &Variant::Deletion(_) => variant.len() as u32,
@@ -319,7 +352,7 @@ impl AbstractReadEvidence for IndelEvidence {
             &Variant::SNV(_) | &Variant::None => panic!("unsupported variant"),
         };
 
-        let feasible = self.alignment_properties.feasible_bases(read_len, variant);
+        let feasible = alignment_properties.feasible_bases(read_len, variant);
 
         let prob = {
             let n_alt = cmp::min(delta, read_len);
@@ -569,11 +602,11 @@ impl<'a> pairhmm::EmissionParameters for InsertionEmissionParams<'a> {
     default_emission!();
 }
 
-pub struct EditDistanceEstimation {
+pub struct EditDistanceCalculation {
     myers: Myers<u128>,
 }
 
-impl EditDistanceEstimation {
+impl EditDistanceCalculation {
     /// Create new instance.
     ///
     /// # Arguments
@@ -582,19 +615,21 @@ impl EditDistanceEstimation {
     where
         P: Iterator<Item = u8> + DoubleEndedIterator + ExactSizeIterator,
     {
-        EditDistanceEstimation {
+        EditDistanceCalculation {
             myers: Myers::new(read_seq.rev()),
         }
     }
-    /// Returns end position with minimal edit distance as a tuple.
-    pub fn estimate_upper_bound<E: pairhmm::EmissionParameters + RefBaseEmission>(
+
+    /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
+    /// We use the best edit distance and add 5.
+    pub fn calc_edit_dist<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &self,
         emission_params: &E,
     ) -> usize {
         let ref_seq = (0..emission_params.len_x())
             .rev()
-            .map(|i| emission_params.ref_base(i));
-        self.myers.find_best_end(ref_seq).1 as usize * 2
+            .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
+        self.myers.find_best_end(ref_seq).1 as usize
     }
 }
 
