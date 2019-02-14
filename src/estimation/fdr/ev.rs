@@ -19,8 +19,8 @@ use Event;
 ///
 /// # Arguments
 ///
-/// * `inbcf` - path to BCF with prosic calls (None for stdin)
-/// * `outbcf` - path to BCF with filtered prosic calls (None for stdout)
+/// * `inbcf` - path to BCF with varlociraptor calls (None for stdin)
+/// * `outbcf` - path to BCF with filtered varlociraptor calls (None for stdout)
 /// * `null_calls` - calls under the null model, e.g. obtained by swapping tumor and normal sample
 /// * `writer` - writer for resulting thresholds
 /// * `events` - the set of events to control (sum of the probabilities of the individual events at a site)

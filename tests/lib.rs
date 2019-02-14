@@ -4,7 +4,7 @@ extern crate fern;
 extern crate flate2;
 extern crate hyper;
 extern crate itertools;
-extern crate libprosic;
+extern crate varlociraptor;
 extern crate log;
 extern crate rust_htslib;
 
@@ -20,8 +20,8 @@ use itertools::Itertools;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf};
 
-use libprosic::constants;
-use libprosic::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs};
+use varlociraptor::constants;
+use varlociraptor::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs};
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
@@ -95,18 +95,18 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
 
     let alignment_properties = {
         let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
-        libprosic::AlignmentProperties::estimate(&mut bam).unwrap()
+        varlociraptor::AlignmentProperties::estimate(&mut bam).unwrap()
     };
     let purity = 0.75;
 
-    let tumor = libprosic::Sample::new(
+    let tumor = varlociraptor::Sample::new(
         tumor_bam,
         2500,
         true,
         false,
         false,
         alignment_properties,
-        libprosic::likelihood::LatentVariableModel::new(purity),
+        varlociraptor::likelihood::LatentVariableModel::new(purity),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
@@ -114,14 +114,14 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
         100,
     );
 
-    let normal = libprosic::Sample::new(
+    let normal = varlociraptor::Sample::new(
         normal_bam,
         2500,
         true,
         false,
         false,
         alignment_properties,
-        libprosic::likelihood::LatentVariableModel::new(1.0),
+        varlociraptor::likelihood::LatentVariableModel::new(1.0),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
@@ -130,35 +130,35 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, chrom: &str) {
     );
 
     let events = [
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "germline".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
             af_control: DiscreteAlleleFreqs::feasible(2).not_absent(),
         },
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "somatic".to_owned(),
             af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
             af_control: DiscreteAlleleFreqs::absent(),
         },
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "absent".to_owned(),
             af_case: ContinuousAlleleFreqs::exclusive(0.0..0.0),
             af_control: DiscreteAlleleFreqs::absent(),
         },
     ];
 
-    let prior_model = libprosic::priors::FlatTumorNormalModel::new(2);
+    let prior_model = varlociraptor::priors::FlatTumorNormalModel::new(2);
 
-    let mut caller = libprosic::model::PairCaller::new(tumor, normal, prior_model);
+    let mut caller = varlociraptor::model::PairCaller::new(tumor, normal, prior_model);
 
-    libprosic::call::pairwise::call::<
+    varlociraptor::call::pairwise::call::<
         _,
         _,
         _,
-        libprosic::model::PairCaller<
-            libprosic::model::ContinuousAlleleFreqs,
-            libprosic::model::DiscreteAlleleFreqs,
-            libprosic::model::priors::FlatTumorNormalModel,
+        varlociraptor::model::PairCaller<
+            varlociraptor::model::ContinuousAlleleFreqs,
+            varlociraptor::model::DiscreteAlleleFreqs,
+            varlociraptor::model::priors::FlatTumorNormalModel,
         >,
         _,
         _,
@@ -199,20 +199,20 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
     cleanup_file(&output);
     cleanup_file(&observations);
 
-    let insert_size = libprosic::InsertSize {
+    let insert_size = varlociraptor::InsertSize {
         mean: 312.0,
         sd: 15.0,
     };
-    let alignment_properties = libprosic::AlignmentProperties::default(insert_size);
+    let alignment_properties = varlociraptor::AlignmentProperties::default(insert_size);
 
-    let sc = libprosic::Sample::new(
+    let sc = varlociraptor::Sample::new(
         sc_bam,
         2500,
         true,
         true,
         true,
         alignment_properties,
-        libprosic::likelihood::LatentVariableModel::with_single_sample(),
+        varlociraptor::likelihood::LatentVariableModel::with_single_sample(),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
@@ -220,14 +220,14 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
         100,
     );
 
-    let bulk = libprosic::Sample::new(
+    let bulk = varlociraptor::Sample::new(
         bulk_bam,
         2500,
         true,
         true,
         true,
         alignment_properties,
-        libprosic::likelihood::LatentVariableModel::with_single_sample(),
+        varlociraptor::likelihood::LatentVariableModel::with_single_sample(),
         constants::PROB_ILLUMINA_INS,
         constants::PROB_ILLUMINA_DEL,
         Prob(0.0),
@@ -237,55 +237,55 @@ fn call_single_cell_bulk(test: &str, exclusive_end: bool, chrom: &str) {
 
     // setup events: case = single cell; control = bulk
     let events = [
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "hom_ref".to_owned(),
             af_case: DiscreteAlleleFreqs::absent(),
             af_control: ContinuousAlleleFreqs::right_exclusive(0.0..0.5),
         },
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "ADO_to_ref".to_owned(),
             af_case: DiscreteAlleleFreqs::absent(),
             af_control: ContinuousAlleleFreqs::right_exclusive(0.5..1.0),
         },
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "ADO_to_alt".to_owned(),
             af_case: DiscreteAlleleFreqs::new(vec![AlleleFreq(1.0)]),
             af_control: ContinuousAlleleFreqs::left_exclusive(0.0..0.5),
         },
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "hom_alt".to_owned(),
             af_case: DiscreteAlleleFreqs::new(vec![AlleleFreq(1.0)]),
             af_control: ContinuousAlleleFreqs::left_exclusive(0.5..1.0),
         },
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "err_alt".to_owned(),
             af_case: DiscreteAlleleFreqs::feasible(2).not_absent(),
             af_control: ContinuousAlleleFreqs::inclusive(0.0..0.0),
         },
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "het".to_owned(),
             af_case: DiscreteAlleleFreqs::new(vec![AlleleFreq(0.5)]),
             af_control: ContinuousAlleleFreqs::exclusive(0.0..1.0),
         },
-        libprosic::call::pairwise::PairEvent {
+        varlociraptor::call::pairwise::PairEvent {
             name: "err_ref".to_owned(),
             af_case: DiscreteAlleleFreqs::new(vec![AlleleFreq(0.0), AlleleFreq(0.5)]),
             af_control: ContinuousAlleleFreqs::inclusive(1.0..1.0),
         },
     ];
 
-    let prior_model = libprosic::priors::SingleCellBulkModel::new(2, 8, 100);
+    let prior_model = varlociraptor::priors::SingleCellBulkModel::new(2, 8, 100);
 
-    let mut caller = libprosic::model::PairCaller::new(sc, bulk, prior_model);
+    let mut caller = varlociraptor::model::PairCaller::new(sc, bulk, prior_model);
 
-    libprosic::call::pairwise::call::<
+    varlociraptor::call::pairwise::call::<
         _,
         _,
         _,
-        libprosic::model::PairCaller<
-            libprosic::model::DiscreteAlleleFreqs,
-            libprosic::model::ContinuousAlleleFreqs,
-            libprosic::model::priors::SingleCellBulkModel,
+        varlociraptor::model::PairCaller<
+            varlociraptor::model::DiscreteAlleleFreqs,
+            varlociraptor::model::ContinuousAlleleFreqs,
+            varlociraptor::model::priors::SingleCellBulkModel,
         >,
         _,
         _,
@@ -349,13 +349,13 @@ fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
     let basedir = basedir(test);
     let output = format!("{}/calls.filtered.bcf", basedir);
     cleanup_file(&output);
-    libprosic::estimation::fdr::ev::control_fdr(
+    varlociraptor::estimation::fdr::ev::control_fdr(
         &format!("{}/calls.matched.bcf", basedir),
         Some(&output),
-        &[libprosic::SimpleEvent {
+        &[varlociraptor::SimpleEvent {
             name: event_str.to_owned(),
         }],
-        &libprosic::model::VariantType::Deletion(Some(1..30)),
+        &varlociraptor::model::VariantType::Deletion(Some(1..30)),
         LogProb::from(Prob(alpha)),
     )
     .unwrap();

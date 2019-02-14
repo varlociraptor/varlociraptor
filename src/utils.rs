@@ -262,11 +262,11 @@ fn tags_prob_sum(
 }
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
-/// libprosic.
+/// varlociraptor.
 ///
 /// # Arguments
 ///
-/// * `calls` - BCF reader with libprosic calls
+/// * `calls` - BCF reader with varlociraptor calls
 /// * `events` - the set of events to sum up for a particular site
 /// * `vartype` - the variant type to consider
 pub fn collect_prob_dist<E: Event>(
@@ -299,13 +299,13 @@ pub fn collect_prob_dist<E: Event>(
 /// Filter a VCF record stream by a minimum threshold on the sum of
 /// posterior probabilities of a given set of Events. The threshold
 /// should be an informative false discovery rate (FDR) threshold,
-/// e.g. determined with the libprosic FDR control functionality.
+/// e.g. determined with the varlociraptor FDR control functionality.
 ///
 /// # Arguments
 ///
-/// * `calls` - BCF reader with libprosic calls
+/// * `calls` - BCF reader with varlociraptor calls
 /// * `threshold` - minimum threshold for the sum of posterior probabilities of the set of Events considered
-/// * `calls` - BCF writer for the filtered libprosic calls
+/// * `calls` - BCF writer for the filtered varlociraptor calls
 /// * `events` - the set of Events to filter on
 /// * `vartype` - the variant type to consider
 pub fn filter_by_threshold<E: Event>(
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn test_collect_prob_dist() {
-        // setup events with names as in prosic2
+        // setup events with names as in varlociraptor2
         let events = vec![
             SimpleEvent {
                 name: "germline".to_owned(),
