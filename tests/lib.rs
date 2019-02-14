@@ -208,7 +208,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
         },
         libprosic::call::pairwise::PairEvent {
             name: "somatic_normal".to_owned(),
-            af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0).min_observations(2),
+            af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
             af_control: ContinuousAlleleFreqs::exclusive(0.0..0.5).min_observations(2),
         },
         libprosic::call::pairwise::PairEvent {
