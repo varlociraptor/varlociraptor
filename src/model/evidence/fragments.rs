@@ -112,7 +112,7 @@ impl IndelEvidence {
         &self,
         insert_size: u32,
         shift: f64,
-        alignment_properties: &AlignmentProperties
+        alignment_properties: &AlignmentProperties,
     ) -> bool {
         let m = alignment_properties.insert_size().mean + shift;
         (insert_size as f64 - m).abs() <= alignment_properties.insert_size().sd
@@ -152,10 +152,10 @@ impl IndelEvidence {
         let p_ref = self.pmf(insert_size, 0.0, alignment_properties);
         let p_alt = self.pmf(insert_size, shift, alignment_properties);
 
-        if (p_ref == LogProb::ln_zero() &&
-            !self.is_within_sd(insert_size, shift, alignment_properties)) ||
-           (p_alt == LogProb::ln_zero() &&
-            !self.is_within_sd(insert_size, 0.0, alignment_properties))
+        if (p_ref == LogProb::ln_zero()
+            && !self.is_within_sd(insert_size, shift, alignment_properties))
+            || (p_alt == LogProb::ln_zero()
+                && !self.is_within_sd(insert_size, 0.0, alignment_properties))
         {
             // METHOD: We cannot consider insert size as a reliable estimate here, because it is
             // outside of the numerical resolution for one of the alleles, and not within a
