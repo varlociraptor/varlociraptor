@@ -10,7 +10,7 @@ include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE"]
 edition = "2018"
 
 [dependencies]
-bio = "0.24"
+bio = { git = "https://github.com/rust-bio/rust-bio.git", branch = "master" }
 log = "0.3"
 rust-htslib = "0.22"
 GSL = "1.0"
@@ -31,6 +31,7 @@ cached = "0.7.0"
 statrs = "0.9"
 clap = {version = "2.24", features = ["yaml", "color", "suggestions"]}
 structopt = "0.2"
+strum = "0.13"
 
 [dev-dependencies]
 env_logger = "0.3"

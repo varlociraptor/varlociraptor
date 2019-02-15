@@ -545,7 +545,7 @@ mod tests {
     use crate::likelihood;
     use crate::model;
 
-    use bio::io::fasta;
+    use bio::io::fasta::{self, FastaRead};
     use bio::stats::{LogProb, PHREDProb, Prob};
     use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use itertools::Itertools;
