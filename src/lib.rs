@@ -15,6 +15,7 @@ extern crate cached;
 pub mod call;
 pub mod constants;
 pub mod estimation;
+pub mod filtration;
 pub mod model;
 pub mod utils;
 

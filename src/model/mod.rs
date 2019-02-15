@@ -96,15 +96,31 @@ pub struct ContinuousAlleleFreqs {
     inner: Range<AlleleFreq>,
     pub left_exclusive: bool,
     pub right_exclusive: bool,
+    /// offset to add when calculating the smallest observable value for a left-exclusive 0.0 bound
+    zero_offset: f64,
 }
 
 impl ContinuousAlleleFreqs {
+    pub fn absent() -> Self {
+        Self::singleton(0.0)
+    }
+
+    pub fn singleton(value: f64) -> Self {
+        ContinuousAlleleFreqs {
+            inner: AlleleFreq(value)..AlleleFreq(value),
+            left_exclusive: false,
+            right_exclusive: false,
+            zero_offset: 1.0,
+        }
+    }
+
     /// create a left- and right-inclusive allele frequency range
     pub fn inclusive(range: Range<f64>) -> Self {
         ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
             right_exclusive: false,
+            zero_offset: 1.0,
         }
     }
 
@@ -114,6 +130,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
             right_exclusive: true,
+            zero_offset: 1.0,
         }
     }
 
@@ -126,6 +143,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
             right_exclusive: false,
+            zero_offset: 1.0,
         }
     }
 
@@ -138,7 +156,70 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
             right_exclusive: true,
+            zero_offset: 1.0,
         }
+    }
+
+    pub fn min_observations(mut self, min_observations: usize) -> Self {
+        self.zero_offset = min_observations as f64;
+
+        self
+    }
+
+    pub fn is_singleton(&self) -> bool {
+        self.start == self.end
+    }
+
+    pub fn observable_min(&self, n_obs: usize) -> AlleleFreq {
+        if n_obs == 0 {
+            self.start
+        } else {
+            let obs_count = Self::expected_observation_count(self.start, n_obs);
+            let adjust_allelefreq = |obs_count: f64| AlleleFreq(obs_count.ceil() / n_obs as f64);
+
+            if self.left_exclusive && obs_count % 1.0 == 0.0 {
+                // We are left exclusive and need to find a supremum from the right.
+                let offsets = if *self.start == 0.0 {
+                    // The lower bound is zero, hence we apply first any given zero offset if
+                    // possible.
+                    vec![self.zero_offset, 1.0, 0.0]
+                } else {
+                    vec![1.0, 0.0]
+                };
+
+                let adjusted_end = self.observable_max(n_obs);
+
+                for offset in offsets {
+                    let adjusted_obs_count = obs_count + offset;
+                    let adjusted_start = adjust_allelefreq(adjusted_obs_count);
+                    if *adjusted_start <= 1.0 && adjusted_start <= adjusted_end {
+                        return adjusted_start;
+                    }
+                }
+            }
+
+            adjust_allelefreq(obs_count)
+        }
+    }
+
+    pub fn observable_max(&self, n_obs: usize) -> AlleleFreq {
+        assert!(
+            *self.end != 0.0,
+            "bug: observable_max may not be called if end=0.0."
+        );
+        if n_obs == 0 {
+            self.end
+        } else {
+            let mut obs_count = Self::expected_observation_count(self.end, n_obs);
+            if self.right_exclusive && obs_count % 1.0 == 0.0 {
+                obs_count -= 1.0;
+            }
+            AlleleFreq(obs_count.floor() / n_obs as f64)
+        }
+    }
+
+    fn expected_observation_count(freq: AlleleFreq, n_obs: usize) -> f64 {
+        n_obs as f64 * *freq
     }
 }
 
@@ -150,12 +231,24 @@ impl Deref for ContinuousAlleleFreqs {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum VariantType {
     Insertion(Option<Range<u32>>),
     Deletion(Option<Range<u32>>),
     SNV,
     None, // site with no suggested alternative allele
+}
+
+impl From<&str> for VariantType {
+    fn from(string: &str) -> VariantType {
+        match string {
+            "INS" => VariantType::Insertion(None),
+            "DEL" => VariantType::Deletion(None),
+            "SNV" => VariantType::SNV,
+            "REF" => VariantType::None,
+            _ => panic!("bug: given string does not describe a valid variant type"),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -173,6 +266,13 @@ impl Variant {
             &Variant::Insertion(_) => true,
             &Variant::SNV(_) => false,
             &Variant::None => false,
+        }
+    }
+
+    pub fn is_single_base(&self) -> bool {
+        match self {
+            &Variant::SNV(_) | &Variant::None => true,
+            _ => false,
         }
     }
 
@@ -580,6 +680,7 @@ mod tests {
     use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use crate::likelihood::LatentVariableModel;
     use crate::model::evidence::{Evidence, Observation};
+    use crate::utils;
     use crate::Sample;
 
     use bio::stats::{LogProb, Prob};
@@ -594,9 +695,6 @@ mod tests {
         let prior_model = priors::TumorNormalModel::new(2, 30.0, 1.0, 1.0, 3e9 as u64, Prob(0.001));
         let case_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
             true,
             AlignmentProperties::default(insert_size),
             LatentVariableModel::new(1.0),
@@ -605,12 +703,11 @@ mod tests {
             Prob(0.0),
             Prob(0.0),
             10,
+            500,
+            &[],
         );
         let control_sample = Sample::new(
             bam::IndexedReader::from_path(&"tests/test.bam").expect("Error reading BAM."),
-            5000,
-            true,
-            true,
             true,
             AlignmentProperties::default(insert_size),
             LatentVariableModel::new(1.0),
@@ -619,6 +716,8 @@ mod tests {
             Prob(0.0),
             Prob(0.0),
             10,
+            500,
+            &[],
         );
 
         let model = PairCaller::new(case_sample, control_sample, prior_model);
@@ -632,6 +731,7 @@ mod tests {
             prob_mapping.ln_one_minus_exp(),
             prob_alt,
             prob_ref,
+            utils::max_prob(prob_ref, prob_alt),
             LogProb::ln_one(),
             Evidence::dummy_alignment(),
         )
@@ -808,5 +908,16 @@ mod tests {
         assert_relative_eq!(p_somatic.exp(), 0.0, epsilon = 0.02);
         // absent
         assert_relative_eq!(p_absent.exp(), 1.0, epsilon = 0.02);
+    }
+
+    #[test]
+    fn test_allele_freq_observable() {
+        let afs = ContinuousAlleleFreqs::left_exclusive(0.0..0.5);
+        assert_relative_eq!(*afs.observable_min(15), 0.0666666666666667);
+        assert_relative_eq!(*afs.observable_max(15), 0.4666666666666667);
+
+        let afs = ContinuousAlleleFreqs::right_exclusive(0.0..0.5);
+        assert_relative_eq!(*afs.observable_min(12), 0.0);
+        assert_relative_eq!(*afs.observable_max(12), 0.4166666666666667);
     }
 }

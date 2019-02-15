@@ -16,7 +16,7 @@ rust-htslib = "0.22"
 GSL = "1.0"
 itertools = "0.6"
 itertools-num = "0.1"
-approx = "0.1"
+approx = "0.3"
 rusty-machine="0.4"
 ordered-float = "1.0"
 ndarray = "0.6"
@@ -32,12 +32,15 @@ statrs = "0.9"
 clap = {version = "2.24", features = ["yaml", "color", "suggestions"]}
 structopt = "0.2"
 strum = "0.13"
+rand = "0.4"
 
 [dev-dependencies]
 env_logger = "0.3"
 fern = "0.4"
 flate2 = "0.2"
 hyper = "0.10"
+ftp = "3.0"
+serde_json = "1"
 
 [features]
 default = []

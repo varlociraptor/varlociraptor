@@ -3,7 +3,11 @@ language: rust
 rust:
   - stable
 
-cache: cargo
+cache: 
+  - cargo
+  - directories:
+    - /home/travis/tests/resources/GRCh38
+    - /home/travis/tests/resources/hg18
 
 sudo: false
 
@@ -17,6 +21,8 @@ addons:
       - binutils-dev
       - cmake
       - libgsl0-dev
+      - samtools
+      - curl
     sources:
       - kalakris-cmake
 
