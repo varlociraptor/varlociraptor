@@ -1,7 +1,7 @@
 use bio::stats::LogProb;
 
-use model::evidence::Observation;
-use model::AlleleFreq;
+use crate::model::evidence::Observation;
+use crate::model::AlleleFreq;
 
 /// Variant calling model, taking purity and allele frequencies into account.
 #[derive(Clone, Copy, Debug)]
@@ -122,7 +122,7 @@ mod tests {
     use super::*;
     use bio::stats::LogProb;
     use itertools_num::linspace;
-    use model::tests::observation;
+    use crate::model::tests::observation;
 
     #[test]
     fn test_likelihood_observation_absent_single() {

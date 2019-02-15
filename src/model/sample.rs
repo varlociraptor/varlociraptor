@@ -14,13 +14,13 @@ use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 use rust_htslib::bam::Read;
 
-use estimation::alignment_properties;
-use model;
-use model::evidence;
-use model::evidence::reads::AbstractReadEvidence;
-use model::evidence::{Evidence, Observation};
-use model::Variant;
-use utils::Overlap;
+use crate::estimation::alignment_properties;
+use crate::model;
+use crate::model::evidence;
+use crate::model::evidence::reads::AbstractReadEvidence;
+use crate::model::evidence::{Evidence, Observation};
+use crate::model::Variant;
+use crate::utils::Overlap;
 
 quick_error! {
     #[derive(Debug)]
@@ -73,7 +73,7 @@ impl RecordBuffer {
                 || self.tid().unwrap() != tid as i32
             {
                 let end = self.reader.header().target_len(tid).unwrap();
-                try!(self.reader.fetch(tid, window_start, end));
+                self.reader.fetch(tid, window_start, end)?;
                 debug!("Clearing ringbuffer");
                 self.inner.clear();
             } else {
@@ -541,13 +541,13 @@ mod tests {
     extern crate env_logger;
 
     use super::*;
-    use constants;
-    use likelihood;
-    use model;
+    use crate::constants;
+    use crate::likelihood;
+    use crate::model;
 
     use bio::io::fasta;
     use bio::stats::{LogProb, PHREDProb, Prob};
-    use estimation::alignment_properties::{AlignmentProperties, InsertSize};
+    use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;

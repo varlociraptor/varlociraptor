@@ -8,15 +8,15 @@ pub mod normal;
 
 use bio::stats::LogProb;
 
-use model::{AlleleFreq, AlleleFreqs, Variant};
+use crate::model::{AlleleFreq, AlleleFreqs, Variant};
 
-pub use priors::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel;
-pub use priors::single_cell_bulk::SingleCellBulkModel;
-pub use priors::tumor_normal::TumorNormalModel;
+pub use self::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel;
+pub use self::single_cell_bulk::SingleCellBulkModel;
+pub use self::tumor_normal::TumorNormalModel;
 //pub use priors::tumor_normal_relapse::TumorNormalRelapseModel;
-pub use model::PairPileup;
-pub use priors::flat::FlatNormalNormalModel;
-pub use priors::flat::FlatTumorNormalModel;
+pub use crate::model::PairPileup;
+pub use self::flat::FlatNormalNormalModel;
+pub use self::flat::FlatTumorNormalModel;
 
 /// A prior model of the allele frequency spectrum.
 pub trait Model<A: AlleleFreqs> {
@@ -129,10 +129,10 @@ mod tests {
     use super::*;
     use bio::stats::Prob;
     use itertools_num::linspace;
-    use model::evidence::observation::Observation;
-    use model::tests::observation;
-    use model::AlleleFreq;
-    use model::Variant;
+    use crate::model::evidence::observation::Observation;
+    use crate::model::tests::observation;
+    use crate::model::AlleleFreq;
+    use crate::model::Variant;
 
     pub fn create_obs_vector(n_obs_ref: usize, n_obs_alt: usize) -> Vec<Observation> {
         let obs_ref_abs = observation(LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_one());

@@ -10,10 +10,10 @@ use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf};
 
-use model;
-use utils;
-use BCFError;
-use Event;
+use crate::model;
+use crate::utils;
+use crate::BCFError;
+use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-4;
 
@@ -475,10 +475,10 @@ mod tests {
     use super::*;
 
     use bio::stats::{LogProb, Prob};
-    use model::VariantType;
+    use crate::model::VariantType;
     use rust_htslib::bcf::{self, Read};
-    use ComplementEvent;
-    use SimpleEvent;
+    use crate::ComplementEvent;
+    use crate::SimpleEvent;
 
     #[test]
     fn test_tags_prob_sum() {

@@ -8,9 +8,9 @@ use itertools::Itertools;
 use rgsl::randist::gaussian::ugaussian_P;
 use rust_htslib::bam;
 
-use estimation::alignment_properties::AlignmentProperties;
-use model::evidence;
-use model::Variant;
+use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::model::evidence;
+use crate::model::Variant;
 
 /// Calculate the number of positions a fragment can have in a given window according to
 /// Sahlin et al. biorxiv 2015

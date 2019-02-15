@@ -7,6 +7,7 @@ repository = "https://github.com/varlociraptor/varlociraptor"
 readme = "README.md"
 license = "GPL-3.0"
 include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE"]
+edition = "2018"
 
 [dependencies]
 bio = "0.24"
@@ -28,6 +29,8 @@ csv = "1.0.0-beta.5"
 lazy_static = "0.2"
 cached = "0.7.0"
 statrs = "0.9"
+clap = {version = "2.24", features = ["yaml", "color", "suggestions"]}
+structopt = "0.2"
 
 [dev-dependencies]
 env_logger = "0.3"

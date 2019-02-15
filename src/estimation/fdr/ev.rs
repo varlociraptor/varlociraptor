@@ -11,9 +11,9 @@ use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
-use model;
-use utils;
-use Event;
+use crate::model;
+use crate::utils;
+use crate::Event;
 
 /// Print thresholds to control FDR of given calls at multiple levels.
 ///

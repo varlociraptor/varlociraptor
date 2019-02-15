@@ -1,27 +1,14 @@
-extern crate bio;
-extern crate rust_htslib;
+
 #[macro_use]
 extern crate log;
-extern crate itertools;
-extern crate itertools_num;
-extern crate rgsl;
 #[macro_use]
 extern crate approx;
-extern crate ndarray;
-extern crate ordered_float;
-extern crate rusty_machine;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate quick_error;
-extern crate csv;
 #[macro_use]
 extern crate lazy_static;
-extern crate regex;
-extern crate statrs;
-extern crate vec_map;
-
 #[macro_use]
 extern crate cached;
 
@@ -31,10 +18,10 @@ pub mod estimation;
 pub mod model;
 pub mod utils;
 
-pub use estimation::alignment_properties::{AlignmentProperties, InsertSize};
-pub use model::likelihood;
-pub use model::priors;
-pub use model::sample::Sample;
+pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
+pub use crate::model::likelihood;
+pub use crate::model::priors;
+pub use crate::model::sample::Sample;
 
 quick_error! {
     #[derive(Debug)]

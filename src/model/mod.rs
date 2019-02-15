@@ -16,8 +16,8 @@ pub mod sample;
 
 use bio::stats::LogProb;
 
-use model::evidence::Observation;
-use model::sample::Sample;
+use crate::model::evidence::Observation;
+use crate::model::sample::Sample;
 
 pub type AlleleFreq = NotNan<f64>;
 
@@ -576,11 +576,11 @@ impl<'a, A: AlleleFreqs, B: AlleleFreqs, P: priors::PairModel<A, B>> PairPileup<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use constants;
-    use estimation::alignment_properties::{AlignmentProperties, InsertSize};
-    use likelihood::LatentVariableModel;
-    use model::evidence::{Evidence, Observation};
-    use Sample;
+    use crate::constants;
+    use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
+    use crate::likelihood::LatentVariableModel;
+    use crate::model::evidence::{Evidence, Observation};
+    use crate::Sample;
 
     use bio::stats::{LogProb, Prob};
     use rust_htslib::bam;

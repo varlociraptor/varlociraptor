@@ -11,12 +11,12 @@ use ndarray::prelude::*;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{self, Read};
 
-use model;
-use model::priors;
-use model::AlleleFreqs;
-use model::PairCaller;
-use utils;
-use Event;
+use crate::model;
+use crate::model::priors;
+use crate::model::AlleleFreqs;
+use crate::model::PairCaller;
+use crate::utils;
+use crate::Event;
 
 fn phred_scale<'a, I: IntoIterator<Item = &'a Option<LogProb>>>(probs: I) -> Vec<f32> {
     probs
@@ -59,25 +59,25 @@ where
     P: priors::PairModel<A, B>,
 {
     let chrom = chrom(&inbcf, &record);
-    let variants = try!(utils::collect_variants(
+    let variants = utils::collect_variants(
         record,
         omit_snvs,
         omit_indels,
         max_indel_len.map(|l| 0..l),
         exclusive_end
-    ));
+    )?;
 
-    let chrom_seq = try!(reference_buffer.seq(&chrom));
+    let chrom_seq = reference_buffer.seq(&chrom)?;
 
     let mut pileups = Vec::with_capacity(variants.len());
     for variant in variants {
         pileups.push(if let Some(variant) = variant {
-            Some(try!(joint_model.pileup(
+            Some(joint_model.pileup(
                 chrom,
                 record.pos(),
                 variant,
                 chrom_seq
-            )))
+            )?)
         } else {
             None
         });
@@ -156,10 +156,10 @@ where
     };
 
     let mut outobs = if let Some(f) = outobs {
-        let mut writer = try!(csv::WriterBuilder::new()
+        let mut writer = csv::WriterBuilder::new()
             .has_headers(false)
             .delimiter(b'\t')
-            .from_path(f));
+            .from_path(f)?;
         // write header for observations
         writer.write_record(
             [

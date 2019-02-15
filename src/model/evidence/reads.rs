@@ -7,8 +7,8 @@ use rust_htslib::bam::record::CigarStringView;
 
 use bio::pattern_matching::myers::Myers;
 use bio::stats::pairhmm;
-use estimation::alignment_properties::AlignmentProperties;
-use model::Variant;
+use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::model::Variant;
 
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
 /// correctly and the event that it maps incorrectly.
@@ -602,7 +602,7 @@ impl EditDistanceEstimation {
 mod tests {
 
     use super::*;
-    use model;
+    use crate::model;
 
     use rust_htslib::bam::record::{Cigar, CigarString};
     use std::str;
