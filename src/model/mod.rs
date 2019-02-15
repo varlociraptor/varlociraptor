@@ -13,6 +13,7 @@ pub mod evidence;
 pub mod likelihood;
 pub mod priors;
 pub mod sample;
+pub mod modes;
 
 use bio::stats::LogProb;
 
@@ -233,6 +234,13 @@ impl Variant {
         }
     }
 }
+
+
+
+
+
+
+
 
 /// Joint variant calling model, combining two latent variable models.
 pub struct SingleCaller<A: AlleleFreqs, P: priors::Model<A>> {

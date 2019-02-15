@@ -15,7 +15,6 @@ use rust_htslib::bam::record::CigarStringView;
 use rust_htslib::bam::Read;
 
 use crate::estimation::alignment_properties;
-use crate::model;
 use crate::model::evidence;
 use crate::model::evidence::reads::AbstractReadEvidence;
 use crate::model::evidence::{Evidence, Observation};
@@ -31,6 +30,8 @@ quick_error! {
         }
     }
 }
+
+pub type Pileup = Vec<Observation>;
 
 /// Ringbuffer of BAM records. This data structure ensures that no bam record is read twice while
 /// extracting observations for given variants.
@@ -148,7 +149,6 @@ impl<'a> Candidate<'a> {
 pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
-    likelihood_model: model::likelihood::LatentVariableModel,
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
@@ -166,7 +166,6 @@ impl Sample {
     /// * `use_secondary` - Whether to use secondary alignments.
     /// * `insert_size` - estimated insert size
     /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
-    /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
     /// * `max_indel_overlap` - maximum number of bases a read may be aligned beyond the start or end of an indel in order to be considered as an observation
     /// * `indel_haplotype_window` - maximum number of considered bases around an indel breakpoint
     pub fn new(
@@ -177,7 +176,6 @@ impl Sample {
         use_secondary: bool,
         use_mapq: bool,
         alignment_properties: alignment_properties::AlignmentProperties,
-        likelihood_model: model::likelihood::LatentVariableModel,
         prob_insertion_artifact: Prob,
         prob_deletion_artifact: Prob,
         prob_insertion_extend_artifact: Prob,
@@ -187,7 +185,6 @@ impl Sample {
         Sample {
             record_buffer: RecordBuffer::new(bam, pileup_window, use_secondary),
             use_fragment_evidence: use_fragment_evidence,
-            likelihood_model: likelihood_model,
             indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
                 LogProb::from(prob_insertion_artifact),
                 LogProb::from(prob_deletion_artifact),
@@ -205,11 +202,6 @@ impl Sample {
         }
     }
 
-    /// Return likelihood model.
-    pub fn likelihood_model(&self) -> model::likelihood::LatentVariableModel {
-        self.likelihood_model
-    }
-
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,
@@ -217,7 +209,7 @@ impl Sample {
         variant: &Variant,
         chrom: &[u8],
         chrom_seq: &[u8],
-    ) -> Result<Vec<Observation>, Box<Error>> {
+    ) -> Result<Pileup, Box<Error>> {
         let centerpoint = variant.centerpoint(start);
 
         self.record_buffer.fill(chrom, start, variant.end(start))?;
@@ -585,7 +577,6 @@ mod tests {
                 mean: isize_mean,
                 sd: 20.0,
             }),
-            likelihood::LatentVariableModel::new(1.0),
             constants::PROB_ILLUMINA_INS,
             constants::PROB_ILLUMINA_DEL,
             Prob(0.0),

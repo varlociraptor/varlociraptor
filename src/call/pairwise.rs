@@ -2,6 +2,7 @@ use std::error::Error;
 use std::f32;
 use std::path::Path;
 use std::str;
+use std::cmp::Ordering;
 
 use bio::io::fasta;
 use bio::stats::{LogProb, PHREDProb};

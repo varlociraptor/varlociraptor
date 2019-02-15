@@ -1,52 +1,46 @@
-use bio::stats::LogProb;
+use bio::stats::{LogProb, bayesian::model::Likelihood};
 
 use crate::model::evidence::Observation;
 use crate::model::AlleleFreq;
+use crate::model::sample::Pileup;
 
 /// Variant calling model, taking purity and allele frequencies into account.
 #[derive(Clone, Copy, Debug)]
-pub struct LatentVariableModel {
+pub struct ContaminatedSampleLikelihoodModel {
     /// Purity of the case sample.
-    purity: Option<LogProb>,
-    impurity: Option<LogProb>,
+    purity: LogProb,
+    impurity: LogProb,
 }
 
-impl LatentVariableModel {
+impl ContaminatedSampleLikelihoodModel {
     /// Create new model.
     pub fn new(purity: f64) -> Self {
         assert!(purity > 0.0 && purity <= 1.0);
-        LatentVariableModel {
-            purity: Some(LogProb(purity.ln())),
-            impurity: Some(LogProb(purity.ln()).ln_one_minus_exp()),
+        let purity = LogProb(purity.ln());
+        ContaminatedSampleLikelihoodModel {
+            purity: purity,
+            impurity: purity.ln_one_minus_exp(),
         }
     }
 
-    pub fn with_single_sample() -> Self {
-        LatentVariableModel {
-            purity: None,
-            impurity: None,
-        }
-    }
-
-    /// Likelihood to observe a read given allele frequencies for case and control.
-    fn likelihood_observation_case_control(
+    fn likelihood_observation(
         &self,
-        observation: &Observation,
-        allele_freq_case: LogProb,
-        allele_freq_control: LogProb,
+        allele_freq: LogProb,
+        allele_freq_contamination: LogProb,
+        observation: &Observation
     ) -> LogProb {
         // Step 1: probability to sample observation: AF * placement induced probability
-        let prob_sample_alt_case = allele_freq_case + observation.prob_sample_alt;
-        let prob_sample_alt_control = allele_freq_control + observation.prob_sample_alt;
+        let prob_sample_alt_case = allele_freq + observation.prob_sample_alt;
+        let prob_sample_alt_control = allele_freq_contamination + observation.prob_sample_alt;
 
         // Step 2: read comes from control sample and is correctly mapped
-        let prob_control = self.impurity.unwrap()
+        let prob_control = self.impurity
             + (prob_sample_alt_control + observation.prob_alt)
                 .ln_add_exp(prob_sample_alt_control.ln_one_minus_exp() + observation.prob_ref);
         assert!(!prob_control.is_nan());
 
         // Step 3: read comes from case sample and is correctly mapped
-        let prob_case = self.purity.unwrap()
+        let prob_case = self.purity
             + (prob_sample_alt_case + observation.prob_alt)
                 .ln_add_exp(prob_sample_alt_case.ln_one_minus_exp() + observation.prob_ref);
         assert!(!prob_case.is_nan());
@@ -57,14 +51,46 @@ impl LatentVariableModel {
         assert!(!total.is_nan());
         total
     }
+}
+
+impl Likelihood for ContaminatedSampleLikelihoodModel {
+    type Event = (AlleleFreq, AlleleFreq);
+    type Data = Pileup;
+
+    fn get(&self, allelefreqs: &(AlleleFreq, AlleleFreq), pileup: &Pileup) -> LogProb {
+        let (allele_freq, allele_freq_contamination) = allelefreqs;
+        let ln_af = LogProb(allele_freq.ln());
+        let ln_af_contamination = LogProb(allele_freq_contamination.ln());
+        // calculate product of per-oservation likelihoods in log space
+        let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
+            let lh =
+                self.likelihood_observation(ln_af, ln_af_contamination, obs);
+            prob + lh
+        });
+
+        assert!(!likelihood.is_nan());
+        likelihood
+    }
+}
+
+/// Likelihood model for single sample.
+#[derive(Clone, Copy, Debug)]
+pub struct SampleLikelihoodModel {}
+
+impl SampleLikelihoodModel {
+    /// Create new model.
+    pub fn new() -> Self {
+        SampleLikelihoodModel {}
+    }
 
     /// Likelihood to observe a read given allele frequency for a single sample.
-    fn likelihood_observation_single_sample(
+    fn likelihood_observation(
+        &self,
+        allele_freq: LogProb,
         observation: &Observation,
-        allele_freq_case: LogProb,
     ) -> LogProb {
         // Step 1: calculate probability to sample from alt allele
-        let prob_sample_alt = allele_freq_case + observation.prob_sample_alt;
+        let prob_sample_alt = allele_freq + observation.prob_sample_alt;
 
         // Step 2: read comes from case sample and is correctly mapped
         let prob_case = (prob_sample_alt + observation.prob_alt)
@@ -76,42 +102,25 @@ impl LatentVariableModel {
         assert!(!total.is_nan());
         total
     }
+}
+
+impl Likelihood for SampleLikelihoodModel {
+    type Event = AlleleFreq;
+    type Data = Pileup;
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
-    pub fn likelihood_pileup(
+    fn get(
         &self,
-        pileup: &[Observation],
-        allele_freq_case: AlleleFreq,
-        allele_freq_control: Option<AlleleFreq>,
+        allele_freq: &AlleleFreq,
+        pileup: &Pileup
     ) -> LogProb {
-        let likelihood;
-        match allele_freq_control {
-            Some(allele_freq_control) => {
-                let ln_af_case = LogProb(allele_freq_case.ln());
-                let ln_af_control = LogProb(allele_freq_control.ln());
-                // calculate product of per-read likelihoods in log space
-                likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-                    let lh =
-                        self.likelihood_observation_case_control(obs, ln_af_case, ln_af_control);
-                    prob + lh
-                });
-            }
-            None => {
-                // no AF for control sample given
-                if let Some(purity) = self.purity {
-                    assert!(
-                        purity == LogProb::ln_one(),
-                        "no control allele frequency given but purity is not 1.0"
-                    );
-                }
-                let ln_af_case = LogProb(allele_freq_case.ln());
-                // calculate product of per-read likelihoods in log space
-                likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-                    let lh = Self::likelihood_observation_single_sample(obs, ln_af_case);
-                    prob + lh
-                });
-            }
-        }
+        let ln_af = LogProb(allele_freq.ln());
+        // calculate product of per-read likelihoods in log space
+        let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
+            let lh = self.likelihood_observation(ln_af, obs);
+            prob + lh
+        });
+
         assert!(!likelihood.is_nan());
         likelihood
     }
