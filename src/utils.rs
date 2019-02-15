@@ -1,3 +1,4 @@
+use std::cmp;
 use std::error::Error;
 use std::fs;
 use std::ops::Range;
@@ -225,10 +226,10 @@ impl ReferenceBuffer {
 /// * `record` - BCF record
 /// * `tags` - tags of the set of events to sum up for a particular site and variant
 /// * `vartype` - the variant type to consider
-fn tags_prob_sum(
+pub fn tags_prob_sum(
     record: &mut bcf::Record,
     tags: &[String],
-    vartype: &model::VariantType,
+    vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>, Box<Error>> {
     let variants = (utils::collect_variants(record, false, false, None, false))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
@@ -240,7 +241,9 @@ fn tags_prob_sum(
                 variants.iter().zip(tags_probs_in.into_iter()).enumerate()
             {
                 if let Some(ref variant) = *variant {
-                    if !variant.is_type(vartype) || tag_prob.is_nan() {
+                    if (vartype.is_some() && !variant.is_type(vartype.unwrap()))
+                        || tag_prob.is_nan()
+                    {
                         continue;
                     }
                     tags_probs_out[i].push(LogProb::from(PHREDProb(*tag_prob as f64)));
@@ -261,6 +264,13 @@ fn tags_prob_sum(
         .collect_vec())
 }
 
+pub fn events_to_tags<E>(events: &[E]) -> Vec<String>
+where
+    E: Event,
+{
+    events.iter().map(|e| e.tag_name("PROB")).collect_vec()
+}
+
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
 /// varlociraptor.
 ///
@@ -269,14 +279,17 @@ fn tags_prob_sum(
 /// * `calls` - BCF reader with varlociraptor calls
 /// * `events` - the set of events to sum up for a particular site
 /// * `vartype` - the variant type to consider
-pub fn collect_prob_dist<E: Event>(
+pub fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: &model::VariantType,
-) -> Result<Vec<NotNan<f64>>, Box<Error>> {
+) -> Result<Vec<NotNan<f64>>, Box<Error>>
+where
+    E: Event,
+{
     let mut record = calls.empty_record();
     let mut prob_dist = Vec::new();
-    let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
+    let tags = events_to_tags(events);
     loop {
         if let Err(e) = calls.read(&mut record) {
             if e.is_eof() {
@@ -286,7 +299,7 @@ pub fn collect_prob_dist<E: Event>(
             }
         }
 
-        for p in utils::tags_prob_sum(&mut record, &tags, &vartype)? {
+        for p in utils::tags_prob_sum(&mut record, &tags, Some(&vartype))? {
             if let Some(p) = p {
                 prob_dist.push(NotNan::new(*p)?);
             }
@@ -315,8 +328,70 @@ pub fn filter_by_threshold<E: Event>(
     events: &[E],
     vartype: &model::VariantType,
 ) -> Result<(), Box<Error>> {
-    let mut record = calls.empty_record();
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
+    let filter = |record: &mut bcf::Record| {
+        let probs = utils::tags_prob_sum(record, &tags, Some(vartype))?;
+        Ok(probs.into_iter().map(|p| {
+            match (p, threshold) {
+                // we allow some numerical instability in case of equality
+                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => true,
+                (Some(_), None) => true,
+                _ => false,
+            }
+        }))
+    };
+    filter_calls(calls, out, filter)
+
+    // let mut record = calls.empty_record();
+    // let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
+    // loop {
+    //     if let Err(e) = calls.read(&mut record) {
+    //         if e.is_eof() {
+    //             return Ok(());
+    //         } else {
+    //             return Err(Box::new(e));
+    //         }
+    //     }
+    //
+    //     let probs = utils::tags_prob_sum(&mut record, &tags, vartype)?;
+    //     let mut remove = vec![false]; // don't remove the reference allele
+    //     remove.extend(probs.into_iter().map(|p| {
+    //         match (p, threshold) {
+    //             // we allow some numerical instability in case of equality
+    //             (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => {
+    //                 false
+    //             }
+    //             (Some(_), None) => false,
+    //             _ => true,
+    //         }
+    //     }));
+    //
+    //     // Write trimmed record if any allele remains. Otherwise skip the record.
+    //     if !remove[1..].iter().all(|r| *r) {
+    //         record.remove_alleles(&remove)?;
+    //         out.write(&record)?;
+    //     }
+    // }
+}
+
+/// Filter calls by a given function.
+///
+/// # Arguments
+/// * `calls` - the calls to filter
+/// * `out` - output BCF
+/// * `filter` - function to filter by. Has to return a bool for every alternative allele.
+///   True means to keep the allele.
+pub fn filter_calls<F, I, II>(
+    calls: &mut bcf::Reader,
+    out: &mut bcf::Writer,
+    filter: F,
+) -> Result<(), Box<Error>>
+where
+    F: Fn(&mut bcf::Record) -> Result<II, Box<Error>>,
+    I: Iterator<Item = bool>,
+    II: IntoIterator<Item = bool, IntoIter = I>,
+{
+    let mut record = calls.empty_record();
     loop {
         if let Err(e) = calls.read(&mut record) {
             if e.is_eof() {
@@ -326,18 +401,14 @@ pub fn filter_by_threshold<E: Event>(
             }
         }
 
-        let probs = utils::tags_prob_sum(&mut record, &tags, vartype)?;
         let mut remove = vec![false]; // don't remove the reference allele
-        remove.extend(probs.into_iter().map(|p| {
-            match (p, threshold) {
-                // we allow some numerical instability in case of equality
-                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => {
-                    false
-                }
-                (Some(_), None) => false,
-                _ => true,
-            }
-        }));
+        remove.extend(filter(&mut record)?.into_iter().map(|keep| !keep));
+
+        assert_eq!(
+            remove.len(),
+            record.allele_count() as usize,
+            "bug: filter passed to filter_calls has to return a bool for each alt allele."
+        );
 
         // Write trimmed record if any allele remains. Otherwise skip the record.
         if !remove[1..].iter().all(|r| *r) {
@@ -345,6 +416,11 @@ pub fn filter_by_threshold<E: Event>(
             out.write(&record)?;
         }
     }
+}
+
+/// Return the greater of two given probabilities.
+pub fn max_prob(prob_a: LogProb, prob_b: LogProb) -> LogProb {
+    LogProb(*cmp::max(NotNan::from(prob_a), NotNan::from(prob_b)))
 }
 
 /// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
@@ -470,6 +546,23 @@ impl Overlap {
     }
 }
 
+/// Returns true if given variant is located in a repeat region.
+pub fn is_repeat_variant(start: u32, variant: &model::Variant, chrom_seq: &[u8]) -> bool {
+    let end = match variant {
+        &model::Variant::SNV(_) | &model::Variant::None | &model::Variant::Insertion(_) => {
+            start + 1
+        }
+        &model::Variant::Deletion(l) => start + l,
+    } as usize;
+    for nuc in &chrom_seq[start as usize..end] {
+        if (*nuc as char).is_lowercase() {
+            return true;
+        }
+    }
+
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,7 +594,7 @@ mod tests {
 
         let snv = VariantType::SNV;
 
-        if let Ok(prob_sum) = tags_prob_sum(&mut record, &alt_tags, &snv) {
+        if let Ok(prob_sum) = tags_prob_sum(&mut record, &alt_tags, Some(&snv)) {
             assert_eq!(LogProb::ln_one(), prob_sum[0].unwrap());
         } else {
             panic!("tags_prob_sum(&overshoot_calls, &alt_events, &snv) returned Error")
