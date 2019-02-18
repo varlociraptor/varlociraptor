@@ -8,8 +8,6 @@ extern crate serde_derive;
 extern crate quick_error;
 #[macro_use]
 extern crate lazy_static;
-#[macro_use]
-extern crate cached;
 
 pub mod call;
 pub mod constants;
@@ -20,7 +18,7 @@ pub mod utils;
 
 pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
 pub use crate::model::likelihood;
-pub use crate::model::priors;
+pub use crate::model::modes;
 pub use crate::model::sample::Sample;
 
 quick_error! {

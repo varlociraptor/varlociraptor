@@ -3,15 +3,12 @@ use std::cmp;
 use std::collections::{vec_deque, BTreeMap, VecDeque};
 use std::error::Error;
 use std::f64;
-use std::f64::consts;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
 use rand::distributions;
 use rand::distributions::IndependentSample;
 use rand::{SeedableRng, StdRng};
-use rgsl::error::erfc;
-use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 use rust_htslib::bam::Read;
@@ -600,7 +597,6 @@ mod tests {
 
     use super::*;
     use crate::constants;
-    use crate::likelihood;
     use crate::model;
 
     use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};

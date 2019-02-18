@@ -28,11 +28,11 @@ impl Posterior for TumorNormalPosterior {
         &self,
         allele_freqs: &(ContinuousAlleleFreqs, ContinuousAlleleFreqs),
         pileups: &Self::Data,
-        joint_prob: &F,
+        joint_prob: &mut F,
     ) -> LogProb {
         let (af_tumor, af_normal) = allele_freqs;
         assert_eq!(pileups.len(), 2, "invalid number of pileups");
-        let (ref pileup_tumor, ref pileup_normal) = (pileups[0], pileups[1]);
+        let (pileup_tumor, pileup_normal) = (&pileups[0], &pileups[1]);
 
         let n_obs_tumor = pileup_tumor.len();
         let n_obs_normal = pileup_normal.len();

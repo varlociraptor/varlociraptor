@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use bio::stats::LogProb;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-// use bio::stats::bayesian::BayesFactor;
+use bio::stats::bayesian::BayesFactor;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarString;
 
@@ -19,7 +19,7 @@ use rust_htslib::bam::record::CigarString;
 // pub fn count_observation_evidence(observations: &[Observation]) -> usize {
 //     let mut alt_support = 0;
 //     for obs in observations {
-//         if let KassRaftery::Strong = obs.bayes_factor_alt().evidence_kass_raftery() {
+//         if let KassRaftery::Strong >= obs.bayes_factor_alt().evidence_kass_raftery() {
 //             alt_support += 1;
 //         }
 //     }
@@ -76,13 +76,13 @@ impl Observation {
         }
     }
 
-    // pub fn bayes_factor_alt(&self) -> BayesFactor {
-    //     BayesFactor::new(self.prob_alt, self.prob_ref)
-    // }
-    //
-    // pub fn bayes_factor_ref(&self) -> BayesFactor {
-    //     BayesFactor::new(self.prob_ref, self.prob_alt)
-    // }
+    pub fn bayes_factor_alt(&self) -> BayesFactor {
+        BayesFactor::new(self.prob_alt, self.prob_ref)
+    }
+
+    pub fn bayes_factor_ref(&self) -> BayesFactor {
+        BayesFactor::new(self.prob_ref, self.prob_alt)
+    }
 }
 
 pub fn poisson_pmf(count: u32, mu: f64) -> LogProb {

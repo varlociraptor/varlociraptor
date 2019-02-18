@@ -14,7 +14,7 @@ bio = { git = "https://github.com/rust-bio/rust-bio.git", branch = "bayesian-mod
 log = "0.3"
 rust-htslib = "0.22"
 GSL = "1.0"
-itertools = "0.6"
+itertools = "0.8"
 itertools-num = "0.1"
 approx = "0.3"
 rusty-machine="0.4"

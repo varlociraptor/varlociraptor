@@ -1,9 +1,4 @@
-use std::cell::Cell;
-use std::cell::RefCell;
-use std::collections::BTreeMap;
-use std::error::Error;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::ops::{Deref, Range};
 
 use itertools::Itertools;
@@ -13,11 +8,6 @@ pub mod evidence;
 pub mod likelihood;
 pub mod modes;
 pub mod sample;
-
-use bio::stats::LogProb;
-
-use crate::model::evidence::Observation;
-use crate::model::sample::Sample;
 
 pub type AlleleFreq = NotNan<f64>;
 
