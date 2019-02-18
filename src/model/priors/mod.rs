@@ -1,3 +1,6 @@
+// TODO deprecated. Migrate into model::modes::*.
+
+
 pub mod infinite_sites_neutral_variation;
 pub mod single_cell_bulk;
 pub mod tumor_normal;

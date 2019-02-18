@@ -2,10 +2,10 @@ extern crate bio;
 extern crate csv;
 extern crate fern;
 extern crate itertools;
-extern crate varlociraptor;
 extern crate log;
 extern crate rust_htslib;
 extern crate serde_json;
+extern crate varlociraptor;
 #[macro_use]
 extern crate lazy_static;
 

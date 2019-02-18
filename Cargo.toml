@@ -33,6 +33,7 @@ clap = {version = "2.24", features = ["yaml", "color", "suggestions"]}
 structopt = "0.2"
 strum = "0.13"
 rand = "0.4"
+derive_builder = "0.7"
 
 [dev-dependencies]
 env_logger = "0.3"

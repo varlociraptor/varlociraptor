@@ -61,8 +61,8 @@ pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Es
 #[cfg(test)]
 mod tests {
     use super::*;
-    use itertools_num::linspace;
     use crate::model::AlleleFreq;
+    use itertools_num::linspace;
 
     #[test]
     fn test_estimate() {

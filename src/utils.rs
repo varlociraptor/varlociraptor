@@ -567,11 +567,11 @@ pub fn is_repeat_variant(start: u32, variant: &model::Variant, chrom_seq: &[u8])
 mod tests {
     use super::*;
 
-    use bio::stats::{LogProb, Prob};
     use crate::model::VariantType;
-    use rust_htslib::bcf::{self, Read};
     use crate::ComplementEvent;
     use crate::SimpleEvent;
+    use bio::stats::{LogProb, Prob};
+    use rust_htslib::bcf::{self, Read};
 
     #[test]
     fn test_tags_prob_sum() {

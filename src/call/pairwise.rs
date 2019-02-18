@@ -1,3 +1,5 @@
+// TODO deprecated, remove.
+
 use std::error::Error;
 use std::f32;
 use std::path::Path;
@@ -5,19 +7,128 @@ use std::str;
 use std::cmp::Ordering;
 
 use bio::io::fasta;
-use bio::stats::{LogProb, PHREDProb};
+use bio::stats::{LogProb, PHREDProb, bayesian};
 use csv;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::{self, Read};
+use derive_builder::Builder;
 
-use crate::model;
-use crate::model::priors;
-use crate::model::AlleleFreqs;
+use crate::model::{self, sample::{Sample, Pileup}};
+use crate::model::{AlleleFreqs, AlleleFreq};
 use crate::model::PairCaller;
 use crate::utils;
 use crate::Event;
+use super::{Call, CallBuilder, VariantBuilder};
+
+
+#[derive(Builder)]
+pub struct Caller<L, Pr, Po>
+where
+    Po: bayesian::model::Posterior
+{
+    samples: Vec<Sample>,
+    reference_buffer: utils::ReferenceBuffer,
+    inbcf: bcf::Reader,
+    events: Vec<Po::Event>,
+    model: bayesian::Model<L, Pr, Po>,
+    omit_snvs: bool,
+    omit_indels: bool,
+    max_indel_len: Option<u32>,
+    exclusive_end: bool,
+    bcf_record: bcf::Record,
+}
+
+
+impl<L, Pr, Po> Iterator for Caller<L, Pr, Po> {
+    type Item = Result<Call, Box<Error>>;
+
+    fn next(&mut self) -> Self::Item {
+        self.inbcf.read(self.bcf_record);
+
+        let start = record.pos();
+        let chrom = chrom(&self.inbcf, self.bcf_record);
+        let variants = utils::collect_variants(
+            self.bcf_record,
+            self.omit_snvs,
+            self.omit_indels,
+            self.max_indel_len.map(|l| 0..l),
+            self.exclusive_end
+        )?;
+
+        let chrom_seq = self.reference_buffer.seq(&chrom)?;
+
+        let pileup = |start, variant, sample| {
+            sample.extract_observations(
+                start,
+                variant,
+                chrom,
+                chrom_seq,
+            )
+        };
+
+        let mut call = CallBuilder::default()
+            .chrom(chrom)
+            .pos(start as usize)
+            .build()?;
+
+        for (i, variant) in variants.enumerate() {
+            if let Some(variant) = variant {
+
+                let pileups = self.samples.iter_mut().map(|sample|
+                    sample.extract_observations(
+                        start,
+                        variant,
+                        chrom,
+                        chrom_seq,
+                    )
+                );
+                // TODO remove this constraint
+                assert_eq!(pileups.len(), 2, "calling only supported for sample pairs right now.");
+                let pileups = (pileups[0], pileups[1]);
+
+                // compute probabilities
+                let m = self.model.compute(&self.events, &pileups);
+
+                let mut variant_builder = VariantBuilder::default();
+
+                // add calling results
+                variant_build
+                    .event_probs(self.events.iter().map(|event| m.posterior(event).unwrap()));
+                    .maximum_posterior_estimates(m.maximum_posterior_estimates().to_vec());
+
+                // add variant information
+                match variant {
+                    Variant::Deletion(l) => {
+                        variant_builder
+                            .ref_allele(chrom_seq[start])
+                            .alt_allele(b"<DEL>")
+                            .svlen(Some(l));
+                    },
+                    Variant::Insertion(ref seq) => {
+                        variant_builder
+                            .ref_allele(chrom_seq[start - 1])
+                            .alt_allele(seq)
+                            .svlen(Some(seq.len()));
+                    },
+                    Variant::SNV(base) => {
+                        variant_builder
+                            .ref_allele(chrom_seq[start])
+                            .alt_allele(vec![base]);
+                    }
+                }
+                variant = variant_build.build()?;
+
+                call.variants.push(variant);
+            }
+        }
+
+        Ok(call)
+    }
+}
+
+
 
 fn phred_scale<'a, I: IntoIterator<Item = &'a Option<LogProb>>>(probs: I) -> Vec<f32> {
     probs
@@ -285,8 +396,4 @@ where
             info!("{} records processed.", i);
         }
     }
-}
-
-fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
-    inbcf.header().rid2name(record.rid().unwrap())
 }

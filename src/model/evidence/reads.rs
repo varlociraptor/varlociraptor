@@ -6,10 +6,10 @@ use ordered_float::NotNan;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 
-use bio::pattern_matching::myers::Myers;
-use bio::stats::pairhmm;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::Variant;
+use bio::pattern_matching::myers::Myers;
+use bio::stats::pairhmm;
 
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
 /// correctly and the event that it maps incorrectly.

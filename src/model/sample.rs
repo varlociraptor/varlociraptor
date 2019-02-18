@@ -635,9 +635,9 @@ mod tests {
     use crate::likelihood;
     use crate::model;
 
+    use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use bio::io::fasta::{self, FastaRead};
     use bio::stats::{LogProb, PHREDProb, Prob};
-    use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;

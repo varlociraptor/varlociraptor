@@ -1,8 +1,8 @@
-use bio::stats::{LogProb, bayesian::model::Likelihood};
+use bio::stats::{bayesian::model::Likelihood, LogProb};
 
 use crate::model::evidence::Observation;
-use crate::model::AlleleFreq;
 use crate::model::sample::Pileup;
+use crate::model::AlleleFreq;
 
 fn prob_sample_alt(observation: &Observation, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
@@ -39,7 +39,7 @@ impl ContaminatedSampleLikelihoodModel {
         &self,
         allele_freq: LogProb,
         allele_freq_contamination: LogProb,
-        observation: &Observation
+        observation: &Observation,
     ) -> LogProb {
         // Step 1: probability to sample observation: AF * placement induced probability
         let prob_sample_alt_case = prob_sample_alt(observation, allele_freq);
@@ -73,14 +73,13 @@ impl Likelihood for ContaminatedSampleLikelihoodModel {
     type Event = (AlleleFreq, AlleleFreq);
     type Data = Pileup;
 
-    fn get(&self, allelefreqs: &(AlleleFreq, AlleleFreq), pileup: &Pileup) -> LogProb {
+    fn compute(&self, allelefreqs: &(AlleleFreq, AlleleFreq), pileup: &Pileup) -> LogProb {
         let (allele_freq, allele_freq_contamination) = allelefreqs;
         let ln_af = LogProb(allele_freq.ln());
         let ln_af_contamination = LogProb(allele_freq_contamination.ln());
         // calculate product of per-oservation likelihoods in log space
         let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-            let lh =
-                self.likelihood_observation(ln_af, ln_af_contamination, obs);
+            let lh = self.likelihood_observation(ln_af, ln_af_contamination, obs);
             prob + lh
         });
 
@@ -100,11 +99,7 @@ impl SampleLikelihoodModel {
     }
 
     /// Likelihood to observe a read given allele frequency for a single sample.
-    fn likelihood_observation(
-        &self,
-        allele_freq: LogProb,
-        observation: &Observation,
-    ) -> LogProb {
+    fn likelihood_observation(&self, allele_freq: LogProb, observation: &Observation) -> LogProb {
         // Step 1: calculate probability to sample from alt allele
         let prob_sample_alt = prob_sample_alt(observation, allele_freq);
 
@@ -130,11 +125,7 @@ impl Likelihood for SampleLikelihoodModel {
     type Data = Pileup;
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
-    fn get(
-        &self,
-        allele_freq: &AlleleFreq,
-        pileup: &Pileup
-    ) -> LogProb {
+    fn compute(&self, allele_freq: &AlleleFreq, pileup: &Pileup) -> LogProb {
         let ln_af = LogProb(allele_freq.ln());
         // calculate product of per-read likelihoods in log space
         let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
@@ -150,9 +141,9 @@ impl Likelihood for SampleLikelihoodModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::tests::observation;
     use bio::stats::LogProb;
     use itertools_num::linspace;
-    use crate::model::tests::observation;
 
     #[test]
     fn test_likelihood_observation_absent_single() {
