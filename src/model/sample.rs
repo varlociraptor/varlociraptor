@@ -3,6 +3,7 @@ use std::cmp;
 use std::collections::{vec_deque, BTreeMap, VecDeque};
 use std::error::Error;
 use std::f64;
+use std::path::Path;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
@@ -179,6 +180,15 @@ impl SubsampleCandidates {
     }
 }
 
+pub fn estimate_alignment_properties<P: AsRef<Path>>(
+    path: P,
+) -> Result<alignment_properties::AlignmentProperties, Box<Error>> {
+    let mut bam = bam::Reader::from_path(path)?;
+    Ok(alignment_properties::AlignmentProperties::estimate(
+        &mut bam,
+    )?)
+}
+
 /// A sequenced sample, e.g., a tumor or a normal sample.
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -187,6 +197,7 @@ pub struct Sample {
     record_buffer: RecordBuffer,
     #[builder(default = "true")]
     use_fragment_evidence: bool,
+    #[builder(private)]
     alignment_properties: alignment_properties::AlignmentProperties,
     #[builder(private)]
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,

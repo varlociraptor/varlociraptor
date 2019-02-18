@@ -140,21 +140,6 @@ fn phred_scale<'a, I: IntoIterator<Item = &'a Option<LogProb>>>(probs: I) -> Vec
         .collect_vec()
 }
 
-pub struct PairEvent<A: AlleleFreqs, B: AlleleFreqs> {
-    /// event name
-    pub name: String,
-    /// allele frequencies for case sample
-    pub af_case: A,
-    /// allele frequencies for control sample
-    pub af_control: B,
-}
-
-impl<A: AlleleFreqs, B: AlleleFreqs> Event for PairEvent<A, B> {
-    fn name(&self) -> &str {
-        &self.name
-    }
-}
-
 fn pileups<'a, A, B, P>(
     inbcf: &bcf::Reader,
     record: &mut bcf::Record,

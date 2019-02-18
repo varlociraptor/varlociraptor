@@ -18,6 +18,21 @@ use crate::model::AlleleFreq;
 use crate::utils;
 use crate::Event;
 
+pub struct PairEvent<A: AlleleFreqs, B: AlleleFreqs> {
+    /// event name
+    pub name: String,
+    /// allele frequencies for case sample
+    pub af_case: A,
+    /// allele frequencies for control sample
+    pub af_control: B,
+}
+
+impl<A: AlleleFreqs, B: AlleleFreqs> Event for PairEvent<A, B> {
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
 #[derive(Default, Clone, Debug, Builder)]
 pub struct Call {
     chrom: Vec<u8>,
@@ -85,7 +100,11 @@ impl<E: Event + Clone> BCFWriter<E> {
             header.push_sample(sample);
         }
         for event in events {
-            header.push_record(event.header_entry("PROB", "Posterior probability for ").as_bytes());
+            header.push_record(
+                event
+                    .header_entry("PROB", "Posterior probability for ")
+                    .as_bytes(),
+            );
         }
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
@@ -174,7 +193,7 @@ where
 {
     samples: Vec<Sample>,
     reference_buffer: utils::ReferenceBuffer,
-    inbcf: bcf::Reader,
+    candidates: bcf::Reader,
     events: Vec<Po::Event>,
     model: bayesian::Model<L, Pr, Po>,
     omit_snvs: bool,
@@ -196,15 +215,15 @@ where
     >,
 {
     fn call(&mut self) -> Result<Option<Call>, Box<Error>> {
-        let mut record = self.inbcf.empty_record();
-        match self.inbcf.read(&mut record) {
+        let mut record = self.candidates.empty_record();
+        match self.candidates.read(&mut record) {
             Err(bcf::ReadError::NoMoreRecord) => return Ok(None),
             Err(e) => return Err(Box::new(e)),
             Ok(()) => (),
         }
 
         let start = record.pos();
-        let chrom = chrom(&self.inbcf, &record);
+        let chrom = chrom(&self.candidates, &record);
         let variants = utils::collect_variants(
             &mut record,
             self.omit_snvs,
