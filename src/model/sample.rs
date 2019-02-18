@@ -15,6 +15,7 @@ use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 use rust_htslib::bam::Read;
+use derive_builder::Builder;
 
 use crate::estimation::alignment_properties;
 use crate::model::evidence;
@@ -182,6 +183,8 @@ impl SubsampleCandidates {
 }
 
 /// A sequenced sample, e.g., a tumor or a normal sample.
+#[derive(Default, Builder)]
+#[builder(pattern = "owned")]
 pub struct Sample {
     record_buffer: RecordBuffer,
     use_fragment_evidence: bool,
