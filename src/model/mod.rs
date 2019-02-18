@@ -324,7 +324,6 @@ impl Variant {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

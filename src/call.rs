@@ -1,17 +1,19 @@
 use std::cmp::Ord;
 use std::error::Error;
+use std::path::Path;
 
+use bio::io::fasta;
+use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{bayesian, LogProb, PHREDProb};
 use csv;
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
-use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use vec_map::VecMap;
 
 use crate::model;
-use crate::model::sample::{Pileup, Sample};
 use crate::model::evidence::Observation;
+use crate::model::sample::{Pileup, Sample};
 use crate::model::AlleleFreq;
 use crate::utils;
 use crate::Event;
@@ -40,10 +42,21 @@ pub struct SampleInfo {
 
 impl SampleInfo {
     fn observation_count(&self, alt_allele: bool) -> u32 {
-        self.observations.iter().map(|obs| {
-            let bf = if alt_allele { obs.bayes_factor_alt() } else { obs.bayes_factor_ref()};
-            if bf.evidence_kass_raftery() >= KassRaftery::Positive { 1 } else { 0 }
-        }).sum()
+        self.observations
+            .iter()
+            .map(|obs| {
+                let bf = if alt_allele {
+                    obs.bayes_factor_alt()
+                } else {
+                    obs.bayes_factor_ref()
+                };
+                if bf.evidence_kass_raftery() >= KassRaftery::Positive {
+                    1
+                } else {
+                    0
+                }
+            })
+            .sum()
     }
 
     pub fn n_obs_ref(&self) -> u32 {
@@ -55,22 +68,53 @@ impl SampleInfo {
     }
 }
 
-
-#[derive(Debug, Builder)]
-#[builder(pattern = "owned")]
-pub struct BCFWriter<E: Event> {
+pub struct BCFWriter<E: Event + Clone> {
     bcf: bcf::Writer,
     events: Vec<E>,
 }
 
-impl<E: Event> BCFWriter<E> {
+impl<E: Event + Clone> BCFWriter<E> {
+    pub fn new<P: AsRef<Path>>(
+        path: Option<P>,
+        sample_names: &[Vec<u8>],
+        events: &[E],
+        sequences: &[fasta::Sequence],
+    ) -> Result<Self, Box<Error>> {
+        let mut header = bcf::Header::new();
+        for sample in sample_names {
+            header.push_sample(sample);
+        }
+        for event in events {
+            header.push_record(event.header_entry("PROB", "Posterior probability for ").as_bytes());
+        }
+        header.push_record(
+            b"##FORMAT=<ID=AF,Number=A,Type=Float,\
+            Description=\"Maximum a posteriori probability estimate of allele frequency.\">",
+        );
+        for sequence in sequences {
+            header.push_record(
+                format!("##contig=<ID={},length={}>", sequence.name, sequence.len).as_bytes(),
+            );
+        }
 
-    pub fn write(
-        &mut self,
-        call: &Call
-    ) -> Result<(), Box<Error>> {
+        let bcf = if let Some(path) = path {
+            bcf::Writer::from_path(path, &header, false, false)?
+        } else {
+            bcf::Writer::from_stdout(&header, false, false)?
+        };
+        let events = events.to_vec();
+
+        Ok(BCFWriter { bcf, events })
+    }
+
+    pub fn write(&mut self, call: &Call) -> Result<(), Box<Error>> {
         let rid = self.bcf.header().name2rid(&call.chrom)?;
-        for (ref_allele, group) in call.variants.iter().group_by(|variant| &variant.ref_allele).into_iter() {
+        for (ref_allele, group) in call
+            .variants
+            .iter()
+            .group_by(|variant| &variant.ref_allele)
+            .into_iter()
+        {
             let mut record = self.bcf.empty_record();
             record.set_rid(&Some(rid));
             record.set_pos(call.pos as i32);
@@ -99,11 +143,18 @@ impl<E: Event> BCFWriter<E> {
             record.set_alleles(&alleles)?;
             // set event probabilities
             for (event, probs) in self.events.iter().zip(event_probs) {
-                let probs = probs.iter().map(|p| PHREDProb::from(*p).abs() as f32).collect_vec();
+                let probs = probs
+                    .iter()
+                    .map(|p| PHREDProb::from(*p).abs() as f32)
+                    .collect_vec();
                 record.push_info_float(&event.tag_name("PROB").as_bytes(), &probs)?;
             }
             // set sample info
-            let afs = allelefreq_estimates.values().cloned().flatten().collect_vec();
+            let afs = allelefreq_estimates
+                .values()
+                .cloned()
+                .flatten()
+                .collect_vec();
             record.push_format_float(b"AF", &afs)?;
 
             self.bcf.write(&record)?;
@@ -112,7 +163,6 @@ impl<E: Event> BCFWriter<E> {
         Ok(())
     }
 }
-
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -135,19 +185,22 @@ where
 
 impl<AlleleFreqCombination, Event, L, Pr, Po> Caller<L, Pr, Po>
 where
-    AlleleFreqCombination: Ord + Clone + IntoIterator<Item=AlleleFreq>,
+    AlleleFreqCombination: Ord + Clone + IntoIterator<Item = AlleleFreq>,
     Event: Ord + Clone,
-    L: bayesian::model::Likelihood<Event=AlleleFreqCombination, Data=Vec<Pileup>>,
-    Pr: bayesian::model::Prior<Event=AlleleFreqCombination>,
-    Po: bayesian::model::Posterior<BaseEvent=AlleleFreqCombination, Event=Event, Data=Vec<Pileup>>,
-
+    L: bayesian::model::Likelihood<Event = AlleleFreqCombination, Data = Vec<Pileup>>,
+    Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
+    Po: bayesian::model::Posterior<
+        BaseEvent = AlleleFreqCombination,
+        Event = Event,
+        Data = Vec<Pileup>,
+    >,
 {
     fn call(&mut self) -> Result<Option<Call>, Box<Error>> {
         let mut record = self.inbcf.empty_record();
         match self.inbcf.read(&mut record) {
             Err(bcf::ReadError::NoMoreRecord) => return Ok(None),
             Err(e) => return Err(Box::new(e)),
-            Ok(()) => ()
+            Ok(()) => (),
         }
 
         let start = record.pos();
@@ -161,7 +214,6 @@ where
         )?;
 
         let chrom_seq = self.reference_buffer.seq(&chrom)?;
-
 
         let mut call = CallBuilder::default()
             .chrom(chrom.to_owned())
@@ -184,23 +236,29 @@ where
 
                 // add calling results
                 variant_builder.event_probs(
-                    self.events.iter().map(|event| m.posterior(event).unwrap()).collect_vec()
+                    self.events
+                        .iter()
+                        .map(|event| m.posterior(event).unwrap())
+                        .collect_vec(),
                 );
 
                 // add sample specific information
-                variant_builder.sample_info(
-                    if let Some(map_estimates) = m.maximum_posterior() {
-                        pileups.into_iter().zip(map_estimates.clone().into_iter()).map(|(pileup, estimate)| {
+                variant_builder.sample_info(if let Some(map_estimates) = m.maximum_posterior() {
+                    pileups
+                        .into_iter()
+                        .zip(map_estimates.clone().into_iter())
+                        .map(|(pileup, estimate)| {
                             SampleInfoBuilder::default()
                                 .allelefreq_estimate(estimate.clone())
                                 .observations(pileup)
-                                .build().unwrap()
-                        }).collect_vec()
-                    } else {
-                        // no observations
-                        Vec::new()
-                    }
-                );
+                                .build()
+                                .unwrap()
+                        })
+                        .collect_vec()
+                } else {
+                    // no observations
+                    Vec::new()
+                });
 
                 let start = start as usize;
 
@@ -217,7 +275,7 @@ where
                                 .alt_allele(b"<DEL>".to_vec())
                                 .svlen(Some(l));
                         }
-                    },
+                    }
                     model::Variant::Insertion(ref seq) => {
                         let ref_allele = vec![chrom_seq[start - 1]];
                         let mut alt_allele = ref_allele.clone();
@@ -226,12 +284,12 @@ where
                         variant_builder
                             .ref_allele(ref_allele)
                             .alt_allele(alt_allele);
-                    },
+                    }
                     model::Variant::SNV(base) => {
                         variant_builder
                             .ref_allele(chrom_seq[start..start + 1].to_vec())
                             .alt_allele(vec![base]);
-                    },
+                    }
                     model::Variant::None => {
                         variant_builder
                             .ref_allele(chrom_seq[start..start + 1].to_vec())
@@ -247,14 +305,17 @@ where
     }
 }
 
-
 impl<AlleleFreqCombination, Event, L, Pr, Po> Iterator for Caller<L, Pr, Po>
 where
-    AlleleFreqCombination: Ord + Clone + IntoIterator<Item=AlleleFreq>,
+    AlleleFreqCombination: Ord + Clone + IntoIterator<Item = AlleleFreq>,
     Event: Ord + Clone,
-    L: bayesian::model::Likelihood<Event=AlleleFreqCombination, Data=Vec<Pileup>>,
-    Pr: bayesian::model::Prior<Event=AlleleFreqCombination>,
-    Po: bayesian::model::Posterior<BaseEvent=AlleleFreqCombination, Event=Event, Data=Vec<Pileup>>,
+    L: bayesian::model::Likelihood<Event = AlleleFreqCombination, Data = Vec<Pileup>>,
+    Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
+    Po: bayesian::model::Posterior<
+        BaseEvent = AlleleFreqCombination,
+        Event = Event,
+        Data = Vec<Pileup>,
+    >,
 {
     type Item = Result<Call, Box<Error>>;
 

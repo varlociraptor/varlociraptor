@@ -1,5 +1,5 @@
-use bio::stats::LogProb;
 use bio::stats::bayesian::model::Prior;
+use bio::stats::LogProb;
 
 use crate::model::AlleleFreq;
 

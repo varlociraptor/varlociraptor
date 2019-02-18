@@ -6,13 +6,13 @@ use std::f64;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
+use derive_builder::Builder;
 use rand::distributions;
 use rand::distributions::IndependentSample;
 use rand::{SeedableRng, StdRng};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 use rust_htslib::bam::Read;
-use derive_builder::Builder;
 
 use crate::estimation::alignment_properties;
 use crate::model::evidence;
@@ -214,33 +214,29 @@ impl SampleBuilder {
     ) -> Self {
         let pileup_window = (alignment_properties.insert_size().mean
             + alignment_properties.insert_size().sd * 6.0) as u32;
-        self
-            .alignment_properties(alignment_properties)
+        self.alignment_properties(alignment_properties)
             .record_buffer(RecordBuffer::new(bam, pileup_window, false))
     }
 
     /// Register error probabilities and window to check around indels.
-    pub fn error_probs(self,
+    pub fn error_probs(
+        self,
         prob_insertion_artifact: Prob,
         prob_deletion_artifact: Prob,
         prob_insertion_extend_artifact: Prob,
         prob_deletion_extend_artifact: Prob,
-        indel_haplotype_window: u32
+        indel_haplotype_window: u32,
     ) -> Self {
-
-        self
-            .indel_read_evidence(
-                RefCell::new(evidence::reads::IndelEvidence::new(
-                    LogProb::from(prob_insertion_artifact),
-                    LogProb::from(prob_deletion_artifact),
-                    LogProb::from(prob_insertion_extend_artifact),
-                    LogProb::from(prob_deletion_extend_artifact),
-                    indel_haplotype_window,
-                ))
-            )
-            .snv_read_evidence(RefCell::new(evidence::reads::SNVEvidence::new()))
-            .indel_fragment_evidence(RefCell::new(evidence::fragments::IndelEvidence::new()))
-            .none_read_evidence(RefCell::new(evidence::reads::NoneEvidence::new()))
+        self.indel_read_evidence(RefCell::new(evidence::reads::IndelEvidence::new(
+            LogProb::from(prob_insertion_artifact),
+            LogProb::from(prob_deletion_artifact),
+            LogProb::from(prob_insertion_extend_artifact),
+            LogProb::from(prob_deletion_extend_artifact),
+            indel_haplotype_window,
+        )))
+        .snv_read_evidence(RefCell::new(evidence::reads::SNVEvidence::new()))
+        .indel_fragment_evidence(RefCell::new(evidence::fragments::IndelEvidence::new()))
+        .none_read_evidence(RefCell::new(evidence::reads::NoneEvidence::new()))
     }
 }
 
@@ -589,7 +585,6 @@ impl Sample {
         Ok(Some(obs))
     }
 }
-
 
 #[cfg(test)]
 mod tests {
