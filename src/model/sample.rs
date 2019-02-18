@@ -183,70 +183,71 @@ impl SubsampleCandidates {
 }
 
 /// A sequenced sample, e.g., a tumor or a normal sample.
-#[derive(Default, Builder)]
+#[derive(Builder)]
 #[builder(pattern = "owned")]
 pub struct Sample {
+    #[builder(private)]
     record_buffer: RecordBuffer,
+    #[builder(default = "true")]
     use_fragment_evidence: bool,
     alignment_properties: alignment_properties::AlignmentProperties,
+    #[builder(private)]
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
+    #[builder(private)]
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
+    #[builder(private)]
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
+    #[builder(private)]
     pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
+    #[builder(default = "500")]
     max_depth: usize,
+    #[builder(default = "Vec::new()")]
     omit_repeat_regions: Vec<VariantType>,
 }
 
-impl Sample {
-    /// Create a new `Sample`.
+impl SampleBuilder {
+    /// Register alignment information.
     ///
     /// # Arguments
-    ///
     /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
-    /// * `use_fragment_evidence` - Whether to use read pairs that are left and right of variant.
-    /// * `use_secondary` - Whether to use secondary alignments.
-    /// * `insert_size` - estimated insert size
-    /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
-    /// * `max_indel_overlap` - maximum number of bases a read may be aligned beyond the start or end of an indel in order to be considered as an observation
-    /// * `indel_haplotype_window` - maximum number of considered bases around an indel breakpoint
-    pub fn new(
+    pub fn alignments(
+        self,
         bam: bam::IndexedReader,
-        use_fragment_evidence: bool,
         alignment_properties: alignment_properties::AlignmentProperties,
+    ) -> Self {
+        let pileup_window = (alignment_properties.insert_size().mean
+            + alignment_properties.insert_size().sd * 6.0) as u32;
+        self
+            .alignment_properties(alignment_properties)
+            .record_buffer(RecordBuffer::new(bam, pileup_window, false))
+    }
+
+    /// Register error probabilities and window to check around indels.
+    pub fn error_probs(self,
         prob_insertion_artifact: Prob,
         prob_deletion_artifact: Prob,
         prob_insertion_extend_artifact: Prob,
         prob_deletion_extend_artifact: Prob,
-        indel_haplotype_window: u32,
-        max_depth: usize,
-        omit_repeat_regions: &[VariantType],
+        indel_haplotype_window: u32
     ) -> Self {
-        let pileup_window = (alignment_properties.insert_size().mean
-            + alignment_properties.insert_size().sd * 6.0) as u32;
-        info!(
-            "Using window of {} bases on each side of variant.",
-            pileup_window
-        );
 
-        Sample {
-            record_buffer: RecordBuffer::new(bam, pileup_window, false),
-            use_fragment_evidence: use_fragment_evidence,
-            alignment_properties: alignment_properties,
-            indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
-                LogProb::from(prob_insertion_artifact),
-                LogProb::from(prob_deletion_artifact),
-                LogProb::from(prob_insertion_extend_artifact),
-                LogProb::from(prob_deletion_extend_artifact),
-                indel_haplotype_window,
-            )),
-            snv_read_evidence: RefCell::new(evidence::reads::SNVEvidence::new()),
-            indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new()),
-            none_read_evidence: RefCell::new(evidence::reads::NoneEvidence::new()),
-            max_depth: max_depth,
-            omit_repeat_regions: omit_repeat_regions.to_vec(),
-        }
+        self
+            .indel_read_evidence(
+                RefCell::new(evidence::reads::IndelEvidence::new(
+                    LogProb::from(prob_insertion_artifact),
+                    LogProb::from(prob_deletion_artifact),
+                    LogProb::from(prob_insertion_extend_artifact),
+                    LogProb::from(prob_deletion_extend_artifact),
+                    indel_haplotype_window,
+                ))
+            )
+            .snv_read_evidence(RefCell::new(evidence::reads::SNVEvidence::new()))
+            .indel_fragment_evidence(RefCell::new(evidence::fragments::IndelEvidence::new()))
+            .none_read_evidence(RefCell::new(evidence::reads::NoneEvidence::new()))
     }
+}
 
+impl Sample {
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,
