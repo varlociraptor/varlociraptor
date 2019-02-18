@@ -593,42 +593,6 @@ impl Sample {
     }
 }
 
-/// as shown in http://www.milefoot.com/math/stat/pdfc-normaldisc.htm
-pub fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
-    // TODO fix density in paper
-    LogProb(
-        (ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln(), // - ugaussian_P(-mean / sd).ln()
-    )
-}
-
-/// Continuous normal density (obsolete).
-pub fn isize_density(value: f64, mean: f64, sd: f64) -> LogProb {
-    LogProb(gaussian_pdf(value - mean, sd).ln())
-}
-
-/// Manual normal density (obsolete, we can use GSL (see above)).
-pub fn isize_density_louis(value: f64, mean: f64, sd: f64) -> LogProb {
-    let mut p = 0.5 / (1.0 - 0.5 * erfc((mean + 0.5) / sd * consts::FRAC_1_SQRT_2));
-    p *= erfc((-value - 0.5 + mean) / sd * consts::FRAC_1_SQRT_2)
-        - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2);
-
-    LogProb(p.ln())
-}
-
-pub fn isize_mixture_density_louis(value: f64, d: f64, mean: f64, sd: f64, rate: f64) -> LogProb {
-    let p = 0.5
-        / (rate * (1.0 - 0.5 * erfc((mean + 0.5) / sd * consts::FRAC_1_SQRT_2))
-            + (1.0 - rate) * (1.0 - 0.5 * erfc((mean + d + 0.5) / sd * consts::FRAC_1_SQRT_2)));
-    LogProb(
-        (p * (rate
-            * (erfc((-value - 0.5 + mean) / sd * consts::FRAC_1_SQRT_2)
-                - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2))
-            + (1.0 - rate)
-                * (erfc((-value - 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2)
-                    - erfc((-value + 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2))))
-        .ln(),
-    )
-}
 
 #[cfg(test)]
 mod tests {
