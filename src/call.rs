@@ -18,21 +18,6 @@ use crate::model::{AlleleFreq, AlleleFreqs};
 use crate::utils;
 use crate::Event;
 
-pub struct PairEvent<A: AlleleFreqs, B: AlleleFreqs> {
-    /// event name
-    pub name: String,
-    /// allele frequencies for case sample
-    pub af_case: A,
-    /// allele frequencies for control sample
-    pub af_control: B,
-}
-
-impl<A: AlleleFreqs, B: AlleleFreqs> Event for PairEvent<A, B> {
-    fn name(&self) -> &str {
-        &self.name
-    }
-}
-
 #[derive(Default, Clone, Debug, Builder)]
 pub struct Call {
     chrom: Vec<u8>,
@@ -192,14 +177,39 @@ where
     Po: bayesian::model::Posterior,
 {
     samples: Vec<Sample>,
+    #[builder(private)]
     reference_buffer: utils::ReferenceBuffer,
-    candidates: bcf::Reader,
+    #[builder(private)]
+    bcf_reader: bcf::Reader,
+    #[builder(private)]
+    bcf_writer: bcf::Writer,
     events: Vec<Po::Event>,
     model: bayesian::Model<L, Pr, Po>,
     omit_snvs: bool,
     omit_indels: bool,
-    max_indel_len: Option<u32>,
+    max_indel_len: u32,
     exclusive_end: bool,
+}
+
+impl<L, Pr, Po> CallerBuilder<L, Pr, Po>
+where
+    L: bayesian::model::Likelihood,
+    Pr: bayesian::model::Prior,
+    Po: bayesian::model::Posterior,
+{
+    pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<Error>> {
+        Ok(self.reference_buffer(utils::ReferenceBuffer::new(fasta::IndexedReader::from_file(&path)?)))
+    }
+
+    pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<Error>> {
+        Ok(self.bcf_reader(
+            if let Some(path) = path {
+                bcf::Reader::from_path(path)?
+            } else {
+                bcf::Reader::from_stdin()?
+            }
+        ))
+    }
 }
 
 impl<AlleleFreqCombination, E, L, Pr, Po> Caller<L, Pr, Po>
@@ -214,21 +224,22 @@ where
         Data = Vec<Pileup>,
     >,
 {
+
     fn call(&mut self) -> Result<Option<Call>, Box<Error>> {
-        let mut record = self.candidates.empty_record();
-        match self.candidates.read(&mut record) {
+        let mut record = self.bcf_reader.empty_record();
+        match self.bcf_reader.read(&mut record) {
             Err(bcf::ReadError::NoMoreRecord) => return Ok(None),
             Err(e) => return Err(Box::new(e)),
             Ok(()) => (),
         }
 
         let start = record.pos();
-        let chrom = chrom(&self.candidates, &record);
+        let chrom = chrom(&self.bcf_reader, &record);
         let variants = utils::collect_variants(
             &mut record,
             self.omit_snvs,
             self.omit_indels,
-            self.max_indel_len.map(|l| 0..l),
+            Some(0..self.max_indel_len),
             self.exclusive_end,
         )?;
 

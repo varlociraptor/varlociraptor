@@ -10,7 +10,7 @@ use rust_htslib::{bam, bcf};
 use itertools::Itertools;
 use structopt::StructOpt;
 
-use varlociraptor::call::{CallerBuilder, PairEvent};
+use varlociraptor::call::CallerBuilder;
 use varlociraptor::model::modes::tumor::{
     TumorNormalEvent, TumorNormalFlatPrior, TumorNormalLikelihood, TumorNormalPosterior,
 };
@@ -95,7 +95,7 @@ enum Varlociraptor {
             default_value = "1000",
             help = "Omit longer indels when calling."
         )]
-        max_indel_len: usize,
+        max_indel_len: u32,
         #[structopt(
             help = "Assume that the END tag is exclusive (i.e. it points to the position after the variant). This is needed, e.g., for DELLY."
         )]
@@ -104,7 +104,7 @@ enum Varlociraptor {
             default_value = "100",
             help = "Number of bases to consider left and right of indel breakpoint when calculating read support. This number should not be too large in order to avoid biases caused by other close variants."
         )]
-        indel_window: usize,
+        indel_window: u32,
         #[structopt(
             default_value = "500",
             help = "Maximum number of observations to use for calling. If locus is exceeding this number, downsampling is performed."
@@ -231,14 +231,6 @@ pub fn main() -> Result<(), Box<Error>> {
                 },
             ];
 
-            let mut reference_buffer =
-                ReferenceBuffer::new(fasta::IndexedReader::from_file(&reference)?);
-            let mut candidates = if let Some(path) = candidates {
-                bcf::Reader::from_path(path)?
-            } else {
-                bcf::Reader::from_stdin()?
-            };
-
             let model = Model::new(
                 TumorNormalLikelihood::new(purity),
                 TumorNormalFlatPrior::new(),
@@ -247,8 +239,8 @@ pub fn main() -> Result<(), Box<Error>> {
 
             let mut Caller = CallerBuilder::default()
                 .samples(vec![tumor_sample, normal_sample])
-                .reference_buffer(reference_buffer)
-                .candidates(candidates)
+                .reference(reference)?
+                .inbcf(candidates.as_ref())?
                 .events(events.to_vec())
                 .model(model)
                 .omit_snvs(omit_snvs)
@@ -257,7 +249,7 @@ pub fn main() -> Result<(), Box<Error>> {
                 .exclusive_end(exclusive_end)
                 .build()?;
 
-            
+
         }
         Varlociraptor::FilterCalls { .. } => {}
     }
