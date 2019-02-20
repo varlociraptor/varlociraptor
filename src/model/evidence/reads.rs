@@ -43,6 +43,7 @@ pub trait AbstractReadEvidence {
     ) -> LogProb;
 }
 
+#[derive(Debug, Clone)]
 pub struct NoneEvidence;
 
 impl NoneEvidence {
@@ -88,6 +89,7 @@ impl AbstractReadEvidence for NoneEvidence {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct SNVEvidence;
 
 impl SNVEvidence {

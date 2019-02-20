@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::{Deref, Range};
 
@@ -20,7 +21,7 @@ pub trait AlleleFreqs: Debug {}
 impl AlleleFreqs for DiscreteAlleleFreqs {}
 impl AlleleFreqs for ContinuousAlleleFreqs {}
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DiscreteAlleleFreqs {
     inner: Vec<AlleleFreq>,
 }
@@ -81,13 +82,13 @@ impl Deref for DiscreteAlleleFreqs {
 }
 
 /// An allele frequency range
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContinuousAlleleFreqs {
     inner: Range<AlleleFreq>,
     pub left_exclusive: bool,
     pub right_exclusive: bool,
     /// offset to add when calculating the smallest observable value for a left-exclusive 0.0 bound
-    zero_offset: f64,
+    zero_offset: NotNan<f64>,
 }
 
 impl ContinuousAlleleFreqs {
@@ -100,7 +101,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(value)..AlleleFreq(value),
             left_exclusive: false,
             right_exclusive: false,
-            zero_offset: 1.0,
+            zero_offset: NotNan::from(1.0),
         }
     }
 
@@ -110,7 +111,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
             right_exclusive: false,
-            zero_offset: 1.0,
+            zero_offset: NotNan::from(1.0),
         }
     }
 
@@ -120,7 +121,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
             right_exclusive: true,
-            zero_offset: 1.0,
+            zero_offset: NotNan::from(1.0),
         }
     }
 
@@ -133,7 +134,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
             right_exclusive: false,
-            zero_offset: 1.0,
+            zero_offset: NotNan::from(1.0),
         }
     }
 
@@ -146,12 +147,12 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
             right_exclusive: true,
-            zero_offset: 1.0,
+            zero_offset: NotNan::from(1.0),
         }
     }
 
     pub fn min_observations(mut self, min_observations: usize) -> Self {
-        self.zero_offset = min_observations as f64;
+        self.zero_offset = NotNan::from(min_observations as f64);
 
         self
     }
@@ -172,7 +173,7 @@ impl ContinuousAlleleFreqs {
                 let offsets = if *self.start == 0.0 {
                     // The lower bound is zero, hence we apply first any given zero offset if
                     // possible.
-                    vec![self.zero_offset, 1.0, 0.0]
+                    vec![*self.zero_offset, 1.0, 0.0]
                 } else {
                     vec![1.0, 0.0]
                 };
@@ -210,6 +211,24 @@ impl ContinuousAlleleFreqs {
 
     fn expected_observation_count(freq: AlleleFreq, n_obs: usize) -> f64 {
         n_obs as f64 * *freq
+    }
+}
+
+impl Default for ContinuousAlleleFreqs {
+    fn default() -> Self {
+        Self::absent()
+    }
+}
+
+impl Ord for ContinuousAlleleFreqs {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.inner.start.cmp(&other.start)
+    }
+}
+
+impl PartialOrd for ContinuousAlleleFreqs {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 

@@ -1,19 +1,22 @@
 use std::error::Error;
 use std::path::PathBuf;
 
+use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
+use bio::stats::Prob;
 use rust_htslib::{bam, bcf};
 
 use itertools::Itertools;
 use structopt::StructOpt;
 
-use varlociraptor::model::sample::{SampleBuilder, estimate_alignment_properties};
-use varlociraptor::call::{PairEvent, CallerBuilder};
+use varlociraptor::call::{CallerBuilder, PairEvent};
+use varlociraptor::model::modes::tumor::{
+    TumorNormalEvent, TumorNormalFlatPrior, TumorNormalLikelihood, TumorNormalPosterior,
+};
+use varlociraptor::model::sample::{estimate_alignment_properties, SampleBuilder};
+use varlociraptor::model::ContinuousAlleleFreqs;
 use varlociraptor::utils::ReferenceBuffer;
-use varlociraptor::model::modes::tumor::TumorNormalPosterior;
-use varlociraptor::model::modes::common::FlatPairPrior;
-use varlociraptor::model::likelihood::ContaminatedSampleLikelihoodModel;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -149,72 +152,97 @@ enum FilterMethod {
 
 pub fn main() -> Result<(), Box<Error>> {
     let opt = Varlociraptor::from_args();
-    println!("{:?}", opt);
 
     match opt {
-        subcommand @ Varlociraptor::CallTumorNormal { .. } => {
-            let tumor_alignment_properties = estimate_alignment_properties(subcommand.tumor)?;
-            let normal_alignment_properties = estimate_alignment_properties(subcommand.normal)?;
-            let mut tumor_bam = bam::IndexedReader::from_path(subcommand.tumor)?;
-            let mut normal_bam = bam::IndexedReader::from_path(subcommand.normal)?;
+        Varlociraptor::CallTumorNormal {
+            ref tumor,
+            ref normal,
+            spurious_ins_rate,
+            spurious_del_rate,
+            spurious_insext_rate,
+            spurious_delext_rate,
+            indel_window,
+            pileup_window,
+            omit_snvs,
+            omit_indels,
+            ref observations,
+            max_indel_len,
+            exclusive_end,
+            max_depth,
+            ref reference,
+            ref candidates,
+            purity,
+            ref output,
+        } => {
+            let tumor_alignment_properties = estimate_alignment_properties(tumor)?;
+            let normal_alignment_properties = estimate_alignment_properties(normal)?;
+            let mut tumor_bam = bam::IndexedReader::from_path(tumor)?;
+            let mut normal_bam = bam::IndexedReader::from_path(normal)?;
 
+            let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
+            let spurious_del_rate = Prob::checked(spurious_del_rate)?;
+            let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
+            let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
 
-            let mut sample_builder = SampleBuilder::default()
-                .error_probs(
-                    subcommand.spurious_ins_rate,
-                    subcommand.spurious_del_rate,
-                    subcommand.spurious_insext_rate,
-                    subcommand.spurious_delext_rate,
-                    subcommand.indel_haplotype_window
-                )
-                .max_depth(subcommand.max_depth);
+            let sample_builder = || {
+                SampleBuilder::default()
+                    .error_probs(
+                        spurious_ins_rate,
+                        spurious_del_rate,
+                        spurious_insext_rate,
+                        spurious_delext_rate,
+                        indel_window as u32,
+                    )
+                    .max_depth(max_depth)
+            };
 
-            let mut tumor_sample = sample_builder
+            let mut tumor_sample = sample_builder()
                 .alignments(tumor_bam, tumor_alignment_properties)
                 .build()?;
-            let mut normal_sample = sample_builder
+            let mut normal_sample = sample_builder()
                 .alignments(normal_bam, normal_alignment_properties)
                 .build()?;
 
             let events = [
-                PairEvent {
+                TumorNormalEvent {
                     name: "germline_het".to_owned(),
-                    af_case: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                    af_control: ContinuousAlleleFreqs::singleton(0.5),
+                    tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
+                    normal: ContinuousAlleleFreqs::singleton(0.5),
                 },
-                PairEvent {
+                TumorNormalEvent {
                     name: "germline_hom".to_owned(),
-                    af_case: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                    af_control: ContinuousAlleleFreqs::singleton(1.0),
+                    tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
+                    normal: ContinuousAlleleFreqs::singleton(1.0),
                 },
-                PairEvent {
+                TumorNormalEvent {
                     name: "somatic_tumor".to_owned(),
-                    af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0).min_observations(2),
-                    af_control: ContinuousAlleleFreqs::absent(),
+                    tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0).min_observations(2),
+                    normal: ContinuousAlleleFreqs::absent(),
                 },
-                PairEvent {
+                TumorNormalEvent {
                     name: "somatic_normal".to_owned(),
-                    af_case: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
-                    af_control: ContinuousAlleleFreqs::exclusive(0.0..0.5).min_observations(2),
+                    tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
+                    normal: ContinuousAlleleFreqs::exclusive(0.0..0.5).min_observations(2),
                 },
-                PairEvent {
+                TumorNormalEvent {
                     name: "absent".to_owned(),
-                    af_case: ContinuousAlleleFreqs::absent(),
-                    af_control: ContinuousAlleleFreqs::absent(),
+                    tumor: ContinuousAlleleFreqs::absent(),
+                    normal: ContinuousAlleleFreqs::absent(),
                 },
             ];
 
-            let mut reference_buffer = ReferenceBuffer::new(fasta::IndexedReader::from_path(subcommand.reference)?);
-            let mut candidates = if let Some(path) = subcommand.candidates {
-                bcf::Reader::from_file(path)?
+            let mut reference_buffer =
+                ReferenceBuffer::new(fasta::IndexedReader::from_file(&reference)?);
+            let mut candidates = if let Some(path) = candidates {
+                bcf::Reader::from_path(path)?
             } else {
                 bcf::Reader::from_stdin()?
             };
 
             let model = Model::new(
-                ContaminatedSampleLikelihoodModel::new(subcommand.purity),
-                FlatPairPrior::new(),
-                TumorNormalPosterior::new()
+                TumorNormalLikelihood::new(purity),
+                TumorNormalFlatPrior::new(),
+                TumorNormalPosterior::new(),
             );
 
             let mut Caller = CallerBuilder::default()
@@ -223,12 +251,15 @@ pub fn main() -> Result<(), Box<Error>> {
                 .candidates(candidates)
                 .events(events.to_vec())
                 .model(model)
+                .omit_snvs(omit_snvs)
+                .omit_indels(omit_indels)
+                .max_indel_len(max_indel_len)
+                .exclusive_end(exclusive_end)
+                .build()?;
 
-
-        },
-        subcommand @ Varlociraptor::FilterCalls { .. } => {
-
+            
         }
+        Varlociraptor::FilterCalls { .. } => {}
     }
     Ok(())
 }

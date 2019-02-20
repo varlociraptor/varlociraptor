@@ -5,6 +5,12 @@ use crate::model::AlleleFreq;
 
 pub struct FlatPairPrior {}
 
+impl FlatPairPrior {
+    pub fn new() -> Self {
+        FlatPairPrior {}
+    }
+}
+
 impl Prior for FlatPairPrior {
     type Event = (AlleleFreq, AlleleFreq);
 

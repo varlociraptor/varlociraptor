@@ -24,6 +24,12 @@ pub struct ContaminatedSampleLikelihoodModel {
     impurity: LogProb,
 }
 
+impl Default for ContaminatedSampleLikelihoodModel {
+    fn default() -> Self {
+        ContaminatedSampleLikelihoodModel::new(1.0)
+    }
+}
+
 impl ContaminatedSampleLikelihoodModel {
     /// Create new model.
     pub fn new(purity: f64) -> Self {
@@ -89,7 +95,7 @@ impl Likelihood for ContaminatedSampleLikelihoodModel {
 }
 
 /// Likelihood model for single sample.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct SampleLikelihoodModel {}
 
 impl SampleLikelihoodModel {

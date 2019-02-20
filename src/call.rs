@@ -14,7 +14,7 @@ use vec_map::VecMap;
 use crate::model;
 use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
-use crate::model::AlleleFreq;
+use crate::model::{AlleleFreq, AlleleFreqs};
 use crate::utils;
 use crate::Event;
 
@@ -202,15 +202,15 @@ where
     exclusive_end: bool,
 }
 
-impl<AlleleFreqCombination, Event, L, Pr, Po> Caller<L, Pr, Po>
+impl<AlleleFreqCombination, E, L, Pr, Po> Caller<L, Pr, Po>
 where
     AlleleFreqCombination: Ord + Clone + IntoIterator<Item = AlleleFreq>,
-    Event: Ord + Clone,
+    E: Event + Ord + Clone,
     L: bayesian::model::Likelihood<Event = AlleleFreqCombination, Data = Vec<Pileup>>,
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
     Po: bayesian::model::Posterior<
         BaseEvent = AlleleFreqCombination,
-        Event = Event,
+        Event = E,
         Data = Vec<Pileup>,
     >,
 {
@@ -248,7 +248,6 @@ where
                 }
 
                 // compute probabilities
-                // TODO remove type annotation
                 let m = self.model.compute(&self.events, &pileups);
 
                 let mut variant_builder = VariantBuilder::default();
@@ -324,15 +323,15 @@ where
     }
 }
 
-impl<AlleleFreqCombination, Event, L, Pr, Po> Iterator for Caller<L, Pr, Po>
+impl<AlleleFreqCombination, E, L, Pr, Po> Iterator for Caller<L, Pr, Po>
 where
     AlleleFreqCombination: Ord + Clone + IntoIterator<Item = AlleleFreq>,
-    Event: Ord + Clone,
+    E: Event + Ord + Clone,
     L: bayesian::model::Likelihood<Event = AlleleFreqCombination, Data = Vec<Pileup>>,
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
     Po: bayesian::model::Posterior<
         BaseEvent = AlleleFreqCombination,
-        Event = Event,
+        Event = E,
         Data = Vec<Pileup>,
     >,
 {

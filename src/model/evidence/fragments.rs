@@ -78,6 +78,7 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u
 }
 
 /// Calculate read evindence for an indel.
+#[derive(Debug, Clone)]
 pub struct IndelEvidence {}
 
 impl IndelEvidence {
