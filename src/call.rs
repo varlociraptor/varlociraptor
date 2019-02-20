@@ -170,11 +170,12 @@ impl<E: Event + Clone> BCFWriter<E> {
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct Caller<L, Pr, Po>
+pub struct Caller<E, L, Pr, Po>
 where
+    E: Event,
     L: bayesian::model::Likelihood,
     Pr: bayesian::model::Prior,
-    Po: bayesian::model::Posterior,
+    Po: bayesian::model::Posterior<Event=E>,
 {
     samples: Vec<Sample>,
     #[builder(private)]
@@ -183,7 +184,7 @@ where
     bcf_reader: bcf::Reader,
     #[builder(private)]
     bcf_writer: bcf::Writer,
-    events: Vec<Po::Event>,
+    events: Vec<E>,
     model: bayesian::Model<L, Pr, Po>,
     omit_snvs: bool,
     omit_indels: bool,
@@ -191,11 +192,12 @@ where
     exclusive_end: bool,
 }
 
-impl<L, Pr, Po> CallerBuilder<L, Pr, Po>
+impl<E, L, Pr, Po> CallerBuilder<E, L, Pr, Po>
 where
+    E: Event,
     L: bayesian::model::Likelihood,
     Pr: bayesian::model::Prior,
-    Po: bayesian::model::Posterior,
+    Po: bayesian::model::Posterior<Event=E>,
 {
     pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<Error>> {
         Ok(self.reference_buffer(utils::ReferenceBuffer::new(fasta::IndexedReader::from_file(&path)?)))
@@ -210,9 +212,27 @@ where
             }
         ))
     }
+
+    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<Error>> {
+        let mut header = bcf::Header::new();
+        for event in self.events.as_ref().unwrap() {
+            header.push_record(
+                format!("##INFO=<ID=PROB_{},Number=A,Type=Float,Description=\"Posterior probability for event {}\">", event.name().to_ascii_uppercase(), event.name()).as_bytes()
+            );
+        }
+
+
+
+        let writer = if let Some(path) = path {
+            bcf::Writer::from_path(path, &header, false, false)?
+        } else {
+            bcf::Writer::from_stdout(&header, false, false)?
+        };
+        Ok(self.bcf_writer(writer))
+    }
 }
 
-impl<AlleleFreqCombination, E, L, Pr, Po> Caller<L, Pr, Po>
+impl<AlleleFreqCombination, E, L, Pr, Po> Caller<E, L, Pr, Po>
 where
     AlleleFreqCombination: Ord + Clone + IntoIterator<Item = AlleleFreq>,
     E: Event + Ord + Clone,
@@ -334,7 +354,7 @@ where
     }
 }
 
-impl<AlleleFreqCombination, E, L, Pr, Po> Iterator for Caller<L, Pr, Po>
+impl<AlleleFreqCombination, E, L, Pr, Po> Iterator for Caller<E, L, Pr, Po>
 where
     AlleleFreqCombination: Ord + Clone + IntoIterator<Item = AlleleFreq>,
     E: Event + Ord + Clone,

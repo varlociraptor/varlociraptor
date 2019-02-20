@@ -237,7 +237,7 @@ pub fn main() -> Result<(), Box<Error>> {
                 TumorNormalPosterior::new(),
             );
 
-            let mut Caller = CallerBuilder::default()
+            let mut caller = CallerBuilder::default()
                 .samples(vec![tumor_sample, normal_sample])
                 .reference(reference)?
                 .inbcf(candidates.as_ref())?
