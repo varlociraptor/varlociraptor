@@ -1,3 +1,8 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
@@ -5,7 +10,6 @@ use std::path::Path;
 use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{bayesian, LogProb, PHREDProb};
-use csv;
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};

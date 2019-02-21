@@ -1,3 +1,8 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 //! This module implements fully bayesian FDR control as presented by
 //! Müller, Parmigiani, and Rice, "FDR and Bayesian Multiple Comparisons Rules" (July 2006).
 //! Johns Hopkin's University, Dept. of Biostatistics Working Papers. Working Paper 115.

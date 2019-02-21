@@ -1,11 +1,15 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::error::Error;
 use std::path::PathBuf;
 
-use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
 use bio::stats::Prob;
-use rust_htslib::{bam, bcf};
+use rust_htslib::bam;
 
 use itertools::Itertools;
 use structopt::StructOpt;
@@ -17,7 +21,6 @@ use varlociraptor::model::modes::tumor::{
 };
 use varlociraptor::model::sample::{estimate_alignment_properties, SampleBuilder};
 use varlociraptor::model::ContinuousAlleleFreqs;
-use varlociraptor::utils::ReferenceBuffer;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -76,12 +79,6 @@ enum Varlociraptor {
             help = "Extension rate of spurious deletions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
         )]
         spurious_delext_rate: f64,
-        #[structopt(
-            long,
-            default_value = "1000",
-            help = "Window to investigate for evidence left and right of each variant."
-        )]
-        pileup_window: usize,
         #[structopt(long, help = "Don't call SNVs.")]
         omit_snvs: bool,
         #[structopt(long, help = "Don't call Indels.")]
@@ -163,7 +160,6 @@ pub fn main() -> Result<(), Box<Error>> {
             spurious_insext_rate,
             spurious_delext_rate,
             indel_window,
-            pileup_window,
             omit_snvs,
             omit_indels,
             ref observations,
@@ -177,8 +173,8 @@ pub fn main() -> Result<(), Box<Error>> {
         } => {
             let tumor_alignment_properties = estimate_alignment_properties(tumor)?;
             let normal_alignment_properties = estimate_alignment_properties(normal)?;
-            let mut tumor_bam = bam::IndexedReader::from_path(tumor)?;
-            let mut normal_bam = bam::IndexedReader::from_path(normal)?;
+            let tumor_bam = bam::IndexedReader::from_path(tumor)?;
+            let normal_bam = bam::IndexedReader::from_path(normal)?;
 
             let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
             let spurious_del_rate = Prob::checked(spurious_del_rate)?;

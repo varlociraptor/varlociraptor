@@ -16,7 +16,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::str;
-use std::{thread, time};
 
 use bio::stats::{bayesian::Model, LogProb, Prob};
 use itertools::Itertools;
@@ -29,9 +28,7 @@ use varlociraptor::model::modes::common::FlatPrior;
 use varlociraptor::model::modes::tumor::{
     TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior,
 };
-use varlociraptor::model::{
-    sample::SampleBuilder, AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs,
-};
+use varlociraptor::model::{sample::SampleBuilder, ContinuousAlleleFreqs};
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
