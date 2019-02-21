@@ -45,11 +45,13 @@ enum Varlociraptor {
         reference: PathBuf,
         #[structopt(
             parse(from_os_str),
+            long,
             help = "VCF/BCF file to process (if omitted, read from STDIN)."
         )]
         candidates: Option<PathBuf>,
         #[structopt(
             parse(from_os_str),
+            long,
             help = "BCF file that shall contain the results (if omitted, write to STDOUT)."
         )]
         output: Option<PathBuf>,
@@ -85,6 +87,7 @@ enum Varlociraptor {
         omit_indels: bool,
         #[structopt(
             parse(from_os_str),
+            long,
             help = "Optional path where read observations shall be written to. The resulting file contains a line for each observation with tab-separated values."
         )]
         observations: Option<PathBuf>,
@@ -95,15 +98,18 @@ enum Varlociraptor {
         )]
         max_indel_len: u32,
         #[structopt(
+            long,
             help = "Assume that the END tag is exclusive (i.e. it points to the position after the variant). This is needed, e.g., for DELLY."
         )]
         exclusive_end: bool,
         #[structopt(
+            long,
             default_value = "100",
             help = "Number of bases to consider left and right of indel breakpoint when calculating read support. This number should not be too large in order to avoid biases caused by other close variants."
         )]
         indel_window: u32,
         #[structopt(
+            long,
             default_value = "500",
             help = "Maximum number of observations to use for calling. If locus is exceeding this number, downsampling is performed."
         )]
@@ -123,15 +129,15 @@ enum Varlociraptor {
 enum FilterMethod {
     #[structopt(name = "control-fdr")]
     ControlFDR {
-        #[structopt(short = "e", help = "Events to consider.")]
+        #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
-        #[structopt(short = "a", help = "FDR to control for.")]
+        #[structopt(long, help = "FDR to control for.")]
         fdr: f64,
-        #[structopt(long, help = "Variant type to consider.")]
+        #[structopt(long = "var", help = "Variant type to consider.")]
         vartype: Vec<String>,
-        #[structopt(help = "Minimum indel length to consider.")]
+        #[structopt(long, help = "Minimum indel length to consider.")]
         min_len: Option<usize>,
-        #[structopt(help = "Maximum indel length to consider (exclusive).")]
+        #[structopt(long, help = "Maximum indel length to consider (exclusive).")]
         max_len: Option<usize>,
     },
     #[structopt(name = "posterior-odds")]
@@ -143,7 +149,7 @@ enum FilterMethod {
             help = "Kass-Raftery score to filter against."
         )]
         odds: KassRaftery,
-        #[structopt(short = "e", help = "Events to consider.")]
+        #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
     },
 }
