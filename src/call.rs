@@ -168,7 +168,7 @@ where
         // register SVLEN
         header.push_record(
             b"##INFO=<SVLEN={},Number=A,Type=Integer,\
-              Description=\"Difference in length between REF and ALT alleles\">"
+              Description=\"Difference in length between REF and ALT alleles\">",
         );
 
         // register allele frequency estimate
@@ -354,7 +354,9 @@ where
                     model::Variant::Deletion(l) => {
                         if l <= 10 {
                             variant_builder
-                                .ref_allele(chrom_seq[start - 1..start + l as usize].to_ascii_uppercase())
+                                .ref_allele(
+                                    chrom_seq[start - 1..start + l as usize].to_ascii_uppercase(),
+                                )
                                 .alt_allele(chrom_seq[start - 1..start].to_ascii_uppercase());
                         } else {
                             variant_builder

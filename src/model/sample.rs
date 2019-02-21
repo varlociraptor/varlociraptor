@@ -626,7 +626,7 @@ mod tests {
                 AlignmentProperties::default(InsertSize {
                     mean: isize_mean,
                     sd: 20.0,
-                })
+                }),
             )
             .error_probs(
                 constants::PROB_ILLUMINA_INS,

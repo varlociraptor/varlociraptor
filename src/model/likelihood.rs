@@ -171,10 +171,7 @@ mod tests {
 
         let model = SampleLikelihoodModel::new();
 
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(0.0).ln()),
-            &observation,
-        );
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), &observation);
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
@@ -231,7 +228,7 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(1.0).ln()),
             LogProb(AlleleFreq(0.0).ln()),
-            &observation
+            &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_one());
 
@@ -287,28 +284,16 @@ mod tests {
             LogProb::ln_zero(),
         );
 
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(1.0).ln()),
-            &observation,
-        );
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(1.0).ln()), &observation);
         assert_relative_eq!(*lh, *LogProb::ln_one());
 
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(0.0).ln()),
-            &observation,
-        );
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), &observation);
         assert_relative_eq!(*lh, *LogProb::ln_zero());
 
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(0.5).ln()),
-            &observation,
-        );
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.5).ln()), &observation);
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(0.1).ln()),
-            &observation,
-        );
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.1).ln()), &observation);
         assert_relative_eq!(*lh, 0.1f64.ln());
     }
 
@@ -333,8 +318,7 @@ mod tests {
         let lh = model.compute(&vec![AlleleFreq(0.5), AlleleFreq(0.0)], &observations);
         for af in linspace(0.0, 1.0, 10) {
             if af != 0.5 {
-                let l =
-                    model.compute(&vec![AlleleFreq(af), AlleleFreq(0.0)], &observations);
+                let l = model.compute(&vec![AlleleFreq(af), AlleleFreq(0.0)], &observations);
                 assert!(lh > l);
             }
         }
