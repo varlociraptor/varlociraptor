@@ -241,7 +241,6 @@ where
             // collect per group information
             for variant in group {
                 alleles.push(&variant.alt_allele[..]);
-                dbg!(&variant.event_probs);
 
                 for (event, prob) in &variant.event_probs {
                     event_probs

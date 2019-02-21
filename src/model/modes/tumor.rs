@@ -73,7 +73,7 @@ impl Posterior for TumorNormalPosterior {
             let af_normal = AlleleFreq(af_normal);
 
             let p = {
-                let mut tumor_density = |af_tumor| {
+                let mut joint_density = |af_tumor| {
                     let af_tumor = AlleleFreq(af_tumor);
                     let p = joint_prob(
                         &TumorNormalPair {
@@ -87,10 +87,10 @@ impl Posterior for TumorNormalPosterior {
                 };
 
                 if allele_freqs.tumor().is_singleton() {
-                    tumor_density(*allele_freqs.tumor().start)
+                    joint_density(*allele_freqs.tumor().start)
                 } else {
                     LogProb::ln_simpsons_integrate_exp(
-                        tumor_density,
+                        joint_density,
                         *allele_freqs.tumor().observable_min(n_obs_tumor),
                         *allele_freqs.tumor().observable_max(n_obs_tumor),
                         grid_points_tumor,
@@ -136,9 +136,11 @@ impl Likelihood for TumorNormalLikelihood {
     type Data = Vec<Pileup>;
 
     fn compute(&self, allele_freq: &Self::Event, pileups: &Self::Data) -> LogProb {
-        self.tumor_likelihood.compute(allele_freq, &pileups.tumor())
-            + self
-                .normal_likelihood
-                .compute(&allele_freq.normal(), &pileups.normal())
+        let p = self.tumor_likelihood.compute(allele_freq, &pileups.tumor())
+                + self
+                    .normal_likelihood
+                    .compute(&allele_freq.normal(), &pileups.normal());
+
+        p
     }
 }

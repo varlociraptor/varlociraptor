@@ -388,7 +388,7 @@ fn load_call(test: &str) -> bcf::Record {
 }
 
 fn check_allelefreq(rec: &mut bcf::Record, sample: &[u8], truth: f32, maxerr: f32) {
-    let i = rec.header().samples().binary_search(&sample).unwrap();
+    let i = rec.header().samples().iter().position(|s| *s == sample).unwrap();
     let af = rec.format(b"AF").float().unwrap()[i][0];
     let err = (af - truth).abs();
     assert!(

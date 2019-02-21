@@ -222,7 +222,10 @@ impl Default for ContinuousAlleleFreqs {
 
 impl Ord for ContinuousAlleleFreqs {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.inner.start.cmp(&other.start)
+        match self.inner.start.cmp(&other.start) {
+            Ordering::Equal => self.inner.end.cmp(&other.end),
+            ord @ _ => ord,
+        }
     }
 }
 
