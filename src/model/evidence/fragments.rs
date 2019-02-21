@@ -319,4 +319,9 @@ mod tests {
         let n = _test_n_fragment_positions(800);
         assert_eq!(n, 0);
     }
+
+    #[test]
+    fn test_isize_pmf() {
+        isize_pmf(300.0, 312.0, 15.0);
+    }
 }

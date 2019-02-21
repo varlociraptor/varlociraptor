@@ -16,7 +16,6 @@ use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
 use crate::model::{AlleleFreq, AlleleFreqs};
 use crate::utils;
-use crate::Event;
 
 pub type AlleleFreqCombination = Vec<AlleleFreq>;
 
@@ -24,6 +23,7 @@ pub type AlleleFreqCombination = Vec<AlleleFreq>;
 pub struct Call {
     chrom: Vec<u8>,
     pos: u32,
+    #[builder(default = "Vec::new()")]
     variants: Vec<Variant>,
 }
 
@@ -31,14 +31,17 @@ pub struct Call {
 pub struct Variant {
     ref_allele: Vec<u8>,
     alt_allele: Vec<u8>,
-    svlen: Option<u32>,
+    #[builder(default = "None")]
+    svlen: Option<i32>,
     event_probs: HashMap<String, LogProb>,
+    #[builder(default = "Vec::new()")]
     sample_info: Vec<SampleInfo>,
 }
 
 #[derive(Default, Clone, Debug, Builder)]
 pub struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
+    #[builder(default = "Vec::new()")]
     observations: Vec<Observation>,
 }
 
@@ -162,10 +165,16 @@ where
             );
         }
 
+        // register SVLEN
+        header.push_record(
+            b"##INFO=<SVLEN={},Number=A,Type=Integer,\
+              Description=\"Difference in length between REF and ALT alleles\">"
+        );
+
         // register allele frequency estimate
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
-            Description=\"Maximum a posteriori probability estimate of allele frequency.\">",
+              Description=\"Maximum a posteriori probability estimate of allele frequency\">",
         );
 
         // register sequences
@@ -232,6 +241,7 @@ where
             // collect per group information
             for variant in group {
                 alleles.push(&variant.alt_allele[..]);
+                dbg!(&variant.event_probs);
 
                 for (event, prob) in &variant.event_probs {
                     event_probs
@@ -295,6 +305,7 @@ where
         let mut call = CallBuilder::default()
             .chrom(chrom.to_owned())
             .pos(start)
+            .variants(Vec::new())
             .build()?;
 
         for variant in variants.into_iter() {
@@ -343,13 +354,13 @@ where
                     model::Variant::Deletion(l) => {
                         if l <= 10 {
                             variant_builder
-                                .ref_allele(chrom_seq[start - 1..start + l as usize].to_vec())
-                                .alt_allele(chrom_seq[start - 1..start].to_vec());
+                                .ref_allele(chrom_seq[start - 1..start + l as usize].to_ascii_uppercase())
+                                .alt_allele(chrom_seq[start - 1..start].to_ascii_uppercase());
                         } else {
                             variant_builder
-                                .ref_allele(chrom_seq[start..start + 1].to_vec())
-                                .alt_allele(b"<DEL>".to_vec())
-                                .svlen(Some(l));
+                                .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                                .alt_allele(b"<DEL>".to_ascii_uppercase())
+                                .svlen(Some(-(l as i32)));
                         }
                     }
                     model::Variant::Insertion(ref seq) => {
@@ -358,18 +369,18 @@ where
                         alt_allele.extend(seq);
 
                         variant_builder
-                            .ref_allele(ref_allele)
-                            .alt_allele(alt_allele);
+                            .ref_allele(ref_allele.to_ascii_uppercase())
+                            .alt_allele(alt_allele.to_ascii_uppercase());
                     }
                     model::Variant::SNV(base) => {
                         variant_builder
-                            .ref_allele(chrom_seq[start..start + 1].to_vec())
-                            .alt_allele(vec![base]);
+                            .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                            .alt_allele(vec![base].to_ascii_uppercase());
                     }
                     model::Variant::None => {
                         variant_builder
-                            .ref_allele(chrom_seq[start..start + 1].to_vec())
-                            .alt_allele(b"<REF>".to_vec());
+                            .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                            .alt_allele(b"<REF>".to_ascii_uppercase());
                     }
                 }
 

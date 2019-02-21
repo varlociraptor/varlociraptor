@@ -169,29 +169,31 @@ mod tests {
     fn test_likelihood_observation_absent_single() {
         let observation = observation(LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_one());
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(
-            &observation,
+        let model = SampleLikelihoodModel::new();
+
+        let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
+            &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
     #[test]
     fn test_likelihood_observation_absent() {
-        let model = LatentVariableModel::new(1.0);
+        let model = ContaminatedSampleLikelihoodModel::new(1.0);
         let observation = observation(LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_one());
 
-        let lh = model.likelihood_observation_case_control(
+        let lh = model.likelihood_observation(
+            LogProb(AlleleFreq(0.0).ln()),
+            LogProb(AlleleFreq(0.0).ln()),
             &observation,
-            LogProb(AlleleFreq(0.0).ln()),
-            LogProb(AlleleFreq(0.0).ln()),
         );
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
     #[test]
     fn test_likelihood_pileup_absent() {
-        let model = LatentVariableModel::new(1.0);
+        let model = ContaminatedSampleLikelihoodModel::new(1.0);
         let mut observations = Vec::new();
         for _ in 0..10 {
             observations.push(observation(
@@ -201,13 +203,13 @@ mod tests {
             ));
         }
 
-        let lh = model.likelihood_pileup(&observations, AlleleFreq(0.0), Some(AlleleFreq(0.0)));
+        let lh = model.compute(&vec![AlleleFreq(0.0), AlleleFreq(0.0)], &observations);
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
     #[test]
     fn test_likelihood_pileup_absent_single() {
-        let model = LatentVariableModel::new(1.0);
+        let model = SampleLikelihoodModel::new();
         let mut observations = Vec::new();
         for _ in 0..10 {
             observations.push(observation(
@@ -217,63 +219,65 @@ mod tests {
             ));
         }
 
-        let lh = model.likelihood_pileup(&observations, AlleleFreq(0.0), None);
+        let lh = model.compute(&AlleleFreq(0.0), &observations);
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
     #[test]
     fn test_likelihood_observation_case_control() {
-        let model = LatentVariableModel::new(1.0);
+        let model = ContaminatedSampleLikelihoodModel::new(1.0);
         let observation = observation(LogProb::ln_one(), LogProb::ln_one(), LogProb::ln_zero());
 
-        let lh = model.likelihood_observation_case_control(
-            &observation,
+        let lh = model.likelihood_observation(
             LogProb(AlleleFreq(1.0).ln()),
             LogProb(AlleleFreq(0.0).ln()),
+            &observation
         );
         assert_relative_eq!(*lh, *LogProb::ln_one());
 
-        let lh = model.likelihood_observation_case_control(
+        let lh = model.likelihood_observation(
+            LogProb(AlleleFreq(0.0).ln()),
+            LogProb(AlleleFreq(0.0).ln()),
             &observation,
-            LogProb(AlleleFreq(0.0).ln()),
-            LogProb(AlleleFreq(0.0).ln()),
         );
         assert_relative_eq!(*lh, *LogProb::ln_zero());
 
-        let lh = model.likelihood_observation_case_control(
-            &observation,
+        let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.5).ln()),
             LogProb(AlleleFreq(0.0).ln()),
+            &observation,
         );
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = model.likelihood_observation_case_control(
+        let lh = model.likelihood_observation(
+            LogProb(AlleleFreq(0.5).ln()),
+            LogProb(AlleleFreq(0.5).ln()),
             &observation,
-            LogProb(AlleleFreq(0.5).ln()),
-            LogProb(AlleleFreq(0.5).ln()),
         );
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = model.likelihood_observation_case_control(
-            &observation,
+        let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.1).ln()),
             LogProb(AlleleFreq(0.0).ln()),
+            &observation,
         );
         assert_relative_eq!(*lh, 0.1f64.ln());
 
         // test with 50% purity
-        let model = LatentVariableModel::new(0.5);
+        let model = ContaminatedSampleLikelihoodModel::new(0.5);
 
-        let lh = model.likelihood_observation_case_control(
-            &observation,
+        let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(1.0).ln()),
+            &observation,
         );
         assert_relative_eq!(*lh, 0.5f64.ln(), epsilon = 0.0000000001);
     }
 
     #[test]
     fn test_likelihood_observation_single_sample() {
+        let model = SampleLikelihoodModel::new();
+
         let observation = observation(
             // prob_mapping
             LogProb::ln_one(),
@@ -283,34 +287,34 @@ mod tests {
             LogProb::ln_zero(),
         );
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(
-            &observation,
+        let lh = model.likelihood_observation(
             LogProb(AlleleFreq(1.0).ln()),
+            &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_one());
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(
-            &observation,
+        let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
+            &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_zero());
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(
-            &observation,
+        let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.5).ln()),
+            &observation,
         );
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = LatentVariableModel::likelihood_observation_single_sample(
-            &observation,
+        let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.1).ln()),
+            &observation,
         );
         assert_relative_eq!(*lh, 0.1f64.ln());
     }
 
     #[test]
     fn test_likelihood_pileup() {
-        let model = LatentVariableModel::new(1.0);
+        let model = ContaminatedSampleLikelihoodModel::new(1.0);
         let mut observations = Vec::new();
         for _ in 0..5 {
             observations.push(observation(
@@ -326,11 +330,11 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let lh = model.likelihood_pileup(&observations, AlleleFreq(0.5), Some(AlleleFreq(0.0)));
+        let lh = model.compute(&vec![AlleleFreq(0.5), AlleleFreq(0.0)], &observations);
         for af in linspace(0.0, 1.0, 10) {
             if af != 0.5 {
                 let l =
-                    model.likelihood_pileup(&observations, AlleleFreq(af), Some(AlleleFreq(0.0)));
+                    model.compute(&vec![AlleleFreq(af), AlleleFreq(0.0)], &observations);
                 assert!(lh > l);
             }
         }

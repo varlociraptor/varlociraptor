@@ -618,43 +618,26 @@ mod tests {
     use rust_htslib::bam::Read;
     use std::str;
 
-    #[test]
-    fn test_isize_density() {
-        let d1 = isize_density(300.0, 312.0, 15.0);
-        let d2 = isize_pmf(300.0, 312.0, 15.0);
-        let d3 = isize_density_louis(300.0, 312.0, 15.0);
-        println!("{} {} {}", *d1, *d2, *d3);
-
-        let d_mix = isize_mixture_density_louis(212.0, -100.0, 312.0, 15.0, 0.05);
-        let rate = LogProb(0.05f64.ln());
-        let p_alt = (
-            // case: correctly called indel
-            rate.ln_one_minus_exp() + isize_pmf(212.0, 312.0 - 100.0, 15.0)
-        )
-        .ln_add_exp(
-            // case: no indel, false positive call
-            rate + isize_pmf(212.0, 312.0, 15.0),
-        );
-
-        println!("{} {}", d_mix.exp(), p_alt.exp());
-    }
-
     fn setup_sample(isize_mean: f64) -> Sample {
-        Sample::new(
-            bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
-            true,
-            AlignmentProperties::default(InsertSize {
-                mean: isize_mean,
-                sd: 20.0,
-            }),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            10,
-            500,
-            &[],
-        )
+        SampleBuilder::default()
+            .name("test".to_owned())
+            .alignments(
+                bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
+                AlignmentProperties::default(InsertSize {
+                    mean: isize_mean,
+                    sd: 20.0,
+                })
+            )
+            .error_probs(
+                constants::PROB_ILLUMINA_INS,
+                constants::PROB_ILLUMINA_DEL,
+                Prob(0.0),
+                Prob(0.0),
+                100,
+            )
+            .max_depth(500)
+            .build()
+            .unwrap()
     }
 
     #[test]

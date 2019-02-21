@@ -197,11 +197,11 @@ pub fn main() -> Result<(), Box<Error>> {
                     .max_depth(max_depth)
             };
 
-            let mut tumor_sample = sample_builder()
+            let tumor_sample = sample_builder()
                 .name("tumor".to_owned())
                 .alignments(tumor_bam, tumor_alignment_properties)
                 .build()?;
-            let mut normal_sample = sample_builder()
+            let normal_sample = sample_builder()
                 .name("normal".to_owned())
                 .alignments(normal_bam, normal_alignment_properties)
                 .build()?;
