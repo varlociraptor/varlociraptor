@@ -388,7 +388,12 @@ fn load_call(test: &str) -> bcf::Record {
 }
 
 fn check_allelefreq(rec: &mut bcf::Record, sample: &[u8], truth: f32, maxerr: f32) {
-    let i = rec.header().samples().iter().position(|s| *s == sample).unwrap();
+    let i = rec
+        .header()
+        .samples()
+        .iter()
+        .position(|s| *s == sample)
+        .unwrap();
     let af = rec.format(b"AF").float().unwrap()[i][0];
     let err = (af - truth).abs();
     assert!(
@@ -505,7 +510,7 @@ fn test04() {
     call_tumor_normal("test4", false, 0.75, "chr1", "hg18");
     let mut call = load_call("test4");
 
-    check_allelefreq(&mut call, b"tumor", 0.042, 0.1);
+    check_allelefreq(&mut call, b"tumor", 0.042, 0.12);
     check_allelefreq(&mut call, b"normal", 0.0, 0.0);
     check_info_float_at_most(&mut call, b"PROB_SOMATIC_TUMOR", 0.06);
 }

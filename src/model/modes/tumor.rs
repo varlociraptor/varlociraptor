@@ -137,9 +137,9 @@ impl Likelihood for TumorNormalLikelihood {
 
     fn compute(&self, allele_freq: &Self::Event, pileups: &Self::Data) -> LogProb {
         let p = self.tumor_likelihood.compute(allele_freq, &pileups.tumor())
-                + self
-                    .normal_likelihood
-                    .compute(&allele_freq.normal(), &pileups.normal());
+            + self
+                .normal_likelihood
+                .compute(&allele_freq.normal(), &pileups.normal());
 
         p
     }
