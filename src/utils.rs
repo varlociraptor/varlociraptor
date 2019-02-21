@@ -187,7 +187,7 @@ pub fn collect_variants(
 
 /// A lazy buffer for reference sequences.
 pub struct ReferenceBuffer {
-    reader: fasta::IndexedReader<fs::File>,
+    pub(crate) reader: fasta::IndexedReader<fs::File>,
     chrom: Option<Vec<u8>>,
     sequence: Vec<u8>,
 }

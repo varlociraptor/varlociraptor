@@ -16,6 +16,21 @@ fn prob_sample_alt(observation: &Observation, allele_freq: LogProb) -> LogProb {
     }
 }
 
+pub trait ContaminatedSamplePairView<T> {
+    fn primary(&self) -> &T;
+    fn secondary(&self) -> &T;
+}
+
+impl<T> ContaminatedSamplePairView<T> for Vec<T> {
+    fn primary(&self) -> &T {
+        &self[0]
+    }
+
+    fn secondary(&self) -> &T {
+        &self[1]
+    }
+}
+
 /// Variant calling model, taking purity and allele frequencies into account.
 #[derive(Clone, Copy, Debug)]
 pub struct ContaminatedSampleLikelihoodModel {
@@ -43,32 +58,32 @@ impl ContaminatedSampleLikelihoodModel {
 
     fn likelihood_observation(
         &self,
-        allele_freq: LogProb,
-        allele_freq_contamination: LogProb,
+        allele_freq_primary: LogProb,
+        allele_freq_secondary: LogProb,
         observation: &Observation,
     ) -> LogProb {
         // Step 1: probability to sample observation: AF * placement induced probability
-        let prob_sample_alt_case = prob_sample_alt(observation, allele_freq);
-        let prob_sample_alt_control = prob_sample_alt(observation, allele_freq_contamination);
+        let prob_sample_alt_primary = prob_sample_alt(observation, allele_freq_primary);
+        let prob_sample_alt_secondary = prob_sample_alt(observation, allele_freq_secondary);
 
         // Step 2: read comes from control sample and is correctly mapped
-        let prob_control = self.impurity
-            + (prob_sample_alt_control + observation.prob_alt)
-                .ln_add_exp(prob_sample_alt_control.ln_one_minus_exp() + observation.prob_ref);
-        assert!(!prob_control.is_nan());
+        let prob_secondary = self.impurity
+            + (prob_sample_alt_secondary + observation.prob_alt)
+                .ln_add_exp(prob_sample_alt_secondary.ln_one_minus_exp() + observation.prob_ref);
+        assert!(!prob_secondary.is_nan());
 
         // Step 3: read comes from case sample and is correctly mapped
-        let prob_case = self.purity
-            + (prob_sample_alt_case + observation.prob_alt)
-                .ln_add_exp(prob_sample_alt_case.ln_one_minus_exp() + observation.prob_ref);
-        assert!(!prob_case.is_nan());
+        let prob_primary = self.purity
+            + (prob_sample_alt_primary + observation.prob_alt)
+                .ln_add_exp(prob_sample_alt_primary.ln_one_minus_exp() + observation.prob_ref);
+        assert!(!prob_primary.is_nan());
 
         // Step 4: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
         // in the mismapping case. Otherwise, it can happen that mismapping dominates subtle
         // differences in the likelihood for alt and ref allele with low probabilities and very
         // low allele frequencies, such that we loose sensitivity for those.
-        let total = (observation.prob_mapping + prob_control.ln_add_exp(prob_case))
+        let total = (observation.prob_mapping + prob_secondary.ln_add_exp(prob_primary))
             .ln_add_exp(observation.prob_mismapping + observation.prob_missed_allele);
         assert!(!total.is_nan());
         total
@@ -76,16 +91,15 @@ impl ContaminatedSampleLikelihoodModel {
 }
 
 impl Likelihood for ContaminatedSampleLikelihoodModel {
-    type Event = (AlleleFreq, AlleleFreq);
+    type Event = Vec<AlleleFreq>;
     type Data = Pileup;
 
-    fn compute(&self, allelefreqs: &(AlleleFreq, AlleleFreq), pileup: &Pileup) -> LogProb {
-        let (allele_freq, allele_freq_contamination) = allelefreqs;
-        let ln_af = LogProb(allele_freq.ln());
-        let ln_af_contamination = LogProb(allele_freq_contamination.ln());
+    fn compute(&self, allelefreqs: &Self::Event, pileup: &Self::Data) -> LogProb {
+        let ln_af_primary = LogProb(allelefreqs.primary().ln());
+        let ln_af_secondary = LogProb(allelefreqs.secondary().ln());
         // calculate product of per-oservation likelihoods in log space
         let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-            let lh = self.likelihood_observation(ln_af, ln_af_contamination, obs);
+            let lh = self.likelihood_observation(ln_af_primary, ln_af_secondary, obs);
             prob + lh
         });
 
@@ -110,16 +124,16 @@ impl SampleLikelihoodModel {
         let prob_sample_alt = prob_sample_alt(observation, allele_freq);
 
         // Step 2: read comes from case sample and is correctly mapped
-        let prob_case = (prob_sample_alt + observation.prob_alt)
+        let prob = (prob_sample_alt + observation.prob_alt)
             .ln_add_exp(prob_sample_alt.ln_one_minus_exp() + observation.prob_ref);
-        assert!(!prob_case.is_nan());
+        assert!(!prob.is_nan());
 
         // Step 3: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
         // in the mismapping case. Otherwise, it can happen that mismapping dominates subtle
         // differences in the likelihood for alt and ref allele with low probabilities and very
         // low allele frequencies, such that we loose sensitivity for those.
-        let total = (observation.prob_mapping + prob_case)
+        let total = (observation.prob_mapping + prob)
             .ln_add_exp(observation.prob_mismapping + observation.prob_missed_allele);
         assert!(!total.is_nan());
         total

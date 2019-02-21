@@ -3,18 +3,19 @@ use bio::stats::LogProb;
 
 use crate::model::AlleleFreq;
 
-pub struct FlatPairPrior {}
+#[derive(Default, Clone)]
+pub struct FlatPrior {}
 
-impl FlatPairPrior {
+impl FlatPrior {
     pub fn new() -> Self {
-        FlatPairPrior {}
+        FlatPrior {}
     }
 }
 
-impl Prior for FlatPairPrior {
-    type Event = (AlleleFreq, AlleleFreq);
+impl Prior for FlatPrior {
+    type Event = Vec<AlleleFreq>;
 
-    fn compute(&self, _event: &(AlleleFreq, AlleleFreq)) -> LogProb {
+    fn compute(&self, _event: &Self::Event) -> LogProb {
         LogProb::ln_one()
     }
 }

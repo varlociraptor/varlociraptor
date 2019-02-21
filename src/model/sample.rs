@@ -193,6 +193,7 @@ pub fn estimate_alignment_properties<P: AsRef<Path>>(
 #[derive(Builder)]
 #[builder(pattern = "owned")]
 pub struct Sample {
+    name: String,
     #[builder(private)]
     record_buffer: RecordBuffer,
     #[builder(default = "true")]
@@ -252,6 +253,10 @@ impl SampleBuilder {
 }
 
 impl Sample {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,

@@ -11,8 +11,9 @@ use itertools::Itertools;
 use structopt::StructOpt;
 
 use varlociraptor::call::CallerBuilder;
+use varlociraptor::model::modes::common::FlatPrior;
 use varlociraptor::model::modes::tumor::{
-    TumorNormalEvent, TumorNormalFlatPrior, TumorNormalLikelihood, TumorNormalPosterior,
+    TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior,
 };
 use varlociraptor::model::sample::{estimate_alignment_properties, SampleBuilder};
 use varlociraptor::model::ContinuousAlleleFreqs;
@@ -197,43 +198,17 @@ pub fn main() -> Result<(), Box<Error>> {
             };
 
             let mut tumor_sample = sample_builder()
+                .name("tumor".to_owned())
                 .alignments(tumor_bam, tumor_alignment_properties)
                 .build()?;
             let mut normal_sample = sample_builder()
+                .name("normal".to_owned())
                 .alignments(normal_bam, normal_alignment_properties)
                 .build()?;
 
-            let events = [
-                TumorNormalEvent {
-                    name: "germline_het".to_owned(),
-                    tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                    normal: ContinuousAlleleFreqs::singleton(0.5),
-                },
-                TumorNormalEvent {
-                    name: "germline_hom".to_owned(),
-                    tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                    normal: ContinuousAlleleFreqs::singleton(1.0),
-                },
-                TumorNormalEvent {
-                    name: "somatic_tumor".to_owned(),
-                    tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0).min_observations(2),
-                    normal: ContinuousAlleleFreqs::absent(),
-                },
-                TumorNormalEvent {
-                    name: "somatic_normal".to_owned(),
-                    tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
-                    normal: ContinuousAlleleFreqs::exclusive(0.0..0.5).min_observations(2),
-                },
-                TumorNormalEvent {
-                    name: "absent".to_owned(),
-                    tumor: ContinuousAlleleFreqs::absent(),
-                    normal: ContinuousAlleleFreqs::absent(),
-                },
-            ];
-
             let model = Model::new(
                 TumorNormalLikelihood::new(purity),
-                TumorNormalFlatPrior::new(),
+                FlatPrior::new(),
                 TumorNormalPosterior::new(),
             );
 
@@ -241,15 +216,50 @@ pub fn main() -> Result<(), Box<Error>> {
                 .samples(vec![tumor_sample, normal_sample])
                 .reference(reference)?
                 .inbcf(candidates.as_ref())?
-                .events(events.to_vec())
                 .model(model)
                 .omit_snvs(omit_snvs)
                 .omit_indels(omit_indels)
                 .max_indel_len(max_indel_len)
                 .exclusive_end(exclusive_end)
+                .event(
+                    "germline_het",
+                    TumorNormalPair {
+                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
+                        normal: ContinuousAlleleFreqs::singleton(0.5),
+                    },
+                )
+                .event(
+                    "germline_hom",
+                    TumorNormalPair {
+                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
+                        normal: ContinuousAlleleFreqs::singleton(1.0),
+                    },
+                )
+                .event(
+                    "somatic_tumor",
+                    TumorNormalPair {
+                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0).min_observations(2),
+                        normal: ContinuousAlleleFreqs::absent(),
+                    },
+                )
+                .event(
+                    "somatic_normal",
+                    TumorNormalPair {
+                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
+                        normal: ContinuousAlleleFreqs::exclusive(0.0..0.5).min_observations(2),
+                    },
+                )
+                .event(
+                    "absent",
+                    TumorNormalPair {
+                        tumor: ContinuousAlleleFreqs::absent(),
+                        normal: ContinuousAlleleFreqs::absent(),
+                    },
+                )
+                .outbcf(output.as_ref())?
                 .build()?;
 
-
+            caller.call()?;
         }
         Varlociraptor::FilterCalls { .. } => {}
     }
