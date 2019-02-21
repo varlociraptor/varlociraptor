@@ -12,7 +12,7 @@ use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{bayesian, LogProb, PHREDProb};
 use derive_builder::Builder;
 use itertools::Itertools;
-use rust_htslib::bcf::{self, Read};
+use rust_htslib::bcf::{self, Read, record::Numeric};
 use vec_map::VecMap;
 
 use crate::model;
@@ -171,7 +171,7 @@ where
 
         // register SVLEN
         header.push_record(
-            b"##INFO=<SVLEN={},Number=A,Type=Integer,\
+            b"##INFO=<ID=SVLEN,Number=A,Type=Integer,\
               Description=\"Difference in length between REF and ALT alleles\">",
         );
 
@@ -240,6 +240,7 @@ where
             let mut event_probs = HashMap::new();
             let mut allelefreq_estimates = VecMap::new();
             let mut alleles = Vec::new();
+            let mut svlens = Vec::new();
             alleles.push(&ref_allele[..]);
 
             // collect per group information
@@ -259,10 +260,22 @@ where
                         .or_insert_with(|| Vec::new())
                         .push(*sample_info.allelefreq_estimate as f32);
                 }
+
+                if let Some(svlen) = variant.svlen {
+                    svlens.push(svlen);
+                } else {
+                    svlens.push(i32::missing());
+                }
             }
 
             // set alleles
             record.set_alleles(&alleles)?;
+            dbg!(&svlens);
+            record.push_info_integer(b"SVLEN", &svlens)?;
+
+            // set qual
+            record.set_qual(f32::missing());
+
             // set event probabilities
             for (event, probs) in event_probs {
                 let probs = probs
@@ -355,27 +368,31 @@ where
                 // add variant information
                 match variant {
                     model::Variant::Deletion(l) => {
-                        if l <= 10 {
+                        let svlen = -(l as i32);
+                        if l <= 50 {
                             variant_builder
                                 .ref_allele(
-                                    chrom_seq[start - 1..start + l as usize].to_ascii_uppercase(),
+                                    chrom_seq[start..start + 1 + l as usize].to_ascii_uppercase(),
                                 )
-                                .alt_allele(chrom_seq[start - 1..start].to_ascii_uppercase());
+                                .alt_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                                .svlen(Some(svlen));
                         } else {
                             variant_builder
                                 .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
                                 .alt_allele(b"<DEL>".to_ascii_uppercase())
-                                .svlen(Some(-(l as i32)));
+                                .svlen(Some(svlen));
                         }
                     }
                     model::Variant::Insertion(ref seq) => {
-                        let ref_allele = vec![chrom_seq[start - 1]];
+                        let svlen = seq.len() as i32;
+                        let ref_allele = vec![chrom_seq[start]];
                         let mut alt_allele = ref_allele.clone();
                         alt_allele.extend(seq);
 
                         variant_builder
                             .ref_allele(ref_allele.to_ascii_uppercase())
-                            .alt_allele(alt_allele.to_ascii_uppercase());
+                            .alt_allele(alt_allele.to_ascii_uppercase())
+                            .svlen(Some(svlen));
                     }
                     model::Variant::SNV(base) => {
                         variant_builder
