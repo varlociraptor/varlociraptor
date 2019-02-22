@@ -273,11 +273,11 @@ impl AbstractReadEvidence for IndelEvidence {
 
         // alt allele
         let mut prob_alt = match variant {
-            &Variant::Deletion(_) => {
+            &Variant::Deletion(l) => {
                 let p = DeletionEmissionParams {
                     ref_seq: ref_seq,
                     ref_offset: start.saturating_sub(ref_window),
-                    ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                    ref_end: cmp::min(start + ref_window + l as usize, ref_seq.len()),
                     del_start: start,
                     del_len: variant.len() as usize,
                     read_emission: &read_emission,
@@ -462,11 +462,6 @@ macro_rules! default_emission {
         }
 
         #[inline]
-        fn len_x(&self) -> usize {
-            self.ref_end - self.ref_offset
-        }
-
-        #[inline]
         fn len_y(&self) -> usize {
             self.read_emission.read_end - self.read_emission.read_offset
         }
@@ -551,6 +546,11 @@ impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
 
 impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
     default_emission!();
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.ref_end - self.ref_offset
+    }
 }
 
 /// Emission parameters for PairHMM over deletion allele.
@@ -577,6 +577,11 @@ impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
 
 impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
     default_emission!();
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.ref_end - self.del_len - self.ref_offset
+    }
 }
 
 /// Emission parameters for PairHMM over insertion allele.
@@ -607,6 +612,11 @@ impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
 
 impl<'a> pairhmm::EmissionParameters for InsertionEmissionParams<'a> {
     default_emission!();
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.ref_end - self.ref_offset + self.ins_len
+    }
 }
 
 pub struct EditDistanceCalculation {
