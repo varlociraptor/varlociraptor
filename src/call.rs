@@ -216,12 +216,14 @@ where
     >,
 {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
-        let call = self.call_next()?;
-        if let Some(call) = call {
-            self.write_call(&call)
-        } else {
-            // done
-            Ok(())
+        loop {
+            let call = self.call_next()?;
+            if let Some(call) = call {
+                self.write_call(&call)?;
+            } else {
+                // done
+                return Ok(())
+            }
         }
     }
 
@@ -270,7 +272,6 @@ where
 
             // set alleles
             record.set_alleles(&alleles)?;
-            dbg!(&svlens);
             record.push_info_integer(b"SVLEN", &svlens)?;
 
             // set qual
