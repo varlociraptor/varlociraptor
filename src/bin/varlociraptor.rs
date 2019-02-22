@@ -10,6 +10,7 @@ use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
 use bio::stats::{Prob, LogProb};
 use rust_htslib::bam;
+use fern;
 
 use itertools::Itertools;
 use structopt::StructOpt;
@@ -165,6 +166,22 @@ enum FilterMethod {
 
 pub fn main() -> Result<(), Box<Error>> {
     let opt = Varlociraptor::from_args();
+
+    // setup logger
+    let logger_config = fern::DispatchConfig {
+        format: Box::new(|msg: &str, level: &log::LogLevel, _: &log::LogLocation| {
+          match level {
+              &log::LogLevel::Debug => format!("DEBUG[{}]: {}", time::now().strftime("%H:%M:%S").unwrap(), msg),
+              _ => msg.to_owned()
+          }
+        }),
+        output: vec![fern::OutputConfig::stderr()],
+        level: log::LogLevelFilter::Trace,
+    };
+    fern::init_global_logger(
+        logger_config,
+        log::LogLevelFilter::Info
+    )?;
 
     match opt {
         Varlociraptor::CallTumorNormal {
