@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
-use bio::stats::Prob;
+use bio::stats::{Prob, LogProb};
 use rust_htslib::bam;
 
 use itertools::Itertools;
@@ -21,6 +21,9 @@ use varlociraptor::model::modes::tumor::{
 };
 use varlociraptor::model::sample::{estimate_alignment_properties, SampleBuilder};
 use varlociraptor::model::ContinuousAlleleFreqs;
+use varlociraptor::filtration;
+use varlociraptor::model::VariantType;
+use varlociraptor::SimpleEvent;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -33,6 +36,7 @@ enum Varlociraptor {
         name = "call-tumor-normal",
         about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants."
     )]
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     CallTumorNormal {
         #[structopt(parse(from_os_str), help = "BAM file with reads from tumor sample.")]
         tumor: PathBuf,
@@ -58,32 +62,32 @@ enum Varlociraptor {
         #[structopt(short, long, default_value = "1.0", help = "Purity of tumor sample.")]
         purity: f64,
         #[structopt(
-            long,
+            long = "spurious-ins-rate",
             default_value = "2.8e-6",
             help = "Rate of spuriously inserted bases by the sequencer (Illumina: 2.8e-6, see Schirmer et al. BMC Bioinformatics 2016)."
         )]
         spurious_ins_rate: f64,
         #[structopt(
-            long,
+            long = "spurious-del-rate",
             default_value = "5.1e-6",
             help = "Rate of spuriosly deleted bases by the sequencer (Illumina: 5.1e-6, see Schirmer et al. BMC Bioinformatics 2016)."
         )]
         spurious_del_rate: f64,
         #[structopt(
-            long,
+            long = "spurious-insext-rate",
             default_value = "0.0",
             help = "Extension rate of spurious insertions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
         )]
         spurious_insext_rate: f64,
         #[structopt(
-            long,
+            long = "spurious-delext-rate",
             default_value = "0.0",
             help = "Extension rate of spurious deletions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
         )]
         spurious_delext_rate: f64,
-        #[structopt(long, help = "Don't call SNVs.")]
+        #[structopt(long = "omit-snvs", help = "Don't call SNVs.")]
         omit_snvs: bool,
-        #[structopt(long, help = "Don't call Indels.")]
+        #[structopt(long = "omit-indels", help = "Don't call Indels.")]
         omit_indels: bool,
         #[structopt(
             parse(from_os_str),
@@ -92,24 +96,24 @@ enum Varlociraptor {
         )]
         observations: Option<PathBuf>,
         #[structopt(
-            long,
+            long = "max-indel-len",
             default_value = "1000",
             help = "Omit longer indels when calling."
         )]
         max_indel_len: u32,
         #[structopt(
-            long,
+            long = "exclusive-end",
             help = "Assume that the END tag is exclusive (i.e. it points to the position after the variant). This is needed, e.g., for DELLY."
         )]
         exclusive_end: bool,
         #[structopt(
-            long,
+            long = "indel-window",
             default_value = "100",
             help = "Number of bases to consider left and right of indel breakpoint when calculating read support. This number should not be too large in order to avoid biases caused by other close variants."
         )]
         indel_window: u32,
         #[structopt(
-            long,
+            long = "max-depth",
             default_value = "500",
             help = "Maximum number of observations to use for calling. If locus is exceeding this number, downsampling is performed."
         )]
@@ -119,6 +123,7 @@ enum Varlociraptor {
         name = "filter-calls",
         about = "Filter calls by either controlling the false discovery rate (FDR) at given level, or by posterior odds against the given events."
     )]
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     FilterCalls {
         #[structopt(subcommand)]
         method: FilterMethod,
@@ -128,19 +133,23 @@ enum Varlociraptor {
 #[derive(Debug, StructOpt)]
 enum FilterMethod {
     #[structopt(name = "control-fdr")]
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     ControlFDR {
-        #[structopt(long, help = "Events to consider.")]
-        events: Vec<String>,
+        #[structopt(parse(from_os_str), help = "BCF file with varlociraptor calls.")]
+        calls: PathBuf,
+        #[structopt(long = "var", raw(possible_values = "{use strum::IntoEnumIterator; &VariantType::iter().map(|v| v.into()).collect_vec()}"), help = "Variant type to consider.")]
+        vartype: VariantType,
         #[structopt(long, help = "FDR to control for.")]
         fdr: f64,
-        #[structopt(long = "var", help = "Variant type to consider.")]
-        vartype: Vec<String>,
+        #[structopt(long, help = "Events to consider.")]
+        events: Vec<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
-        min_len: Option<usize>,
+        minlen: Option<u32>,
         #[structopt(long, help = "Maximum indel length to consider (exclusive).")]
-        max_len: Option<usize>,
+        maxlen: Option<u32>,
     },
     #[structopt(name = "posterior-odds")]
+    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     PosteriorOdds {
         #[structopt(
             raw(
@@ -262,8 +271,42 @@ pub fn main() -> Result<(), Box<Error>> {
                 .build()?;
 
             caller.call()?;
+        },
+        Varlociraptor::FilterCalls { method } => {
+            match method {
+                FilterMethod::ControlFDR {
+                    ref calls,
+                    ref events,
+                    fdr,
+                    ref vartype,
+                    minlen,
+                    maxlen,
+                } => {
+                    let events = events.into_iter().map(|event| SimpleEvent { name: event.to_owned() }).collect_vec();
+                    let vartype = match (vartype, minlen, maxlen) {
+                        (&VariantType::Insertion(None), Some(minlen), Some(maxlen)) => VariantType::Insertion(Some(minlen..maxlen)),
+                        (&VariantType::Deletion(None), Some(minlen), Some(maxlen)) => VariantType::Deletion(Some(minlen..maxlen)),
+                        (vartype @ _, _, _) => vartype.clone()
+                    };
+
+                    filtration::fdr::control_fdr::<_, &PathBuf, &str>(
+                        calls,
+                        None,
+                        &events,
+                        &vartype,
+                        LogProb::from(Prob::checked(fdr)?)
+                    )?;
+                },
+                FilterMethod::PosteriorOdds {
+                    ref events,
+                    odds
+                } => {
+                    let events = events.into_iter().map(|event| SimpleEvent { name: event.to_owned() }).collect_vec();
+
+                    filtration::posterior_odds::filter_by_odds::<_, &PathBuf, &PathBuf>(None, None, &events, odds)?;
+                }
+            }
         }
-        Varlociraptor::FilterCalls { .. } => {}
     }
     Ok(())
 }

@@ -9,6 +9,7 @@ use std::ops::{Deref, Range};
 
 use itertools::Itertools;
 use ordered_float::NotNan;
+use strum_macros::{EnumString, EnumIter, IntoStaticStr};
 
 pub mod evidence;
 pub mod likelihood;
@@ -248,11 +249,20 @@ impl Deref for ContinuousAlleleFreqs {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize,
+        Deserialize,
+        EnumString,
+        EnumIter,
+        IntoStaticStr,
+)]
 pub enum VariantType {
+    #[strum(serialize = "INS")]
     Insertion(Option<Range<u32>>),
+    #[strum(serialize = "DEL")]
     Deletion(Option<Range<u32>>),
+    #[strum(serialize = "SNV")]
     SNV,
+    #[strum(serialize = "REF")]
     None, // site with no suggested alternative allele
 }
 

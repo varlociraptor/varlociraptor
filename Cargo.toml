@@ -32,6 +32,7 @@ statrs = "0.9"
 clap = {version = "2.24", features = ["yaml", "color", "suggestions"]}
 structopt = "0.2"
 strum = "0.13"
+strum_macros = "0.13"
 rand = "0.4"
 derive_builder = "0.7"
 
