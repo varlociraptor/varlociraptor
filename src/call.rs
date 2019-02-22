@@ -217,9 +217,12 @@ where
 {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
         loop {
-            let call = self.call_next()?;
-            if let Some(call) = call {
-                self.write_call(&call)?;
+            let record = self.next_record()?;
+            if let Some(mut record) = record {
+                let call = self.call_record(&mut record)?;
+                if let Some(call) = call {
+                    self.write_call(&call)?;
+                }
             } else {
                 // done
                 return Ok(())
@@ -299,23 +302,30 @@ where
         Ok(())
     }
 
-    fn call_next(&mut self) -> Result<Option<Call>, Box<Error>> {
+    fn next_record(&mut self) -> Result<Option<bcf::Record>, Box<Error>> {
         let mut record = self.bcf_reader.empty_record();
         match self.bcf_reader.read(&mut record) {
-            Err(bcf::ReadError::NoMoreRecord) => return Ok(None),
-            Err(e) => return Err(Box::new(e)),
-            Ok(()) => (),
+            Err(bcf::ReadError::NoMoreRecord) => Ok(None),
+            Err(e) => Err(Box::new(e)),
+            Ok(()) => Ok(Some(record)),
         }
+    }
 
+
+    fn call_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>, Box<Error>> {
         let start = record.pos();
         let chrom = chrom(&self.bcf_reader, &record);
         let variants = utils::collect_variants(
-            &mut record,
+            record,
             self.omit_snvs,
             self.omit_indels,
             Some(0..self.max_indel_len),
             self.exclusive_end,
         )?;
+
+        if variants.is_empty() {
+            return Ok(None);
+        }
 
         let chrom_seq = self.reference_buffer.seq(&chrom)?;
 
