@@ -72,6 +72,7 @@ impl Event for ComplementEvent {
 }
 
 /// A simple event that just has a name.
+#[derive(Debug)]
 pub struct SimpleEvent {
     /// event name
     pub name: String,

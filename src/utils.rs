@@ -32,8 +32,8 @@ pub fn collect_variants(
     exclusive_end: bool,
 ) -> Result<Vec<Option<model::Variant>>, Box<Error>> {
     let pos = record.pos();
-    let svlen = match record.info(b"SVLEN").integer() {
-        Ok(Some(svlen)) => Some(svlen[0].abs() as u32),
+    let svlens = match record.info(b"SVLEN").integer() {
+        Ok(Some(svlens)) => Some(svlens.into_iter().map(|l| l.abs() as u32).collect_vec()),
         _ => None,
     };
     let end = match record.info(b"END").integer() {
@@ -106,8 +106,8 @@ pub fn collect_variants(
                 }
             }
         } else if svtype == b"DEL" {
-            let svlen = match (svlen, end) {
-                (Some(svlen), _) => svlen,
+            let svlen = match (svlens, end) {
+                (Some(svlens), _) => svlens[0],
                 (None, Some(end)) => end - pos,
                 _ => {
                     return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
@@ -141,7 +141,8 @@ pub fn collect_variants(
         alleles
             .iter()
             .skip(1)
-            .map(|alt_allele| {
+            .enumerate()
+            .map(|(i, alt_allele)| {
                 if alt_allele == b"<*>" {
                     // dummy non-ref allele, signifying potential homozygous reference site
                     if omit_snvs {
@@ -149,8 +150,15 @@ pub fn collect_variants(
                     } else {
                         Some(model::Variant::None)
                     }
+                } else if alt_allele == b"<DEL>" {
+                    if let Some(ref svlens) = svlens {
+                        Some(model::Variant::Deletion(svlens[i]))
+                    } else {
+                        // TODO fail with an error in this case
+                        None
+                    }
                 } else if alt_allele[0] == b'<' {
-                    // skip allele if it is a special tag other than '<*>' (such alleles have been handled above)
+                    // skip any other special alleles
                     None
                 } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                     // SNV
@@ -346,37 +354,6 @@ pub fn filter_by_threshold<E: Event>(
         }))
     };
     filter_calls(calls, out, filter)
-
-    // let mut record = calls.empty_record();
-    // let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
-    // loop {
-    //     if let Err(e) = calls.read(&mut record) {
-    //         if e.is_eof() {
-    //             return Ok(());
-    //         } else {
-    //             return Err(Box::new(e));
-    //         }
-    //     }
-    //
-    //     let probs = utils::tags_prob_sum(&mut record, &tags, vartype)?;
-    //     let mut remove = vec![false]; // don't remove the reference allele
-    //     remove.extend(probs.into_iter().map(|p| {
-    //         match (p, threshold) {
-    //             // we allow some numerical instability in case of equality
-    //             (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => {
-    //                 false
-    //             }
-    //             (Some(_), None) => false,
-    //             _ => true,
-    //         }
-    //     }));
-    //
-    //     // Write trimmed record if any allele remains. Otherwise skip the record.
-    //     if !remove[1..].iter().all(|r| *r) {
-    //         record.remove_alleles(&remove)?;
-    //         out.write(&record)?;
-    //     }
-    // }
 }
 
 /// Filter calls by a given function.
