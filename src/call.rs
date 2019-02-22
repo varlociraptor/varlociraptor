@@ -216,12 +216,17 @@ where
     >,
 {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
+        let mut i = 0;
         loop {
             let record = self.next_record()?;
             if let Some(mut record) = record {
                 let call = self.call_record(&mut record)?;
                 if let Some(call) = call {
                     self.write_call(&call)?;
+                    i += 1;
+                    if i % 1000 == 0 {
+                        info!("{} records written.", i);
+                    }
                 }
             } else {
                 // done
