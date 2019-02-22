@@ -59,13 +59,14 @@ where
         // TODO: remove hits where another event has a higher probability
         // Otherwise, if there are just enough calls, events like PROB_SOMATIC=8, PROB_ABSENT=2
         // can end up in the filtered results.
-        let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, events, vartype)?.into_iter().rev().map(|p| LogProb(*p)).collect_vec();
+        let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, events, vartype)?
+            .into_iter()
+            .rev()
+            .map(|p| LogProb(*p))
+            .collect_vec();
 
         // estimate FDR
-        let pep_dist = prob_dist
-            .iter()
-            .map(|p| p.ln_one_minus_exp())
-            .collect_vec();
+        let pep_dist = prob_dist.iter().map(|p| p.ln_one_minus_exp()).collect_vec();
         let fdrs = bayesian::expected_fdr(&pep_dist);
 
         if fdrs.is_empty() {
