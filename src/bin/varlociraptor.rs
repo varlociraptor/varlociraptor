@@ -8,21 +8,21 @@ use std::path::PathBuf;
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
-use bio::stats::{Prob, LogProb};
-use rust_htslib::bam;
+use bio::stats::{LogProb, Prob};
 use fern;
+use rust_htslib::bam;
 
 use itertools::Itertools;
 use structopt::StructOpt;
 
 use varlociraptor::call::CallerBuilder;
+use varlociraptor::filtration;
 use varlociraptor::model::modes::common::FlatPrior;
 use varlociraptor::model::modes::tumor::{
     TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior,
 };
 use varlociraptor::model::sample::{estimate_alignment_properties, SampleBuilder};
 use varlociraptor::model::ContinuousAlleleFreqs;
-use varlociraptor::filtration;
 use varlociraptor::model::VariantType;
 use varlociraptor::SimpleEvent;
 
@@ -138,7 +138,13 @@ enum FilterMethod {
     ControlFDR {
         #[structopt(parse(from_os_str), help = "BCF file with varlociraptor calls.")]
         calls: PathBuf,
-        #[structopt(long = "var", raw(possible_values = "{use strum::IntoEnumIterator; &VariantType::iter().map(|v| v.into()).collect_vec()}"), help = "Variant type to consider.")]
+        #[structopt(
+            long = "var",
+            raw(
+                possible_values = "{use strum::IntoEnumIterator; &VariantType::iter().map(|v| v.into()).collect_vec()}"
+            ),
+            help = "Variant type to consider."
+        )]
         vartype: VariantType,
         #[structopt(long, help = "FDR to control for.")]
         fdr: f64,
@@ -278,42 +284,53 @@ pub fn main() -> Result<(), Box<Error>> {
                 .build()?;
 
             caller.call()?;
-        },
-        Varlociraptor::FilterCalls { method } => {
-            match method {
-                FilterMethod::ControlFDR {
-                    ref calls,
-                    ref events,
-                    fdr,
-                    ref vartype,
-                    minlen,
-                    maxlen,
-                } => {
-                    let events = events.into_iter().map(|event| SimpleEvent { name: event.to_owned() }).collect_vec();
-                    let vartype = match (vartype, minlen, maxlen) {
-                        (&VariantType::Insertion(None), Some(minlen), Some(maxlen)) => VariantType::Insertion(Some(minlen..maxlen)),
-                        (&VariantType::Deletion(None), Some(minlen), Some(maxlen)) => VariantType::Deletion(Some(minlen..maxlen)),
-                        (vartype @ _, _, _) => vartype.clone()
-                    };
-
-                    filtration::fdr::control_fdr::<_, &PathBuf, &str>(
-                        calls,
-                        None,
-                        &events,
-                        &vartype,
-                        LogProb::from(Prob::checked(fdr)?)
-                    )?;
-                },
-                FilterMethod::PosteriorOdds {
-                    ref events,
-                    odds
-                } => {
-                    let events = events.into_iter().map(|event| SimpleEvent { name: event.to_owned() }).collect_vec();
-
-                    filtration::posterior_odds::filter_by_odds::<_, &PathBuf, &PathBuf>(None, None, &events, odds)?;
-                }
-            }
         }
+        Varlociraptor::FilterCalls { method } => match method {
+            FilterMethod::ControlFDR {
+                ref calls,
+                ref events,
+                fdr,
+                ref vartype,
+                minlen,
+                maxlen,
+            } => {
+                let events = events
+                    .into_iter()
+                    .map(|event| SimpleEvent {
+                        name: event.to_owned(),
+                    })
+                    .collect_vec();
+                let vartype = match (vartype, minlen, maxlen) {
+                    (&VariantType::Insertion(None), Some(minlen), Some(maxlen)) => {
+                        VariantType::Insertion(Some(minlen..maxlen))
+                    }
+                    (&VariantType::Deletion(None), Some(minlen), Some(maxlen)) => {
+                        VariantType::Deletion(Some(minlen..maxlen))
+                    }
+                    (vartype @ _, _, _) => vartype.clone(),
+                };
+
+                filtration::fdr::control_fdr::<_, &PathBuf, &str>(
+                    calls,
+                    None,
+                    &events,
+                    &vartype,
+                    LogProb::from(Prob::checked(fdr)?),
+                )?;
+            }
+            FilterMethod::PosteriorOdds { ref events, odds } => {
+                let events = events
+                    .into_iter()
+                    .map(|event| SimpleEvent {
+                        name: event.to_owned(),
+                    })
+                    .collect_vec();
+
+                filtration::posterior_odds::filter_by_odds::<_, &PathBuf, &PathBuf>(
+                    None, None, &events, odds,
+                )?;
+            }
+        },
     }
     Ok(())
 }

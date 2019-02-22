@@ -12,7 +12,7 @@ use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{bayesian, LogProb, PHREDProb};
 use derive_builder::Builder;
 use itertools::Itertools;
-use rust_htslib::bcf::{self, Read, record::Numeric};
+use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
 use crate::model;
@@ -230,7 +230,7 @@ where
                 }
             } else {
                 // done
-                return Ok(())
+                return Ok(());
             }
         }
     }
@@ -315,7 +315,6 @@ where
             Ok(()) => Ok(Some(record)),
         }
     }
-
 
     fn call_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>, Box<Error>> {
         let start = record.pos();

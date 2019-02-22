@@ -9,7 +9,7 @@ use std::ops::{Deref, Range};
 
 use itertools::Itertools;
 use ordered_float::NotNan;
-use strum_macros::{EnumString, EnumIter, IntoStaticStr};
+use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 pub mod evidence;
 pub mod likelihood;
@@ -249,12 +249,7 @@ impl Deref for ContinuousAlleleFreqs {
     }
 }
 
-#[derive(Debug, Clone, Serialize,
-        Deserialize,
-        EnumString,
-        EnumIter,
-        IntoStaticStr,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr)]
 pub enum VariantType {
     #[strum(serialize = "INS")]
     Insertion(Option<Range<u32>>),
