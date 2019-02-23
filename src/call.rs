@@ -27,6 +27,7 @@ pub type AlleleFreqCombination = Vec<AlleleFreq>;
 pub struct Call {
     chrom: Vec<u8>,
     pos: u32,
+    id: Option<Vec<u8>>,
     #[builder(default = "Vec::new()")]
     variants: Vec<Variant>,
 }
@@ -246,6 +247,10 @@ where
             let mut record = self.bcf_writer.empty_record();
             record.set_rid(&Some(rid));
             record.set_pos(call.pos as i32);
+            // set ID if present
+            if let Some(ref id) = call.id {
+                record.set_id(id)?;
+            }
 
             let mut event_probs = HashMap::new();
             let mut allelefreq_estimates = VecMap::new();
@@ -336,6 +341,14 @@ where
         let mut call = CallBuilder::default()
             .chrom(chrom.to_owned())
             .pos(start)
+            .id({
+                let id = record.id();
+                if id == b"." {
+                    None
+                } else {
+                    Some(id)
+                }
+            })
             .variants(Vec::new())
             .build()?;
 
