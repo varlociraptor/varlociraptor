@@ -82,6 +82,7 @@ impl Observation {
     }
 
     pub fn bayes_factor_alt(&self) -> BayesFactor {
+        dbg!((self.prob_alt, self.prob_ref, BayesFactor::new(self.prob_alt, self.prob_ref).evidence_kass_raftery()));
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
 

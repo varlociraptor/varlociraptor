@@ -9,7 +9,7 @@ use std::path::Path;
 
 use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::{bayesian, LogProb, PHREDProb};
+use bio::stats::{bayesian, LogProb, Prob, PHREDProb};
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, record::Numeric, Read};
@@ -176,10 +176,14 @@ where
               Description=\"Difference in length between REF and ALT alleles\">",
         );
 
-        // register allele frequency estimate
+        // register sample specific tags
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
               Description=\"Maximum a posteriori probability estimate of allele frequency\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=OBS,Number=A,Type=Float,\
+              Description=\"Posterior odds for alt allele of each fragment as Kass Raftery scores: n=none, b=barely, p=positive, s=strong, v=very strong (uppercase if probability for correct mapping of fragment is <95%)\">",
         );
 
         // register sequences
@@ -254,6 +258,7 @@ where
 
             let mut event_probs = HashMap::new();
             let mut allelefreq_estimates = VecMap::new();
+            let mut observations = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
             alleles.push(&ref_allele[..]);
@@ -274,6 +279,23 @@ where
                         .entry(i)
                         .or_insert_with(|| Vec::new())
                         .push(*sample_info.allelefreq_estimate as f32);
+                    observations
+                        .entry(i)
+                        .or_insert_with(|| Vec::new())
+                        .push(sample_info.observations.iter().map(|obs| {
+                            let score = match obs.bayes_factor_alt().evidence_kass_raftery() {
+                                KassRaftery::Barely => b'B',
+                                KassRaftery::None => b'N',
+                                KassRaftery::Positive => b'P',
+                                KassRaftery::Strong => b'S',
+                                KassRaftery::VeryStrong => b'V'
+                            };
+                            if Prob::from(obs.prob_mapping) < Prob(0.95) {
+                                score.to_ascii_uppercase()
+                            } else {
+                                score.to_ascii_lowercase()
+                            }
+                        }).collect_vec())
                 }
 
                 if let Some(svlen) = variant.svlen {
@@ -305,6 +327,13 @@ where
                 .flatten()
                 .collect_vec();
             record.push_format_float(b"AF", &afs)?;
+
+            let obs = observations
+                .values()
+                .flatten()
+                .map(|obs| &obs[..])
+                .collect_vec();
+            record.push_format_string(b"OBS", &obs)?;
 
             self.bcf_writer.write(&record)?;
         }
