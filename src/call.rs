@@ -290,7 +290,7 @@ where
                                 KassRaftery::Strong => b'S',
                                 KassRaftery::VeryStrong => b'V'
                             };
-                            if Prob::from(obs.prob_mapping) < Prob(0.95) {
+                            if obs.prob_mapping < LogProb(0.95_f64.ln()) {
                                 score.to_ascii_uppercase()
                             } else {
                                 score.to_ascii_lowercase()
