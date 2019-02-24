@@ -6,10 +6,12 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
+use std::str;
 
 use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::{bayesian, LogProb, Prob, PHREDProb};
+use bio::stats::{bayesian, LogProb, PHREDProb};
+use counter::Counter;
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, record::Numeric, Read};
@@ -182,8 +184,8 @@ where
               Description=\"Maximum a posteriori probability estimate of allele frequency\">",
         );
         header.push_record(
-            b"##FORMAT=<ID=OBS,Number=A,Type=Float,\
-              Description=\"Posterior odds for alt allele of each fragment as Kass Raftery scores: n=none, b=barely, p=positive, s=strong, v=very strong (uppercase if probability for correct mapping of fragment is <95%)\">",
+            b"##FORMAT=<ID=OBS,Number=A,Type=String,\
+              Description=\"Posterior odds for alt allele of each fragment as Kass Raftery scores: N=none, B=barely, P=positive, S=strong, V=very strong (lower case if probability for correct mapping of fragment is <95%)\">",
         );
 
         // register sequences
@@ -279,23 +281,28 @@ where
                         .entry(i)
                         .or_insert_with(|| Vec::new())
                         .push(*sample_info.allelefreq_estimate as f32);
-                    observations
-                        .entry(i)
-                        .or_insert_with(|| Vec::new())
-                        .push(sample_info.observations.iter().map(|obs| {
-                            let score = match obs.bayes_factor_alt().evidence_kass_raftery() {
-                                KassRaftery::Barely => b'B',
-                                KassRaftery::None => b'N',
-                                KassRaftery::Positive => b'P',
-                                KassRaftery::Strong => b'S',
-                                KassRaftery::VeryStrong => b'V'
-                            };
-                            if obs.prob_mapping < LogProb(0.95_f64.ln()) {
-                                score.to_ascii_uppercase()
-                            } else {
-                                score.to_ascii_lowercase()
-                            }
-                        }).collect_vec())
+                    observations.entry(i).or_insert_with(|| Vec::new()).push({
+                        let obs: Counter<u8> = sample_info
+                            .observations
+                            .iter()
+                            .map(|obs| {
+                                let score = match obs.bayes_factor_alt().evidence_kass_raftery() {
+                                    KassRaftery::Barely => b'B',
+                                    KassRaftery::None => b'N',
+                                    KassRaftery::Positive => b'P',
+                                    KassRaftery::Strong => b'S',
+                                    KassRaftery::VeryStrong => b'V',
+                                };
+                                if obs.prob_mapping < LogProb(0.95_f64.ln()) {
+                                    score.to_ascii_lowercase()
+                                } else {
+                                    score.to_ascii_uppercase()
+                                }
+                            })
+                            .collect();
+
+                        obs.most_common().into_iter().map(|(score, count)| format!("{}{}", count, score as char).into_bytes()).flatten().collect_vec()
+                    })
                 }
 
                 if let Some(svlen) = variant.svlen {

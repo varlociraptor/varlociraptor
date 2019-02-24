@@ -37,6 +37,7 @@ rand = "0.4"
 derive_builder = "0.7"
 fern = "0.4"
 time = "0.1"
+counter = "0.4"
 
 [dev-dependencies]
 env_logger = "0.3"
