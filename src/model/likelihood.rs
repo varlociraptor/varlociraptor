@@ -67,21 +67,11 @@ impl ContaminatedSampleLikelihoodModel {
         allele_freq_secondary: LogProb,
         observation: &Observation,
     ) -> LogProb {
-        // Step 1: probability to sample observation: AF * placement induced probability
-        let prob_sample_alt_primary = prob_sample_alt(observation, allele_freq_primary);
-        let prob_sample_alt_secondary = prob_sample_alt(observation, allele_freq_secondary);
-
-        // Step 2: read comes from control sample and is correctly mapped
-        let prob_secondary = self.impurity
-            + (prob_sample_alt_secondary + observation.prob_alt)
-                .ln_add_exp(prob_sample_alt_secondary.ln_one_minus_exp() + observation.prob_ref);
-        assert!(!prob_secondary.is_nan());
-
-        // Step 3: read comes from case sample and is correctly mapped
-        let prob_primary = self.purity
-            + (prob_sample_alt_primary + observation.prob_alt)
-                .ln_add_exp(prob_sample_alt_primary.ln_one_minus_exp() + observation.prob_ref);
-        assert!(!prob_primary.is_nan());
+        // Step 1: likelihoods for the mapping case.
+        // Case 1: read comes from primary sample and is correctly mapped
+        let prob_primary = self.purity + likelihood_mapping(allele_freq_primary, observation);
+        // Case 2: read comes from secondary sample and is correctly mapped
+        let prob_secondary = self.impurity + likelihood_mapping(allele_freq_secondary, observation);
 
         // Step 4: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
@@ -113,6 +103,10 @@ impl Likelihood for ContaminatedSampleLikelihoodModel {
     }
 }
 
+lazy_static! {
+    static ref PROB_STRAND: LogProb = LogProb(0.5_f64.ln());
+}
+
 /// Likelihood model for single sample.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SampleLikelihoodModel {}
@@ -125,15 +119,10 @@ impl SampleLikelihoodModel {
 
     /// Likelihood to observe a read given allele frequency for a single sample.
     fn likelihood_observation(&self, allele_freq: LogProb, observation: &Observation) -> LogProb {
-        // Step 1: calculate probability to sample from alt allele
-        let prob_sample_alt = prob_sample_alt(observation, allele_freq);
+        // Step 1: likelihood for the mapping case.
+        let prob = likelihood_mapping(allele_freq, observation);
 
-        // Step 2: read comes from case sample and is correctly mapped
-        let prob = (prob_sample_alt + observation.prob_alt)
-            .ln_add_exp(prob_sample_alt.ln_one_minus_exp() + observation.prob_ref);
-        assert!(!prob.is_nan());
-
-        // Step 3: total probability
+        // Step 2: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
         // in the mismapping case. Otherwise, it can happen that mismapping dominates subtle
         // differences in the likelihood for alt and ref allele with low probabilities and very
@@ -143,6 +132,29 @@ impl SampleLikelihoodModel {
         assert!(!total.is_nan());
         total
     }
+}
+
+/// Calculate likelihood of allele freq given observation in a single sample assuming that the
+/// underlying fragment/read is mapped correctly.
+fn likelihood_mapping(allele_freq: LogProb, observation: &Observation) -> LogProb {
+    // Step 1: calculate probability to sample from alt allele
+    let prob_sample_alt = prob_sample_alt(observation, allele_freq);
+    let prob_sample_ref = prob_sample_alt.ln_one_minus_exp();
+
+    // Step 2: read comes from case sample and is correctly mapped
+    let prob = LogProb::ln_sum_exp(&[
+        // alt allele forward strand
+        *PROB_STRAND + prob_sample_alt + observation.prob_alt_forward(),
+        // alt allele reverse strand
+        *PROB_STRAND + prob_sample_alt + observation.prob_alt_reverse(),
+        // ref allele forward strand
+        *PROB_STRAND + prob_sample_ref + observation.prob_ref_forward(),
+        // ref allele reverse strand
+        *PROB_STRAND + prob_sample_ref + observation.prob_ref_reverse(),
+    ]);
+    assert!(!prob.is_nan());
+
+    prob
 }
 
 impl Likelihood for SampleLikelihoodModel {

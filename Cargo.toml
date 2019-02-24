@@ -11,6 +11,7 @@ edition = "2018"
 
 [dependencies]
 bio = { git = "https://github.com/rust-bio/rust-bio.git", branch = "bayesian-model" }
+bio-types = "0.4"
 log = "0.3"
 rust-htslib = "0.22"
 GSL = "1.0"

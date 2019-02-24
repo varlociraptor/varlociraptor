@@ -544,7 +544,7 @@ fn test07() {
 fn test08() {
     call_tumor_normal("test8", true, 0.75, "chr2", "hg18");
     let mut call = load_call("test8");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 1232.0);
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 1193.0);
 }
 
 /// Test a Delly deletion. It should not be a somatic call.
@@ -603,7 +603,7 @@ fn test14() {
     call_tumor_normal("test14", true, 0.75, "chr15", "hg18");
     let mut call = load_call("test14");
     check_allelefreq(&mut call, b"normal", 0.5, 0.4);
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 349.0)
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 337.0)
 }
 
 /// A small lancet deletion that is a true and strong somatic variant (AF=1.0).
@@ -652,7 +652,7 @@ fn test18() {
 fn test19() {
     call_tumor_normal("test19", true, 0.75, "chr8", "hg18");
     let mut call = load_call("test19");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 446.0);
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 434.0);
 }
 
 /// A delly deletion that is not a somatic variant but germline. It is in a highly repetetive
@@ -662,7 +662,7 @@ fn test19() {
 fn test20() {
     call_tumor_normal("test20", true, 0.75, "chr4", "hg18");
     let mut call = load_call("test20");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 432.0);
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 426.0);
 }
 
 /// A lancet insertion that is at the same place as a real somatic insertion, however

@@ -7,6 +7,7 @@ use std::cmp;
 use std::error::Error;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
+use bio_types::strand::Strand;
 use ordered_float::NotNan;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
@@ -46,6 +47,14 @@ pub trait AbstractReadEvidence {
         variant: &Variant,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb;
+
+    fn strand(&self, record: &bam::Record) -> Strand {
+        if record.flags() & 0x10 != 0 {
+            Strand::Reverse
+        } else {
+            Strand::Forward
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -249,8 +258,8 @@ impl AbstractReadEvidence for IndelEvidence {
         };
 
         if !overlap {
-            // If there is no overlap, normalization below would any lead to 0.5 vs 0.5, multiplied
-            // with certainty estimate. Hence, we can skip the entire HMM calculation!
+            // If there is no overlap, normalization below would anyway lead to 0.5 vs 0.5,
+            // multiplied with certainty estimate. Hence, we can skip the entire HMM calculation!
             return Ok(Some((certainty_est, certainty_est)));
         }
 

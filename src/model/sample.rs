@@ -12,6 +12,7 @@ use std::path::Path;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
+use bio_types::strand::Strand;
 use derive_builder::Builder;
 use rand::distributions;
 use rand::distributions::IndependentSample;
@@ -478,6 +479,7 @@ impl Sample {
                 variant,
                 &self.alignment_properties,
             );
+            let strand = evidence.strand(record);
             Ok(Some(Observation::new(
                 prob_mapping,
                 prob_mismapping,
@@ -485,6 +487,8 @@ impl Sample {
                 prob_ref,
                 prob_missed_allele,
                 prob_sample_alt,
+                strand == Strand::Forward,
+                strand == Strand::Reverse,
                 Evidence::alignment(cigar, record),
             )))
         } else {
@@ -579,6 +583,25 @@ impl Sample {
             .borrow()
             .prob_mapping_mismapping(right_record);
         let prob_mismapping = prob_mismapping_left + prob_mismapping_right;
+
+        let mut left_strand = self.indel_read_evidence.borrow().strand(left_record);
+        let mut right_strand = self.indel_read_evidence.borrow().strand(right_record);
+        // TODO find a better way to detect if there was no relevant overlap
+        if p_alt_left == p_ref_left {
+            left_strand = Strand::Unknown;
+        }
+        if p_alt_right == p_ref_right {
+            right_strand = Strand::Unknown;
+        }
+        let mut forward_strand = left_strand == Strand::Forward || right_strand == Strand::Forward;
+        let mut reverse_strand = left_strand == Strand::Reverse || right_strand == Strand::Reverse;
+        if !forward_strand && !reverse_strand {
+            // If there is no stranded evidence at all, consider observation to come from any
+            // of the two strands.
+            forward_strand = true;
+            reverse_strand = true;
+        }
+
         let obs = Observation::new(
             prob_mismapping.ln_one_minus_exp(),
             prob_mismapping,
@@ -586,6 +609,8 @@ impl Sample {
             p_ref_isize + p_ref_left + p_ref_right,
             p_missed_left + p_missed_right,
             prob_sample_alt,
+            forward_strand,
+            reverse_strand,
             Evidence::insert_size(
                 insert_size as u32,
                 left_record.cigar_cached().unwrap(),
