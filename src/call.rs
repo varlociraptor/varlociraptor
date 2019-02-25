@@ -20,10 +20,10 @@ use vec_map::VecMap;
 use crate::model;
 use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
-use crate::model::{AlleleFreq, AlleleFreqs};
+use crate::model::{AlleleFreq, AlleleFreqs, StrandBias};
 use crate::utils;
 
-pub type AlleleFreqCombination = Vec<AlleleFreq>;
+pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
 #[derive(Default, Clone, Debug, Builder)]
 pub struct Call {
@@ -50,6 +50,7 @@ pub struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     #[builder(default = "Vec::new()")]
     observations: Vec<Observation>,
+    strand_bias: StrandBias
 }
 
 impl SampleInfo {
@@ -88,7 +89,7 @@ pub fn event_tag_name(event: &str) -> String {
 #[builder(pattern = "owned")]
 pub struct Caller<A, L, Pr, Po>
 where
-    A: AlleleFreqs,
+    A: AlleleFreqs + Ord + Clone,
     L: bayesian::model::Likelihood,
     Pr: bayesian::model::Prior,
     Po: bayesian::model::Posterior,
@@ -101,7 +102,9 @@ where
     #[builder(private)]
     bcf_writer: bcf::Writer,
     #[builder(private)]
-    events: HashMap<String, Vec<A>>,
+    events: HashMap<String, Vec<model::Event<A>>>,
+    #[builder(private)]
+    strand_bias_events: Vec<Vec<model::Event<A>>>,
     model: bayesian::Model<L, Pr, Po>,
     omit_snvs: bool,
     omit_indels: bool,
@@ -111,10 +114,10 @@ where
 
 impl<A, L, Pr, Po> CallerBuilder<A, L, Pr, Po>
 where
-    A: AlleleFreqs,
+    A: AlleleFreqs + Ord + Clone,
     L: bayesian::model::Likelihood,
     Pr: bayesian::model::Prior,
-    Po: bayesian::model::Posterior<Event = Vec<A>>,
+    Po: bayesian::model::Posterior<Event = Vec<model::Event<A>>>,
 {
     pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<Error>> {
         Ok(self.reference_buffer(utils::ReferenceBuffer::new(
@@ -130,14 +133,31 @@ where
         }))
     }
 
+    /// Register events.
     pub fn event<E: Into<Vec<A>>>(mut self, name: &str, event: E) -> Self {
+        assert_ne!(name.to_ascii_lowercase(), "artifact", "the event name artifact is reserved for internal use");
         if self.events.is_none() {
             self = self.events(HashMap::default());
+            self = self.strand_bias_events(Vec::new());
         }
+        let event = event.into();
+
+        let annotate_event = |strand_bias| {
+            event.iter().cloned().map(|e| {
+                model::Event {
+                    allele_freqs: e,
+                    strand_bias: strand_bias,
+                }
+            }).collect_vec()
+        };
+
         self.events
             .as_mut()
             .unwrap()
-            .insert(name.to_owned(), event.into());
+            .insert(name.to_owned(), annotate_event(StrandBias::None));
+
+        self.strand_bias_events.as_mut().unwrap().push(annotate_event(StrandBias::Forward));
+        self.strand_bias_events.as_mut().unwrap().push(annotate_event(StrandBias::Reverse));
 
         self
     }
@@ -171,6 +191,11 @@ where
                 .as_bytes(),
             );
         }
+        header.push_record(
+            b"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,\
+             Description=\"Posterior probability for strand bias artifact\">"
+        );
+
 
         // register SVLEN
         header.push_record(
@@ -185,7 +210,15 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Posterior odds for alt allele of each fragment as Kass Raftery scores: N=none, B=barely, P=positive, S=strong, V=very strong (lower case if probability for correct mapping of fragment is <95%)\">",
+              Description=\"Posterior odds for alt allele of each fragment as Kass Raftery \
+              scores: N=none, B=barely, P=positive, S=strong, V=very strong (lower case if \
+              probability for correct mapping of fragment is <95%)\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=SB,Number=A,Type=String,\
+              Description=\"Strand bias estimate: + indicates that ALT allele is associated with \
+              forward strand, - indicates that ALT allele is associated with reverse strand, \
+              - indicates no strand bias.\">",
         );
 
         // register sequences
@@ -218,16 +251,20 @@ where
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
     Po: bayesian::model::Posterior<
         BaseEvent = AlleleFreqCombination,
-        Event = Vec<A>,
+        Event = Vec<model::Event<A>>,
         Data = Vec<Pileup>,
     >,
 {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
+        let mut universe = self.events.values().cloned().collect_vec();
+        universe.extend(self.strand_bias_events.iter().cloned());
+
+
         let mut i = 0;
         loop {
             let record = self.next_record()?;
             if let Some(mut record) = record {
-                let call = self.call_record(&mut record)?;
+                let call = self.call_record(&mut record, &universe)?;
                 if let Some(call) = call {
                     self.write_call(&call)?;
                     i += 1;
@@ -261,6 +298,7 @@ where
             let mut event_probs = HashMap::new();
             let mut allelefreq_estimates = VecMap::new();
             let mut observations = VecMap::new();
+            let mut strand_bias = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
             alleles.push(&ref_allele[..]);
@@ -277,10 +315,17 @@ where
                 }
 
                 for (i, sample_info) in variant.sample_info.iter().enumerate() {
+                    strand_bias.entry(i).or_insert_with(Vec::new).push(match sample_info.strand_bias {
+                        StrandBias::None => b".",
+                        StrandBias::Forward => b"+",
+                        StrandBias::Reverse => b"-"
+                    });
+
                     allelefreq_estimates
                         .entry(i)
                         .or_insert_with(|| Vec::new())
                         .push(*sample_info.allelefreq_estimate as f32);
+
                     observations.entry(i).or_insert_with(|| Vec::new()).push({
                         let obs: Counter<String> = sample_info
                             .observations
@@ -351,6 +396,9 @@ where
                 .collect_vec();
             record.push_format_string(b"OBS", &obs)?;
 
+            let sb = strand_bias.values().flatten().map(|sb| &sb[..]).collect_vec();
+            record.push_format_string(b"SB", &sb)?;
+
             self.bcf_writer.write(&record)?;
         }
 
@@ -366,7 +414,7 @@ where
         }
     }
 
-    fn call_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>, Box<Error>> {
+    fn call_record(&mut self, record: &mut bcf::Record, universe: &[Po::Event]) -> Result<Option<Call>, Box<Error>> {
         let start = record.pos();
         let chrom = chrom(&self.bcf_reader, &record);
         let variants = utils::collect_variants(
@@ -406,29 +454,41 @@ where
                 }
 
                 // compute probabilities
-                let m = self.model.compute(self.events.values().cloned(), &pileups);
+                let m = self.model.compute(universe.iter().cloned(), &pileups);
 
                 let mut variant_builder = VariantBuilder::default();
 
                 // add calling results
+                let mut event_probs: HashMap<String, LogProb> = self.events
+                    .iter()
+                    .map(|(name, event)| (name.clone(), m.posterior(event).unwrap()))
+                    .collect();
+                event_probs.insert("artifact".to_owned(), LogProb::ln_sum_exp(&self.strand_bias_events.iter().map(|event| m.posterior(event).unwrap()).collect_vec() ));
                 variant_builder.event_probs(
-                    self.events
-                        .iter()
-                        .map(|(name, event)| (name.clone(), m.posterior(event).unwrap()))
-                        .collect(),
+                    event_probs,
                 );
 
                 // add sample specific information
                 variant_builder.sample_info(if let Some(map_estimates) = m.maximum_posterior() {
                     pileups
                         .into_iter()
-                        .zip(map_estimates.clone().into_iter())
+                        .zip(map_estimates.into_iter())
                         .map(|(pileup, estimate)| {
-                            SampleInfoBuilder::default()
-                                .allelefreq_estimate(estimate.clone())
-                                .observations(pileup)
-                                .build()
-                                .unwrap()
+                            let mut sample_builder = SampleInfoBuilder::default();
+                            sample_builder.observations(pileup);
+                            match estimate {
+                                model::likelihood::Event {strand_bias, ..} if strand_bias.is_some() => {
+                                    sample_builder
+                                        .allelefreq_estimate(AlleleFreq(0.0))
+                                        .strand_bias(*strand_bias);
+                                },
+                                model::likelihood::Event {allele_freq, ..} => {
+                                    sample_builder
+                                        .allelefreq_estimate(*allele_freq)
+                                        .strand_bias(StrandBias::None);
+                                }
+                            };
+                            sample_builder.build().unwrap()
                         })
                         .collect_vec()
                 } else {

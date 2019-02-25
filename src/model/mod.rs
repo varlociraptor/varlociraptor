@@ -7,6 +7,7 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::{Deref, Range};
 
+use bio::stats::LogProb;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
@@ -16,16 +17,72 @@ pub mod likelihood;
 pub mod modes;
 pub mod sample;
 
+#[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
+pub struct Event<A: AlleleFreqs + Ord + Clone> {
+    pub allele_freqs: A,
+    pub strand_bias: StrandBias,
+}
+
 pub type AlleleFreq = NotNan<f64>;
+
+#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord)]
+pub enum StrandBias {
+    None,
+    Forward,
+    Reverse
+}
+
+impl Default for StrandBias {
+    fn default() -> Self {
+        StrandBias::None
+    }
+}
+
+impl StrandBias {
+    pub fn is_some(&self) -> bool {
+        if let StrandBias::None = self {
+            false
+        } else {
+            true
+        }
+    }
+
+    pub fn forward_rate(&self) -> LogProb {
+        match self {
+            StrandBias::None => LogProb(0.5_f64.ln()),
+            StrandBias::Forward => LogProb::ln_one(),
+            StrandBias::Reverse => LogProb::ln_zero(),
+        }
+    }
+
+    pub fn reverse_rate(&self) -> LogProb {
+        match self {
+            StrandBias::None => LogProb(0.5_f64.ln()),
+            StrandBias::Forward => LogProb::ln_zero(),
+            StrandBias::Reverse => LogProb::ln_one(),
+        }
+    }
+}
+
 
 #[allow(non_snake_case)]
 pub fn AlleleFreq(af: f64) -> AlleleFreq {
     NotNan::new(af).unwrap()
 }
 
-pub trait AlleleFreqs: Debug {}
-impl AlleleFreqs for DiscreteAlleleFreqs {}
-impl AlleleFreqs for ContinuousAlleleFreqs {}
+pub trait AlleleFreqs: Debug {
+    fn is_absent(&self) -> bool;
+}
+impl AlleleFreqs for DiscreteAlleleFreqs {
+    fn is_absent(&self) -> bool {
+        self.inner.len() == 1 && self.inner[0] == AlleleFreq(0.0)
+    }
+}
+impl AlleleFreqs for ContinuousAlleleFreqs {
+    fn is_absent(&self) -> bool {
+        self.is_singleton() && self.start == AlleleFreq(0.0)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DiscreteAlleleFreqs {

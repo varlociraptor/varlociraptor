@@ -442,10 +442,19 @@ impl Sample {
                         observations.push(obs);
                     }
                 }
-
-                //self.refine_prob_mapping(&mut observations);
             }
         }
+
+
+        // simulate strand bias
+        // let mut count = 0;
+        // for i in 0..observations.len() {
+        //     if observations[i].prob_alt > observations[i].prob_ref && count < 6 {
+        //         observations[i].reverse_strand = true;
+        //         observations[i].forward_strand = false;
+        //         count += 1;
+        //     }
+        // }
 
         Ok(observations)
     }

@@ -6,7 +6,7 @@
 use bio::stats::bayesian::model::Prior;
 use bio::stats::LogProb;
 
-use crate::model::AlleleFreq;
+use crate::model::likelihood::Event;
 
 #[derive(Default, Clone)]
 pub struct FlatPrior {}
@@ -18,7 +18,7 @@ impl FlatPrior {
 }
 
 impl Prior for FlatPrior {
-    type Event = Vec<AlleleFreq>;
+    type Event = Vec<Event>;
 
     fn compute(&self, _event: &Self::Event) -> LogProb {
         LogProb::ln_one()

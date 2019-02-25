@@ -7,7 +7,15 @@ use bio::stats::{bayesian::model::Likelihood, LogProb};
 
 use crate::model::evidence::Observation;
 use crate::model::sample::Pileup;
-use crate::model::AlleleFreq;
+use crate::model::{AlleleFreq, StrandBias};
+
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+pub struct Event {
+    pub allele_freq: AlleleFreq,
+    pub strand_bias: StrandBias,
+}
+
 
 fn prob_sample_alt(observation: &Observation, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
@@ -65,13 +73,17 @@ impl ContaminatedSampleLikelihoodModel {
         &self,
         allele_freq_primary: LogProb,
         allele_freq_secondary: LogProb,
+        forward_rate_primary: LogProb,
+        reverse_rate_primary: LogProb,
+        forward_rate_secondary: LogProb,
+        reverse_rate_secondary: LogProb,
         observation: &Observation,
     ) -> LogProb {
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
-        let prob_primary = self.purity + likelihood_mapping(allele_freq_primary, observation);
+        let prob_primary = self.purity + likelihood_mapping(allele_freq_primary, forward_rate_primary, reverse_rate_primary, observation);
         // Case 2: read comes from secondary sample and is correctly mapped
-        let prob_secondary = self.impurity + likelihood_mapping(allele_freq_secondary, observation);
+        let prob_secondary = self.impurity + likelihood_mapping(allele_freq_secondary, forward_rate_secondary, reverse_rate_secondary, observation);
 
         // Step 4: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
@@ -86,17 +98,26 @@ impl ContaminatedSampleLikelihoodModel {
 }
 
 impl Likelihood for ContaminatedSampleLikelihoodModel {
-    type Event = Vec<AlleleFreq>;
+    type Event = Vec<Event>;
     type Data = Pileup;
 
-    fn compute(&self, allelefreqs: &Self::Event, pileup: &Self::Data) -> LogProb {
-        let ln_af_primary = LogProb(allelefreqs.primary().ln());
-        let ln_af_secondary = LogProb(allelefreqs.secondary().ln());
+    fn compute(&self, events: &Self::Event, pileup: &Self::Data) -> LogProb {
+        let ln_af_primary = LogProb(events.primary().allele_freq.ln());
+        let ln_af_secondary = LogProb(events.secondary().allele_freq.ln());
+        let ln_forward_rate_primary = events.primary().strand_bias.forward_rate();
+        let ln_forward_rate_secondary = events.secondary().strand_bias.forward_rate();
+        let ln_reverse_rate_primary = events.primary().strand_bias.reverse_rate();
+        let ln_reverse_rate_secondary = events.secondary().strand_bias.reverse_rate();
+
         // calculate product of per-oservation likelihoods in log space
         let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-            let lh = self.likelihood_observation(ln_af_primary, ln_af_secondary, obs);
+            let lh = self.likelihood_observation(ln_af_primary, ln_af_secondary, ln_forward_rate_primary, ln_reverse_rate_primary, ln_forward_rate_secondary, ln_reverse_rate_secondary, obs);
             prob + lh
         });
+        // if **allelefreqs.secondary() == 0.0 {
+        //     dbg!(**allelefreqs.primary());
+        //     dbg!(*likelihood);
+        // }
 
         assert!(!likelihood.is_nan());
         likelihood
@@ -118,9 +139,9 @@ impl SampleLikelihoodModel {
     }
 
     /// Likelihood to observe a read given allele frequency for a single sample.
-    fn likelihood_observation(&self, allele_freq: LogProb, observation: &Observation) -> LogProb {
+    fn likelihood_observation(&self, allele_freq: LogProb, forward_rate: LogProb, reverse_rate: LogProb, observation: &Observation) -> LogProb {
         // Step 1: likelihood for the mapping case.
-        let prob = likelihood_mapping(allele_freq, observation);
+        let prob = likelihood_mapping(allele_freq, forward_rate, reverse_rate, observation);
 
         // Step 2: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
@@ -136,21 +157,25 @@ impl SampleLikelihoodModel {
 
 /// Calculate likelihood of allele freq given observation in a single sample assuming that the
 /// underlying fragment/read is mapped correctly.
-fn likelihood_mapping(allele_freq: LogProb, observation: &Observation) -> LogProb {
+fn likelihood_mapping(allele_freq: LogProb, forward_rate: LogProb, reverse_rate: LogProb, observation: &Observation) -> LogProb {
     // Step 1: calculate probability to sample from alt allele
     let prob_sample_alt = prob_sample_alt(observation, allele_freq);
     let prob_sample_ref = prob_sample_alt.ln_one_minus_exp();
 
+    let (prob_alt_forward, prob_alt_reverse) = match observation {
+        Observation{ forward_strand: true, reverse_strand: false, prob_alt, ..} => (*prob_alt, LogProb::ln_zero()),
+        Observation{ forward_strand: false, reverse_strand: true, prob_alt, ..} => (LogProb::ln_zero(), *prob_alt),
+        Observation{ prob_alt, .. } => (*prob_alt, *prob_alt),
+    };
+
     // Step 2: read comes from case sample and is correctly mapped
     let prob = LogProb::ln_sum_exp(&[
         // alt allele forward strand
-        *PROB_STRAND + prob_sample_alt + observation.prob_alt_forward(),
+        forward_rate + prob_sample_alt + prob_alt_forward,
         // alt allele reverse strand
-        *PROB_STRAND + prob_sample_alt + observation.prob_alt_reverse(),
-        // ref allele forward strand
-        *PROB_STRAND + prob_sample_ref + observation.prob_ref_forward(),
-        // ref allele reverse strand
-        *PROB_STRAND + prob_sample_ref + observation.prob_ref_reverse(),
+        reverse_rate + prob_sample_alt + prob_alt_reverse,
+        // ref allele (we don't care about the strand)
+        prob_sample_ref + observation.prob_ref,
     ]);
     assert!(!prob.is_nan());
 
@@ -158,15 +183,18 @@ fn likelihood_mapping(allele_freq: LogProb, observation: &Observation) -> LogPro
 }
 
 impl Likelihood for SampleLikelihoodModel {
-    type Event = AlleleFreq;
+    type Event = Event;
     type Data = Pileup;
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
-    fn compute(&self, allele_freq: &AlleleFreq, pileup: &Pileup) -> LogProb {
-        let ln_af = LogProb(allele_freq.ln());
+    fn compute(&self, event: &Event, pileup: &Pileup) -> LogProb {
+        let ln_af = LogProb(event.allele_freq.ln());
+        let forward_rate = event.strand_bias.forward_rate();
+        let reverse_rate = event.strand_bias.reverse_rate();
+
         // calculate product of per-read likelihoods in log space
         let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-            let lh = self.likelihood_observation(ln_af, obs);
+            let lh = self.likelihood_observation(ln_af, forward_rate, reverse_rate, obs);
             prob + lh
         });
 
@@ -179,8 +207,20 @@ impl Likelihood for SampleLikelihoodModel {
 mod tests {
     use super::*;
     use crate::model::tests::observation;
+    use crate::model::StrandBias;
     use bio::stats::LogProb;
     use itertools_num::linspace;
+
+    fn no_strand_bias() -> LogProb {
+        LogProb(0.5_f64.ln())
+    }
+
+    fn event(allele_freq: f64) -> Event {
+        Event {
+            allele_freq: AlleleFreq(allele_freq),
+            strand_bias: StrandBias::None
+        }
+    }
 
     #[test]
     fn test_likelihood_observation_absent_single() {
@@ -188,7 +228,7 @@ mod tests {
 
         let model = SampleLikelihoodModel::new();
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), &observation);
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), no_strand_bias(), no_strand_bias(), &observation);
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
@@ -200,6 +240,8 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(0.0).ln()),
+            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(), no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_one());
@@ -217,7 +259,7 @@ mod tests {
             ));
         }
 
-        let lh = model.compute(&vec![AlleleFreq(0.0), AlleleFreq(0.0)], &observations);
+        let lh = model.compute(&vec![event(0.0), event(0.0)], &observations);
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
@@ -233,7 +275,7 @@ mod tests {
             ));
         }
 
-        let lh = model.compute(&AlleleFreq(0.0), &observations);
+        let lh = model.compute(&event(0.0), &observations);
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
@@ -245,6 +287,8 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(1.0).ln()),
             LogProb(AlleleFreq(0.0).ln()),
+            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(), no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_one());
@@ -252,6 +296,8 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(0.0).ln()),
+            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(), no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_zero());
@@ -259,6 +305,8 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.5).ln()),
             LogProb(AlleleFreq(0.0).ln()),
+            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(), no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, 0.5f64.ln());
@@ -266,6 +314,8 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.5).ln()),
             LogProb(AlleleFreq(0.5).ln()),
+            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(), no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, 0.5f64.ln());
@@ -273,6 +323,8 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.1).ln()),
             LogProb(AlleleFreq(0.0).ln()),
+            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(), no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, 0.1f64.ln());
@@ -283,6 +335,8 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(1.0).ln()),
+            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(), no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, 0.5f64.ln(), epsilon = 0.0000000001);
@@ -301,16 +355,16 @@ mod tests {
             LogProb::ln_zero(),
         );
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(1.0).ln()), &observation);
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(1.0).ln()), no_strand_bias(), no_strand_bias(), &observation);
         assert_relative_eq!(*lh, *LogProb::ln_one());
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), &observation);
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), no_strand_bias(), no_strand_bias(), &observation);
         assert_relative_eq!(*lh, *LogProb::ln_zero());
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.5).ln()), &observation);
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.5).ln()), no_strand_bias(), no_strand_bias(), &observation);
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.1).ln()), &observation);
+        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.1).ln()), no_strand_bias(), no_strand_bias(), &observation);
         assert_relative_eq!(*lh, 0.1f64.ln());
     }
 
@@ -332,10 +386,10 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let lh = model.compute(&vec![AlleleFreq(0.5), AlleleFreq(0.0)], &observations);
+        let lh = model.compute(&vec![event(0.5), event(0.0)], &observations);
         for af in linspace(0.0, 1.0, 10) {
             if af != 0.5 {
-                let l = model.compute(&vec![AlleleFreq(af), AlleleFreq(0.0)], &observations);
+                let l = model.compute(&vec![event(af), event(0.0)], &observations);
                 assert!(lh > l);
             }
         }

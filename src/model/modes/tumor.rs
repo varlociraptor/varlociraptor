@@ -11,6 +11,7 @@ use bio::stats::LogProb;
 use crate::model::likelihood;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, ContinuousAlleleFreqs};
+use crate::model;
 
 #[derive(Debug, Clone)]
 pub struct TumorNormalPair<T> {
@@ -59,13 +60,13 @@ impl TumorNormalPosterior {
 }
 
 impl Posterior for TumorNormalPosterior {
-    type BaseEvent = Vec<AlleleFreq>;
-    type Event = Vec<ContinuousAlleleFreqs>;
+    type BaseEvent = Vec<likelihood::Event>;
+    type Event = Vec<model::Event<ContinuousAlleleFreqs>>;
     type Data = Vec<Pileup>;
 
     fn compute<F: FnMut(&Self::BaseEvent, &Self::Data) -> LogProb>(
         &self,
-        allele_freqs: &Self::Event,
+        event: &Self::Event,
         pileups: &Self::Data,
         joint_prob: &mut F,
     ) -> LogProb {
@@ -73,6 +74,8 @@ impl Posterior for TumorNormalPosterior {
         let n_obs_normal = pileups.normal().len();
         let grid_points_normal = 5;
         let grid_points_tumor = Self::grid_points_tumor(n_obs_tumor);
+        let strand_bias_tumor = event.tumor().strand_bias;
+        let strand_bias_normal = event.normal().strand_bias;
 
         let mut density = |af_normal| {
             let af_normal = AlleleFreq(af_normal);
@@ -82,8 +85,14 @@ impl Posterior for TumorNormalPosterior {
                     let af_tumor = AlleleFreq(af_tumor);
                     let p = joint_prob(
                         &TumorNormalPair {
-                            tumor: af_tumor,
-                            normal: af_normal,
+                            tumor: likelihood::Event {
+                                allele_freq: af_tumor,
+                                strand_bias: strand_bias_normal,
+                            },
+                            normal: likelihood::Event {
+                                allele_freq: af_normal,
+                                strand_bias: strand_bias_tumor,
+                            }
                         }
                         .into(),
                         pileups,
@@ -91,13 +100,13 @@ impl Posterior for TumorNormalPosterior {
                     p
                 };
 
-                if allele_freqs.tumor().is_singleton() {
-                    joint_density(*allele_freqs.tumor().start)
+                if event.tumor().allele_freqs.is_singleton() {
+                    joint_density(*event.tumor().allele_freqs.start)
                 } else {
                     LogProb::ln_simpsons_integrate_exp(
                         joint_density,
-                        *allele_freqs.tumor().observable_min(n_obs_tumor),
-                        *allele_freqs.tumor().observable_max(n_obs_tumor),
+                        *event.tumor().allele_freqs.observable_min(n_obs_tumor),
+                        *event.tumor().allele_freqs.observable_max(n_obs_tumor),
                         grid_points_tumor,
                     )
                 }
@@ -106,13 +115,13 @@ impl Posterior for TumorNormalPosterior {
             p
         };
 
-        let prob = if allele_freqs.normal().is_singleton() {
-            density(*allele_freqs.normal().start)
+        let prob = if event.normal().allele_freqs.is_singleton() {
+            density(*event.normal().allele_freqs.start)
         } else {
             LogProb::ln_simpsons_integrate_exp(
                 density,
-                *allele_freqs.normal().observable_min(n_obs_normal),
-                *allele_freqs.normal().observable_max(n_obs_normal),
+                *event.normal().allele_freqs.observable_min(n_obs_normal),
+                *event.normal().allele_freqs.observable_max(n_obs_normal),
                 grid_points_normal,
             )
         };
@@ -137,14 +146,14 @@ impl TumorNormalLikelihood {
 }
 
 impl Likelihood for TumorNormalLikelihood {
-    type Event = Vec<AlleleFreq>;
+    type Event = Vec<likelihood::Event>;
     type Data = Vec<Pileup>;
 
-    fn compute(&self, allele_freq: &Self::Event, pileups: &Self::Data) -> LogProb {
-        let p = self.tumor_likelihood.compute(allele_freq, &pileups.tumor())
+    fn compute(&self, event: &Self::Event, pileups: &Self::Data) -> LogProb {
+        let p = self.tumor_likelihood.compute(event, &pileups.tumor())
             + self
                 .normal_likelihood
-                .compute(&allele_freq.normal(), &pileups.normal());
+                .compute(&event.normal(), &pileups.normal());
 
         p
     }
