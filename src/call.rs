@@ -156,8 +156,12 @@ where
             .unwrap()
             .insert(name.to_owned(), annotate_event(StrandBias::None));
 
-        self.strand_bias_events.as_mut().unwrap().push(annotate_event(StrandBias::Forward));
-        self.strand_bias_events.as_mut().unwrap().push(annotate_event(StrandBias::Reverse));
+        // If this is not the absent event, add strand bias cases.
+        // For absent event, we don't need them.
+        if !event.iter().all(|e| e.is_absent()) {
+            self.strand_bias_events.as_mut().unwrap().push(annotate_event(StrandBias::Forward));
+            self.strand_bias_events.as_mut().unwrap().push(annotate_event(StrandBias::Reverse));
+        }
 
         self
     }
@@ -477,7 +481,7 @@ where
                             let mut sample_builder = SampleInfoBuilder::default();
                             sample_builder.observations(pileup);
                             match estimate {
-                                model::likelihood::Event {strand_bias, ..} if strand_bias.is_some() => {
+                                model::likelihood::Event {strand_bias, allele_freq} if strand_bias.is_some() => {
                                     sample_builder
                                         .allelefreq_estimate(AlleleFreq(0.0))
                                         .strand_bias(*strand_bias);
