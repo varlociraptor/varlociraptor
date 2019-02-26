@@ -8,6 +8,7 @@ use std::error::Error;
 use std::path::Path;
 use std::str;
 
+use itertools::join;
 use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{bayesian, LogProb, PHREDProb};
@@ -319,11 +320,13 @@ where
                 }
 
                 for (i, sample_info) in variant.sample_info.iter().enumerate() {
-                    strand_bias.entry(i).or_insert_with(Vec::new).push(match sample_info.strand_bias {
-                        StrandBias::None => b".",
-                        StrandBias::Forward => b"+",
-                        StrandBias::Reverse => b"-"
-                    });
+                    strand_bias.entry(i).or_insert_with(Vec::new).push(
+                        match sample_info.strand_bias {
+                            StrandBias::None => '.',
+                            StrandBias::Forward => '+',
+                            StrandBias::Reverse => '-'
+                        }
+                    );
 
                     allelefreq_estimates
                         .entry(i)
@@ -359,7 +362,7 @@ where
                             })
                             .collect();
 
-                        obs.most_common().into_iter().map(|(score, count)| format!("{}{}", count, score).into_bytes()).flatten().collect_vec()
+                        join(obs.most_common().into_iter().map(|(score, count)| format!("{}{}", count, score)), "")
                     })
                 }
 
@@ -395,12 +398,15 @@ where
 
             let obs = observations
                 .values()
-                .flatten()
-                .map(|obs| &obs[..])
+                .map(|obs| join(obs.iter(), ",").into_bytes())
                 .collect_vec();
             record.push_format_string(b"OBS", &obs)?;
 
-            let sb = strand_bias.values().flatten().map(|sb| &sb[..]).collect_vec();
+            let sb = strand_bias
+                .values()
+                .map(|sb| join(sb.iter(), ",").into_bytes())
+                .collect_vec();
+
             record.push_format_string(b"SB", &sb)?;
 
             self.bcf_writer.write(&record)?;
@@ -481,7 +487,7 @@ where
                             let mut sample_builder = SampleInfoBuilder::default();
                             sample_builder.observations(pileup);
                             match estimate {
-                                model::likelihood::Event {strand_bias, allele_freq} if strand_bias.is_some() => {
+                                model::likelihood::Event {strand_bias, ..} if strand_bias.is_some() => {
                                     sample_builder
                                         .allelefreq_estimate(AlleleFreq(0.0))
                                         .strand_bias(*strand_bias);
