@@ -123,6 +123,9 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
 }
 
 fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, build: &str) {
+    // setup logger
+    setup_logger(test);
+
     let reference = download_reference(chrom, build);
 
     //setup_logger(test);

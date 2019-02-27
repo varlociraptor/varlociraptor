@@ -176,6 +176,7 @@ pub fn main() -> Result<(), Box<Error>> {
     // setup logger
     fern::Dispatch::new()
         .level(log::LogLevelFilter::Info)
+        .chain(std::io::stderr())
         .apply()
         .unwrap();
 

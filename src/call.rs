@@ -273,7 +273,7 @@ where
                 if let Some(call) = call {
                     self.write_call(&call)?;
                     i += 1;
-                    if i % 1000 == 0 {
+                    if i % 100 == 0 {
                         info!("{} records written.", i);
                     }
                 }
