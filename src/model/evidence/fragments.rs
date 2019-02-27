@@ -16,6 +16,7 @@ use rust_htslib::bam;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence;
 use crate::model::Variant;
+use crate::utils::NUMERICAL_EPSILON;
 
 /// Calculate the number of positions a fragment can have in a given window according to
 /// Sahlin et al. biorxiv 2015
