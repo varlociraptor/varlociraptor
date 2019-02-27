@@ -250,7 +250,7 @@ impl IndelEvidence {
                     })
                     .collect_vec(),
             )
-            .cap_numerical_overshoot(0.0001);
+            .cap_numerical_overshoot(NUMERICAL_EPSILON);
 
             expected_p_alt
         };

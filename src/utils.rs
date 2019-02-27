@@ -21,7 +21,7 @@ use crate::utils;
 use crate::BCFError;
 use crate::Event;
 
-pub const NUMERICAL_EPSILON: f64 = 1e-4;
+pub const NUMERICAL_EPSILON: f64 = 1e-3;
 
 /// Collect variants from a given ´bcf::Record`.
 pub fn collect_variants(
