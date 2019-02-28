@@ -281,15 +281,22 @@ impl AbstractReadEvidence for IndelEvidence {
                 read_emission: &read_emission,
             };
             let (best_pos, end_upper_bound, dist) = edit_dist.calc_best_hit(&ref_params);
-            ref_params.ref_end =
-                ref_end_upper_bound(end_upper_bound, ref_params.ref_offset, ref_seq.len());
-            ref_params.ref_offset = ref_offset_lower_bound(best_pos, ref_params.ref_offset);
 
-            self.pairhmm.prob_related(
-                &self.gap_params,
-                &ref_params,
-                Some(edit_dist_upper_bound(dist as usize)),
-            )
+            if dist == 0 {
+                // In case of a perfect match, we just take the base quality product.
+                // All alternative paths in the HMM will anyway be much worse.
+                certainty_est
+            } else {
+                ref_params.ref_end =
+                    ref_end_upper_bound(end_upper_bound, ref_params.ref_offset, ref_seq.len());
+                ref_params.ref_offset = ref_offset_lower_bound(best_pos, ref_params.ref_offset);
+
+                self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &ref_params,
+                    Some(edit_dist_upper_bound(dist as usize)),
+                )
+            }
         };
 
         // alt allele
@@ -304,14 +311,21 @@ impl AbstractReadEvidence for IndelEvidence {
                     read_emission: &read_emission,
                 };
                 let (best_pos, end_upper_bound, dist) = edit_dist.calc_best_hit(&p);
-                p.ref_end = ref_end_upper_bound(end_upper_bound, p.ref_offset, ref_seq.len());
-                p.ref_offset = ref_offset_lower_bound(best_pos, p.ref_offset);
 
-                self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &p,
-                    Some(edit_dist_upper_bound(dist as usize)),
-                )
+                if dist == 0 {
+                    // In case of a perfect match, we just take the base quality product.
+                    // All alternative paths in the HMM will anyway be much worse.
+                    certainty_est
+                } else {
+                    p.ref_end = ref_end_upper_bound(end_upper_bound, p.ref_offset, ref_seq.len());
+                    p.ref_offset = ref_offset_lower_bound(best_pos, p.ref_offset);
+
+                    self.pairhmm.prob_related(
+                        &self.gap_params,
+                        &p,
+                        Some(edit_dist_upper_bound(dist as usize)),
+                    )
+                }
             }
             &Variant::Insertion(ref ins_seq) => {
                 let l = ins_seq.len() as usize;
@@ -326,14 +340,21 @@ impl AbstractReadEvidence for IndelEvidence {
                     read_emission: &read_emission,
                 };
                 let (best_pos, end_upper_bound, dist) = edit_dist.calc_best_hit(&p);
-                p.ref_end = ref_end_upper_bound(end_upper_bound, p.ref_offset, ref_seq.len());
-                p.ref_offset = ref_offset_lower_bound(best_pos, p.ref_offset);
 
-                self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &p,
-                    Some(edit_dist_upper_bound(dist as usize)),
-                )
+                if dist == 0 {
+                    // In case of a perfect match, we just take the base quality product.
+                    // All alternative paths in the HMM will anyway be much worse.
+                    certainty_est
+                } else {
+                    p.ref_end = ref_end_upper_bound(end_upper_bound, p.ref_offset, ref_seq.len());
+                    p.ref_offset = ref_offset_lower_bound(best_pos, p.ref_offset);
+
+                    self.pairhmm.prob_related(
+                        &self.gap_params,
+                        &p,
+                        Some(edit_dist_upper_bound(dist as usize)),
+                    )
+                }
             }
             _ => {
                 panic!("bug: unsupported variant");
