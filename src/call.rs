@@ -435,7 +435,7 @@ where
             self.exclusive_end,
         )?;
 
-        if variants.is_empty() {
+        if variants.is_empty() || variants.iter().all(|v| v.is_none()) {
             return Ok(None);
         }
 
