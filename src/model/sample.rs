@@ -214,7 +214,7 @@ pub struct Sample {
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
     #[builder(private)]
     pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
-    #[builder(default = "500")]
+    #[builder(default = "200")]
     max_depth: usize,
     #[builder(default = "Vec::new()")]
     omit_repeat_regions: Vec<VariantType>,
@@ -674,7 +674,7 @@ mod tests {
                 Prob(0.0),
                 100,
             )
-            .max_depth(500)
+            .max_depth(200)
             .build()
             .unwrap()
     }

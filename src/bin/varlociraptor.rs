@@ -115,7 +115,7 @@ enum Varlociraptor {
         indel_window: u32,
         #[structopt(
             long = "max-depth",
-            default_value = "500",
+            default_value = "200",
             help = "Maximum number of observations to use for calling. If locus is exceeding this number, downsampling is performed."
         )]
         max_depth: usize,
