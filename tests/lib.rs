@@ -174,7 +174,7 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
                 Prob(0.0),
                 100,
             )
-            .max_depth(500)
+            .max_depth(200)
     };
     let tumor_sample = sample_builder()
         .name("tumor".to_owned())

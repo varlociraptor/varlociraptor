@@ -51,7 +51,7 @@ impl TumorNormalPosterior {
     }
 
     fn grid_points_tumor(n_obs: usize) -> usize {
-        let mut n = cmp::max(n_obs + 1, 5);
+        let mut n = cmp::min(cmp::max(n_obs + 1, 5), 100);
         if n % 2 == 0 {
             n += 1;
         }
