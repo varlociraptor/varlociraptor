@@ -144,6 +144,9 @@ impl AbstractReadEvidence for SNVEvidence {
     }
 }
 
+/// Width of band around alignment with optimal edit distance.
+pub const EDIT_BAND: usize = 2;
+
 /// Calculate read evindence for an indel.
 pub struct IndelEvidence {
     gap_params: IndelGapParams,
@@ -152,6 +155,7 @@ pub struct IndelEvidence {
 }
 
 impl IndelEvidence {
+
     /// Create a new instance.
     pub fn new(
         prob_insertion_artifact: LogProb,
@@ -243,12 +247,12 @@ impl AbstractReadEvidence for IndelEvidence {
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
 
         let edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
-        let edit_dist_upper_bound = |edit_dist| edit_dist + 5;
+        let edit_dist_upper_bound = |edit_dist| edit_dist + EDIT_BAND;
         let ref_offset_lower_bound = |best_pos: usize, previous_offset: usize| {
-            previous_offset.saturating_sub(best_pos.saturating_sub(5))
+            previous_offset.saturating_sub(best_pos.saturating_sub(EDIT_BAND))
         };
         let ref_end_upper_bound = |end_upper_bound: usize, ref_offset: usize, seq_len: usize| {
-            cmp::min(ref_offset + end_upper_bound + 5, seq_len)
+            cmp::min(ref_offset + end_upper_bound + EDIT_BAND, seq_len)
         };
 
         // Estimate overall certainty of the read window (product of base qual complements) under

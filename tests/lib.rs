@@ -709,7 +709,7 @@ fn test25() {
     let mut call = load_call("test25");
     check_allelefreq(&mut call, b"tumor", 1.0, 0.0);
     check_allelefreq(&mut call, b"tumor", 1.0, 0.0);
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 2533.0);
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 2530.0);
 }
 
 /// Test a delly deletion (on real data) that is likely a repeat artifact.

@@ -366,6 +366,11 @@ impl Sample {
                 let mut candidate_reads = Vec::new();
                 for candidate in candidate_records.values() {
                     if let Some(right) = candidate.right {
+                        if candidate.left.mapq() == 0 || right.mapq() == 0 {
+                            // Ignore pairs with ambiguous alignments.
+                            // The statistical model does not consider them anyway.
+                            continue;
+                        }
                         // this is a pair
                         let start_pos = (candidate.left.pos() as u32).saturating_sub(
                             evidence::Clips::leading(candidate.left.cigar_cached().unwrap()).soft(),
