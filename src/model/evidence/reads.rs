@@ -286,7 +286,7 @@ impl AbstractReadEvidence for IndelEvidence {
                 let p = DeletionEmissionParams {
                     ref_seq: ref_seq,
                     ref_offset: start.saturating_sub(ref_window),
-                    ref_end: cmp::min(start + ref_window + l as usize, ref_seq.len()),
+                    ref_end: cmp::min(start + ref_window, ref_seq.len()),
                     del_start: start,
                     del_len: variant.len() as usize,
                     read_emission: &read_emission,
@@ -589,7 +589,7 @@ impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
 
     #[inline]
     fn len_x(&self) -> usize {
-        self.ref_end - self.del_len - self.ref_offset
+        self.ref_end - self.ref_offset
     }
 }
 
