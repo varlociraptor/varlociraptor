@@ -155,7 +155,6 @@ pub struct IndelEvidence {
 }
 
 impl IndelEvidence {
-
     /// Create a new instance.
     pub fn new(
         prob_insertion_artifact: LogProb,
@@ -282,7 +281,8 @@ impl AbstractReadEvidence for IndelEvidence {
                 read_emission: &read_emission,
             };
             let (best_pos, end_upper_bound, dist) = edit_dist.calc_best_hit(&ref_params);
-            ref_params.ref_end = ref_end_upper_bound(end_upper_bound, ref_params.ref_offset, ref_seq.len());
+            ref_params.ref_end =
+                ref_end_upper_bound(end_upper_bound, ref_params.ref_offset, ref_seq.len());
             ref_params.ref_offset = ref_offset_lower_bound(best_pos, ref_params.ref_offset);
 
             self.pairhmm.prob_related(

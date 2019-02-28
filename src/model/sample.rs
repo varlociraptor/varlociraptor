@@ -450,7 +450,6 @@ impl Sample {
             }
         }
 
-
         // simulate strand bias
         // let mut count = 0;
         // for i in 0..observations.len() {

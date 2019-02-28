@@ -29,7 +29,7 @@ pub type AlleleFreq = NotNan<f64>;
 pub enum StrandBias {
     None,
     Forward,
-    Reverse
+    Reverse,
 }
 
 impl Default for StrandBias {
@@ -63,7 +63,6 @@ impl StrandBias {
         }
     }
 }
-
 
 #[allow(non_snake_case)]
 pub fn AlleleFreq(af: f64) -> AlleleFreq {

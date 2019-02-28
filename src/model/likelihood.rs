@@ -9,13 +9,11 @@ use crate::model::evidence::Observation;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, StrandBias};
 
-
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Event {
     pub allele_freq: AlleleFreq,
     pub strand_bias: StrandBias,
 }
-
 
 fn prob_sample_alt(observation: &Observation, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
@@ -81,9 +79,21 @@ impl ContaminatedSampleLikelihoodModel {
     ) -> LogProb {
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
-        let prob_primary = self.purity + likelihood_mapping(allele_freq_primary, forward_rate_primary, reverse_rate_primary, observation);
+        let prob_primary = self.purity
+            + likelihood_mapping(
+                allele_freq_primary,
+                forward_rate_primary,
+                reverse_rate_primary,
+                observation,
+            );
         // Case 2: read comes from secondary sample and is correctly mapped
-        let prob_secondary = self.impurity + likelihood_mapping(allele_freq_secondary, forward_rate_secondary, reverse_rate_secondary, observation);
+        let prob_secondary = self.impurity
+            + likelihood_mapping(
+                allele_freq_secondary,
+                forward_rate_secondary,
+                reverse_rate_secondary,
+                observation,
+            );
 
         // Step 4: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
@@ -111,7 +121,15 @@ impl Likelihood for ContaminatedSampleLikelihoodModel {
 
         // calculate product of per-oservation likelihoods in log space
         let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-            let lh = self.likelihood_observation(ln_af_primary, ln_af_secondary, ln_forward_rate_primary, ln_reverse_rate_primary, ln_forward_rate_secondary, ln_reverse_rate_secondary, obs);
+            let lh = self.likelihood_observation(
+                ln_af_primary,
+                ln_af_secondary,
+                ln_forward_rate_primary,
+                ln_reverse_rate_primary,
+                ln_forward_rate_secondary,
+                ln_reverse_rate_secondary,
+                obs,
+            );
             prob + lh
         });
         // if **allelefreqs.secondary() == 0.0 {
@@ -139,7 +157,13 @@ impl SampleLikelihoodModel {
     }
 
     /// Likelihood to observe a read given allele frequency for a single sample.
-    fn likelihood_observation(&self, allele_freq: LogProb, forward_rate: LogProb, reverse_rate: LogProb, observation: &Observation) -> LogProb {
+    fn likelihood_observation(
+        &self,
+        allele_freq: LogProb,
+        forward_rate: LogProb,
+        reverse_rate: LogProb,
+        observation: &Observation,
+    ) -> LogProb {
         // Step 1: likelihood for the mapping case.
         let prob = likelihood_mapping(allele_freq, forward_rate, reverse_rate, observation);
 
@@ -157,15 +181,30 @@ impl SampleLikelihoodModel {
 
 /// Calculate likelihood of allele freq given observation in a single sample assuming that the
 /// underlying fragment/read is mapped correctly.
-fn likelihood_mapping(allele_freq: LogProb, forward_rate: LogProb, reverse_rate: LogProb, observation: &Observation) -> LogProb {
+fn likelihood_mapping(
+    allele_freq: LogProb,
+    forward_rate: LogProb,
+    reverse_rate: LogProb,
+    observation: &Observation,
+) -> LogProb {
     // Step 1: calculate probability to sample from alt allele
     let prob_sample_alt = prob_sample_alt(observation, allele_freq);
     let prob_sample_ref = prob_sample_alt.ln_one_minus_exp();
 
     let (prob_alt_forward, prob_alt_reverse) = match observation {
-        Observation{ forward_strand: true, reverse_strand: false, prob_alt, ..} => (*prob_alt, LogProb::ln_zero()),
-        Observation{ forward_strand: false, reverse_strand: true, prob_alt, ..} => (LogProb::ln_zero(), *prob_alt),
-        Observation{ prob_alt, .. } => (*prob_alt, *prob_alt),
+        Observation {
+            forward_strand: true,
+            reverse_strand: false,
+            prob_alt,
+            ..
+        } => (*prob_alt, LogProb::ln_zero()),
+        Observation {
+            forward_strand: false,
+            reverse_strand: true,
+            prob_alt,
+            ..
+        } => (LogProb::ln_zero(), *prob_alt),
+        Observation { prob_alt, .. } => (*prob_alt, *prob_alt),
     };
 
     // Step 2: read comes from case sample and is correctly mapped
@@ -218,7 +257,7 @@ mod tests {
     fn event(allele_freq: f64) -> Event {
         Event {
             allele_freq: AlleleFreq(allele_freq),
-            strand_bias: StrandBias::None
+            strand_bias: StrandBias::None,
         }
     }
 
@@ -228,7 +267,12 @@ mod tests {
 
         let model = SampleLikelihoodModel::new();
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), no_strand_bias(), no_strand_bias(), &observation);
+        let lh = model.likelihood_observation(
+            LogProb(AlleleFreq(0.0).ln()),
+            no_strand_bias(),
+            no_strand_bias(),
+            &observation,
+        );
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
@@ -240,8 +284,10 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(0.0).ln()),
-            no_strand_bias(), no_strand_bias(),
-            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_one());
@@ -287,8 +333,10 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(1.0).ln()),
             LogProb(AlleleFreq(0.0).ln()),
-            no_strand_bias(), no_strand_bias(),
-            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_one());
@@ -296,8 +344,10 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(0.0).ln()),
-            no_strand_bias(), no_strand_bias(),
-            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, *LogProb::ln_zero());
@@ -305,8 +355,10 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.5).ln()),
             LogProb(AlleleFreq(0.0).ln()),
-            no_strand_bias(), no_strand_bias(),
-            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, 0.5f64.ln());
@@ -314,8 +366,10 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.5).ln()),
             LogProb(AlleleFreq(0.5).ln()),
-            no_strand_bias(), no_strand_bias(),
-            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, 0.5f64.ln());
@@ -323,8 +377,10 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.1).ln()),
             LogProb(AlleleFreq(0.0).ln()),
-            no_strand_bias(), no_strand_bias(),
-            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, 0.1f64.ln());
@@ -335,8 +391,10 @@ mod tests {
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
             LogProb(AlleleFreq(1.0).ln()),
-            no_strand_bias(), no_strand_bias(),
-            no_strand_bias(), no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
+            no_strand_bias(),
             &observation,
         );
         assert_relative_eq!(*lh, 0.5f64.ln(), epsilon = 0.0000000001);
@@ -355,16 +413,36 @@ mod tests {
             LogProb::ln_zero(),
         );
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(1.0).ln()), no_strand_bias(), no_strand_bias(), &observation);
+        let lh = model.likelihood_observation(
+            LogProb(AlleleFreq(1.0).ln()),
+            no_strand_bias(),
+            no_strand_bias(),
+            &observation,
+        );
         assert_relative_eq!(*lh, *LogProb::ln_one());
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), no_strand_bias(), no_strand_bias(), &observation);
+        let lh = model.likelihood_observation(
+            LogProb(AlleleFreq(0.0).ln()),
+            no_strand_bias(),
+            no_strand_bias(),
+            &observation,
+        );
         assert_relative_eq!(*lh, *LogProb::ln_zero());
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.5).ln()), no_strand_bias(), no_strand_bias(), &observation);
+        let lh = model.likelihood_observation(
+            LogProb(AlleleFreq(0.5).ln()),
+            no_strand_bias(),
+            no_strand_bias(),
+            &observation,
+        );
         assert_relative_eq!(*lh, 0.5f64.ln());
 
-        let lh = model.likelihood_observation(LogProb(AlleleFreq(0.1).ln()), no_strand_bias(), no_strand_bias(), &observation);
+        let lh = model.likelihood_observation(
+            LogProb(AlleleFreq(0.1).ln()),
+            no_strand_bias(),
+            no_strand_bias(),
+            &observation,
+        );
         assert_relative_eq!(*lh, 0.1f64.ln());
     }
 

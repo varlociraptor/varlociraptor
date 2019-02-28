@@ -8,10 +8,10 @@ use std::cmp;
 use bio::stats::bayesian::model::{Likelihood, Posterior};
 use bio::stats::LogProb;
 
+use crate::model;
 use crate::model::likelihood;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, ContinuousAlleleFreqs};
-use crate::model;
 
 #[derive(Debug, Clone)]
 pub struct TumorNormalPair<T> {
@@ -92,7 +92,7 @@ impl Posterior for TumorNormalPosterior {
                             normal: likelihood::Event {
                                 allele_freq: af_normal,
                                 strand_bias: strand_bias_tumor,
-                            }
+                            },
                         }
                         .into(),
                         pileups,

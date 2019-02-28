@@ -6,10 +6,10 @@
 use std::f64;
 use std::str;
 
+use derive_builder::Builder;
 use rgsl::randist::poisson::poisson_pdf;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
-use derive_builder::Builder;
 
 use bio::stats::LogProb;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
