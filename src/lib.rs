@@ -16,6 +16,7 @@ extern crate lazy_static;
 
 pub mod call;
 pub mod constants;
+pub mod conversion;
 pub mod estimation;
 pub mod filtration;
 pub mod model;

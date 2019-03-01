@@ -19,6 +19,7 @@ use itertools::Itertools;
 use structopt::StructOpt;
 
 use varlociraptor::call::CallerBuilder;
+use varlociraptor::conversion;
 use varlociraptor::filtration;
 use varlociraptor::model::modes::common::FlatPrior;
 use varlociraptor::model::modes::tumor::{
@@ -132,6 +133,11 @@ enum Varlociraptor {
         #[structopt(subcommand)]
         method: FilterMethod,
     },
+    #[structopt(
+        name = "decode-phred",
+        about = "Decode PHRED-scaled values to human readable probabilities."
+    )]
+    DecodePHRED,
 }
 
 #[derive(Debug, StructOpt)]
@@ -208,7 +214,6 @@ pub fn main() -> Result<(), Box<Error>> {
             info!("Estimated alignment properties:");
             info!("{:?}", tumor_alignment_properties);
             info!("{:?}", normal_alignment_properties);
-
 
             let tumor_bam = bam::IndexedReader::from_path(tumor)?;
             let normal_bam = bam::IndexedReader::from_path(normal)?;
@@ -340,6 +345,9 @@ pub fn main() -> Result<(), Box<Error>> {
                 )?;
             }
         },
+        Varlociraptor::DecodePHRED => {
+            conversion::decode_phred::decode_phred()?;
+        }
     }
     Ok(())
 }
