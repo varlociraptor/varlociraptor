@@ -3,6 +3,9 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#[macro_use]
+extern crate log;
+
 use std::error::Error;
 use std::path::PathBuf;
 
@@ -202,6 +205,11 @@ pub fn main() -> Result<(), Box<Error>> {
         } => {
             let tumor_alignment_properties = estimate_alignment_properties(tumor)?;
             let normal_alignment_properties = estimate_alignment_properties(normal)?;
+            info!("Estimated alignment properties:");
+            info!("{:?}", tumor_alignment_properties);
+            info!("{:?}", normal_alignment_properties);
+
+
             let tumor_bam = bam::IndexedReader::from_path(tumor)?;
             let normal_bam = bam::IndexedReader::from_path(normal)?;
 

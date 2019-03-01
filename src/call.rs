@@ -280,6 +280,7 @@ where
             let record = self.next_record()?;
             if let Some(mut record) = record {
                 i += 1;
+                // TODO mark as debug
                 info!("processing record {}", i);
                 let call = self.call_record(&mut record, &universe)?;
                 if let Some(call) = call {
