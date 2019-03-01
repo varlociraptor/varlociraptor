@@ -792,7 +792,7 @@ fn test_fdr_ev1() {
 #[test]
 fn test_fdr_ev2() {
     control_fdr_ev("test_fdr_ev_2", "SOMATIC", 0.05);
-    assert_call_number("test_fdr_ev_2", 950);
+    assert_call_number("test_fdr_ev_2", 985);
 }
 
 /// same test, but low alpha
