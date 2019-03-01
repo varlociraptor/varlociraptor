@@ -32,12 +32,10 @@ pub fn decode_phred() -> Result<(), Box<Error>> {
         let mut record = record?;
         for tag in &tags {
             if let Some(values) = record.info(tag).float()? {
-                dbg!(values);
                 let converted = values
                     .iter()
                     .map(|v| *Prob::from(PHREDProb(*v as f64)) as f32)
                     .collect_vec();
-                dbg!(&converted);
                 record.push_info_float(tag, &converted)?;
             }
         }
