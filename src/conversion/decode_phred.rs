@@ -8,17 +8,22 @@ use rust_htslib::bcf::Read;
 /// Decode PHRED scaled values to probabilities.
 pub fn decode_phred() -> Result<(), Box<Error>> {
     let mut inbcf = bcf::Reader::from_stdin()?;
+
     let tags = inbcf
         .header()
         .header_records()
         .into_iter()
-        .filter_map(|rec| match rec {
-            bcf::header::HeaderRecord::Info { ref key, .. } if key.starts_with("PROB_") => {
-                Some(key.clone().into_bytes())
+        .filter_map(|rec| {
+            if let bcf::header::HeaderRecord::Info { values, .. } = rec {
+                let id = values.get("ID").unwrap();
+                if id.starts_with("PROB_") {
+                    return Some(id.clone().into_bytes());
+                }
             }
-            _ => None,
+            None
         })
         .collect_vec();
+
     // setup output file
     let header = bcf::Header::from_template(inbcf.header());
     let mut outbcf = bcf::Writer::from_stdout(&header, false, false)?;
@@ -27,11 +32,12 @@ pub fn decode_phred() -> Result<(), Box<Error>> {
         let mut record = record?;
         for tag in &tags {
             if let Some(values) = record.info(tag).float()? {
+                dbg!(values);
                 let converted = values
                     .iter()
                     .map(|v| *Prob::from(PHREDProb(*v as f64)) as f32)
                     .collect_vec();
-                record.clear_info_float(tag)?;
+                dbg!(&converted);
                 record.push_info_float(tag, &converted)?;
             }
         }
