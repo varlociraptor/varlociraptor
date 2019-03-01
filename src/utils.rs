@@ -29,7 +29,6 @@ pub fn collect_variants(
     omit_snvs: bool,
     omit_indels: bool,
     indel_len_range: Option<Range<u32>>,
-    exclusive_end: bool,
 ) -> Result<Vec<Option<model::Variant>>, Box<Error>> {
     let pos = record.pos();
     let svlens = match record.info(b"SVLEN").integer() {
@@ -38,12 +37,7 @@ pub fn collect_variants(
     };
     let end = match record.info(b"END").integer() {
         Ok(Some(end)) => {
-            let mut end = end[0] as u32 - 1;
-            if exclusive_end {
-                // this happens with DELLY
-                debug!("fixing END tag");
-                end -= 1;
-            }
+            let end = end[0] as u32 - 1;
             Some(end)
         }
         _ => None,
@@ -108,7 +102,7 @@ pub fn collect_variants(
         } else if svtype == b"DEL" {
             let svlen = match (svlens, end) {
                 (Some(svlens), _) => svlens[0],
-                (None, Some(end)) => end - pos,
+                (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
                 _ => {
                     return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
                 }
@@ -244,7 +238,7 @@ pub fn tags_prob_sum(
     tags: &[String],
     vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>, Box<Error>> {
-    let variants = (utils::collect_variants(record, false, false, None, false))?;
+    let variants = (utils::collect_variants(record, false, false, None))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
     for tag in tags {

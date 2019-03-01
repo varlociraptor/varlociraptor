@@ -107,11 +107,6 @@ enum Varlociraptor {
         )]
         max_indel_len: u32,
         #[structopt(
-            long = "exclusive-end",
-            help = "Assume that the END tag is exclusive (i.e. it points to the position after the variant). This is needed, e.g., for DELLY."
-        )]
-        exclusive_end: bool,
-        #[structopt(
             long = "indel-window",
             default_value = "100",
             help = "Number of bases to consider left and right of indel breakpoint when calculating read support. This number should not be too large in order to avoid biases caused by other close variants."
@@ -202,7 +197,6 @@ pub fn main() -> Result<(), Box<Error>> {
             omit_indels,
             ref observations,
             max_indel_len,
-            exclusive_end,
             max_depth,
             ref reference,
             ref candidates,
@@ -258,7 +252,6 @@ pub fn main() -> Result<(), Box<Error>> {
                 .omit_snvs(omit_snvs)
                 .omit_indels(omit_indels)
                 .max_indel_len(max_indel_len)
-                .exclusive_end(exclusive_end)
                 .event(
                     "germline_het",
                     TumorNormalPair {

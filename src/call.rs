@@ -110,7 +110,6 @@ where
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: u32,
-    exclusive_end: bool,
 }
 
 impl<A, L, Pr, Po> CallerBuilder<A, L, Pr, Po>
@@ -453,7 +452,6 @@ where
             self.omit_snvs,
             self.omit_indels,
             Some(0..self.max_indel_len),
-            self.exclusive_end,
         )?;
 
         if variants.is_empty() || variants.iter().all(|v| v.is_none()) {

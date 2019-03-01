@@ -123,7 +123,7 @@ fn download_reference(chrom: &str, build: &str) -> PathBuf {
     reference.to_path_buf()
 }
 
-fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, build: &str) {
+fn call_tumor_normal(test: &str, purity: f64, chrom: &str, build: &str) {
     let reference = download_reference(chrom, build);
 
     //setup_logger(test);
@@ -203,7 +203,6 @@ fn call_tumor_normal(test: &str, exclusive_end: bool, purity: f64, chrom: &str, 
         .omit_snvs(false)
         .omit_indels(false)
         .max_indel_len(10000)
-        .exclusive_end(exclusive_end)
         .event(
             "germline_het",
             TumorNormalPair {
@@ -448,7 +447,9 @@ fn assert_call_number(test: &str, expected_calls: usize) {
     // allow one more or less, in order to be robust to numeric fluctuations
     assert!(
         (calls.len() as i32 - expected_calls as i32).abs() <= 1,
-        "unexpected number of calls"
+        "unexpected number of calls ({} vs {})",
+        calls.len(),
+        expected_calls
     );
 }
 
@@ -472,7 +473,7 @@ fn control_fdr_ev(test: &str, event_str: &str, alpha: f64) {
 /// as deletion or insertion due to the special repeat structure here.
 #[test]
 fn test01() {
-    call_tumor_normal("test1", false, 0.75, "chr1", "hg18");
+    call_tumor_normal("test1", 0.75, "chr1", "hg18");
     let mut call = load_call("test1");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 17.8);
 }
@@ -480,7 +481,7 @@ fn test01() {
 /// Test a Pindel call that is a somatic call in reality (case af: 0.125).
 #[test]
 fn test02() {
-    call_tumor_normal("test2", false, 0.75, "chr1", "hg18");
+    call_tumor_normal("test2", 0.75, "chr1", "hg18");
     let mut call = load_call("test2");
 
     check_allelefreq(&mut call, b"tumor", 0.125, 0.07);
@@ -494,7 +495,7 @@ fn test02() {
 /// Test a Pindel call that is a germline call in reality (case af: 0.5, control af: 0.5).
 #[test]
 fn test03() {
-    call_tumor_normal("test3", false, 0.75, "chr1", "hg18");
+    call_tumor_normal("test3", 0.75, "chr1", "hg18");
     let mut call = load_call("test3");
 
     check_allelefreq(&mut call, b"tumor", 0.5, 0.04);
@@ -505,7 +506,7 @@ fn test03() {
 /// Test a Pindel call (insertion) that is a somatic call in reality (case af: 0.042, control af: 0.0).
 #[test]
 fn test04() {
-    call_tumor_normal("test4", false, 0.75, "chr1", "hg18");
+    call_tumor_normal("test4", 0.75, "chr1", "hg18");
     let mut call = load_call("test4");
 
     check_allelefreq(&mut call, b"tumor", 0.042, 0.12);
@@ -516,7 +517,7 @@ fn test04() {
 /// Test a Delly call in a repeat region. This should not be a somatic call.
 #[test]
 fn test05() {
-    call_tumor_normal("test5", true, 0.75, "chr1", "hg18");
+    call_tumor_normal("test5", 0.75, "chr1", "hg18");
     let mut call = load_call("test5");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 435.0);
 }
@@ -525,15 +526,15 @@ fn test05() {
 /// unclear because of being in a repetetive region.
 #[test]
 fn test06() {
-    call_tumor_normal("test6", false, 0.75, "chr16", "hg18");
+    call_tumor_normal("test6", 0.75, "chr16", "hg18");
     let mut call = load_call("test6");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 12.0);
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 4.0);
 }
 
 /// Test a small Lancet deletion. It is a somatic call (AF=0.125) in reality.
 #[test]
 fn test07() {
-    call_tumor_normal("test7", false, 0.75, "chr1", "hg18");
+    call_tumor_normal("test7", 0.75, "chr1", "hg18");
     let mut call = load_call("test7");
     check_allelefreq(&mut call, b"normal", 0.0, 0.0);
     check_allelefreq(&mut call, b"tumor", 0.125, 0.06);
@@ -543,7 +544,7 @@ fn test07() {
 /// Test a Delly deletion. It is a germline call in reality.
 #[test]
 fn test08() {
-    call_tumor_normal("test8", true, 0.75, "chr2", "hg18");
+    call_tumor_normal("test8", 0.75, "chr2", "hg18");
     let mut call = load_call("test8");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 1193.0);
 }
@@ -551,7 +552,7 @@ fn test08() {
 /// Test a Delly deletion. It should not be a somatic call.
 #[test]
 fn test09() {
-    call_tumor_normal("test9", true, 0.75, "chr2", "hg18");
+    call_tumor_normal("test9", 0.75, "chr2", "hg18");
     let mut call = load_call("test9");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 110.0);
 }
@@ -560,7 +561,7 @@ fn test09() {
 /// weak, but it should definitely not be called as somatic.
 #[test]
 fn test10() {
-    call_tumor_normal("test10", false, 0.75, "chr20", "hg18");
+    call_tumor_normal("test10", 0.75, "chr20", "hg18");
     let mut call = load_call("test10");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 1089.0);
 }
@@ -570,14 +571,14 @@ fn test10() {
 // not cause panics.
 #[test]
 fn test11() {
-    call_tumor_normal("test11", true, 0.75, "chr2", "hg18");
+    call_tumor_normal("test11", 0.75, "chr2", "hg18");
     load_call("test11");
 }
 
 /// A large lancet insertion that is not somatic, but likely a homozygous germline variant.
 #[test]
 fn test12() {
-    call_tumor_normal("test12", false, 0.75, "chr10", "hg18");
+    call_tumor_normal("test12", 0.75, "chr10", "hg18");
     let mut call = load_call("test12");
     check_allelefreq(&mut call, b"normal", 1.0, 0.0);
     check_allelefreq(&mut call, b"tumor", 1.0, 0.0);
@@ -587,7 +588,7 @@ fn test12() {
 /// A delly deletion that is a somatic mutation in reality (AF=0.33).
 #[test]
 fn test13() {
-    call_tumor_normal("test13", true, 0.75, "chr1", "hg18");
+    call_tumor_normal("test13", 0.75, "chr1", "hg18");
     let mut call = load_call("test13");
     check_info_float_at_most(&mut call, b"PROB_SOMATIC_TUMOR", 0.17);
     check_allelefreq(&mut call, b"tumor", 0.33, 0.19);
@@ -601,7 +602,7 @@ fn test13() {
 /// latent variable in the model.
 #[test]
 fn test14() {
-    call_tumor_normal("test14", true, 0.75, "chr15", "hg18");
+    call_tumor_normal("test14", 0.75, "chr15", "hg18");
     let mut call = load_call("test14");
     check_allelefreq(&mut call, b"normal", 0.5, 0.4);
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 336.0)
@@ -610,7 +611,7 @@ fn test14() {
 /// A small lancet deletion that is a true and strong somatic variant (AF=1.0).
 #[test]
 fn test15() {
-    call_tumor_normal("test15", false, 0.75, "chr1", "hg18");
+    call_tumor_normal("test15", 0.75, "chr1", "hg18");
     let mut call = load_call("test15");
     check_info_float_at_most(&mut call, b"PROB_SOMATIC_TUMOR", 0.08);
     check_allelefreq(&mut call, b"tumor", 1.0, 0.06);
@@ -620,7 +621,7 @@ fn test15() {
 /// A large lancet deletion that is a true and strong somatic variant (AF=0.333).
 #[test]
 fn test16() {
-    call_tumor_normal("test16", false, 0.75, "chr1", "hg18");
+    call_tumor_normal("test16", 0.75, "chr1", "hg18");
     let mut call = load_call("test16");
     check_allelefreq(&mut call, b"tumor", 0.333, 0.12);
     check_allelefreq(&mut call, b"normal", 0.0, 0.0);
@@ -630,7 +631,7 @@ fn test16() {
 /// A delly call that is a false positive. It should be called as absent.
 #[test]
 fn test17() {
-    call_tumor_normal("test17", true, 0.75, "chr11", "hg18");
+    call_tumor_normal("test17", 0.75, "chr11", "hg18");
     let mut call = load_call("test17");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 4.8);
     check_info_float_at_most(&mut call, b"PROB_ABSENT", 1.6);
@@ -639,7 +640,7 @@ fn test17() {
 /// A large lancet deletion that is not somatic and a likely homozygous germline variant.
 #[test]
 fn test18() {
-    call_tumor_normal("test18", false, 0.75, "chr12", "hg18");
+    call_tumor_normal("test18", 0.75, "chr12", "hg18");
     let mut call = load_call("test18");
     check_allelefreq(&mut call, b"tumor", 1.0, 0.0);
     check_allelefreq(&mut call, b"normal", 1.0, 0.0);
@@ -651,7 +652,7 @@ fn test18() {
 /// is enclosing the variant.
 #[test]
 fn test19() {
-    call_tumor_normal("test19", true, 0.75, "chr8", "hg18");
+    call_tumor_normal("test19", 0.75, "chr8", "hg18");
     let mut call = load_call("test19");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 431.0);
 }
@@ -661,7 +662,7 @@ fn test19() {
 /// MAPQ to be binary.
 #[test]
 fn test20() {
-    call_tumor_normal("test20", true, 0.75, "chr4", "hg18");
+    call_tumor_normal("test20", 0.75, "chr4", "hg18");
     let mut call = load_call("test20");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 420.0);
 }
@@ -672,7 +673,7 @@ fn test20() {
 #[test]
 #[ignore]
 fn test21() {
-    call_tumor_normal("test21", false, 0.75, "chr7", "hg18");
+    call_tumor_normal("test21", 0.75, "chr7", "hg18");
     load_call("test21");
     assert!(false);
 }
@@ -680,7 +681,7 @@ fn test21() {
 /// A manta deletion that is a germline variant. It seems to be homozygous when looking at IGV though.
 #[test]
 fn test22() {
-    call_tumor_normal("test22", false, 0.75, "chr18", "hg18");
+    call_tumor_normal("test22", 0.75, "chr18", "hg18");
     let mut call = load_call("test22");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 152.0);
 }
@@ -689,7 +690,7 @@ fn test22() {
 /// germline variant.
 #[test]
 fn test23() {
-    call_tumor_normal("test23", false, 0.75, "chr14", "hg18");
+    call_tumor_normal("test23", 0.75, "chr14", "hg18");
     let mut call = load_call("test23");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 6.6);
 }
@@ -697,7 +698,7 @@ fn test23() {
 /// Test a small strelka deletion that is not somatic.
 #[test]
 fn test24() {
-    call_tumor_normal("test24", false, 0.75, "chr6", "hg18");
+    call_tumor_normal("test24", 0.75, "chr6", "hg18");
     let mut call = load_call("test24");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 141.0);
 }
@@ -705,7 +706,7 @@ fn test24() {
 /// Test a small lancet deletion that is a clear germline variant.
 #[test]
 fn test25() {
-    call_tumor_normal("test25", false, 0.75, "chr11", "hg18");
+    call_tumor_normal("test25", 0.75, "chr11", "hg18");
     let mut call = load_call("test25");
     check_allelefreq(&mut call, b"tumor", 1.0, 0.0);
     check_allelefreq(&mut call, b"tumor", 1.0, 0.0);
@@ -716,7 +717,7 @@ fn test25() {
 #[test]
 //#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test26() {
-    call_tumor_normal("test26", true, 1.0, "1", "GRCh38");
+    call_tumor_normal("test26", 1.0, "1", "GRCh38");
     let mut call = load_call("test26");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 4.6);
 }
@@ -724,7 +725,7 @@ fn test26() {
 /// Test a delly deletion that is not a somatic variant. It is likely absent.
 #[test]
 fn test27() {
-    call_tumor_normal("test27", true, 0.75, "chr10", "hg18");
+    call_tumor_normal("test27", 0.75, "chr10", "hg18");
     let mut call = load_call("test27");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 14.0);
 }
@@ -732,7 +733,7 @@ fn test27() {
 /// Test a delly deletion that is not a somatic variant. It is likely absent.
 #[test]
 fn test28() {
-    call_tumor_normal("test28", true, 0.75, "chr5", "hg18");
+    call_tumor_normal("test28", 0.75, "chr5", "hg18");
     let mut call = load_call("test28");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 10.6);
 }
@@ -742,7 +743,7 @@ fn test28() {
 #[test]
 //#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test29() {
-    call_tumor_normal("test29", true, 1.0, "1", "GRCh38");
+    call_tumor_normal("test29", 1.0, "1", "GRCh38");
     let mut call = load_call("test29");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 54.0);
 }
@@ -751,7 +752,7 @@ fn test29() {
 #[test]
 //#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test30() {
-    call_tumor_normal("test30", true, 1.0, "2", "GRCh38");
+    call_tumor_normal("test30", 1.0, "2", "GRCh38");
     let mut call = load_call("test30");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 2296.0);
 }
@@ -760,7 +761,7 @@ fn test30() {
 #[test]
 //#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test31() {
-    call_tumor_normal("test31", true, 1.0, "1", "GRCh38");
+    call_tumor_normal("test31", 1.0, "1", "GRCh38");
     let mut call = load_call("test31");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 11.08);
 }
@@ -769,7 +770,7 @@ fn test31() {
 #[test]
 //#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test32() {
-    call_tumor_normal("test32", true, 1.0, "1", "GRCh38");
+    call_tumor_normal("test32", 1.0, "1", "GRCh38");
     let mut call = load_call("test32");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 1.1);
 }
@@ -777,7 +778,7 @@ fn test32() {
 // Test a manta deletion that is likely not somatic.
 #[test]
 fn test33() {
-    call_tumor_normal("test33", false, 1.0, "15", "GRCh38");
+    call_tumor_normal("test33", 1.0, "15", "GRCh38");
     let mut call = load_call("test33");
     check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 14.0);
 }
