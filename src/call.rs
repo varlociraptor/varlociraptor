@@ -279,13 +279,14 @@ where
         loop {
             let record = self.next_record()?;
             if let Some(mut record) = record {
+                i += 1;
+                info!("processing record {}", i);
                 let call = self.call_record(&mut record, &universe)?;
                 if let Some(call) = call {
                     self.write_call(&call)?;
-                    i += 1;
-                    if i % 100 == 0 {
-                        info!("{} records written.", i);
-                    }
+                }
+                if i % 100 == 0 {
+                    info!("{} records processed.", i);
                 }
             } else {
                 // done
