@@ -8,6 +8,7 @@ use bio::stats::{bayesian::model::Likelihood, LogProb};
 use crate::model::evidence::Observation;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, StrandBias};
+use crate::utils::NUMERICAL_EPSILON;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Event {
@@ -19,7 +20,7 @@ fn prob_sample_alt(observation: &Observation, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
         // The effective sample probability for the alt allele is the allele frequency times
         // the probability to obtain a feasible fragment (prob_sample_alt).
-        allele_freq + observation.prob_sample_alt
+        (allele_freq + observation.prob_sample_alt).cap_numerical_overshoot(NUMERICAL_EPSILON)
     } else {
         // If allele frequency is 1.0, sampling bias does have no effect because all reads
         // should come from the alt allele.
