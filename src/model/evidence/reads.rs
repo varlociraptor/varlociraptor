@@ -185,12 +185,15 @@ impl IndelEvidence {
     ) -> LogProb {
         let hit = edit_dist.calc_best_hit(&allele_params);
         if hit.dist == 0 {
-            // In case of a perfect match, we just take the base quality product.
+            // METHOD: In case of a perfect match, we just take the base quality product.
             // All alternative paths in the HMM will anyway be much worse.
             certainty_est
         } else {
+            // METHOD: We shrink the area to run the HMM against to an environment around the best
+            // edit distance hits.
             allele_params.shrink_to_hit(&hit);
 
+            // METHOD: Further, we run the HMM on a band around the best edit distance.
             self.pairhmm.prob_related(
                 &self.gap_params,
                 &allele_params,
