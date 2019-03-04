@@ -5,6 +5,7 @@
 
 use std::cmp;
 use std::error::Error;
+use std::fmt::Debug;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::strand::Strand;
@@ -174,6 +175,27 @@ impl IndelEvidence {
             window,
         }
     }
+
+    /// Calculate probability of a certain allele.
+    fn prob_allele<E: pairhmm::EmissionParameters + RefBaseEmission>(
+        &mut self,
+        allele_params: E,
+        certainty_est: LogProb,
+        edit_dist: &EditDistanceCalculation,
+    ) -> LogProb {
+        let hit = edit_dist.calc_best_hit(&allele_params);
+        if hit.dist == 0 {
+            // In case of a perfect match, we just take the base quality product.
+            // All alternative paths in the HMM will anyway be much worse.
+            certainty_est
+        } else {
+            self.pairhmm.prob_related(
+                &self.gap_params,
+                &allele_params,
+                Some(hit.dist_upper_bound()),
+            )
+        }
+    }
 }
 
 impl AbstractReadEvidence for IndelEvidence {
@@ -244,15 +266,7 @@ impl AbstractReadEvidence for IndelEvidence {
 
         // read emission
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
-
         let edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
-        let edit_dist_upper_bound = |edit_dist| edit_dist + EDIT_BAND;
-        let ref_offset_lower_bound = |best_pos: usize, previous_offset: usize| {
-            previous_offset.saturating_sub(best_pos.saturating_sub(EDIT_BAND))
-        };
-        let ref_end_upper_bound = |end_upper_bound: usize, ref_offset: usize, seq_len: usize| {
-            cmp::min(ref_offset + end_upper_bound + EDIT_BAND, seq_len)
-        };
 
         // Estimate overall certainty of the read window (product of base qual complements) under
         // the assumption that the read comes from one of the two alleles.
@@ -273,93 +287,57 @@ impl AbstractReadEvidence for IndelEvidence {
         }
 
         // ref allele
-        let mut prob_ref = {
-            let mut ref_params = ReferenceEmissionParams {
+        let mut prob_ref = self.prob_allele(
+            ReferenceEmissionParams {
                 ref_seq: ref_seq,
                 ref_offset: breakpoint.saturating_sub(ref_window),
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                 read_emission: &read_emission,
-            };
-            let (best_pos, end_upper_bound, dist) = edit_dist.calc_best_hit(&ref_params);
-
-            if dist == 0 {
-                // In case of a perfect match, we just take the base quality product.
-                // All alternative paths in the HMM will anyway be much worse.
-                certainty_est
-            } else {
-                ref_params.ref_end =
-                    ref_end_upper_bound(end_upper_bound, ref_params.ref_offset, ref_seq.len());
-                ref_params.ref_offset = ref_offset_lower_bound(best_pos, ref_params.ref_offset);
-
-                self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &ref_params,
-                    Some(edit_dist_upper_bound(dist as usize)),
-                )
-            }
-        };
+            },
+            certainty_est,
+            &edit_dist,
+        );
 
         // alt allele
         let mut prob_alt = match variant {
             &Variant::Deletion(_) => {
-                let mut p = DeletionEmissionParams {
-                    ref_seq: ref_seq,
-                    ref_offset: start.saturating_sub(ref_window),
-                    ref_end: cmp::min(start + ref_window, ref_seq.len()),
-                    del_start: start,
-                    del_len: variant.len() as usize,
-                    read_emission: &read_emission,
-                };
-                let (best_pos, end_upper_bound, dist) = edit_dist.calc_best_hit(&p);
-
-                if dist == 0 {
-                    // In case of a perfect match, we just take the base quality product.
-                    // All alternative paths in the HMM will anyway be much worse.
-                    certainty_est
-                } else {
-                    p.ref_end = ref_end_upper_bound(end_upper_bound, p.ref_offset, ref_seq.len());
-                    p.ref_offset = ref_offset_lower_bound(best_pos, p.ref_offset);
-
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &p,
-                        Some(edit_dist_upper_bound(dist as usize)),
-                    )
-                }
-            }
+                self.prob_allele(
+                    DeletionEmissionParams {
+                        ref_seq: ref_seq,
+                        ref_offset: start.saturating_sub(ref_window),
+                        ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                        del_start: start,
+                        del_len: variant.len() as usize,
+                        read_emission: &read_emission,
+                    },
+                    certainty_est,
+                    &edit_dist,
+                )
+            },
             &Variant::Insertion(ref ins_seq) => {
                 let l = ins_seq.len() as usize;
-                let mut p = InsertionEmissionParams {
-                    ref_seq: ref_seq,
-                    ref_offset: start.saturating_sub(ref_window),
-                    ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
-                    ins_start: start,
-                    ins_len: l,
-                    ins_end: start + l,
-                    ins_seq: ins_seq,
-                    read_emission: &read_emission,
-                };
-                let (best_pos, end_upper_bound, dist) = edit_dist.calc_best_hit(&p);
 
-                if dist == 0 {
-                    // In case of a perfect match, we just take the base quality product.
-                    // All alternative paths in the HMM will anyway be much worse.
-                    certainty_est
-                } else {
-                    p.ref_end = ref_end_upper_bound(end_upper_bound, p.ref_offset, ref_seq.len());
-                    p.ref_offset = ref_offset_lower_bound(best_pos, p.ref_offset);
-
-                    self.pairhmm.prob_related(
-                        &self.gap_params,
-                        &p,
-                        Some(edit_dist_upper_bound(dist as usize)),
-                    )
-                }
+                self.prob_allele(
+                    InsertionEmissionParams {
+                        ref_seq: ref_seq,
+                        ref_offset: start.saturating_sub(ref_window),
+                        ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
+                        ins_start: start,
+                        ins_len: l,
+                        ins_end: start + l,
+                        ins_seq: ins_seq,
+                        read_emission: &read_emission,
+                    },
+                    certainty_est,
+                    &edit_dist,
+                )
             }
-            _ => {
+            &Variant::SNV(_) | &Variant::None => {
                 panic!("bug: unsupported variant");
             }
         };
+        assert!(!prob_ref.is_nan());
+        assert!(!prob_alt.is_nan());
 
         // Normalize probabilities. By this, we avoid biases due to proximal variants that are in
         // cis with the considered one. They are normalized away since they affect both ref and alt.
@@ -517,6 +495,7 @@ macro_rules! default_emission {
     )
 }
 
+#[derive(Debug)]
 pub struct ReadEmission<'a> {
     read_seq: &'a bam::record::Seq<'a>,
     any_miscall: Vec<LogProb>,
@@ -574,11 +553,54 @@ impl<'a> ReadEmission<'a> {
     }
 }
 
-pub trait RefBaseEmission {
+pub trait RefBaseEmission: Debug {
     fn ref_base(&self, i: usize) -> u8;
+
+    fn ref_offset(&self) -> usize;
+
+    fn ref_end(&self) -> usize;
+
+    fn set_ref_offset(&mut self, value: usize);
+
+    fn set_ref_end(&mut self, value: usize);
+
+    fn read_emission(&self) -> &ReadEmission;
+
+    fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
+        self.set_ref_end(cmp::min(
+            self.ref_offset() + hit.end + EDIT_BAND,
+            self.ref_end(),
+        ));
+        self.set_ref_offset(self.ref_offset() + hit.start.saturating_sub(EDIT_BAND));
+    }
+}
+
+macro_rules! default_ref_base_emission {
+    () => (
+        fn ref_offset(&self) -> usize {
+            self.ref_offset
+        }
+
+        fn ref_end(&self) -> usize {
+            self.ref_end
+        }
+
+        fn set_ref_offset(&mut self, value: usize) {
+            self.ref_offset = value;
+        }
+
+        fn set_ref_end(&mut self, value: usize) {
+            self.ref_end = value;
+        }
+
+        fn read_emission(&self) -> &ReadEmission {
+            self.read_emission
+        }
+    )
 }
 
 /// Emission parameters for PairHMM over reference allele.
+#[derive(Debug)]
 pub struct ReferenceEmissionParams<'a> {
     ref_seq: &'a [u8],
     ref_offset: usize,
@@ -591,6 +613,8 @@ impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
     fn ref_base(&self, i: usize) -> u8 {
         self.ref_seq[i + self.ref_offset]
     }
+
+    default_ref_base_emission!();
 }
 
 impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
@@ -603,6 +627,7 @@ impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
 }
 
 /// Emission parameters for PairHMM over deletion allele.
+#[derive(Debug)]
 pub struct DeletionEmissionParams<'a> {
     ref_seq: &'a [u8],
     ref_offset: usize,
@@ -622,6 +647,8 @@ impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
             self.ref_seq[i_ + self.del_len]
         }
     }
+
+    default_ref_base_emission!();
 }
 
 impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
@@ -634,6 +661,7 @@ impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
 }
 
 /// Emission parameters for PairHMM over insertion allele.
+#[derive(Debug)]
 pub struct InsertionEmissionParams<'a> {
     ref_seq: &'a [u8],
     ref_offset: usize,
@@ -657,6 +685,8 @@ impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
             self.ins_seq[i_ - (self.ins_start + 1)]
         }
     }
+
+    default_ref_base_emission!();
 }
 
 impl<'a> pairhmm::EmissionParameters for InsertionEmissionParams<'a> {
@@ -694,16 +724,49 @@ impl EditDistanceCalculation {
     pub fn calc_best_hit<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &self,
         emission_params: &E,
-    ) -> (usize, usize, u8) {
+    ) -> EditDistanceHit {
         let ref_seq = (0..emission_params.len_x())
             .rev()
             .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
-        let (pos, dist) = self.myers.find_best_end(ref_seq);
+        let mut best_dist = u8::max_value();
+        let mut positions = Vec::new();
+        for (pos, dist) in self.myers.find_all_end(ref_seq, u8::max_value()) {
+            if dist < best_dist {
+                positions.clear();
+                positions.push(pos);
+                best_dist = dist;
+            } else if dist == best_dist {
+                positions.push(pos);
+            }
+        }
+        let ambiguous = positions.len() > 1;
+
         // We find a pos relative to ref end, hence we have to project it to a position relative to
         // the start.
-        let start = emission_params.len_x() - pos;
-        let end = start + self.read_seq_len + dist as usize;
-        (start, end, dist)
+        let project = |pos| emission_params.len_x() - pos;
+        let start = project(positions.last().unwrap().saturating_sub(best_dist as usize));
+        // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
+        let end = project(positions[0]) + self.read_seq_len + best_dist as usize;
+        EditDistanceHit {
+            start,
+            end,
+            ambiguous,
+            dist: best_dist,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EditDistanceHit {
+    start: usize,
+    end: usize,
+    dist: u8,
+    ambiguous: bool,
+}
+
+impl EditDistanceHit {
+    pub fn dist_upper_bound(&self) -> usize {
+        self.dist as usize + EDIT_BAND
     }
 }
 

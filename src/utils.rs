@@ -108,7 +108,9 @@ pub fn collect_variants(
                 }
             };
             if svlen == 0 {
-                return Err(Box::new(BCFError::InvalidRecord("Absolute value of SVLEN or END - POS must be greater than zero.".to_owned())));
+                return Err(Box::new(BCFError::InvalidRecord(
+                    "Absolute value of SVLEN or END - POS must be greater than zero.".to_owned(),
+                )));
             }
             let alleles = record.alleles();
             if alleles.len() > 2 {

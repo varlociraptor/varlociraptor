@@ -498,9 +498,9 @@ fn test03() {
     call_tumor_normal("test3", 0.75, "chr1", "hg18");
     let mut call = load_call("test3");
 
-    check_allelefreq(&mut call, b"tumor", 0.5, 0.04);
-    check_allelefreq(&mut call, b"normal", 0.5, 0.051);
-    check_info_float_at_most(&mut call, b"PROB_GERMLINE_HET", 0.8);
+    check_allelefreq(&mut call, b"tumor", 0.5, 0.07);
+    check_allelefreq(&mut call, b"normal", 0.5, 0.14);
+    check_info_float_at_most(&mut call, b"PROB_GERMLINE_HET", 0.95);
 }
 
 /// Test a Pindel call (insertion) that is a somatic call in reality (case af: 0.042, control af: 0.0).
@@ -654,7 +654,7 @@ fn test18() {
 fn test19() {
     call_tumor_normal("test19", 0.75, "chr8", "hg18");
     let mut call = load_call("test19");
-    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 431.0);
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 428.0);
 }
 
 /// A delly deletion that is not a somatic variant but germline. It is in a highly repetetive
