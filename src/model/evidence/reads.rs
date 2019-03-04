@@ -415,6 +415,7 @@ impl AbstractReadEvidence for IndelEvidence {
 
             LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
         };
+        assert!(prob.is_valid());
 
         prob
     }

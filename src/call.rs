@@ -275,22 +275,21 @@ where
         universe.extend(self.strand_bias_events.iter().cloned());
 
         let mut i = 0;
+        let mut record = self.bcf_reader.empty_record();
         loop {
-            let record = self.next_record()?;
-            if let Some(mut record) = record {
-                i += 1;
-                // TODO mark as debug
-                info!("processing record {}", i);
-                let call = self.call_record(&mut record, &universe)?;
-                if let Some(call) = call {
-                    self.write_call(&call)?;
-                }
-                if i % 100 == 0 {
-                    info!("{} records processed.", i);
-                }
-            } else {
-                // done
-                return Ok(());
+            match self.bcf_reader.read(&mut record) {
+                Err(bcf::ReadError::NoMoreRecord) => return Ok(()),
+                Err(e) => return Err(Box::new(e)),
+                Ok(()) => (),
+            }
+
+            i += 1;
+            let call = self.call_record(&mut record, &universe)?;
+            if let Some(call) = call {
+                self.write_call(&call)?;
+            }
+            if i % 100 == 0 {
+                info!("{} records processed.", i);
             }
         }
     }

@@ -253,6 +253,7 @@ impl IndelEvidence {
             )
             .cap_numerical_overshoot(NUMERICAL_EPSILON);
 
+            assert!(expected_p_alt.is_valid());
             expected_p_alt
         };
 
