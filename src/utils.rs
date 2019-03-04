@@ -602,46 +602,36 @@ mod tests {
         let del = VariantType::Deletion(None);
 
         let mut del_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        if let Ok(prob_del) = collect_prob_dist(&mut del_calls_1, &events, &del) {
-            println!("prob_del[0]: {:?}", prob_del[0].into_inner());
-            assert_eq!(prob_del.len(), 1);
-            assert_relative_eq!(prob_del[0].into_inner(), Prob(0.8).ln(), epsilon = 0.000005);
-        } else {
-            panic!("collect_prob_dist(&calls, &events, &del) returned Error")
-        }
+        let prob_del = collect_prob_dist(&mut del_calls_1, &events, &del).unwrap();
+        println!("prob_del[0]: {:?}", prob_del[0].into_inner());
+        assert_eq!(prob_del.len(), 1);
+        assert_relative_eq!(prob_del[0].into_inner(), Prob(0.8).ln(), epsilon = 0.000005);
+
         let mut del_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        if let Ok(prob_del_abs) = collect_prob_dist(&mut del_calls_2, &absent_event, &del) {
-            assert_eq!(prob_del_abs.len(), 1);
-            assert_relative_eq!(
-                prob_del_abs[0].into_inner(),
-                Prob(0.2).ln(),
-                epsilon = 0.000005
-            );
-        } else {
-            panic!("collect_prob_dist(&calls, &absent_event, &del) returned Error")
-        }
+        let prob_del_abs = collect_prob_dist(&mut del_calls_2, &absent_event, &del).unwrap();
+        assert_eq!(prob_del_abs.len(), 1);
+        assert_relative_eq!(
+            prob_del_abs[0].into_inner(),
+            Prob(0.2).ln(),
+            epsilon = 0.000005
+        );
 
         //TESTS insertion
         let ins = VariantType::Insertion(None);
 
         let mut ins_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        if let Ok(prob_ins) = collect_prob_dist(&mut ins_calls_1, &events, &ins) {
-            assert_eq!(prob_ins.len(), 1);
-            assert_relative_eq!(prob_ins[0].into_inner(), Prob(0.2).ln(), epsilon = 0.000005);
-        } else {
-            panic!("collect_prob_dist(&calls, &events, &ins) returned Error")
-        }
+        let prob_ins = collect_prob_dist(&mut ins_calls_1, &events, &ins).unwrap();
+        assert_eq!(prob_ins.len(), 1);
+        assert_relative_eq!(prob_ins[0].into_inner(), Prob(0.2).ln(), epsilon = 0.000005);
+
         let mut ins_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        if let Ok(prob_ins_abs) = collect_prob_dist(&mut ins_calls_2, &absent_event, &ins) {
-            assert_eq!(prob_ins_abs.len(), 1);
-            assert_relative_eq!(
-                prob_ins_abs[0].into_inner(),
-                Prob(0.8).ln(),
-                epsilon = 0.000005
-            );
-        } else {
-            panic!("collect_prob_dist(&calls, &absent_event, &ins) returned Error")
-        }
+        let prob_ins_abs = collect_prob_dist(&mut ins_calls_2, &absent_event, &ins).unwrap();
+        assert_eq!(prob_ins_abs.len(), 1);
+        assert_relative_eq!(
+            prob_ins_abs[0].into_inner(),
+            Prob(0.8).ln(),
+            epsilon = 0.000005
+        );
     }
 
     #[test]
