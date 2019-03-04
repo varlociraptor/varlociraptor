@@ -179,7 +179,7 @@ impl IndelEvidence {
     /// Calculate probability of a certain allele.
     fn prob_allele<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &mut self,
-        allele_params: E,
+        mut allele_params: E,
         certainty_est: LogProb,
         edit_dist: &EditDistanceCalculation,
     ) -> LogProb {
@@ -189,6 +189,8 @@ impl IndelEvidence {
             // All alternative paths in the HMM will anyway be much worse.
             certainty_est
         } else {
+            allele_params.shrink_to_hit(&hit);
+
             self.pairhmm.prob_related(
                 &self.gap_params,
                 &allele_params,
@@ -744,9 +746,9 @@ impl EditDistanceCalculation {
         // We find a pos relative to ref end, hence we have to project it to a position relative to
         // the start.
         let project = |pos| emission_params.len_x() - pos;
-        let start = project(positions.last().unwrap().saturating_sub(best_dist as usize));
+        let start = project(*positions.last().unwrap()).saturating_sub(best_dist as usize);
         // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
-        let end = project(positions[0]) + self.read_seq_len + best_dist as usize;
+        let end = cmp::min(project(positions[0]) + self.read_seq_len + best_dist as usize, emission_params.len_x());
         EditDistanceHit {
             start,
             end,
