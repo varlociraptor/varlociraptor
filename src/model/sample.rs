@@ -1,28 +1,32 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::cell::{RefCell, RefMut};
 use std::cmp;
 use std::collections::{vec_deque, BTreeMap, VecDeque};
 use std::error::Error;
 use std::f64;
-use std::f64::consts;
+use std::path::Path;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
+use bio_types::strand::Strand;
+use derive_builder::Builder;
 use rand::distributions;
 use rand::distributions::IndependentSample;
 use rand::{SeedableRng, StdRng};
-use rgsl::error::erfc;
-use rgsl::randist::gaussian::{gaussian_pdf, ugaussian_P};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 use rust_htslib::bam::Read;
 
-use estimation::alignment_properties;
-use model;
-use model::evidence;
-use model::evidence::reads::AbstractReadEvidence;
-use model::evidence::{Evidence, Observation};
-use model::{Variant, VariantType};
-use utils::{is_repeat_variant, max_prob, Overlap};
+use crate::estimation::alignment_properties;
+use crate::model::evidence;
+use crate::model::evidence::reads::AbstractReadEvidence;
+use crate::model::evidence::{Evidence, Observation};
+use crate::model::{Variant, VariantType};
+use crate::utils::{is_repeat_variant, max_prob, Overlap};
 
 quick_error! {
     #[derive(Debug)]
@@ -33,6 +37,8 @@ quick_error! {
         }
     }
 }
+
+pub type Pileup = Vec<Observation>;
 
 /// Ringbuffer of BAM records. This data structure ensures that no bam record is read twice while
 /// extracting observations for given variants.
@@ -75,7 +81,7 @@ impl RecordBuffer {
                 || self.tid().unwrap() != tid as i32
             {
                 let end = self.reader.header().target_len(tid).unwrap();
-                try!(self.reader.fetch(tid, window_start, end));
+                self.reader.fetch(tid, window_start, end)?;
                 debug!("Clearing ringbuffer");
                 self.inner.clear();
             } else {
@@ -180,76 +186,81 @@ impl SubsampleCandidates {
     }
 }
 
+pub fn estimate_alignment_properties<P: AsRef<Path>>(
+    path: P,
+) -> Result<alignment_properties::AlignmentProperties, Box<Error>> {
+    let mut bam = bam::Reader::from_path(path)?;
+    Ok(alignment_properties::AlignmentProperties::estimate(
+        &mut bam,
+    )?)
+}
+
 /// A sequenced sample, e.g., a tumor or a normal sample.
+#[derive(Builder)]
+#[builder(pattern = "owned")]
 pub struct Sample {
+    name: String,
+    #[builder(private)]
     record_buffer: RecordBuffer,
+    #[builder(default = "true")]
     use_fragment_evidence: bool,
-    likelihood_model: model::likelihood::LatentVariableModel,
+    #[builder(private)]
     alignment_properties: alignment_properties::AlignmentProperties,
+    #[builder(private)]
     pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
+    #[builder(private)]
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
+    #[builder(private)]
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
+    #[builder(private)]
     pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
+    #[builder(default = "200")]
     max_depth: usize,
+    #[builder(default = "Vec::new()")]
     omit_repeat_regions: Vec<VariantType>,
 }
 
-impl Sample {
-    /// Create a new `Sample`.
+impl SampleBuilder {
+    /// Register alignment information.
     ///
     /// # Arguments
-    ///
     /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
-    /// * `use_fragment_evidence` - Whether to use read pairs that are left and right of variant.
-    /// * `use_secondary` - Whether to use secondary alignments.
-    /// * `insert_size` - estimated insert size
-    /// * `prior_model` - Prior assumptions about allele frequency spectrum of this sample.
-    /// * `likelihood_model` - Latent variable model to calculate likelihoods of given observations.
-    /// * `max_indel_overlap` - maximum number of bases a read may be aligned beyond the start or end of an indel in order to be considered as an observation
-    /// * `indel_haplotype_window` - maximum number of considered bases around an indel breakpoint
-    pub fn new(
+    pub fn alignments(
+        self,
         bam: bam::IndexedReader,
-        use_fragment_evidence: bool,
         alignment_properties: alignment_properties::AlignmentProperties,
-        likelihood_model: model::likelihood::LatentVariableModel,
+    ) -> Self {
+        let pileup_window = (alignment_properties.insert_size().mean
+            + alignment_properties.insert_size().sd * 6.0) as u32;
+        self.alignment_properties(alignment_properties)
+            .record_buffer(RecordBuffer::new(bam, pileup_window, false))
+    }
+
+    /// Register error probabilities and window to check around indels.
+    pub fn error_probs(
+        self,
         prob_insertion_artifact: Prob,
         prob_deletion_artifact: Prob,
         prob_insertion_extend_artifact: Prob,
         prob_deletion_extend_artifact: Prob,
         indel_haplotype_window: u32,
-        max_depth: usize,
-        omit_repeat_regions: &[VariantType],
     ) -> Self {
-        let pileup_window = (alignment_properties.insert_size().mean
-            + alignment_properties.insert_size().sd * 6.0) as u32;
-        info!(
-            "Using window of {} bases on each side of variant.",
-            pileup_window
-        );
-
-        Sample {
-            record_buffer: RecordBuffer::new(bam, pileup_window, false),
-            use_fragment_evidence: use_fragment_evidence,
-            likelihood_model: likelihood_model,
-            alignment_properties: alignment_properties,
-            indel_read_evidence: RefCell::new(evidence::reads::IndelEvidence::new(
-                LogProb::from(prob_insertion_artifact),
-                LogProb::from(prob_deletion_artifact),
-                LogProb::from(prob_insertion_extend_artifact),
-                LogProb::from(prob_deletion_extend_artifact),
-                indel_haplotype_window,
-            )),
-            snv_read_evidence: RefCell::new(evidence::reads::SNVEvidence::new()),
-            indel_fragment_evidence: RefCell::new(evidence::fragments::IndelEvidence::new()),
-            none_read_evidence: RefCell::new(evidence::reads::NoneEvidence::new()),
-            max_depth: max_depth,
-            omit_repeat_regions: omit_repeat_regions.to_vec(),
-        }
+        self.indel_read_evidence(RefCell::new(evidence::reads::IndelEvidence::new(
+            LogProb::from(prob_insertion_artifact),
+            LogProb::from(prob_deletion_artifact),
+            LogProb::from(prob_insertion_extend_artifact),
+            LogProb::from(prob_deletion_extend_artifact),
+            indel_haplotype_window,
+        )))
+        .snv_read_evidence(RefCell::new(evidence::reads::SNVEvidence::new()))
+        .indel_fragment_evidence(RefCell::new(evidence::fragments::IndelEvidence::new()))
+        .none_read_evidence(RefCell::new(evidence::reads::NoneEvidence::new()))
     }
+}
 
-    /// Return likelihood model.
-    pub fn likelihood_model(&self) -> model::likelihood::LatentVariableModel {
-        self.likelihood_model
+impl Sample {
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     /// Extract observations for the given variant.
@@ -259,7 +270,7 @@ impl Sample {
         variant: &Variant,
         chrom: &[u8],
         chrom_seq: &[u8],
-    ) -> Result<Vec<Observation>, Box<Error>> {
+    ) -> Result<Pileup, Box<Error>> {
         let centerpoint = variant.centerpoint(start);
 
         for vartype in &self.omit_repeat_regions {
@@ -355,6 +366,11 @@ impl Sample {
                 let mut candidate_reads = Vec::new();
                 for candidate in candidate_records.values() {
                     if let Some(right) = candidate.right {
+                        if candidate.left.mapq() == 0 || right.mapq() == 0 {
+                            // Ignore pairs with ambiguous alignments.
+                            // The statistical model does not consider them anyway.
+                            continue;
+                        }
                         // this is a pair
                         let start_pos = (candidate.left.pos() as u32).saturating_sub(
                             evidence::Clips::leading(candidate.left.cigar_cached().unwrap()).soft(),
@@ -431,10 +447,18 @@ impl Sample {
                         observations.push(obs);
                     }
                 }
-
-                //self.refine_prob_mapping(&mut observations);
             }
         }
+
+        // simulate strand bias
+        // let mut count = 0;
+        // for i in 0..observations.len() {
+        //     if observations[i].prob_alt > observations[i].prob_ref && count < 6 {
+        //         observations[i].reverse_strand = true;
+        //         observations[i].forward_strand = false;
+        //         count += 1;
+        //     }
+        // }
 
         Ok(observations)
     }
@@ -468,6 +492,7 @@ impl Sample {
                 variant,
                 &self.alignment_properties,
             );
+            let strand = evidence.strand(record);
             Ok(Some(Observation::new(
                 prob_mapping,
                 prob_mismapping,
@@ -475,6 +500,8 @@ impl Sample {
                 prob_ref,
                 prob_missed_allele,
                 prob_sample_alt,
+                strand == Strand::Forward,
+                strand == Strand::Reverse,
                 Evidence::alignment(cigar, record),
             )))
         } else {
@@ -569,6 +596,25 @@ impl Sample {
             .borrow()
             .prob_mapping_mismapping(right_record);
         let prob_mismapping = prob_mismapping_left + prob_mismapping_right;
+
+        let mut left_strand = self.indel_read_evidence.borrow().strand(left_record);
+        let mut right_strand = self.indel_read_evidence.borrow().strand(right_record);
+        // TODO find a better way to detect if there was no relevant overlap
+        if p_alt_left == p_ref_left {
+            left_strand = Strand::Unknown;
+        }
+        if p_alt_right == p_ref_right {
+            right_strand = Strand::Unknown;
+        }
+        let mut forward_strand = left_strand == Strand::Forward || right_strand == Strand::Forward;
+        let mut reverse_strand = left_strand == Strand::Reverse || right_strand == Strand::Reverse;
+        if !forward_strand && !reverse_strand {
+            // If there is no stranded evidence at all, consider observation to come from any
+            // of the two strands.
+            forward_strand = true;
+            reverse_strand = true;
+        }
+
         let obs = Observation::new(
             prob_mismapping.ln_one_minus_exp(),
             prob_mismapping,
@@ -576,6 +622,8 @@ impl Sample {
             p_ref_isize + p_ref_left + p_ref_right,
             p_missed_left + p_missed_right,
             prob_sample_alt,
+            forward_strand,
+            reverse_strand,
             Evidence::insert_size(
                 insert_size as u32,
                 left_record.cigar_cached().unwrap(),
@@ -597,99 +645,42 @@ impl Sample {
     }
 }
 
-/// as shown in http://www.milefoot.com/math/stat/pdfc-normaldisc.htm
-pub fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
-    // TODO fix density in paper
-    LogProb(
-        (ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln(), // - ugaussian_P(-mean / sd).ln()
-    )
-}
-
-/// Continuous normal density (obsolete).
-pub fn isize_density(value: f64, mean: f64, sd: f64) -> LogProb {
-    LogProb(gaussian_pdf(value - mean, sd).ln())
-}
-
-/// Manual normal density (obsolete, we can use GSL (see above)).
-pub fn isize_density_louis(value: f64, mean: f64, sd: f64) -> LogProb {
-    let mut p = 0.5 / (1.0 - 0.5 * erfc((mean + 0.5) / sd * consts::FRAC_1_SQRT_2));
-    p *= erfc((-value - 0.5 + mean) / sd * consts::FRAC_1_SQRT_2)
-        - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2);
-
-    LogProb(p.ln())
-}
-
-pub fn isize_mixture_density_louis(value: f64, d: f64, mean: f64, sd: f64, rate: f64) -> LogProb {
-    let p = 0.5
-        / (rate * (1.0 - 0.5 * erfc((mean + 0.5) / sd * consts::FRAC_1_SQRT_2))
-            + (1.0 - rate) * (1.0 - 0.5 * erfc((mean + d + 0.5) / sd * consts::FRAC_1_SQRT_2)));
-    LogProb(
-        (p * (rate
-            * (erfc((-value - 0.5 + mean) / sd * consts::FRAC_1_SQRT_2)
-                - erfc((-value + 0.5 + mean) / sd * consts::FRAC_1_SQRT_2))
-            + (1.0 - rate)
-                * (erfc((-value - 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2)
-                    - erfc((-value + 0.5 + mean + d) / sd * consts::FRAC_1_SQRT_2))))
-        .ln(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     extern crate env_logger;
 
     use super::*;
-    use constants;
-    use likelihood;
-    use model;
+    use crate::constants;
+    use crate::model;
 
-    use bio::io::fasta;
-    use bio::io::fasta::FastaRead;
+    use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
+    use bio::io::fasta::{self, FastaRead};
     use bio::stats::{LogProb, PHREDProb, Prob};
-    use estimation::alignment_properties::{AlignmentProperties, InsertSize};
     use itertools::Itertools;
     use rust_htslib::bam;
     use rust_htslib::bam::Read;
     use std::str;
 
-    #[test]
-    fn test_isize_density() {
-        let d1 = isize_density(300.0, 312.0, 15.0);
-        let d2 = isize_pmf(300.0, 312.0, 15.0);
-        let d3 = isize_density_louis(300.0, 312.0, 15.0);
-        println!("{} {} {}", *d1, *d2, *d3);
-
-        let d_mix = isize_mixture_density_louis(212.0, -100.0, 312.0, 15.0, 0.05);
-        let rate = LogProb(0.05f64.ln());
-        let p_alt = (
-            // case: correctly called indel
-            rate.ln_one_minus_exp() + isize_pmf(212.0, 312.0 - 100.0, 15.0)
-        )
-        .ln_add_exp(
-            // case: no indel, false positive call
-            rate + isize_pmf(212.0, 312.0, 15.0),
-        );
-
-        println!("{} {}", d_mix.exp(), p_alt.exp());
-    }
-
     fn setup_sample(isize_mean: f64) -> Sample {
-        Sample::new(
-            bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
-            true,
-            AlignmentProperties::default(InsertSize {
-                mean: isize_mean,
-                sd: 20.0,
-            }),
-            likelihood::LatentVariableModel::new(1.0),
-            constants::PROB_ILLUMINA_INS,
-            constants::PROB_ILLUMINA_DEL,
-            Prob(0.0),
-            Prob(0.0),
-            10,
-            500,
-            &[],
-        )
+        SampleBuilder::default()
+            .name("test".to_owned())
+            .alignments(
+                bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
+                AlignmentProperties::default(InsertSize {
+                    mean: isize_mean,
+                    sd: 20.0,
+                }),
+            )
+            .error_probs(
+                constants::PROB_ILLUMINA_INS,
+                constants::PROB_ILLUMINA_DEL,
+                Prob(0.0),
+                Prob(0.0),
+                100,
+            )
+            .max_depth(200)
+            .build()
+            .unwrap()
     }
 
     #[test]

@@ -4,9 +4,9 @@ use itertools::Itertools
 use itertools_num::linspace;
 use ordered_float::NotNan;
 
-use priors::{PairModel, TumorNormalModel, InfiniteSitesNeutralVariationModel};
-use priors::TrioModel;
-use model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
+use super::{PairModel, TumorNormalModel, InfiniteSitesNeutralVariationModel};
+use super::TrioModel;
+use crate::model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 
 pub struct TumorNormalRelapseModel {

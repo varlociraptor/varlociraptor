@@ -5,10 +5,9 @@ use itertools::Itertools;
 use itertools_num::linspace;
 use ordered_float::NotNan;
 
-use model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
-
-use priors::InfiniteSitesNeutralVariationModel;
-use priors::PairModel;
+use crate::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
+use super::InfiniteSitesNeutralVariationModel;
+use super::PairModel;
 
 /// Tumor-normal prior model using ploidy, heterozygosity (in normal tissue) and tumor mutation rate
 /// per effective cell division.
@@ -238,9 +237,9 @@ mod tests {
     use super::*;
     use bio::stats::{LogProb, Prob};
     use itertools_num::linspace;
-    use model::priors::tests::create_obs_vector;
-    use model::priors::PairModel;
-    use model::{likelihood, AlleleFreq, ContinuousAlleleFreqs, PairPileup, Variant};
+    use crate::model::priors::tests::create_obs_vector;
+    use crate::model::priors::PairModel;
+    use crate::model::{likelihood, AlleleFreq, ContinuousAlleleFreqs, PairPileup, Variant};
 
     #[test]
     fn print_priors() {

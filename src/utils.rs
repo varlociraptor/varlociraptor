@@ -1,3 +1,8 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::cmp;
 use std::error::Error;
 use std::fs;
@@ -11,12 +16,12 @@ use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf};
 
-use model;
-use utils;
-use BCFError;
-use Event;
+use crate::model;
+use crate::utils;
+use crate::BCFError;
+use crate::Event;
 
-pub const NUMERICAL_EPSILON: f64 = 1e-4;
+pub const NUMERICAL_EPSILON: f64 = 1e-3;
 
 /// Collect variants from a given ´bcf::Record`.
 pub fn collect_variants(
@@ -24,21 +29,15 @@ pub fn collect_variants(
     omit_snvs: bool,
     omit_indels: bool,
     indel_len_range: Option<Range<u32>>,
-    exclusive_end: bool,
 ) -> Result<Vec<Option<model::Variant>>, Box<Error>> {
     let pos = record.pos();
-    let svlen = match record.info(b"SVLEN").integer() {
-        Ok(Some(svlen)) => Some(svlen[0].abs() as u32),
+    let svlens = match record.info(b"SVLEN").integer() {
+        Ok(Some(svlens)) => Some(svlens.into_iter().map(|l| l.abs() as u32).collect_vec()),
         _ => None,
     };
     let end = match record.info(b"END").integer() {
         Ok(Some(end)) => {
-            let mut end = end[0] as u32 - 1;
-            if exclusive_end {
-                // this happens with DELLY
-                debug!("fixing END tag");
-                end -= 1;
-            }
+            let end = end[0] as u32 - 1;
             Some(end)
         }
         _ => None,
@@ -101,13 +100,18 @@ pub fn collect_variants(
                 }
             }
         } else if svtype == b"DEL" {
-            let svlen = match (svlen, end) {
-                (Some(svlen), _) => svlen,
-                (None, Some(end)) => end - pos,
+            let svlen = match (svlens, end) {
+                (Some(svlens), _) => svlens[0],
+                (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
                 _ => {
                     return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
                 }
             };
+            if svlen == 0 {
+                return Err(Box::new(BCFError::InvalidRecord(
+                    "Absolute value of SVLEN or END - POS must be greater than zero.".to_owned(),
+                )));
+            }
             let alleles = record.alleles();
             if alleles.len() > 2 {
                 return Err(Box::new(BCFError::InvalidRecord(
@@ -136,7 +140,8 @@ pub fn collect_variants(
         alleles
             .iter()
             .skip(1)
-            .map(|alt_allele| {
+            .enumerate()
+            .map(|(i, alt_allele)| {
                 if alt_allele == b"<*>" {
                     // dummy non-ref allele, signifying potential homozygous reference site
                     if omit_snvs {
@@ -144,8 +149,15 @@ pub fn collect_variants(
                     } else {
                         Some(model::Variant::None)
                     }
+                } else if alt_allele == b"<DEL>" {
+                    if let Some(ref svlens) = svlens {
+                        Some(model::Variant::Deletion(svlens[i]))
+                    } else {
+                        // TODO fail with an error in this case
+                        None
+                    }
                 } else if alt_allele[0] == b'<' {
-                    // skip allele if it is a special tag other than '<*>' (such alleles have been handled above)
+                    // skip any other special alleles
                     None
                 } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                     // SNV
@@ -187,7 +199,7 @@ pub fn collect_variants(
 
 /// A lazy buffer for reference sequences.
 pub struct ReferenceBuffer {
-    reader: fasta::IndexedReader<fs::File>,
+    pub(crate) reader: fasta::IndexedReader<fs::File>,
     chrom: Option<Vec<u8>>,
     sequence: Vec<u8>,
 }
@@ -231,7 +243,7 @@ pub fn tags_prob_sum(
     tags: &[String],
     vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>, Box<Error>> {
-    let variants = (utils::collect_variants(record, false, false, None, false))?;
+    let variants = (utils::collect_variants(record, false, false, None))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
     for tag in tags {
@@ -272,11 +284,11 @@ where
 }
 
 /// Collect distribution of posterior probabilities from a VCF file that has been written by
-/// libprosic.
+/// varlociraptor.
 ///
 /// # Arguments
 ///
-/// * `calls` - BCF reader with libprosic calls
+/// * `calls` - BCF reader with varlociraptor calls
 /// * `events` - the set of events to sum up for a particular site
 /// * `vartype` - the variant type to consider
 pub fn collect_prob_dist<E>(
@@ -312,13 +324,13 @@ where
 /// Filter a VCF record stream by a minimum threshold on the sum of
 /// posterior probabilities of a given set of Events. The threshold
 /// should be an informative false discovery rate (FDR) threshold,
-/// e.g. determined with the libprosic FDR control functionality.
+/// e.g. determined with the varlociraptor FDR control functionality.
 ///
 /// # Arguments
 ///
-/// * `calls` - BCF reader with libprosic calls
+/// * `calls` - BCF reader with varlociraptor calls
 /// * `threshold` - minimum threshold for the sum of posterior probabilities of the set of Events considered
-/// * `calls` - BCF writer for the filtered libprosic calls
+/// * `calls` - BCF writer for the filtered varlociraptor calls
 /// * `events` - the set of Events to filter on
 /// * `vartype` - the variant type to consider
 pub fn filter_by_threshold<E: Event>(
@@ -341,37 +353,6 @@ pub fn filter_by_threshold<E: Event>(
         }))
     };
     filter_calls(calls, out, filter)
-
-    // let mut record = calls.empty_record();
-    // let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
-    // loop {
-    //     if let Err(e) = calls.read(&mut record) {
-    //         if e.is_eof() {
-    //             return Ok(());
-    //         } else {
-    //             return Err(Box::new(e));
-    //         }
-    //     }
-    //
-    //     let probs = utils::tags_prob_sum(&mut record, &tags, vartype)?;
-    //     let mut remove = vec![false]; // don't remove the reference allele
-    //     remove.extend(probs.into_iter().map(|p| {
-    //         match (p, threshold) {
-    //             // we allow some numerical instability in case of equality
-    //             (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => {
-    //                 false
-    //             }
-    //             (Some(_), None) => false,
-    //             _ => true,
-    //         }
-    //     }));
-    //
-    //     // Write trimmed record if any allele remains. Otherwise skip the record.
-    //     if !remove[1..].iter().all(|r| *r) {
-    //         record.remove_alleles(&remove)?;
-    //         out.write(&record)?;
-    //     }
-    // }
 }
 
 /// Filter calls by a given function.
@@ -567,11 +548,11 @@ pub fn is_repeat_variant(start: u32, variant: &model::Variant, chrom_seq: &[u8])
 mod tests {
     use super::*;
 
+    use crate::model::VariantType;
+    use crate::ComplementEvent;
+    use crate::SimpleEvent;
     use bio::stats::{LogProb, Prob};
-    use model::VariantType;
     use rust_htslib::bcf::{self, Read};
-    use ComplementEvent;
-    use SimpleEvent;
 
     #[test]
     fn test_tags_prob_sum() {
@@ -603,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_collect_prob_dist() {
-        // setup events with names as in prosic2
+        // setup events with names as in varlociraptor2
         let events = vec![
             SimpleEvent {
                 name: "germline".to_owned(),
@@ -623,46 +604,36 @@ mod tests {
         let del = VariantType::Deletion(None);
 
         let mut del_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        if let Ok(prob_del) = collect_prob_dist(&mut del_calls_1, &events, &del) {
-            println!("prob_del[0]: {:?}", prob_del[0].into_inner());
-            assert_eq!(prob_del.len(), 1);
-            assert_relative_eq!(prob_del[0].into_inner(), Prob(0.8).ln(), epsilon = 0.000005);
-        } else {
-            panic!("collect_prob_dist(&calls, &events, &del) returned Error")
-        }
+        let prob_del = collect_prob_dist(&mut del_calls_1, &events, &del).unwrap();
+        println!("prob_del[0]: {:?}", prob_del[0].into_inner());
+        assert_eq!(prob_del.len(), 1);
+        assert_relative_eq!(prob_del[0].into_inner(), Prob(0.8).ln(), epsilon = 0.000005);
+
         let mut del_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        if let Ok(prob_del_abs) = collect_prob_dist(&mut del_calls_2, &absent_event, &del) {
-            assert_eq!(prob_del_abs.len(), 1);
-            assert_relative_eq!(
-                prob_del_abs[0].into_inner(),
-                Prob(0.2).ln(),
-                epsilon = 0.000005
-            );
-        } else {
-            panic!("collect_prob_dist(&calls, &absent_event, &del) returned Error")
-        }
+        let prob_del_abs = collect_prob_dist(&mut del_calls_2, &absent_event, &del).unwrap();
+        assert_eq!(prob_del_abs.len(), 1);
+        assert_relative_eq!(
+            prob_del_abs[0].into_inner(),
+            Prob(0.2).ln(),
+            epsilon = 0.000005
+        );
 
         //TESTS insertion
         let ins = VariantType::Insertion(None);
 
         let mut ins_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        if let Ok(prob_ins) = collect_prob_dist(&mut ins_calls_1, &events, &ins) {
-            assert_eq!(prob_ins.len(), 1);
-            assert_relative_eq!(prob_ins[0].into_inner(), Prob(0.2).ln(), epsilon = 0.000005);
-        } else {
-            panic!("collect_prob_dist(&calls, &events, &ins) returned Error")
-        }
+        let prob_ins = collect_prob_dist(&mut ins_calls_1, &events, &ins).unwrap();
+        assert_eq!(prob_ins.len(), 1);
+        assert_relative_eq!(prob_ins[0].into_inner(), Prob(0.2).ln(), epsilon = 0.000005);
+
         let mut ins_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        if let Ok(prob_ins_abs) = collect_prob_dist(&mut ins_calls_2, &absent_event, &ins) {
-            assert_eq!(prob_ins_abs.len(), 1);
-            assert_relative_eq!(
-                prob_ins_abs[0].into_inner(),
-                Prob(0.8).ln(),
-                epsilon = 0.000005
-            );
-        } else {
-            panic!("collect_prob_dist(&calls, &absent_event, &ins) returned Error")
-        }
+        let prob_ins_abs = collect_prob_dist(&mut ins_calls_2, &absent_event, &ins).unwrap();
+        assert_eq!(prob_ins_abs.len(), 1);
+        assert_relative_eq!(
+            prob_ins_abs[0].into_inner(),
+            Prob(0.8).ln(),
+            epsilon = 0.000005
+        );
     }
 
     #[test]

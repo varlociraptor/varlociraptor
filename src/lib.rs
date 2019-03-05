@@ -1,42 +1,31 @@
-extern crate bio;
-extern crate rust_htslib;
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 #[macro_use]
 extern crate log;
-extern crate itertools;
-extern crate itertools_num;
-extern crate rgsl;
 #[macro_use]
 extern crate approx;
-extern crate ndarray;
-extern crate ordered_float;
-extern crate rusty_machine;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate quick_error;
-extern crate csv;
 #[macro_use]
 extern crate lazy_static;
-extern crate rand;
-extern crate regex;
-extern crate statrs;
-extern crate vec_map;
-
-#[macro_use]
-extern crate cached;
 
 pub mod call;
 pub mod constants;
+pub mod conversion;
 pub mod estimation;
 pub mod filtration;
 pub mod model;
 pub mod utils;
 
-pub use estimation::alignment_properties::{AlignmentProperties, InsertSize};
-pub use model::likelihood;
-pub use model::priors;
-pub use model::sample::Sample;
+pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
+pub use crate::model::likelihood;
+pub use crate::model::modes;
+pub use crate::model::sample::Sample;
 
 quick_error! {
     #[derive(Debug)]
@@ -64,7 +53,7 @@ pub trait Event {
         format!(
             "##INFO=<ID={tag_name},Number=A,Type=Float,\
              Description=\"{desc} {name} variant\">",
-            name = self.name(),
+            name = self.name().replace("_", "-"),
             desc = desc,
             tag_name = &self.tag_name(prefix)
         )
@@ -84,6 +73,7 @@ impl Event for ComplementEvent {
 }
 
 /// A simple event that just has a name.
+#[derive(Debug)]
 pub struct SimpleEvent {
     /// event name
     pub name: String,

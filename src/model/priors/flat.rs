@@ -5,9 +5,9 @@ use itertools::Itertools;
 use itertools_num::linspace;
 use ordered_float::NotNan;
 
-use model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
+use crate::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
 
-use priors::PairModel;
+use super::PairModel;
 
 pub struct FlatNormalNormalModel {
     allele_freqs: DiscreteAlleleFreqs,

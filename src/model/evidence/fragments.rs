@@ -1,3 +1,8 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::cmp;
 use std::error::Error;
 use std::f64;
@@ -8,9 +13,10 @@ use itertools::Itertools;
 use rgsl::randist::gaussian::ugaussian_P;
 use rust_htslib::bam;
 
-use estimation::alignment_properties::AlignmentProperties;
-use model::evidence;
-use model::Variant;
+use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::model::evidence;
+use crate::model::Variant;
+use crate::utils::NUMERICAL_EPSILON;
 
 /// Calculate the number of positions a fragment can have in a given window according to
 /// Sahlin et al. biorxiv 2015
@@ -78,6 +84,7 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u
 }
 
 /// Calculate read evindence for an indel.
+#[derive(Debug, Clone)]
 pub struct IndelEvidence {}
 
 impl IndelEvidence {
@@ -244,8 +251,9 @@ impl IndelEvidence {
                     })
                     .collect_vec(),
             )
-            .cap_numerical_overshoot(0.0001);
+            .cap_numerical_overshoot(NUMERICAL_EPSILON);
 
+            assert!(expected_p_alt.is_valid());
             expected_p_alt
         };
 
@@ -317,5 +325,10 @@ mod tests {
     fn test_n_fragment_positions_too_large() {
         let n = _test_n_fragment_positions(800);
         assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn test_isize_pmf() {
+        isize_pmf(300.0, 312.0, 15.0);
     }
 }

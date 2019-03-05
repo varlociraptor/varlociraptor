@@ -1,3 +1,8 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 //! This module implements fully bayesian FDR control as presented by
 //! Müller, Parmigiani, and Rice, "FDR and Bayesian Multiple Comparisons Rules" (July 2006).
 //! Johns Hopkin's University, Dept. of Biostatistics Working Papers. Working Paper 115.
@@ -11,16 +16,16 @@ use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
-use model;
-use utils;
-use Event;
+use crate::model;
+use crate::utils;
+use crate::Event;
 
 /// Print thresholds to control FDR of given calls at multiple levels.
 ///
 /// # Arguments
 ///
-/// * `inbcf` - path to BCF with prosic calls (None for stdin)
-/// * `outbcf` - path to BCF with filtered prosic calls (None for stdout)
+/// * `inbcf` - path to BCF with varlociraptor calls (None for stdin)
+/// * `outbcf` - path to BCF with filtered varlociraptor calls (None for stdout)
 /// * `null_calls` - calls under the null model, e.g. obtained by swapping tumor and normal sample
 /// * `writer` - writer for resulting thresholds
 /// * `events` - the set of events to control (sum of the probabilities of the individual events at a site)
@@ -54,14 +59,14 @@ where
         // TODO: remove hits where another event has a higher probability
         // Otherwise, if there are just enough calls, events like PROB_SOMATIC=8, PROB_ABSENT=2
         // can end up in the filtered results.
-        let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, events, vartype)?;
-
-        // estimate FDR
-        let pep_dist = prob_dist
+        let prob_dist = utils::collect_prob_dist(&mut inbcf_reader, events, vartype)?
             .into_iter()
             .rev()
-            .map(|p| LogProb(*p).ln_one_minus_exp())
+            .map(|p| LogProb(*p))
             .collect_vec();
+
+        // estimate FDR
+        let pep_dist = prob_dist.iter().map(|p| p.ln_one_minus_exp()).collect_vec();
         let fdrs = bayesian::expected_fdr(&pep_dist);
 
         if fdrs.is_empty() {
@@ -73,9 +78,9 @@ where
             // do not let peps with the same value cross the boundary
             for i in (0..fdrs.len()).rev() {
                 if fdrs[i] <= alpha && (i == 0 || pep_dist[i] != pep_dist[i - 1]) {
-                    let pep = pep_dist[i];
+                    let prob = prob_dist[i];
 
-                    threshold = Some(pep.ln_one_minus_exp());
+                    threshold = Some(prob);
                     break;
                 }
             }

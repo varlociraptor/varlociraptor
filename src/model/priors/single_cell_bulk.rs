@@ -6,9 +6,9 @@ use statrs::function::factorial::ln_binomial;
 
 use cached::UnboundCache;
 
-use model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
+use crate::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairPileup, Variant};
 
-use priors::PairModel;
+use super::PairModel;
 
 /// Prior model for a Single Cell against a Bulk background from the same individual (optimally the
 /// same cell type). It uses the ploidy of the organism as well as a WGA method specific single cell
@@ -324,9 +324,9 @@ impl PairModel<DiscreteAlleleFreqs, ContinuousAlleleFreqs> for SingleCellBulkMod
 mod tests {
     use super::*;
     use bio::stats::LogProb;
-    use model::evidence::Observation;
-    use model::priors::tests::create_obs_vector;
-    use model::{
+    use crate::model::evidence::Observation;
+    use crate::model::priors::tests::create_obs_vector;
+    use crate::model::{
         likelihood, priors, AlleleFreq, AlleleFreqs, ContinuousAlleleFreqs, PairPileup, Variant,
     };
 

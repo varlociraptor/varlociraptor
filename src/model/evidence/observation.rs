@@ -1,13 +1,19 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::f64;
 use std::str;
 
+use derive_builder::Builder;
 use rgsl::randist::poisson::poisson_pdf;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 
 use bio::stats::LogProb;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-// use bio::stats::bayesian::BayesFactor;
+use bio::stats::bayesian::BayesFactor;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarString;
 
@@ -19,7 +25,7 @@ use rust_htslib::bam::record::CigarString;
 // pub fn count_observation_evidence(observations: &[Observation]) -> usize {
 //     let mut alt_support = 0;
 //     for obs in observations {
-//         if let KassRaftery::Strong = obs.bayes_factor_alt().evidence_kass_raftery() {
+//         if let KassRaftery::Strong >= obs.bayes_factor_alt().evidence_kass_raftery() {
 //             alt_support += 1;
 //         }
 //     }
@@ -27,7 +33,7 @@ use rust_htslib::bam::record::CigarString;
 // }
 
 /// An observation for or against a variant.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Builder)]
 pub struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     pub prob_mapping: LogProb,
@@ -43,6 +49,10 @@ pub struct Observation {
     pub prob_missed_allele: LogProb,
     /// Probability to sample the alt allele
     pub prob_sample_alt: LogProb,
+    /// Observation relies on forward strand evidence
+    pub forward_strand: bool,
+    /// Observation relies on reverse strand evidence
+    pub reverse_strand: bool,
     /// Type of evidence.
     pub evidence: Evidence,
 }
@@ -55,6 +65,8 @@ impl Observation {
         prob_ref: LogProb,
         prob_missed_allele: LogProb,
         prob_sample_alt: LogProb,
+        forward_strand: bool,
+        reverse_strand: bool,
         evidence: Evidence,
     ) -> Self {
         Observation {
@@ -64,6 +76,8 @@ impl Observation {
             prob_ref: prob_ref,
             prob_missed_allele: prob_missed_allele,
             prob_sample_alt: prob_sample_alt,
+            forward_strand: forward_strand,
+            reverse_strand: reverse_strand,
             evidence: evidence,
         }
     }
@@ -76,13 +90,49 @@ impl Observation {
         }
     }
 
-    // pub fn bayes_factor_alt(&self) -> BayesFactor {
-    //     BayesFactor::new(self.prob_alt, self.prob_ref)
-    // }
-    //
-    // pub fn bayes_factor_ref(&self) -> BayesFactor {
-    //     BayesFactor::new(self.prob_ref, self.prob_alt)
-    // }
+    pub fn bayes_factor_alt(&self) -> BayesFactor {
+        BayesFactor::new(self.prob_alt, self.prob_ref)
+    }
+
+    pub fn bayes_factor_ref(&self) -> BayesFactor {
+        BayesFactor::new(self.prob_ref, self.prob_alt)
+    }
+
+    #[inline]
+    pub fn prob_alt_forward(&self) -> LogProb {
+        if self.forward_strand {
+            self.prob_alt
+        } else {
+            LogProb::ln_zero()
+        }
+    }
+
+    #[inline]
+    pub fn prob_alt_reverse(&self) -> LogProb {
+        if self.reverse_strand {
+            self.prob_alt
+        } else {
+            LogProb::ln_zero()
+        }
+    }
+
+    #[inline]
+    pub fn prob_ref_forward(&self) -> LogProb {
+        if self.forward_strand {
+            self.prob_ref
+        } else {
+            LogProb::ln_zero()
+        }
+    }
+
+    #[inline]
+    pub fn prob_ref_reverse(&self) -> LogProb {
+        if self.reverse_strand {
+            self.prob_ref
+        } else {
+            LogProb::ln_zero()
+        }
+    }
 }
 
 pub fn poisson_pmf(count: u32, mu: f64) -> LogProb {

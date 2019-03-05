@@ -1,15 +1,22 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::cmp;
 use std::error::Error;
+use std::fmt::Debug;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
+use bio_types::strand::Strand;
 use ordered_float::NotNan;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 
+use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::model::Variant;
 use bio::pattern_matching::myers::Myers;
 use bio::stats::pairhmm;
-use estimation::alignment_properties::AlignmentProperties;
-use model::Variant;
 
 /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
 /// correctly and the event that it maps incorrectly.
@@ -41,8 +48,17 @@ pub trait AbstractReadEvidence {
         variant: &Variant,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb;
+
+    fn strand(&self, record: &bam::Record) -> Strand {
+        if record.flags() & 0x10 != 0 {
+            Strand::Reverse
+        } else {
+            Strand::Forward
+        }
+    }
 }
 
+#[derive(Debug, Clone)]
 pub struct NoneEvidence;
 
 impl NoneEvidence {
@@ -88,6 +104,7 @@ impl AbstractReadEvidence for NoneEvidence {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct SNVEvidence;
 
 impl SNVEvidence {
@@ -128,6 +145,9 @@ impl AbstractReadEvidence for SNVEvidence {
     }
 }
 
+/// Width of band around alignment with optimal edit distance.
+pub const EDIT_BAND: usize = 2;
+
 /// Calculate read evindence for an indel.
 pub struct IndelEvidence {
     gap_params: IndelGapParams,
@@ -153,6 +173,32 @@ impl IndelEvidence {
             },
             pairhmm: pairhmm::PairHMM::new(),
             window,
+        }
+    }
+
+    /// Calculate probability of a certain allele.
+    fn prob_allele<E: pairhmm::EmissionParameters + RefBaseEmission>(
+        &mut self,
+        mut allele_params: E,
+        certainty_est: LogProb,
+        edit_dist: &EditDistanceCalculation,
+    ) -> LogProb {
+        let hit = edit_dist.calc_best_hit(&allele_params);
+        if hit.dist == 0 {
+            // METHOD: In case of a perfect match, we just take the base quality product.
+            // All alternative paths in the HMM will anyway be much worse.
+            certainty_est
+        } else {
+            // METHOD: We shrink the area to run the HMM against to an environment around the best
+            // edit distance hits.
+            allele_params.shrink_to_hit(&hit);
+
+            // METHOD: Further, we run the HMM on a band around the best edit distance.
+            self.pairhmm.prob_related(
+                &self.gap_params,
+                &allele_params,
+                Some(hit.dist_upper_bound()),
+            )
         }
     }
 }
@@ -225,9 +271,7 @@ impl AbstractReadEvidence for IndelEvidence {
 
         // read emission
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
-
         let edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
-        let edit_dist_upper_bound = |edit_dist| edit_dist + 5;
 
         // Estimate overall certainty of the read window (product of base qual complements) under
         // the assumption that the read comes from one of the two alleles.
@@ -242,69 +286,61 @@ impl AbstractReadEvidence for IndelEvidence {
         };
 
         if !overlap {
-            // If there is no overlap, normalization below would any lead to 0.5 vs 0.5, multiplied
-            // with certainty estimate. Hence, we can skip the entire HMM calculation!
+            // If there is no overlap, normalization below would anyway lead to 0.5 vs 0.5,
+            // multiplied with certainty estimate. Hence, we can skip the entire HMM calculation!
             return Ok(Some((certainty_est, certainty_est)));
         }
 
         // ref allele
-        let mut prob_ref = {
-            let ref_params = ReferenceEmissionParams {
+        let mut prob_ref = self.prob_allele(
+            ReferenceEmissionParams {
                 ref_seq: ref_seq,
                 ref_offset: breakpoint.saturating_sub(ref_window),
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                 read_emission: &read_emission,
-            };
-            let edit_dist_ref = edit_dist.calc_edit_dist(&ref_params);
-
-            self.pairhmm.prob_related(
-                &self.gap_params,
-                &ref_params,
-                Some(edit_dist_upper_bound(edit_dist_ref)),
-            )
-        };
+            },
+            certainty_est,
+            &edit_dist,
+        );
 
         // alt allele
         let mut prob_alt = match variant {
-            &Variant::Deletion(_) => {
-                let p = DeletionEmissionParams {
+            &Variant::Deletion(_) => self.prob_allele(
+                DeletionEmissionParams {
                     ref_seq: ref_seq,
                     ref_offset: start.saturating_sub(ref_window),
                     ref_end: cmp::min(start + ref_window, ref_seq.len()),
                     del_start: start,
                     del_len: variant.len() as usize,
                     read_emission: &read_emission,
-                };
-                let edit_dist_alt = edit_dist.calc_edit_dist(&p);
-                self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &p,
-                    Some(edit_dist_upper_bound(edit_dist_alt)),
-                )
-            }
+                },
+                certainty_est,
+                &edit_dist,
+            ),
             &Variant::Insertion(ref ins_seq) => {
                 let l = ins_seq.len() as usize;
-                let p = InsertionEmissionParams {
-                    ref_seq: ref_seq,
-                    ref_offset: start.saturating_sub(ref_window),
-                    ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
-                    ins_start: start,
-                    ins_len: l,
-                    ins_end: start + l,
-                    ins_seq: ins_seq,
-                    read_emission: &read_emission,
-                };
-                let edit_dist_alt = edit_dist.calc_edit_dist(&p);
-                self.pairhmm.prob_related(
-                    &self.gap_params,
-                    &p,
-                    Some(edit_dist_upper_bound(edit_dist_alt)),
+
+                self.prob_allele(
+                    InsertionEmissionParams {
+                        ref_seq: ref_seq,
+                        ref_offset: start.saturating_sub(ref_window),
+                        ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
+                        ins_start: start,
+                        ins_len: l,
+                        ins_end: start + l,
+                        ins_seq: ins_seq,
+                        read_emission: &read_emission,
+                    },
+                    certainty_est,
+                    &edit_dist,
                 )
             }
-            _ => {
+            &Variant::SNV(_) | &Variant::None => {
                 panic!("bug: unsupported variant");
             }
         };
+        assert!(!prob_ref.is_nan());
+        assert!(!prob_alt.is_nan());
 
         // Normalize probabilities. By this, we avoid biases due to proximal variants that are in
         // cis with the considered one. They are normalized away since they affect both ref and alt.
@@ -360,6 +396,7 @@ impl AbstractReadEvidence for IndelEvidence {
 
             LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
         };
+        assert!(prob.is_valid());
 
         prob
     }
@@ -455,17 +492,13 @@ macro_rules! default_emission {
         }
 
         #[inline]
-        fn len_x(&self) -> usize {
-            self.ref_end - self.ref_offset
-        }
-
-        #[inline]
         fn len_y(&self) -> usize {
             self.read_emission.read_end - self.read_emission.read_offset
         }
     )
 }
 
+#[derive(Debug)]
 pub struct ReadEmission<'a> {
     read_seq: &'a bam::record::Seq<'a>,
     any_miscall: Vec<LogProb>,
@@ -523,11 +556,54 @@ impl<'a> ReadEmission<'a> {
     }
 }
 
-pub trait RefBaseEmission {
+pub trait RefBaseEmission: Debug {
     fn ref_base(&self, i: usize) -> u8;
+
+    fn ref_offset(&self) -> usize;
+
+    fn ref_end(&self) -> usize;
+
+    fn set_ref_offset(&mut self, value: usize);
+
+    fn set_ref_end(&mut self, value: usize);
+
+    fn read_emission(&self) -> &ReadEmission;
+
+    fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
+        self.set_ref_end(cmp::min(
+            self.ref_offset() + hit.end + EDIT_BAND,
+            self.ref_end(),
+        ));
+        self.set_ref_offset(self.ref_offset() + hit.start.saturating_sub(EDIT_BAND));
+    }
+}
+
+macro_rules! default_ref_base_emission {
+    () => (
+        fn ref_offset(&self) -> usize {
+            self.ref_offset
+        }
+
+        fn ref_end(&self) -> usize {
+            self.ref_end
+        }
+
+        fn set_ref_offset(&mut self, value: usize) {
+            self.ref_offset = value;
+        }
+
+        fn set_ref_end(&mut self, value: usize) {
+            self.ref_end = value;
+        }
+
+        fn read_emission(&self) -> &ReadEmission {
+            self.read_emission
+        }
+    )
 }
 
 /// Emission parameters for PairHMM over reference allele.
+#[derive(Debug)]
 pub struct ReferenceEmissionParams<'a> {
     ref_seq: &'a [u8],
     ref_offset: usize,
@@ -540,13 +616,21 @@ impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
     fn ref_base(&self, i: usize) -> u8 {
         self.ref_seq[i + self.ref_offset]
     }
+
+    default_ref_base_emission!();
 }
 
 impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
     default_emission!();
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.ref_end - self.ref_offset
+    }
 }
 
 /// Emission parameters for PairHMM over deletion allele.
+#[derive(Debug)]
 pub struct DeletionEmissionParams<'a> {
     ref_seq: &'a [u8],
     ref_offset: usize,
@@ -566,13 +650,21 @@ impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
             self.ref_seq[i_ + self.del_len]
         }
     }
+
+    default_ref_base_emission!();
 }
 
 impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
     default_emission!();
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.ref_end - self.ref_offset
+    }
 }
 
 /// Emission parameters for PairHMM over insertion allele.
+#[derive(Debug)]
 pub struct InsertionEmissionParams<'a> {
     ref_seq: &'a [u8],
     ref_offset: usize,
@@ -596,14 +688,22 @@ impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
             self.ins_seq[i_ - (self.ins_start + 1)]
         }
     }
+
+    default_ref_base_emission!();
 }
 
 impl<'a> pairhmm::EmissionParameters for InsertionEmissionParams<'a> {
     default_emission!();
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.ref_end - self.ref_offset + self.ins_len
+    }
 }
 
 pub struct EditDistanceCalculation {
     myers: Myers<u128>,
+    read_seq_len: usize,
 }
 
 impl EditDistanceCalculation {
@@ -615,21 +715,64 @@ impl EditDistanceCalculation {
     where
         P: Iterator<Item = u8> + DoubleEndedIterator + ExactSizeIterator,
     {
+        let l = read_seq.len();
         EditDistanceCalculation {
             myers: Myers::new(read_seq.rev()),
+            read_seq_len: l,
         }
     }
 
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
     /// We use the best edit distance and add 5.
-    pub fn calc_edit_dist<E: pairhmm::EmissionParameters + RefBaseEmission>(
+    pub fn calc_best_hit<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &self,
         emission_params: &E,
-    ) -> usize {
+    ) -> EditDistanceHit {
         let ref_seq = (0..emission_params.len_x())
             .rev()
             .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
-        self.myers.find_best_end(ref_seq).1 as usize
+        let mut best_dist = u8::max_value();
+        let mut positions = Vec::new();
+        for (pos, dist) in self.myers.find_all_end(ref_seq, u8::max_value()) {
+            if dist < best_dist {
+                positions.clear();
+                positions.push(pos);
+                best_dist = dist;
+            } else if dist == best_dist {
+                positions.push(pos);
+            }
+        }
+        let ambiguous = positions.len() > 1;
+
+        // We find a pos relative to ref end, hence we have to project it to a position relative to
+        // the start.
+        let project = |pos| emission_params.len_x() - pos;
+        let start = project(*positions.last().unwrap()).saturating_sub(best_dist as usize);
+        // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
+        let end = cmp::min(
+            project(positions[0]) + self.read_seq_len + best_dist as usize,
+            emission_params.len_x(),
+        );
+        EditDistanceHit {
+            start,
+            end,
+            ambiguous,
+            dist: best_dist,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EditDistanceHit {
+    start: usize,
+    end: usize,
+    dist: u8,
+    ambiguous: bool,
+}
+
+impl EditDistanceHit {
+    pub fn dist_upper_bound(&self) -> usize {
+        self.dist as usize + EDIT_BAND
     }
 }
 
@@ -637,7 +780,7 @@ impl EditDistanceCalculation {
 mod tests {
 
     use super::*;
-    use model;
+    use crate::model;
 
     use rust_htslib::bam::record::{Cigar, CigarString};
     use std::str;

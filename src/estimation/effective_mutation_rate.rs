@@ -1,3 +1,8 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::collections::BTreeMap;
 
 use itertools::Itertools;
@@ -6,7 +11,7 @@ use rusty_machine::learning::lin_reg::LinRegressor;
 use rusty_machine::learning::SupModel;
 use rusty_machine::linalg::{Matrix, Vector};
 
-use model::AlleleFreq;
+use crate::model::AlleleFreq;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Estimate {
@@ -61,8 +66,8 @@ pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Es
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::AlleleFreq;
     use itertools_num::linspace;
-    use model::AlleleFreq;
 
     #[test]
     fn test_estimate() {

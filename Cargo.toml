@@ -1,19 +1,21 @@
 [package]
-name = "libprosic"
+name = "varlociraptor"
 version = "0.7.4-alpha.0"
 authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>"]
 description = "A library for calling of genomic variants using a latent variable model."
-repository = "https://github.com/prosic/libprosic"
+repository = "https://github.com/varlociraptor/varlociraptor"
 readme = "README.md"
 license = "GPL-3.0"
 include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE"]
+edition = "2018"
 
 [dependencies]
-bio = { git="https://github.com/rust-bio/rust-bio.git" }
+bio = { git = "https://github.com/rust-bio/rust-bio.git", branch = "bayesian-model" }
+bio-types = "0.4"
 log = "0.3"
-rust-htslib = "0.22"
+rust-htslib = { git = "https://github.com/rust-bio/rust-htslib.git" }
 GSL = "1.0"
-itertools = "0.6"
+itertools = "0.8"
 itertools-num = "0.1"
 approx = "0.3"
 rusty-machine="0.4"
@@ -28,11 +30,18 @@ csv = "1.0.0-beta.5"
 lazy_static = "0.2"
 cached = "0.7.0"
 statrs = "0.9"
+clap = {version = "2.24", features = ["yaml", "color", "suggestions"]}
+structopt = "0.2"
+strum = "0.13"
+strum_macros = "0.13"
 rand = "0.4"
+derive_builder = "0.7"
+fern = "0.4"
+time = "0.1"
+counter = "0.4"
 
 [dev-dependencies]
 env_logger = "0.3"
-fern = "0.4"
 flate2 = "0.2"
 hyper = "0.10"
 ftp = "3.0"

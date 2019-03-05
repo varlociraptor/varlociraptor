@@ -3,5 +3,5 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-pub mod alignment_properties;
-pub mod effective_mutation_rate;
+pub mod common;
+pub mod tumor;

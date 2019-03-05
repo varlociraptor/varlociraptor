@@ -1,3 +1,8 @@
+// Copyright 2016-2019 Johannes Köster, David Lähnemann.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
 use itertools::Itertools;
 use rust_htslib::bcf;
@@ -5,8 +10,8 @@ use rust_htslib::bcf::Read;
 use std::error::Error;
 use std::path::Path;
 
-use utils;
-use Event;
+use crate::utils;
+use crate::Event;
 
 /// Filter calls by posterior odds against the given events.
 /// If odds against the events is at least the given `KassRaftery` score, remove allele.
