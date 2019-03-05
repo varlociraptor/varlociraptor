@@ -715,7 +715,7 @@ fn test25() {
 
 /// Test a delly deletion (on real data) that is likely a repeat artifact.
 #[test]
-//#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
+#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test26() {
     call_tumor_normal("test26", 1.0, "1", "GRCh38");
     let mut call = load_call("test26");
@@ -741,7 +741,7 @@ fn test28() {
 /// Test a delly deletion that is either an artifact of a repeat region or a subclonal variant
 /// in the normal sample.
 #[test]
-//#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
+#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test29() {
     call_tumor_normal("test29", 1.0, "1", "GRCh38");
     let mut call = load_call("test29");
@@ -750,7 +750,7 @@ fn test29() {
 
 /// Test a delly deletion that is likely a germline variant.
 #[test]
-//#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
+#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test30() {
     call_tumor_normal("test30", 1.0, "2", "GRCh38");
     let mut call = load_call("test30");
@@ -759,7 +759,7 @@ fn test30() {
 
 /// Test a delly deletion that is not a somatic variant.
 #[test]
-//#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
+#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test31() {
     call_tumor_normal("test31", 1.0, "1", "GRCh38");
     let mut call = load_call("test31");
@@ -768,7 +768,7 @@ fn test31() {
 
 /// Test a delly deletion that is not a somatic variant.
 #[test]
-//#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
+#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test32() {
     call_tumor_normal("test32", 1.0, "1", "GRCh38");
     let mut call = load_call("test32");
