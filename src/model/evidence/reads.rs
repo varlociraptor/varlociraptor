@@ -305,20 +305,18 @@ impl AbstractReadEvidence for IndelEvidence {
 
         // alt allele
         let mut prob_alt = match variant {
-            &Variant::Deletion(_) => {
-                self.prob_allele(
-                    DeletionEmissionParams {
-                        ref_seq: ref_seq,
-                        ref_offset: start.saturating_sub(ref_window),
-                        ref_end: cmp::min(start + ref_window, ref_seq.len()),
-                        del_start: start,
-                        del_len: variant.len() as usize,
-                        read_emission: &read_emission,
-                    },
-                    certainty_est,
-                    &edit_dist,
-                )
-            },
+            &Variant::Deletion(_) => self.prob_allele(
+                DeletionEmissionParams {
+                    ref_seq: ref_seq,
+                    ref_offset: start.saturating_sub(ref_window),
+                    ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                    del_start: start,
+                    del_len: variant.len() as usize,
+                    read_emission: &read_emission,
+                },
+                certainty_est,
+                &edit_dist,
+            ),
             &Variant::Insertion(ref ins_seq) => {
                 let l = ins_seq.len() as usize;
 
@@ -751,7 +749,10 @@ impl EditDistanceCalculation {
         let project = |pos| emission_params.len_x() - pos;
         let start = project(*positions.last().unwrap()).saturating_sub(best_dist as usize);
         // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
-        let end = cmp::min(project(positions[0]) + self.read_seq_len + best_dist as usize, emission_params.len_x());
+        let end = cmp::min(
+            project(positions[0]) + self.read_seq_len + best_dist as usize,
+            emission_params.len_x(),
+        );
         EditDistanceHit {
             start,
             end,
