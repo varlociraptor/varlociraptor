@@ -450,7 +450,7 @@ where
             record,
             self.omit_snvs,
             self.omit_indels,
-            Some(0..self.max_indel_len),
+            Some(0..self.max_indel_len + 1),
         )?;
 
         if variants.is_empty() || variants.iter().all(|v| v.is_none()) {
