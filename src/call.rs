@@ -430,15 +430,6 @@ where
         Ok(())
     }
 
-    fn next_record(&mut self) -> Result<Option<bcf::Record>, Box<Error>> {
-        let mut record = self.bcf_reader.empty_record();
-        match self.bcf_reader.read(&mut record) {
-            Err(bcf::ReadError::NoMoreRecord) => Ok(None),
-            Err(e) => Err(Box::new(e)),
-            Ok(()) => Ok(Some(record)),
-        }
-    }
-
     fn call_record(
         &mut self,
         record: &mut bcf::Record,
@@ -492,6 +483,7 @@ where
                     .iter()
                     .map(|(name, event)| (name.clone(), m.posterior(event).unwrap()))
                     .collect();
+                // generate artifact event
                 event_probs.insert(
                     "artifact".to_owned(),
                     LogProb::ln_sum_exp(
