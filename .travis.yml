@@ -3,11 +3,16 @@ language: rust
 rust:
   - stable
 
+env:
+  global:
+    - CARGO_TARGET_DIR=target/ext
+
 cache: 
   - cargo
   - directories:
     - /home/travis/tests/resources/GRCh38
     - /home/travis/tests/resources/hg18
+    - target/ext
 
 sudo: false
 
