@@ -27,14 +27,21 @@ addons:
       - kalakris-cmake
 
 before_script:
-  - which cargo-coveralls || cargo install cargo-travis
+#  - which cargo-coveralls || cargo install cargo-travis
   - export PATH=$HOME/.cargo/bin:$PATH
-  - rustup component add rustfmt-preview
+  - rustup component add rustfmt
 
 script:
   - cargo fmt -- --check
   - cargo build
   - cargo test -- --test-threads=1
 
-after_success:
-  - cargo coveralls
+#after_success:
+#  - cargo coveralls
+
+after_success: |
+  if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+    cargo install cargo-tarpaulin &&
+    cargo tarpaulin --no-count --skip-clean --out Xml &&
+    bash <(curl -s https://codecov.io/bash)
+  fi
