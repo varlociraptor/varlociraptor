@@ -768,7 +768,7 @@ fn test31() {
 
 /// Test a delly deletion that is not a somatic variant.
 #[test]
-#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
+//#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test32() {
     call_tumor_normal("test32", 1.0, "1", "GRCh38");
     let mut call = load_call("test32");
