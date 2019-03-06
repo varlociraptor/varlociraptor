@@ -715,7 +715,7 @@ fn test25() {
 
 /// Test a delly deletion (on real data) that is likely a repeat artifact.
 #[test]
-#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
+//#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test26() {
     call_tumor_normal("test26", 1.0, "1", "GRCh38");
     let mut call = load_call("test26");
@@ -750,7 +750,7 @@ fn test29() {
 
 /// Test a delly deletion that is likely a germline variant.
 #[test]
-#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
+//#[ignore] // TODO remove ignore once we found a way to download GRCh38 from travis
 fn test30() {
     call_tumor_normal("test30", 1.0, "2", "GRCh38");
     let mut call = load_call("test30");

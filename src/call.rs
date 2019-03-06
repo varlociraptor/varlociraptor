@@ -54,34 +54,6 @@ pub struct SampleInfo {
     strand_bias: StrandBias,
 }
 
-impl SampleInfo {
-    fn observation_count(&self, alt_allele: bool) -> u32 {
-        self.observations
-            .iter()
-            .map(|obs| {
-                let bf = if alt_allele {
-                    obs.bayes_factor_alt()
-                } else {
-                    obs.bayes_factor_ref()
-                };
-                if bf.evidence_kass_raftery() >= KassRaftery::Positive {
-                    1
-                } else {
-                    0
-                }
-            })
-            .sum()
-    }
-
-    pub fn n_obs_ref(&self) -> u32 {
-        self.observation_count(false)
-    }
-
-    pub fn n_obs_alt(&self) -> u32 {
-        self.observation_count(true)
-    }
-}
-
 pub fn event_tag_name(event: &str) -> String {
     format!("PROB_{}", event.to_ascii_uppercase())
 }
@@ -220,6 +192,10 @@ where
 
         // register sample specific tags
         header.push_record(
+            b"##FORMAT=<ID=DP,Number=A,Type=Integer,\
+              Description=\"Number of considered fragments (total depth)\">",
+        );
+        header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
               Description=\"Maximum a posteriori probability estimate of allele frequency\">",
         );
@@ -313,6 +289,7 @@ where
             let mut event_probs = HashMap::new();
             let mut allelefreq_estimates = VecMap::new();
             let mut observations = VecMap::new();
+            let mut obs_counts = VecMap::new();
             let mut strand_bias = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
@@ -342,6 +319,8 @@ where
                         .entry(i)
                         .or_insert_with(|| Vec::new())
                         .push(*sample_info.allelefreq_estimate as f32);
+
+                    obs_counts.entry(i).or_insert_with(|| Vec::new()).push(sample_info.observations.len());
 
                     observations.entry(i).or_insert_with(|| Vec::new()).push({
                         let obs: Counter<String> = sample_info
@@ -404,6 +383,9 @@ where
                 record.push_info_float(event_tag_name(event).as_bytes(), &probs)?;
             }
             // set sample info
+            let dp = obs_counts.values().flatten().map(|d| *d as i32).collect_vec();
+            record.push_format_integer(b"DP", &dp)?;
+
             let afs = allelefreq_estimates
                 .values()
                 .cloned()
