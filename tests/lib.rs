@@ -511,7 +511,7 @@ fn test04() {
 
     check_allelefreq(&mut call, b"tumor", 0.042, 0.12);
     check_allelefreq(&mut call, b"normal", 0.0, 0.0);
-    check_info_float_at_most(&mut call, b"PROB_SOMATIC_TUMOR", 0.07);
+    check_info_float_at_most(&mut call, b"PROB_SOMATIC_TUMOR", 0.11);
 }
 
 /// Test a Delly call in a repeat region. This should not be a somatic call.
@@ -674,8 +674,8 @@ fn test20() {
 #[ignore]
 fn test21() {
     call_tumor_normal("test21", 0.75, "chr7", "hg18");
-    load_call("test21");
-    assert!(false);
+    let mut call = load_call("test21");
+    check_info_float_at_least(&mut call, b"PROB_SOMATIC_TUMOR", 420.0);
 }
 
 /// A manta deletion that is a germline variant. It seems to be homozygous when looking at IGV though.

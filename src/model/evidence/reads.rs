@@ -6,6 +6,7 @@
 use std::cmp;
 use std::error::Error;
 use std::fmt::Debug;
+use std::ops::Range;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::strand::Strand;
@@ -177,30 +178,38 @@ impl IndelEvidence {
     }
 
     /// Calculate probability of a certain allele.
-    fn prob_allele<E: pairhmm::EmissionParameters + RefBaseEmission>(
+    fn allele_evidence<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &mut self,
         mut allele_params: E,
         certainty_est: LogProb,
-        edit_dist: &EditDistanceCalculation,
-    ) -> LogProb {
+        edit_dist: &mut EditDistanceCalculation,
+    ) -> AlleleEvidence {
         let hit = edit_dist.calc_best_hit(&allele_params);
         if hit.dist == 0 {
             // METHOD: In case of a perfect match, we just take the base quality product.
             // All alternative paths in the HMM will anyway be much worse.
-            certainty_est
+            AlleleEvidence { prob: certainty_est, hit }
         } else {
             // METHOD: We shrink the area to run the HMM against to an environment around the best
             // edit distance hits.
             allele_params.shrink_to_hit(&hit);
 
             // METHOD: Further, we run the HMM on a band around the best edit distance.
-            self.pairhmm.prob_related(
-                &self.gap_params,
-                &allele_params,
-                Some(hit.dist_upper_bound()),
-            )
+            AlleleEvidence {
+                prob: self.pairhmm.prob_related(
+                    &self.gap_params,
+                    &allele_params,
+                    Some(hit.dist_upper_bound()),
+                ),
+                hit
+            }
         }
     }
+}
+
+pub struct AlleleEvidence {
+    prob: LogProb,
+    hit: EditDistanceHit
 }
 
 impl AbstractReadEvidence for IndelEvidence {
@@ -271,7 +280,7 @@ impl AbstractReadEvidence for IndelEvidence {
 
         // read emission
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
-        let edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
+        let mut edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
 
         // Estimate overall certainty of the read window (product of base qual complements) under
         // the assumption that the read comes from one of the two alleles.
@@ -292,7 +301,7 @@ impl AbstractReadEvidence for IndelEvidence {
         }
 
         // ref allele
-        let mut prob_ref = self.prob_allele(
+        let mut prob_ref = self.allele_evidence(
             ReferenceEmissionParams {
                 ref_seq: ref_seq,
                 ref_offset: breakpoint.saturating_sub(ref_window),
@@ -300,12 +309,12 @@ impl AbstractReadEvidence for IndelEvidence {
                 read_emission: &read_emission,
             },
             certainty_est,
-            &edit_dist,
-        );
+            &mut edit_dist,
+        ).prob;
 
         // alt allele
         let mut prob_alt = match variant {
-            &Variant::Deletion(_) => self.prob_allele(
+            &Variant::Deletion(_) => self.allele_evidence(
                 DeletionEmissionParams {
                     ref_seq: ref_seq,
                     ref_offset: start.saturating_sub(ref_window),
@@ -315,12 +324,12 @@ impl AbstractReadEvidence for IndelEvidence {
                     read_emission: &read_emission,
                 },
                 certainty_est,
-                &edit_dist,
-            ),
+                &mut edit_dist,
+            ).prob,
             &Variant::Insertion(ref ins_seq) => {
                 let l = ins_seq.len() as usize;
 
-                self.prob_allele(
+                let evidence = self.allele_evidence(
                     InsertionEmissionParams {
                         ref_seq: ref_seq,
                         ref_offset: start.saturating_sub(ref_window),
@@ -332,8 +341,14 @@ impl AbstractReadEvidence for IndelEvidence {
                         read_emission: &read_emission,
                     },
                     certainty_est,
-                    &edit_dist,
-                )
+                    &mut edit_dist,
+                );
+                // METHOD:
+                // Even if the returned probability is very good, we cannot be sure that the
+                // read supports the entire insertion. This depends on the fraction of the
+                // insertion that is covered by the read. Hence we have to scale the probability
+                // with that fraction.
+                evidence.prob + LogProb(evidence.hit.fraction_covered.ln())
             }
             &Variant::SNV(_) | &Variant::None => {
                 panic!("bug: unsupported variant");
@@ -342,6 +357,7 @@ impl AbstractReadEvidence for IndelEvidence {
         assert!(!prob_ref.is_nan());
         assert!(!prob_alt.is_nan());
 
+        // METHOD:
         // Normalize probabilities. By this, we avoid biases due to proximal variants that are in
         // cis with the considered one. They are normalized away since they affect both ref and alt.
         // In a sense, this assumes that the two considered alleles are the only possible ones.
@@ -571,10 +587,20 @@ pub trait RefBaseEmission: Debug {
 
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
         self.set_ref_end(cmp::min(
-            self.ref_offset() + hit.end + EDIT_BAND,
+            self.ref_offset() + hit.end_upper_bound() + EDIT_BAND,
             self.ref_end(),
         ));
-        self.set_ref_offset(self.ref_offset() + hit.start.saturating_sub(EDIT_BAND));
+        self.set_ref_offset(self.ref_offset() + hit.start_upper_bound().saturating_sub(EDIT_BAND));
+    }
+
+    /// Return true if this emits a variant that might be only covered by a fraction of the read.
+    fn allows_fractional_variant_coverage(&self) -> bool {
+        false
+    }
+
+    /// Return fraction of the variant that is covered. Panics if no variant is emitted.
+    fn fraction_covered(&self, range: Range<usize>) -> f64 {
+        panic!("this parameters do not emit a variant");
     }
 }
 
@@ -689,6 +715,24 @@ impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
         }
     }
 
+    fn allows_fractional_variant_coverage(&self) -> bool {
+        true
+    }
+
+    /// Fraction of the insertion covered by the given range.
+    fn fraction_covered(&self, mut range: Range<usize>) -> f64 {
+        range.start += self.ref_offset;
+        range.end += self.ref_offset;
+
+        let c = if range.start <= self.ins_start {
+            cmp::min(range.end.saturating_sub(self.ins_start), self.ins_len)
+        } else {
+            cmp::min((self.ins_end + 1).saturating_sub(range.start), self.ins_len)
+        };
+
+        c as f64 / self.ins_len as f64
+    }
+
     default_ref_base_emission!();
 }
 
@@ -722,15 +766,22 @@ impl EditDistanceCalculation {
         }
     }
 
+    fn ref_seq<'a, E: pairhmm::EmissionParameters + RefBaseEmission>(emission_params: &'a E) -> impl Iterator<Item=u8> + ExactSizeIterator + 'a {
+        (0..emission_params.len_x())
+            .rev()
+            .map(move |i| emission_params.ref_base(i).to_ascii_uppercase())
+    }
+
+
+
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
     /// We use the best edit distance and add 5.
     pub fn calc_best_hit<E: pairhmm::EmissionParameters + RefBaseEmission>(
-        &self,
+        &mut self,
         emission_params: &E,
+
     ) -> EditDistanceHit {
-        let ref_seq = (0..emission_params.len_x())
-            .rev()
-            .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
+        let ref_seq = Self::ref_seq(emission_params);
         let mut best_dist = u8::max_value();
         let mut positions = Vec::new();
         for (pos, dist) in self.myers.find_all_end(ref_seq, u8::max_value()) {
@@ -742,35 +793,63 @@ impl EditDistanceCalculation {
                 positions.push(pos);
             }
         }
-        let ambiguous = positions.len() > 1;
 
-        // We find a pos relative to ref end, hence we have to project it to a position relative to
-        // the start.
-        let project = |pos| emission_params.len_x() - pos;
-        let start = project(*positions.last().unwrap()).saturating_sub(best_dist as usize);
-        // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
-        let end = cmp::min(
-            project(positions[0]) + self.read_seq_len + best_dist as usize,
-            emission_params.len_x(),
-        );
-        EditDistanceHit {
-            start,
-            end,
-            ambiguous,
-            dist: best_dist,
-        }
+        EditDistanceHit::new(emission_params, self.read_seq_len, &positions, best_dist)
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct EditDistanceHit {
+    len_x: usize,
     start: usize,
     end: usize,
     dist: u8,
     ambiguous: bool,
+    fraction_covered: f64,
 }
 
 impl EditDistanceHit {
+    pub fn new<E: pairhmm::EmissionParameters + RefBaseEmission>(
+        emission_params: &E,
+        read_seq_len: usize,
+        positions: &[usize],
+        best_dist: u8,
+    ) -> Self {
+        let ambiguous = positions.len() > 1;
+
+        // We find a pos relative to ref end, hence we have to project it to a position relative to
+        // the start.
+        let project = |pos| emission_params.len_x() - pos;
+        let start = project(*positions.last().unwrap());
+        // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
+        let end = cmp::min(
+            project(positions[0]) + read_seq_len,
+            emission_params.len_x(),
+        );
+
+        let fraction_covered = if emission_params.allows_fractional_variant_coverage() {
+            emission_params.fraction_covered(start..end)
+        } else {
+            1.0
+        };
+        EditDistanceHit {
+            len_x: emission_params.len_x(),
+            start,
+            end,
+            ambiguous,
+            dist: best_dist,
+            fraction_covered,
+        }
+    }
+
+    pub fn start_upper_bound(&self) -> usize {
+        self.start.saturating_sub(self.dist as usize)
+    }
+
+    pub fn end_upper_bound(&self) -> usize {
+        cmp::min(self.end + self.dist as usize, self.len_x)
+    }
+
     pub fn dist_upper_bound(&self) -> usize {
         self.dist as usize + EDIT_BAND
     }
