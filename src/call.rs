@@ -393,10 +393,14 @@ where
                 .collect_vec();
             record.push_format_float(b"AF", &afs)?;
 
-            let obs = observations
-                .values()
-                .map(|obs| join(obs.iter(), ",").into_bytes())
-                .collect_vec();
+            let obs = if observations.values().any(|obs| !obs.is_empty()) {
+                observations
+                    .values()
+                    .map(|obs| join(obs.iter(), ",").into_bytes())
+                    .collect_vec()
+            } else {
+                vec![b".".to_vec()]
+            };
             record.push_format_string(b"OBS", &obs)?;
 
             let sb = strand_bias
