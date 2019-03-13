@@ -188,7 +188,10 @@ impl IndelEvidence {
         if hit.dist == 0 {
             // METHOD: In case of a perfect match, we just take the base quality product.
             // All alternative paths in the HMM will anyway be much worse.
-            AlleleEvidence { prob: certainty_est, hit }
+            AlleleEvidence {
+                prob: certainty_est,
+                hit,
+            }
         } else {
             // METHOD: We shrink the area to run the HMM against to an environment around the best
             // edit distance hits.
@@ -201,7 +204,7 @@ impl IndelEvidence {
                     &allele_params,
                     Some(hit.dist_upper_bound()),
                 ),
-                hit
+                hit,
             }
         }
     }
@@ -209,7 +212,7 @@ impl IndelEvidence {
 
 pub struct AlleleEvidence {
     prob: LogProb,
-    hit: EditDistanceHit
+    hit: EditDistanceHit,
 }
 
 impl AbstractReadEvidence for IndelEvidence {
@@ -280,7 +283,8 @@ impl AbstractReadEvidence for IndelEvidence {
 
         // read emission
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
-        let mut edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
+        let mut edit_dist =
+            EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
 
         // Estimate overall certainty of the read window (product of base qual complements) under
         // the assumption that the read comes from one of the two alleles.
@@ -301,31 +305,36 @@ impl AbstractReadEvidence for IndelEvidence {
         }
 
         // ref allele
-        let mut prob_ref = self.allele_evidence(
-            ReferenceEmissionParams {
-                ref_seq: ref_seq,
-                ref_offset: breakpoint.saturating_sub(ref_window),
-                ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
-                read_emission: &read_emission,
-            },
-            certainty_est,
-            &mut edit_dist,
-        ).prob;
-
-        // alt allele
-        let mut prob_alt = match variant {
-            &Variant::Deletion(_) => self.allele_evidence(
-                DeletionEmissionParams {
+        let mut prob_ref = self
+            .allele_evidence(
+                ReferenceEmissionParams {
                     ref_seq: ref_seq,
-                    ref_offset: start.saturating_sub(ref_window),
-                    ref_end: cmp::min(start + ref_window, ref_seq.len()),
-                    del_start: start,
-                    del_len: variant.len() as usize,
+                    ref_offset: breakpoint.saturating_sub(ref_window),
+                    ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                     read_emission: &read_emission,
                 },
                 certainty_est,
                 &mut edit_dist,
-            ).prob,
+            )
+            .prob;
+
+        // alt allele
+        let mut prob_alt = match variant {
+            &Variant::Deletion(_) => {
+                self.allele_evidence(
+                    DeletionEmissionParams {
+                        ref_seq: ref_seq,
+                        ref_offset: start.saturating_sub(ref_window),
+                        ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                        del_start: start,
+                        del_len: variant.len() as usize,
+                        read_emission: &read_emission,
+                    },
+                    certainty_est,
+                    &mut edit_dist,
+                )
+                .prob
+            }
             &Variant::Insertion(ref ins_seq) => {
                 let l = ins_seq.len() as usize;
 
@@ -766,20 +775,19 @@ impl EditDistanceCalculation {
         }
     }
 
-    fn ref_seq<'a, E: pairhmm::EmissionParameters + RefBaseEmission>(emission_params: &'a E) -> impl Iterator<Item=u8> + ExactSizeIterator + 'a {
+    fn ref_seq<'a, E: pairhmm::EmissionParameters + RefBaseEmission>(
+        emission_params: &'a E,
+    ) -> impl Iterator<Item = u8> + ExactSizeIterator + 'a {
         (0..emission_params.len_x())
             .rev()
             .map(move |i| emission_params.ref_base(i).to_ascii_uppercase())
     }
-
-
 
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
     /// We use the best edit distance and add 5.
     pub fn calc_best_hit<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &mut self,
         emission_params: &E,
-
     ) -> EditDistanceHit {
         let ref_seq = Self::ref_seq(emission_params);
         let mut best_dist = u8::max_value();
