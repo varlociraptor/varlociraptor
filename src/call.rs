@@ -320,7 +320,10 @@ where
                         .or_insert_with(|| Vec::new())
                         .push(*sample_info.allelefreq_estimate as f32);
 
-                    obs_counts.entry(i).or_insert_with(|| Vec::new()).push(sample_info.observations.len());
+                    obs_counts
+                        .entry(i)
+                        .or_insert_with(|| Vec::new())
+                        .push(sample_info.observations.len());
 
                     observations.entry(i).or_insert_with(|| Vec::new()).push({
                         let obs: Counter<String> = sample_info
@@ -383,7 +386,11 @@ where
                 record.push_info_float(event_tag_name(event).as_bytes(), &probs)?;
             }
             // set sample info
-            let dp = obs_counts.values().flatten().map(|d| *d as i32).collect_vec();
+            let dp = obs_counts
+                .values()
+                .flatten()
+                .map(|d| *d as i32)
+                .collect_vec();
             record.push_format_integer(b"DP", &dp)?;
 
             let afs = allelefreq_estimates

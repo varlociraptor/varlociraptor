@@ -5,6 +5,8 @@
 
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate serde;
 
 use std::error::Error;
 use std::path::PathBuf;
@@ -20,6 +22,7 @@ use structopt::StructOpt;
 
 use varlociraptor::call::CallerBuilder;
 use varlociraptor::conversion;
+use varlociraptor::errors;
 use varlociraptor::filtration;
 use varlociraptor::model::modes::common::FlatPrior;
 use varlociraptor::model::modes::tumor::{
@@ -29,8 +32,9 @@ use varlociraptor::model::sample::{estimate_alignment_properties, SampleBuilder}
 use varlociraptor::model::ContinuousAlleleFreqs;
 use varlociraptor::model::VariantType;
 use varlociraptor::SimpleEvent;
+use varlociraptor::testcase::TestcaseBuilder;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
     name = "varlociraptor",
     about = "A caller for SNVs and indels in tumor-normal pairs."
@@ -95,12 +99,6 @@ enum Varlociraptor {
         #[structopt(long = "omit-indels", help = "Don't call Indels.")]
         omit_indels: bool,
         #[structopt(
-            parse(from_os_str),
-            long,
-            help = "Optional path where read observations shall be written to. The resulting file contains a line for each observation with tab-separated values."
-        )]
-        observations: Option<PathBuf>,
-        #[structopt(
             long = "max-indel-len",
             default_value = "1000",
             help = "Omit longer indels when calling."
@@ -109,15 +107,31 @@ enum Varlociraptor {
         #[structopt(
             long = "indel-window",
             default_value = "100",
-            help = "Number of bases to consider left and right of indel breakpoint when calculating read support. This number should not be too large in order to avoid biases caused by other close variants."
+            help = "Number of bases to consider left and right of indel breakpoint when \
+                    calculating read support. This number should not be too large in order to \
+                    avoid biases caused by other close variants."
         )]
         indel_window: u32,
         #[structopt(
             long = "max-depth",
             default_value = "200",
-            help = "Maximum number of observations to use for calling. If locus is exceeding this number, downsampling is performed."
+            help = "Maximum number of observations to use for calling. If locus is exceeding this \
+                    number, downsampling is performed."
         )]
         max_depth: usize,
+        #[structopt(
+            long = "testcase-locus",
+            help = "Create a test case for the given locus. Locus must be given in the form \
+                    CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
+                    variant at the locus, counting from 1. If IDX is not specified, the first \
+                    variant will be chosen."
+        )]
+        testcase_locus: Option<String>,
+        #[structopt(
+            long = "testcase-prefix",
+            help = "Create test case files in the given directory."
+        )]
+        testcase_prefix: Option<String>,
     },
     #[structopt(
         name = "filter-calls",
@@ -135,7 +149,7 @@ enum Varlociraptor {
     DecodePHRED,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 enum FilterMethod {
     #[structopt(name = "control-fdr")]
     #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
@@ -174,16 +188,13 @@ enum FilterMethod {
     },
 }
 
-pub fn main() -> Result<(), Box<Error>> {
-    let opt = Varlociraptor::from_args();
+impl Default for Varlociraptor {
+    fn default() -> Self {
+        Varlociraptor::from_iter(vec!["--help"])
+    }
+}
 
-    // setup logger
-    fern::Dispatch::new()
-        .level(log::LogLevelFilter::Info)
-        .chain(std::io::stderr())
-        .apply()
-        .unwrap();
-
+fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
     match opt {
         Varlociraptor::CallTumorNormal {
             ref tumor,
@@ -195,14 +206,30 @@ pub fn main() -> Result<(), Box<Error>> {
             indel_window,
             omit_snvs,
             omit_indels,
-            ref observations,
             max_indel_len,
             max_depth,
             ref reference,
             ref candidates,
             purity,
             ref output,
+            ref testcase_locus,
+            ref testcase_prefix,
         } => {
+            if let Some(testcase_locus) = testcase_locus {
+                if let Some(testcase_prefix) = testcase_prefix {
+                    if let Some(candidates) = candidates {
+                        // just write a testcase and quit
+                        let mut testcase = TestcaseBuilder::default().prefix(PathBuf::from(testcase_prefix)).options(opt.clone()).locus(testcase_locus)?.reference(reference)?.candidates(candidates)?.register_bam("tumor", tumor).register_bam("normal", normal).build()?;
+                        testcase.write()?;
+                        return Ok(());
+                    } else {
+                        Err(errors::TestcaseError::MissingCandidates)?;
+                    }
+                } else {
+                    Err(errors::TestcaseError::MissingPrefix)?;
+                }
+            }
+
             let tumor_alignment_properties = estimate_alignment_properties(tumor)?;
             let normal_alignment_properties = estimate_alignment_properties(normal)?;
             info!("Estimated alignment properties:");
@@ -343,4 +370,17 @@ pub fn main() -> Result<(), Box<Error>> {
         }
     }
     Ok(())
+}
+
+pub fn main() -> Result<(), Box<Error>> {
+    let opt = Varlociraptor::from_args();
+
+    // setup logger
+    fern::Dispatch::new()
+        .level(log::LogLevelFilter::Info)
+        .chain(std::io::stderr())
+        .apply()
+        .unwrap();
+
+    run(opt)
 }
