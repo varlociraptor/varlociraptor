@@ -1,0 +1,70 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=PASS,Description="All filters passed">
+##fileDate=20171129
+##ALT=<ID=DEL,Description="Deletion">
+##ALT=<ID=DUP,Description="Duplication">
+##ALT=<ID=INV,Description="Inversion">
+##ALT=<ID=BND,Description="Translocation">
+##ALT=<ID=INS,Description="Insertion">
+##FILTER=<ID=LowQual,Description="PE/SR support below 3 or mapping quality below 20.">
+##INFO=<ID=CIEND,Number=2,Type=Integer,Description="PE confidence interval around END">
+##INFO=<ID=CIPOS,Number=2,Type=Integer,Description="PE confidence interval around POS">
+##INFO=<ID=CHR2,Number=1,Type=String,Description="Chromosome for END coordinate in case of a translocation">
+##INFO=<ID=END,Number=1,Type=Integer,Description="End position of the structural variant">
+##INFO=<ID=PE,Number=1,Type=Integer,Description="Paired-end support of the structural variant">
+##INFO=<ID=MAPQ,Number=1,Type=Integer,Description="Median mapping quality of paired-ends">
+##INFO=<ID=SR,Number=1,Type=Integer,Description="Split-read support">
+##INFO=<ID=SRQ,Number=1,Type=Float,Description="Split-read consensus alignment quality">
+##INFO=<ID=CONSENSUS,Number=1,Type=String,Description="Split-read consensus sequence">
+##INFO=<ID=CE,Number=1,Type=Float,Description="Consensus sequence entropy">
+##INFO=<ID=CT,Number=1,Type=String,Description="Paired-end signature induced connection type">
+##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description="Imprecise structural variation">
+##INFO=<ID=PRECISE,Number=0,Type=Flag,Description="Precise structural variation">
+##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">
+##INFO=<ID=SVMETHOD,Number=1,Type=String,Description="Type of approach used to detect SV">
+##INFO=<ID=INSLEN,Number=1,Type=Integer,Description="Predicted length of the insertion">
+##INFO=<ID=HOMLEN,Number=1,Type=Integer,Description="Predicted microhomology length using a max. edit distance of 2">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GL,Number=G,Type=Float,Description="Log10-scaled genotype likelihoods for RR,RA,AA genotypes">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=FT,Number=1,Type=String,Description="Per-sample genotype filter">
+##FORMAT=<ID=RC,Number=1,Type=Integer,Description="Raw high-quality read counts for the SV">
+##FORMAT=<ID=RCL,Number=1,Type=Integer,Description="Raw high-quality read counts for the left control region">
+##FORMAT=<ID=RCR,Number=1,Type=Integer,Description="Raw high-quality read counts for the right control region">
+##FORMAT=<ID=CN,Number=1,Type=Integer,Description="Read-depth based copy-number estimate for autosomal sites">
+##FORMAT=<ID=DR,Number=1,Type=Integer,Description="# high-quality reference pairs">
+##FORMAT=<ID=DV,Number=1,Type=Integer,Description="# high-quality variant pairs">
+##FORMAT=<ID=RR,Number=1,Type=Integer,Description="# high-quality reference junction reads">
+##FORMAT=<ID=RV,Number=1,Type=Integer,Description="# high-quality variant junction reads">
+##reference=../data/hg18.fasta
+##contig=<ID=chr10,length=135374737>
+##contig=<ID=chr11,length=134452384>
+##contig=<ID=chr12,length=132349534>
+##contig=<ID=chr13,length=114142980>
+##contig=<ID=chr14,length=106368585>
+##contig=<ID=chr15,length=100338915>
+##contig=<ID=chr16,length=88827254>
+##contig=<ID=chr17,length=78774742>
+##contig=<ID=chr18,length=76117153>
+##contig=<ID=chr19,length=63811651>
+##contig=<ID=chr1,length=247249719>
+##contig=<ID=chr20,length=62435964>
+##contig=<ID=chr21,length=46944323>
+##contig=<ID=chr22,length=49691432>
+##contig=<ID=chr2,length=242951149>
+##contig=<ID=chr3,length=199501827>
+##contig=<ID=chr4,length=191273063>
+##contig=<ID=chr5,length=180857866>
+##contig=<ID=chr6,length=170899992>
+##contig=<ID=chr7,length=158821424>
+##contig=<ID=chr8,length=146274826>
+##contig=<ID=chr9,length=140273252>
+##contig=<ID=chrM,length=16571>
+##contig=<ID=chrX,length=154913754>
+##contig=<ID=chrY,length=57772954>
+##bcftools_concatVersion=1.5+htslib-1.5
+##bcftools_concatCommand=concat -a -Ob -o delly/simulated-bwa.all.bcf delly/simulated-bwa.DEL.bcf delly/simulated-bwa.INS.bcf; Date=Wed Nov 29 21:33:16 2017
+##bcftools_viewVersion=1.6+htslib-1.6
+##bcftools_viewCommand=view delly/simulated-bwa.all.bcf chr16:150188; Date=Wed Jan 17 11:17:44 2018
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	tumor	normal
+chr16	1100	DEL00002711	G	<DEL>	.	LowQual	IMPRECISE;SVTYPE=DEL;SVMETHOD=EMBL.DELLYv0.7.7;CHR2=chr16;END=150774;PE=8;MAPQ=9;CT=3to5;CIPOS=-50,50;CIEND=-50,50	GT:GL:GQ:FT:RCL:RC:RCR:CN:DR:DV:RR:RV	0/0:0,-8.70164,-209.176:87:PASS:141:242:128:2:41:5:0:0	0/0:0,-4.00303,-134.033:40:PASS:88:180:67:2:26:2:0:0
