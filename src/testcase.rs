@@ -32,7 +32,8 @@ lazy_static! {
 struct TestcaseTemplate {
     samples: HashMap<String, Sample>,
     candidate: String,
-    reference: String,
+    ref_name: String,
+    ref_seq: String,
     options: String,
 }
 
@@ -221,7 +222,8 @@ where
         candidate_writer.write(&candidate_record)?;
 
         // fetch reference
-        self.reference_reader.fetch(str::from_utf8(&self.chrom_name)?, ref_start as u64, ref_end as u64)?;
+        let ref_name = str::from_utf8(&self.chrom_name)?;
+        self.reference_reader.fetch(ref_name, ref_start as u64, ref_end as u64)?;
         let mut ref_seq = Vec::new();
         self.reference_reader.read(&mut ref_seq)?;
 
@@ -231,7 +233,8 @@ where
                 samples,
                 options: serde_json::to_string(&self.options)?,
                 candidate: candidate_filename.to_str().unwrap().to_owned(),
-                reference: String::from_utf8(ref_seq)?.to_owned(),
+                ref_seq: String::from_utf8(ref_seq)?.to_owned(),
+                ref_name: ref_name.to_owned(),
             }
             .render()?
             .as_bytes(),

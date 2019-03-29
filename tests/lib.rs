@@ -2,12 +2,15 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::Read;
+use std::process::Command;
 
 use rust_htslib::bam;
-
-use varlociraptor::cli::{Varlociraptor, run};
 use yaml_rust::{YamlLoader, Yaml};
 use serde_json;
+use tempfile::{self, NamedTempFile};
+use bio::io::fasta;
+
+use varlociraptor::cli::{Varlociraptor, run};
 
 struct Testcase {
     inner: Vec<Yaml>,
@@ -35,7 +38,9 @@ impl Testcase {
         // TODO alignment properties!
         match &mut options {
             Varlociraptor::CallTumorNormal { ref mut reference, ref mut tumor, ref mut normal, ref mut candidates, ref mut output, ref mut testcase_locus, ref mut testcase_prefix, .. } => {
-                *reference = PathBuf::from(self.yaml()["reference"].as_str().unwrap());
+                let temp_ref = Self::reference(self.yaml()["reference"]["name"].as_str().unwrap(), self.yaml()["reference"]["seq"].as_str().unwrap())?;
+                *reference = temp_ref.path().to_owned();
+                dbg!(reference);
                 *tumor = self.path.join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
                 *normal = self.path.join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
                 *candidates = Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
@@ -54,6 +59,21 @@ impl Testcase {
         // check results
 
     }
+
+    fn reference(ref_name: &str, ref_seq: &str) -> Result<NamedTempFile, Box<Error>> {
+        let mut tmp_ref = tempfile::Builder::new().suffix(".fasta").tempfile()?;
+        {
+            dbg!(&tmp_ref);
+            let mut writer = fasta::Writer::new(&mut tmp_ref);
+            writer.write(ref_name, None, ref_seq.as_bytes())?;
+        }
+        Command::new("samtools")
+            .args(&["faidx", tmp_ref.path().to_str().unwrap()])
+            .status()
+            .expect("failed to create fasta index");
+
+        Ok(tmp_ref)
+    }
 }
 
 macro_rules! testcase {
@@ -61,7 +81,7 @@ macro_rules! testcase {
         #[test]
         fn $name() {
             let name = stringify!($name);
-            let testcase = Testcase::new(&Path::new("tests/resources/testcases").join(name)).unwrap();
+            let testcase = Testcase::new(&Path::new(file!()).parent().unwrap().join("resources/testcases").join(name)).unwrap();
             testcase.run().unwrap();
         }
     }
