@@ -15,6 +15,7 @@ use itertools::Itertools;
 use structopt::StructOpt;
 
 use crate::call::CallerBuilder;
+use crate::call_cnvs;
 use crate::conversion;
 use crate::errors;
 use crate::filtration;
@@ -141,6 +142,26 @@ pub enum Varlociraptor {
         about = "Decode PHRED-scaled values to human readable probabilities."
     )]
     DecodePHRED,
+    CallTumorNormalCNV {
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "VCF/BCF file to process (if omitted, read from STDIN)."
+        )]
+        calls: Option<PathBuf>,
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "BCF file that shall contain the results (if omitted, write to STDOUT)."
+        )]
+        output: Option<PathBuf>,
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "BED file defining regions to consider."
+        )]
+        regions: PathBuf
+    }
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -361,6 +382,18 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
         },
         Varlociraptor::DecodePHRED => {
             conversion::decode_phred::decode_phred()?;
+        },
+        Varlociraptor::CallTumorNormalCNV {
+            calls,
+            output,
+            regions,
+        } => {
+            let caller = call_cnvs::CallerBuilder::default()
+                .regions(regions)
+                .bcfs(calls, output)?
+                .build()?;
+
+            caller.call()?;
         }
     }
     Ok(())

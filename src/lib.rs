@@ -25,6 +25,7 @@ pub mod model;
 pub mod testcase;
 pub mod utils;
 pub mod cli;
+pub mod call_cnvs;
 
 pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
 pub use crate::model::likelihood;
