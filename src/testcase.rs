@@ -136,7 +136,7 @@ where
     pub fn write(&mut self) -> Result<(), Box<Error>> {
         fs::create_dir_all(&self.prefix)?;
 
-        let candidate_filename = Path::new("candidates.bcf");
+        let candidate_filename = Path::new("candidates.vcf");
 
         // get and write candidate
         let mut i = 0;
@@ -214,8 +214,8 @@ where
         let mut candidate_writer = bcf::Writer::from_path(
             self.prefix.join(candidate_filename),
             &bcf::Header::from_template(self.candidate_reader.header()),
-            false,
-            false,
+            true,
+            true,
         )?;
         let (_, mut candidate_record) = candidate;
         candidate_record.set_pos((candidate_record.pos() - ref_start) as i32);

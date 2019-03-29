@@ -13,3 +13,8 @@ tests/resources/test*/*
 !tests/resources/test*/alignment_properties.json
 tests/resources/*/*.fa
 tests/resources/*/*.fa.fai
+tests/resources/testcases/*/*
+!tests/resources/testcases/*/testcase.yaml
+!tests/resources/testcases/*/normal.bam
+!tests/resources/testcases/*/candidates.vcf
+!tests/resources/testcases/*/tumor.bam
