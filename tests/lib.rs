@@ -37,14 +37,12 @@ impl Testcase {
     }
 
     fn run(&self) -> Result<(), Box<Error>>{
-        dbg!(self.path.join("calls.bcf"));
         let mut options = serde_json::from_str(self.yaml()["options"].as_str().unwrap())?;
         // TODO alignment properties!
         match &mut options {
             Varlociraptor::CallTumorNormal { ref mut reference, ref mut tumor, ref mut normal, ref mut candidates, ref mut output, ref mut testcase_locus, ref mut testcase_prefix, .. } => {
                 let temp_ref = Self::reference(self.yaml()["reference"]["name"].as_str().unwrap(), self.yaml()["reference"]["seq"].as_str().unwrap())?;
                 *reference = temp_ref.path().to_owned();
-                dbg!(reference);
                 *tumor = self.path.join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
                 *normal = self.path.join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
                 *candidates = Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
@@ -107,7 +105,6 @@ impl Testcase {
     fn reference(ref_name: &str, ref_seq: &str) -> Result<NamedTempFile, Box<Error>> {
         let mut tmp_ref = tempfile::Builder::new().suffix(".fasta").tempfile()?;
         {
-            dbg!(&tmp_ref);
             let mut writer = fasta::Writer::new(&mut tmp_ref);
             writer.write(ref_name, None, ref_seq.as_bytes())?;
         }
