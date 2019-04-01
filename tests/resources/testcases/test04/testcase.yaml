@@ -1,21 +1,22 @@
+# Pindel call (insertion) that is a somatic call in reality
+# (case af: 0.042, control af: 0.0).
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
+    - tumor >= 0.042 && tumor <= 0.14
+    - normal == 0.0
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - PROB_SOMATIC_TUMOR <= 0.07
 
 # necessary bam files
 samples:
   normal:
     path: normal.bam
-    properties: '{"insert_size":{"mean":315.0,"sd":13.143142626495653},"max_del_cigar_len":0,"max_ins_cigar_len":0,"frac_max_softclip":0.09}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
   tumor:
     path: tumor.bam
-    properties: '{"insert_size":{"mean":310.0,"sd":12.684133521513834},"max_del_cigar_len":0,"max_ins_cigar_len":5,"frac_max_softclip":0.11}'
-  
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+
 
 # candidate variant
 candidate: candidates.vcf

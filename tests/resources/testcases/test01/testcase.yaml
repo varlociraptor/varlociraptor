@@ -1,3 +1,7 @@
+# Pindel call in a repeat region. It is either germline or absent, and could be
+# called either as deletion or insertion due to the special repeat structure
+# here.
+
 expected:
   posteriors:
     - PROB_SOMATIC_TUMOR >= 24.8

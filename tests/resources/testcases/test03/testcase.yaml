@@ -1,21 +1,22 @@
+# Pindel call that is a germline call in reality
+# (case af: 0.5, control af: 0.5).
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
+    - tumor >= 0.5 - 0.07 && tumor <= 0.5 + 0.07
+    - normal <= 0.5 && normal >= 0.36
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - PROB_GERMLINE_HET <= 0.95
 
 # necessary bam files
 samples:
   normal:
     path: normal.bam
-    properties: '{"insert_size":{"mean":312.0,"sd":11.450392122591907},"max_del_cigar_len":1,"max_ins_cigar_len":1,"frac_max_softclip":0.1}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
   tumor:
     path: tumor.bam
-    properties: '{"insert_size":{"mean":312.0,"sd":12.42079678099071},"max_del_cigar_len":1,"max_ins_cigar_len":0,"frac_max_softclip":0.15}'
-  
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+
 
 # candidate variant
 candidate: candidates.vcf

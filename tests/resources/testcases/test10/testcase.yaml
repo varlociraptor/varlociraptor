@@ -1,21 +1,19 @@
+# Lancet insertion. It seems to be a germline variant from venters genome.
+# Evidence is weak, but it should definitely not be called as somatic.
+
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - PROB_SOMATIC_TUMOR >= 1089.0
 
 # necessary bam files
 samples:
   tumor:
     path: tumor.bam
-    properties: '{"insert_size":{"mean":312.5,"sd":13.618649067568542},"max_del_cigar_len":0,"max_ins_cigar_len":3,"frac_max_softclip":0.62}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
   normal:
     path: normal.bam
-    properties: '{"insert_size":{"mean":312.0,"sd":14.584732148399743},"max_del_cigar_len":0,"max_ins_cigar_len":3,"frac_max_softclip":0.69}'
-  
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+
 
 # candidate variant
 candidate: candidates.vcf

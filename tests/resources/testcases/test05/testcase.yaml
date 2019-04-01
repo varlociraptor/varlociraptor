@@ -1,21 +1,18 @@
+# Delly call in a repeat region. This should not be a somatic call.
+
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - PROB_SOMATIC_TUMOR >= 435.0
 
 # necessary bam files
 samples:
   normal:
     path: normal.bam
-    properties: '{"insert_size":{"mean":312.0,"sd":11.256437379611357},"max_del_cigar_len":2,"max_ins_cigar_len":5,"frac_max_softclip":0.24}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
   tumor:
     path: tumor.bam
-    properties: '{"insert_size":{"mean":311.0,"sd":12.259545714040259},"max_del_cigar_len":20,"max_ins_cigar_len":5,"frac_max_softclip":0.17}'
-  
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+
 
 # candidate variant
 candidate: candidates.vcf

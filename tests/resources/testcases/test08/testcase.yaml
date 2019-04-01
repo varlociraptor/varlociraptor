@@ -1,21 +1,18 @@
+# Delly deletion. It is a germline call in reality.
+
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - PROB_SOMATIC_TUMOR >= 1193.0
 
 # necessary bam files
 samples:
   normal:
     path: normal.bam
-    properties: '{"insert_size":{"mean":313.0,"sd":11.68147757088091},"max_del_cigar_len":26,"max_ins_cigar_len":0,"frac_max_softclip":0.27}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
   tumor:
     path: tumor.bam
-    properties: '{"insert_size":{"mean":312.0,"sd":13.360553405983731},"max_del_cigar_len":26,"max_ins_cigar_len":0,"frac_max_softclip":0.27}'
-  
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+
 
 # candidate variant
 candidate: candidates.vcf

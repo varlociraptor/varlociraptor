@@ -1,21 +1,20 @@
+# Delly deletion that is a somatic mutation in reality (AF=0.33).
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
+    - tumor >= 0.14 && tumor <= 0.5
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - PROB_SOMATIC_TUMOR <= 0.17
 
 # necessary bam files
 samples:
   tumor:
     path: tumor.bam
-    properties: '{"insert_size":{"mean":311.0,"sd":13.105550720178293},"max_del_cigar_len":1,"max_ins_cigar_len":1,"frac_max_softclip":0.57}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
   normal:
     path: normal.bam
-    properties: '{"insert_size":{"mean":312.0,"sd":11.573121244004994},"max_del_cigar_len":1,"max_ins_cigar_len":1,"frac_max_softclip":0.1}'
-  
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+
 
 # candidate variant
 candidate: candidates.vcf

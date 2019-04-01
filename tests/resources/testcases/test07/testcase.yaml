@@ -1,21 +1,21 @@
+# Small Lancet deletion. It is a somatic call (AF=0.125) in reality.
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
+    - tumor >= 0.8 && tumor <= 0.14
+    - normal == 0.0
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - PROB_SOMATIC_TUMOR <= 0.13
 
 # necessary bam files
 samples:
   normal:
     path: normal.bam
-    properties: '{"insert_size":{"mean":312.0,"sd":12.062397273700451},"max_del_cigar_len":0,"max_ins_cigar_len":0,"frac_max_softclip":0.1}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
   tumor:
     path: tumor.bam
-    properties: '{"insert_size":{"mean":312.0,"sd":12.459458634015213},"max_del_cigar_len":2,"max_ins_cigar_len":0,"frac_max_softclip":0.15}'
-  
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+
 
 # candidate variant
 candidate: candidates.vcf

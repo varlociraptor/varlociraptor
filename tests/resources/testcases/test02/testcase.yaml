@@ -1,21 +1,25 @@
+# Pindel call that is a somatic call in reality (case af: 0.125)
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
+    # true AF=0.125
+    - tumor >= 0.12 && tumor <= 0.13
+    - normal == 0.0
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    # There are some fragments with increased insert size that let prosic think
+    # there is a bit of evidence for having a somatic normal call. This makes
+    # the probability for somatic tumor weak.
+    - PROB_SOMATIC_TUMOR <= 0.12
 
 # necessary bam files
 samples:
   normal:
     path: normal.bam
-    properties: '{"insert_size":{"mean":311.0,"sd":12.371404133923502},"max_del_cigar_len":5,"max_ins_cigar_len":0,"frac_max_softclip":0.08}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
   tumor:
     path: tumor.bam
-    properties: '{"insert_size":{"mean":311.0,"sd":10.989350578171157},"max_del_cigar_len":32,"max_ins_cigar_len":1,"frac_max_softclip":0.19}'
-  
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+
 
 # candidate variant
 candidate: candidates.vcf
