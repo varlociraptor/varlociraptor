@@ -14,7 +14,7 @@ use bio::stats::{LogProb, PHREDProb};
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
-use rust_htslib::{bam, bcf};
+use rust_htslib::{bam, bcf, bcf::record::Numeric};
 
 use crate::model;
 use crate::utils;
@@ -32,7 +32,13 @@ pub fn collect_variants(
 ) -> Result<Vec<Option<model::Variant>>, Box<Error>> {
     let pos = record.pos();
     let svlens = match record.info(b"SVLEN").integer() {
-        Ok(Some(svlens)) => Some(svlens.into_iter().map(|l| l.abs() as u32).collect_vec()),
+        Ok(Some(svlens)) => Some(svlens.into_iter().map(|l| {
+            if !l.is_missing() {
+                Some(l.abs() as u32)
+            } else {
+                None
+            }
+        }).collect_vec()),
         _ => None,
     };
     let end = match record.info(b"END").integer() {
@@ -101,7 +107,7 @@ pub fn collect_variants(
             }
         } else if svtype == b"DEL" {
             let svlen = match (svlens, end) {
-                (Some(svlens), _) => svlens[0],
+                (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
                 (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
                 _ => {
                     return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
@@ -151,7 +157,12 @@ pub fn collect_variants(
                     }
                 } else if alt_allele == b"<DEL>" {
                     if let Some(ref svlens) = svlens {
-                        Some(model::Variant::Deletion(svlens[i]))
+                        if let Some(svlen) = svlens[i] {
+                            Some(model::Variant::Deletion(svlen))
+                        } else {
+                            // TODO fail with an error in this case
+                            None
+                        }
                     } else {
                         // TODO fail with an error in this case
                         None

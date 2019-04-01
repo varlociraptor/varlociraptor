@@ -4,7 +4,8 @@
 // except according to those terms.
 
 use std::error::Error;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
+use std::fs::File;
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
@@ -22,6 +23,7 @@ use crate::model::modes::common::FlatPrior;
 use crate::model::modes::tumor::{
     TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior,
 };
+use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
 use crate::model::ContinuousAlleleFreqs;
 use crate::model::VariantType;
@@ -126,6 +128,20 @@ pub enum Varlociraptor {
             help = "Create test case files in the given directory."
         )]
         testcase_prefix: Option<String>,
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "Alignment properties JSON file for tumor sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        tumor_alignment_properties: Option<PathBuf>,
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "Alignment properties JSON file for normal sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        normal_alignment_properties: Option<PathBuf>,
     },
     #[structopt(
         name = "filter-calls",
@@ -208,6 +224,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
             ref output,
             ref testcase_locus,
             ref testcase_prefix,
+            ref tumor_alignment_properties,
+            ref normal_alignment_properties,
         } => {
             if let Some(testcase_locus) = testcase_locus {
                 if let Some(testcase_prefix) = testcase_prefix {
@@ -224,8 +242,9 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                 }
             }
 
-            let tumor_alignment_properties = estimate_alignment_properties(tumor)?;
-            let normal_alignment_properties = estimate_alignment_properties(normal)?;
+
+            let tumor_alignment_properties = est_or_load_alignment_properites(tumor_alignment_properties, tumor)?;
+            let normal_alignment_properties = est_or_load_alignment_properites(normal_alignment_properties, normal)?;
             info!("Estimated alignment properties:");
             info!("{:?}", tumor_alignment_properties);
             info!("{:?}", normal_alignment_properties);
@@ -364,4 +383,12 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
         }
     }
     Ok(())
+}
+
+pub fn est_or_load_alignment_properites(alignment_properties_file: &Option<impl AsRef<Path>>, bam_file: impl AsRef<Path>) -> Result<AlignmentProperties, Box<Error>> {
+    if let Some(alignment_properties_file) = alignment_properties_file {
+        Ok(serde_json::from_reader(File::open(alignment_properties_file)?)?)
+    } else {
+        estimate_alignment_properties(bam_file)
+    }
 }

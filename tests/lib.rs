@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read,Write};
 use std::process::Command;
 use std::str;
 
@@ -38,10 +38,11 @@ impl Testcase {
 
     fn run(&self) -> Result<(), Box<Error>>{
         let mut options = serde_json::from_str(self.yaml()["options"].as_str().unwrap())?;
-        // TODO alignment properties!
+        let temp_ref = Self::reference(self.yaml()["reference"]["name"].as_str().unwrap(), self.yaml()["reference"]["seq"].as_str().unwrap())?;
+
         match &mut options {
-            Varlociraptor::CallTumorNormal { ref mut reference, ref mut tumor, ref mut normal, ref mut candidates, ref mut output, ref mut testcase_locus, ref mut testcase_prefix, .. } => {
-                let temp_ref = Self::reference(self.yaml()["reference"]["name"].as_str().unwrap(), self.yaml()["reference"]["seq"].as_str().unwrap())?;
+            Varlociraptor::CallTumorNormal { ref mut reference, ref mut tumor, ref mut normal, ref mut candidates, ref mut output, ref mut testcase_locus, ref mut testcase_prefix, ref mut tumor_alignment_properties, ref mut normal_alignment_properties, .. } => {
+
                 *reference = temp_ref.path().to_owned();
                 *tumor = self.path.join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
                 *normal = self.path.join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
@@ -49,6 +50,11 @@ impl Testcase {
                 *output = Some(self.output());
                 *testcase_prefix = None;
                 *testcase_locus = None;
+
+                let temp_tumor_props = Self::alignment_properties(self.yaml()["samples"]["tumor"]["properties"].as_str().unwrap())?;
+                let temp_normal_props = Self::alignment_properties(self.yaml()["samples"]["normal"]["properties"].as_str().unwrap())?;
+                *tumor_alignment_properties = Some(temp_tumor_props.path().to_owned());
+                *normal_alignment_properties = Some(temp_normal_props.path().to_owned());
 
                 bam::index::build(tumor, None, bam::index::Type::BAI, 1).unwrap();
                 bam::index::build(normal, None, bam::index::Type::BAI, 1).unwrap();
@@ -75,9 +81,9 @@ impl Testcase {
                 let mut expr = Expr::new(expr.as_str().unwrap());
 
                 for (sample, af) in reader.header().samples().into_iter().zip(afs.iter()) {
-                    expr = expr.value(str::from_utf8(sample).unwrap(), af);
+                    expr = expr.value(str::from_utf8(sample).unwrap(), af[0]);
                 }
-                assert!(expr.exec().unwrap().as_bool().unwrap());
+                assert!(expr.exec().map(|v| v.as_bool().unwrap_or(false)).unwrap_or(false), "{:?} did not return true", expr);
             }
         }
 
@@ -115,6 +121,13 @@ impl Testcase {
 
         Ok(tmp_ref)
     }
+
+    fn alignment_properties(properties: &str) -> Result<NamedTempFile, Box<Error>> {
+        let mut tmp_props = tempfile::Builder::new().suffix(".json").tempfile()?;
+        tmp_props.as_file_mut().write_all(properties.as_bytes())?;
+
+        Ok(tmp_props)
+    }
 }
 
 macro_rules! testcase {
@@ -130,3 +143,16 @@ macro_rules! testcase {
 }
 
 testcase!(test01);
+testcase!(test02);
+testcase!(test03);
+testcase!(test04);
+testcase!(test05);
+testcase!(test06);
+testcase!(test07);
+testcase!(test08);
+testcase!(test09);
+testcase!(test10);
+testcase!(test11);
+testcase!(test12);
+testcase!(test13);
+testcase!(test14);

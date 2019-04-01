@@ -177,8 +177,9 @@ where
             bam_reader.fetch(tid, start, end)?;
             for res in bam_reader.records() {
                 let rec = res?;
-                ref_start = cmp::min(rec.pos() as u32, ref_start);
-                ref_end = cmp::max(rec.cigar().end_pos()? as u32, ref_end);
+                let seq_len = rec.seq().len() as u32;
+                ref_start = cmp::min((rec.pos() as u32).saturating_sub(seq_len), ref_start);
+                ref_end = cmp::max(rec.cigar().end_pos()? as u32 + seq_len, ref_end);
             }
         }
 
@@ -219,6 +220,9 @@ where
         )?;
         let (_, mut candidate_record) = candidate;
         candidate_record.set_pos((candidate_record.pos() - ref_start) as i32);
+        if let Ok(Some(end)) = candidate_record.info(b"END").integer().map(|v| v.map(|v| v[0])) {
+            candidate_record.push_info_integer(b"END", &[end - ref_start as i32])?;
+        }
         candidate_writer.write(&candidate_record)?;
 
         // fetch reference
