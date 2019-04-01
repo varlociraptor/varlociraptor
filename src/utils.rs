@@ -32,13 +32,18 @@ pub fn collect_variants(
 ) -> Result<Vec<Option<model::Variant>>, Box<Error>> {
     let pos = record.pos();
     let svlens = match record.info(b"SVLEN").integer() {
-        Ok(Some(svlens)) => Some(svlens.into_iter().map(|l| {
-            if !l.is_missing() {
-                Some(l.abs() as u32)
-            } else {
-                None
-            }
-        }).collect_vec()),
+        Ok(Some(svlens)) => Some(
+            svlens
+                .into_iter()
+                .map(|l| {
+                    if !l.is_missing() {
+                        Some(l.abs() as u32)
+                    } else {
+                        None
+                    }
+                })
+                .collect_vec(),
+        ),
         _ => None,
     };
     let end = match record.info(b"END").integer() {

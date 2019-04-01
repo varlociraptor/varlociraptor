@@ -1,21 +1,21 @@
+use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::fs;
-use std::cmp;
 use std::str;
 
 use askama::Template;
+use bio::io::fasta;
 use derive_builder::Builder;
 use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
-use bio::io::fasta;
-use structopt::StructOpt;
-use serde_json;
 use serde::Serialize;
+use serde_json;
+use structopt::StructOpt;
 
 use crate::errors;
 use crate::model::sample;
@@ -47,7 +47,7 @@ struct Sample {
 #[builder(pattern = "owned")]
 pub struct Testcase<T>
 where
-    T: StructOpt
+    T: StructOpt,
 {
     #[builder(setter(into))]
     prefix: PathBuf,
@@ -63,12 +63,12 @@ where
     candidate_reader: bcf::Reader,
     #[builder(private)]
     bams: HashMap<String, PathBuf>,
-    options: T
+    options: T,
 }
 
 impl<T> TestcaseBuilder<T>
 where
-    T: StructOpt
+    T: StructOpt,
 {
     pub fn reference(self, path: impl AsRef<Path>) -> Result<Self, Box<Error>> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
@@ -81,8 +81,7 @@ where
     pub fn locus(self, locus: &str) -> Result<Self, Box<Error>> {
         if locus == "all" {
             Ok(self.chrom_name(None).pos(None).idx(0))
-        }
-        else if let Some(captures) = TESTCASE_RE.captures(locus) {
+        } else if let Some(captures) = TESTCASE_RE.captures(locus) {
             let chrom_name = captures
                 .name("chrom")
                 .unwrap()
@@ -107,7 +106,10 @@ where
         if self.bams.is_none() {
             self = self.bams(HashMap::new());
         }
-        self.bams.as_mut().unwrap().insert(name.to_owned(), path.as_ref().to_owned());
+        self.bams
+            .as_mut()
+            .unwrap()
+            .insert(name.to_owned(), path.as_ref().to_owned());
 
         self
     }
@@ -115,7 +117,7 @@ where
 
 impl<T> Testcase<T>
 where
-    T: StructOpt + Serialize
+    T: StructOpt + Serialize,
 {
     fn variants(&mut self) -> Result<Vec<bcf::Record>, Box<Error>> {
         // get variant
@@ -161,7 +163,12 @@ where
                         // if no chromosome was specified, we infer the locus from the matching
                         // variant
                         if self.chrom_name.is_none() {
-                            self.chrom_name = Some(self.candidate_reader.header().rid2name(record.rid().unwrap()).to_owned());
+                            self.chrom_name = Some(
+                                self.candidate_reader
+                                    .header()
+                                    .rid2name(record.rid().unwrap())
+                                    .to_owned(),
+                            );
                             self.pos = Some(record.pos());
                         }
 
@@ -183,10 +190,9 @@ where
 
         let (start, end) = match candidate {
             (Variant::Deletion(l), _) => (pos.saturating_sub(1000), pos + l + 1000),
-            (Variant::Insertion(ref seq), _) => (
-                pos.saturating_sub(1000),
-                pos + seq.len() as u32 + 1000,
-            ),
+            (Variant::Insertion(ref seq), _) => {
+                (pos.saturating_sub(1000), pos + seq.len() as u32 + 1000)
+            }
             (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
             (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
         };
@@ -243,14 +249,19 @@ where
         )?;
         let (_, mut candidate_record) = candidate;
         candidate_record.set_pos((candidate_record.pos() - ref_start) as i32);
-        if let Ok(Some(end)) = candidate_record.info(b"END").integer().map(|v| v.map(|v| v[0])) {
+        if let Ok(Some(end)) = candidate_record
+            .info(b"END")
+            .integer()
+            .map(|v| v.map(|v| v[0]))
+        {
             candidate_record.push_info_integer(b"END", &[end - ref_start as i32])?;
         }
         candidate_writer.write(&candidate_record)?;
 
         // fetch reference
         let ref_name = str::from_utf8(&chrom_name)?;
-        self.reference_reader.fetch(ref_name, ref_start as u64, ref_end as u64)?;
+        self.reference_reader
+            .fetch(ref_name, ref_start as u64, ref_end as u64)?;
         let mut ref_seq = Vec::new();
         self.reference_reader.read(&mut ref_seq)?;
 

@@ -1,22 +1,22 @@
 use std::error::Error;
-use std::path::{Path, PathBuf};
+use std::fs;
 use std::fs::File;
-use std::io::{Read,Write};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
-use std::fs;
 
+use bio::io::fasta;
 use bio::stats::{LogProb, Prob};
-use rust_htslib::{bam, bcf};
+use eval::Expr;
+use itertools::Itertools;
 use rust_htslib::bcf::Read as BCFRead;
-use yaml_rust::{YamlLoader, Yaml};
+use rust_htslib::{bam, bcf};
 use serde_json;
 use tempfile::{self, NamedTempFile};
-use bio::io::fasta;
-use itertools::Itertools;
-use eval::Expr;
+use yaml_rust::{Yaml, YamlLoader};
 
-use varlociraptor::cli::{Varlociraptor, run};
+use varlociraptor::cli::{run, Varlociraptor};
 
 struct Testcase {
     inner: Vec<Yaml>,
@@ -38,23 +38,48 @@ impl Testcase {
         &self.inner[0]
     }
 
-    fn run(&self) -> Result<(), Box<Error>>{
+    fn run(&self) -> Result<(), Box<Error>> {
         let mut options = serde_json::from_str(self.yaml()["options"].as_str().unwrap())?;
-        let temp_ref = Self::reference(self.yaml()["reference"]["name"].as_str().unwrap(), self.yaml()["reference"]["seq"].as_str().unwrap())?;
+        let temp_ref = Self::reference(
+            self.yaml()["reference"]["name"].as_str().unwrap(),
+            self.yaml()["reference"]["seq"].as_str().unwrap(),
+        )?;
 
         match &mut options {
-            Varlociraptor::CallTumorNormal { ref mut reference, ref mut tumor, ref mut normal, ref mut candidates, ref mut output, ref mut testcase_locus, ref mut testcase_prefix, ref mut tumor_alignment_properties, ref mut normal_alignment_properties, .. } => {
-
+            Varlociraptor::CallTumorNormal {
+                ref mut reference,
+                ref mut tumor,
+                ref mut normal,
+                ref mut candidates,
+                ref mut output,
+                ref mut testcase_locus,
+                ref mut testcase_prefix,
+                ref mut tumor_alignment_properties,
+                ref mut normal_alignment_properties,
+                ..
+            } => {
                 *reference = temp_ref.path().to_owned();
-                *tumor = self.path.join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
-                *normal = self.path.join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
+                *tumor = self
+                    .path
+                    .join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
+                *normal = self
+                    .path
+                    .join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
                 *candidates = Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
                 *output = Some(self.output());
                 *testcase_prefix = None;
                 *testcase_locus = None;
 
-                let temp_tumor_props = Self::alignment_properties(self.yaml()["samples"]["tumor"]["properties"].as_str().unwrap())?;
-                let temp_normal_props = Self::alignment_properties(self.yaml()["samples"]["normal"]["properties"].as_str().unwrap())?;
+                let temp_tumor_props = Self::alignment_properties(
+                    self.yaml()["samples"]["tumor"]["properties"]
+                        .as_str()
+                        .unwrap(),
+                )?;
+                let temp_normal_props = Self::alignment_properties(
+                    self.yaml()["samples"]["normal"]["properties"]
+                        .as_str()
+                        .unwrap(),
+                )?;
                 *tumor_alignment_properties = Some(temp_tumor_props.path().to_owned());
                 *normal_alignment_properties = Some(temp_normal_props.path().to_owned());
 
@@ -62,8 +87,8 @@ impl Testcase {
                 bam::index::build(normal, None, bam::index::Type::BAI, 1).unwrap();
 
                 run(options)
-            },
-            _ => panic!("unsupported subcommand")
+            }
+            _ => panic!("unsupported subcommand"),
         }
     }
 
@@ -85,7 +110,13 @@ impl Testcase {
                 for (sample, af) in reader.header().samples().into_iter().zip(afs.iter()) {
                     expr = expr.value(str::from_utf8(sample).unwrap(), af[0]);
                 }
-                assert!(expr.exec().map(|v| v.as_bool().unwrap_or(false)).unwrap_or(false), "{:?} did not return true", expr);
+                assert!(
+                    expr.exec()
+                        .map(|v| v.as_bool().unwrap_or(false))
+                        .unwrap_or(false),
+                    "{:?} did not return true",
+                    expr
+                );
             }
         }
 
@@ -101,11 +132,17 @@ impl Testcase {
                                 let values = call.info(id.as_bytes()).float().unwrap().unwrap();
                                 expr = expr.value(id.clone(), values[0])
                             }
-                        },
-                        _ => () // ignore other tags
+                        }
+                        _ => (), // ignore other tags
                     }
                 }
-                assert!(expr.exec().map(|v| v.as_bool().unwrap_or(false)).unwrap_or(false), "{:?} did not return true", expr);
+                assert!(
+                    expr.exec()
+                        .map(|v| v.as_bool().unwrap_or(false))
+                        .unwrap_or(false),
+                    "{:?} did not return true",
+                    expr
+                );
             }
         }
     }
@@ -137,11 +174,18 @@ macro_rules! testcase {
         #[test]
         fn $name() {
             let name = stringify!($name);
-            let testcase = Testcase::new(&Path::new(file!()).parent().unwrap().join("resources/testcases").join(name)).unwrap();
+            let testcase = Testcase::new(
+                &Path::new(file!())
+                    .parent()
+                    .unwrap()
+                    .join("resources/testcases")
+                    .join(name),
+            )
+            .unwrap();
             testcase.run().unwrap();
             testcase.check();
         }
-    }
+    };
 }
 
 testcase!(test01);
@@ -179,7 +223,6 @@ testcase!(test30);
 testcase!(test31);
 testcase!(test32);
 testcase!(test33);
-
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

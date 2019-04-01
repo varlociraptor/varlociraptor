@@ -6,7 +6,7 @@
 use std::process::exit;
 
 use structopt::StructOpt;
-use varlociraptor::cli::{Varlociraptor, run};
+use varlociraptor::cli::{run, Varlociraptor};
 
 pub fn main() {
     let opt = Varlociraptor::from_args();
@@ -22,7 +22,7 @@ pub fn main() {
         Err(e) => {
             println!("Error: {}", e);
             1
-        },
-        _ => 0
+        }
+        _ => 0,
     })
 }

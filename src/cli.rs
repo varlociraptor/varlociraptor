@@ -4,8 +4,8 @@
 // except according to those terms.
 
 use std::error::Error;
-use std::path::{PathBuf, Path};
 use std::fs::File;
+use std::path::{Path, PathBuf};
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
@@ -18,17 +18,15 @@ use structopt::StructOpt;
 use crate::call::CallerBuilder;
 use crate::conversion;
 use crate::errors;
+use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::model::modes::common::FlatPrior;
-use crate::model::modes::tumor::{
-    TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior,
-};
-use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::model::modes::tumor::{TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior};
 use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
 use crate::model::ContinuousAlleleFreqs;
 use crate::model::VariantType;
-use crate::SimpleEvent;
 use crate::testcase::TestcaseBuilder;
+use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
@@ -232,7 +230,15 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                 if let Some(testcase_prefix) = testcase_prefix {
                     if let Some(candidates) = candidates {
                         // just write a testcase and quit
-                        let mut testcase = TestcaseBuilder::default().prefix(PathBuf::from(testcase_prefix)).options(opt.clone()).locus(testcase_locus)?.reference(reference)?.candidates(candidates)?.register_bam("tumor", tumor).register_bam("normal", normal).build()?;
+                        let mut testcase = TestcaseBuilder::default()
+                            .prefix(PathBuf::from(testcase_prefix))
+                            .options(opt.clone())
+                            .locus(testcase_locus)?
+                            .reference(reference)?
+                            .candidates(candidates)?
+                            .register_bam("tumor", tumor)
+                            .register_bam("normal", normal)
+                            .build()?;
                         testcase.write()?;
                         return Ok(());
                     } else {
@@ -243,9 +249,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                 }
             }
 
-
-            let tumor_alignment_properties = est_or_load_alignment_properites(tumor_alignment_properties, tumor)?;
-            let normal_alignment_properties = est_or_load_alignment_properites(normal_alignment_properties, normal)?;
+            let tumor_alignment_properties =
+                est_or_load_alignment_properites(tumor_alignment_properties, tumor)?;
+            let normal_alignment_properties =
+                est_or_load_alignment_properites(normal_alignment_properties, normal)?;
             info!("Estimated alignment properties:");
             info!("{:?}", tumor_alignment_properties);
             info!("{:?}", normal_alignment_properties);
@@ -386,9 +393,14 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
     Ok(())
 }
 
-pub fn est_or_load_alignment_properites(alignment_properties_file: &Option<impl AsRef<Path>>, bam_file: impl AsRef<Path>) -> Result<AlignmentProperties, Box<Error>> {
+pub fn est_or_load_alignment_properites(
+    alignment_properties_file: &Option<impl AsRef<Path>>,
+    bam_file: impl AsRef<Path>,
+) -> Result<AlignmentProperties, Box<Error>> {
     if let Some(alignment_properties_file) = alignment_properties_file {
-        Ok(serde_json::from_reader(File::open(alignment_properties_file)?)?)
+        Ok(serde_json::from_reader(File::open(
+            alignment_properties_file,
+        )?)?)
     } else {
         estimate_alignment_properties(bam_file)
     }
