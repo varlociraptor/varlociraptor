@@ -11,8 +11,6 @@ env:
 cache: 
   - cargo
   - directories:
-    - tests/resources/GRCh38
-    - tests/resources/hg18
     - target/ext
 
 sudo: false

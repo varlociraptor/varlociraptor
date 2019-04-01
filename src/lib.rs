@@ -13,13 +13,17 @@ extern crate serde_derive;
 extern crate quick_error;
 #[macro_use]
 extern crate lazy_static;
+extern crate askama;
 
 pub mod call;
+pub mod cli;
 pub mod constants;
 pub mod conversion;
+pub mod errors;
 pub mod estimation;
 pub mod filtration;
 pub mod model;
+pub mod testcase;
 pub mod utils;
 
 pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};

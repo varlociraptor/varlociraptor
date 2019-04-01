@@ -10,7 +10,6 @@ use std::io;
 use std::str::FromStr;
 use std::u32;
 
-use bio::stats::PHREDProb;
 use csv;
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -22,10 +21,9 @@ use crate::model::Variant;
 #[derive(Clone, Debug, Copy, Deserialize, Serialize)]
 pub struct AlignmentProperties {
     insert_size: InsertSize,
-    max_del_cigar_len: u32,
-    max_ins_cigar_len: u32,
-    frac_max_softclip: f64,
-    max_mapq: PHREDProb,
+    pub(crate) max_del_cigar_len: u32,
+    pub(crate) max_ins_cigar_len: u32,
+    pub(crate) frac_max_softclip: f64,
 }
 
 impl AlignmentProperties {
@@ -36,7 +34,6 @@ impl AlignmentProperties {
             max_del_cigar_len: 30,
             max_ins_cigar_len: 30,
             frac_max_softclip: 1.0,
-            max_mapq: PHREDProb(60.0),
         }
     }
 
@@ -80,7 +77,6 @@ impl AlignmentProperties {
             max_del_cigar_len: 0,
             max_ins_cigar_len: 0,
             frac_max_softclip: 0.0,
-            max_mapq: PHREDProb(0.0),
         };
 
         let mut record = bam::Record::new();
@@ -123,7 +119,6 @@ impl AlignmentProperties {
             .collect_vec();
         properties.insert_size.mean = valid.median();
         properties.insert_size.sd = valid.iter().std_dev();
-        properties.max_mapq = PHREDProb(max_mapq as f64);
 
         Ok(properties)
     }
@@ -141,10 +136,6 @@ impl AlignmentProperties {
 
     pub fn insert_size(&self) -> &InsertSize {
         &self.insert_size
-    }
-
-    pub fn max_mapq(&self) -> PHREDProb {
-        self.max_mapq
     }
 }
 
@@ -200,7 +191,6 @@ mod tests {
 
         assert_relative_eq!(props.insert_size.mean, 312.0);
         assert_relative_eq!(props.insert_size.sd, 11.89254089203071);
-        assert_eq!(props.max_mapq, PHREDProb(60.0));
         assert_eq!(props.max_del_cigar_len, 30);
         assert_eq!(props.max_ins_cigar_len, 12);
         assert_eq!(props.frac_max_softclip, 0.69);

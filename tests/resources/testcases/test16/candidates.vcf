@@ -1,0 +1,65 @@
+##fileformat=VCFv4.1
+##FILTER=<ID=PASS,Description="All filters passed">
+##fileDate=Sun Dec  3 21:51:31 2017
+##source=lancet 1.0.2 (beta), Ocotber 17 2017
+##reference=../data/hg18.fasta
+##INFO=<ID=FETS,Number=1,Type=Float,Description="phred-scaled p-value of the Fisher's exact test for tumor-normal allele counts (right-sided)">
+##INFO=<ID=SOMATIC,Number=0,Type=Flag,Description="Somatic mutation">
+##INFO=<ID=SHARED,Number=0,Type=Flag,Description="Shared mutation betweem tumor and normal">
+##INFO=<ID=NORMAL,Number=0,Type=Flag,Description="Mutation present only in the normal">
+##INFO=<ID=NONE,Number=0,Type=Flag,Description="Mutation not supported by data">
+##INFO=<ID=KMERSIZE,Number=1,Type=Integer,Description="K-mer size used to assemble the locus">
+##INFO=<ID=SB,Number=1,Type=Integer,Description="Phred-scaled strand bias of the Fisher's exact test (two-sided)">
+##INFO=<ID=MS,Number=1,Type=String,Description="Microsatellite mutation (format: #LEN#MOTIF)">
+##INFO=<ID=LEN,Number=1,Type=Integer,Description="Variant size in base pairs">
+##INFO=<ID=TYPE,Number=1,Type=String,Description="Variant type (snv, del, ins)">
+##FILTER=<ID=LowCovNormal,Description="low coverage in the normal (<10)">
+##FILTER=<ID=HighCovNormal,Description="high coverage in the normal (>1000000)">
+##FILTER=<ID=LowCovTumor,Description="low coverage in the tumor (<4)">
+##FILTER=<ID=HighCovTumor,Description="high coverage in the tumor (>1000000)">
+##FILTER=<ID=LowVafTumor,Description="low variant allele frequency in the tumor (<0.04)">
+##FILTER=<ID=HighVafNormal,Description="high variant allele frequency in the normal (>0)">
+##FILTER=<ID=LowAltCntTumor,Description="low alternative allele count in the tumor (<3)">
+##FILTER=<ID=HighAltCntNormal,Description="high alternative allele count in the normal (>0)">
+##FILTER=<ID=LowFisherScore,Description="low Fisher's exact test score for tumor-normal allele counts (<5)">
+##FILTER=<ID=LowFisherSTR,Description="low Fisher's exact test score for tumor-normal STR allele counts (<25)">
+##FILTER=<ID=StrandBias,Description="strand bias: # of non-reference reads in either forward or reverse strand below threshold (<1)">
+##FILTER=<ID=STR,Description="Microsatellite mutation">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Depth">
+##FORMAT=<ID=AD,Number=.,Type=Integer,Description="allele depth: # of supporting ref,alt reads at the site">
+##FORMAT=<ID=SR,Number=.,Type=Integer,Description="strand counts for ref: # of supporting forward,reverse reads for reference allele">
+##FORMAT=<ID=SA,Number=.,Type=Integer,Description="strand counts for alt: # of supporting forward,reverse reads for alterantive allele">
+##contig=<ID=chr1>
+##contig=<ID=chr2>
+##contig=<ID=chr3>
+##contig=<ID=chr4>
+##contig=<ID=chr5>
+##contig=<ID=chr6>
+##contig=<ID=chr7>
+##contig=<ID=chr8>
+##contig=<ID=chr9>
+##contig=<ID=chr10>
+##contig=<ID=chr11>
+##contig=<ID=chr12>
+##contig=<ID=chr13>
+##contig=<ID=chr14>
+##contig=<ID=chr15>
+##contig=<ID=chr16>
+##contig=<ID=chr17>
+##contig=<ID=chr18>
+##contig=<ID=chr19>
+##contig=<ID=chr20>
+##contig=<ID=chr21>
+##contig=<ID=chr22>
+##contig=<ID=chrM>
+##contig=<ID=chrX>
+##contig=<ID=chrY>
+##bcftools_annotateVersion=1.6+htslib-1.6
+##bcftools_annotateCommand=annotate -o lancet/simulated-bwa/chr1.fixed.vcf -h resources/lancet_header.txt -; Date=Mon Dec  4 10:38:52 2017
+##bcftools_concatVersion=1.6+htslib-1.6
+##bcftools_concatCommand=concat -Ob lancet/simulated-bwa/chr1.fixed.vcf lancet/simulated-bwa/chr2.fixed.vcf lancet/simulated-bwa/chr3.fixed.vcf lancet/simulated-bwa/chr4.fixed.vcf lancet/simulated-bwa/chr5.fixed.vcf lancet/simulated-bwa/chr6.fixed.vcf lancet/simulated-bwa/chr7.fixed.vcf lancet/simulated-bwa/chr8.fixed.vcf lancet/simulated-bwa/chr9.fixed.vcf lancet/simulated-bwa/chr10.fixed.vcf lancet/simulated-bwa/chr11.fixed.vcf lancet/simulated-bwa/chr12.fixed.vcf lancet/simulated-bwa/chr13.fixed.vcf lancet/simulated-bwa/chr14.fixed.vcf lancet/simulated-bwa/chr15.fixed.vcf lancet/simulated-bwa/chr16.fixed.vcf lancet/simulated-bwa/chr17.fixed.vcf lancet/simulated-bwa/chr18.fixed.vcf lancet/simulated-bwa/chr19.fixed.vcf lancet/simulated-bwa/chr20.fixed.vcf lancet/simulated-bwa/chr21.fixed.vcf lancet/simulated-bwa/chr22.fixed.vcf lancet/simulated-bwa/chrM.fixed.vcf lancet/simulated-bwa/chrX.fixed.vcf lancet/simulated-bwa/chrY.fixed.vcf; Date=Tue Dec  5 21:30:01 2017
+##bcftools_viewVersion=1.6+htslib-1.6
+##bcftools_viewCommand=view default-lancet/simulated-bwa.all.bcf chr1:73497885; Date=Wed Feb 21 09:05:54 2018
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	normal	tumor
+chr1	1200	.	CATTTAAGATTTTTTGGGCTGTTTATGTCATTGATTATTTCCCTGAACTTAAAAATAACATCA	C	27.2185	PASS	SOMATIC;FETS=27.2185;TYPE=del;LEN=62;KMERSIZE=15;SB=13	GT:AD:SR:SA:DP	0/0:28,0:16,12:0,0:28	0/1:23,9:14,9:2,7:32
