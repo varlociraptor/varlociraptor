@@ -2,7 +2,7 @@
 
 expected:
   allelefreqs:
-    - tumor >= 0.8 && tumor <= 0.14
+    - tumor >= 0.08 && tumor <= 0.17
     - normal == 0.0
   posteriors:
     - PROB_SOMATIC_TUMOR <= 0.13
