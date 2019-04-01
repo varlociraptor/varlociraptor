@@ -52,9 +52,9 @@ where
     #[builder(setter(into))]
     prefix: PathBuf,
     #[builder(private)]
-    chrom_name: Vec<u8>,
+    chrom_name: Option<Vec<u8>>,
     #[builder(private)]
-    pos: u32,
+    pos: Option<u32>,
     #[builder(private)]
     idx: usize,
     #[builder(private)]
@@ -79,7 +79,10 @@ where
     }
 
     pub fn locus(self, locus: &str) -> Result<Self, Box<Error>> {
-        if let Some(captures) = TESTCASE_RE.captures(locus) {
+        if locus == "all" {
+            Ok(self.chrom_name(None).pos(None).idx(0))
+        }
+        else if let Some(captures) = TESTCASE_RE.captures(locus) {
             let chrom_name = captures
                 .name("chrom")
                 .unwrap()
@@ -94,7 +97,7 @@ where
             } else {
                 0
             };
-            Ok(self.chrom_name(chrom_name).pos(pos).idx(idx))
+            Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)).idx(idx))
         } else {
             Err(errors::TestcaseError::InvalidLocus)?
         }
@@ -116,12 +119,21 @@ where
 {
     fn variants(&mut self) -> Result<Vec<bcf::Record>, Box<Error>> {
         // get variant
-        let rid = self.candidate_reader.header().name2rid(&self.chrom_name)?;
+        let rid = if let Some(name) = self.chrom_name.as_ref() {
+            Some(self.candidate_reader.header().name2rid(name)?)
+        } else {
+            None
+        };
         let mut found = vec![];
         for res in self.candidate_reader.records() {
             let rec = res?;
             if let Some(rec_rid) = rec.rid() {
-                if rec_rid == rid && rec.pos() == self.pos {
+                if let Some(rid) = rid {
+                    if rec_rid == rid && rec.pos() == self.pos.unwrap() {
+                        found.push(rec);
+                    }
+                } else {
+                    // add all variants
                     found.push(rec);
                 }
             }
@@ -146,7 +158,15 @@ where
             for variant in variants {
                 if let Some(variant) = variant {
                     if i == self.idx {
+                        // if no chromosome was specified, we infer the locus from the matching
+                        // variant
+                        if self.chrom_name.is_none() {
+                            self.chrom_name = Some(self.candidate_reader.header().rid2name(record.rid().unwrap()).to_owned());
+                            self.pos = Some(record.pos());
+                        }
+
                         candidate = Some((variant, record));
+
                         break;
                     }
                 }
@@ -158,14 +178,17 @@ where
         }
         let candidate = candidate.unwrap();
 
+        let chrom_name = self.chrom_name.as_ref().unwrap();
+        let pos = self.pos.unwrap();
+
         let (start, end) = match candidate {
-            (Variant::Deletion(l), _) => (self.pos.saturating_sub(1000), self.pos + l + 1000),
+            (Variant::Deletion(l), _) => (pos.saturating_sub(1000), pos + l + 1000),
             (Variant::Insertion(ref seq), _) => (
-                self.pos.saturating_sub(1000),
-                self.pos + seq.len() as u32 + 1000,
+                pos.saturating_sub(1000),
+                pos + seq.len() as u32 + 1000,
             ),
-            (Variant::SNV(_), _) => (self.pos.saturating_sub(100), self.pos + 1 + 100),
-            (Variant::None, _) => (self.pos.saturating_sub(100), self.pos + 1 + 100),
+            (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
+            (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
         };
 
         let mut ref_start = start;
@@ -173,7 +196,7 @@ where
         // first pass, extend reference interval
         for path in self.bams.values() {
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
-            let tid = bam_reader.header().tid(&self.chrom_name).unwrap();
+            let tid = bam_reader.header().tid(chrom_name).unwrap();
             bam_reader.fetch(tid, start, end)?;
             for res in bam_reader.records() {
                 let rec = res?;
@@ -193,7 +216,7 @@ where
                 self.prefix.join(&filename),
                 &bam::Header::from_template(bam_reader.header()),
             )?;
-            let tid = bam_reader.header().tid(&self.chrom_name).unwrap();
+            let tid = bam_reader.header().tid(chrom_name).unwrap();
 
             bam_reader.fetch(tid, start, end)?;
             for res in bam_reader.records() {
@@ -226,7 +249,7 @@ where
         candidate_writer.write(&candidate_record)?;
 
         // fetch reference
-        let ref_name = str::from_utf8(&self.chrom_name)?;
+        let ref_name = str::from_utf8(&chrom_name)?;
         self.reference_reader.fetch(ref_name, ref_start as u64, ref_end as u64)?;
         let mut ref_seq = Vec::new();
         self.reference_reader.read(&mut ref_seq)?;

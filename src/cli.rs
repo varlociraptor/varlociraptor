@@ -120,7 +120,8 @@ pub enum Varlociraptor {
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
                     variant at the locus, counting from 1. If IDX is not specified, the first \
-                    variant will be chosen."
+                    variant will be chosen. Alternatively, for single variant VCFs, you can \
+                    specify 'all'."
         )]
         testcase_locus: Option<String>,
         #[structopt(

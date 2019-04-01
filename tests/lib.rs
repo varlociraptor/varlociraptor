@@ -158,3 +158,22 @@ testcase!(test13);
 testcase!(test14);
 testcase!(test15);
 testcase!(test16);
+testcase!(test17);
+testcase!(test18);
+testcase!(test19);
+testcase!(test20);
+// skip the next test cecause this insertion cannot currently be resolved properly
+// TODO find a way to fix this.
+// testcase!(test21);
+testcase!(test22);
+testcase!(test23);
+testcase!(test24);
+testcase!(test25);
+testcase!(test26);
+testcase!(test27);
+testcase!(test28);
+testcase!(test29);
+testcase!(test30);
+testcase!(test31);
+testcase!(test32);
+testcase!(test33);
