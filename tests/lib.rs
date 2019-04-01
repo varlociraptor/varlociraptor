@@ -4,7 +4,9 @@ use std::fs::File;
 use std::io::{Read,Write};
 use std::process::Command;
 use std::str;
+use std::fs;
 
+use bio::stats::{LogProb, Prob};
 use rust_htslib::{bam, bcf};
 use rust_htslib::bcf::Read as BCFRead;
 use yaml_rust::{YamlLoader, Yaml};
@@ -177,3 +179,70 @@ testcase!(test30);
 testcase!(test31);
 testcase!(test32);
 testcase!(test33);
+
+
+fn basedir(test: &str) -> String {
+    format!("tests/resources/{}", test)
+}
+
+fn cleanup_file(f: &str) {
+    if Path::new(f).exists() {
+        fs::remove_file(f).unwrap();
+    }
+}
+
+fn control_fdr(test: &str, event_str: &str, alpha: f64) {
+    let basedir = basedir(test);
+    let output = format!("{}/calls.filtered.bcf", basedir);
+    cleanup_file(&output);
+    varlociraptor::filtration::fdr::control_fdr(
+        &format!("{}/calls.matched.bcf", basedir),
+        Some(&output),
+        &[varlociraptor::SimpleEvent {
+            name: event_str.to_owned(),
+        }],
+        &varlociraptor::model::VariantType::Deletion(Some(1..30)),
+        LogProb::from(Prob(alpha)),
+    )
+    .unwrap();
+}
+
+fn assert_call_number(test: &str, expected_calls: usize) {
+    let basedir = basedir(test);
+
+    let mut reader = bcf::Reader::from_path(format!("{}/calls.filtered.bcf", basedir)).unwrap();
+
+    let calls = reader.records().map(|r| r.unwrap()).collect_vec();
+    // allow one more or less, in order to be robust to numeric fluctuations
+    assert!(
+        (calls.len() as i32 - expected_calls as i32).abs() <= 1,
+        "unexpected number of calls ({} vs {})",
+        calls.len(),
+        expected_calls
+    );
+}
+
+#[test]
+fn test_fdr_control1() {
+    control_fdr("test_fdr_ev_1", "SOMATIC", 0.05);
+    //assert_call_number("test_fdr_ev_1", 974);
+}
+
+#[test]
+fn test_fdr_control2() {
+    control_fdr("test_fdr_ev_2", "SOMATIC", 0.05);
+    assert_call_number("test_fdr_ev_2", 985);
+}
+
+/// same test, but low alpha
+#[test]
+fn test_fdr_control3() {
+    control_fdr("test_fdr_ev_3", "ABSENT", 0.001);
+    assert_call_number("test_fdr_ev_3", 0);
+}
+
+#[test]
+fn test_fdr_control4() {
+    control_fdr("test_fdr_ev_4", "SOMATIC_TUMOR", 0.05);
+    assert_call_number("test_fdr_ev_4", 0);
+}

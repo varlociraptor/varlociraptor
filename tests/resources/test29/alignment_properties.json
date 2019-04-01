@@ -1,1 +1,0 @@
-{ "insert_size": { "mean": 380.0, "sd": 80.23866322991103 }, "max_del_cigar_len": 24, "max_ins_cigar_len": 18, "frac_max_softclip": 0.832, "max_mapq": 60.0 }

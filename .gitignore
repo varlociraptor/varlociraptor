@@ -6,10 +6,10 @@
 # More information here http://doc.crates.io/guide.html#cargotoml-vs-cargolock
 Cargo.lock
 
-tests/resources/test0*/*
-tests/resources/test1*/*
-tests/resources/test2*/*
-tests/resources/test3*/*
+#tests/resources/test0*/*
+#tests/resources/test1*/*
+#tests/resources/test2*/*
+#tests/resources/test3*/*
 tests/resources/test_*/*
 #!tests/resources/test*/tumor.bam
 #!tests/resources/test*/normal.bam
