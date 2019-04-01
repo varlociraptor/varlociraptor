@@ -9,10 +9,10 @@ expected:
 samples:
   tumor:
     path: tumor.bam
-    properties: '{"insert_size":{"mean":313.0,"sd":11.08695032438118},"max_del_cigar_len":2,"max_ins_cigar_len":0,"frac_max_softclip":0.09}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
   normal:
     path: normal.bam
-    properties: '{"insert_size":{"mean":312.0,"sd":12.055544547475007},"max_del_cigar_len":0,"max_ins_cigar_len":0,"frac_max_softclip":0.1}'
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
 
 
 # candidate variant
