@@ -4,7 +4,6 @@
 // except according to those terms.
 
 use std::error::Error;
-
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
@@ -12,12 +11,10 @@ use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
 use bio::stats::{LogProb, Prob};
 use rust_htslib::bam;
-
 use itertools::Itertools;
 use structopt::StructOpt;
 
 use crate::call::CallerBuilder;
-
 use crate::conversion;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
