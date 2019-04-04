@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
 use bio::stats::{LogProb, Prob};
-use rust_htslib::bam;
 use itertools::Itertools;
+use rust_htslib::bam;
 use structopt::StructOpt;
 
 use crate::call::CallerBuilder;
