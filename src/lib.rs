@@ -16,6 +16,7 @@ extern crate lazy_static;
 extern crate askama;
 
 pub mod call;
+pub mod cli;
 pub mod constants;
 pub mod conversion;
 pub mod errors;

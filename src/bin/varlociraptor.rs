@@ -3,11 +3,14 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::error::Error;
-use structopt::StructOpt;
-use varlociraptor::cli::{Varlociraptor, run};
 
-pub fn main() -> Result<(), Box<Error>> {
+use std::process::exit;
+
+use structopt::StructOpt;
+use varlociraptor::cli::{run, Varlociraptor};
+
+pub fn main() {
+
     let opt = Varlociraptor::from_args();
 
     // setup logger
@@ -17,5 +20,12 @@ pub fn main() -> Result<(), Box<Error>> {
         .apply()
         .unwrap();
 
-    run(opt)
+    exit(match run(opt) {
+        Err(e) => {
+            println!("Error: {}", e);
+            1
+        }
+        _ => 0,
+    })
+
 }

@@ -4,7 +4,10 @@
 // except according to those terms.
 
 use std::error::Error;
-use std::path::PathBuf;
+
+use std::fs::File;
+use std::path::{Path, PathBuf};
+
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
@@ -15,19 +18,19 @@ use itertools::Itertools;
 use structopt::StructOpt;
 
 use crate::call::CallerBuilder;
-use crate::call_cnvs;
+
 use crate::conversion;
 use crate::errors;
+use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::model::modes::common::FlatPrior;
-use crate::model::modes::tumor::{
-    TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior,
-};
+use crate::model::modes::tumor::{TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior};
 use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
 use crate::model::ContinuousAlleleFreqs;
 use crate::model::VariantType;
-use crate::SimpleEvent;
 use crate::testcase::TestcaseBuilder;
+use crate::SimpleEvent;
+
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
@@ -119,7 +122,8 @@ pub enum Varlociraptor {
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
                     variant at the locus, counting from 1. If IDX is not specified, the first \
-                    variant will be chosen."
+                    variant will be chosen. Alternatively, for single variant VCFs, you can \
+                    specify 'all'."
         )]
         testcase_locus: Option<String>,
         #[structopt(
@@ -127,6 +131,20 @@ pub enum Varlociraptor {
             help = "Create test case files in the given directory."
         )]
         testcase_prefix: Option<String>,
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "Alignment properties JSON file for tumor sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        tumor_alignment_properties: Option<PathBuf>,
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "Alignment properties JSON file for normal sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        normal_alignment_properties: Option<PathBuf>,
     },
     #[structopt(
         name = "filter-calls",
@@ -142,26 +160,6 @@ pub enum Varlociraptor {
         about = "Decode PHRED-scaled values to human readable probabilities."
     )]
     DecodePHRED,
-    CallTumorNormalCNV {
-        #[structopt(
-            parse(from_os_str),
-            long,
-            help = "VCF/BCF file to process (if omitted, read from STDIN)."
-        )]
-        calls: Option<PathBuf>,
-        #[structopt(
-            parse(from_os_str),
-            long,
-            help = "BCF file that shall contain the results (if omitted, write to STDOUT)."
-        )]
-        output: Option<PathBuf>,
-        #[structopt(
-            parse(from_os_str),
-            long,
-            help = "BED file defining regions to consider."
-        )]
-        regions: PathBuf
-    }
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -229,12 +227,22 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
             ref output,
             ref testcase_locus,
             ref testcase_prefix,
+            ref tumor_alignment_properties,
+            ref normal_alignment_properties,
         } => {
             if let Some(testcase_locus) = testcase_locus {
                 if let Some(testcase_prefix) = testcase_prefix {
                     if let Some(candidates) = candidates {
                         // just write a testcase and quit
-                        let mut testcase = TestcaseBuilder::default().prefix(PathBuf::from(testcase_prefix)).options(opt.clone()).locus(testcase_locus)?.reference(reference)?.candidates(candidates)?.register_bam("tumor", tumor).register_bam("normal", normal).build()?;
+                        let mut testcase = TestcaseBuilder::default()
+                            .prefix(PathBuf::from(testcase_prefix))
+                            .options(opt.clone())
+                            .locus(testcase_locus)?
+                            .reference(reference)?
+                            .candidates(candidates)?
+                            .register_bam("tumor", tumor)
+                            .register_bam("normal", normal)
+                            .build()?;
                         testcase.write()?;
                         return Ok(());
                     } else {
@@ -245,8 +253,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                 }
             }
 
-            let tumor_alignment_properties = estimate_alignment_properties(tumor)?;
-            let normal_alignment_properties = estimate_alignment_properties(normal)?;
+            let tumor_alignment_properties =
+                est_or_load_alignment_properites(tumor_alignment_properties, tumor)?;
+            let normal_alignment_properties =
+                est_or_load_alignment_properites(normal_alignment_properties, normal)?;
             info!("Estimated alignment properties:");
             info!("{:?}", tumor_alignment_properties);
             info!("{:?}", normal_alignment_properties);
@@ -382,19 +392,21 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
         },
         Varlociraptor::DecodePHRED => {
             conversion::decode_phred::decode_phred()?;
-        },
-        Varlociraptor::CallTumorNormalCNV {
-            calls,
-            output,
-            regions,
-        } => {
-            let caller = call_cnvs::CallerBuilder::default()
-                .regions(regions)
-                .bcfs(calls, output)?
-                .build()?;
-
-            caller.call()?;
         }
     }
     Ok(())
 }
+
+pub fn est_or_load_alignment_properites(
+    alignment_properties_file: &Option<impl AsRef<Path>>,
+    bam_file: impl AsRef<Path>,
+) -> Result<AlignmentProperties, Box<Error>> {
+    if let Some(alignment_properties_file) = alignment_properties_file {
+        Ok(serde_json::from_reader(File::open(
+            alignment_properties_file,
+        )?)?)
+    } else {
+        estimate_alignment_properties(bam_file)
+    }
+}
+

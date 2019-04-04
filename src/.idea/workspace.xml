@@ -2,7 +2,266 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="7c38f726-1de4-46a0-9a22-32cc8cc29f84" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/call_cnvs.rs" beforeDir="false" afterPath="$PROJECT_DIR$/call_cnvs.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../templates/testcase.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test01/candidates.vcf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test01/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test01/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test01/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test02/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test02/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test02/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test03/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test03/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test03/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test04/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test04/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test04/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test05/candidates.vcf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test05/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test05/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test05/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test06/candidates.vcf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test06/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test06/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test06/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test07/candidates.vcf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test07/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test07/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test07/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test08/candidates.vcf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test08/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test08/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test08/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test09/candidates.vcf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test09/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test09/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test09/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test10/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test10/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test10/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test11/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test11/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test11/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test12/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test12/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test12/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test13/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test13/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test13/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test14/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test14/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test14/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test15/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test15/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test15/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test16/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test16/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test16/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test17/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test17/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test17/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test18/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test18/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test18/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test19/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test19/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test19/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test20/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test20/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test20/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test21/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test21/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test21/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test22/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test22/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test22/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test23/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test23/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test23/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test24/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test24/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test24/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test25/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test25/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test25/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test26/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test26/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test26/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test27/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test27/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test27/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test28/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test28/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test28/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test29/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test29/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test29/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test30/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test30/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test30/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test31/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test31/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test31/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test32/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test32/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test32/tumor.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test33/normal.bam" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test33/testcase.yaml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../tests/resources/testcases/test33/tumor.bam" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/../.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../.travis.yml" beforeDir="false" afterPath="$PROJECT_DIR$/../.travis.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/../Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/varlociraptor.rs" beforeDir="false" afterPath="$PROJECT_DIR$/bin/varlociraptor.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/cli.rs" beforeDir="false" afterPath="$PROJECT_DIR$/cli.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/testcase.rs" beforeDir="false" afterPath="$PROJECT_DIR$/testcase.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils.rs" beforeDir="false" afterPath="$PROJECT_DIR$/utils.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test1/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test04/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test1/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test1/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test1/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test1/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test10/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test10/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test10/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test10/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test10/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test10/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test11/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test11/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test11/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test11/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test11/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test11/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test12/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test12/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test12/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test12/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test12/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test12/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test13/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test13/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test13/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test13/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test13/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test13/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test14/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test14/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test14/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test14/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test14/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test14/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test15/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test15/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test15/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test15/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test15/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test15/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test16/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test16/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test16/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test16/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test16/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test16/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test17/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test17/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test17/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test17/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test17/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test17/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test18/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test18/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test18/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test18/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test18/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test18/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test19/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test19/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test19/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test19/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test19/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test19/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test2/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test02/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test2/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test2/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test2/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test2/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test2/tview.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test20/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test20/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test20/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test20/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test20/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test20/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test21/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test21/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test21/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test21/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test21/normal.only-relevant.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test21/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test21/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test21/tumor.only-relevant.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test22/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test22/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test22/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test22/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test22/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test22/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test23/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test23/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test23/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test23/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test23/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test23/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test24/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test24/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test24/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test24/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test24/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test24/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test25/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test25/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test25/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test25/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test25/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test25/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test26/alignment_properties.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test26/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test26/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test26/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test26/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test26/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test26/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test27/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test27/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test27/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test27/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test27/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test27/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test28/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test28/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test28/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test28/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test28/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test28/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test29/alignment_properties.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test29/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test29/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test29/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test29/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test29/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test29/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test3/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test03/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test3/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test3/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test3/truth.vcf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test3/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test3/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test3/tview.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test30/alignment_properties.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test30/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test30/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test30/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test30/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test30/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test30/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test31/alignment_properties.json" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test31/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test31/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test31/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test31/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test31/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test31/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test32/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test32/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test32/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test32/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test32/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test32/tumor.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test33/candidates.vcf" beforeDir="false" afterPath="$PROJECT_DIR$/../tests/resources/testcases/test33/candidates.vcf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test33/normal.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test33/normal.bam.bai" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test33/tumor.bam" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/../tests/resources/test33/tumor.bam.bai" beforeDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -12,11 +271,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/call_cnvs.rs">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="495">
-              <caret line="81" column="49" lean-forward="true" selection-start-line="81" selection-start-column="49" selection-end-line="81" selection-end-column="49" />
+              <caret line="81" column="49" selection-start-line="81" selection-start-column="49" selection-end-line="81" selection-end-column="49" />
               <folding>
                 <element signature="e#2129#2130#0" expanded="true" />
                 <element signature="e#2159#2160#0" expanded="true" />
@@ -34,10 +293,28 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/lib.rs">
+          <provider selected="true" editor-type-id="text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/cli.rs">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="736">
+              <caret line="411" selection-start-line="411" selection-end-line="411" />
+              <folding>
+                <element signature="e#8061#8062#0" expanded="true" />
+                <element signature="e#8116#8117#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/model/modes/tumor.rs">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="480">
-              <caret line="36" column="5" lean-forward="true" selection-start-line="36" selection-start-column="5" selection-end-line="36" selection-end-column="5" />
+              <caret line="36" column="5" selection-start-line="36" selection-start-column="5" selection-end-line="36" selection-end-column="5" />
             </state>
           </provider>
         </entry>
@@ -46,6 +323,7 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
+      <find>TestcaseTemplat</find>
       <find>AFS</find>
     </findStrings>
   </component>
@@ -56,6 +334,10 @@
     <option name="CHANGED_PATHS">
       <list>
         <option value="$PROJECT_DIR$/call_cnvs.rs" />
+        <option value="$PROJECT_DIR$/bin/varlociraptor.rs" />
+        <option value="$PROJECT_DIR$/testcase.rs" />
+        <option value="$PROJECT_DIR$/../tests/lib.rs" />
+        <option value="$PROJECT_DIR$/cli.rs" />
       </list>
     </option>
   </component>
@@ -104,6 +386,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="org.rust.cargo.project.model.PROJECT_DISCOVERY" value="true" />
   </component>
@@ -165,14 +448,28 @@
     <entry file="file://$PROJECT_DIR$/model/modes/tumor.rs">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="480">
-          <caret line="36" column="5" lean-forward="true" selection-start-line="36" selection-start-column="5" selection-end-line="36" selection-end-column="5" />
+          <caret line="36" column="5" selection-start-line="36" selection-start-column="5" selection-end-line="36" selection-end-column="5" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/bin/varlociraptor.rs">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="435">
+          <caret line="29" selection-start-line="29" selection-end-line="29" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/testcase.rs">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="587">
+          <caret line="327" column="46" selection-start-line="327" selection-start-column="46" selection-end-line="327" selection-end-column="46" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/call_cnvs.rs">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="495">
-          <caret line="81" column="49" lean-forward="true" selection-start-line="81" selection-start-column="49" selection-end-line="81" selection-end-column="49" />
+          <caret line="81" column="49" selection-start-line="81" selection-start-column="49" selection-end-line="81" selection-end-column="49" />
           <folding>
             <element signature="e#2129#2130#0" expanded="true" />
             <element signature="e#2159#2160#0" expanded="true" />
@@ -184,6 +481,31 @@
             <element signature="e#2462#2463#0" expanded="true" />
             <element signature="e#4877#4878#0" expanded="true" />
             <element signature="e#4927#4928#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/../tests/lib.rs">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="736">
+          <caret line="294" selection-start-line="294" selection-end-line="294" />
+          <folding>
+            <element signature="e#7400#7401#0" expanded="true" />
+            <element signature="e#7442#7443#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/lib.rs">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/cli.rs">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="736">
+          <caret line="411" selection-start-line="411" selection-end-line="411" />
+          <folding>
+            <element signature="e#8061#8062#0" expanded="true" />
+            <element signature="e#8116#8117#0" expanded="true" />
           </folding>
         </state>
       </provider>
