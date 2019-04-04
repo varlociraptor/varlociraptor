@@ -14,9 +14,12 @@ extern crate quick_error;
 #[macro_use]
 extern crate lazy_static;
 extern crate askama;
+#[macro_use]
+extern crate custom_derive;
+#[macro_use]
+extern crate newtype_derive;
 
 pub mod call;
-pub mod cli;
 pub mod constants;
 pub mod conversion;
 pub mod errors;

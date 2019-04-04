@@ -1,15 +1,4 @@
-<<<<<<< HEAD
-use std::collections::HashMap;
-use std::error::Error;
-use std::fs::File;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::fs;
-use std::cmp;
-use std::str;
 
-use askama::Template;
-=======
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
@@ -21,21 +10,14 @@ use std::str;
 
 use askama::Template;
 use bio::io::fasta;
->>>>>>> 8e031291e445a3b41d5e33627011461b125af29c
 use derive_builder::Builder;
 use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
-<<<<<<< HEAD
-use bio::io::fasta;
-use structopt::StructOpt;
-use serde_json;
-use serde::Serialize;
-=======
 use serde::Serialize;
 use serde_json;
 use structopt::StructOpt;
->>>>>>> 8e031291e445a3b41d5e33627011461b125af29c
+
 
 use crate::errors;
 use crate::model::sample;
@@ -52,12 +34,8 @@ lazy_static! {
 struct TestcaseTemplate {
     samples: HashMap<String, Sample>,
     candidate: String,
-<<<<<<< HEAD
-    reference: String,
-=======
     ref_name: String,
     ref_seq: String,
->>>>>>> 8e031291e445a3b41d5e33627011461b125af29c
     options: String,
 }
 
@@ -71,24 +49,14 @@ struct Sample {
 #[builder(pattern = "owned")]
 pub struct Testcase<T>
 where
-<<<<<<< HEAD
-    T: StructOpt
-=======
     T: StructOpt,
->>>>>>> 8e031291e445a3b41d5e33627011461b125af29c
 {
     #[builder(setter(into))]
     prefix: PathBuf,
     #[builder(private)]
-<<<<<<< HEAD
-    chrom_name: Vec<u8>,
-    #[builder(private)]
-    pos: u32,
-=======
     chrom_name: Option<Vec<u8>>,
     #[builder(private)]
     pos: Option<u32>,
->>>>>>> 8e031291e445a3b41d5e33627011461b125af29c
     #[builder(private)]
     idx: usize,
     #[builder(private)]
@@ -97,20 +65,12 @@ where
     candidate_reader: bcf::Reader,
     #[builder(private)]
     bams: HashMap<String, PathBuf>,
-<<<<<<< HEAD
-    options: T
-=======
     options: T,
->>>>>>> 8e031291e445a3b41d5e33627011461b125af29c
 }
 
 impl<T> TestcaseBuilder<T>
 where
-<<<<<<< HEAD
-    T: StructOpt
-=======
     T: StructOpt,
->>>>>>> 8e031291e445a3b41d5e33627011461b125af29c
 {
     pub fn reference(self, path: impl AsRef<Path>) -> Result<Self, Box<Error>> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))

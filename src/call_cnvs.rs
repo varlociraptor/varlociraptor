@@ -1,4 +1,4 @@
-use std::path::{PathBuf, Path};
+use std::path::Path;
 use std::error::Error;
 
 use bio::stats::{PHREDProb, LogProb, hmm};
@@ -15,12 +15,11 @@ lazy_static! {
     static ref AFS: Vec<AlleleFreq> = linspace(0.0, 1.0, 11).map(|af| AlleleFreq(af)).collect_vec();
 }
 
-const prob05: LogProb = LogProb(0.5f64.ln());
+
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
 pub struct Caller {
-    regions: PathBuf,
     #[builder(private)]
     bcf_reader: bcf::Reader,
     #[builder(private)]
@@ -43,8 +42,8 @@ impl CallerBuilder {
         }
 
         header.push_record(
-            "##INFO=<ID=CN,Number=1,Type=Float,Description=\"Copy number gain or loss in tumor sample \
-             (negative=loss, positive=gain). Fractional because CNV can be subclonal.\">".as_bytes()
+            "##INFO=<ID=CN,Number=1,Type=Float,Description=\"Copy number in tumor sample \
+             . Fractional because CNV can be subclonal.\">".as_bytes()
         );
         header.push_record(
             "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End of copy number variation.\">".as_bytes()
@@ -61,79 +60,81 @@ impl CallerBuilder {
 
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
-        let calls = Vec::new();
+        let mut calls = Vec::new();
         for record in self.bcf_reader.records() {
-            let record = record?;
-            calls.push(Call::new(&record)?);
+            let mut record = record?;
+            calls.push(Call::new(&mut record)?.unwrap());
         }
 
-        let hmm = HMM::new();
+        for (rid, calls) in calls.into_iter().group_by(|call| call.rid).into_iter() {
+            let hmm = HMM::new();
+            let calls = calls.into_iter().collect_vec();
 
-        let (states, prob) = hmm::viterbi(&hmm, calls);
+            let (states, _prob) = hmm::viterbi(&hmm, &calls);
 
-        let mut record = self.bcf_writer.empty_record();
+            let mut record = self.bcf_writer.empty_record();
 
-        for (gain, group) in states.iter().map(|s| hmm.states[s]).zip(&calls).group_by(|item| item.0) {
-            let pos = group.iter().first().1.start;
-            let end = group.iter().last().1.start + 1;
-            record.set_pos(pos);
-            record.push_info_integer(b"END", &[end])?;
-            record.push_info_float(b"CN", &[2.0 + gain])?;
-            record.set_alleles(&[".", "<CNV>"])?;
+            for (gain, group) in states.iter().map(|s| hmm.states[**s]).zip(&calls).group_by(|item| item.0).into_iter() {
+                let mut group = group.into_iter();
+                let first_call = group.next().unwrap().1;
+                let pos = first_call.start;
+                let end = group.last().unwrap().1.start + 1;
+                record.set_rid(&Some(rid));
+                record.set_pos(pos as i32);
+                record.push_info_integer(b"END", &[end as i32])?;
+                record.push_info_float(b"CN", &[2.0 + *gain as f32])?;
+                record.set_alleles(&[b".", b"<CNV>"])?;
+
+                self.bcf_writer.write(&record)?;
+            }
         }
+        Ok(())
 
 
     }
 }
 
 pub struct HMM {
-    states: Vec<Gain>,
-    start_state: State
+    states: Vec<Gain>
 }
 
 impl HMM {
     fn new() -> Self {
-        let states = AFS.iter().map(|tumor_af| Gain::from(tumor_af)).collect_vec();
-        let start_state = Gain::from(AlleleFreq(0.5));
+        let states = AFS.iter().map(|tumor_af| Gain::from(*tumor_af)).collect_vec();
 
-        HMM{states, start_state}
+        HMM{states}
     }
 }
 
-impl Model<Call> for HMM {
+impl hmm::Model<Call> for HMM {
     fn num_states(&self) -> usize {
         self.states.len()
     }
 
-    fn states(&self) -> StateIter {
-        StateIter::new(self.num_states())
+    fn states(&self) -> hmm::StateIter {
+        hmm::StateIter::new(self.num_states())
     }
 
-    fn transitions(&self) -> StateTransitionIter {
-        StateTransitionIter::new(self.num_states())
+    fn transitions(&self) -> hmm::StateTransitionIter {
+        hmm::StateTransitionIter::new(self.num_states())
     }
 
-    fn transition_prob(&self, from: State, to: State) -> LogProb {
+    fn transition_prob(&self, _from: hmm::State, _to: hmm::State) -> LogProb {
         LogProb(0.0001_f64.ln())
     }
 
-    fn initial_prob(&self, state: State) -> LogProb {
-        if state == self.start_state {
-            LogProb::ln_one()
-        }
-        else {
-            LogProb::ln_zero()
-        }
+    fn initial_prob(&self, _state: hmm::State) -> LogProb {
+        LogProb((1.0/self.num_states() as f64).ln())
     }
 
-    fn observation_prob(&self, state: State, call: &Call) -> LogProb {
+    fn observation_prob(&self, state: hmm::State, call: &Call) -> LogProb {
 
-        let gain = self.states[state];
-
-        if gain > -2.0 {
-                let prob_gain_alt = call.prob_afs_het[state];
-                let prob_gain_ref = call.prob_afs_het[self.num_states() - 1 - state];
-                LogProb::ln_sum_exp(&[prob05 + prob_gain_alt, prob05 + prob_gain_ref, call.prob_germline_het.ln_one_minus_exp()])
+        let gain = self.states[*state];
+        let prob05 = LogProb(0.5f64.ln());
+        if *gain > -2.0 {
+                let prob_gain_alt = call.prob_afs_het[*state];
+                let prob_gain_ref = call.prob_afs_het[self.num_states() - 1 - *state];
+                LogProb::ln_sum_exp(&[prob05 + prob_gain_alt, prob05 + prob_gain_ref, call.prob_germline_not_het])
         }
 
         else {
@@ -155,35 +156,40 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn new(record: &bcf::Record) -> Result<Option<Self>, Box<Error>> {
+    pub fn new(record: &mut bcf::Record) -> Result<Option<Self>, Box<Error>> {
         let prob_germline_het = record.info(b"PROB_GERMLINE_HET").float()?;
         if let Some(prob_germline_het) = prob_germline_het {
-            let logprob = |p| LogProb::from(PHREDProb(p as f64));
-            let prob_afs_het = record.format(b"PROB_AFS_HET").float()?;
+            let logprob = |p: f32| LogProb::from(PHREDProb(p as f64));
+            let prob_germline_het = logprob(prob_germline_het[0]);
+            let prob_afs_het = record.format(b"PROB_AFS_HET").float()?.tumor().into_iter().cloned().map(&logprob).collect();
             let prob_nocov = record.format(b"PROB_NOCOV").float()?;
 
 
-            Some(Call {
-                prob_afs_het: prob_afs_het.tumor().into_iter().map(&logprob).collect(),
-                prob_nocov_tumor: logprob(prob_nocov.tumor()),
-                prob_nocov_normal: logprob(prob_nocov.normal()),
-                prob_germline_not_het: logprob(prob_germline_het).ln_one_minus_exp(),
+            Ok(Some(Call {
+                prob_afs_het,
+                prob_nocov_tumor: logprob(prob_nocov.tumor()[0]),
+                prob_nocov_normal: logprob(prob_nocov.normal()[0]),
+                prob_germline_not_het: prob_germline_het.ln_one_minus_exp(),
                 start: record.pos(),
-                rid: record.rid()
-            })
+                rid: record.rid().unwrap()
+            }))
         } else {
-            None
+            Ok(None)
         }
 
 
     }
 }
 
-pub struct Gain(f64);
+custom_derive! {
+    #[derive(PartialEq, NewtypeDeref, Clone, Copy)]
+    pub struct Gain(f64);
+}
+
 
 impl From<AlleleFreq> for Gain {
     fn from(af: AlleleFreq) -> Gain {
-        Gain((2.0 * af - 1.0) / (1.0 - af))
+        Gain((2.0 * *af - 1.0) / (1.0 - *af))
     }
 }
 
