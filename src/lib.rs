@@ -20,6 +20,8 @@ extern crate custom_derive;
 extern crate newtype_derive;
 
 pub mod call;
+pub mod call_cnvs;
+pub mod cli;
 pub mod constants;
 pub mod conversion;
 pub mod errors;
@@ -28,8 +30,6 @@ pub mod filtration;
 pub mod model;
 pub mod testcase;
 pub mod utils;
-pub mod cli;
-pub mod call_cnvs;
 
 pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
 pub use crate::model::likelihood;

@@ -8,7 +8,6 @@ use std::error::Error;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 
-
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
 use bio::stats::{LogProb, Prob};
@@ -30,7 +29,6 @@ use crate::model::ContinuousAlleleFreqs;
 use crate::model::VariantType;
 use crate::testcase::TestcaseBuilder;
 use crate::SimpleEvent;
-
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
@@ -409,4 +407,3 @@ pub fn est_or_load_alignment_properites(
         estimate_alignment_properties(bam_file)
     }
 }
-

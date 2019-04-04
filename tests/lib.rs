@@ -19,7 +19,6 @@ use yaml_rust::{Yaml, YamlLoader};
 
 use varlociraptor::cli::{run, Varlociraptor};
 
-
 struct Testcase {
     inner: Vec<Yaml>,
     path: PathBuf,
@@ -35,7 +34,6 @@ impl Testcase {
             path: path.as_ref().to_owned(),
         })
     }
-
 
     fn yaml(&self) -> &Yaml {
         &self.inner[0]
@@ -292,4 +290,3 @@ fn test_fdr_control4() {
     control_fdr("test_fdr_ev_4", "SOMATIC_TUMOR", 0.05);
     assert_call_number("test_fdr_ev_4", 0);
 }
-

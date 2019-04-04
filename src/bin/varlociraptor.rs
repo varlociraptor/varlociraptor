@@ -3,14 +3,12 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-
 use std::process::exit;
 
 use structopt::StructOpt;
 use varlociraptor::cli::{run, Varlociraptor};
 
 pub fn main() {
-
     let opt = Varlociraptor::from_args();
 
     // setup logger
@@ -27,5 +25,4 @@ pub fn main() {
         }
         _ => 0,
     })
-
 }

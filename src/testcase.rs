@@ -1,4 +1,3 @@
-
 use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
@@ -17,7 +16,6 @@ use rust_htslib::{bam, bcf, bcf::Read};
 use serde::Serialize;
 use serde_json;
 use structopt::StructOpt;
-
 
 use crate::errors;
 use crate::model::sample;
@@ -81,11 +79,9 @@ where
     }
 
     pub fn locus(self, locus: &str) -> Result<Self, Box<Error>> {
-
         if locus == "all" {
             Ok(self.chrom_name(None).pos(None).idx(0))
         } else if let Some(captures) = TESTCASE_RE.captures(locus) {
-
             let chrom_name = captures
                 .name("chrom")
                 .unwrap()
@@ -102,7 +98,6 @@ where
             };
 
             Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)).idx(idx))
-
         } else {
             Err(errors::TestcaseError::InvalidLocus)?
         }
@@ -117,7 +112,6 @@ where
             .as_mut()
             .unwrap()
             .insert(name.to_owned(), path.as_ref().to_owned());
-
 
         self
     }
@@ -169,7 +163,6 @@ where
             for variant in variants {
                 if let Some(variant) = variant {
                     if i == self.idx {
-
                         // if no chromosome was specified, we infer the locus from the matching
                         // variant
                         if self.chrom_name.is_none() {
@@ -220,7 +213,6 @@ where
                 let seq_len = rec.seq().len() as u32;
                 ref_start = cmp::min((rec.pos() as u32).saturating_sub(seq_len), ref_start);
                 ref_end = cmp::max(rec.cigar().end_pos()? as u32 + seq_len, ref_end);
-
             }
         }
 
