@@ -1,7 +1,7 @@
 use std::path::{PathBuf, Path};
 use std::error::Error;
 
-use bio::stats::{PHREDProb, LogProb};
+use bio::stats::{PHREDProb, LogProb, hmm};
 use derive_builder::Builder;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
@@ -15,7 +15,7 @@ lazy_static! {
     static ref AFS: Vec<AlleleFreq> = linspace(0.0, 1.0, 11).map(|af| AlleleFreq(af)).collect_vec();
 }
 
-
+const prob05: LogProb = LogProb(0.5f64.ln());
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -61,55 +61,131 @@ impl CallerBuilder {
 
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
-        // TODO read regions from BED, fetch records from bcf_reader, write results
+        let calls = Vec::new();
+        for record in self.bcf_reader.records() {
+            let record = record?;
+            calls.push(Call::new(&record)?);
+        }
+
+        let hmm = HMM::new();
+
+        let (states, prob) = hmm::viterbi(&hmm, calls);
+
+        let mut record = self.bcf_writer.empty_record();
+
+        for (gain, group) in states.iter().map(|s| hmm.states[s]).zip(&calls).group_by(|item| item.0) {
+            let pos = group.iter().first().1.start;
+            let end = group.iter().last().1.start + 1;
+            record.set_pos(pos);
+            record.push_info_integer(b"END", &[end])?;
+            record.push_info_float(b"CN", &[2.0 + gain])?;
+            record.set_alleles(&[".", "<CNV>"])?;
+        }
+
+
     }
 }
 
-
-pub struct Gain {
-    value: f64,
-    prob: LogProb,
+pub struct HMM {
+    states: Vec<Gain>,
+    start_state: State
 }
 
+impl HMM {
+    fn new() -> Self {
+        let states = AFS.iter().map(|tumor_af| Gain::from(tumor_af)).collect_vec();
+        let start_state = Gain::from(AlleleFreq(0.5));
 
-pub fn prob_gains(record: &bcf::Record) -> Result<Vec<Gain>, Box<Error>> {
-    let logprob = |p| LogProb::from(PHREDProb(p as f64));
-    let prob_afs_het = record.format(b"PROB_AFS_HET").float()?;
-    let prob_nocov = record.format(b"PROB_NOCOV").float()?;
+        HMM{states, start_state}
+    }
+}
 
-    let mut gains = Vec::new();
+impl Model<Call> for HMM {
+    fn num_states(&self) -> usize {
+        self.states.len()
+    }
 
-    // partial loss or gain
-    for prob_germline_het in record.info(b"PROB_GERMLINE_HET").float()?.unwrap() {
-        let prob_germline_het = logprob(*prob_germline_het);
+    fn states(&self) -> StateIter {
+        StateIter::new(self.num_states())
+    }
 
-        for i in 0..AFS.len() {
-            let tumor_af = *AFS[i];
-            let gain = (2.0 * tumor_af - 1.0) / (1.0 - tumor_af);
-            assert!(gain > -1.0);
+    fn transitions(&self) -> StateTransitionIter {
+        StateTransitionIter::new(self.num_states())
+    }
 
-            let prob_gain_alt = logprob(prob_afs_het.tumor()[i]);
-            let prob_gain_ref = logprob(prob_afs_het.tumor()[AFS.len() - 1 - i]);
+    fn transition_prob(&self, from: State, to: State) -> LogProb {
+        LogProb(0.0001_f64.ln())
+    }
 
-            let prob = prob_germline_het + LogProb::ln_sum_exp(&[prob05 + prob_gain_alt, prob05 + prob_gain_ref]) + prob_germline_het.ln_one_minus_exp();
-
-            gains.push(Gain {
-                value: gain,
-                prob: prob,
-            })
+    fn initial_prob(&self, state: State) -> LogProb {
+        if state == self.start_state {
+            LogProb::ln_one()
+        }
+        else {
+            LogProb::ln_zero()
         }
     }
 
-    // complete loss (gain=-2)
-    gains.push(Gain {
-        value: -2.0,
-        prob: LogProb::ln_sum_exp(&[
-                logprob(prob_nocov.tumor()[0]) + logprob(prob_nocov.normal()[0]).ln_one_minus_exp(),
-                logprob(prob_nocov.normal()[0])
-            ])
-        });
+    fn observation_prob(&self, state: State, call: &Call) -> LogProb {
 
-    Ok(gains)
+        let gain = self.states[state];
+
+        if gain > -2.0 {
+                let prob_gain_alt = call.prob_afs_het[state];
+                let prob_gain_ref = call.prob_afs_het[self.num_states() - 1 - state];
+                LogProb::ln_sum_exp(&[prob05 + prob_gain_alt, prob05 + prob_gain_ref, call.prob_germline_het.ln_one_minus_exp()])
+        }
+
+        else {
+                call.prob_nocov_normal.ln_add_exp(call.prob_nocov_tumor + call.prob_nocov_normal.ln_one_minus_exp())
+        }
+
+    }
+
 }
 
-const prob05: LogProb = LogProb(0.5f64.ln());
+
+pub struct Call {
+    prob_afs_het: Vec<LogProb>,
+    prob_nocov_tumor: LogProb,
+    prob_nocov_normal: LogProb,
+    prob_germline_not_het: LogProb,
+    start: u32,
+    rid: u32
+}
+
+impl Call {
+    pub fn new(record: &bcf::Record) -> Result<Option<Self>, Box<Error>> {
+        let prob_germline_het = record.info(b"PROB_GERMLINE_HET").float()?;
+        if let Some(prob_germline_het) = prob_germline_het {
+            let logprob = |p| LogProb::from(PHREDProb(p as f64));
+            let prob_afs_het = record.format(b"PROB_AFS_HET").float()?;
+            let prob_nocov = record.format(b"PROB_NOCOV").float()?;
+
+
+            Some(Call {
+                prob_afs_het: prob_afs_het.tumor().into_iter().map(&logprob).collect(),
+                prob_nocov_tumor: logprob(prob_nocov.tumor()),
+                prob_nocov_normal: logprob(prob_nocov.normal()),
+                prob_germline_not_het: logprob(prob_germline_het).ln_one_minus_exp(),
+                start: record.pos(),
+                rid: record.rid()
+            })
+        } else {
+            None
+        }
+
+
+    }
+}
+
+pub struct Gain(f64);
+
+impl From<AlleleFreq> for Gain {
+    fn from(af: AlleleFreq) -> Gain {
+        Gain((2.0 * af - 1.0) / (1.0 - af))
+    }
+}
+
+
+
