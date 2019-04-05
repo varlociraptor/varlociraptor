@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::path::Path;
+use std::collections::BTreeMap;
 
 use bio::stats::{hmm, LogProb, PHREDProb};
 use derive_builder::Builder;
@@ -12,7 +13,9 @@ use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
 
 lazy_static! {
-    static ref AFS: Vec<AlleleFreq> = linspace(0.0, 1.0, 11)
+    // Any changes here would lead to incompatibilities when reading in older VCFs.
+    // Hence be careful!
+    pub static ref AFS: Vec<AlleleFreq> = linspace(0.0, 1.0, 11)
         .map(|af| AlleleFreq(af))
         .collect_vec();
 }
@@ -46,8 +49,12 @@ impl CallerBuilder {
         }
 
         header.push_record(
-            "##INFO=<ID=CN,Number=1,Type=Float,Description=\"Copy number in tumor sample \
-             . Fractional because CNV can be subclonal.\">"
+            "##INFO=<ID=CN,Number=1,Type=Integer,Description=\"Copy number in tumor sample\">"
+                .as_bytes(),
+        );
+        header.push_record(
+            "##INFO=<ID=HET_DEVIATION,Number=1,Type=Float,Description=\"Systematic deviation from \
+             VAF=0.5. Can be either a subclonal loss or gain.\">"
                 .as_bytes(),
         );
         header.push_record(
@@ -79,7 +86,7 @@ impl Caller {
 
             let mut record = self.bcf_writer.empty_record();
 
-            for (gain, group) in states
+            for (cnv, group) in states
                 .iter()
                 .map(|s| hmm.states[**s])
                 .zip(&calls)
@@ -93,8 +100,20 @@ impl Caller {
                 record.set_rid(&Some(rid));
                 record.set_pos(pos as i32);
                 record.push_info_integer(b"END", &[end as i32])?;
-                record.push_info_float(b"CN", &[2.0 + *gain as f32])?;
                 record.set_alleles(&[b".", b"<CNV>"])?;
+                match cnv {
+                    CNV::Loss => {
+                        record.push_info_integer(b"CN", &[0])?;
+                    },
+                    CNV::LOH => {
+                        record.push_info_integer(b"CN", &[1])?;
+                    },
+                    CNV::Partial(af_delta) => {
+                        record.push_info_float(b"HET_DEVIATION", &[*af_delta as f32])?;
+                    }
+                }
+
+
 
                 self.bcf_writer.write(&record)?;
             }
@@ -104,17 +123,16 @@ impl Caller {
 }
 
 pub struct HMM {
-    states: Vec<Gain>,
+    states: Vec<CNV>,
+    afs_idx: BTreeMap<AlleleFreq, usize>
 }
 
 impl HMM {
     fn new() -> Self {
-        let states = AFS
-            .iter()
-            .map(|tumor_af| Gain::from(*tumor_af))
-            .collect_vec();
+        let states = vec![CNV::Loss, CNV::LOH, CNV::Partial(AlleleFreq(0.1)), CNV::Partial(AlleleFreq(0.2)), CNV::Partial(AlleleFreq(0.3)), CNV::Partial(AlleleFreq(0.4))];
+        let afs_idx = AFS.iter().enumerate().map(|(i, af)| (*af, i)).collect();
 
-        HMM { states }
+        HMM { states, afs_idx }
     }
 }
 
@@ -140,19 +158,35 @@ impl hmm::Model<Call> for HMM {
     }
 
     fn observation_prob(&self, state: hmm::State, call: &Call) -> LogProb {
-        let gain = self.states[*state];
+        let cnv = self.states[*state];
         let prob05 = LogProb(0.5f64.ln());
-        if *gain > -2.0 {
-            let prob_gain_alt = call.prob_afs_het[*state];
-            let prob_gain_ref = call.prob_afs_het[self.num_states() - 1 - *state];
-            LogProb::ln_sum_exp(&[
-                prob05 + prob_gain_alt,
-                prob05 + prob_gain_ref,
-                call.prob_germline_not_het,
-            ])
-        } else {
-            call.prob_nocov_normal
-                .ln_add_exp(call.prob_nocov_tumor + call.prob_nocov_normal.ln_one_minus_exp())
+        match cnv {
+            CNV::Loss => {
+                // no coverage in tumor, coverage in normal
+                call.prob_nocov_normal
+                    .ln_add_exp(call.prob_nocov_tumor + call.prob_nocov_normal.ln_one_minus_exp())
+            },
+            CNV::LOH => {
+                // complete loss of heterozygosity in tumor
+                let prob_loss_alt = call.prob_afs_het[0];
+                let prob_loss_ref = call.prob_afs_het[AFS.len() - 1];
+                LogProb::ln_sum_exp(&[
+                    prob05 + prob_loss_alt,
+                    prob05 + prob_loss_ref,
+                    call.prob_germline_not_het,
+                ])
+            },
+            CNV::Partial(af_delta) => {
+                let prob = |af| call.prob_afs_het[*self.afs_idx.get(&af).unwrap()];
+                let het = AlleleFreq(0.5);
+                let prob_gain_alt = prob(het + af_delta);
+                let prob_gain_ref = prob(het - af_delta);
+                LogProb::ln_sum_exp(&[
+                    prob05 + prob_gain_alt,
+                    prob05 + prob_gain_ref,
+                    call.prob_germline_not_het,
+                ])
+            }
         }
     }
 }
@@ -196,13 +230,9 @@ impl Call {
     }
 }
 
-custom_derive! {
-    #[derive(PartialEq, NewtypeDeref, Clone, Copy)]
-    pub struct Gain(f64);
-}
-
-impl From<AlleleFreq> for Gain {
-    fn from(af: AlleleFreq) -> Gain {
-        Gain((2.0 * *af - 1.0) / (1.0 - *af))
-    }
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum CNV {
+    Loss,
+    LOH,
+    Partial(AlleleFreq),
 }

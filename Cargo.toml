@@ -45,8 +45,6 @@ askama = "0.8"
 yaml-rust = "0.4"
 tempfile = "3.0"
 eval = "0.4"
-custom_derive = "0.1"
-newtype_derive = "0.1"
 
 [dev-dependencies]
 env_logger = "0.3"

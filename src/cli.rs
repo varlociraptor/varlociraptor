@@ -19,13 +19,14 @@ use crate::conversion;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
+use crate::model;
 use crate::model::modes::common::FlatPrior;
 use crate::model::modes::tumor::{TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior};
 use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
-use crate::model::ContinuousAlleleFreqs;
-use crate::model::VariantType;
+use crate::model::{ContinuousAlleleFreqs, VariantType, AlleleFreq};
 use crate::testcase::TestcaseBuilder;
 use crate::SimpleEvent;
+use crate::call_cnvs;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
@@ -335,6 +336,20 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                     },
                 )
                 .outbcf(output.as_ref())?
+                .afs(
+                    call_cnvs::AFS.iter().map(|af| {
+                        TumorNormalPair{
+                            tumor: model::likelihood::Event{
+                                allele_freq: *af,
+                                strand_bias: model::StrandBias::None
+                            },
+                            normal: model::likelihood::Event {
+                                allele_freq: AlleleFreq(0.5),
+                                strand_bias: model::StrandBias::None
+                            }
+                        }.into()
+                    }).collect_vec()
+                )
                 .build()?;
 
             caller.call()?;

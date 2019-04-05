@@ -44,6 +44,7 @@ pub struct Variant {
     event_probs: HashMap<String, LogProb>,
     #[builder(default = "Vec::new()")]
     sample_info: Vec<SampleInfo>,
+    afs_probs: Vec<LogProb>,
 }
 
 #[derive(Default, Clone, Debug, Builder)]
@@ -82,6 +83,8 @@ where
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: u32,
+    #[builder(default = "Vec::new()")]
+    afs: Vec<AlleleFreqCombination>,
 }
 
 impl<A, L, Pr, Po> CallerBuilder<A, L, Pr, Po>
@@ -189,6 +192,10 @@ where
             b"##INFO=<ID=SVLEN,Number=A,Type=Integer,\
               Description=\"Difference in length between REF and ALT alleles\">",
         );
+        header.push_record(
+            b"##INFO=<ID=AFS,Number=.,Type=Integer,\
+              Description=\"Allele frequency distribution (internal use)\">",
+        );
 
         // register sample specific tags
         header.push_record(
@@ -293,6 +300,7 @@ where
             let mut strand_bias = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
+            let mut afs_probs = Vec::new();
             alleles.push(&ref_allele[..]);
 
             // collect per group information
@@ -305,6 +313,8 @@ where
                         .or_insert_with(|| Vec::new())
                         .push(*prob);
                 }
+
+                afs_probs.extend(variant.afs_probs.iter().map(|p| *PHREDProb::from(*p) as f32));
 
                 for (i, sample_info) in variant.sample_info.iter().enumerate() {
                     strand_bias.entry(i).or_insert_with(Vec::new).push(
@@ -385,6 +395,10 @@ where
                     .collect_vec();
                 record.push_info_float(event_tag_name(event).as_bytes(), &probs)?;
             }
+
+            // set AFS of interest probabilities
+            record.push_info_float(b"AFS", &afs_probs)?;
+
             // set sample info
             let dp = obs_counts
                 .values()
@@ -441,8 +455,6 @@ where
             return Ok(None);
         }
 
-        let chrom_seq = self.reference_buffer.seq(&chrom)?;
-
         let mut call = CallBuilder::default()
             .chrom(chrom.to_owned())
             .pos(start)
@@ -461,11 +473,18 @@ where
             if let Some(variant) = variant {
                 let mut pileups = Vec::new();
                 for sample in &mut self.samples {
+                    let chrom_seq = self.reference_buffer.seq(&chrom)?;
                     let pileup = sample.extract_observations(start, &variant, chrom, chrom_seq)?;
                     pileups.push(pileup);
                 }
 
-                // compute probabilities
+                // Compute probabilities for given AFS of interest.
+                let afs_probs = self
+                    .afs
+                    .iter()
+                    .map(|allelefreqs| self.model.joint_prob(allelefreqs, &pileups))
+                    .collect_vec();
+                // Compute probabilities for given events.
                 let m = self.model.compute(universe.iter().cloned(), &pileups);
 
                 let mut variant_builder = VariantBuilder::default();
@@ -488,6 +507,7 @@ where
                     ),
                 );
                 variant_builder.event_probs(event_probs);
+                variant_builder.afs_probs(afs_probs);
 
                 // add sample specific information
                 variant_builder.sample_info(if let Some(map_estimates) = m.maximum_posterior() {
@@ -522,6 +542,7 @@ where
                 let start = start as usize;
 
                 // add variant information
+                let chrom_seq = self.reference_buffer.seq(&chrom)?;
                 match variant {
                     model::Variant::Deletion(l) => {
                         let svlen = -(l as i32);
