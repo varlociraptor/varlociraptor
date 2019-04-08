@@ -8,6 +8,7 @@ use itertools::Itertools;
 use itertools_num::linspace;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
+use rgsl::randist::poisson::poisson_pdf;
 
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
@@ -18,6 +19,10 @@ lazy_static! {
     pub static ref AFS: Vec<AlleleFreq> = linspace(0.0, 1.0, 11)
         .map(|af| AlleleFreq(af))
         .collect_vec();
+}
+
+pub fn depth_pmf(depth: u32, mean: f64) -> LogProb {
+    LogProb(poisson_pdf(depth, mean))
 }
 
 #[derive(Builder)]
@@ -77,9 +82,12 @@ impl Caller {
             let mut record = record?;
             calls.push(Call::new(&mut record)?.unwrap());
         }
+        let mean_depth_tumor = calls.iter().map(|call| call.depth_tumor).mean();
+        let mean_depth_normal = calls.iter().map(|call| call.depth_normal).mean();
+        let depth_norm_factor = mean_depth_tumor / mean_depth_normal;
 
         for (rid, calls) in calls.into_iter().group_by(|call| call.rid).into_iter() {
-            let hmm = HMM::new();
+            let hmm = HMM::new(depth_norm_factor);
             let calls = calls.into_iter().collect_vec();
 
             let (states, _prob) = hmm::viterbi(&hmm, &calls);
@@ -101,19 +109,8 @@ impl Caller {
                 record.set_pos(pos as i32);
                 record.push_info_integer(b"END", &[end as i32])?;
                 record.set_alleles(&[b".", b"<CNV>"])?;
-                match cnv {
-                    CNV::Loss => {
-                        record.push_info_integer(b"CN", &[0])?;
-                    },
-                    CNV::LOH => {
-                        record.push_info_integer(b"CN", &[1])?;
-                    },
-                    CNV::Partial(af_delta) => {
-                        record.push_info_float(b"HET_DEVIATION", &[*af_delta as f32])?;
-                    }
-                }
-
-
+                record.push_info_integer(b"CN", &[2 + cnv.gain]);
+                record.push_info_float(b"VAF", &[*cnv.allele_freq as f32]);
 
                 self.bcf_writer.write(&record)?;
             }
@@ -124,15 +121,19 @@ impl Caller {
 
 pub struct HMM {
     states: Vec<CNV>,
-    afs_idx: BTreeMap<AlleleFreq, usize>
+    depth_norm_factor: f64,
 }
 
 impl HMM {
-    fn new() -> Self {
-        let states = vec![CNV::Loss, CNV::LOH, CNV::Partial(AlleleFreq(0.1)), CNV::Partial(AlleleFreq(0.2)), CNV::Partial(AlleleFreq(0.3)), CNV::Partial(AlleleFreq(0.4))];
-        let afs_idx = AFS.iter().enumerate().map(|(i, af)| (*af, i)).collect();
+    fn new(depth_norm_factor: f64) -> Self {
+        let mut states = Vec::new();
+        for allele_freq in linspace(0.0, 1.0, 10) {
+            for gain in 0..20 {
+                states.push(CNV { gain: gain, allele_freq: AlleleFreq(allele_freq)});
+            }
+        }
 
-        HMM { states, afs_idx }
+        HMM { states, depth_norm_factor }
     }
 }
 
@@ -160,34 +161,18 @@ impl hmm::Model<Call> for HMM {
     fn observation_prob(&self, state: hmm::State, call: &Call) -> LogProb {
         let cnv = self.states[*state];
         let prob05 = LogProb(0.5f64.ln());
-        match cnv {
-            CNV::Loss => {
-                // no coverage in tumor, coverage in normal
-                call.prob_nocov_normal
-                    .ln_add_exp(call.prob_nocov_tumor + call.prob_nocov_normal.ln_one_minus_exp())
-            },
-            CNV::LOH => {
-                // complete loss of heterozygosity in tumor
-                let prob_loss_alt = call.prob_afs_het[0];
-                let prob_loss_ref = call.prob_afs_het[AFS.len() - 1];
-                LogProb::ln_sum_exp(&[
-                    prob05 + prob_loss_alt,
-                    prob05 + prob_loss_ref,
-                    call.prob_germline_not_het,
-                ])
-            },
-            CNV::Partial(af_delta) => {
-                let prob = |af| call.prob_afs_het[*self.afs_idx.get(&af).unwrap()];
-                let het = AlleleFreq(0.5);
-                let prob_gain_alt = prob(het + af_delta);
-                let prob_gain_ref = prob(het - af_delta);
-                LogProb::ln_sum_exp(&[
-                    prob05 + prob_gain_alt,
-                    prob05 + prob_gain_ref,
-                    call.prob_germline_not_het,
-                ])
-            }
-        }
+
+        // handle allele freq changes
+        let prob_af = LogProb::ln_sum_exp(&[
+            prob05 + call.prob_allele_freq_tumor(cnv.expected_allele_freq_alt_affected()),
+            prob05 + call.prob_allele_freq_tumor(cnv.expected_allele_freq_ref_affected()),
+            call.prob_germline_not_het
+        ]);
+
+        // handle depth changes
+        let prob_depth = call.prob_depth_tumor(call.depth_normal * self.depth_norm_factor * cnv.expected_depth_factor());
+
+        prob_af + prob_depth
     }
 }
 
@@ -196,6 +181,8 @@ pub struct Call {
     prob_nocov_tumor: LogProb,
     prob_nocov_normal: LogProb,
     prob_germline_not_het: LogProb,
+    depth_tumor: u32,
+    depth_normal: u32,
     start: u32,
     rid: u32,
 }
@@ -228,11 +215,44 @@ impl Call {
             Ok(None)
         }
     }
+
+    pub fn prob_allele_freq_tumor(&self, allele_freq: AlleleFreq) -> LogProb {
+        match AFS.binary_search(&allele_freq) {
+            Ok(i) => self.prob_afs_het[i],
+            Err(i) => {
+                // need to interpolate
+                let p0 = *self.prob_afs_het[i - 1];
+                let p1 = *self.prob_afs_het[i];
+                let af0 = *AFS[i - 1];
+                let af1 = *AFS[i];
+
+                LogProb(p0 * (af1 - *allele_freq) / (af1 - af0) + p1 * (*allele_freq - af0) / (af1 - af0))
+            }
+        }
+    }
+
+    pub fn prob_depth_tumor(&self, depth: f64) -> LogProb {
+        depth_pmf(self.depth_tumor, depth)
+    }
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
-pub enum CNV {
-    Loss,
-    LOH,
-    Partial(AlleleFreq),
+pub struct CNV {
+    gain: i32,
+    allele_freq: AlleleFreq,
+}
+
+
+impl CNV {
+    pub fn expected_allele_freq_alt_affected(&self) -> AlleleFreq {
+        AlleleFreq(*self.allele_freq * (1.0 + self.gain as f64) / (2.0 + self.gain as f64) + (1.0 - *self.allele_freq) * 0.5)
+    }
+
+    pub fn expected_allele_freq_ref_affected(&self) -> AlleleFreq {
+        AlleleFreq(1.0) - self.expected_allele_freq_alt_affected()
+    }
+
+    pub fn expected_depth_factor(&self) -> f64 {
+        (*self.allele_freq * (2.0 + self.gain as f64) / 2.0 + 1.0 - *self.allele_freq)
+    }
 }
