@@ -19,6 +19,7 @@ use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
 use crate::model;
+use crate::model::evidence::observation::expected_depth;
 use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
 use crate::model::{AlleleFreq, AlleleFreqs, StrandBias};
@@ -44,7 +45,7 @@ pub struct Variant {
     event_probs: HashMap<String, LogProb>,
     #[builder(default = "Vec::new()")]
     sample_info: Vec<SampleInfo>,
-    afs_probs: Vec<LogProb>,
+    afs_likelihoods: Vec<LogProb>,
 }
 
 #[derive(Default, Clone, Debug, Builder)]
@@ -194,13 +195,13 @@ where
         );
         header.push_record(
             b"##INFO=<ID=AFS,Number=.,Type=Integer,\
-              Description=\"Allele frequency distribution (internal use)\">",
+              Description=\"Allele frequency likelihood distribution (internal use)\">",
         );
 
         // register sample specific tags
         header.push_record(
             b"##FORMAT=<ID=DP,Number=A,Type=Integer,\
-              Description=\"Number of considered fragments (total depth)\">",
+              Description=\"Expected sequencing depth, while considering mapping uncertainty\">",
         );
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
@@ -300,7 +301,7 @@ where
             let mut strand_bias = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
-            let mut afs_probs = Vec::new();
+            let mut afs_likelihoods = Vec::new();
             alleles.push(&ref_allele[..]);
 
             // collect per group information
@@ -314,7 +315,7 @@ where
                         .push(*prob);
                 }
 
-                afs_probs.extend(variant.afs_probs.iter().map(|p| *PHREDProb::from(*p) as f32));
+                afs_likelihoods.extend(variant.afs_likelihoods.iter().map(|p| *PHREDProb::from(*p) as f32));
 
                 for (i, sample_info) in variant.sample_info.iter().enumerate() {
                     strand_bias.entry(i).or_insert_with(Vec::new).push(
@@ -333,7 +334,7 @@ where
                     obs_counts
                         .entry(i)
                         .or_insert_with(|| Vec::new())
-                        .push(sample_info.observations.len());
+                        .push(expected_depth(&sample_info.observations) as i32);
 
                     observations.entry(i).or_insert_with(|| Vec::new()).push({
                         let obs: Counter<String> = sample_info
@@ -397,20 +398,20 @@ where
             }
 
             // set AFS of interest probabilities
-            record.push_info_float(b"AFS", &afs_probs)?;
+            record.push_info_float(b"AFS", &afs_likelihoods)?;
 
             // set sample info
             let dp = obs_counts
                 .values()
                 .flatten()
-                .map(|d| *d as i32)
+                .cloned()
                 .collect_vec();
             record.push_format_integer(b"DP", &dp)?;
 
             let afs = allelefreq_estimates
                 .values()
-                .cloned()
                 .flatten()
+                .cloned()
                 .collect_vec();
             record.push_format_float(b"AF", &afs)?;
 
@@ -478,14 +479,15 @@ where
                     pileups.push(pileup);
                 }
 
-                // Compute probabilities for given AFS of interest.
-                let afs_probs = self
+                // Compute probabilities for given events.
+                let m = self.model.compute(universe.iter().cloned(), &pileups);
+
+                // Compute likelihoods for given AFS of interest.
+                let afs_likelihoods = self
                     .afs
                     .iter()
                     .map(|allelefreqs| self.model.joint_prob(allelefreqs, &pileups))
                     .collect_vec();
-                // Compute probabilities for given events.
-                let m = self.model.compute(universe.iter().cloned(), &pileups);
 
                 let mut variant_builder = VariantBuilder::default();
 
@@ -507,7 +509,7 @@ where
                     ),
                 );
                 variant_builder.event_probs(event_probs);
-                variant_builder.afs_probs(afs_probs);
+                variant_builder.afs_likelihoods(afs_likelihoods);
 
                 // add sample specific information
                 variant_builder.sample_info(if let Some(map_estimates) = m.maximum_posterior() {

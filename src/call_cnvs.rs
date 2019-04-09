@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::path::Path;
-use std::collections::BTreeMap;
 
 use bio::stats::{hmm, LogProb, PHREDProb};
 use derive_builder::Builder;
@@ -58,8 +57,7 @@ impl CallerBuilder {
                 .as_bytes(),
         );
         header.push_record(
-            "##INFO=<ID=HET_DEVIATION,Number=1,Type=Float,Description=\"Systematic deviation from \
-             VAF=0.5. Can be either a subclonal loss or gain.\">"
+            "##INFO=<ID=VAF,Number=1,Type=Float,Description=\"Subclone fraction affected by the CNV.\">"
                 .as_bytes(),
         );
         header.push_record(
@@ -77,13 +75,19 @@ impl CallerBuilder {
 
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
+        // obtain records
         let mut calls = Vec::new();
         for record in self.bcf_reader.records() {
             let mut record = record?;
             calls.push(Call::new(&mut record)?.unwrap());
         }
-        let mean_depth_tumor = calls.iter().map(|call| call.depth_tumor).mean();
-        let mean_depth_normal = calls.iter().map(|call| call.depth_normal).mean();
+
+        // normalization
+        let mean_depth = |filter: &Fn(&Call) -> u32| {
+            calls.iter().map(filter).sum::<u32>() as f64 / calls.len() as f64
+        };
+        let mean_depth_tumor = mean_depth(&|call: &Call| call.depth_tumor);
+        let mean_depth_normal = mean_depth(&|call: &Call| call.depth_normal);
         let depth_norm_factor = mean_depth_tumor / mean_depth_normal;
 
         for (rid, calls) in calls.into_iter().group_by(|call| call.rid).into_iter() {
@@ -109,8 +113,8 @@ impl Caller {
                 record.set_pos(pos as i32);
                 record.push_info_integer(b"END", &[end as i32])?;
                 record.set_alleles(&[b".", b"<CNV>"])?;
-                record.push_info_integer(b"CN", &[2 + cnv.gain]);
-                record.push_info_float(b"VAF", &[*cnv.allele_freq as f32]);
+                record.push_info_integer(b"CN", &[2 + cnv.gain])?;
+                record.push_info_float(b"VAF", &[*cnv.allele_freq as f32])?;
 
                 self.bcf_writer.write(&record)?;
             }
@@ -170,16 +174,15 @@ impl hmm::Model<Call> for HMM {
         ]);
 
         // handle depth changes
-        let prob_depth = call.prob_depth_tumor(call.depth_normal * self.depth_norm_factor * cnv.expected_depth_factor());
+        let prob_depth = call.prob_depth_tumor(call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor());
 
         prob_af + prob_depth
     }
 }
 
 pub struct Call {
+    afs: Vec<AlleleFreq>,
     prob_afs_het: Vec<LogProb>,
-    prob_nocov_tumor: LogProb,
-    prob_nocov_normal: LogProb,
     prob_germline_not_het: LogProb,
     depth_tumor: u32,
     depth_normal: u32,
@@ -193,20 +196,26 @@ impl Call {
         if let Some(prob_germline_het) = prob_germline_het {
             let logprob = |p: f32| LogProb::from(PHREDProb(p as f64));
             let prob_germline_het = logprob(prob_germline_het[0]);
-            let prob_afs_het = record
-                .format(b"PROB_AFS_HET")
+            let afs_likelihoods = record
+                .info(b"AFS")
                 .float()?
-                .tumor()
+                .expect("input VCF needs an AFS tag")
                 .into_iter()
                 .cloned()
                 .map(&logprob)
-                .collect();
-            let prob_nocov = record.format(b"PROB_NOCOV").float()?;
+                .collect_vec();
+            let afs = linspace(0.0, 1.0, afs_likelihoods.len()).map(|af| AlleleFreq(af)).collect_vec();
+            let depth = record.format(b"DP").integer()?;
+
+            // take likelihoods and compute posterior for a given normal AF of 0.5
+            let marginal = LogProb::ln_sum_exp(&afs_likelihoods);
+            let prob_afs_het = afs_likelihoods.into_iter().map(|p| p - marginal + prob_germline_het).collect_vec();
 
             Ok(Some(Call {
+                afs,
                 prob_afs_het,
-                prob_nocov_tumor: logprob(prob_nocov.tumor()[0]),
-                prob_nocov_normal: logprob(prob_nocov.normal()[0]),
+                depth_tumor: depth.tumor()[0] as u32,
+                depth_normal: depth.normal()[0] as u32,
                 prob_germline_not_het: prob_germline_het.ln_one_minus_exp(),
                 start: record.pos(),
                 rid: record.rid().unwrap(),
@@ -223,8 +232,8 @@ impl Call {
                 // need to interpolate
                 let p0 = *self.prob_afs_het[i - 1];
                 let p1 = *self.prob_afs_het[i];
-                let af0 = *AFS[i - 1];
-                let af1 = *AFS[i];
+                let af0 = *self.afs[i - 1];
+                let af1 = *self.afs[i];
 
                 LogProb(p0 * (af1 - *allele_freq) / (af1 - af0) + p1 * (*allele_freq - af0) / (af1 - af0))
             }
