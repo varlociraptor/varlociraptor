@@ -1,3 +1,8 @@
+// Copyright 2019 Johannes Köster, Jan Forster.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::error::Error;
 use std::path::Path;
 
@@ -78,11 +83,16 @@ impl CallerBuilder {
 
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
+        let min_prob_germline_het = LogProb(0.8_f64.ln());
+
         // obtain records
         let mut calls = Vec::new();
         for record in self.bcf_reader.records() {
             let mut record = record?;
-            calls.push(Call::new(&mut record)?.unwrap());
+            let call = Call::new(&mut record)?.unwrap();
+            if call.prob_germline_het >= min_prob_germline_het && call.depth_normal > 0 {
+                calls.push(call);
+            }
         }
 
         // normalization
