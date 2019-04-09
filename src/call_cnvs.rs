@@ -5,6 +5,7 @@ use bio::stats::{hmm, LogProb, PHREDProb};
 use derive_builder::Builder;
 use itertools::Itertools;
 use itertools_num::linspace;
+use rgsl::randist::binomial::binomial_pdf;
 use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
@@ -12,16 +13,17 @@ use rust_htslib::bcf::Read;
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
 
-lazy_static! {
-    // Any changes here would lead to incompatibilities when reading in older VCFs.
-    // Hence be careful!
-    pub static ref AFS: Vec<AlleleFreq> = linspace(0.0, 1.0, 11)
-        .map(|af| AlleleFreq(af))
-        .collect_vec();
+pub fn depth_pmf(observed_depth: u32, true_depth: f64) -> LogProb {
+    LogProb(poisson_pdf(observed_depth, true_depth).ln())
 }
 
-pub fn depth_pmf(depth: u32, mean: f64) -> LogProb {
-    LogProb(poisson_pdf(depth, mean))
+pub fn allele_freq_pmf(
+    observed_allele_freq: AlleleFreq,
+    true_allele_freq: AlleleFreq,
+    depth: u32,
+) -> LogProb {
+    let k = (*observed_allele_freq * depth as f64).round() as u32;
+    LogProb(binomial_pdf(k, *true_allele_freq, depth).ln())
 }
 
 #[derive(Builder)]
@@ -57,7 +59,8 @@ impl CallerBuilder {
                 .as_bytes(),
         );
         header.push_record(
-            "##INFO=<ID=VAF,Number=1,Type=Float,Description=\"Subclone fraction affected by the CNV.\">"
+            "##INFO=<ID=VAF,Number=1,Type=Float,Description=\"Subclone fraction affected by \
+             the CNV.\">"
                 .as_bytes(),
         );
         header.push_record(
@@ -174,9 +177,13 @@ impl hmm::Model<Call> for HMM {
 
         // handle allele freq changes
         let prob_af = LogProb::ln_sum_exp(&[
-            prob05 + call.prob_allele_freq_tumor(cnv.expected_allele_freq_alt_affected()),
-            prob05 + call.prob_allele_freq_tumor(cnv.expected_allele_freq_ref_affected()),
-            call.prob_germline_not_het,
+            prob05
+                + call.prob_allele_freq_tumor(cnv.expected_allele_freq_alt_affected())
+                + call.prob_germline_het,
+            prob05
+                + call.prob_allele_freq_tumor(cnv.expected_allele_freq_ref_affected())
+                + call.prob_germline_het,
+            call.prob_germline_het.ln_one_minus_exp(),
         ]);
 
         // handle depth changes
@@ -189,9 +196,8 @@ impl hmm::Model<Call> for HMM {
 }
 
 pub struct Call {
-    afs: Vec<AlleleFreq>,
-    prob_afs_het: Vec<LogProb>,
-    prob_germline_not_het: LogProb,
+    prob_germline_het: LogProb,
+    allele_freq_tumor: AlleleFreq,
     depth_tumor: u32,
     depth_normal: u32,
     start: u32,
@@ -202,34 +208,20 @@ impl Call {
     pub fn new(record: &mut bcf::Record) -> Result<Option<Self>, Box<Error>> {
         let prob_germline_het = record.info(b"PROB_GERMLINE_HET").float()?;
         if let Some(prob_germline_het) = prob_germline_het {
-            let logprob = |p: f32| LogProb::from(PHREDProb(p as f64));
-            let prob_germline_het = logprob(prob_germline_het[0]);
-            let afs_likelihoods = record
-                .info(b"AFS")
-                .float()?
-                .expect("input VCF needs an AFS tag")
+            let prob_germline_het = LogProb::from(PHREDProb(prob_germline_het[0] as f64));
+            let depths = record
+                .format(b"DP")
+                .integer()?
                 .into_iter()
-                .cloned()
-                .map(&logprob)
+                .map(|d| d[0] as u32)
                 .collect_vec();
-            let afs = linspace(0.0, 1.0, afs_likelihoods.len())
-                .map(|af| AlleleFreq(af))
-                .collect_vec();
-            let depth = record.format(b"DP").integer()?;
-
-            // take likelihoods and compute posterior for a given normal AF of 0.5
-            let marginal = LogProb::ln_sum_exp(&afs_likelihoods);
-            let prob_afs_het = afs_likelihoods
-                .into_iter()
-                .map(|p| p - marginal + prob_germline_het)
-                .collect_vec();
+            let allele_freqs = record.format(b"AF").float()?;
 
             Ok(Some(Call {
-                afs,
-                prob_afs_het,
-                depth_tumor: depth.tumor()[0] as u32,
-                depth_normal: depth.normal()[0] as u32,
-                prob_germline_not_het: prob_germline_het.ln_one_minus_exp(),
+                allele_freq_tumor: AlleleFreq(allele_freqs.tumor()[0] as f64),
+                depth_tumor: *depths.tumor(),
+                depth_normal: *depths.normal(),
+                prob_germline_het: prob_germline_het,
                 start: record.pos(),
                 rid: record.rid().unwrap(),
             }))
@@ -238,26 +230,12 @@ impl Call {
         }
     }
 
-    pub fn prob_allele_freq_tumor(&self, allele_freq: AlleleFreq) -> LogProb {
-        match AFS.binary_search(&allele_freq) {
-            Ok(i) => self.prob_afs_het[i],
-            Err(i) => {
-                // need to interpolate
-                let p0 = *self.prob_afs_het[i - 1];
-                let p1 = *self.prob_afs_het[i];
-                let af0 = *self.afs[i - 1];
-                let af1 = *self.afs[i];
-
-                LogProb(
-                    p0 * (af1 - *allele_freq) / (af1 - af0)
-                        + p1 * (*allele_freq - af0) / (af1 - af0),
-                )
-            }
-        }
+    pub fn prob_allele_freq_tumor(&self, true_allele_freq: AlleleFreq) -> LogProb {
+        allele_freq_pmf(self.allele_freq_tumor, true_allele_freq, self.depth_tumor)
     }
 
-    pub fn prob_depth_tumor(&self, depth: f64) -> LogProb {
-        depth_pmf(self.depth_tumor, depth)
+    pub fn prob_depth_tumor(&self, true_depth: f64) -> LogProb {
+        depth_pmf(self.depth_tumor, true_depth)
     }
 }
 
@@ -280,6 +258,6 @@ impl CNV {
     }
 
     pub fn expected_depth_factor(&self) -> f64 {
-        (*self.allele_freq * (2.0 + self.gain as f64) / 2.0 + 1.0 - *self.allele_freq)
+        *self.allele_freq * (2.0 + self.gain as f64) / 2.0 + 1.0 - *self.allele_freq
     }
 }
