@@ -315,7 +315,12 @@ where
                         .push(*prob);
                 }
 
-                afs_likelihoods.extend(variant.afs_likelihoods.iter().map(|p| *PHREDProb::from(*p) as f32));
+                afs_likelihoods.extend(
+                    variant
+                        .afs_likelihoods
+                        .iter()
+                        .map(|p| *PHREDProb::from(*p) as f32),
+                );
 
                 for (i, sample_info) in variant.sample_info.iter().enumerate() {
                     strand_bias.entry(i).or_insert_with(Vec::new).push(
@@ -401,11 +406,7 @@ where
             record.push_info_float(b"AFS", &afs_likelihoods)?;
 
             // set sample info
-            let dp = obs_counts
-                .values()
-                .flatten()
-                .cloned()
-                .collect_vec();
+            let dp = obs_counts.values().flatten().cloned().collect_vec();
             record.push_format_integer(b"DP", &dp)?;
 
             let afs = allelefreq_estimates

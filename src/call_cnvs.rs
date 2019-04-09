@@ -5,9 +5,9 @@ use bio::stats::{hmm, LogProb, PHREDProb};
 use derive_builder::Builder;
 use itertools::Itertools;
 use itertools_num::linspace;
+use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
-use rgsl::randist::poisson::poisson_pdf;
 
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
@@ -133,11 +133,17 @@ impl HMM {
         let mut states = Vec::new();
         for allele_freq in linspace(0.0, 1.0, 10) {
             for gain in 0..20 {
-                states.push(CNV { gain: gain, allele_freq: AlleleFreq(allele_freq)});
+                states.push(CNV {
+                    gain: gain,
+                    allele_freq: AlleleFreq(allele_freq),
+                });
             }
         }
 
-        HMM { states, depth_norm_factor }
+        HMM {
+            states,
+            depth_norm_factor,
+        }
     }
 }
 
@@ -170,11 +176,13 @@ impl hmm::Model<Call> for HMM {
         let prob_af = LogProb::ln_sum_exp(&[
             prob05 + call.prob_allele_freq_tumor(cnv.expected_allele_freq_alt_affected()),
             prob05 + call.prob_allele_freq_tumor(cnv.expected_allele_freq_ref_affected()),
-            call.prob_germline_not_het
+            call.prob_germline_not_het,
         ]);
 
         // handle depth changes
-        let prob_depth = call.prob_depth_tumor(call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor());
+        let prob_depth = call.prob_depth_tumor(
+            call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor(),
+        );
 
         prob_af + prob_depth
     }
@@ -204,12 +212,17 @@ impl Call {
                 .cloned()
                 .map(&logprob)
                 .collect_vec();
-            let afs = linspace(0.0, 1.0, afs_likelihoods.len()).map(|af| AlleleFreq(af)).collect_vec();
+            let afs = linspace(0.0, 1.0, afs_likelihoods.len())
+                .map(|af| AlleleFreq(af))
+                .collect_vec();
             let depth = record.format(b"DP").integer()?;
 
             // take likelihoods and compute posterior for a given normal AF of 0.5
             let marginal = LogProb::ln_sum_exp(&afs_likelihoods);
-            let prob_afs_het = afs_likelihoods.into_iter().map(|p| p - marginal + prob_germline_het).collect_vec();
+            let prob_afs_het = afs_likelihoods
+                .into_iter()
+                .map(|p| p - marginal + prob_germline_het)
+                .collect_vec();
 
             Ok(Some(Call {
                 afs,
@@ -235,7 +248,10 @@ impl Call {
                 let af0 = *self.afs[i - 1];
                 let af1 = *self.afs[i];
 
-                LogProb(p0 * (af1 - *allele_freq) / (af1 - af0) + p1 * (*allele_freq - af0) / (af1 - af0))
+                LogProb(
+                    p0 * (af1 - *allele_freq) / (af1 - af0)
+                        + p1 * (*allele_freq - af0) / (af1 - af0),
+                )
             }
         }
     }
@@ -251,10 +267,12 @@ pub struct CNV {
     allele_freq: AlleleFreq,
 }
 
-
 impl CNV {
     pub fn expected_allele_freq_alt_affected(&self) -> AlleleFreq {
-        AlleleFreq(*self.allele_freq * (1.0 + self.gain as f64) / (2.0 + self.gain as f64) + (1.0 - *self.allele_freq) * 0.5)
+        AlleleFreq(
+            *self.allele_freq * (1.0 + self.gain as f64) / (2.0 + self.gain as f64)
+                + (1.0 - *self.allele_freq) * 0.5,
+        )
     }
 
     pub fn expected_allele_freq_ref_affected(&self) -> AlleleFreq {

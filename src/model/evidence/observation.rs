@@ -14,14 +14,15 @@ use serde::Serialize;
 use bio::stats::LogProb;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
+use itertools::Itertools;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarString;
-use itertools::Itertools;
-
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
 pub fn expected_depth(obs: &[Observation]) -> u32 {
-    LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec()).exp().round() as u32
+    LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec())
+        .exp()
+        .round() as u32
 }
 
 /// An observation for or against a variant.
