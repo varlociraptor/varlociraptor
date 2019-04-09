@@ -157,6 +157,12 @@ pub enum Varlociraptor {
             help = "BCF file that shall contain the results (if omitted, write to STDOUT)."
         )]
         output: Option<PathBuf>,
+        #[structopt(
+            long,
+            default_value = "0.00001",
+            help = "Prior probability for CNV. This can be any small enough value."
+        )]
+        prior: f64,
     },
     #[structopt(
         name = "filter-calls",
@@ -359,9 +365,12 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
         Varlociraptor::CallCNVs {
             ref calls,
             ref output,
+            prior,
         } => {
+            let prior = Prob::checked(prior)?;
             let mut caller = call_cnvs::CallerBuilder::default()
                 .bcfs(calls.as_ref(), output.as_ref())?
+                .prior(LogProb::from(prior))
                 .build()?;
             caller.call()?
         }

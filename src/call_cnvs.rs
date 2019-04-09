@@ -38,6 +38,7 @@ pub struct Caller {
     bcf_reader: bcf::Reader,
     #[builder(private)]
     bcf_writer: bcf::Writer,
+    prior: LogProb,
 }
 
 impl CallerBuilder {
@@ -104,7 +105,7 @@ impl Caller {
         let depth_norm_factor = mean_depth_tumor / mean_depth_normal;
 
         for (rid, calls) in calls.into_iter().group_by(|call| call.rid).into_iter() {
-            let hmm = HMM::new(depth_norm_factor);
+            let hmm = HMM::new(depth_norm_factor, self.prior);
             let calls = calls.into_iter().collect_vec();
 
             let (states, _prob) = hmm::viterbi(&hmm, &calls);
@@ -139,23 +140,29 @@ impl Caller {
 pub struct HMM {
     states: Vec<CNV>,
     depth_norm_factor: f64,
+    prob_cnv: LogProb,
+    prob_no_cnv: LogProb,
 }
 
 impl HMM {
-    fn new(depth_norm_factor: f64) -> Self {
+    fn new(depth_norm_factor: f64, prob_cnv: LogProb) -> Self {
         let mut states = Vec::new();
         for allele_freq in linspace(0.0, 1.0, 10) {
             for gain in 0..20 {
-                states.push(CNV {
-                    gain: gain,
-                    allele_freq: AlleleFreq(allele_freq),
-                });
+                if gain != 0 || allele_freq == 1.0 {
+                    states.push(CNV {
+                        gain: gain,
+                        allele_freq: AlleleFreq(allele_freq),
+                    });
+                }
             }
         }
 
         HMM {
             states,
             depth_norm_factor,
+            prob_cnv: prob_cnv,
+            prob_no_cnv: prob_cnv.ln_one_minus_exp(),
         }
     }
 }
@@ -173,12 +180,23 @@ impl hmm::Model<Call> for HMM {
         hmm::StateTransitionIter::new(self.num_states())
     }
 
-    fn transition_prob(&self, _from: hmm::State, _to: hmm::State) -> LogProb {
-        LogProb(0.0001_f64.ln())
+    fn transition_prob(&self, from: hmm::State, to: hmm::State) -> LogProb {
+        let from = self.states[*from];
+        let to = self.states[*to];
+        if from == to || to.gain == 0 {
+            self.prob_no_cnv
+        } else {
+            self.prob_cnv
+        }
     }
 
-    fn initial_prob(&self, _state: hmm::State) -> LogProb {
-        LogProb((1.0 / self.num_states() as f64).ln())
+    fn initial_prob(&self, state: hmm::State) -> LogProb {
+        let state = self.states[*state];
+        if state.gain == 0 {
+            self.prob_no_cnv
+        } else {
+            self.prob_cnv
+        }
     }
 
     fn observation_prob(&self, state: hmm::State, call: &Call) -> LogProb {
