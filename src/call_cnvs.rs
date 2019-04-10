@@ -321,15 +321,17 @@ impl hmm::Model<Call> for HMM {
         let prob05 = LogProb(0.5f64.ln());
 
         // handle allele freq changes
-        let prob_af = LogProb::ln_sum_exp(&[
-            prob05
-                + call.prob_allele_freq_tumor(cnv.expected_allele_freq_alt_affected())
-                + call.prob_germline_het,
-            prob05
-                + call.prob_allele_freq_tumor(cnv.expected_allele_freq_ref_affected())
-                + call.prob_germline_het,
-            call.prob_germline_het.ln_one_minus_exp(),
-        ]);
+        let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
+            LogProb::ln_sum_exp(&[
+                prob05 + call.prob_allele_freq_tumor(alt_af) + call.prob_germline_het,
+                prob05
+                    + call.prob_allele_freq_tumor(cnv.expected_allele_freq_ref_affected().unwrap())
+                    + call.prob_germline_het,
+                call.prob_germline_het.ln_one_minus_exp(),
+            ])
+        } else {
+            LogProb::ln_one()
+        };
 
         // handle depth changes
         let prob_depth = call.prob_depth_tumor(
@@ -443,15 +445,20 @@ pub struct CNV {
 }
 
 impl CNV {
-    pub fn expected_allele_freq_alt_affected(&self) -> AlleleFreq {
-        AlleleFreq(
-            *self.allele_freq * (1.0 + self.gain as f64) / (2.0 + self.gain as f64)
-                + (1.0 - *self.allele_freq) * 0.5,
-        )
+    pub fn expected_allele_freq_alt_affected(&self) -> Option<AlleleFreq> {
+        if self.gain > -2 {
+            Some(AlleleFreq(
+                *self.allele_freq * (1.0 + self.gain as f64) / (2.0 + self.gain as f64)
+                    + (1.0 - *self.allele_freq) * 0.5,
+            ))
+        } else {
+            None
+        }
     }
 
-    pub fn expected_allele_freq_ref_affected(&self) -> AlleleFreq {
-        AlleleFreq(1.0) - self.expected_allele_freq_alt_affected()
+    pub fn expected_allele_freq_ref_affected(&self) -> Option<AlleleFreq> {
+        self.expected_allele_freq_alt_affected()
+            .map(|af| AlleleFreq(1.0) - af)
     }
 
     pub fn expected_depth_factor(&self) -> f64 {
