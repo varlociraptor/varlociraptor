@@ -77,6 +77,20 @@ impl CallerBuilder {
                 .as_bytes(),
         );
 
+        // register sequences
+        for rec in bcf_reader.header().header_records() {
+            match rec {
+                bcf::header::HeaderRecord::Contig{ values, ..} => {
+                    let name = values.get("ID").unwrap();
+                    let len = values.get("length").unwrap();
+                    header.push_record(
+                        format!("##contig=<ID={},length={}>", name, len).as_bytes(),
+                    );
+                },
+                _ => (),
+            }
+        }
+
         Ok(self.bcf_writer(if let Some(path) = out_path {
             bcf::Writer::from_path(path, &header, false, false)?
         } else {
