@@ -11,6 +11,7 @@ use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::model::Model;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
+use rayon;
 use rust_htslib::bam;
 use structopt::StructOpt;
 
@@ -163,6 +164,8 @@ pub enum Varlociraptor {
             help = "Prior probability for CNV. This can be any small enough value."
         )]
         prior: f64,
+        #[structopt(long, short = "t", help = "Number of threads to use.")]
+        threads: usize,
     },
     #[structopt(
         name = "filter-calls",
@@ -366,7 +369,11 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
             ref calls,
             ref output,
             prior,
+            threads,
         } => {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build_global()?;
             let prior = Prob::checked(prior)?;
             let mut caller = call_cnvs::CallerBuilder::default()
                 .bcfs(calls.as_ref(), output.as_ref())?

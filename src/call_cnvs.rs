@@ -3,19 +3,19 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::path::Path;
-use std::collections::{HashMap, BTreeMap};
 
 use bio::stats::{hmm, LogProb, PHREDProb};
 use derive_builder::Builder;
 use itertools::Itertools;
 use itertools_num::linspace;
+use rayon::prelude::*;
 use rgsl::randist::binomial::binomial_pdf;
 use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
-use rayon::prelude::*;
 
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
@@ -95,7 +95,10 @@ impl Caller {
             let mut record = record?;
             let call = Call::new(&mut record)?.unwrap();
             if call.prob_germline_het >= min_prob_germline_het && call.depth_normal > 0 {
-                calls.entry(call.rid).or_insert_with(|| Vec::new()).push(call);
+                calls
+                    .entry(call.rid)
+                    .or_insert_with(|| Vec::new())
+                    .push(call);
             }
         }
 
@@ -118,22 +121,23 @@ impl Caller {
 
                 (
                     *rid,
-                    states.iter()
-                    .map(|s| hmm.states[**s])
-                    .zip(calls.iter())
-                    .group_by(|item| item.0)
-                    .into_iter()
-                    .map(|(cnv, group)| {
-                        let mut group = group.into_iter();
-                        let first_call = group.next().unwrap().1;
-                        CNVCall {
-                            rid: *rid,
-                            pos: first_call.start,
-                            end: group.last().unwrap().1.start + 1,
-                            cnv: cnv
-                        }
-                    })
-                    .collect_vec()
+                    states
+                        .iter()
+                        .map(|s| hmm.states[**s])
+                        .zip(calls.iter())
+                        .group_by(|item| item.0)
+                        .into_iter()
+                        .map(|(cnv, group)| {
+                            let mut group = group.into_iter();
+                            let first_call = group.next().unwrap().1;
+                            CNVCall {
+                                rid: *rid,
+                                pos: first_call.start,
+                                end: group.last().unwrap().1.start + 1,
+                                cnv: cnv,
+                            }
+                        })
+                        .collect_vec(),
                 )
             })
             .collect();
@@ -320,7 +324,7 @@ impl CNV {
     }
 
     pub fn expected_depth_factor(&self) -> f64 {
-        self.purity * (*self.allele_freq * (2.0 + self.gain as f64) / 2.0 + 1.0 - *self.allele_freq) +
-        (1.0 - self.purity)
+        self.purity * (*self.allele_freq * (2.0 + self.gain as f64) / 2.0 + 1.0 - *self.allele_freq)
+            + (1.0 - self.purity)
     }
 }
