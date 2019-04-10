@@ -115,7 +115,7 @@ impl CallerBuilder {
 
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
-        let min_prob_germline_het = LogProb(0.8_f64.ln());
+        let min_prob_germline_het = LogProb(0.95_f64.ln());
 
         // obtain records
         let mut calls = HashMap::new();
@@ -329,7 +329,7 @@ impl hmm::Model<Call> for HMM {
                             cnv.expected_allele_freq_ref_affected().unwrap(),
                         ),
                 );
-            (call.prob_germline_het + p).ln_add_exp(call.prob_germline_het.ln_one_minus_exp() + p) // TODO check the latter
+            (call.prob_germline_het + p).ln_add_exp(call.prob_germline_het.ln_one_minus_exp())
         } else {
             LogProb::ln_one()
         };
