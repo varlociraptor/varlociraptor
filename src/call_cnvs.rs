@@ -5,8 +5,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
-use std::path::Path;
 use std::mem;
+use std::path::Path;
 
 use bio::stats::{hmm, LogProb, PHREDProb};
 use derive_builder::Builder;
@@ -162,7 +162,11 @@ impl Caller {
                                 let last_call = group[group.len() - 1];
 
                                 // calculate posterior probability of call
-                                let posterior_prob = likelihood(&hmm, &vec![state; group.len()], group.iter().cloned()) - marginal(&hmm, group.iter().cloned());
+                                let posterior_prob = likelihood(
+                                    &hmm,
+                                    &vec![state; group.len()],
+                                    group.iter().cloned(),
+                                ) - marginal(&hmm, group.iter().cloned());
 
                                 Some(CNVCall {
                                     rid: *rid,
@@ -317,7 +321,11 @@ impl hmm::Model<Call> for HMM {
     }
 }
 
-pub fn likelihood<'a, O: 'a>(hmm: &hmm::Model<O>, states: &[hmm::State], observations: impl IntoIterator<Item = &'a O>) -> LogProb {
+pub fn likelihood<'a, O: 'a>(
+    hmm: &hmm::Model<O>,
+    states: &[hmm::State],
+    observations: impl IntoIterator<Item = &'a O>,
+) -> LogProb {
     let mut from = None;
     let mut p = LogProb::ln_one();
     for (&state, obs) in states.into_iter().zip(observations) {
@@ -333,14 +341,18 @@ pub fn likelihood<'a, O: 'a>(hmm: &hmm::Model<O>, states: &[hmm::State], observa
     p
 }
 
-pub fn marginal<'a, O: 'a>(hmm: &hmm::Model<O>, observations: impl IntoIterator<Item=&'a O>) -> LogProb {
-    let mut prev = hmm.states().map(|state| hmm.initial_prob(state)).collect_vec();
+pub fn marginal<'a, O: 'a>(
+    hmm: &hmm::Model<O>,
+    observations: impl IntoIterator<Item = &'a O>,
+) -> LogProb {
+    let mut prev = vec![LogProb::ln_one(); hmm.num_states()];
     let mut curr = prev.clone();
 
     for obs in observations {
         for from in hmm.states() {
             for to in hmm.states() {
-                curr[*to] = prev[*from] + hmm.observation_prob(to, obs);
+                curr[*to] =
+                    prev[*from] + hmm.transition_prob(from, to) + hmm.observation_prob(to, obs);
             }
         }
         mem::swap(&mut prev, &mut curr);
