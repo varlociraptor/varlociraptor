@@ -20,6 +20,7 @@ use rust_htslib::bcf::Read;
 
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
+use crate::utils;
 
 pub fn depth_pmf(observed_depth: u32, true_depth: f64) -> LogProb {
     LogProb(poisson_pdf(observed_depth, true_depth).ln())
@@ -349,16 +350,20 @@ pub fn marginal<'a, O: 'a>(
     let mut curr = prev.clone();
 
     for obs in observations {
-        for from in hmm.states() {
-            for to in hmm.states() {
-                curr[*to] =
-                    prev[*from] + hmm.transition_prob(from, to) + hmm.observation_prob(to, obs);
-            }
+        for to in hmm.states() {
+            let prob_obs = hmm.observation_prob(to, obs);
+            curr[*to] = prob_obs
+                + LogProb::ln_sum_exp(
+                    &hmm.states()
+                        .map(|from| prev[*from] + hmm.transition_prob(from, to))
+                        .collect_vec(),
+                );
         }
         mem::swap(&mut prev, &mut curr);
     }
 
     LogProb::ln_sum_exp(&prev.into_iter().collect_vec())
+        .cap_numerical_overshoot(utils::NUMERICAL_EPSILON)
 }
 
 #[derive(Debug)]
