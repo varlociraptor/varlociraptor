@@ -158,11 +158,7 @@ pub enum Varlociraptor {
             help = "BCF file that shall contain the results (if omitted, write to STDOUT)."
         )]
         output: Option<PathBuf>,
-        #[structopt(
-            long,
-            short = "p",
-            help = "Tumor purity."
-        )]
+        #[structopt(long, short = "p", help = "Tumor purity.")]
         purity: f64,
         #[structopt(
             long,

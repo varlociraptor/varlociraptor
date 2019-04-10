@@ -59,10 +59,9 @@ impl CallerBuilder {
         let bcf_reader = self.bcf_reader.as_ref().unwrap();
 
         let mut header = bcf::Header::new();
-        // TODO decide whether we need sample specific information (QC?)
-        // for sample in bcf_reader.header().samples() {
-        //     header.push_sample(sample);
-        // }
+        for sample in bcf_reader.header().samples() {
+            header.push_sample(sample);
+        }
 
         header.push_record(
             "##INFO=<ID=CN,Number=1,Type=Integer,Description=\"Copy number in tumor sample\">"
@@ -77,17 +76,27 @@ impl CallerBuilder {
             "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End of copy number variation.\">"
                 .as_bytes(),
         );
+        header.push_record(
+            "##INFO=<ID=LOCI,Number=1,Type=Integer,Description=\"Number of contained loci.\">"
+                .as_bytes(),
+        );
+        header.push_record(
+            "##FORMAT=<ID=LOCI_DP,Number=.,Type=Integer,Description=\"Depths of contained loci.\">"
+                .as_bytes(),
+        );
+        header.push_record(
+            "##FORMAT=<ID=LOCI_VAF,Number=.,Type=Integer,Description=\"VAFs of contained loci.\">"
+                .as_bytes(),
+        );
 
         // register sequences
         for rec in bcf_reader.header().header_records() {
             match rec {
-                bcf::header::HeaderRecord::Contig{ values, ..} => {
+                bcf::header::HeaderRecord::Contig { values, .. } => {
                     let name = values.get("ID").unwrap();
                     let len = values.get("length").unwrap();
-                    header.push_record(
-                        format!("##contig=<ID={},length={}>", name, len).as_bytes(),
-                    );
-                },
+                    header.push_record(format!("##contig=<ID={},length={}>", name, len).as_bytes());
+                }
                 _ => (),
             }
         }
@@ -146,15 +155,16 @@ impl Caller {
                             if cnv.gain == 0 {
                                 return None;
                             }
-                            let mut group = group.into_iter();
-                            let first_call = group.next().unwrap().1;
-                            if let Some(last_call) = group.last() {
-                                let last_call = last_call.1;
+                            let group = group.into_iter().map(|item| item.1).collect_vec();
+                            let first_call = group[0];
+                            if group.len() > 1 {
+                                let last_call = group[group.len() - 1];
                                 Some(CNVCall {
                                     rid: *rid,
                                     pos: first_call.start,
                                     end: last_call.start + 1,
                                     cnv: cnv,
+                                    calls: group,
                                 })
                             } else {
                                 None
@@ -176,14 +186,15 @@ impl Caller {
     }
 }
 
-pub struct CNVCall {
+pub struct CNVCall<'a> {
     rid: u32,
     pos: u32,
     end: u32,
     cnv: CNV,
+    calls: Vec<&'a Call>,
 }
 
-impl CNVCall {
+impl<'a> CNVCall<'a> {
     pub fn write(&self, record: &mut bcf::Record) -> Result<(), Box<Error>> {
         record.set_rid(&Some(self.rid));
         record.set_pos(self.pos as i32);
@@ -191,6 +202,21 @@ impl CNVCall {
         record.set_alleles(&[b".", b"<CNV>"])?;
         record.push_info_integer(b"CN", &[2 + self.cnv.gain])?;
         record.push_info_float(b"VAF", &[*self.cnv.allele_freq as f32])?;
+        record.push_info_integer(b"LOCI", &[self.calls.len() as i32])?;
+
+        let mut loci_dp = Vec::new();
+        loci_dp.extend(self.calls.iter().map(|call| call.depth_tumor as i32));
+        loci_dp.extend(self.calls.iter().map(|call| call.depth_normal as i32));
+        record.push_format_integer(b"LOCI_DP", &loci_dp)?;
+
+        let mut loci_vaf = Vec::new();
+        loci_vaf.extend(self.calls.iter().map(|call| *call.allele_freq_tumor as f32));
+        loci_vaf.extend(
+            self.calls
+                .iter()
+                .map(|call| *call.allele_freq_normal as f32),
+        );
+        record.push_format_float(b"LOCI_VAF", &loci_vaf)?;
 
         Ok(())
     }
@@ -287,6 +313,7 @@ impl hmm::Model<Call> for HMM {
 pub struct Call {
     prob_germline_het: LogProb,
     allele_freq_tumor: AlleleFreq,
+    allele_freq_normal: AlleleFreq,
     depth_tumor: u32,
     depth_normal: u32,
     start: u32,
@@ -308,6 +335,7 @@ impl Call {
 
             Ok(Some(Call {
                 allele_freq_tumor: AlleleFreq(allele_freqs.tumor()[0] as f64),
+                allele_freq_normal: AlleleFreq(allele_freqs.normal()[0] as f64),
                 depth_tumor: *depths.tumor(),
                 depth_normal: *depths.normal(),
                 prob_germline_het: prob_germline_het,
