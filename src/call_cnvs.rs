@@ -59,9 +59,10 @@ impl CallerBuilder {
         let bcf_reader = self.bcf_reader.as_ref().unwrap();
 
         let mut header = bcf::Header::new();
-        for sample in bcf_reader.header().samples() {
-            header.push_sample(sample);
-        }
+        // TODO decide whether we need sample specific information (QC?)
+        // for sample in bcf_reader.header().samples() {
+        //     header.push_sample(sample);
+        // }
 
         header.push_record(
             "##INFO=<ID=CN,Number=1,Type=Integer,Description=\"Copy number in tumor sample\">"
