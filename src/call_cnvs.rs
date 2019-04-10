@@ -271,6 +271,7 @@ impl HMM {
                 }
             }
         }
+        let prob_no_cnv = prob_cnv.ln_one_minus_exp();
         // we have states.len() different possible CNVs (TODO, this is likely wrong)
         let prob_cnv = prob_cnv - LogProb((states.len() as f64 - 1.0).ln());
 
@@ -279,7 +280,7 @@ impl HMM {
             no_cnv_state: hmm::State(no_cnv_state),
             depth_norm_factor,
             prob_cnv: prob_cnv,
-            prob_no_cnv: prob_cnv.ln_one_minus_exp(),
+            prob_no_cnv,
         }
     }
 }
@@ -301,7 +302,9 @@ impl hmm::Model<Call> for HMM {
         let from = self.states[*from];
         let to = self.states[*to];
         if from == to {
-            self.prob_no_cnv
+            LogProb(0.5f64.ln()) + self.prob_no_cnv
+        } else if to.gain == 0 {
+            LogProb(0.5f64.ln()) + self.prob_no_cnv
         } else {
             self.prob_cnv
         }
