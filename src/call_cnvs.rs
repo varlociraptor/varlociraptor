@@ -257,7 +257,7 @@ impl HMM {
     fn new(depth_norm_factor: f64, prob_cnv: LogProb, purity: f64) -> Self {
         let mut states = Vec::new();
         let mut no_cnv_state = 0;
-        for allele_freq in linspace(0.0, 1.0, 10) {
+        for allele_freq in linspace(0.1, 1.0, 10) {
             for gain in -2..20 {
                 if gain != 0 || allele_freq == 1.0 {
                     states.push(CNV {
