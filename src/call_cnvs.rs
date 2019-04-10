@@ -449,7 +449,7 @@ impl CNV {
         if self.gain > -2 {
             Some(AlleleFreq(
                 *self.allele_freq * (1.0 + self.gain as f64) / (2.0 + self.gain as f64)
-                    + (1.0 - *self.allele_freq) * 0.5
+                    + (1.0 - *self.allele_freq) * 0.5,
             ))
         } else if self.purity < 1.0 {
             // gain = -2: all lost in tumor cells, hence 100% normal cells at this locus.
