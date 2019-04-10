@@ -227,7 +227,7 @@ impl<'a> CNVCall<'a> {
         loci_dp.extend(
             self.calls
                 .iter()
-                .map(|call| (call.depth_normal as f64 * depth_norm_factor) as i32),
+                .map(|call| (call.depth_normal as f64 * depth_norm_factor).round() as i32),
         );
         record.push_format_integer(b"LOCI_DP", &loci_dp)?;
 
@@ -258,7 +258,7 @@ impl HMM {
         let mut states = Vec::new();
         let mut no_cnv_state = 0;
         for allele_freq in linspace(0.0, 1.0, 10) {
-            for gain in 0..20 {
+            for gain in -2..20 {
                 if gain != 0 || allele_freq == 1.0 {
                     states.push(CNV {
                         gain: gain,
