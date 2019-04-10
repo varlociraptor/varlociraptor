@@ -6,6 +6,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::path::Path;
+use std::mem;
 
 use bio::stats::{hmm, LogProb, PHREDProb};
 use derive_builder::Builder;
@@ -147,11 +148,11 @@ impl Caller {
                     *rid,
                     states
                         .iter()
-                        .map(|s| hmm.states[**s])
+                        .map(|state| (*state, hmm.states[**state]))
                         .zip(calls.iter())
                         .group_by(|item| item.0)
                         .into_iter()
-                        .filter_map(|(cnv, group)| {
+                        .filter_map(|((state, cnv), group)| {
                             if cnv.gain == 0 {
                                 return None;
                             }
@@ -159,11 +160,16 @@ impl Caller {
                             let first_call = group[0];
                             if group.len() > 1 {
                                 let last_call = group[group.len() - 1];
+
+                                // calculate posterior probability of call
+                                let posterior_prob = likelihood(&hmm, &vec![state; group.len()], group.iter().cloned()) - marginal(&hmm, group.iter().cloned());
+
                                 Some(CNVCall {
                                     rid: *rid,
                                     pos: first_call.start,
                                     end: last_call.start + 1,
                                     cnv: cnv,
+                                    posterior_prob,
                                     calls: group,
                                 })
                             } else {
@@ -191,6 +197,7 @@ pub struct CNVCall<'a> {
     pos: u32,
     end: u32,
     cnv: CNV,
+    posterior_prob: LogProb,
     calls: Vec<&'a Call>,
 }
 
@@ -217,6 +224,7 @@ impl<'a> CNVCall<'a> {
                 .map(|call| *call.allele_freq_normal as f32),
         );
         record.push_format_float(b"LOCI_VAF", &loci_vaf)?;
+        record.set_qual(*PHREDProb::from(self.posterior_prob.ln_one_minus_exp()) as f32);
 
         Ok(())
     }
@@ -309,7 +317,39 @@ impl hmm::Model<Call> for HMM {
     }
 }
 
-#[derive(Debug, Clone)]
+pub fn likelihood<'a, O: 'a>(hmm: &hmm::Model<O>, states: &[hmm::State], observations: impl IntoIterator<Item = &'a O>) -> LogProb {
+    let mut from = None;
+    let mut p = LogProb::ln_one();
+    for (&state, obs) in states.into_iter().zip(observations) {
+        if let Some(from) = from {
+            p += hmm.transition_prob(from, state);
+            p += hmm.observation_prob(state, obs);
+        } else {
+            p = hmm.initial_prob(state);
+        }
+        from = Some(state);
+    }
+
+    p
+}
+
+pub fn marginal<'a, O: 'a>(hmm: &hmm::Model<O>, observations: impl IntoIterator<Item=&'a O>) -> LogProb {
+    let mut prev = hmm.states().map(|state| hmm.initial_prob(state)).collect_vec();
+    let mut curr = prev.clone();
+
+    for obs in observations {
+        for from in hmm.states() {
+            for to in hmm.states() {
+                curr[*to] = prev[*from] + hmm.observation_prob(to, obs);
+            }
+        }
+        mem::swap(&mut prev, &mut curr);
+    }
+
+    LogProb::ln_sum_exp(&prev.into_iter().collect_vec())
+}
+
+#[derive(Debug)]
 pub struct Call {
     prob_germline_het: LogProb,
     allele_freq_tumor: AlleleFreq,
