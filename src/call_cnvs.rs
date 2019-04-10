@@ -149,11 +149,11 @@ impl Caller {
                     *rid,
                     states
                         .iter()
-                        .map(|state| (*state, hmm.states[**state]))
+                        .map(|state| hmm.states[**state])
                         .zip(calls.iter())
                         .group_by(|item| item.0)
                         .into_iter()
-                        .filter_map(|((state, cnv), group)| {
+                        .filter_map(|(cnv, group)| {
                             if cnv.gain == 0 {
                                 return None;
                             }
@@ -162,10 +162,10 @@ impl Caller {
                             if group.len() > 1 {
                                 let last_call = group[group.len() - 1];
 
-                                // calculate posterior probability of call
-                                let posterior_prob = likelihood(
+                                // calculate posterior probability of no CNV
+                                let prob_no_cnv = likelihood(
                                     &hmm,
-                                    &vec![state; group.len()],
+                                    &vec![hmm.no_cnv_state; group.len()],
                                     group.iter().cloned(),
                                 ) - marginal(&hmm, group.iter().cloned());
 
@@ -174,7 +174,7 @@ impl Caller {
                                     pos: first_call.start,
                                     end: last_call.start + 1,
                                     cnv: cnv,
-                                    posterior_prob,
+                                    prob_no_cnv,
                                     calls: group,
                                 })
                             } else {
@@ -202,7 +202,7 @@ pub struct CNVCall<'a> {
     pos: u32,
     end: u32,
     cnv: CNV,
-    posterior_prob: LogProb,
+    prob_no_cnv: LogProb,
     calls: Vec<&'a Call>,
 }
 
@@ -229,7 +229,7 @@ impl<'a> CNVCall<'a> {
                 .map(|call| *call.allele_freq_normal as f32),
         );
         record.push_format_float(b"LOCI_VAF", &loci_vaf)?;
-        record.set_qual(*PHREDProb::from(self.posterior_prob.ln_one_minus_exp()) as f32);
+        record.set_qual(*PHREDProb::from(self.prob_no_cnv) as f32);
 
         Ok(())
     }
@@ -240,11 +240,13 @@ pub struct HMM {
     depth_norm_factor: f64,
     prob_cnv: LogProb,
     prob_no_cnv: LogProb,
+    no_cnv_state: hmm::State,
 }
 
 impl HMM {
     fn new(depth_norm_factor: f64, prob_cnv: LogProb, purity: f64) -> Self {
         let mut states = Vec::new();
+        let mut no_cnv_state = 0;
         for allele_freq in linspace(0.0, 1.0, 10) {
             for gain in 0..20 {
                 if gain != 0 || allele_freq == 1.0 {
@@ -253,6 +255,9 @@ impl HMM {
                         allele_freq: AlleleFreq(allele_freq),
                         purity,
                     });
+                    if gain == 0 {
+                        no_cnv_state = states.len() - 1;
+                    }
                 }
             }
         }
@@ -261,6 +266,7 @@ impl HMM {
 
         HMM {
             states,
+            no_cnv_state: hmm::State(no_cnv_state),
             depth_norm_factor,
             prob_cnv: prob_cnv,
             prob_no_cnv: prob_cnv.ln_one_minus_exp(),
