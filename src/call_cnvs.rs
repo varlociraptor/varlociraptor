@@ -5,6 +5,7 @@
 
 use std::error::Error;
 use std::path::Path;
+use std::collections::{HashMap, BTreeMap};
 
 use bio::stats::{hmm, LogProb, PHREDProb};
 use derive_builder::Builder;
@@ -14,6 +15,7 @@ use rgsl::randist::binomial::binomial_pdf;
 use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
+use rayon::prelude::*;
 
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
@@ -39,6 +41,7 @@ pub struct Caller {
     #[builder(private)]
     bcf_writer: bcf::Writer,
     prior: LogProb,
+    purity: f64,
 }
 
 impl CallerBuilder {
@@ -87,52 +90,81 @@ impl Caller {
         let min_prob_germline_het = LogProb(0.8_f64.ln());
 
         // obtain records
-        let mut calls = Vec::new();
+        let mut calls = HashMap::new();
         for record in self.bcf_reader.records() {
             let mut record = record?;
             let call = Call::new(&mut record)?.unwrap();
             if call.prob_germline_het >= min_prob_germline_het && call.depth_normal > 0 {
-                calls.push(call);
+                calls.entry(call.rid).or_insert_with(|| Vec::new()).push(call);
             }
         }
 
         // normalization
         let mean_depth = |filter: &Fn(&Call) -> u32| {
-            calls.iter().map(filter).sum::<u32>() as f64 / calls.len() as f64
+            calls.values().flatten().map(filter).sum::<u32>() as f64 / calls.len() as f64
         };
         let mean_depth_tumor = mean_depth(&|call: &Call| call.depth_tumor);
         let mean_depth_normal = mean_depth(&|call: &Call| call.depth_normal);
         let depth_norm_factor = mean_depth_tumor / mean_depth_normal;
 
-        for (rid, calls) in calls.into_iter().group_by(|call| call.rid).into_iter() {
-            let hmm = HMM::new(depth_norm_factor, self.prior);
-            let calls = calls.into_iter().collect_vec();
+        let prior = self.prior;
+        let purity = self.purity;
+        let cnv_calls: BTreeMap<_, _> = calls
+            .par_iter()
+            .map(|(rid, calls)| {
+                let hmm = HMM::new(depth_norm_factor, prior, purity);
 
-            let (states, _prob) = hmm::viterbi(&hmm, &calls);
+                let (states, _prob) = hmm::viterbi(&hmm, calls);
 
-            let mut record = self.bcf_writer.empty_record();
+                (
+                    *rid,
+                    states.iter()
+                    .map(|s| hmm.states[**s])
+                    .zip(calls.iter())
+                    .group_by(|item| item.0)
+                    .into_iter()
+                    .map(|(cnv, group)| {
+                        let mut group = group.into_iter();
+                        let first_call = group.next().unwrap().1;
+                        CNVCall {
+                            rid: *rid,
+                            pos: first_call.start,
+                            end: group.last().unwrap().1.start + 1,
+                            cnv: cnv
+                        }
+                    })
+                    .collect_vec()
+                )
+            })
+            .collect();
 
-            for (cnv, group) in states
-                .iter()
-                .map(|s| hmm.states[**s])
-                .zip(&calls)
-                .group_by(|item| item.0)
-                .into_iter()
-            {
-                let mut group = group.into_iter();
-                let first_call = group.next().unwrap().1;
-                let pos = first_call.start;
-                let end = group.last().unwrap().1.start + 1;
-                record.set_rid(&Some(rid));
-                record.set_pos(pos as i32);
-                record.push_info_integer(b"END", &[end as i32])?;
-                record.set_alleles(&[b".", b"<CNV>"])?;
-                record.push_info_integer(b"CN", &[2 + cnv.gain])?;
-                record.push_info_float(b"VAF", &[*cnv.allele_freq as f32])?;
-
+        let mut record = self.bcf_writer.empty_record();
+        for calls in cnv_calls.values() {
+            for call in calls {
+                call.write(&mut record)?;
                 self.bcf_writer.write(&record)?;
             }
         }
+        Ok(())
+    }
+}
+
+pub struct CNVCall {
+    rid: u32,
+    pos: u32,
+    end: u32,
+    cnv: CNV,
+}
+
+impl CNVCall {
+    pub fn write(&self, record: &mut bcf::Record) -> Result<(), Box<Error>> {
+        record.set_rid(&Some(self.rid));
+        record.set_pos(self.pos as i32);
+        record.push_info_integer(b"END", &[self.end as i32])?;
+        record.set_alleles(&[b".", b"<CNV>"])?;
+        record.push_info_integer(b"CN", &[2 + self.cnv.gain])?;
+        record.push_info_float(b"VAF", &[*self.cnv.allele_freq as f32])?;
+
         Ok(())
     }
 }
@@ -145,7 +177,7 @@ pub struct HMM {
 }
 
 impl HMM {
-    fn new(depth_norm_factor: f64, prob_cnv: LogProb) -> Self {
+    fn new(depth_norm_factor: f64, prob_cnv: LogProb, purity: f64) -> Self {
         let mut states = Vec::new();
         for allele_freq in linspace(0.0, 1.0, 10) {
             for gain in 0..20 {
@@ -153,6 +185,7 @@ impl HMM {
                     states.push(CNV {
                         gain: gain,
                         allele_freq: AlleleFreq(allele_freq),
+                        purity,
                     });
                 }
             }
@@ -271,6 +304,7 @@ impl Call {
 pub struct CNV {
     gain: i32,
     allele_freq: AlleleFreq,
+    purity: f64,
 }
 
 impl CNV {
@@ -286,6 +320,7 @@ impl CNV {
     }
 
     pub fn expected_depth_factor(&self) -> f64 {
-        *self.allele_freq * (2.0 + self.gain as f64) / 2.0 + 1.0 - *self.allele_freq
+        self.purity * (*self.allele_freq * (2.0 + self.gain as f64) / 2.0 + 1.0 - *self.allele_freq) +
+        (1.0 - self.purity)
     }
 }
