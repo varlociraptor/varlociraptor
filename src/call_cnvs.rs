@@ -332,10 +332,10 @@ pub fn likelihood<'a, O: 'a>(
     for (&state, obs) in states.into_iter().zip(observations) {
         if let Some(from) = from {
             p += hmm.transition_prob(from, state);
-            p += hmm.observation_prob(state, obs);
         } else {
             p = hmm.initial_prob(state);
         }
+        p += hmm.observation_prob(state, obs);
         from = Some(state);
     }
 
