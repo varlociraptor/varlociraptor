@@ -28,7 +28,7 @@ pub fn depth_pmf(observed_depth: u32, true_depth: f64) -> LogProb {
     LogProb(poisson_pdf(observed_depth, true_depth).ln())
 }
 
-pub fn allele_freq_pmf(
+pub fn allele_freq_pdf(
     observed_allele_freq: AlleleFreq,
     true_allele_freq: AlleleFreq,
     depth: u32,
@@ -322,13 +322,14 @@ impl hmm::Model<Call> for HMM {
 
         // handle allele freq changes
         let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
-            LogProb::ln_sum_exp(&[
-                prob05 + call.prob_allele_freq_tumor(alt_af) + call.prob_germline_het,
-                prob05
-                    + call.prob_allele_freq_tumor(cnv.expected_allele_freq_ref_affected().unwrap())
-                    + call.prob_germline_het,
-                call.prob_germline_het.ln_one_minus_exp(),
-            ])
+            let p = (prob05 + call.prob_allele_freq_tumor(alt_af) + call.prob_germline_het)
+                .ln_add_exp(
+                    prob05
+                        + call.prob_allele_freq_tumor(
+                            cnv.expected_allele_freq_ref_affected().unwrap(),
+                        ),
+                );
+            (call.prob_germline_het + p).ln_add_exp(call.prob_germline_het.ln_one_minus_exp() + p) // TODO check the latter
         } else {
             LogProb::ln_one()
         };
@@ -429,7 +430,7 @@ impl Call {
     }
 
     pub fn prob_allele_freq_tumor(&self, true_allele_freq: AlleleFreq) -> LogProb {
-        allele_freq_pmf(self.allele_freq_tumor, true_allele_freq, self.depth_tumor)
+        allele_freq_pdf(self.allele_freq_tumor, true_allele_freq, self.depth_tumor)
     }
 
     pub fn prob_depth_tumor(&self, true_depth: f64) -> LogProb {
@@ -468,5 +469,22 @@ impl CNV {
     pub fn expected_depth_factor(&self) -> f64 {
         self.purity * (*self.allele_freq * (2.0 + self.gain as f64) / 2.0 + 1.0 - *self.allele_freq)
             + (1.0 - self.purity)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_allele_freq_pdf() {
+        assert_eq!(
+            allele_freq_pdf(AlleleFreq(0.64), AlleleFreq(1.0), 10),
+            LogProb::ln_zero()
+        );
+        assert_eq!(
+            allele_freq_pdf(AlleleFreq(0.1), AlleleFreq(0.0), 10),
+            LogProb::ln_zero()
+        );
     }
 }
