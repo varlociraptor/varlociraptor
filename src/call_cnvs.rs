@@ -22,6 +22,8 @@ use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
 use crate::utils;
 
+const MIN_DEPTH: u32 = 10;
+
 pub fn depth_pmf(observed_depth: u32, true_depth: f64) -> LogProb {
     LogProb(poisson_pdf(observed_depth, true_depth).ln())
 }
@@ -120,7 +122,7 @@ impl Caller {
         for record in self.bcf_reader.records() {
             let mut record = record?;
             let call = Call::new(&mut record)?.unwrap();
-            if call.prob_germline_het >= min_prob_germline_het && call.depth_normal > 0 {
+            if call.prob_germline_het >= min_prob_germline_het && call.depth_normal >= MIN_DEPTH {
                 calls
                     .entry(call.rid)
                     .or_insert_with(|| Vec::new())
@@ -189,7 +191,7 @@ impl Caller {
         let mut record = self.bcf_writer.empty_record();
         for calls in cnv_calls.values() {
             for call in calls {
-                call.write(&mut record)?;
+                call.write(&mut record, depth_norm_factor)?;
                 self.bcf_writer.write(&record)?;
             }
         }
@@ -207,7 +209,11 @@ pub struct CNVCall<'a> {
 }
 
 impl<'a> CNVCall<'a> {
-    pub fn write(&self, record: &mut bcf::Record) -> Result<(), Box<Error>> {
+    pub fn write(
+        &self,
+        record: &mut bcf::Record,
+        depth_norm_factor: f64,
+    ) -> Result<(), Box<Error>> {
         record.set_rid(&Some(self.rid));
         record.set_pos(self.pos as i32);
         record.push_info_integer(b"END", &[self.end as i32])?;
@@ -218,7 +224,11 @@ impl<'a> CNVCall<'a> {
 
         let mut loci_dp = Vec::new();
         loci_dp.extend(self.calls.iter().map(|call| call.depth_tumor as i32));
-        loci_dp.extend(self.calls.iter().map(|call| call.depth_normal as i32));
+        loci_dp.extend(
+            self.calls
+                .iter()
+                .map(|call| (call.depth_normal as f64 * depth_norm_factor) as i32),
+        );
         record.push_format_integer(b"LOCI_DP", &loci_dp)?;
 
         let mut loci_vaf = Vec::new();
