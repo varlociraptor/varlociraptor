@@ -160,6 +160,12 @@ pub enum Varlociraptor {
         output: Option<PathBuf>,
         #[structopt(
             long,
+            short = "p",
+            help = "Tumor purity."
+        )]
+        purity: f64,
+        #[structopt(
+            long,
             default_value = "0.00001",
             help = "Prior probability for CNV. This can be any small enough value."
         )]
@@ -370,6 +376,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
             ref output,
             prior,
             threads,
+            purity,
         } => {
             rayon::ThreadPoolBuilder::new()
                 .num_threads(threads)
@@ -378,8 +385,9 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
             let mut caller = call_cnvs::CallerBuilder::default()
                 .bcfs(calls.as_ref(), output.as_ref())?
                 .prior(LogProb::from(prior))
+                .purity(purity)
                 .build()?;
-            caller.call()?
+            caller.call()?;
         }
         Varlociraptor::FilterCalls { method } => match method {
             FilterMethod::ControlFDR {

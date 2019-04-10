@@ -127,14 +127,22 @@ impl Caller {
                         .zip(calls.iter())
                         .group_by(|item| item.0)
                         .into_iter()
-                        .map(|(cnv, group)| {
+                        .filter_map(|(cnv, group)| {
+                            if cnv.gain == 0 {
+                                return None;
+                            }
                             let mut group = group.into_iter();
                             let first_call = group.next().unwrap().1;
-                            CNVCall {
-                                rid: *rid,
-                                pos: first_call.start,
-                                end: group.last().unwrap().1.start + 1,
-                                cnv: cnv,
+                            if let Some(last_call) = group.last() {
+                                let last_call = last_call.1;
+                                Some(CNVCall {
+                                    rid: *rid,
+                                    pos: first_call.start,
+                                    end: last_call.start + 1,
+                                    cnv: cnv,
+                                })
+                            } else {
+                                None
                             }
                         })
                         .collect_vec(),
@@ -260,6 +268,7 @@ impl hmm::Model<Call> for HMM {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Call {
     prob_germline_het: LogProb,
     allele_freq_tumor: AlleleFreq,
