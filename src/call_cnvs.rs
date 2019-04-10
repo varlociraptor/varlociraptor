@@ -256,6 +256,8 @@ impl HMM {
                 }
             }
         }
+        // we have states.len() different possible CNVs (TODO, this is likely wrong)
+        let prob_cnv = prob_cnv - LogProb((states.len() as f64 - 1.0).ln());
 
         HMM {
             states,
@@ -282,7 +284,7 @@ impl hmm::Model<Call> for HMM {
     fn transition_prob(&self, from: hmm::State, to: hmm::State) -> LogProb {
         let from = self.states[*from];
         let to = self.states[*to];
-        if from == to || to.gain == 0 {
+        if from == to {
             self.prob_no_cnv
         } else {
             self.prob_cnv
@@ -346,18 +348,22 @@ pub fn marginal<'a, O: 'a>(
     hmm: &hmm::Model<O>,
     observations: impl IntoIterator<Item = &'a O>,
 ) -> LogProb {
-    let mut prev = vec![LogProb::ln_one(); hmm.num_states()];
+    let mut prev = vec![LogProb::ln_zero(); hmm.num_states()];
     let mut curr = prev.clone();
 
-    for obs in observations {
+    for (i, obs) in observations.into_iter().enumerate() {
         for to in hmm.states() {
             let prob_obs = hmm.observation_prob(to, obs);
-            curr[*to] = prob_obs
-                + LogProb::ln_sum_exp(
-                    &hmm.states()
-                        .map(|from| prev[*from] + hmm.transition_prob(from, to))
-                        .collect_vec(),
-                );
+            curr[*to] = if i == 0 {
+                hmm.initial_prob(to)
+            } else {
+                prob_obs
+                    + LogProb::ln_sum_exp(
+                        &hmm.states()
+                            .map(|from| prev[*from] + hmm.transition_prob(from, to))
+                            .collect_vec(),
+                    )
+            };
         }
         mem::swap(&mut prev, &mut curr);
     }
