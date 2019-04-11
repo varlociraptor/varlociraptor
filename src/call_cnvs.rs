@@ -66,9 +66,9 @@ impl CallerBuilder {
         let bcf_reader = self.bcf_reader.as_ref().unwrap();
 
         let mut header = bcf::Header::new();
-        for sample in bcf_reader.header().samples() {
-            header.push_sample(sample);
-        }
+        // for sample in bcf_reader.header().samples() {
+        //     header.push_sample(sample);
+        // }
 
         header.push_record(
             "##INFO=<ID=CN,Number=1,Type=Integer,Description=\"Copy number in tumor sample\">"
@@ -93,14 +93,14 @@ impl CallerBuilder {
              N=none, B=barely, P=positive, S=strong, V=very strong \">"
                 .as_bytes(),
         );
-        header.push_record(
-            "##FORMAT=<ID=LOCI_DP,Number=.,Type=Integer,Description=\"Depths of contained loci.\">"
-                .as_bytes(),
-        );
-        header.push_record(
-            "##FORMAT=<ID=LOCI_VAF,Number=.,Type=Integer,Description=\"VAFs of contained loci.\">"
-                .as_bytes(),
-        );
+        // header.push_record(
+        //     "##FORMAT=<ID=LOCI_DP,Number=.,Type=Integer,Description=\"Depths of contained loci.\">"
+        //         .as_bytes(),
+        // );
+        // header.push_record(
+        //     "##FORMAT=<ID=LOCI_VAF,Number=.,Type=Integer,Description=\"VAFs of contained loci.\">"
+        //         .as_bytes(),
+        // );
 
         // register sequences
         for rec in bcf_reader.header().header_records() {
