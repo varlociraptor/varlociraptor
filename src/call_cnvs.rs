@@ -249,11 +249,10 @@ impl<'a> CNVCall<'a> {
         // record.push_format_float(b"LOCI_VAF", &loci_vaf)?;
         record.set_qual(*PHREDProb::from(self.prob_no_cnv) as f32);
 
-        let obs = join(
+        let obs = utils::generalized_cigar(
             self.bayes_factors
                 .iter()
                 .map(|bf| utils::evidence_kass_raftery_to_letter(bf.evidence_kass_raftery())),
-            "",
         );
         record.push_info_string(b"OBS", &[obs.as_bytes()])?;
 
