@@ -27,22 +27,24 @@ use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-3;
 
-pub fn generalized_cigar<T: Hash + Eq + Clone + Display>(items: impl Iterator<Item = T>, keep_order: bool) -> String {
+pub fn generalized_cigar<T: Hash + Eq + Clone + Display>(
+    items: impl Iterator<Item = T>,
+    keep_order: bool,
+) -> String {
     if keep_order {
         join(
-            items.map(|item| (item, 1))
-                 .coalesce(|(a, n), (b, m)| {
-                     if a == b {
-                         Ok((a, n + m))
-                     } else {
-                         Err(((a, n), (b, m)))
-                     }
-                 })
-                 .map(|(item, count)| {
-                     format!("{}{}", count, item)
-                 }),
+            items
+                .map(|item| (item, 1))
+                .coalesce(|(a, n), (b, m)| {
+                    if a == b {
+                        Ok((a, n + m))
+                    } else {
+                        Err(((a, n), (b, m)))
+                    }
+                })
+                .map(|(item, count)| format!("{}{}", count, item)),
             "",
-         )
+        )
     } else {
         let items: Counter<T> = items.collect();
         join(
