@@ -11,9 +11,9 @@ use std::path::Path;
 
 use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb};
 use derive_builder::Builder;
+use itertools::join;
 use itertools::Itertools;
 use itertools_num::linspace;
-use itertools::join;
 use rayon::prelude::*;
 use rgsl::randist::binomial::binomial_pdf;
 use rgsl::randist::poisson::poisson_pdf;
@@ -88,9 +88,9 @@ impl CallerBuilder {
                 .as_bytes(),
         );
         header.push_record(
-            "##INFO=<ID=OBS,Number=1,Type=String,Description=\"Bayes factors for per-locus CNV \
-             support as Kass Raftery scores: N=none, B=barely, P=positive, S=strong, V=very \
-             strong \">"
+            "##INFO=<ID=OBS,Number=1,Type=String,Description=\"Bayes factors for per-locus \
+             support for no CNV, given as Kass Raftery scores: \
+             N=none, B=barely, P=positive, S=strong, V=very strong \">"
                 .as_bytes(),
         );
         header.push_record(
@@ -230,23 +230,23 @@ impl<'a> CNVCall<'a> {
         record.push_info_float(b"VAF", &[*self.cnv.allele_freq as f32])?;
         record.push_info_integer(b"LOCI", &[self.calls.len() as i32])?;
 
-        let mut loci_dp = Vec::new();
-        loci_dp.extend(self.calls.iter().map(|call| call.depth_tumor as i32));
-        loci_dp.extend(
-            self.calls
-                .iter()
-                .map(|call| (call.depth_normal as f64 * depth_norm_factor).round() as i32),
-        );
-        record.push_format_integer(b"LOCI_DP", &loci_dp)?;
-
-        let mut loci_vaf = Vec::new();
-        loci_vaf.extend(self.calls.iter().map(|call| *call.allele_freq_tumor as f32));
-        loci_vaf.extend(
-            self.calls
-                .iter()
-                .map(|call| *call.allele_freq_normal as f32),
-        );
-        record.push_format_float(b"LOCI_VAF", &loci_vaf)?;
+        // let mut loci_dp = Vec::new();
+        // loci_dp.extend(self.calls.iter().map(|call| call.depth_tumor as i32));
+        // loci_dp.extend(
+        //     self.calls
+        //         .iter()
+        //         .map(|call| (call.depth_normal as f64 * depth_norm_factor).round() as i32),
+        // );
+        // record.push_format_integer(b"LOCI_DP", &loci_dp)?;
+        //
+        // let mut loci_vaf = Vec::new();
+        // loci_vaf.extend(self.calls.iter().map(|call| *call.allele_freq_tumor as f32));
+        // loci_vaf.extend(
+        //     self.calls
+        //         .iter()
+        //         .map(|call| *call.allele_freq_normal as f32),
+        // );
+        // record.push_format_float(b"LOCI_VAF", &loci_vaf)?;
         record.set_qual(*PHREDProb::from(self.prob_no_cnv) as f32);
 
         let obs = join(
@@ -333,8 +333,8 @@ impl HMM {
             .into_iter()
             .map(|obs| {
                 BayesFactor::new(
-                    self.observation_prob(state, obs),
                     self.observation_prob(null_state, obs),
+                    self.observation_prob(state, obs),
                 )
             })
             .collect()
@@ -565,7 +565,13 @@ mod tests {
             purity: 0.15,
         };
 
-        assert_eq!(call.prob_allele_freq_tumor(cnv.expected_allele_freq_alt_affected().unwrap()), LogProb::ln_one());
-        assert_eq!(call.prob_depth_tumor(call.depth_normal as f64 * cnv.expected_depth_factor()), LogProb::ln_one());
+        assert_eq!(
+            call.prob_allele_freq_tumor(cnv.expected_allele_freq_alt_affected().unwrap()),
+            LogProb::ln_one()
+        );
+        assert_eq!(
+            call.prob_depth_tumor(call.depth_normal as f64 * cnv.expected_depth_factor()),
+            LogProb::ln_one()
+        );
     }
 }
