@@ -253,6 +253,7 @@ impl<'a> CNVCall<'a> {
             self.bayes_factors
                 .iter()
                 .map(|bf| utils::evidence_kass_raftery_to_letter(bf.evidence_kass_raftery())),
+            true,
         );
         record.push_info_string(b"OBS", &[obs.as_bytes()])?;
 
