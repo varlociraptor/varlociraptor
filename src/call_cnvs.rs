@@ -90,7 +90,7 @@ impl CallerBuilder {
         header.push_record(
             "##INFO=<ID=OBS,Number=1,Type=String,Description=\"Bayes factors for per-locus \
              support for no CNV, given as Kass Raftery scores: \
-             N=none, B=barely, P=positive, S=strong, V=very strong \">"
+             N: none, B: barely, P: positive, S: strong, V: very strong \">"
                 .as_bytes(),
         );
         // header.push_record(
@@ -125,19 +125,28 @@ impl CallerBuilder {
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
         let min_prob_germline_het = LogProb(0.95_f64.ln());
+        let max_dist = 1000;
 
         // obtain records
         let mut calls = HashMap::new();
-        for record in self.bcf_reader.records() {
-            let mut record = record?;
-            let call = Call::new(&mut record)?.unwrap();
-            if call.prob_germline_het >= min_prob_germline_het && call.depth_normal >= MIN_DEPTH {
-                calls
-                    .entry(call.rid)
-                    .or_insert_with(|| Vec::new())
-                    .push(call);
+        {
+            let mut record = self.bcf_reader.empty_record();
+            loop {
+                if let Err(e) = self.bcf_reader.read(&mut record) {
+                    if e.is_eof() {
+                        break;
+                    } else {
+                        Err(e)?;
+                    }
+                }
+
+                let call = Call::new(&mut record)?.unwrap();
+                if call.prob_germline_het >= min_prob_germline_het && call.depth_normal >= MIN_DEPTH {
+                    let contig = self.bcf_reader.header().rid2name(call.rid).to_owned();
+                    calls.entry(contig).or_insert_with(Vec::new).push(call);
+                }
             }
-        }
+        };
 
         // normalization
         let mean_depth = |filter: &Fn(&Call) -> u32| {
@@ -151,13 +160,13 @@ impl Caller {
         let purity = self.purity;
         let cnv_calls: BTreeMap<_, _> = calls
             .par_iter()
-            .map(|(rid, calls)| {
+            .map(|(contig, calls)| {
                 let hmm = HMM::new(depth_norm_factor, prior, purity);
 
                 let (states, _prob) = hmm::viterbi(&hmm, calls);
 
                 (
-                    *rid,
+                    contig.clone(),
                     states
                         .iter()
                         .zip(calls.iter())
@@ -178,7 +187,7 @@ impl Caller {
                                 let bayes_factors = hmm.bayes_factors(state, &group);
 
                                 Some(CNVCall {
-                                    rid: *rid,
+                                    contig: contig.clone(),
                                     pos: first_call.start,
                                     end: last_call.start + 1,
                                     cnv: cnv,
@@ -195,10 +204,11 @@ impl Caller {
             })
             .collect();
 
-        let mut record = self.bcf_writer.empty_record();
-        for calls in cnv_calls.values() {
+        for (contig, calls) in cnv_calls {
+            let rid = self.bcf_writer.header().name2rid(&contig)?;
             for call in calls {
-                call.write(&mut record, depth_norm_factor)?;
+                let mut record = self.bcf_writer.empty_record();
+                call.write(rid, &mut record, depth_norm_factor)?;
                 self.bcf_writer.write(&record)?;
             }
         }
@@ -206,8 +216,13 @@ impl Caller {
     }
 }
 
+pub struct Region {
+    contig: Vec<u8>,
+    start: u32,
+}
+
 pub struct CNVCall<'a> {
-    rid: u32,
+    contig: Vec<u8>,
     pos: u32,
     end: u32,
     cnv: CNV,
@@ -219,13 +234,14 @@ pub struct CNVCall<'a> {
 impl<'a> CNVCall<'a> {
     pub fn write(
         &self,
+        rid: u32,
         record: &mut bcf::Record,
         depth_norm_factor: f64,
     ) -> Result<(), Box<Error>> {
-        record.set_rid(&Some(self.rid));
+        record.set_rid(&Some(rid));
         record.set_pos(self.pos as i32);
+        record.set_alleles(&[b"N", b"<CNV>"])?;
         record.push_info_integer(b"END", &[self.end as i32])?;
-        record.set_alleles(&[b".", b"<CNV>"])?;
         record.push_info_integer(b"CN", &[2 + self.cnv.gain])?;
         record.push_info_float(b"VAF", &[*self.cnv.allele_freq as f32])?;
         record.push_info_integer(b"LOCI", &[self.calls.len() as i32])?;
@@ -249,11 +265,11 @@ impl<'a> CNVCall<'a> {
         // record.push_format_float(b"LOCI_VAF", &loci_vaf)?;
         record.set_qual(*PHREDProb::from(self.prob_no_cnv) as f32);
 
-        let obs = utils::generalized_cigar(
+        let obs = join(
             self.bayes_factors
                 .iter()
                 .map(|bf| utils::evidence_kass_raftery_to_letter(bf.evidence_kass_raftery())),
-            false,
+            "",
         );
         record.push_info_string(b"OBS", &[obs.as_bytes()])?;
 
