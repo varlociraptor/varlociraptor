@@ -266,7 +266,7 @@ impl HMM {
                     state_by_gain
                         .entry(gain)
                         .or_insert_with(Vec::new)
-                        .push(hmm::State(states.len() - 1));
+                        .push(hmm::State(states.len()));
                     states.push(cnv);
                 }
             }
