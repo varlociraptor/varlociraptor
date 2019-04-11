@@ -13,6 +13,7 @@ use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb,
 use derive_builder::Builder;
 use itertools::Itertools;
 use itertools_num::linspace;
+use itertools::join;
 use rayon::prelude::*;
 use rgsl::randist::binomial::binomial_pdf;
 use rgsl::randist::poisson::poisson_pdf;
@@ -248,10 +249,11 @@ impl<'a> CNVCall<'a> {
         record.push_format_float(b"LOCI_VAF", &loci_vaf)?;
         record.set_qual(*PHREDProb::from(self.prob_no_cnv) as f32);
 
-        let obs = utils::generalized_cigar(
+        let obs = join(
             self.bayes_factors
                 .iter()
                 .map(|bf| utils::evidence_kass_raftery_to_letter(bf.evidence_kass_raftery())),
+            "",
         );
         record.push_info_string(b"OBS", &[obs.as_bytes()])?;
 
@@ -543,5 +545,27 @@ mod tests {
             allele_freq_pdf(AlleleFreq(0.1), AlleleFreq(0.0), 10),
             LogProb::ln_zero()
         );
+    }
+
+    #[test]
+    fn test_call() {
+        let call = Call {
+            prob_germline_het: LogProb::ln_one(),
+            allele_freq_tumor: AlleleFreq(1.0),
+            allele_freq_normal: AlleleFreq(0.5),
+            depth_tumor: 12,
+            depth_normal: 10,
+            start: 0,
+            rid: 0,
+        };
+
+        let cnv = CNV {
+            gain: 1,
+            allele_freq: AlleleFreq(1.0),
+            purity: 0.15,
+        };
+
+        assert_eq!(call.prob_allele_freq_tumor(cnv.expected_allele_freq_alt_affected().unwrap()), LogProb::ln_one());
+        assert_eq!(call.prob_depth_tumor(call.depth_normal as f64 * cnv.expected_depth_factor()), LogProb::ln_one());
     }
 }
