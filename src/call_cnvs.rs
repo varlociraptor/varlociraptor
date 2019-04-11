@@ -5,6 +5,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
+use std::iter;
 use std::mem;
 use std::path::Path;
 
@@ -23,6 +24,7 @@ use crate::model::AlleleFreq;
 use crate::utils;
 
 const MIN_DEPTH: u32 = 10;
+const MAX_GAIN: i32 = 21;
 
 pub fn depth_pmf(observed_depth: u32, true_depth: f64) -> LogProb {
     LogProb(poisson_pdf(observed_depth, true_depth).ln())
@@ -165,11 +167,7 @@ impl Caller {
                                 let last_call = group[group.len() - 1];
 
                                 // calculate posterior probability of no CNV
-                                let prob_no_cnv = likelihood(
-                                    &hmm,
-                                    &vec![hmm.no_cnv_state; group.len()],
-                                    group.iter().cloned(),
-                                ) - marginal(&hmm, group.iter().cloned());
+                                let prob_no_cnv = hmm.prob_no_cnv(&group);
 
                                 Some(CNVCall {
                                     rid: *rid,
@@ -247,27 +245,29 @@ impl<'a> CNVCall<'a> {
 
 pub struct HMM {
     states: Vec<CNV>,
+    state_by_gain: HashMap<i32, Vec<hmm::State>>,
     depth_norm_factor: f64,
     prob_cnv: LogProb,
     prob_no_cnv: LogProb,
-    no_cnv_state: hmm::State,
 }
 
 impl HMM {
     fn new(depth_norm_factor: f64, prob_cnv: LogProb, purity: f64) -> Self {
         let mut states = Vec::new();
-        let mut no_cnv_state = 0;
+        let mut state_by_gain = HashMap::new();
         for allele_freq in linspace(0.1, 1.0, 10) {
-            for gain in -2..20 {
+            for gain in -2..MAX_GAIN {
                 if gain != 0 || allele_freq == 1.0 {
-                    states.push(CNV {
+                    let cnv = CNV {
                         gain: gain,
                         allele_freq: AlleleFreq(allele_freq),
                         purity,
-                    });
-                    if gain == 0 {
-                        no_cnv_state = states.len() - 1;
-                    }
+                    };
+                    state_by_gain
+                        .entry(gain)
+                        .or_insert_with(Vec::new)
+                        .push(hmm::State(states.len() - 1));
+                    states.push(cnv);
                 }
             }
         }
@@ -277,11 +277,36 @@ impl HMM {
 
         HMM {
             states,
-            no_cnv_state: hmm::State(no_cnv_state),
+            state_by_gain,
             depth_norm_factor,
             prob_cnv: prob_cnv,
             prob_no_cnv,
         }
+    }
+
+    pub fn prob_no_cnv(&self, observations: &[&Call]) -> LogProb {
+        let likelihood_no_cnv = likelihood(
+            self,
+            iter::repeat(self.state_by_gain.get(&0).unwrap()[0]),
+            observations.iter().cloned(),
+        );
+        let mut likelihoods = vec![likelihood_no_cnv];
+        for gain in -2..MAX_GAIN {
+            if gain != 0 {
+                let af_spectrum = self.state_by_gain.get(&gain).unwrap();
+                likelihoods.push(LogProb::ln_simpsons_integrate_exp(
+                    |i, _| {
+                        let state = af_spectrum[i];
+                        likelihood(self, iter::repeat(state), observations.iter().cloned())
+                    },
+                    0.0,
+                    1.0,
+                    af_spectrum.len() - 1,
+                ));
+            }
+        }
+
+        LogProb::ln_sum_exp(&likelihoods)
     }
 }
 
@@ -348,12 +373,12 @@ impl hmm::Model<Call> for HMM {
 
 pub fn likelihood<'a, O: 'a>(
     hmm: &hmm::Model<O>,
-    states: &[hmm::State],
-    observations: impl IntoIterator<Item = &'a O>,
+    states: impl IntoIterator<Item = hmm::State>,
+    observations: impl Iterator<Item = &'a O>,
 ) -> LogProb {
     let mut from = None;
     let mut p = LogProb::ln_one();
-    for (&state, obs) in states.into_iter().zip(observations) {
+    for (state, obs) in states.into_iter().zip(observations) {
         if let Some(from) = from {
             p += hmm.transition_prob(from, state);
         } else {
