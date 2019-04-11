@@ -9,9 +9,7 @@ use std::path::Path;
 use std::str;
 
 use bio::io::fasta;
-use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{bayesian, LogProb, PHREDProb};
-use counter::Counter;
 use derive_builder::Builder;
 use itertools::join;
 use itertools::Itertools;
@@ -327,40 +325,25 @@ where
                         .push(expected_depth(&sample_info.observations) as i32);
 
                     observations.entry(i).or_insert_with(|| Vec::new()).push({
-                        let obs: Counter<String> = sample_info
-                            .observations
-                            .iter()
-                            .map(|obs| {
-                                let score = match obs.bayes_factor_alt().evidence_kass_raftery() {
-                                    KassRaftery::Barely => 'B',
-                                    KassRaftery::None => 'N',
-                                    KassRaftery::Positive => 'P',
-                                    KassRaftery::Strong => 'S',
-                                    KassRaftery::VeryStrong => 'V',
-                                };
-                                format!(
-                                    "{}{}",
-                                    if obs.prob_mapping < LogProb(0.95_f64.ln()) {
-                                        score.to_ascii_lowercase()
-                                    } else {
-                                        score.to_ascii_uppercase()
-                                    },
-                                    match (obs.forward_strand, obs.reverse_strand) {
-                                        (true, true) => '*',
-                                        (false, true) => '-',
-                                        (true, false) => '+',
-                                        _ => panic!("bug: unknown strandedness"),
-                                    }
-                                )
-                            })
-                            .collect();
-
-                        join(
-                            obs.most_common()
-                                .into_iter()
-                                .map(|(score, count)| format!("{}{}", count, score)),
-                            "",
-                        )
+                        utils::generalized_cigar(sample_info.observations.iter().map(|obs| {
+                            let score = utils::evidence_kass_raftery_to_letter(
+                                obs.bayes_factor_alt().evidence_kass_raftery(),
+                            );
+                            format!(
+                                "{}{}",
+                                if obs.prob_mapping < LogProb(0.95_f64.ln()) {
+                                    score.to_ascii_lowercase()
+                                } else {
+                                    score.to_ascii_uppercase()
+                                },
+                                match (obs.forward_strand, obs.reverse_strand) {
+                                    (true, true) => '*',
+                                    (false, true) => '-',
+                                    (true, false) => '+',
+                                    _ => panic!("bug: unknown strandedness"),
+                                }
+                            )
+                        }))
                     })
                 }
 

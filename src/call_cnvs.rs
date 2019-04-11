@@ -9,7 +9,7 @@ use std::iter;
 use std::mem;
 use std::path::Path;
 
-use bio::stats::{hmm, LogProb, PHREDProb};
+use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb};
 use derive_builder::Builder;
 use itertools::Itertools;
 use itertools_num::linspace;
@@ -87,6 +87,12 @@ impl CallerBuilder {
                 .as_bytes(),
         );
         header.push_record(
+            "##INFO=<ID=OBS,Number=1,Type=String,Description=\"Bayes factors for per-locus CNV \
+             support as Kass Raftery scores: N=none, B=barely, P=positive, S=strong, V=very \
+             strong \">"
+                .as_bytes(),
+        );
+        header.push_record(
             "##FORMAT=<ID=LOCI_DP,Number=.,Type=Integer,Description=\"Depths of contained loci.\">"
                 .as_bytes(),
         );
@@ -153,11 +159,11 @@ impl Caller {
                     *rid,
                     states
                         .iter()
-                        .map(|state| hmm.states[**state])
                         .zip(calls.iter())
                         .group_by(|item| item.0)
                         .into_iter()
-                        .filter_map(|(cnv, group)| {
+                        .filter_map(|(&state, group)| {
+                            let cnv = hmm.states[*state];
                             if cnv.gain == 0 {
                                 return None;
                             }
@@ -168,6 +174,7 @@ impl Caller {
 
                                 // calculate posterior probability of no CNV
                                 let prob_no_cnv = hmm.prob_no_cnv(&group);
+                                let bayes_factors = hmm.bayes_factors(state, &group);
 
                                 Some(CNVCall {
                                     rid: *rid,
@@ -176,6 +183,7 @@ impl Caller {
                                     cnv: cnv,
                                     prob_no_cnv,
                                     calls: group,
+                                    bayes_factors: bayes_factors,
                                 })
                             } else {
                                 None
@@ -204,6 +212,7 @@ pub struct CNVCall<'a> {
     cnv: CNV,
     prob_no_cnv: LogProb,
     calls: Vec<&'a Call>,
+    bayes_factors: Vec<BayesFactor>,
 }
 
 impl<'a> CNVCall<'a> {
@@ -238,6 +247,13 @@ impl<'a> CNVCall<'a> {
         );
         record.push_format_float(b"LOCI_VAF", &loci_vaf)?;
         record.set_qual(*PHREDProb::from(self.prob_no_cnv) as f32);
+
+        let obs = utils::generalized_cigar(
+            self.bayes_factors
+                .iter()
+                .map(|bf| utils::evidence_kass_raftery_to_letter(bf.evidence_kass_raftery())),
+        );
+        record.push_info_string(b"OBS", &[obs.as_bytes()])?;
 
         Ok(())
     }
@@ -307,6 +323,19 @@ impl HMM {
         }
 
         LogProb::ln_sum_exp(&likelihoods)
+    }
+
+    pub fn bayes_factors(&self, state: hmm::State, observations: &[&Call]) -> Vec<BayesFactor> {
+        let null_state = self.state_by_gain.get(&0).unwrap()[0];
+        observations
+            .into_iter()
+            .map(|obs| {
+                BayesFactor::new(
+                    self.observation_prob(state, obs),
+                    self.observation_prob(null_state, obs),
+                )
+            })
+            .collect()
     }
 }
 

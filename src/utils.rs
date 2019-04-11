@@ -5,12 +5,16 @@
 
 use std::cmp;
 use std::error::Error;
+use std::fmt::Display;
 use std::fs;
+use std::hash::Hash;
 use std::ops::Range;
 use std::str;
 
 use bio::io::fasta;
-use bio::stats::{LogProb, PHREDProb};
+use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb};
+use counter::Counter;
+use itertools::join;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
@@ -22,6 +26,27 @@ use crate::BCFError;
 use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-3;
+
+pub fn generalized_cigar<T: Hash + Eq + Clone + Display>(items: impl Iterator<Item = T>) -> String {
+    let items: Counter<T> = items.collect();
+    join(
+        items
+            .most_common()
+            .into_iter()
+            .map(|(item, count)| format!("{}{}", count, item)),
+        "",
+    )
+}
+
+pub fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
+    match evidence {
+        KassRaftery::Barely => 'B',
+        KassRaftery::None => 'N',
+        KassRaftery::Positive => 'P',
+        KassRaftery::Strong => 'S',
+        KassRaftery::VeryStrong => 'V',
+    }
+}
 
 /// Collect variants from a given ´bcf::Record`.
 pub fn collect_variants(
