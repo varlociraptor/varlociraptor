@@ -144,8 +144,7 @@ impl Caller {
                 }
 
                 let call = Call::new(&mut record)?.unwrap();
-                if call.depth_normal >= MIN_DEPTH
-                {
+                if call.depth_normal >= MIN_DEPTH {
                     let region = if let Some(last_call) = last_call {
                         if call.rid == last_call.rid
                             && (call.start - last_call.start) <= self.max_dist
