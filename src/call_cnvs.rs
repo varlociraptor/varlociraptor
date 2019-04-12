@@ -586,23 +586,23 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_call() {
-        let call = Call {
-            prob_germline_het: LogProb::ln_one(),
-            allele_freq_tumor: AlleleFreq(1.0),
-            allele_freq_normal: AlleleFreq(0.5),
-            depth_tumor: 12,
-            depth_normal: 10,
-            start: 0,
-            rid: 0,
-        };
-
-        let cnv = CNV {
-            gain: 1,
-            allele_freq: AlleleFreq(1.0),
-            purity: 0.15,
-        };
-        // TODO add assertion
-    }
+    // #[test]
+    // fn test_call() {
+    //     let call = Call {
+    //         prob_germline_het: LogProb::ln_one(),
+    //         allele_freq_tumor: AlleleFreq(1.0),
+    //         allele_freq_normal: AlleleFreq(0.5),
+    //         depth_tumor: 12,
+    //         depth_normal: 10,
+    //         start: 0,
+    //         rid: 0,
+    //     };
+    //
+    //     let cnv = CNV {
+    //         gain: 1,
+    //         allele_freq: AlleleFreq(1.0),
+    //         purity: 0.15,
+    //     };
+    //     // TODO add assertion
+    // }
 }
