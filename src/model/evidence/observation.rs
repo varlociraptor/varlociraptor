@@ -14,23 +14,16 @@ use serde::Serialize;
 use bio::stats::LogProb;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
+use itertools::Itertools;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarString;
 
-/// Count fragments strongly supporting alt according to Bayes factors
-/// (method of Kass and Raftery 1995).
-///
-/// # Returns
-/// alt counts
-// pub fn count_observation_evidence(observations: &[Observation]) -> usize {
-//     let mut alt_support = 0;
-//     for obs in observations {
-//         if let KassRaftery::Strong >= obs.bayes_factor_alt().evidence_kass_raftery() {
-//             alt_support += 1;
-//         }
-//     }
-//     alt_support
-// }
+/// Calculate expected value of sequencing depth, considering mapping quality.
+pub fn expected_depth(obs: &[Observation]) -> u32 {
+    LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec())
+        .exp()
+        .round() as u32
+}
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder)]

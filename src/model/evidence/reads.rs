@@ -309,7 +309,7 @@ impl AbstractReadEvidence for IndelEvidence {
                 DeletionEmissionParams {
                     ref_seq: ref_seq,
                     ref_offset: start.saturating_sub(ref_window),
-                    ref_end: cmp::min(start + ref_window, ref_seq.len()),
+                    ref_end: cmp::min(start + ref_window, ref_seq.len() - variant.len() as usize),
                     del_start: start,
                     del_len: variant.len() as usize,
                     read_emission: &read_emission,

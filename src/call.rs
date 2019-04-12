@@ -9,9 +9,7 @@ use std::path::Path;
 use std::str;
 
 use bio::io::fasta;
-use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{bayesian, LogProb, PHREDProb};
-use counter::Counter;
 use derive_builder::Builder;
 use itertools::join;
 use itertools::Itertools;
@@ -19,6 +17,7 @@ use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
 use crate::model;
+use crate::model::evidence::observation::expected_depth;
 use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
 use crate::model::{AlleleFreq, AlleleFreqs, StrandBias};
@@ -193,7 +192,7 @@ where
         // register sample specific tags
         header.push_record(
             b"##FORMAT=<ID=DP,Number=A,Type=Integer,\
-              Description=\"Number of considered fragments (total depth)\">",
+              Description=\"Expected sequencing depth, while considering mapping uncertainty\">",
         );
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
@@ -323,20 +322,14 @@ where
                     obs_counts
                         .entry(i)
                         .or_insert_with(|| Vec::new())
-                        .push(sample_info.observations.len());
+                        .push(expected_depth(&sample_info.observations) as i32);
 
                     observations.entry(i).or_insert_with(|| Vec::new()).push({
-                        let obs: Counter<String> = sample_info
-                            .observations
-                            .iter()
-                            .map(|obs| {
-                                let score = match obs.bayes_factor_alt().evidence_kass_raftery() {
-                                    KassRaftery::Barely => 'B',
-                                    KassRaftery::None => 'N',
-                                    KassRaftery::Positive => 'P',
-                                    KassRaftery::Strong => 'S',
-                                    KassRaftery::VeryStrong => 'V',
-                                };
+                        utils::generalized_cigar(
+                            sample_info.observations.iter().map(|obs| {
+                                let score = utils::evidence_kass_raftery_to_letter(
+                                    obs.bayes_factor_alt().evidence_kass_raftery(),
+                                );
                                 format!(
                                     "{}{}",
                                     if obs.prob_mapping < LogProb(0.95_f64.ln()) {
@@ -351,14 +344,8 @@ where
                                         _ => panic!("bug: unknown strandedness"),
                                     }
                                 )
-                            })
-                            .collect();
-
-                        join(
-                            obs.most_common()
-                                .into_iter()
-                                .map(|(score, count)| format!("{}{}", count, score)),
-                            "",
+                            }),
+                            false,
                         )
                     })
                 }
@@ -385,18 +372,15 @@ where
                     .collect_vec();
                 record.push_info_float(event_tag_name(event).as_bytes(), &probs)?;
             }
+
             // set sample info
-            let dp = obs_counts
-                .values()
-                .flatten()
-                .map(|d| *d as i32)
-                .collect_vec();
+            let dp = obs_counts.values().flatten().cloned().collect_vec();
             record.push_format_integer(b"DP", &dp)?;
 
             let afs = allelefreq_estimates
                 .values()
-                .cloned()
                 .flatten()
+                .cloned()
                 .collect_vec();
             record.push_format_float(b"AF", &afs)?;
 
@@ -441,8 +425,6 @@ where
             return Ok(None);
         }
 
-        let chrom_seq = self.reference_buffer.seq(&chrom)?;
-
         let mut call = CallBuilder::default()
             .chrom(chrom.to_owned())
             .pos(start)
@@ -461,13 +443,13 @@ where
             if let Some(variant) = variant {
                 let mut pileups = Vec::new();
                 for sample in &mut self.samples {
+                    let chrom_seq = self.reference_buffer.seq(&chrom)?;
                     let pileup = sample.extract_observations(start, &variant, chrom, chrom_seq)?;
                     pileups.push(pileup);
                 }
 
-                // compute probabilities
+                // Compute probabilities for given events.
                 let m = self.model.compute(universe.iter().cloned(), &pileups);
-
                 let mut variant_builder = VariantBuilder::default();
 
                 // add calling results
@@ -522,6 +504,7 @@ where
                 let start = start as usize;
 
                 // add variant information
+                let chrom_seq = self.reference_buffer.seq(&chrom)?;
                 match variant {
                     model::Variant::Deletion(l) => {
                         let svlen = -(l as i32);

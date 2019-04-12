@@ -96,6 +96,7 @@ where
             } else {
                 0
             };
+
             Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)).idx(idx))
         } else {
             Err(errors::TestcaseError::InvalidLocus)?
@@ -106,6 +107,7 @@ where
         if self.bams.is_none() {
             self = self.bams(HashMap::new());
         }
+
         self.bams
             .as_mut()
             .unwrap()
@@ -126,6 +128,7 @@ where
         } else {
             None
         };
+
         let mut found = vec![];
         for res in self.candidate_reader.records() {
             let rec = res?;
@@ -202,6 +205,7 @@ where
         // first pass, extend reference interval
         for path in self.bams.values() {
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
+
             let tid = bam_reader.header().tid(chrom_name).unwrap();
             bam_reader.fetch(tid, start, end)?;
             for res in bam_reader.records() {
@@ -222,6 +226,7 @@ where
                 self.prefix.join(&filename),
                 &bam::Header::from_template(bam_reader.header()),
             )?;
+
             let tid = bam_reader.header().tid(chrom_name).unwrap();
 
             bam_reader.fetch(tid, start, end)?;

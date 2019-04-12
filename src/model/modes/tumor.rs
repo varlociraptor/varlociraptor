@@ -104,7 +104,7 @@ impl Posterior for TumorNormalPosterior {
                     joint_density(*event.tumor().allele_freqs.start)
                 } else {
                     LogProb::ln_simpsons_integrate_exp(
-                        joint_density,
+                        |_, af| joint_density(af),
                         *event.tumor().allele_freqs.observable_min(n_obs_tumor),
                         *event.tumor().allele_freqs.observable_max(n_obs_tumor),
                         grid_points_tumor,
@@ -119,7 +119,7 @@ impl Posterior for TumorNormalPosterior {
             density(*event.normal().allele_freqs.start)
         } else {
             LogProb::ln_simpsons_integrate_exp(
-                density,
+                |_, af| density(af),
                 *event.normal().allele_freqs.observable_min(n_obs_normal),
                 *event.normal().allele_freqs.observable_max(n_obs_normal),
                 grid_points_normal,
