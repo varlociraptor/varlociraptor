@@ -84,8 +84,7 @@ impl CallerBuilder {
                 .as_bytes(),
         );
         header.push_record(
-            "##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"CNV length.\">"
-                .as_bytes(),
+            "##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"CNV length.\">".as_bytes(),
         );
         header.push_record(
             "##INFO=<ID=LOCI,Number=1,Type=Integer,Description=\"Number of contained loci.\">"
@@ -147,15 +146,22 @@ impl Caller {
                 }
 
                 let call = Call::new(&mut record)?.unwrap();
-                if call.prob_germline_het >= min_prob_germline_het && call.depth_normal >= MIN_DEPTH {
+                if call.prob_germline_het >= min_prob_germline_het && call.depth_normal >= MIN_DEPTH
+                {
                     let region = if let Some(last_call) = last_call {
                         if call.rid == last_call.rid && (call.start - last_call.start) <= max_dist {
                             curr_region.unwrap()
                         } else {
-                            Region { rid: call.rid, start: call.start }
+                            Region {
+                                rid: call.rid,
+                                start: call.start,
+                            }
                         }
                     } else {
-                        Region { rid: call.rid, start: call.start }
+                        Region {
+                            rid: call.rid,
+                            start: call.start,
+                        }
                     };
                     curr_region = Some(region);
                     calls.entry(region).or_insert_with(Vec::new).push(call);
@@ -266,12 +272,12 @@ impl<'a> CNVCall<'a> {
         let mut loci_dp = Vec::new();
         loci_dp.extend(self.calls.iter().map(|call| call.depth_tumor as i32));
         loci_dp.extend(
-             self.calls
-                 .iter()
-                 .map(|call| (call.depth_normal as f64 * depth_norm_factor).round() as i32),
+            self.calls
+                .iter()
+                .map(|call| (call.depth_normal as f64 * depth_norm_factor).round() as i32),
         );
         record.push_format_integer(b"LOCI_DP", &loci_dp)?;
-        
+
         let mut loci_vaf = Vec::new();
         loci_vaf.extend(self.calls.iter().map(|call| *call.allele_freq_tumor as f32));
         loci_vaf.extend(
