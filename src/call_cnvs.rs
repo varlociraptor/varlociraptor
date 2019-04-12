@@ -128,8 +128,6 @@ impl CallerBuilder {
 
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
-        let min_prob_germline_het = LogProb(0.8_f64.ln());
-
         // obtain records
         let mut calls = HashMap::new();
         {
@@ -146,7 +144,7 @@ impl Caller {
                 }
 
                 let call = Call::new(&mut record)?.unwrap();
-                if call.prob_germline_het >= min_prob_germline_het && call.depth_normal >= MIN_DEPTH
+                if call.depth_normal >= MIN_DEPTH
                 {
                     let region = if let Some(last_call) = last_call {
                         if call.rid == last_call.rid
