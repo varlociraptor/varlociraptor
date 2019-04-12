@@ -142,7 +142,7 @@ pub enum Varlociraptor {
         )]
         normal_alignment_properties: Option<PathBuf>,
     },
-    #[structopt(name = "call-cnvs", about = "Call CNVs in tumor-normal sample pairs.")]
+    #[structopt(name = "call-cnvs", about = "Call CNVs in tumor-normal sample pairs. This is experimental.")]
     #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     CallCNVs {
         #[structopt(
