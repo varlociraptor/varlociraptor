@@ -49,6 +49,7 @@ pub struct Caller {
     bcf_writer: bcf::Writer,
     prior: LogProb,
     purity: f64,
+    max_dist: u32,
 }
 
 impl CallerBuilder {
@@ -127,8 +128,7 @@ impl CallerBuilder {
 
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
-        let min_prob_germline_het = LogProb(0.95_f64.ln());
-        let max_dist = 1000;
+        let min_prob_germline_het = LogProb(0.8_f64.ln());
 
         // obtain records
         let mut calls = HashMap::new();
@@ -149,7 +149,9 @@ impl Caller {
                 if call.prob_germline_het >= min_prob_germline_het && call.depth_normal >= MIN_DEPTH
                 {
                     let region = if let Some(last_call) = last_call {
-                        if call.rid == last_call.rid && (call.start - last_call.start) <= max_dist {
+                        if call.rid == last_call.rid
+                            && (call.start - last_call.start) <= self.max_dist
+                        {
                             curr_region.unwrap()
                         } else {
                             Region {
@@ -424,14 +426,10 @@ impl hmm::Model<Call> for HMM {
 
         // handle allele freq changes
         let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
-            let p = (prob05 + call.prob_allele_freq_tumor(alt_af) + call.prob_germline_het)
-                .ln_add_exp(
-                    prob05
-                        + call.prob_allele_freq_tumor(
-                            cnv.expected_allele_freq_ref_affected().unwrap(),
-                        ),
-                );
-            (call.prob_germline_het + p).ln_add_exp(call.prob_germline_het.ln_one_minus_exp())
+            let ref_af = cnv.expected_allele_freq_ref_affected().unwrap();
+
+            (prob05 + call.prob_allele_freq_tumor(alt_af))
+                .ln_add_exp(prob05 + call.prob_allele_freq_tumor(ref_af))
         } else {
             LogProb::ln_one()
         };
@@ -441,7 +439,8 @@ impl hmm::Model<Call> for HMM {
             call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor(),
         );
 
-        prob_af + prob_depth
+        (call.prob_germline_het + prob_af + prob_depth)
+            .ln_add_exp(call.prob_germline_het.ln_one_minus_exp())
     }
 }
 

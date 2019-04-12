@@ -142,7 +142,10 @@ pub enum Varlociraptor {
         )]
         normal_alignment_properties: Option<PathBuf>,
     },
-    #[structopt(name = "call-cnvs", about = "Call CNVs in tumor-normal sample pairs. This is experimental.")]
+    #[structopt(
+        name = "call-cnvs",
+        about = "Call CNVs in tumor-normal sample pairs. This is experimental."
+    )]
     #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     CallCNVs {
         #[structopt(
@@ -166,6 +169,12 @@ pub enum Varlociraptor {
             help = "Prior probability for CNV. This can be any small enough value."
         )]
         prior: f64,
+        #[structopt(
+            long,
+            default_value = "1000",
+            help = "Maximum distance between supporting loci in a CNV."
+        )]
+        max_dist: u32,
         #[structopt(long, short = "t", help = "Number of threads to use.")]
         threads: usize,
     },
@@ -373,6 +382,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
             prior,
             threads,
             purity,
+            max_dist,
         } => {
             rayon::ThreadPoolBuilder::new()
                 .num_threads(threads)
@@ -382,6 +392,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                 .bcfs(calls.as_ref(), output.as_ref())?
                 .prior(LogProb::from(prior))
                 .purity(purity)
+                .max_dist(max_dist)
                 .build()?;
             caller.call()?;
         }
