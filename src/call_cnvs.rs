@@ -18,8 +18,8 @@ use rayon::prelude::*;
 use rgsl::randist::binomial::binomial_pdf;
 use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
-use rust_htslib::bcf::Read;
 use rust_htslib::bcf::record::Numeric;
+use rust_htslib::bcf::Read;
 
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
@@ -144,28 +144,29 @@ impl Caller {
                     }
                 }
 
-                let call = Call::new(&mut record)?.unwrap();
-                if call.depth_normal >= MIN_DEPTH {
-                    let region = if let Some(last_call) = last_call {
-                        if call.rid == last_call.rid
-                            && (call.start - last_call.start) <= self.max_dist
-                        {
-                            curr_region.unwrap()
+                if let Some(call) = Call::new(&mut record)? {
+                    if call.depth_normal >= MIN_DEPTH {
+                        let region = if let Some(last_call) = last_call {
+                            if call.rid == last_call.rid
+                                && (call.start - last_call.start) <= self.max_dist
+                            {
+                                curr_region.unwrap()
+                            } else {
+                                Region {
+                                    rid: call.rid,
+                                    start: call.start,
+                                }
+                            }
                         } else {
                             Region {
                                 rid: call.rid,
                                 start: call.start,
                             }
-                        }
-                    } else {
-                        Region {
-                            rid: call.rid,
-                            start: call.start,
-                        }
-                    };
-                    curr_region = Some(region);
-                    calls.entry(region).or_insert_with(Vec::new).push(call);
-                    last_call = Some(calls.get(&region).unwrap().last().unwrap());
+                        };
+                        curr_region = Some(region);
+                        calls.entry(region).or_insert_with(Vec::new).push(call);
+                        last_call = Some(calls.get(&region).unwrap().last().unwrap());
+                    }
                 }
             }
         };
@@ -502,10 +503,17 @@ pub struct Call {
 
 impl Call {
     pub fn new(record: &mut bcf::Record) -> Result<Option<Self>, Box<Error>> {
+        let pos = record.pos();
         let prob_germline_het = record.info(b"PROB_GERMLINE_HET").float()?;
-        if let Some(prob_germline_het) = prob_germline_het {
-            if !prob_germline_het[0].is_missing() {
-                let prob_germline_het = LogProb::from(PHREDProb(prob_germline_het[0] as f64));
+        if let Some(_prob_germline_het) = prob_germline_het {
+            if !_prob_germline_het[0].is_missing() && !_prob_germline_het[0].is_nan() {
+                let prob_germline_het = LogProb::from(PHREDProb(_prob_germline_het[0] as f64));
+                assert!(
+                    *prob_germline_het <= 0.0,
+                    "invalid prob_germline_het: {}, POS: {}",
+                    _prob_germline_het[0],
+                    pos
+                );
                 let depths = record
                     .format(b"DP")
                     .integer()?
@@ -522,7 +530,7 @@ impl Call {
                     prob_germline_het: prob_germline_het,
                     start: record.pos(),
                     rid: record.rid().unwrap(),
-                }))
+                }));
             }
         }
 
