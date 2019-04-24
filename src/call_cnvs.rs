@@ -9,7 +9,7 @@ use std::iter;
 use std::mem;
 use std::path::Path;
 
-use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb};
+use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb, Prob};
 use derive_builder::Builder;
 use itertools::join;
 use itertools::Itertools;
@@ -311,13 +311,15 @@ pub struct HMM {
     depth_norm_factor: f64,
     prob_keep_state: LogProb,
     prob_change_state: LogProb,
+    prob_change_to_null_state: LogProb,
 }
 
 impl HMM {
     fn new(depth_norm_factor: f64, min_bayes_factor: f64, purity: f64) -> Self {
+        let n_allele_freqs = 10;
         let mut states = Vec::new();
         let mut state_by_gain = HashMap::new();
-        for allele_freq in linspace(0.1, 1.0, 10) {
+        for allele_freq in linspace(0.1, 1.0, n_allele_freqs) {
             for gain in -2..MAX_GAIN {
                 if gain != 0 || allele_freq == 1.0 {
                     let cnv = CNV {
@@ -336,14 +338,17 @@ impl HMM {
 
         // METHOD:
         // We choose the probability to keep a state to be higher than the probability
-        // to switch a state. The amount is defined by an epsilon, which is derived from the
+        // to switch a state. In addition, we want the switch to the null state to be as likely
+        // as keeping the state. The amount is defined by an epsilon, which is derived from the
         // minimum bayes factor over the products of emission probabilities between
         // two stretches of two different states.
         assert!(min_bayes_factor > 1.0);
         let n = states.len() as f64;
         let epsilon = min_bayes_factor - 1.0;
-        let prob_keep_state = LogProb(((1.0 + epsilon) / (n + epsilon)).ln());
-        let prob_change_state = LogProb((1.0 / (n + epsilon)).ln());
+        let denominator = (n + 2.0 * epsilon).ln();
+        let prob_keep_state = LogProb((1.0 + epsilon).ln() - denominator);
+        let prob_change_state = LogProb(1.0_f64.ln() - denominator);
+        let prob_change_to_null_state = prob_keep_state;
 
         HMM {
             states,
@@ -351,6 +356,7 @@ impl HMM {
             depth_norm_factor,
             prob_keep_state,
             prob_change_state,
+            prob_change_to_null_state
         }
     }
 
@@ -379,17 +385,41 @@ impl HMM {
         LogProb::ln_sum_exp(&likelihoods)
     }
 
+    pub fn null_state(&self) -> hmm::State {
+        self.state_by_gain.get(&0).unwrap()[0]
+    }
+
     pub fn bayes_factors(&self, state: hmm::State, observations: &[&Call]) -> Vec<BayesFactor> {
-        let null_state = self.state_by_gain.get(&0).unwrap()[0];
+        let null_state = self.null_state();
         observations
             .into_iter()
             .map(|obs| {
                 BayesFactor::new(
-                    self.observation_prob(null_state, obs),
                     self.observation_prob(state, obs),
+                    self.observation_prob(null_state, obs),
                 )
             })
             .collect()
+    }
+
+    fn prob_af_depth(&self, state: hmm::State, call: &Call) -> LogProb {
+        let cnv = self.states[*state];
+        let prob05 = LogProb(0.5f64.ln());
+
+        // handle allele freq changes
+        let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
+            let ref_af = cnv.expected_allele_freq_ref_affected().unwrap();
+
+            prob05 + call.prob_allele_freq_tumor(alt_af).ln_add_exp(call.prob_allele_freq_tumor(ref_af))
+        } else {
+            LogProb::ln_one()
+        };
+
+        // handle depth changes
+        let prob_depth = call.prob_depth_tumor(
+            call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor(),
+        );
+        prob_af + prob_depth
     }
 }
 
@@ -409,6 +439,8 @@ impl hmm::Model<Call> for HMM {
     fn transition_prob(&self, from: hmm::State, to: hmm::State) -> LogProb {
         if from == to {
             self.prob_keep_state
+        } else if to == self.null_state() {
+            self.prob_change_to_null_state
         } else {
             self.prob_change_state
         }
@@ -419,26 +451,10 @@ impl hmm::Model<Call> for HMM {
     }
 
     fn observation_prob(&self, state: hmm::State, call: &Call) -> LogProb {
-        let cnv = self.states[*state];
-        let prob05 = LogProb(0.5f64.ln());
-
-        // handle allele freq changes
-        let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
-            let ref_af = cnv.expected_allele_freq_ref_affected().unwrap();
-
-            (prob05 + call.prob_allele_freq_tumor(alt_af))
-                .ln_add_exp(prob05 + call.prob_allele_freq_tumor(ref_af))
-        } else {
-            LogProb::ln_one()
-        };
-
-        // handle depth changes
-        let prob_depth = call.prob_depth_tumor(
-            call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor(),
-        );
-
-        (call.prob_germline_het + prob_af + prob_depth)
-            .ln_add_exp(call.prob_germline_het.ln_one_minus_exp())
+        let prob_af_depth = self.prob_af_depth(state, call);
+        let prob_null = self.prob_af_depth(self.null_state(), call);
+        (call.prob_germline_het + prob_af_depth)
+            .ln_add_exp(call.prob_germline_het.ln_one_minus_exp() + prob_null)
     }
 }
 
@@ -450,11 +466,6 @@ pub fn likelihood<'a, O: 'a>(
     let mut from = None;
     let mut p = LogProb::ln_one();
     for (state, obs) in states.into_iter().zip(observations) {
-        if let Some(from) = from {
-            p += hmm.transition_prob(from, state);
-        } else {
-            p = hmm.initial_prob(state);
-        }
         p += hmm.observation_prob(state, obs);
         from = Some(state);
     }
@@ -521,16 +532,17 @@ impl Call {
                     .map(|d| d[0] as u32)
                     .collect_vec();
                 let allele_freqs = record.format(b"AF").float()?;
-
-                return Ok(Some(Call {
-                    allele_freq_tumor: AlleleFreq(allele_freqs.tumor()[0] as f64),
-                    allele_freq_normal: AlleleFreq(allele_freqs.normal()[0] as f64),
-                    depth_tumor: *depths.tumor(),
-                    depth_normal: *depths.normal(),
-                    prob_germline_het: prob_germline_het,
-                    start: record.pos(),
-                    rid: record.rid().unwrap(),
-                }));
+                if prob_germline_het >= LogProb::from(Prob(0.5)) {
+                    return Ok(Some(Call {
+                        allele_freq_tumor: AlleleFreq(allele_freqs.tumor()[0] as f64),
+                        allele_freq_normal: AlleleFreq(allele_freqs.normal()[0] as f64),
+                        depth_tumor: *depths.tumor(),
+                        depth_normal: *depths.normal(),
+                        prob_germline_het: prob_germline_het,
+                        start: record.pos(),
+                        rid: record.rid().unwrap(),
+                    }));
+                }
             }
         }
 
@@ -539,6 +551,10 @@ impl Call {
 
     pub fn prob_allele_freq_tumor(&self, true_allele_freq: AlleleFreq) -> LogProb {
         allele_freq_pdf(self.allele_freq_tumor, true_allele_freq, self.depth_tumor)
+    }
+
+    pub fn prob_allele_freq_normal_het(&self) -> LogProb {
+        allele_freq_pdf(self.allele_freq_normal, AlleleFreq(0.5), self.depth_normal)
     }
 
     pub fn prob_depth_tumor(&self, true_depth: f64) -> LogProb {
