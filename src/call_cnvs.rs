@@ -311,7 +311,6 @@ pub struct HMM {
     depth_norm_factor: f64,
     prob_keep_state: LogProb,
     prob_change_state: LogProb,
-    prob_change_to_null_state: LogProb,
 }
 
 impl HMM {
@@ -345,10 +344,9 @@ impl HMM {
         assert!(min_bayes_factor > 1.0);
         let n = states.len() as f64;
         let epsilon = min_bayes_factor - 1.0;
-        let denominator = (n + 2.0 * epsilon).ln();
-        let prob_keep_state = LogProb((1.0 + epsilon).ln() - denominator);
-        let prob_change_state = LogProb(1.0_f64.ln() - denominator);
-        let prob_change_to_null_state = prob_keep_state;
+        let denominator = n + epsilon;
+        let prob_keep_state = LogProb::from(Prob((1.0 + epsilon) / denominator));
+        let prob_change_state = LogProb::from(Prob(1.0 / denominator));
 
         HMM {
             states,
@@ -439,8 +437,6 @@ impl hmm::Model<Call> for HMM {
     fn transition_prob(&self, from: hmm::State, to: hmm::State) -> LogProb {
         if from == to {
             self.prob_keep_state
-        } else if to == self.null_state() {
-            self.prob_change_to_null_state
         } else {
             self.prob_change_state
         }
@@ -524,6 +520,8 @@ impl Call {
                     "invalid prob_germline_het: {}, POS: {}",
                     _prob_germline_het[0],
                     pos
+                );
+                let depths = record
                 );
                 let depths = record
                     .format(b"DP")
