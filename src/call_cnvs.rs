@@ -89,6 +89,9 @@ impl CallerBuilder {
             "##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"CNV length.\">".as_bytes(),
         );
         header.push_record(
+            "##INFO=<ID=SVTYPE,Number=1,Type=Integer,Description=\"SV type.\">".as_bytes(),
+        );
+        header.push_record(
             "##INFO=<ID=LOCI,Number=1,Type=Integer,Description=\"Number of contained loci.\">"
                 .as_bytes(),
         );
@@ -269,6 +272,7 @@ impl<'a> CNVCall<'a> {
         record.push_info_integer(b"CN", &[2 + self.cnv.gain])?;
         record.push_info_float(b"VAF", &[*self.cnv.allele_freq as f32])?;
         record.push_info_integer(b"LOCI", &[self.calls.len() as i32])?;
+        record.push_info_string(b"SVTYPE", &[b"CNV"])?;
 
         let mut loci_dp = Vec::new();
         loci_dp.extend(self.calls.iter().map(|call| call.depth_tumor as i32));
