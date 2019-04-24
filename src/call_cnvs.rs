@@ -358,7 +358,6 @@ impl HMM {
             depth_norm_factor,
             prob_keep_state,
             prob_change_state,
-            prob_change_to_null_state
         }
     }
 
@@ -463,11 +462,9 @@ pub fn likelihood<'a, O: 'a>(
     states: impl IntoIterator<Item = hmm::State>,
     observations: impl Iterator<Item = &'a O>,
 ) -> LogProb {
-    let mut from = None;
     let mut p = LogProb::ln_one();
     for (state, obs) in states.into_iter().zip(observations) {
         p += hmm.observation_prob(state, obs);
-        from = Some(state);
     }
 
     p
@@ -524,8 +521,6 @@ impl Call {
                     "invalid prob_germline_het: {}, POS: {}",
                     _prob_germline_het[0],
                     pos
-                );
-                let depths = record
                 );
                 let depths = record
                     .format(b"DP")
