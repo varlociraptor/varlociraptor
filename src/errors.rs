@@ -7,3 +7,7 @@ custom_error! {pub TestcaseError
     InvalidLocus = "invalid locus for --testcase-locus. Use CHROM:POS syntax",
     InvalidIndex = "invalid variant index given, must be not higher than the number of variants at the locus",
 }
+
+custom_error! {pub CallCNVError
+    InvalidMinBayesFactor = "invalid minimum bayes factor, must be > 1.0",
+}

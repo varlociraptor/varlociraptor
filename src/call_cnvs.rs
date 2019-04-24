@@ -47,7 +47,7 @@ pub struct Caller {
     bcf_reader: bcf::Reader,
     #[builder(private)]
     bcf_writer: bcf::Writer,
-    prior: LogProb,
+    min_bayes_factor: f64,
     purity: f64,
     max_dist: u32,
 }
@@ -177,12 +177,12 @@ impl Caller {
         let mean_depth_normal = mean_depth(&|call: &Call| call.depth_normal);
         let depth_norm_factor = mean_depth_tumor / mean_depth_normal;
 
-        let prior = self.prior;
+        let min_bayes_factor = self.min_bayes_factor;
         let purity = self.purity;
         let cnv_calls: BTreeMap<_, _> = calls
             .par_iter()
             .map(|(region, calls)| {
-                let hmm = HMM::new(depth_norm_factor, prior, purity);
+                let hmm = HMM::new(depth_norm_factor, min_bayes_factor, purity);
 
                 let (states, _prob) = hmm::viterbi(&hmm, calls);
 
@@ -307,12 +307,12 @@ pub struct HMM {
     states: Vec<CNV>,
     state_by_gain: HashMap<i32, Vec<hmm::State>>,
     depth_norm_factor: f64,
-    prob_cnv: LogProb,
-    prob_no_cnv: LogProb,
+    prob_keep_state: LogProb,
+    prob_change_state: LogProb,
 }
 
 impl HMM {
-    fn new(depth_norm_factor: f64, prob_cnv: LogProb, purity: f64) -> Self {
+    fn new(depth_norm_factor: f64, min_bayes_factor: f64, purity: f64) -> Self {
         let mut states = Vec::new();
         let mut state_by_gain = HashMap::new();
         for allele_freq in linspace(0.1, 1.0, 10) {
@@ -331,16 +331,24 @@ impl HMM {
                 }
             }
         }
-        let prob_no_cnv = prob_cnv.ln_one_minus_exp();
-        // we have states.len() different possible CNVs (TODO, this is likely wrong)
-        let prob_cnv = prob_cnv - LogProb((states.len() as f64 - 1.0).ln());
+
+        // METHOD:
+        // We choose the probability to keep a state to be higher than the probability
+        // to switch a state. The amount is defined by an epsilon, which is derived from the
+        // minimum bayes factor over the products of emission probabilities between
+        // two stretches of two different states.
+        assert!(min_bayes_factor > 1.0);
+        let n = states.len() as f64;
+        let epsilon = min_bayes_factor - 1.0;
+        let prob_keep_state = LogProb(((1.0 + epsilon) / (n + epsilon)).ln());
+        let prob_change_state = LogProb((1.0 / (n + epsilon)).ln());
 
         HMM {
             states,
             state_by_gain,
             depth_norm_factor,
-            prob_cnv: prob_cnv,
-            prob_no_cnv,
+            prob_keep_state,
+            prob_change_state,
         }
     }
 
@@ -397,24 +405,15 @@ impl hmm::Model<Call> for HMM {
     }
 
     fn transition_prob(&self, from: hmm::State, to: hmm::State) -> LogProb {
-        let from = self.states[*from];
-        let to = self.states[*to];
         if from == to {
-            LogProb(0.5f64.ln()) + self.prob_no_cnv
-        } else if to.gain == 0 {
-            LogProb(0.5f64.ln()) + self.prob_no_cnv
+            self.prob_keep_state
         } else {
-            self.prob_cnv
+            self.prob_change_state
         }
     }
 
-    fn initial_prob(&self, state: hmm::State) -> LogProb {
-        let state = self.states[*state];
-        if state.gain == 0 {
-            self.prob_no_cnv
-        } else {
-            self.prob_cnv
-        }
+    fn initial_prob(&self, _: hmm::State) -> LogProb {
+        LogProb((1.0 / self.states.len() as f64).ln())
     }
 
     fn observation_prob(&self, state: hmm::State, call: &Call) -> LogProb {
