@@ -19,6 +19,7 @@ use rgsl::randist::binomial::binomial_pdf;
 use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
+use rust_htslib::bcf::record::Numeric;
 
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
@@ -503,27 +504,29 @@ impl Call {
     pub fn new(record: &mut bcf::Record) -> Result<Option<Self>, Box<Error>> {
         let prob_germline_het = record.info(b"PROB_GERMLINE_HET").float()?;
         if let Some(prob_germline_het) = prob_germline_het {
-            let prob_germline_het = LogProb::from(PHREDProb(prob_germline_het[0] as f64));
-            let depths = record
-                .format(b"DP")
-                .integer()?
-                .into_iter()
-                .map(|d| d[0] as u32)
-                .collect_vec();
-            let allele_freqs = record.format(b"AF").float()?;
+            if !prob_germline_het[0].is_missing() {
+                let prob_germline_het = LogProb::from(PHREDProb(prob_germline_het[0] as f64));
+                let depths = record
+                    .format(b"DP")
+                    .integer()?
+                    .into_iter()
+                    .map(|d| d[0] as u32)
+                    .collect_vec();
+                let allele_freqs = record.format(b"AF").float()?;
 
-            Ok(Some(Call {
-                allele_freq_tumor: AlleleFreq(allele_freqs.tumor()[0] as f64),
-                allele_freq_normal: AlleleFreq(allele_freqs.normal()[0] as f64),
-                depth_tumor: *depths.tumor(),
-                depth_normal: *depths.normal(),
-                prob_germline_het: prob_germline_het,
-                start: record.pos(),
-                rid: record.rid().unwrap(),
-            }))
-        } else {
-            Ok(None)
+                return Ok(Some(Call {
+                    allele_freq_tumor: AlleleFreq(allele_freqs.tumor()[0] as f64),
+                    allele_freq_normal: AlleleFreq(allele_freqs.normal()[0] as f64),
+                    depth_tumor: *depths.tumor(),
+                    depth_normal: *depths.normal(),
+                    prob_germline_het: prob_germline_het,
+                    start: record.pos(),
+                    rid: record.rid().unwrap(),
+                }))
+            }
         }
+
+        Ok(None)
     }
 
     pub fn prob_allele_freq_tumor(&self, true_allele_freq: AlleleFreq) -> LogProb {
