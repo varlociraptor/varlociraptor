@@ -75,6 +75,10 @@ impl CallerBuilder {
         }
 
         header.push_record(
+            "##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">"
+                .as_bytes()
+        );
+        header.push_record(
             "##INFO=<ID=CN,Number=1,Type=Integer,Description=\"Copy number in tumor sample\">"
                 .as_bytes(),
         );
@@ -85,6 +89,16 @@ impl CallerBuilder {
         );
         header.push_record(
             "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End of copy number variation.\">"
+                .as_bytes(),
+        );
+        header.push_record(
+            "##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS \
+             for imprecise variants\">"
+                .as_bytes(),
+        );
+        header.push_record(
+            "##INFO=<ID=CIEND,Number=2,Type=Integer,Description=\"Confidence interval around END \
+             for imprecise variants\">"
                 .as_bytes(),
         );
         header.push_record(
@@ -160,7 +174,6 @@ impl Caller {
                     }
                 }
             }
-
             // add next and prev pos to calls
             for i in 0.._calls.len() {
                 if i > 0 {
@@ -306,6 +319,7 @@ impl<'a> CNVCall<'a> {
         record.push_info_float(b"VAF", &[*self.cnv.allele_freq as f32])?;
         record.push_info_integer(b"LOCI", &[self.calls.len() as i32])?;
         record.push_info_string(b"SVTYPE", &[b"CNV"])?;
+        record.push_info_flag(b"IMPRECISE")?;
         record.push_info_integer(
             b"CIPOS",
             &[
