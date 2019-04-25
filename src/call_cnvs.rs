@@ -51,6 +51,8 @@ pub struct Caller {
     min_bayes_factor: f64,
     purity: f64,
     max_dist: u32,
+    #[builder(private)]
+    contig_lens: HashMap<Vec<u8>, u32>,
 }
 
 impl CallerBuilder {
@@ -110,17 +112,21 @@ impl CallerBuilder {
                 .as_bytes(),
         );
 
+        let mut contig_lens = HashMap::new();
         // register sequences
         for rec in bcf_reader.header().header_records() {
             match rec {
                 bcf::header::HeaderRecord::Contig { values, .. } => {
                     let name = values.get("ID").unwrap();
                     let len = values.get("length").unwrap();
+                    contig_lens.insert(name.clone().into_bytes(), len.parse()?);
                     header.push_record(format!("##contig=<ID={},length={}>", name, len).as_bytes());
                 }
                 _ => (),
             }
         }
+
+        self = self.contig_lens(contig_lens);
 
         Ok(self.bcf_writer(if let Some(path) = out_path {
             bcf::Writer::from_path(path, &header, false, false)?
@@ -133,11 +139,12 @@ impl CallerBuilder {
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
         // obtain records
-        let mut calls = HashMap::new();
-        {
+
+        let calls = {
             let mut record = self.bcf_reader.empty_record();
             let mut last_call: Option<&Call> = None;
             let mut curr_region = None;
+            let mut _calls = Vec::new();
             loop {
                 if let Err(e) = self.bcf_reader.read(&mut record) {
                     if e.is_eof() {
@@ -149,29 +156,45 @@ impl Caller {
 
                 if let Some(call) = Call::new(&mut record)? {
                     if call.depth_normal >= MIN_DEPTH {
-                        let region = if let Some(last_call) = last_call {
-                            if call.rid == last_call.rid
-                                && (call.start - last_call.start) <= self.max_dist
-                            {
-                                curr_region.unwrap()
-                            } else {
-                                Region {
-                                    rid: call.rid,
-                                    start: call.start,
-                                }
-                            }
-                        } else {
-                            Region {
-                                rid: call.rid,
-                                start: call.start,
-                            }
-                        };
-                        curr_region = Some(region);
-                        calls.entry(region).or_insert_with(Vec::new).push(call);
-                        last_call = Some(calls.get(&region).unwrap().last().unwrap());
+                        _calls.push(call);
                     }
                 }
             }
+
+            // add next and prev pos to calls
+            for i in 0.._calls.len() {
+                if i > 0 {
+                    _calls[i].prev_start = Some(_calls[i - 1].start);
+                }
+                if i < _calls.len() - 1 {
+                    _calls[i].next_start = Some(_calls[i + 1].start);
+                }
+            }
+
+            let mut calls = HashMap::new();
+
+            for call in _calls {
+                let region = if let Some(last_call) = last_call {
+                    if call.rid == last_call.rid && (call.start - last_call.start) <= self.max_dist
+                    {
+                        curr_region.unwrap()
+                    } else {
+                        Region {
+                            rid: call.rid,
+                            start: call.start,
+                        }
+                    }
+                } else {
+                    Region {
+                        rid: call.rid,
+                        start: call.start,
+                    }
+                };
+                curr_region = Some(region);
+                calls.entry(region).or_insert_with(Vec::new).push(call);
+                last_call = Some(calls.get(&region).unwrap().last().unwrap());
+            }
+            calls
         };
 
         // normalization
@@ -213,6 +236,8 @@ impl Caller {
                                 let bayes_factors = hmm.bayes_factors(state, &group);
 
                                 Some(CNVCall {
+                                    prev_pos: first_call.prev_start,
+                                    next_pos: last_call.next_start,
                                     pos: first_call.start,
                                     end: last_call.start + 1,
                                     cnv: cnv,
@@ -234,7 +259,12 @@ impl Caller {
             let rid = self.bcf_writer.header().name2rid(contig)?;
             for call in calls {
                 let mut record = self.bcf_writer.empty_record();
-                call.write(rid, &mut record, depth_norm_factor)?;
+                call.write(
+                    rid,
+                    &mut record,
+                    depth_norm_factor,
+                    *self.contig_lens.get(contig).unwrap(),
+                )?;
                 self.bcf_writer.write(&record)?;
             }
         }
@@ -249,6 +279,8 @@ pub struct Region {
 }
 
 pub struct CNVCall<'a> {
+    prev_pos: Option<u32>,
+    next_pos: Option<u32>,
     pos: u32,
     end: u32,
     cnv: CNV,
@@ -263,6 +295,7 @@ impl<'a> CNVCall<'a> {
         rid: u32,
         record: &mut bcf::Record,
         depth_norm_factor: f64,
+        contig_len: u32,
     ) -> Result<(), Box<Error>> {
         record.set_rid(&Some(rid));
         record.set_pos(self.pos as i32);
@@ -273,6 +306,28 @@ impl<'a> CNVCall<'a> {
         record.push_info_float(b"VAF", &[*self.cnv.allele_freq as f32])?;
         record.push_info_integer(b"LOCI", &[self.calls.len() as i32])?;
         record.push_info_string(b"SVTYPE", &[b"CNV"])?;
+        record.push_info_integer(
+            b"CIPOS",
+            &[
+                if let Some(prev_pos) = self.prev_pos {
+                    -((self.pos - prev_pos) as i32)
+                } else {
+                    -(self.pos as i32)
+                },
+                0,
+            ],
+        )?;
+        record.push_info_integer(
+            b"CIEND",
+            &[
+                0,
+                if let Some(next_pos) = self.next_pos {
+                    (next_pos - self.end) as i32
+                } else {
+                    (contig_len - self.end) as i32
+                },
+            ],
+        )?;
 
         let mut loci_dp = Vec::new();
         loci_dp.extend(self.calls.iter().map(|call| call.depth_tumor as i32));
@@ -411,7 +466,10 @@ impl HMM {
         let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
             let ref_af = cnv.expected_allele_freq_ref_affected().unwrap();
 
-            prob05 + call.prob_allele_freq_tumor(alt_af).ln_add_exp(call.prob_allele_freq_tumor(ref_af))
+            prob05
+                + call
+                    .prob_allele_freq_tumor(alt_af)
+                    .ln_add_exp(call.prob_allele_freq_tumor(ref_af))
         } else {
             LogProb::ln_one()
         };
@@ -507,6 +565,8 @@ pub struct Call {
     depth_normal: u32,
     start: u32,
     rid: u32,
+    prev_start: Option<u32>,
+    next_start: Option<u32>,
 }
 
 impl Call {
@@ -538,6 +598,8 @@ impl Call {
                         prob_germline_het: prob_germline_het,
                         start: record.pos(),
                         rid: record.rid().unwrap(),
+                        prev_start: None,
+                        next_start: None,
                     }));
                 }
             }
