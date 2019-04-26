@@ -1,5 +1,7 @@
 use std::ops;
 
+use crate::model::ContinuousAlleleFreqs;
+
 pub struct Grammar {
     events: Vec<Event>,
     samples: Vec<Sample>,
@@ -19,7 +21,7 @@ pub enum Range {
 }
 
 impl Into<ContinuousAlleleFreqs> for Range {
-    fn into(&self) -> ContinuousAlleleFreqs {
+    fn into(self) -> ContinuousAlleleFreqs {
         match self {
             Range::Singleton(vaf) => ContinuousAlleleFreqs::singleton(vaf),
             Range::Exclusive(vafs) => ContinuousAlleleFreqs::exclusive(vafs),
@@ -27,12 +29,6 @@ impl Into<ContinuousAlleleFreqs> for Range {
             Range::LeftExclusive(vafs) => ContinuousAlleleFreqs::left_exclusive(vafs),
             Range::RightExclusive(vafs) => ContinuousAlleleFreqs::right_exclusive(vafs),
         }
-    }
-}
-
-impl Into<Vec<ContinuousAlleleFreqs>> for Vec<Range> {
-    fn into(&self) -> Vec<ContinuousAlleleFreqs> {
-        self.iter().map(|range| range.into()).collect()
     }
 }
 
