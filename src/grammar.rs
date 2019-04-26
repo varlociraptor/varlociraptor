@@ -39,6 +39,7 @@ impl Into<Vec<ContinuousAlleleFreqs>> for Vec<Range> {
 pub struct Sample {
     name: String,
     contamination: Option<Contamination>,
+    resolution: usize,
 }
 
 pub struct Contamination {
