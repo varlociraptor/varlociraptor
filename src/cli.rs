@@ -164,11 +164,15 @@ pub enum Varlociraptor {
         #[structopt(long, short = "p", help = "Tumor purity.")]
         purity: f64,
         #[structopt(
-            long,
-            default_value = "0.00001",
-            help = "Prior probability for CNV. This can be any small enough value."
+            long = "min-bayes-factor",
+            default_value = "1.01",
+            help = "Minimum bayes factor (> 1.0) between likelihoods of CNV and no CNV to consider. \
+                    The higher this value, the fewer candidate CNVs will be investigated. \
+                    Note that this can be usually left unchanged, because every CNV is provided \
+                    with a posterior probability that can be used for filtering, e.g., via \
+                    'varlociraptor control-fdr'."
         )]
-        prior: f64,
+        min_bayes_factor: f64,
         #[structopt(
             long,
             default_value = "1000",
@@ -379,7 +383,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
         Varlociraptor::CallCNVs {
             ref calls,
             ref output,
-            prior,
+            min_bayes_factor,
             threads,
             purity,
             max_dist,
@@ -387,10 +391,14 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
             rayon::ThreadPoolBuilder::new()
                 .num_threads(threads)
                 .build_global()?;
-            let prior = Prob::checked(prior)?;
+
+            if min_bayes_factor <= 1.0 {
+                Err(errors::CallCNVError::InvalidMinBayesFactor)?
+            }
+
             let mut caller = call_cnvs::CallerBuilder::default()
                 .bcfs(calls.as_ref(), output.as_ref())?
-                .prior(LogProb::from(prior))
+                .min_bayes_factor(min_bayes_factor)
                 .purity(purity)
                 .max_dist(max_dist)
                 .build()?;

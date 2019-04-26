@@ -9,7 +9,7 @@ use std::iter;
 use std::mem;
 use std::path::Path;
 
-use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb};
+use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb, Prob};
 use derive_builder::Builder;
 use itertools::join;
 use itertools::Itertools;
@@ -18,6 +18,7 @@ use rayon::prelude::*;
 use rgsl::randist::binomial::binomial_pdf;
 use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
+use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::Read;
 
 use crate::model::modes::tumor::TumorNormalPairView;
@@ -47,9 +48,11 @@ pub struct Caller {
     bcf_reader: bcf::Reader,
     #[builder(private)]
     bcf_writer: bcf::Writer,
-    prior: LogProb,
+    min_bayes_factor: f64,
     purity: f64,
     max_dist: u32,
+    #[builder(private)]
+    contig_lens: HashMap<Vec<u8>, u32>,
 }
 
 impl CallerBuilder {
@@ -72,6 +75,10 @@ impl CallerBuilder {
         }
 
         header.push_record(
+            "##INFO=<ID=IMPRECISE,Number=0,Type=Flag,Description=\"Imprecise structural variation\">"
+                .as_bytes()
+        );
+        header.push_record(
             "##INFO=<ID=CN,Number=1,Type=Integer,Description=\"Copy number in tumor sample\">"
                 .as_bytes(),
         );
@@ -85,7 +92,20 @@ impl CallerBuilder {
                 .as_bytes(),
         );
         header.push_record(
+            "##INFO=<ID=CIPOS,Number=2,Type=Integer,Description=\"Confidence interval around POS \
+             for imprecise variants\">"
+                .as_bytes(),
+        );
+        header.push_record(
+            "##INFO=<ID=CIEND,Number=2,Type=Integer,Description=\"Confidence interval around END \
+             for imprecise variants\">"
+                .as_bytes(),
+        );
+        header.push_record(
             "##INFO=<ID=SVLEN,Number=1,Type=Integer,Description=\"CNV length.\">".as_bytes(),
+        );
+        header.push_record(
+            "##INFO=<ID=SVTYPE,Number=1,Type=Integer,Description=\"SV type.\">".as_bytes(),
         );
         header.push_record(
             "##INFO=<ID=LOCI,Number=1,Type=Integer,Description=\"Number of contained loci.\">"
@@ -106,17 +126,21 @@ impl CallerBuilder {
                 .as_bytes(),
         );
 
+        let mut contig_lens = HashMap::new();
         // register sequences
         for rec in bcf_reader.header().header_records() {
             match rec {
                 bcf::header::HeaderRecord::Contig { values, .. } => {
                     let name = values.get("ID").unwrap();
                     let len = values.get("length").unwrap();
+                    contig_lens.insert(name.clone().into_bytes(), len.parse()?);
                     header.push_record(format!("##contig=<ID={},length={}>", name, len).as_bytes());
                 }
                 _ => (),
             }
         }
+
+        self = self.contig_lens(contig_lens);
 
         Ok(self.bcf_writer(if let Some(path) = out_path {
             bcf::Writer::from_path(path, &header, false, false)?
@@ -129,11 +153,12 @@ impl CallerBuilder {
 impl Caller {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
         // obtain records
-        let mut calls = HashMap::new();
-        {
+
+        let calls = {
             let mut record = self.bcf_reader.empty_record();
             let mut last_call: Option<&Call> = None;
             let mut curr_region = None;
+            let mut _calls = Vec::new();
             loop {
                 if let Err(e) = self.bcf_reader.read(&mut record) {
                     if e.is_eof() {
@@ -143,30 +168,46 @@ impl Caller {
                     }
                 }
 
-                let call = Call::new(&mut record)?.unwrap();
-                if call.depth_normal >= MIN_DEPTH {
-                    let region = if let Some(last_call) = last_call {
-                        if call.rid == last_call.rid
-                            && (call.start - last_call.start) <= self.max_dist
-                        {
-                            curr_region.unwrap()
-                        } else {
-                            Region {
-                                rid: call.rid,
-                                start: call.start,
-                            }
-                        }
+                if let Some(call) = Call::new(&mut record)? {
+                    if call.depth_normal >= MIN_DEPTH {
+                        _calls.push(call);
+                    }
+                }
+            }
+            // add next and prev pos to calls
+            for i in 0.._calls.len() {
+                if i > 0 {
+                    _calls[i].prev_start = Some(_calls[i - 1].start);
+                }
+                if i < _calls.len() - 1 {
+                    _calls[i].next_start = Some(_calls[i + 1].start);
+                }
+            }
+
+            let mut calls = HashMap::new();
+
+            for call in _calls {
+                let region = if let Some(last_call) = last_call {
+                    if call.rid == last_call.rid && (call.start - last_call.start) <= self.max_dist
+                    {
+                        curr_region.unwrap()
                     } else {
                         Region {
                             rid: call.rid,
                             start: call.start,
                         }
-                    };
-                    curr_region = Some(region);
-                    calls.entry(region).or_insert_with(Vec::new).push(call);
-                    last_call = Some(calls.get(&region).unwrap().last().unwrap());
-                }
+                    }
+                } else {
+                    Region {
+                        rid: call.rid,
+                        start: call.start,
+                    }
+                };
+                curr_region = Some(region);
+                calls.entry(region).or_insert_with(Vec::new).push(call);
+                last_call = Some(calls.get(&region).unwrap().last().unwrap());
             }
+            calls
         };
 
         // normalization
@@ -177,12 +218,12 @@ impl Caller {
         let mean_depth_normal = mean_depth(&|call: &Call| call.depth_normal);
         let depth_norm_factor = mean_depth_tumor / mean_depth_normal;
 
-        let prior = self.prior;
+        let min_bayes_factor = self.min_bayes_factor;
         let purity = self.purity;
         let cnv_calls: BTreeMap<_, _> = calls
             .par_iter()
             .map(|(region, calls)| {
-                let hmm = HMM::new(depth_norm_factor, prior, purity);
+                let hmm = HMM::new(depth_norm_factor, min_bayes_factor, purity);
 
                 let (states, _prob) = hmm::viterbi(&hmm, calls);
 
@@ -208,6 +249,8 @@ impl Caller {
                                 let bayes_factors = hmm.bayes_factors(state, &group);
 
                                 Some(CNVCall {
+                                    prev_pos: first_call.prev_start,
+                                    next_pos: last_call.next_start,
                                     pos: first_call.start,
                                     end: last_call.start + 1,
                                     cnv: cnv,
@@ -229,7 +272,12 @@ impl Caller {
             let rid = self.bcf_writer.header().name2rid(contig)?;
             for call in calls {
                 let mut record = self.bcf_writer.empty_record();
-                call.write(rid, &mut record, depth_norm_factor)?;
+                call.write(
+                    rid,
+                    &mut record,
+                    depth_norm_factor,
+                    *self.contig_lens.get(contig).unwrap(),
+                )?;
                 self.bcf_writer.write(&record)?;
             }
         }
@@ -244,6 +292,8 @@ pub struct Region {
 }
 
 pub struct CNVCall<'a> {
+    prev_pos: Option<u32>,
+    next_pos: Option<u32>,
     pos: u32,
     end: u32,
     cnv: CNV,
@@ -258,6 +308,7 @@ impl<'a> CNVCall<'a> {
         rid: u32,
         record: &mut bcf::Record,
         depth_norm_factor: f64,
+        contig_len: u32,
     ) -> Result<(), Box<Error>> {
         record.set_rid(&Some(rid));
         record.set_pos(self.pos as i32);
@@ -267,6 +318,30 @@ impl<'a> CNVCall<'a> {
         record.push_info_integer(b"CN", &[2 + self.cnv.gain])?;
         record.push_info_float(b"VAF", &[*self.cnv.allele_freq as f32])?;
         record.push_info_integer(b"LOCI", &[self.calls.len() as i32])?;
+        record.push_info_string(b"SVTYPE", &[b"CNV"])?;
+        record.push_info_flag(b"IMPRECISE")?;
+        record.push_info_integer(
+            b"CIPOS",
+            &[
+                if let Some(prev_pos) = self.prev_pos {
+                    -((self.pos - prev_pos) as i32)
+                } else {
+                    -(self.pos as i32)
+                },
+                0,
+            ],
+        )?;
+        record.push_info_integer(
+            b"CIEND",
+            &[
+                0,
+                if let Some(next_pos) = self.next_pos {
+                    (next_pos - self.end) as i32
+                } else {
+                    (contig_len - self.end) as i32
+                },
+            ],
+        )?;
 
         let mut loci_dp = Vec::new();
         loci_dp.extend(self.calls.iter().map(|call| call.depth_tumor as i32));
@@ -307,15 +382,16 @@ pub struct HMM {
     states: Vec<CNV>,
     state_by_gain: HashMap<i32, Vec<hmm::State>>,
     depth_norm_factor: f64,
-    prob_cnv: LogProb,
-    prob_no_cnv: LogProb,
+    prob_keep_state: LogProb,
+    prob_change_state: LogProb,
 }
 
 impl HMM {
-    fn new(depth_norm_factor: f64, prob_cnv: LogProb, purity: f64) -> Self {
+    fn new(depth_norm_factor: f64, min_bayes_factor: f64, purity: f64) -> Self {
+        let n_allele_freqs = 10;
         let mut states = Vec::new();
         let mut state_by_gain = HashMap::new();
-        for allele_freq in linspace(0.1, 1.0, 10) {
+        for allele_freq in linspace(0.1, 1.0, n_allele_freqs) {
             for gain in -2..MAX_GAIN {
                 if gain != 0 || allele_freq == 1.0 {
                     let cnv = CNV {
@@ -331,16 +407,26 @@ impl HMM {
                 }
             }
         }
-        let prob_no_cnv = prob_cnv.ln_one_minus_exp();
-        // we have states.len() different possible CNVs (TODO, this is likely wrong)
-        let prob_cnv = prob_cnv - LogProb((states.len() as f64 - 1.0).ln());
+
+        // METHOD:
+        // We choose the probability to keep a state to be higher than the probability
+        // to switch a state. In addition, we want the switch to the null state to be as likely
+        // as keeping the state. The amount is defined by an epsilon, which is derived from the
+        // minimum bayes factor over the products of emission probabilities between
+        // two stretches of two different states.
+        assert!(min_bayes_factor > 1.0);
+        let n = states.len() as f64;
+        let epsilon = min_bayes_factor - 1.0;
+        let denominator = n + epsilon;
+        let prob_keep_state = LogProb::from(Prob((1.0 + epsilon) / denominator));
+        let prob_change_state = LogProb::from(Prob(1.0 / denominator));
 
         HMM {
             states,
             state_by_gain,
             depth_norm_factor,
-            prob_cnv: prob_cnv,
-            prob_no_cnv,
+            prob_keep_state,
+            prob_change_state,
         }
     }
 
@@ -369,17 +455,44 @@ impl HMM {
         LogProb::ln_sum_exp(&likelihoods)
     }
 
+    pub fn null_state(&self) -> hmm::State {
+        self.state_by_gain.get(&0).unwrap()[0]
+    }
+
     pub fn bayes_factors(&self, state: hmm::State, observations: &[&Call]) -> Vec<BayesFactor> {
-        let null_state = self.state_by_gain.get(&0).unwrap()[0];
+        let null_state = self.null_state();
         observations
             .into_iter()
             .map(|obs| {
                 BayesFactor::new(
-                    self.observation_prob(null_state, obs),
                     self.observation_prob(state, obs),
+                    self.observation_prob(null_state, obs),
                 )
             })
             .collect()
+    }
+
+    fn prob_af_depth(&self, state: hmm::State, call: &Call) -> LogProb {
+        let cnv = self.states[*state];
+        let prob05 = LogProb(0.5f64.ln());
+
+        // handle allele freq changes
+        let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
+            let ref_af = cnv.expected_allele_freq_ref_affected().unwrap();
+
+            prob05
+                + call
+                    .prob_allele_freq_tumor(alt_af)
+                    .ln_add_exp(call.prob_allele_freq_tumor(ref_af))
+        } else {
+            LogProb::ln_one()
+        };
+
+        // handle depth changes
+        let prob_depth = call.prob_depth_tumor(
+            call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor(),
+        );
+        prob_af + prob_depth
     }
 }
 
@@ -397,47 +510,22 @@ impl hmm::Model<Call> for HMM {
     }
 
     fn transition_prob(&self, from: hmm::State, to: hmm::State) -> LogProb {
-        let from = self.states[*from];
-        let to = self.states[*to];
         if from == to {
-            LogProb(0.5f64.ln()) + self.prob_no_cnv
-        } else if to.gain == 0 {
-            LogProb(0.5f64.ln()) + self.prob_no_cnv
+            self.prob_keep_state
         } else {
-            self.prob_cnv
+            self.prob_change_state
         }
     }
 
-    fn initial_prob(&self, state: hmm::State) -> LogProb {
-        let state = self.states[*state];
-        if state.gain == 0 {
-            self.prob_no_cnv
-        } else {
-            self.prob_cnv
-        }
+    fn initial_prob(&self, _: hmm::State) -> LogProb {
+        LogProb((1.0 / self.states.len() as f64).ln())
     }
 
     fn observation_prob(&self, state: hmm::State, call: &Call) -> LogProb {
-        let cnv = self.states[*state];
-        let prob05 = LogProb(0.5f64.ln());
-
-        // handle allele freq changes
-        let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
-            let ref_af = cnv.expected_allele_freq_ref_affected().unwrap();
-
-            (prob05 + call.prob_allele_freq_tumor(alt_af))
-                .ln_add_exp(prob05 + call.prob_allele_freq_tumor(ref_af))
-        } else {
-            LogProb::ln_one()
-        };
-
-        // handle depth changes
-        let prob_depth = call.prob_depth_tumor(
-            call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor(),
-        );
-
-        (call.prob_germline_het + prob_af + prob_depth)
-            .ln_add_exp(call.prob_germline_het.ln_one_minus_exp())
+        let prob_af_depth = self.prob_af_depth(state, call);
+        let prob_null = self.prob_af_depth(self.null_state(), call);
+        (call.prob_germline_het + prob_af_depth)
+            .ln_add_exp(call.prob_germline_het.ln_one_minus_exp() + prob_null)
     }
 }
 
@@ -446,16 +534,9 @@ pub fn likelihood<'a, O: 'a>(
     states: impl IntoIterator<Item = hmm::State>,
     observations: impl Iterator<Item = &'a O>,
 ) -> LogProb {
-    let mut from = None;
     let mut p = LogProb::ln_one();
     for (state, obs) in states.into_iter().zip(observations) {
-        if let Some(from) = from {
-            p += hmm.transition_prob(from, state);
-        } else {
-            p = hmm.initial_prob(state);
-        }
         p += hmm.observation_prob(state, obs);
-        from = Some(state);
     }
 
     p
@@ -498,37 +579,55 @@ pub struct Call {
     depth_normal: u32,
     start: u32,
     rid: u32,
+    prev_start: Option<u32>,
+    next_start: Option<u32>,
 }
 
 impl Call {
     pub fn new(record: &mut bcf::Record) -> Result<Option<Self>, Box<Error>> {
+        let pos = record.pos();
         let prob_germline_het = record.info(b"PROB_GERMLINE_HET").float()?;
-        if let Some(prob_germline_het) = prob_germline_het {
-            let prob_germline_het = LogProb::from(PHREDProb(prob_germline_het[0] as f64));
-            let depths = record
-                .format(b"DP")
-                .integer()?
-                .into_iter()
-                .map(|d| d[0] as u32)
-                .collect_vec();
-            let allele_freqs = record.format(b"AF").float()?;
-
-            Ok(Some(Call {
-                allele_freq_tumor: AlleleFreq(allele_freqs.tumor()[0] as f64),
-                allele_freq_normal: AlleleFreq(allele_freqs.normal()[0] as f64),
-                depth_tumor: *depths.tumor(),
-                depth_normal: *depths.normal(),
-                prob_germline_het: prob_germline_het,
-                start: record.pos(),
-                rid: record.rid().unwrap(),
-            }))
-        } else {
-            Ok(None)
+        if let Some(_prob_germline_het) = prob_germline_het {
+            if !_prob_germline_het[0].is_missing() && !_prob_germline_het[0].is_nan() {
+                let prob_germline_het = LogProb::from(PHREDProb(_prob_germline_het[0] as f64));
+                assert!(
+                    *prob_germline_het <= 0.0,
+                    "invalid prob_germline_het: {}, POS: {}",
+                    _prob_germline_het[0],
+                    pos
+                );
+                let depths = record
+                    .format(b"DP")
+                    .integer()?
+                    .into_iter()
+                    .map(|d| d[0] as u32)
+                    .collect_vec();
+                let allele_freqs = record.format(b"AF").float()?;
+                if prob_germline_het >= LogProb::from(Prob(0.5)) {
+                    return Ok(Some(Call {
+                        allele_freq_tumor: AlleleFreq(allele_freqs.tumor()[0] as f64),
+                        allele_freq_normal: AlleleFreq(allele_freqs.normal()[0] as f64),
+                        depth_tumor: *depths.tumor(),
+                        depth_normal: *depths.normal(),
+                        prob_germline_het: prob_germline_het,
+                        start: record.pos(),
+                        rid: record.rid().unwrap(),
+                        prev_start: None,
+                        next_start: None,
+                    }));
+                }
+            }
         }
+
+        Ok(None)
     }
 
     pub fn prob_allele_freq_tumor(&self, true_allele_freq: AlleleFreq) -> LogProb {
         allele_freq_pdf(self.allele_freq_tumor, true_allele_freq, self.depth_tumor)
+    }
+
+    pub fn prob_allele_freq_normal_het(&self) -> LogProb {
+        allele_freq_pdf(self.allele_freq_normal, AlleleFreq(0.5), self.depth_normal)
     }
 
     pub fn prob_depth_tumor(&self, true_depth: f64) -> LogProb {
