@@ -45,6 +45,7 @@ askama = "0.8"
 yaml-rust = "0.4"
 tempfile = "3.0"
 eval = "0.4"
+rayon = "1.0"
 
 [dev-dependencies]
 env_logger = "0.3"
