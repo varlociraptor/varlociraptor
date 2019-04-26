@@ -25,6 +25,7 @@ pub mod filtration;
 pub mod model;
 pub mod testcase;
 pub mod utils;
+pub mod grammar;
 
 pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
 pub use crate::model::likelihood;
