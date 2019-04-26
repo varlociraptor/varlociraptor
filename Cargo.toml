@@ -46,6 +46,8 @@ yaml-rust = "0.4"
 tempfile = "3.0"
 eval = "0.4"
 rayon = "1.0"
+petgraph = "0.4"
+derive-new = "0.5"
 
 [dev-dependencies]
 env_logger = "0.3"

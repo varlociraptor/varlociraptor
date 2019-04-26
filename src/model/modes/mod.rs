@@ -4,4 +4,5 @@
 // except according to those terms.
 
 pub mod common;
+pub mod generic;
 pub mod tumor;

@@ -17,6 +17,11 @@ pub mod likelihood;
 pub mod modes;
 pub mod sample;
 
+pub struct Contamination {
+    by: usize,
+    fraction: f64,
+}
+
 #[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
 pub struct Event<A: AlleleFreqs + Ord + Clone> {
     pub allele_freqs: A,
