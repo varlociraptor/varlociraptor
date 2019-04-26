@@ -13,13 +13,16 @@ use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, ContinuousAlleleFreqs, Contamination};
 use crate::utils;
 
-pub struct GenericModelBuilder<P: Prior> {
+pub struct GenericModelBuilder<P> {
     resolutions: Vec<usize>,
     contaminations: Vec<Option<Contamination>>,
     prior: P
 }
 
-impl<P: Prior> GenericModelBuilder<P> {
+impl<P: Prior> GenericModelBuilder<P>
+where
+    P: Prior<Event=GroupEvent>
+{
     pub fn push_sample(&mut self, resolution: usize, contamination: Option<Contamination>) -> &mut Self {
         self.contaminations.push(contamination);
         self.resolutions.push(resolution);
@@ -33,11 +36,11 @@ impl<P: Prior> GenericModelBuilder<P> {
         self
     }
 
-    pub fn build(self) -> Model<GenericLikelihood, P, GenericPosterior> {
-        let posterior = GenericPosteriorBuilder::default().contaminations(&self.contaminations).resolutions(self.resolutions).build();
+    pub fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior>, String> {
+        let posterior = GenericPosteriorBuilder::default().contaminations(&self.contaminations).resolutions(self.resolutions).build()?;
         let likelihood = GenericLikelihood::new(self.contaminations);
 
-        Model::new(likelihood, prior, posterior)
+        Ok(Model::new(likelihood, self.prior, posterior))
     }
 }
 
@@ -53,7 +56,7 @@ pub struct GenericPosterior {
 impl GenericPosteriorBuilder {
     pub fn contaminations(&mut self, contaminations: &[Option<Contamination>]) -> &mut Self {
         let mut contamination_graph = Graph::new_undirected();
-        for sample in 0..contaminations.len() {
+        for _ in 0..contaminations.len() {
             contamination_graph.add_node(());
         }
         for (sample, contamination) in contaminations.iter().enumerate() {
@@ -179,7 +182,7 @@ impl Posterior for GenericPosterior {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Ord, Eq, PartialEq, PartialOrd)]
 pub struct GroupEvent {
     events: VecMap<likelihood::Event>,
     group: Vec<usize>
