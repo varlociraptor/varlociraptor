@@ -59,12 +59,13 @@ pub fn event_tag_name(event: &str) -> String {
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct Caller<A, L, Pr, Po>
+pub struct Caller<A, L, Pr, Po, ModelPayload>
 where
     A: AlleleFreqs + Ord + Clone,
-    L: bayesian::model::Likelihood,
+    L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
     Po: bayesian::model::Posterior,
+    ModelPayload: Default,
 {
     samples: Vec<Sample>,
     #[builder(private)]
@@ -77,18 +78,19 @@ where
     events: HashMap<String, Vec<model::Event<A>>>,
     #[builder(private)]
     strand_bias_events: Vec<Vec<model::Event<A>>>,
-    model: bayesian::Model<L, Pr, Po>,
+    model: bayesian::Model<L, Pr, Po, ModelPayload>,
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: u32,
 }
 
-impl<A, L, Pr, Po> CallerBuilder<A, L, Pr, Po>
+impl<A, L, Pr, Po, ModelPayload> CallerBuilder<A, L, Pr, Po, ModelPayload>
 where
     A: AlleleFreqs + Ord + Clone,
-    L: bayesian::model::Likelihood,
+    L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
     Po: bayesian::model::Posterior<Event = Vec<model::Event<A>>>,
+    ModelPayload: Default,
 {
     pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<Error>> {
         Ok(self.reference_buffer(utils::ReferenceBuffer::new(
@@ -234,16 +236,17 @@ where
     }
 }
 
-impl<A, L, Pr, Po> Caller<A, L, Pr, Po>
+impl<A, L, Pr, Po, ModelPayload> Caller<A, L, Pr, Po, ModelPayload>
 where
     A: AlleleFreqs + Clone + Ord,
-    L: bayesian::model::Likelihood<Event = AlleleFreqCombination, Data = Vec<Pileup>>,
+    L: bayesian::model::Likelihood<ModelPayload, Event = AlleleFreqCombination, Data = Vec<Pileup>>,
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
     Po: bayesian::model::Posterior<
         BaseEvent = AlleleFreqCombination,
         Event = Vec<model::Event<A>>,
         Data = Vec<Pileup>,
     >,
+    ModelPayload: Default,
 {
     pub fn call(&mut self) -> Result<(), Box<Error>> {
         let mut universe = self.events.values().cloned().collect_vec();

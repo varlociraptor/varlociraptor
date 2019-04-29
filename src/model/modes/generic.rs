@@ -1,18 +1,32 @@
 use std::cmp;
 
+use vec_map::VecMap;
 use bio::stats::bayesian::model::{Model, Likelihood, Posterior, Prior};
 use bio::stats::LogProb;
-use petgraph::{Graph, graph::NodeIndex, algo::kosaraju_scc};
-use itertools::Itertools;
-use derive_builder::Builder;
-use vec_map::VecMap;
 
 use crate::model;
 use crate::model::likelihood;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, ContinuousAlleleFreqs, Contamination};
-use crate::utils;
 
+pub enum CacheEntry {
+    ContaminatedSample(likelihood::ContaminatedSampleCache),
+    SingleSample(likelihood::SingleSampleCache),
+}
+
+impl CacheEntry {
+    fn new(contaminated: bool) -> Self {
+        if contaminated {
+            CacheEntry::ContaminatedSample(likelihood::ContaminatedSampleCache::default())
+        } else {
+            CacheEntry::SingleSample(likelihood::SingleSampleCache::default())
+        }
+    }
+}
+
+pub type Cache = VecMap<CacheEntry>;
+
+#[derive(Default, Debug, Clone)]
 pub struct GenericModelBuilder<P> {
     resolutions: Vec<usize>,
     contaminations: Vec<Option<Contamination>>,
@@ -21,55 +35,51 @@ pub struct GenericModelBuilder<P> {
 
 impl<P: Prior> GenericModelBuilder<P>
 where
-    P: Prior<Event=GroupEvent>
+    P: Prior<Event=Vec<likelihood::Event>>
 {
-    pub fn push_sample(&mut self, resolution: usize, contamination: Option<Contamination>) -> &mut Self {
+    pub fn push_sample(mut self, resolution: usize, contamination: Option<Contamination>) -> Self {
         self.contaminations.push(contamination);
         self.resolutions.push(resolution);
 
         self
     }
 
-    pub fn prior(&mut self, prior: P) -> &mut Self {
+    pub fn prior(mut self, prior: P) -> Self {
         self.prior = prior;
 
         self
     }
 
-    pub fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior>, String> {
-        let posterior = GenericPosteriorBuilder::default().contaminations(&self.contaminations).resolutions(self.resolutions).build()?;
+    pub fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
+        let posterior = GenericPosterior::new(self.resolutions);
         let likelihood = GenericLikelihood::new(self.contaminations);
 
         Ok(Model::new(likelihood, self.prior, posterior))
     }
 }
 
-#[derive(Builder)]
+#[derive(new, Default, Clone)]
 pub struct GenericPosterior {
     resolutions: Vec<usize>,
-    /// Connected components of the contamination graph.
-    /// These can be called independently.
-    #[builder(private)]
-    groups: Vec<Vec<usize>>,
 }
 
-impl GenericPosteriorBuilder {
-    pub fn contaminations(&mut self, contaminations: &[Option<Contamination>]) -> &mut Self {
-        let mut contamination_graph = Graph::new_undirected();
-        for _ in 0..contaminations.len() {
-            contamination_graph.add_node(());
-        }
-        for (sample, contamination) in contaminations.iter().enumerate() {
-            if let Some(contamination) = contamination {
-                contamination_graph.add_edge(NodeIndex::new(sample), NodeIndex::new(contamination.by), ());
-            }
-        }
-
-        self.groups(kosaraju_scc(&contamination_graph).into_iter().map(|group| {
-            group.into_iter().map(|i| i.index()).collect_vec()
-        }).collect_vec())
-    }
-}
+// impl GenericPosteriorBuilder {
+//     pub fn contaminations(&mut self, contaminations: &[Option<Contamination>]) -> &mut Self {
+//         let mut contamination_graph = Graph::new_undirected();
+//         for _ in 0..contaminations.len() {
+//             contamination_graph.add_node(());
+//         }
+//         for (sample, contamination) in contaminations.iter().enumerate() {
+//             if let Some(contamination) = contamination {
+//                 contamination_graph.add_edge(NodeIndex::new(sample), NodeIndex::new(contamination.by), ());
+//             }
+//         }
+//
+//         self.groups(kosaraju_scc(&contamination_graph).into_iter().map(|group| {
+//             group.into_iter().map(|i| i.index()).collect_vec()
+//         }).collect_vec())
+//     }
+// }
 
 impl GenericPosterior {
     fn grid_points(&self, pileups: &[Pileup]) -> Vec<usize> {
@@ -82,10 +92,47 @@ impl GenericPosterior {
             n
         }).collect()
     }
+
+    fn density<F: FnMut(&<Self as Posterior>::BaseEvent, &<Self as Posterior>::Data) -> LogProb>(
+        &self,
+        sample: usize,
+        base_events: Vec<likelihood::Event>,
+        sample_grid_points: &[usize],
+        event: &<Self as Posterior>::Event,
+        pileups: &<Self as Posterior>::Data,
+        joint_prob: &mut F,) -> LogProb {
+        let e = &event[sample];
+        let mut subdensity = |allele_freq| {
+            let mut base_events = base_events.clone();
+            base_events.push(likelihood::Event {
+                allele_freq: allele_freq,
+                strand_bias: e.strand_bias,
+            });
+
+            if sample == event.len() - 1 {
+                joint_prob(&base_events, pileups)
+            } else {
+                self.density(sample + 1, base_events, sample_grid_points, event, pileups, joint_prob)
+            }
+        };
+        if e.allele_freqs.is_singleton() {
+            subdensity(e.allele_freqs.start)
+        } else {
+            let n_obs = pileups[sample].len();
+            LogProb::ln_simpsons_integrate_exp(
+                |_, allele_freq| {
+                    subdensity(AlleleFreq(allele_freq))
+                },
+                *e.allele_freqs.observable_min(n_obs),
+                *e.allele_freqs.observable_max(n_obs),
+                sample_grid_points[sample],
+            )
+        }
+    }
 }
 
 impl Posterior for GenericPosterior {
-    type BaseEvent = GroupEvent;
+    type BaseEvent = Vec<likelihood::Event>;
     type Event = Vec<model::Event<ContinuousAlleleFreqs>>;
     type Data = Vec<Pileup>;
 
@@ -97,155 +144,92 @@ impl Posterior for GenericPosterior {
     ) -> LogProb {
         let grid_points = self.grid_points(pileups);
 
-        let mut p = LogProb::ln_one();
-        for group in &self.groups {
-            if group.len() == 1 {
-                // Simple case, just one sample that is independent of the rest.
-
-                let s = group[0];
-                let sample_event = &event[s];
-                if sample_event.allele_freqs.is_singleton() {
-                    let mut group_event = GroupEvent::default();
-                    group_event.push(s, likelihood::Event {
-                        allele_freq: sample_event.allele_freqs.start,
-                        strand_bias: sample_event.strand_bias,
-                    });
-                    p += joint_prob(&group_event, pileups);
-                } else {
-                    let n_obs = pileups[s].len();
-                    p += LogProb::ln_simpsons_integrate_exp(
-                        |_, allele_freq| {
-                            let mut group_event = GroupEvent::default();
-                            group_event.push(s, likelihood::Event {
-                                allele_freq: AlleleFreq(allele_freq),
-                                strand_bias: sample_event.strand_bias,
-                            });
-                            joint_prob(
-                                &group_event,
-                                pileups
-                            )
-                        },
-                        *sample_event.allele_freqs.observable_min(n_obs),
-                        *sample_event.allele_freqs.observable_max(n_obs),
-                        grid_points[s],
-                    );
-                }
-            } else {
-                // Multiple samples contaminating each other.
-
-                fn density<F: FnMut(&GroupEvent, &Vec<Pileup>) -> LogProb>(s: usize, group: &[usize], sample_events: &[model::Event<ContinuousAlleleFreqs>], sample_grid_points: &[usize], pileups: &Vec<Pileup>, base_events: Vec<likelihood::Event>, joint_prob: &mut F) -> LogProb {
-                    let e = &sample_events[s];
-                    let mut subdensity = |allele_freq| {
-                        let mut base_events = base_events.clone();
-                        base_events.push(likelihood::Event {
-                            allele_freq: allele_freq,
-                            strand_bias: e.strand_bias,
-                        });
-
-                        if s == sample_events.len() - 1 {
-                            let mut group_event = GroupEvent::default();
-                            for (s, base_event) in group.iter().zip(base_events.into_iter()) {
-                                group_event.push(*s, base_event);
-                            }
-
-                            joint_prob(&group_event, pileups)
-                        } else {
-                            density(s + 1, group, sample_events, sample_grid_points, pileups, base_events, joint_prob)
-                        }
-                    };
-                    if e.allele_freqs.is_singleton() {
-                        subdensity(e.allele_freqs.start)
-                    } else {
-                        let n_obs = pileups[s].len();
-                        LogProb::ln_simpsons_integrate_exp(
-                            |_, allele_freq| {
-                                subdensity(AlleleFreq(allele_freq))
-                            },
-                            *e.allele_freqs.observable_min(n_obs),
-                            *e.allele_freqs.observable_max(n_obs),
-                            sample_grid_points[s],
-                        )
-                    }
-                }
-
-                if group.len() == pileups.len() {
-                    p += density(0, &group, event, &grid_points, pileups, Vec::new(), joint_prob);
-                } else {
-                    let group_events = utils::select(group, event).collect_vec();
-                    let group_grid_points = utils::select(group, &grid_points).collect_vec();
-
-                    p += density(0, &group, &group_events, &group_grid_points, pileups, Vec::new(), joint_prob);
-                }
-            }
-        }
-        p
+        self.density(0, Vec::new(), &grid_points, event, pileups, joint_prob)
     }
 }
 
-#[derive(Default, Clone, Ord, Eq, PartialEq, PartialOrd)]
-pub struct GroupEvent {
-    events: VecMap<likelihood::Event>,
-    group: Vec<usize>
+#[derive(Clone)]
+enum SampleModel {
+    Contaminated {
+        likelihood_model: likelihood::ContaminatedSampleLikelihoodModel,
+        by: usize,
+    },
+    Normal(likelihood::SampleLikelihoodModel),
 }
 
-impl GroupEvent {
-    pub fn push(&mut self, sample: usize, event: likelihood::Event) {
-        self.events.insert(sample, event);
-        self.group.push(sample);
-    }
-
-    pub fn event(&self, sample: usize) -> &likelihood::Event {
-        self.events.get(sample).unwrap()
-    }
-}
-
-
+#[derive(Default, Clone)]
 pub struct GenericLikelihood {
-    contaminations: Vec<Option<usize>>,
-    contaminated: VecMap<likelihood::ContaminatedSampleLikelihoodModel>,
-    normal: VecMap<likelihood::SampleLikelihoodModel>,
+    inner: Vec<SampleModel>,
 }
 
 impl GenericLikelihood {
     pub fn new(contaminations: Vec<Option<Contamination>>) -> Self {
-        let mut contaminated = VecMap::new();
-        let mut normal = VecMap::new();
-        let mut _contaminations = Vec::new();
+        let mut inner = Vec::new();
         for (sample, contamination) in contaminations.iter().enumerate() {
-            _contaminations.push(
-                if let Some(contamination) = contamination {
-                    contaminated.insert(sample, likelihood::ContaminatedSampleLikelihoodModel::new(1.0 - contamination.fraction));
-                    Some(contamination.by)
-                } else {
-                    normal.insert(sample, likelihood::SampleLikelihoodModel::new());
-                    None
-                }
-            );
+            if let Some(contamination) = contamination {
+                inner.push(SampleModel::Contaminated {
+                    likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(1.0 - contamination.fraction),
+                    by: contamination.by,
+                });
+            } else {
+                inner.push(SampleModel::Normal(likelihood::SampleLikelihoodModel::new()));
+            }
         }
         GenericLikelihood {
-            contaminations: _contaminations,
-            contaminated,
-            normal,
+            inner,
         }
     }
 }
 
-impl Likelihood for GenericLikelihood {
-    type Event = GroupEvent;
+impl Likelihood<Cache> for GenericLikelihood {
+    type Event = Vec<likelihood::Event>;
     type Data = Vec<Pileup>;
 
-    fn compute(&self, event: &Self::Event, pileups: &Self::Data) -> LogProb {
+    fn compute(&self, event: &Self::Event, pileups: &Self::Data, cache: &mut Cache) -> LogProb {
         let mut p = LogProb::ln_one();
-        for sample in event.group.iter() {
-            let pileup = &pileups[*sample];
-            p += if let Some(contaminant) = self.contaminations[*sample] {
-                let event = vec![event.event(*sample).clone(), event.event(contaminant).clone()];
-                self.contaminated.get(*sample).unwrap().compute(&event, pileup.as_ref())
-            } else {
-                self.normal.get(*sample).unwrap().compute(&event.events[*sample], pileup.as_ref())
-            };
+
+        for ((sample, pileup), inner) in pileups.iter().enumerate().zip(self.inner.iter()) {
+            p += match inner {
+                &SampleModel::Contaminated { ref likelihood_model, by } => {
+                    if let CacheEntry::ContaminatedSample( ref mut cache) = cache.entry(sample).or_insert_with(|| CacheEntry::new(true)) {
+                        likelihood_model.compute(
+                            &likelihood::ContaminatedSampleEvent {
+                                primary: event[sample].clone(),
+                                secondary: event[by].clone(),
+                            },
+                            pileup, cache
+                        )
+                    } else {
+                        unreachable!();
+                    }
+                },
+                &SampleModel::Normal(ref likelihood_model) => {
+                    if let CacheEntry::SingleSample( ref mut cache) = cache.entry(sample).or_insert_with(|| CacheEntry::new(false)) {
+                        likelihood_model.compute(&event[sample], pileup, cache)
+                    } else {
+                        unreachable!();
+                    }
+                }
+            }
         }
 
         p
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct FlatPrior {}
+
+impl FlatPrior {
+    pub fn new() -> Self {
+        FlatPrior {}
+    }
+}
+
+impl Prior for FlatPrior {
+    type Event = Vec<likelihood::Event>;
+
+    fn compute(&self, _event: &Self::Event) -> LogProb {
+        LogProb::ln_one()
     }
 }

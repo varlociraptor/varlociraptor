@@ -17,9 +17,10 @@ pub mod likelihood;
 pub mod modes;
 pub mod sample;
 
+#[derive(Debug, Clone)]
 pub struct Contamination {
-    by: usize,
-    fraction: f64,
+    pub by: usize,
+    pub fraction: f64,
 }
 
 #[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
