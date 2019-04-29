@@ -175,7 +175,7 @@ pub struct GenericLikelihood {
 impl GenericLikelihood {
     pub fn new(contaminations: Vec<Option<Contamination>>) -> Self {
         let mut inner = Vec::new();
-        for (sample, contamination) in contaminations.iter().enumerate() {
+        for contamination in contaminations.iter() {
             if let Some(contamination) = contamination {
                 inner.push(SampleModel::Contaminated {
                     likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(
