@@ -119,13 +119,16 @@ impl ContaminatedSampleLikelihoodModel {
     }
 }
 
-
-
 impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
     type Event = ContaminatedSampleEvent;
     type Data = Pileup;
 
-    fn compute(&self, events: &Self::Event, pileup: &Self::Data, cache: &mut ContaminatedSampleCache) -> LogProb {
+    fn compute(
+        &self,
+        events: &Self::Event,
+        pileup: &Self::Data,
+        cache: &mut ContaminatedSampleCache,
+    ) -> LogProb {
         if cache.contains_key(events) {
             *cache.get(events).unwrap()
         } else {
@@ -268,9 +271,9 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::likelihood;
     use crate::model::tests::observation;
     use crate::model::StrandBias;
-    use crate::model::likelihood;
     use bio::stats::LogProb;
     use itertools_num::linspace;
 
@@ -330,7 +333,14 @@ mod tests {
         }
         let mut cache = likelihood::ContaminatedSampleCache::default();
 
-        let lh = model.compute(&ContaminatedSampleEvent { primary: event(0.0), secondary: event(0.0) }, &observations, &mut cache);
+        let lh = model.compute(
+            &ContaminatedSampleEvent {
+                primary: event(0.0),
+                secondary: event(0.0),
+            },
+            &observations,
+            &mut cache,
+        );
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
@@ -492,10 +502,20 @@ mod tests {
             ));
         }
         let mut cache = likelihood::ContaminatedSampleCache::default();
-        let lh = model.compute(&ContaminatedSampleEvent{ primary: event(0.5), secondary: event(0.0)}, &observations, &mut cache);
+        let lh = model.compute(
+            &ContaminatedSampleEvent {
+                primary: event(0.5),
+                secondary: event(0.0),
+            },
+            &observations,
+            &mut cache,
+        );
         for af in linspace(0.0, 1.0, 10) {
             if af != 0.5 {
-                let evt = ContaminatedSampleEvent { primary: event(af), secondary: event(0.0)};
+                let evt = ContaminatedSampleEvent {
+                    primary: event(af),
+                    secondary: event(0.0),
+                };
                 let l = model.compute(&evt, &observations, &mut cache);
                 assert!(lh > l);
                 assert!(cache.contains_key(&evt));

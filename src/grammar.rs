@@ -1,10 +1,16 @@
+use std::collections::HashMap;
 use std::ops;
 
 use crate::model::ContinuousAlleleFreqs;
 
 pub struct Grammar {
     events: Vec<Event>,
-    samples: Vec<Sample>,
+    samples: Samples,
+}
+
+pub enum Samples {
+    Grouped(HashMap<String, Sample>),
+    Ungrouped(Vec<Sample>),
 }
 
 pub struct Event {

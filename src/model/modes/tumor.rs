@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-
 #[derive(Debug, Clone)]
 pub struct TumorNormalPair<T> {
     pub tumor: T,

@@ -20,12 +20,12 @@ use crate::conversion;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
-use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
-use crate::model::{ContinuousAlleleFreqs, VariantType, Contamination};
+use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::model::modes::tumor::TumorNormalPair;
+use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
+use crate::model::{Contamination, ContinuousAlleleFreqs, VariantType};
 use crate::testcase::TestcaseBuilder;
 use crate::SimpleEvent;
-use crate::model::modes::generic::{GenericModelBuilder, FlatPrior};
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
@@ -321,10 +321,14 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 }
                             }
 
-                            let tumor_alignment_properties =
-                                est_or_load_alignment_properites(tumor_alignment_properties, tumor)?;
-                            let normal_alignment_properties =
-                                est_or_load_alignment_properites(normal_alignment_properties, normal)?;
+                            let tumor_alignment_properties = est_or_load_alignment_properites(
+                                tumor_alignment_properties,
+                                tumor,
+                            )?;
+                            let normal_alignment_properties = est_or_load_alignment_properites(
+                                normal_alignment_properties,
+                                normal,
+                            )?;
                             info!("Estimated alignment properties:");
                             info!("{:?}", tumor_alignment_properties);
                             info!("{:?}", normal_alignment_properties);
@@ -360,7 +364,13 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 
                             let model = GenericModelBuilder::default()
                                 .prior(FlatPrior::new())
-                                .push_sample(100, Some(Contamination { by: 1, fraction: 1.0 - purity }))
+                                .push_sample(
+                                    100,
+                                    Some(Contamination {
+                                        by: 1,
+                                        fraction: 1.0 - purity,
+                                    }),
+                                )
                                 .push_sample(5, None)
                                 .build()?;
 
@@ -389,7 +399,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .event(
                                     "somatic_tumor",
                                     TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0).min_observations(2),
+                                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0)
+                                            .min_observations(2),
                                         normal: ContinuousAlleleFreqs::absent(),
                                     },
                                 )
@@ -397,7 +408,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                     "somatic_normal",
                                     TumorNormalPair {
                                         tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
-                                        normal: ContinuousAlleleFreqs::exclusive(0.0..0.5).min_observations(2),
+                                        normal: ContinuousAlleleFreqs::exclusive(0.0..0.5)
+                                            .min_observations(2),
                                     },
                                 )
                                 .event(

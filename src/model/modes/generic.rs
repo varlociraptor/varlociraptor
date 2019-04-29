@@ -1,13 +1,13 @@
 use std::cmp;
 
-use vec_map::VecMap;
-use bio::stats::bayesian::model::{Model, Likelihood, Posterior, Prior};
+use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
+use vec_map::VecMap;
 
 use crate::model;
 use crate::model::likelihood;
 use crate::model::sample::Pileup;
-use crate::model::{AlleleFreq, ContinuousAlleleFreqs, Contamination};
+use crate::model::{AlleleFreq, Contamination, ContinuousAlleleFreqs};
 
 pub enum CacheEntry {
     ContaminatedSample(likelihood::ContaminatedSampleCache),
@@ -30,12 +30,12 @@ pub type Cache = VecMap<CacheEntry>;
 pub struct GenericModelBuilder<P> {
     resolutions: Vec<usize>,
     contaminations: Vec<Option<Contamination>>,
-    prior: P
+    prior: P,
 }
 
 impl<P: Prior> GenericModelBuilder<P>
 where
-    P: Prior<Event=Vec<likelihood::Event>>
+    P: Prior<Event = Vec<likelihood::Event>>,
 {
     pub fn push_sample(mut self, resolution: usize, contamination: Option<Contamination>) -> Self {
         self.contaminations.push(contamination);
@@ -83,14 +83,18 @@ pub struct GenericPosterior {
 
 impl GenericPosterior {
     fn grid_points(&self, pileups: &[Pileup]) -> Vec<usize> {
-        pileups.iter().zip(self.resolutions.iter()).map(|(pileup, res)| {
-            let n_obs = pileup.len();
-            let mut n = cmp::min(cmp::max(n_obs + 1, 5), *res);
-            if n % 2 == 0 {
-                n += 1;
-            }
-            n
-        }).collect()
+        pileups
+            .iter()
+            .zip(self.resolutions.iter())
+            .map(|(pileup, res)| {
+                let n_obs = pileup.len();
+                let mut n = cmp::min(cmp::max(n_obs + 1, 5), *res);
+                if n % 2 == 0 {
+                    n += 1;
+                }
+                n
+            })
+            .collect()
     }
 
     fn density<F: FnMut(&<Self as Posterior>::BaseEvent, &<Self as Posterior>::Data) -> LogProb>(
@@ -100,7 +104,8 @@ impl GenericPosterior {
         sample_grid_points: &[usize],
         event: &<Self as Posterior>::Event,
         pileups: &<Self as Posterior>::Data,
-        joint_prob: &mut F,) -> LogProb {
+        joint_prob: &mut F,
+    ) -> LogProb {
         let e = &event[sample];
         let mut subdensity = |allele_freq| {
             let mut base_events = base_events.clone();
@@ -112,7 +117,14 @@ impl GenericPosterior {
             if sample == event.len() - 1 {
                 joint_prob(&base_events, pileups)
             } else {
-                self.density(sample + 1, base_events, sample_grid_points, event, pileups, joint_prob)
+                self.density(
+                    sample + 1,
+                    base_events,
+                    sample_grid_points,
+                    event,
+                    pileups,
+                    joint_prob,
+                )
             }
         };
         if e.allele_freqs.is_singleton() {
@@ -120,9 +132,7 @@ impl GenericPosterior {
         } else {
             let n_obs = pileups[sample].len();
             LogProb::ln_simpsons_integrate_exp(
-                |_, allele_freq| {
-                    subdensity(AlleleFreq(allele_freq))
-                },
+                |_, allele_freq| subdensity(AlleleFreq(allele_freq)),
                 *e.allele_freqs.observable_min(n_obs),
                 *e.allele_freqs.observable_max(n_obs),
                 sample_grid_points[sample],
@@ -168,16 +178,16 @@ impl GenericLikelihood {
         for (sample, contamination) in contaminations.iter().enumerate() {
             if let Some(contamination) = contamination {
                 inner.push(SampleModel::Contaminated {
-                    likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(1.0 - contamination.fraction),
+                    likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(
+                        1.0 - contamination.fraction,
+                    ),
                     by: contamination.by,
                 });
             } else {
                 inner.push(SampleModel::Normal(likelihood::SampleLikelihoodModel::new()));
             }
         }
-        GenericLikelihood {
-            inner,
-        }
+        GenericLikelihood { inner }
     }
 }
 
@@ -190,21 +200,30 @@ impl Likelihood<Cache> for GenericLikelihood {
 
         for ((sample, pileup), inner) in pileups.iter().enumerate().zip(self.inner.iter()) {
             p += match inner {
-                &SampleModel::Contaminated { ref likelihood_model, by } => {
-                    if let CacheEntry::ContaminatedSample( ref mut cache) = cache.entry(sample).or_insert_with(|| CacheEntry::new(true)) {
+                &SampleModel::Contaminated {
+                    ref likelihood_model,
+                    by,
+                } => {
+                    if let CacheEntry::ContaminatedSample(ref mut cache) =
+                        cache.entry(sample).or_insert_with(|| CacheEntry::new(true))
+                    {
                         likelihood_model.compute(
                             &likelihood::ContaminatedSampleEvent {
                                 primary: event[sample].clone(),
                                 secondary: event[by].clone(),
                             },
-                            pileup, cache
+                            pileup,
+                            cache,
                         )
                     } else {
                         unreachable!();
                     }
-                },
+                }
                 &SampleModel::Normal(ref likelihood_model) => {
-                    if let CacheEntry::SingleSample( ref mut cache) = cache.entry(sample).or_insert_with(|| CacheEntry::new(false)) {
+                    if let CacheEntry::SingleSample(ref mut cache) = cache
+                        .entry(sample)
+                        .or_insert_with(|| CacheEntry::new(false))
+                    {
                         likelihood_model.compute(&event[sample], pileup, cache)
                     } else {
                         unreachable!();
