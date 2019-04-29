@@ -3,15 +3,17 @@
 
 expected:
   posteriors:
-    - PROB_SOMATIC_TUMOR >= 54.0
+  - PROB_SOMATIC_TUMOR >= 54.0
 
 samples:
   normal:
     path: normal.bam
-    properties: '{ "insert_size": { "mean": 362.0, "sd": 80.23866322991103 }, "max_del_cigar_len": 24, "max_ins_cigar_len": 18, "frac_max_softclip": 0.832, "max_mapq": 60.0 }'
+    properties: '{ "insert_size": { "mean": 362.0, "sd": 80.23866322991103 }, "max_del_cigar_len":
+      24, "max_ins_cigar_len": 18, "frac_max_softclip": 0.832, "max_mapq": 60.0 }'
   tumor:
     path: tumor.bam
-    properties: '{ "insert_size": { "mean": 394.0, "sd": 79.00456149231279 }, "max_del_cigar_len": 20, "max_ins_cigar_len": 16, "frac_max_softclip": 0.848, "max_mapq": 60.0 }'
+    properties: '{ "insert_size": { "mean": 394.0, "sd": 79.00456149231279 }, "max_del_cigar_len":
+      20, "max_ins_cigar_len": 16, "frac_max_softclip": 0.848, "max_mapq": 60.0 }'
 
 
 # candidate variant
@@ -19,7 +21,13 @@ candidate: candidates.vcf
 
 # reference sequence
 reference:
-  name: "1"
+  name: '1'
   seq: acacacacacacacacacacacacacacacacacacacacacacGAATACTTTTTTCATTAGTTATAATCTTCAACTTACTTTGATTAGTGTTAAGTCAACTGACTTACCTTTTCCTTAATATCACATATATAATAAATAGCTGCTAAtttttttttttggagacagggtcttgctctgttgcccagtctagagtacagtggcaactgcatgtcatttgctaatgttggcacaattacagactcaggctgctctcaaactcctgaggtaaagcgagcctccctcctcgaattcccaaaagtgttgggattacaggcgtgagccactgtacccagcctgctaattactgagtcgttatatatgccaggtactctattaatgctttacatgcattattcatatacattccttacagtaacctttgtcagggaggtattctctatggaatatttctatcttattctccatttcaacatcttacattccctttcccctacttttttgttttctttttagcacttaccgcggtctatacattgaatacacacatctacatattcaatcaatgctcgattcttatttattgtctagcaccctcatgaaagccaataaggacagagttttgtctgttctcctggcccccactgcagtatcctcgatgcctggacacacatagtaggcactcagtaagtacttgttgaatgaataaaAGTAgtaggtactattgttatatttactctcagttgagaaaactgaggaatagagatttgagctattttttccaagctaaatagtacatagcaagctgagataatccatgactgccttactctctggggctctgcaaccactcttttactgtACTATATTCAGTAACTTGGATTTTTTCTATCAGAGTCCTTTGTGCACTATTTGTTGTGGTGAACATTATATTCTAGTCAAATATGCTATGGCTTTCTACATCATCCCATGAAGAAATTCAGCTGTTTTATATGTGCTAGCCACTGCTTGCATTCACAGACCCACAAAAATCAAACAACCATTATATATTTTCATTCTTATAAGCACCTGAAATTCGCAAAAAACTATTTCCAACCACTAATAATCCCTGAAACCAggccaggcatggtggctcccgcctgtaatcccagcactttgggaggccgaggtgagcagatcacctgaggtcaggagtttgagaccaacctggccaacatggcaaaaccccgtctctactaaaaatacaaaaaaattagctgggcgtggtggcgggtgcctgtaatcccagctactctgtaggctgagacaggagaatcggttaaacacaggaggcggaggttgcagtgagccgagattgcgtcactgcattccagcctaggtgacagagtgagactctgtctcaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaTTCTCTGAAACCAGTGATGCCATCACCAAACAATGGAACAGTGTGCTCACTAATGCTGGTCTTTACAACCTTGAAATTCTCCCTTAATCTTCTTGGCATTTAATGCTTTGAAGACTATTTTAATAAGATGAAAGAGATACTACTAATTTATCCAGACATTATTCTTTTATTCATAGTGACAATACTTTTGGAAGTCTTTTTCTACTTTGCCTATTTCCTCAGTCTATAGATAATGTTAATGTAAATAATTTGATAAAAGCAAAGAAAAACTACTAATTCAAAATGTTAAATATTTAAAGAAAGCAGGTCTAATTTGGGttttttttttgttttttttgagacaaggtctcactctgccactaaggctggagtgcagtggcgcaatcatggctcaccatggcatcgacctcccagactcaagtgaccctcctacctcagcctcccaagtagctgggactacaggtgcatgccaccatgcccagctaatcaaaaatttttctttttgtaaagatggggtctcactatgttgttcaggctggtcttgaactcctgagctccagtgatcctcccatcttggcctcccaaagtgctgggataacaggcatgagacaccatgcccagccTCTTAATTTTAACTAGGGCTTCTTTTATAGAATGGTTAAAAGATCCATAAAGTAGTCAATATCAGTTTAGAAGGCTATTCAAGTTTCAATGCCTAACACAAGCTAGCCAATTTCAATTTGGAGGGTGGGCTAGGGGCAATGAGATATCATTACTTTaatagcaaaacaaatcaagacaggcacagtggtatgcacacctgtagtcctagcttctcaggagcctgaggcaggaggattgcttaagcccaggcattcaaggggccaccctaggcaaaatagagaccacatcactaaaaaaaaaaTCAATAATACTCAGAAACCAAAGCATATAAACACTAGGGTAATTAAGACGAAAAGCAAAAAGGAACCCATTCCACTAATCAAATCCTAAAAGCCTGAGCACAAATATATGCCTATGTTAAAATCTCATTAGATGTGCAGCCAC
 
-options: '{"CallTumorNormal":{"tumor":"test29/tumor.bam","normal":"test29/normal.bam","reference":"GRCh38/1.fa","candidates":"test29/candidates.vcf","output":null,"purity":1.0,"spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"omit_snvs":false,"omit_indels":false,"max_indel_len":1000,"indel_window":100,"max_depth":200,"testcase_locus":"all","testcase_prefix":"testcases/test29","tumor_alignment_properties":null,"normal_alignment_properties":null}}'
+options: '{"Call": {"kind": {"Variants": {"spurious_ins_rate": 2.8e-06, "spurious_del_rate":
+  5.1e-06, "spurious_insext_rate": 0.0, "spurious_delext_rate": 0.0, "indel_window":
+  100, "omit_snvs": false, "omit_indels": false, "max_indel_len": 1000, "max_depth":
+  200, "reference": "GRCh38/1.fa", "candidates": "test29/candidates.vcf", "output":
+  null, "testcase_locus": "all", "testcase_prefix": "testcases/test29", "mode": {"TumorNormal":
+  {"tumor": "test29/tumor.bam", "normal": "test29/normal.bam", "purity": 1.0, "tumor_alignment_properties":
+  null, "normal_alignment_properties": null}}}}}}'
