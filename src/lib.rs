@@ -16,6 +16,8 @@ extern crate lazy_static;
 extern crate askama;
 #[macro_use]
 extern crate derive_new;
+#[macro_use]
+extern crate pest_derive;
 
 pub mod call;
 pub mod call_cnvs;
