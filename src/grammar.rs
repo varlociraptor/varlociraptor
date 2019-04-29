@@ -4,18 +4,17 @@ use std::ops;
 use crate::model::ContinuousAlleleFreqs;
 
 pub struct Grammar {
+    // list of events
     events: Vec<Event>,
-    samples: Samples,
-}
-
-pub enum Samples {
-    Grouped(HashMap<String, Sample>),
-    Ungrouped(Vec<Sample>),
+    // list of samples
+    samples: Vec<Sample>,
 }
 
 pub struct Event {
+    /// name of event
     name: String,
-    vafs: Vec<Range>,
+    /// Map from sample/group name to allele freq range
+    vafs: HashMap<String, Range>,
 }
 
 pub enum Range {
@@ -39,12 +38,19 @@ impl Into<ContinuousAlleleFreqs> for Range {
 }
 
 pub struct Sample {
+    /// sample name
     name: String,
+    /// optional group name
+    group: Option<String>,
+    /// optional contamination
     contamination: Option<Contamination>,
+    /// grid point resolution for integration over continuous allele frequency ranges
     resolution: usize,
 }
 
 pub struct Contamination {
+    /// name of contaminating sample
     by: String,
+    /// fraction of contamination
     fraction: f64,
 }
