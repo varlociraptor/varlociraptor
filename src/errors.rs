@@ -11,3 +11,11 @@ custom_error! {pub TestcaseError
 custom_error! {pub CallCNVError
     InvalidMinBayesFactor = "invalid minimum bayes factor, must be > 1.0",
 }
+
+custom_error! {pub CLIError
+    InvalidBAMSpec = "BAM files must be provided as name=path",
+    InvalidAlignmentPropertiesSpec = "alignment property files must be provided as name=path",
+    InvalidContaminationSampleName { name: String } = "contamination refers to unknown sample {name}; it is not defined in the scenario",
+    InvalidBAMSampleName { name: String } = "no BAM file given for sample {name}",
+    InvalidEventSampleName { name: String } = "event refers to unknown sample {name}; it is not defined in the scenario",
+}

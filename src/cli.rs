@@ -3,8 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::HashMap;
+use std::convert::From;
 use std::error::Error;
 use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -12,6 +15,7 @@ use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rayon;
 use rust_htslib::bam;
+use serde_yaml;
 use structopt::StructOpt;
 
 use crate::call::CallerBuilder;
@@ -20,6 +24,7 @@ use crate::conversion;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
+use crate::grammar;
 use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::model::modes::tumor::TumorNormalPair;
 use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
@@ -221,6 +226,28 @@ pub enum VariantCallMode {
         )]
         normal_alignment_properties: Option<PathBuf>,
     },
+    #[structopt(
+        raw(setting = "structopt::clap::AppSettings::ColoredHelp"),
+        name = "generic",
+        about = "Call variants for a given scenario specified with the varlociraptor calling \
+                 grammar and a VCF/BCF with candidate variants."
+    )]
+    Generic {
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "Scenario defined in the varlociraptor calling grammar."
+        )]
+        scenario: PathBuf,
+        #[structopt(long, help = "BAM files with aligned reads for each sample.")]
+        bams: Vec<String>,
+        #[structopt(
+            long = "alignment-properties",
+            help = "Alignment properties JSON file for normal sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        alignment_properties: Vec<String>,
+    },
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -262,6 +289,19 @@ pub enum FilterMethod {
     },
 }
 
+fn parse_key_values(values: &[String]) -> Option<HashMap<String, PathBuf>> {
+    let mut map = HashMap::new();
+    for value in values {
+        let kv = value.split_terminator('=').collect_vec();
+        if kv.len() == 2 {
+            map.insert(kv[0].to_owned(), PathBuf::from(kv[1]));
+        } else {
+            return None;
+        }
+    }
+    Some(map)
+}
+
 impl Default for Varlociraptor {
     fn default() -> Self {
         Varlociraptor::from_iter(vec!["--help"])
@@ -290,7 +330,104 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                     testcase_locus,
                     testcase_prefix,
                 } => {
+                    let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
+                    let spurious_del_rate = Prob::checked(spurious_del_rate)?;
+                    let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
+                    let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
+
+                    let sample_builder = || {
+                        SampleBuilder::default()
+                            .error_probs(
+                                spurious_ins_rate,
+                                spurious_del_rate,
+                                spurious_insext_rate,
+                                spurious_delext_rate,
+                                indel_window as u32,
+                            )
+                            .max_depth(max_depth)
+                    };
+
                     match mode {
+                        VariantCallMode::Generic {
+                            ref scenario,
+                            ref bams,
+                            ref alignment_properties,
+                        } => {
+                            if let Some(bams) = parse_key_values(bams) {
+                                if let Some(alignment_properties) =
+                                    parse_key_values(alignment_properties)
+                                {
+                                    let mut scenario_content = String::new();
+                                    File::open(scenario)?.read_to_string(&mut scenario_content)?;
+
+                                    let scenario: grammar::Scenario =
+                                        serde_yaml::from_str(&scenario_content)?;
+                                    let mut samples = Vec::new();
+                                    let mut model_builder = GenericModelBuilder::default();
+                                    let sample_idx: HashMap<_, _> = scenario
+                                        .samples()
+                                        .keys()
+                                        .enumerate()
+                                        .map(|(i, s)| (s, i))
+                                        .collect();
+                                    for (i, (sample_name, sample)) in
+                                        scenario.samples().iter().enumerate()
+                                    {
+                                        let contamination =
+                                            if let Some(contamination) = sample.contamination() {
+                                                let contaminant = *sample_idx
+                                                    .get(contamination.by())
+                                                    .ok_or(errors::CLIError::InvalidContaminationSampleName {
+                                                        name: sample_name.to_owned(),
+                                                    })?;
+                                                Some(Contamination {
+                                                    by: contaminant,
+                                                    fraction: *contamination.fraction(),
+                                                })
+                                            } else {
+                                                None
+                                            };
+                                        model_builder
+                                            .push_sample(*sample.resolution(), contamination);
+
+                                        let bam = bams.get(sample_name).ok_or(errors::CLIError::InvalidBAMSampleName { name: sample_name.to_owned() })?;
+                                        let alignment_properties = est_or_load_alignment_properites(&alignment_properties.get(sample_name).as_ref(), bam)?;
+                                        let bam_reader = bam::IndexedReader::from_path(bam)?;
+                                        let sample = sample_builder().name(sample_name.to_owned()).alignments(bam_reader, alignment_properties).build()?;
+                                        samples.push(sample);
+                                    }
+
+                                    let model = model_builder.build()?;
+
+                                    let mut caller_builder = CallerBuilder::default()
+                                        .samples(samples)
+                                        .reference(reference)?
+                                        .inbcf(candidates.as_ref())?
+                                        .model(model)
+                                        .omit_snvs(omit_snvs)
+                                        .omit_indels(omit_indels)
+                                        .max_indel_len(max_indel_len)
+                                        .outbcf(output.as_ref())?;
+                                    for (event_name, event) in scenario.events() {
+                                        let mut vafs = vec![None; samples.len()];
+                                        for (sample_name, vaf_range) in event.vafs() {
+                                            let i = *sample_idx.get(sample_name).ok_or(errors::CLIError::InvalidEventSampleName { name: sample_name.to_owned() })?;
+                                            vafs[i] = vaf_range.into();
+                                        }
+                                        if !vafs.iter().map(|vaf| vaf.is_some()).all() {}
+                                        caller_builder.event(
+                                            event_name,
+                                            vafs
+                                        );
+                                    }
+
+                                } else {
+                                    Err(errors::CLIError::InvalidAlignmentPropertiesSpec)?
+                                }
+                            } else {
+                                Err(errors::CLIError::InvalidBAMSpec)?
+                            }
+                        }
                         VariantCallMode::TumorNormal {
                             ref tumor,
                             ref normal,
@@ -335,23 +472,6 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 
                             let tumor_bam = bam::IndexedReader::from_path(tumor)?;
                             let normal_bam = bam::IndexedReader::from_path(normal)?;
-
-                            let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
-                            let spurious_del_rate = Prob::checked(spurious_del_rate)?;
-                            let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
-                            let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
-
-                            let sample_builder = || {
-                                SampleBuilder::default()
-                                    .error_probs(
-                                        spurious_ins_rate,
-                                        spurious_del_rate,
-                                        spurious_insext_rate,
-                                        spurious_delext_rate,
-                                        indel_window as u32,
-                                    )
-                                    .max_depth(max_depth)
-                            };
 
                             let tumor_sample = sample_builder()
                                 .name("tumor".to_owned())

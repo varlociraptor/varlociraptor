@@ -18,6 +18,8 @@ extern crate askama;
 extern crate derive_new;
 #[macro_use]
 extern crate pest_derive;
+#[macro_use]
+extern crate getset;
 
 pub mod call;
 pub mod call_cnvs;
