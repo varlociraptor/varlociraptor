@@ -363,16 +363,20 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                     let scenario: grammar::Scenario =
                                         serde_yaml::from_str(&scenario_content)?;
                                     let mut samples = Vec::new();
-                                    let mut model_builder = GenericModelBuilder::default();
-                                    let sample_idx: HashMap<_, _> = scenario
+                                    let mut model_builder = GenericModelBuilder::default()
+                                        // TODO allow to define prior in the grammar
+                                        .prior(FlatPrior::new());
+
+                                    // register sample idx
+                                    let mut sample_idx: HashMap<_, _> = scenario
                                         .samples()
                                         .keys()
                                         .enumerate()
                                         .map(|(i, s)| (s, i))
                                         .collect();
-                                    for (i, (sample_name, sample)) in
-                                        scenario.samples().iter().enumerate()
-                                    {
+
+                                    // parse samples
+                                    for (sample_name, sample) in scenario.samples().iter() {
                                         let contamination =
                                             if let Some(contamination) = sample.contamination() {
                                                 let contaminant = *sample_idx
@@ -387,7 +391,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                             } else {
                                                 None
                                             };
-                                        model_builder
+                                        model_builder = model_builder
                                             .push_sample(*sample.resolution(), contamination);
 
                                         let bam = bams.get(sample_name).ok_or(errors::CLIError::InvalidBAMSampleName { name: sample_name.to_owned() })?;
@@ -397,8 +401,17 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         samples.push(sample);
                                     }
 
+                                    // register groups
+                                    for (sample_name, sample) in scenario.samples().iter() {
+                                        if let Some(group) = sample.group() {
+                                            sample_idx.insert(group, *sample_idx.get(sample_name).unwrap());
+                                        }
+                                    }
+
                                     let model = model_builder.build()?;
 
+                                    let n_samples = samples.len();
+                                    // setup caller
                                     let mut caller_builder = CallerBuilder::default()
                                         .samples(samples)
                                         .reference(reference)?
@@ -409,18 +422,24 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         .max_indel_len(max_indel_len)
                                         .outbcf(output.as_ref())?;
                                     for (event_name, event) in scenario.events() {
-                                        let mut vafs = vec![None; samples.len()];
-                                        for (sample_name, vaf_range) in event.vafs() {
-                                            let i = *sample_idx.get(sample_name).ok_or(errors::CLIError::InvalidEventSampleName { name: sample_name.to_owned() })?;
-                                            vafs[i] = vaf_range.into();
+                                        let mut vafs: Vec<Option<ContinuousAlleleFreqs>> = vec![None; n_samples];
+                                        for (id, vaf_range) in event.vafs() {
+                                            let i = *sample_idx.get(id).ok_or(errors::CLIError::InvalidEventSampleName { event_name: event_name.to_owned(), name: id.to_owned() })?;
+                                            vafs[i] = Some(vaf_range.clone().into());
                                         }
-                                        if !vafs.iter().map(|vaf| vaf.is_some()).all() {}
-                                        caller_builder.event(
-                                            event_name,
-                                            vafs
-                                        );
+                                        if !vafs.iter().all(|vaf| vaf.is_some()) {
+                                            caller_builder = caller_builder.event(
+                                                event_name,
+                                                vafs.into_iter().map(|range| range.unwrap()).collect_vec()
+                                            );
+                                        } else {
+                                            Err(errors::CLIError::MissingSampleEvent { event_name: event_name.to_owned() })?
+                                        }
                                     }
 
+                                    let mut caller = caller_builder.build()?;
+
+                                    caller.call()?;
                                 } else {
                                     Err(errors::CLIError::InvalidAlignmentPropertiesSpec)?
                                 }

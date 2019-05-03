@@ -11,6 +11,7 @@ use crate::model::ContinuousAlleleFreqs;
 #[grammar = "grammar/vafrange.pest"]
 pub struct VAFRangeParser;
 
+#[derive(Clone, Debug)]
 pub enum VAFRange {
     Singleton(f64),
     Exclusive(ops::Range<f64>),

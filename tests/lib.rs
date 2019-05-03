@@ -56,44 +56,54 @@ impl Testcase {
                     ref mut testcase_locus,
                     ref mut testcase_prefix,
                     ..
-                } => match mode {
-                    VariantCallMode::TumorNormal {
-                        ref mut tumor,
-                        ref mut normal,
-                        ref mut tumor_alignment_properties,
-                        ref mut normal_alignment_properties,
-                        ..
-                    } => {
-                        *reference = temp_ref.path().to_owned();
-                        *tumor = self
-                            .path
-                            .join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
-                        *normal = self
-                            .path
-                            .join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
-                        *candidates =
-                            Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
-                        *output = Some(self.output());
-                        *testcase_prefix = None;
-                        *testcase_locus = None;
+                } => {
+                    *reference = temp_ref.path().to_owned();
+                    *candidates =
+                        Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
+                    *output = Some(self.output());
+                    *testcase_prefix = None;
+                    *testcase_locus = None;
 
-                        let temp_tumor_props = Self::alignment_properties(
-                            self.yaml()["samples"]["tumor"]["properties"]
-                                .as_str()
-                                .unwrap(),
-                        )?;
-                        let temp_normal_props = Self::alignment_properties(
-                            self.yaml()["samples"]["normal"]["properties"]
-                                .as_str()
-                                .unwrap(),
-                        )?;
-                        *tumor_alignment_properties = Some(temp_tumor_props.path().to_owned());
-                        *normal_alignment_properties = Some(temp_normal_props.path().to_owned());
+                    match mode {
+                        VariantCallMode::Generic {
+                            ref scenario,
+                            ref bams,
+                            ref alignment_properties,
+                        } => {
+                            panic!("not yet implemented");
+                        }
+                        VariantCallMode::TumorNormal {
+                            ref mut tumor,
+                            ref mut normal,
+                            ref mut tumor_alignment_properties,
+                            ref mut normal_alignment_properties,
+                            ..
+                        } => {
+                            *tumor = self
+                                .path
+                                .join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
+                            *normal = self
+                                .path
+                                .join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
 
-                        bam::index::build(tumor, None, bam::index::Type::BAI, 1).unwrap();
-                        bam::index::build(normal, None, bam::index::Type::BAI, 1).unwrap();
+                            let temp_tumor_props = Self::alignment_properties(
+                                self.yaml()["samples"]["tumor"]["properties"]
+                                    .as_str()
+                                    .unwrap(),
+                            )?;
+                            let temp_normal_props = Self::alignment_properties(
+                                self.yaml()["samples"]["normal"]["properties"]
+                                    .as_str()
+                                    .unwrap(),
+                            )?;
+                            *tumor_alignment_properties = Some(temp_tumor_props.path().to_owned());
+                            *normal_alignment_properties = Some(temp_normal_props.path().to_owned());
 
-                        run(options)
+                            bam::index::build(tumor, None, bam::index::Type::BAI, 1).unwrap();
+                            bam::index::build(normal, None, bam::index::Type::BAI, 1).unwrap();
+
+                            run(options)
+                        }
                     }
                 },
                 _ => panic!("unsupported subcommand"),
