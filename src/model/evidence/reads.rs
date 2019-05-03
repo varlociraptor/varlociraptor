@@ -180,14 +180,13 @@ impl IndelEvidence {
     fn prob_allele<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &mut self,
         mut allele_params: E,
-        certainty_est: LogProb,
         edit_dist: &EditDistanceCalculation,
     ) -> LogProb {
         let hit = edit_dist.calc_best_hit(&allele_params);
         if hit.dist == 0 {
             // METHOD: In case of a perfect match, we just take the base quality product.
             // All alternative paths in the HMM will anyway be much worse.
-            certainty_est
+            allele_params.read_emission().certainty_est()
         } else {
             // METHOD: We shrink the area to run the HMM against to an environment around the best
             // edit distance hits.
@@ -273,22 +272,11 @@ impl AbstractReadEvidence for IndelEvidence {
         let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
         let edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
 
-        // Estimate overall certainty of the read window (product of base qual complements) under
-        // the assumption that the read comes from one of the two alleles.
-        // This is needed to rescale normalized probabilities below.
-        let certainty_est = {
-            let mut p = LogProb::ln_one();
-            for &q in &read_qual[read_offset..read_end] {
-                let prob_miscall = prob_read_base_miscall(q);
-                p += prob_miscall.ln_one_minus_exp();
-            }
-            p
-        };
-
         if !overlap {
             // If there is no overlap, normalization below would anyway lead to 0.5 vs 0.5,
             // multiplied with certainty estimate. Hence, we can skip the entire HMM calculation!
-            return Ok(Some((certainty_est, certainty_est)));
+            let p = LogProb::from(Prob(0.5));
+            return Ok(Some((p, p)));
         }
 
         // ref allele
@@ -299,7 +287,6 @@ impl AbstractReadEvidence for IndelEvidence {
                 ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                 read_emission: &read_emission,
             },
-            certainty_est,
             &edit_dist,
         );
 
@@ -314,7 +301,6 @@ impl AbstractReadEvidence for IndelEvidence {
                     del_len: variant.len() as usize,
                     read_emission: &read_emission,
                 },
-                certainty_est,
                 &edit_dist,
             ),
             &Variant::Insertion(ref ins_seq) => {
@@ -331,7 +317,6 @@ impl AbstractReadEvidence for IndelEvidence {
                         ins_seq: ins_seq,
                         read_emission: &read_emission,
                     },
-                    certainty_est,
                     &edit_dist,
                 )
             }
@@ -347,24 +332,16 @@ impl AbstractReadEvidence for IndelEvidence {
         // In a sense, this assumes that the two considered alleles are the only possible ones.
         // However, if the read actually comes from a third allele, both probabilities will be
         // equally bad, and the normalized one will not prefer any of them.
+        // This is ok, because for the likelihood function only the ratio between the two
+        // probabilities is relevant!
 
-        let min_prob = cmp::min(NotNan::from(prob_ref), NotNan::from(prob_alt));
-
-        if *min_prob != *LogProb::ln_zero() {
+        if prob_ref != LogProb::ln_zero() && prob_alt != LogProb::ln_zero() {
+            // Only perform normalization if both probs are non-zero
+            // otherwise, we would artificially magnify the ratio
+            // (compared to an epsilon for the zero case).
             let prob_total = prob_alt.ln_add_exp(prob_ref);
             prob_ref -= prob_total;
             prob_alt -= prob_total;
-
-            // Rescale prob ref and alt with the overall certainty given the read base qualities
-            // in the aligned region.
-            // This allows us to scale the probabilties to about the same magnitude as
-            // before the normalization.
-            // In other words, although we normalize away common parts of alt and ref
-            // alignment, we restore the original magnitude of the probabilties.
-            // This is important because otherwise we put too much emphasis on insert
-            // size in cases where the read does not overlap the variant.
-            prob_ref += certainty_est;
-            prob_alt += certainty_est;
         }
 
         Ok(Some((prob_ref, prob_alt)))
@@ -553,6 +530,11 @@ impl<'a> ReadEmission<'a> {
     #[inline]
     fn project_j(&self, j: usize) -> usize {
         j + self.read_offset
+    }
+
+    /// Calculate probability that none of the bases is miscalled.
+    pub fn certainty_est(&self) -> LogProb {
+        self.no_miscall.iter().sum()
     }
 }
 
