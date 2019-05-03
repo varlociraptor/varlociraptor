@@ -377,34 +377,51 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 
                                     // parse samples
                                     for (sample_name, sample) in scenario.samples().iter() {
-                                        let contamination =
-                                            if let Some(contamination) = sample.contamination() {
-                                                let contaminant = *sample_idx
-                                                    .get(contamination.by())
-                                                    .ok_or(errors::CLIError::InvalidContaminationSampleName {
-                                                        name: sample_name.to_owned(),
-                                                    })?;
-                                                Some(Contamination {
-                                                    by: contaminant,
-                                                    fraction: *contamination.fraction(),
-                                                })
-                                            } else {
-                                                None
-                                            };
+                                        let contamination = if let Some(contamination) =
+                                            sample.contamination()
+                                        {
+                                            let contaminant = *sample_idx
+                                                .get(contamination.by())
+                                                .ok_or(
+                                                errors::CLIError::InvalidContaminationSampleName {
+                                                    name: sample_name.to_owned(),
+                                                },
+                                            )?;
+                                            Some(Contamination {
+                                                by: contaminant,
+                                                fraction: *contamination.fraction(),
+                                            })
+                                        } else {
+                                            None
+                                        };
                                         model_builder = model_builder
                                             .push_sample(*sample.resolution(), contamination);
 
-                                        let bam = bams.get(sample_name).ok_or(errors::CLIError::InvalidBAMSampleName { name: sample_name.to_owned() })?;
-                                        let alignment_properties = est_or_load_alignment_properites(&alignment_properties.get(sample_name).as_ref(), bam)?;
+                                        let bam = bams.get(sample_name).ok_or(
+                                            errors::CLIError::InvalidBAMSampleName {
+                                                name: sample_name.to_owned(),
+                                            },
+                                        )?;
+                                        let alignment_properties =
+                                            est_or_load_alignment_properites(
+                                                &alignment_properties.get(sample_name).as_ref(),
+                                                bam,
+                                            )?;
                                         let bam_reader = bam::IndexedReader::from_path(bam)?;
-                                        let sample = sample_builder().name(sample_name.to_owned()).alignments(bam_reader, alignment_properties).build()?;
+                                        let sample = sample_builder()
+                                            .name(sample_name.to_owned())
+                                            .alignments(bam_reader, alignment_properties)
+                                            .build()?;
                                         samples.push(sample);
                                     }
 
                                     // register groups
                                     for (sample_name, sample) in scenario.samples().iter() {
                                         if let Some(group) = sample.group() {
-                                            sample_idx.insert(group, *sample_idx.get(sample_name).unwrap());
+                                            sample_idx.insert(
+                                                group,
+                                                *sample_idx.get(sample_name).unwrap(),
+                                            );
                                         }
                                     }
 
@@ -422,18 +439,28 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         .max_indel_len(max_indel_len)
                                         .outbcf(output.as_ref())?;
                                     for (event_name, event) in scenario.events() {
-                                        let mut vafs: Vec<Option<ContinuousAlleleFreqs>> = vec![None; n_samples];
+                                        let mut vafs: Vec<Option<ContinuousAlleleFreqs>> =
+                                            vec![None; n_samples];
                                         for (id, vaf_range) in event.vafs() {
-                                            let i = *sample_idx.get(id).ok_or(errors::CLIError::InvalidEventSampleName { event_name: event_name.to_owned(), name: id.to_owned() })?;
+                                            let i = *sample_idx.get(id).ok_or(
+                                                errors::CLIError::InvalidEventSampleName {
+                                                    event_name: event_name.to_owned(),
+                                                    name: id.to_owned(),
+                                                },
+                                            )?;
                                             vafs[i] = Some(vaf_range.clone().into());
                                         }
                                         if !vafs.iter().all(|vaf| vaf.is_some()) {
                                             caller_builder = caller_builder.event(
                                                 event_name,
-                                                vafs.into_iter().map(|range| range.unwrap()).collect_vec()
+                                                vafs.into_iter()
+                                                    .map(|range| range.unwrap())
+                                                    .collect_vec(),
                                             );
                                         } else {
-                                            Err(errors::CLIError::MissingSampleEvent { event_name: event_name.to_owned() })?
+                                            Err(errors::CLIError::MissingSampleEvent {
+                                                event_name: event_name.to_owned(),
+                                            })?
                                         }
                                     }
 

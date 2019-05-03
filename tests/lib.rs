@@ -58,8 +58,7 @@ impl Testcase {
                     ..
                 } => {
                     *reference = temp_ref.path().to_owned();
-                    *candidates =
-                        Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
+                    *candidates = Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
                     *output = Some(self.output());
                     *testcase_prefix = None;
                     *testcase_locus = None;
@@ -97,7 +96,8 @@ impl Testcase {
                                     .unwrap(),
                             )?;
                             *tumor_alignment_properties = Some(temp_tumor_props.path().to_owned());
-                            *normal_alignment_properties = Some(temp_normal_props.path().to_owned());
+                            *normal_alignment_properties =
+                                Some(temp_normal_props.path().to_owned());
 
                             bam::index::build(tumor, None, bam::index::Type::BAI, 1).unwrap();
                             bam::index::build(normal, None, bam::index::Type::BAI, 1).unwrap();
@@ -105,7 +105,7 @@ impl Testcase {
                             run(options)
                         }
                     }
-                },
+                }
                 _ => panic!("unsupported subcommand"),
             },
             _ => panic!("unsupported subcommand"),
