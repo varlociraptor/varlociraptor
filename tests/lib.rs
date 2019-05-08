@@ -244,7 +244,7 @@ testcase!(test17);
 testcase!(test18);
 testcase!(test19);
 testcase!(test20);
-// skip the next test cecause this insertion cannot currently be resolved properly
+// skip the next test because this insertion cannot currently be resolved properly
 // TODO find a way to fix this.
 // testcase!(test21);
 testcase!(test22);
