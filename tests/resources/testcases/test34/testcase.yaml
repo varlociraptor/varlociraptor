@@ -1,4 +1,6 @@
 # Pindel call that is a somatic call in reality (case af: 0.125)
+# This is test02, but formulated with the grammar approach. It should yield
+# exactly the same results as test02.
 
 expected:
   allelefreqs:
