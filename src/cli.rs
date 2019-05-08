@@ -435,12 +435,11 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         .model(model)
                                         .omit_snvs(omit_snvs)
                                         .omit_indels(omit_indels)
-                                        .max_indel_len(max_indel_len)
-                                        .outbcf(output.as_ref())?;
+                                        .max_indel_len(max_indel_len);
                                     for (event_name, event) in scenario.events() {
                                         let mut vafs: Vec<Option<ContinuousAlleleFreqs>> =
                                             vec![None; n_samples];
-                                        for (id, vaf_range) in event.vafs() {
+                                        for (id, vaf_range) in event.iter() {
                                             let i = *sample_idx.get(id).ok_or(
                                                 errors::CLIError::InvalidEventSampleName {
                                                     event_name: event_name.to_owned(),
@@ -449,7 +448,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                             )?;
                                             vafs[i] = Some(vaf_range.clone().into());
                                         }
-                                        if !vafs.iter().all(|vaf| vaf.is_some()) {
+                                        if vafs.iter().all(|vaf| vaf.is_some()) {
                                             caller_builder = caller_builder.event(
                                                 event_name,
                                                 vafs.into_iter()
@@ -462,6 +461,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                             })?
                                         }
                                     }
+                                    caller_builder = caller_builder.outbcf(output.as_ref())?;
 
                                     let mut caller = caller_builder.build()?;
 

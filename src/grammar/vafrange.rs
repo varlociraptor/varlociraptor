@@ -57,7 +57,7 @@ impl<'de> de::Visitor<'de> for VAFRangeVisitor {
     where
         E: de::Error,
     {
-        let res = VAFRangeParser::parse(Rule::vafrange, v);
+        let res = VAFRangeParser::parse(Rule::vafdef, v);
         if let Ok(mut pairs) = res {
             let pair = pairs.next().unwrap();
             Ok(match pair.as_rule() {
@@ -83,6 +83,7 @@ impl<'de> de::Visitor<'de> for VAFRangeVisitor {
                         &self,
                     ))
                 }
+                Rule::vafdef => unreachable!("vafdef is not recursive")
             })
         } else {
             Err(de::Error::invalid_value(

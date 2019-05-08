@@ -65,11 +65,27 @@ impl Testcase {
 
                     match mode {
                         VariantCallMode::Generic {
-                            ref scenario,
-                            ref bams,
-                            ref alignment_properties,
+                            ref mut scenario,
+                            ref mut bams,
+                            ref mut alignment_properties,
                         } => {
-                            panic!("not yet implemented");
+                            *scenario = self.path.join(self.yaml()["scenario"].as_str().unwrap());
+                            bams.clear();
+                            alignment_properties.clear();
+                            let mut temp_props = Vec::new();
+                            for (sample_name, sample) in self.yaml()["samples"].as_hash().unwrap().iter() {
+                                let sample_name = sample_name.as_str().unwrap();
+                                let bam = self.path.join(sample["path"].as_str().unwrap());
+                                bam::index::build(&bam, None, bam::index::Type::BAI, 1).unwrap();
+                                bams.push(format!("{}={}", sample_name, bam.to_str().unwrap()));
+                                let props = Self::alignment_properties(sample["properties"].as_str().unwrap())?;
+                                alignment_properties.push(
+                                    format!("{}={}", sample_name, props.path().to_str().unwrap())
+                                );
+                                temp_props.push(props);
+                            }
+                            println!("{:?}", options);
+                            run(options)
                         }
                         VariantCallMode::TumorNormal {
                             ref mut tumor,
@@ -243,6 +259,7 @@ testcase!(test30);
 testcase!(test31);
 testcase!(test32);
 testcase!(test33);
+testcase!(test34);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

@@ -9,6 +9,7 @@ use crate::model::likelihood;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, Contamination, ContinuousAlleleFreqs};
 
+#[derive(Debug)]
 pub enum CacheEntry {
     ContaminatedSample(likelihood::ContaminatedSampleCache),
     SingleSample(likelihood::SingleSampleCache),
@@ -53,12 +54,13 @@ where
     pub fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
         let posterior = GenericPosterior::new(self.resolutions);
         let likelihood = GenericLikelihood::new(self.contaminations);
-
+        dbg!(&posterior);
+        dbg!(&likelihood);
         Ok(Model::new(likelihood, self.prior, posterior))
     }
 }
 
-#[derive(new, Default, Clone)]
+#[derive(new, Default, Clone, Debug)]
 pub struct GenericPosterior {
     resolutions: Vec<usize>,
 }
@@ -158,7 +160,7 @@ impl Posterior for GenericPosterior {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum SampleModel {
     Contaminated {
         likelihood_model: likelihood::ContaminatedSampleLikelihoodModel,
@@ -167,7 +169,7 @@ enum SampleModel {
     Normal(likelihood::SampleLikelihoodModel),
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct GenericLikelihood {
     inner: Vec<SampleModel>,
 }
@@ -236,7 +238,7 @@ impl Likelihood<Cache> for GenericLikelihood {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct FlatPrior {}
 
 impl FlatPrior {

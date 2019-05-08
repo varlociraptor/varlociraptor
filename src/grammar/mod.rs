@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 
 pub mod vafrange;
 
@@ -13,11 +14,18 @@ pub struct Scenario {
     samples: HashMap<String, Sample>,
 }
 
-#[derive(Deserialize, Getters)]
-#[get = "pub"]
-pub struct Event {
+#[derive(Deserialize)]
+pub struct Event (
     /// Map from sample/group name to allele freq range
-    vafs: HashMap<String, VAFRange>,
+    HashMap<String, VAFRange>,
+);
+
+impl Deref for Event {
+    type Target = HashMap<String, VAFRange>;
+
+    fn deref(&self) -> &HashMap<String, VAFRange> {
+        &self.0
+    }
 }
 
 #[derive(Deserialize, Getters)]
