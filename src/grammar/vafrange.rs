@@ -57,7 +57,9 @@ impl<'de> de::Visitor<'de> for VAFRangeVisitor {
     where
         E: de::Error,
     {
-        let res = VAFRangeParser::parse(Rule::vafrange, v);
+        println!("{}",v);
+        let res = VAFRangeParser::parse(Rule::vafout, v);
+        println!("{:?}", res);
         if let Ok(mut pairs) = res {
             let pair = pairs.next().unwrap();
             Ok(match pair.as_rule() {
@@ -83,6 +85,7 @@ impl<'de> de::Visitor<'de> for VAFRangeVisitor {
                         &self,
                     ))
                 }
+                Rule::vafout => unreachable!(),
             })
         } else {
             Err(de::Error::invalid_value(
