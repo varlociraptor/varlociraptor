@@ -32,6 +32,7 @@ lazy_static! {
 struct TestcaseTemplate {
     samples: HashMap<String, Sample>,
     candidate: String,
+    scenario: Option<String>,
     ref_name: String,
     ref_seq: String,
     options: String,
@@ -63,6 +64,7 @@ where
     candidate_reader: bcf::Reader,
     #[builder(private)]
     bams: HashMap<String, PathBuf>,
+    scenario: Option<PathBuf>,
     options: T,
 }
 
@@ -263,6 +265,14 @@ where
         }
         candidate_writer.write(&candidate_record)?;
 
+        // write scenario
+        let scenario = if let Some(scenario) = self.scenario.as_ref() {
+            fs::copy(scenario, self.prefix.join("scenario.yaml"))?;
+            Some("scenario.yaml".to_owned())
+        } else {
+            None
+        };
+
         // fetch reference
         let ref_name = str::from_utf8(&chrom_name)?;
         self.reference_reader
@@ -278,6 +288,7 @@ where
                 candidate: candidate_filename.to_str().unwrap().to_owned(),
                 ref_seq: String::from_utf8(ref_seq)?.to_owned(),
                 ref_name: ref_name.to_owned(),
+                scenario: scenario,
             }
             .render()?
             .as_bytes(),

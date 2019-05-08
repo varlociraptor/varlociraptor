@@ -9,7 +9,6 @@ use std::fmt::Debug;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::strand::Strand;
-use ordered_float::NotNan;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 

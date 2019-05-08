@@ -347,6 +347,28 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                             .max_depth(max_depth)
                     };
 
+                    let testcase_builder = if let Some(testcase_locus) = testcase_locus {
+                        if let Some(testcase_prefix) = testcase_prefix {
+                            if let Some(candidates) = candidates.as_ref() {
+                                // just write a testcase and quit
+                                Some(TestcaseBuilder::default()
+                                    .prefix(PathBuf::from(testcase_prefix))
+                                    .options(opt_clone)
+                                    .locus(&testcase_locus)?
+                                    .reference(&reference)?
+                                    .candidates(candidates)?)
+                            } else {
+                                Err(errors::TestcaseError::MissingCandidates)?;
+                                None
+                            }
+                        } else {
+                            Err(errors::TestcaseError::MissingPrefix)?;
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
                     match mode {
                         VariantCallMode::Generic {
                             ref scenario,
@@ -357,6 +379,16 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 if let Some(alignment_properties) =
                                     parse_key_values(alignment_properties)
                                 {
+                                    if let Some(mut testcase_builder) = testcase_builder {
+                                        for (name, bam) in &bams {
+                                            testcase_builder = testcase_builder.register_bam(name, bam);
+                                        }
+
+                                        let mut testcase = testcase_builder.build()?;
+                                        testcase.write()?;
+                                        return Ok(());
+                                    }
+
                                     let mut scenario_content = String::new();
                                     File::open(scenario)?.read_to_string(&mut scenario_content)?;
 
@@ -480,27 +512,13 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                             ref tumor_alignment_properties,
                             ref normal_alignment_properties,
                         } => {
-                            if let Some(testcase_locus) = testcase_locus {
-                                if let Some(testcase_prefix) = testcase_prefix {
-                                    if let Some(candidates) = candidates {
-                                        // just write a testcase and quit
-                                        let mut testcase = TestcaseBuilder::default()
-                                            .prefix(PathBuf::from(testcase_prefix))
-                                            .options(opt_clone)
-                                            .locus(&testcase_locus)?
-                                            .reference(reference)?
-                                            .candidates(candidates)?
-                                            .register_bam("tumor", tumor)
-                                            .register_bam("normal", normal)
-                                            .build()?;
-                                        testcase.write()?;
-                                        return Ok(());
-                                    } else {
-                                        Err(errors::TestcaseError::MissingCandidates)?;
-                                    }
-                                } else {
-                                    Err(errors::TestcaseError::MissingPrefix)?;
-                                }
+                            if let Some(testcase_builder) = testcase_builder {
+                                let mut testcase = testcase_builder
+                                    .register_bam("tumor", tumor)
+                                    .register_bam("normal", normal)
+                                    .build()?;
+                                testcase.write()?;
+                                return Ok(());
                             }
 
                             let tumor_alignment_properties = est_or_load_alignment_properites(
