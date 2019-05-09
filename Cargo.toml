@@ -6,7 +6,7 @@ description = "A library for calling of genomic variants using a latent variable
 repository = "https://github.com/varlociraptor/varlociraptor"
 readme = "README.md"
 license = "GPL-3.0"
-include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE"]
+include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE", "templates"]
 edition = "2018"
 
 [dependencies]
