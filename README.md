@@ -1,6 +1,6 @@
 # varlociraptor
 
-[![Travis](https://img.shields.io/travis/varlociraptor/varlociraptor.svg?maxAge=2592000?style=flat-square)](https://travis-ci.org/varlociraptor/varlociraptor)
+[![Travis](https://img.shields.io/travis/varlociraptor/varlociraptor/master.svg?maxAge=2592000)](https://travis-ci.org/varlociraptor/varlociraptor)
 ![Codecov](https://img.shields.io/codecov/c/github/varlociraptor/varlociraptor/master.svg)
 [![API docs](https://img.shields.io/badge/API-documentation-blue.svg)](https://docs.rs/varlociraptor)
 [![Crates.io](https://img.shields.io/crates/d/varlociraptor.svg)](https://crates.io/crates/varlociraptor)
