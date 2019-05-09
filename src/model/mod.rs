@@ -230,7 +230,7 @@ impl ContinuousAlleleFreqs {
     }
 
     pub fn observable_min(&self, n_obs: usize) -> AlleleFreq {
-        if n_obs == 0 {
+        if n_obs < 10 {
             self.start
         } else {
             let obs_count = Self::expected_observation_count(self.start, n_obs);
@@ -266,7 +266,7 @@ impl ContinuousAlleleFreqs {
             *self.end != 0.0,
             "bug: observable_max may not be called if end=0.0."
         );
-        if n_obs == 0 {
+        if n_obs < 10 {
             self.end
         } else {
             let mut obs_count = Self::expected_observation_count(self.end, n_obs);

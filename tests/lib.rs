@@ -266,6 +266,7 @@ testcase!(test31);
 testcase!(test32);
 testcase!(test33);
 testcase!(test34);
+testcase!(test35);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

@@ -133,6 +133,7 @@ impl GenericPosterior {
             subdensity(e.allele_freqs.start)
         } else {
             let n_obs = pileups[sample].len();
+            eprintln!("{:?} {} {}", e, e.allele_freqs.observable_min(n_obs), e.allele_freqs.observable_max(n_obs));
             LogProb::ln_simpsons_integrate_exp(
                 |_, allele_freq| subdensity(AlleleFreq(allele_freq)),
                 *e.allele_freqs.observable_min(n_obs),
