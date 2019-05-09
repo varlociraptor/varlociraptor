@@ -3,7 +3,7 @@
 
 expected:
   posteriors:
-    - PROB_SOMATIC_TUMOR >= 6.6
+  - PROB_SOMATIC_TUMOR >= 6.6
 
 # necessary bam files
 samples:
@@ -23,4 +23,10 @@ reference:
   name: chr14
   seq: tctatatatatatctatatatctatatatatctatatatatctatatatatctatatatatatctatatatctatatctatatatatctatatatatctatatctatatatatctatatatctatatatatctatatctatatatatctatatatatctaatctatctatatatctatatatatctatatatatctatatatagatatctatatatttatatatatctatctatatatatttatatagatatctatatatagatatatatatatagatatttatatatatatctatctatatatatttatatagatatctatatatagatatctatatatatttatatagatatctatatatatttatatatctatatatttacatatatatctatatatatctatatatttatatatctatatatttatatatatatctatatgtatatttatatatctatatgtatatttatatatatctatatgtatatttatatatatctatatgtatatttatatatatctatatgtatatttatatatatatctatatgtatatttatatatctatatatatacacatatatatattcctcctgggaatcaacctcttcctccttggttcaaatatatatatatttatatgttatatatatattatatacatatattatatattatatacatatatattatatacatatatattatatattatattatatacatatattatatattatattatatacatatattatatattatatattatagacatatatattatatattatatattatatataatatatattatctataatatataatatatatattatagataatatatattatatctataatatataatacatatattatatctataatatataatatatatattatatctataatatatatattatatctataatatataatatatataatatctataatatataatatatataatatctataatatataatatataatatctataatatataatatattatatctataatatatattatatctatatattatatctatatattatatattatatctataatatatatattatatgtataatatataatatatctataatatataatatatctataatatatatatctataatatataatatatctataatatatatattatatctataatatatataatatatctataatatatataatatatctataatatataatatatctataatatatatattatatctataaatataatatatattatatctataaatatatatattatatctataatatataatatatatattatatctataatatataatatatatattatatctataatatataatatatatattatatctatatGTCtttttttttttttttttgagacagagtcttgctctgtcacccaggctggagtgcagtgtggcatgatcttggctcactgcagcctcaacctataggctcaaaacatccatctagttcaccctcccaagtaaccgggactacaggcatgcaccagcatgactggctaattttgttttcattttttcatagagatgtggtctcactatgttgcccaggcctgtcttgaactcctgggctcaaatgatccttctgccttggcctcccaaagtgctgggattaccggcattgagtcacctcacctgaccAAGGAAAGTAATTTTGAAGTTTAGAATTAAGCATAAATATCAGTATTGTGTGAAAAGACAGGTTAGAAGATTCCCCCAAATTGCTAACGATACTTCATTTAGCAAGTGACTTAATTTTGTGAGCAACAGACTAGTTGAAATCTATACATCTCAGCTAGGCTTCTCATTATACCtttttttttttttttttttttttGCATATGGCAGCCCCTCTTTTAAAGTTAGACCAAAAAATCTCAGTAACAAAAGGAATAATACTAAGGATTGTCCTTATTTCCTAAGCATAGATAGAACACCAAACAAAAAAACTATTAAATTTAAATCCATGGGTGCACACACACCTTTATCCTGAAGAATTATTAAAGCTTCTTTCATTATATGGGCTCAGCTTATAGGTAGACCTCATTGGAGGCAGGGAAATCAACCCGAGATAGATATTTCACTACAGATATTTGGATCCTAGGATTCTCTACCAGTTATTTGGAACTATTTGCAGGTGTTAATAAGTAATTATTCACCAGAAAGTGAGGAGAGAAGGGGTTTGTCCATATAAATGAATAGTCTGGAGAGGTGGGGAGTGAGAAAGGGAATCTGGAGAAGACATAGCAGGTGGTTTATTTGGTTTCCAAGGCTGTATCTCAGTCATTATCATCCAAATCTCACTCAATTCCCCCACTGCAAAGGCC
 
-options: '{"CallTumorNormal":{"tumor":"test23/tumor.bam","normal":"test23/normal.bam","reference":"hg18/chr14.fa","candidates":"test23/candidates.vcf","output":null,"purity":0.75,"spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"omit_snvs":false,"omit_indels":false,"max_indel_len":1000,"indel_window":100,"max_depth":200,"testcase_locus":"all","testcase_prefix":"testcases/test23","tumor_alignment_properties":null,"normal_alignment_properties":null}}'
+options: '{"Call": {"kind": {"Variants": {"spurious_ins_rate": 2.8e-06, "spurious_del_rate":
+  5.1e-06, "spurious_insext_rate": 0.0, "spurious_delext_rate": 0.0, "indel_window":
+  100, "omit_snvs": false, "omit_indels": false, "max_indel_len": 1000, "max_depth":
+  200, "reference": "hg18/chr14.fa", "candidates": "test23/candidates.vcf", "output":
+  null, "testcase_locus": "all", "testcase_prefix": "testcases/test23", "mode": {"TumorNormal":
+  {"tumor": "test23/tumor.bam", "normal": "test23/normal.bam", "purity": 0.75, "tumor_alignment_properties":
+  null, "normal_alignment_properties": null}}}}}}'

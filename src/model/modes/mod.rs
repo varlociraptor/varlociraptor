@@ -3,5 +3,5 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-pub mod common;
+pub mod generic;
 pub mod tumor;

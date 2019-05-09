@@ -1,4 +1,6 @@
 # Pindel call that is a somatic call in reality (case af: 0.125)
+# This is test02, but formulated with the grammar approach. It should yield
+# exactly the same results as test02.
 
 expected:
   allelefreqs:
@@ -24,6 +26,8 @@ samples:
 # candidate variant
 candidate: candidates.vcf
 
+scenario: scenario.yaml
+
 # reference sequence
 reference:
   name: chr1
@@ -34,4 +38,4 @@ options: '{"Call": {"kind": {"Variants": {"spurious_ins_rate": 2.8e-06, "spuriou
   100, "omit_snvs": false, "omit_indels": false, "max_indel_len": 1000, "max_depth":
   200, "reference": "../hg18/chr1.fa", "candidates": "candidates.vcf", "output": null,
   "testcase_locus": "chr1:40306163", "testcase_prefix": "../testcases/test02", "mode":
-  {"TumorNormal": {"tumor": "tumor.bam", "normal": "normal.bam", "purity": 0.75}}}}}}'
+  {"Generic": {"scenario": "scenario.yaml", "bams": ["tumor=tumor.bam", "normal=normal.bam"], "alignment_properties": []}}}}}}'

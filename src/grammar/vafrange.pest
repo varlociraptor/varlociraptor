@@ -1,0 +1,4 @@
+vafdef = _{ vaf | vafrange }
+vafrange = { bound ~ vaf ~ "," ~ vaf ~ bound }
+vaf = { ("0" ~ "." ~ ASCII_DIGIT+ | "1.0") }
+bound = { ( "[" | "]" ) }

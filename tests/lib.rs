@@ -17,7 +17,7 @@ use serde_json;
 use tempfile::{self, NamedTempFile};
 use yaml_rust::{Yaml, YamlLoader};
 
-use varlociraptor::cli::{run, Varlociraptor};
+use varlociraptor::cli::{run, CallKind, VariantCallMode, Varlociraptor};
 
 struct Testcase {
     inner: Vec<Yaml>,
@@ -47,48 +47,89 @@ impl Testcase {
         )?;
 
         match &mut options {
-            Varlociraptor::CallTumorNormal {
-                ref mut reference,
-                ref mut tumor,
-                ref mut normal,
-                ref mut candidates,
-                ref mut output,
-                ref mut testcase_locus,
-                ref mut testcase_prefix,
-                ref mut tumor_alignment_properties,
-                ref mut normal_alignment_properties,
-                ..
-            } => {
-                *reference = temp_ref.path().to_owned();
-                *tumor = self
-                    .path
-                    .join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
-                *normal = self
-                    .path
-                    .join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
-                *candidates = Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
-                *output = Some(self.output());
-                *testcase_prefix = None;
-                *testcase_locus = None;
+            Varlociraptor::Call { ref mut kind } => match kind {
+                CallKind::Variants {
+                    ref mut mode,
+                    ref mut reference,
+                    ref mut candidates,
+                    ref mut output,
+                    ref mut testcase_locus,
+                    ref mut testcase_prefix,
+                    ..
+                } => {
+                    *reference = temp_ref.path().to_owned();
+                    *candidates = Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
+                    *output = Some(self.output());
+                    *testcase_prefix = None;
+                    *testcase_locus = None;
 
-                let temp_tumor_props = Self::alignment_properties(
-                    self.yaml()["samples"]["tumor"]["properties"]
-                        .as_str()
-                        .unwrap(),
-                )?;
-                let temp_normal_props = Self::alignment_properties(
-                    self.yaml()["samples"]["normal"]["properties"]
-                        .as_str()
-                        .unwrap(),
-                )?;
-                *tumor_alignment_properties = Some(temp_tumor_props.path().to_owned());
-                *normal_alignment_properties = Some(temp_normal_props.path().to_owned());
+                    match mode {
+                        VariantCallMode::Generic {
+                            ref mut scenario,
+                            ref mut bams,
+                            ref mut alignment_properties,
+                        } => {
+                            *scenario = self.path.join(self.yaml()["scenario"].as_str().unwrap());
+                            bams.clear();
+                            alignment_properties.clear();
+                            let mut temp_props = Vec::new();
+                            for (sample_name, sample) in
+                                self.yaml()["samples"].as_hash().unwrap().iter()
+                            {
+                                let sample_name = sample_name.as_str().unwrap();
+                                let bam = self.path.join(sample["path"].as_str().unwrap());
+                                bam::index::build(&bam, None, bam::index::Type::BAI, 1).unwrap();
+                                bams.push(format!("{}={}", sample_name, bam.to_str().unwrap()));
+                                let props = Self::alignment_properties(
+                                    sample["properties"].as_str().unwrap(),
+                                )?;
+                                alignment_properties.push(format!(
+                                    "{}={}",
+                                    sample_name,
+                                    props.path().to_str().unwrap()
+                                ));
+                                temp_props.push(props);
+                            }
+                            println!("{:?}", options);
+                            run(options)
+                        }
+                        VariantCallMode::TumorNormal {
+                            ref mut tumor,
+                            ref mut normal,
+                            ref mut tumor_alignment_properties,
+                            ref mut normal_alignment_properties,
+                            ..
+                        } => {
+                            *tumor = self
+                                .path
+                                .join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
+                            *normal = self
+                                .path
+                                .join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
 
-                bam::index::build(tumor, None, bam::index::Type::BAI, 1).unwrap();
-                bam::index::build(normal, None, bam::index::Type::BAI, 1).unwrap();
+                            let temp_tumor_props = Self::alignment_properties(
+                                self.yaml()["samples"]["tumor"]["properties"]
+                                    .as_str()
+                                    .unwrap(),
+                            )?;
+                            let temp_normal_props = Self::alignment_properties(
+                                self.yaml()["samples"]["normal"]["properties"]
+                                    .as_str()
+                                    .unwrap(),
+                            )?;
+                            *tumor_alignment_properties = Some(temp_tumor_props.path().to_owned());
+                            *normal_alignment_properties =
+                                Some(temp_normal_props.path().to_owned());
 
-                run(options)
-            }
+                            bam::index::build(tumor, None, bam::index::Type::BAI, 1).unwrap();
+                            bam::index::build(normal, None, bam::index::Type::BAI, 1).unwrap();
+
+                            run(options)
+                        }
+                    }
+                }
+                _ => panic!("unsupported subcommand"),
+            },
             _ => panic!("unsupported subcommand"),
         }
     }
@@ -209,7 +250,7 @@ testcase!(test17);
 testcase!(test18);
 testcase!(test19);
 testcase!(test20);
-// skip the next test cecause this insertion cannot currently be resolved properly
+// skip the next test because this insertion cannot currently be resolved properly
 // TODO find a way to fix this.
 // testcase!(test21);
 testcase!(test22);
@@ -224,6 +265,8 @@ testcase!(test30);
 testcase!(test31);
 testcase!(test32);
 testcase!(test33);
+testcase!(test34);
+testcase!(test35);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

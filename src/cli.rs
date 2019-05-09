@@ -3,16 +3,19 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::HashMap;
+use std::convert::From;
 use std::error::Error;
 use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::bayesian::model::Model;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rayon;
 use rust_htslib::bam;
+use serde_yaml;
 use structopt::StructOpt;
 
 use crate::call::CallerBuilder;
@@ -21,10 +24,11 @@ use crate::conversion;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
-use crate::model::modes::common::FlatPrior;
-use crate::model::modes::tumor::{TumorNormalLikelihood, TumorNormalPair, TumorNormalPosterior};
+use crate::grammar;
+use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
+use crate::model::modes::tumor::TumorNormalPair;
 use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
-use crate::model::{ContinuousAlleleFreqs, VariantType};
+use crate::model::{Contamination, ContinuousAlleleFreqs, VariantType};
 use crate::testcase::TestcaseBuilder;
 use crate::SimpleEvent;
 
@@ -36,15 +40,40 @@ use crate::SimpleEvent;
 #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
 pub enum Varlociraptor {
     #[structopt(
-        name = "call-tumor-normal",
-        about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants."
+        raw(setting = "structopt::clap::AppSettings::ColoredHelp"),
+        name = "call",
+        about = "Call variants."
+    )]
+    Call {
+        #[structopt(subcommand)]
+        kind: CallKind,
+    },
+    #[structopt(
+        name = "filter-calls",
+        about = "Filter calls by either controlling the false discovery rate (FDR) at given level, or by posterior odds against the given events."
     )]
     #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
-    CallTumorNormal {
-        #[structopt(parse(from_os_str), help = "BAM file with reads from tumor sample.")]
-        tumor: PathBuf,
-        #[structopt(parse(from_os_str), help = "BAM file with reads from normal sample.")]
-        normal: PathBuf,
+    FilterCalls {
+        #[structopt(subcommand)]
+        method: FilterMethod,
+    },
+    #[structopt(
+        name = "decode-phred",
+        about = "Decode PHRED-scaled values to human readable probabilities."
+    )]
+    DecodePHRED,
+}
+
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
+pub enum CallKind {
+    #[structopt(
+        raw(setting = "structopt::clap::AppSettings::ColoredHelp"),
+        name = "variants",
+        about = "Call variants."
+    )]
+    Variants {
+        #[structopt(subcommand)]
+        mode: VariantCallMode,
         #[structopt(
             parse(from_os_str),
             help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
@@ -62,8 +91,6 @@ pub enum Varlociraptor {
             help = "BCF file that shall contain the results (if omitted, write to STDOUT)."
         )]
         output: Option<PathBuf>,
-        #[structopt(short, long, default_value = "1.0", help = "Purity of tumor sample.")]
-        purity: f64,
         #[structopt(
             long = "spurious-ins-rate",
             default_value = "2.8e-6",
@@ -127,27 +154,13 @@ pub enum Varlociraptor {
             help = "Create test case files in the given directory."
         )]
         testcase_prefix: Option<String>,
-        #[structopt(
-            parse(from_os_str),
-            long,
-            help = "Alignment properties JSON file for tumor sample. If not provided, properties \
-                    will be estimated from the given BAM file."
-        )]
-        tumor_alignment_properties: Option<PathBuf>,
-        #[structopt(
-            parse(from_os_str),
-            long,
-            help = "Alignment properties JSON file for normal sample. If not provided, properties \
-                    will be estimated from the given BAM file."
-        )]
-        normal_alignment_properties: Option<PathBuf>,
     },
     #[structopt(
-        name = "call-cnvs",
+        name = "cnvs",
         about = "Call CNVs in tumor-normal sample pairs. This is experimental."
     )]
     #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
-    CallCNVs {
+    CNVs {
         #[structopt(
             parse(from_os_str),
             long,
@@ -182,20 +195,59 @@ pub enum Varlociraptor {
         #[structopt(long, short = "t", help = "Number of threads to use.")]
         threads: usize,
     },
+}
+
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
+pub enum VariantCallMode {
     #[structopt(
-        name = "filter-calls",
-        about = "Filter calls by either controlling the false discovery rate (FDR) at given level, or by posterior odds against the given events."
+        name = "tumor-normal",
+        about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants."
     )]
     #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
-    FilterCalls {
-        #[structopt(subcommand)]
-        method: FilterMethod,
+    TumorNormal {
+        #[structopt(parse(from_os_str), help = "BAM file with reads from tumor sample.")]
+        tumor: PathBuf,
+        #[structopt(parse(from_os_str), help = "BAM file with reads from normal sample.")]
+        normal: PathBuf,
+        #[structopt(short, long, default_value = "1.0", help = "Purity of tumor sample.")]
+        purity: f64,
+        #[structopt(
+            parse(from_os_str),
+            long = "tumor-alignment-properties",
+            help = "Alignment properties JSON file for tumor sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        tumor_alignment_properties: Option<PathBuf>,
+        #[structopt(
+            parse(from_os_str),
+            long = "normal-alignment-properties",
+            help = "Alignment properties JSON file for normal sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        normal_alignment_properties: Option<PathBuf>,
     },
     #[structopt(
-        name = "decode-phred",
-        about = "Decode PHRED-scaled values to human readable probabilities."
+        raw(setting = "structopt::clap::AppSettings::ColoredHelp"),
+        name = "generic",
+        about = "Call variants for a given scenario specified with the varlociraptor calling \
+                 grammar and a VCF/BCF with candidate variants."
     )]
-    DecodePHRED,
+    Generic {
+        #[structopt(
+            parse(from_os_str),
+            long,
+            help = "Scenario defined in the varlociraptor calling grammar."
+        )]
+        scenario: PathBuf,
+        #[structopt(long, help = "BAM files with aligned reads for each sample.")]
+        bams: Vec<String>,
+        #[structopt(
+            long = "alignment-properties",
+            help = "Alignment properties JSON file for normal sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        alignment_properties: Vec<String>,
+    },
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -237,6 +289,19 @@ pub enum FilterMethod {
     },
 }
 
+fn parse_key_values(values: &[String]) -> Option<HashMap<String, PathBuf>> {
+    let mut map = HashMap::new();
+    for value in values {
+        let kv = value.split_terminator('=').collect_vec();
+        if kv.len() == 2 {
+            map.insert(kv[0].to_owned(), PathBuf::from(kv[1]));
+        } else {
+            return None;
+        }
+    }
+    Some(map)
+}
+
 impl Default for Varlociraptor {
     fn default() -> Self {
         Varlociraptor::from_iter(vec!["--help"])
@@ -244,172 +309,344 @@ impl Default for Varlociraptor {
 }
 
 pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
+    let opt_clone = opt.clone();
     match opt {
-        Varlociraptor::CallTumorNormal {
-            ref tumor,
-            ref normal,
-            spurious_ins_rate,
-            spurious_del_rate,
-            spurious_insext_rate,
-            spurious_delext_rate,
-            indel_window,
-            omit_snvs,
-            omit_indels,
-            max_indel_len,
-            max_depth,
-            ref reference,
-            ref candidates,
-            purity,
-            ref output,
-            ref testcase_locus,
-            ref testcase_prefix,
-            ref tumor_alignment_properties,
-            ref normal_alignment_properties,
-        } => {
-            if let Some(testcase_locus) = testcase_locus {
-                if let Some(testcase_prefix) = testcase_prefix {
-                    if let Some(candidates) = candidates {
-                        // just write a testcase and quit
-                        let mut testcase = TestcaseBuilder::default()
-                            .prefix(PathBuf::from(testcase_prefix))
-                            .options(opt.clone())
-                            .locus(testcase_locus)?
-                            .reference(reference)?
-                            .candidates(candidates)?
-                            .register_bam("tumor", tumor)
-                            .register_bam("normal", normal)
-                            .build()?;
-                        testcase.write()?;
-                        return Ok(());
+        Varlociraptor::Call { kind } => {
+            match kind {
+                CallKind::Variants {
+                    mode,
+                    spurious_ins_rate,
+                    spurious_del_rate,
+                    spurious_insext_rate,
+                    spurious_delext_rate,
+                    indel_window,
+                    omit_snvs,
+                    omit_indels,
+                    max_indel_len,
+                    max_depth,
+                    reference,
+                    candidates,
+                    output,
+                    testcase_locus,
+                    testcase_prefix,
+                } => {
+                    let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
+                    let spurious_del_rate = Prob::checked(spurious_del_rate)?;
+                    let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
+                    let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
+
+                    let sample_builder = || {
+                        SampleBuilder::default()
+                            .error_probs(
+                                spurious_ins_rate,
+                                spurious_del_rate,
+                                spurious_insext_rate,
+                                spurious_delext_rate,
+                                indel_window as u32,
+                            )
+                            .max_depth(max_depth)
+                    };
+
+                    let testcase_builder = if let Some(testcase_locus) = testcase_locus {
+                        if let Some(testcase_prefix) = testcase_prefix {
+                            if let Some(candidates) = candidates.as_ref() {
+                                // just write a testcase and quit
+                                Some(
+                                    TestcaseBuilder::default()
+                                        .prefix(PathBuf::from(testcase_prefix))
+                                        .options(opt_clone)
+                                        .locus(&testcase_locus)?
+                                        .reference(&reference)?
+                                        .candidates(candidates)?,
+                                )
+                            } else {
+                                Err(errors::TestcaseError::MissingCandidates)?;
+                                None
+                            }
+                        } else {
+                            Err(errors::TestcaseError::MissingPrefix)?;
+                            None
+                        }
                     } else {
-                        Err(errors::TestcaseError::MissingCandidates)?;
+                        None
+                    };
+
+                    match mode {
+                        VariantCallMode::Generic {
+                            ref scenario,
+                            ref bams,
+                            ref alignment_properties,
+                        } => {
+                            if let Some(bams) = parse_key_values(bams) {
+                                if let Some(alignment_properties) =
+                                    parse_key_values(alignment_properties)
+                                {
+                                    if let Some(mut testcase_builder) = testcase_builder {
+                                        for (name, bam) in &bams {
+                                            testcase_builder =
+                                                testcase_builder.register_bam(name, bam);
+                                        }
+
+                                        let mut testcase = testcase_builder
+                                            .scenario(Some(scenario.to_owned()))
+                                            .build()?;
+                                        testcase.write()?;
+                                        return Ok(());
+                                    }
+
+                                    let mut scenario_content = String::new();
+                                    File::open(scenario)?.read_to_string(&mut scenario_content)?;
+
+                                    let scenario: grammar::Scenario =
+                                        serde_yaml::from_str(&scenario_content)?;
+                                    let mut samples = Vec::new();
+                                    let mut model_builder = GenericModelBuilder::default()
+                                        // TODO allow to define prior in the grammar
+                                        .prior(FlatPrior::new());
+
+                                    // register sample idx
+                                    let mut sample_idx: HashMap<_, _> = scenario
+                                        .samples()
+                                        .keys()
+                                        .enumerate()
+                                        .map(|(i, s)| (s, i))
+                                        .collect();
+
+                                    // parse samples
+                                    for (sample_name, sample) in scenario.samples().iter() {
+                                        let contamination =
+                                            if let Some(contamination) = sample.contamination() {
+                                                let contaminant = *sample_idx
+                                                .get(contamination.by())
+                                                .ok_or(
+                                                errors::CLIError::InvalidContaminationSampleName {
+                                                    name: sample_name.to_owned(),
+                                                },
+                                            )?;
+                                                Some(Contamination {
+                                                    by: contaminant,
+                                                    fraction: *contamination.fraction(),
+                                                })
+                                            } else {
+                                                None
+                                            };
+                                        model_builder = model_builder
+                                            .push_sample(*sample.resolution(), contamination);
+
+                                        let bam = bams.get(sample_name).ok_or(
+                                            errors::CLIError::InvalidBAMSampleName {
+                                                name: sample_name.to_owned(),
+                                            },
+                                        )?;
+                                        let alignment_properties =
+                                            est_or_load_alignment_properites(
+                                                &alignment_properties.get(sample_name).as_ref(),
+                                                bam,
+                                            )?;
+                                        let bam_reader = bam::IndexedReader::from_path(bam)?;
+                                        let sample = sample_builder()
+                                            .name(sample_name.to_owned())
+                                            .alignments(bam_reader, alignment_properties)
+                                            .build()?;
+                                        samples.push(sample);
+                                    }
+
+                                    // register groups
+                                    for (sample_name, sample) in scenario.samples().iter() {
+                                        if let Some(group) = sample.group() {
+                                            sample_idx.insert(
+                                                group,
+                                                *sample_idx.get(sample_name).unwrap(),
+                                            );
+                                        }
+                                    }
+
+                                    let model = model_builder.build()?;
+
+                                    let n_samples = samples.len();
+                                    // setup caller
+                                    let mut caller_builder = CallerBuilder::default()
+                                        .samples(samples)
+                                        .reference(reference)?
+                                        .inbcf(candidates.as_ref())?
+                                        .model(model)
+                                        .omit_snvs(omit_snvs)
+                                        .omit_indels(omit_indels)
+                                        .max_indel_len(max_indel_len);
+                                    for (event_name, event) in scenario.events() {
+                                        let mut vafs: Vec<Option<ContinuousAlleleFreqs>> =
+                                            vec![None; n_samples];
+                                        for (id, vaf_range) in event.iter() {
+                                            let i = *sample_idx.get(id).ok_or(
+                                                errors::CLIError::InvalidEventSampleName {
+                                                    event_name: event_name.to_owned(),
+                                                    name: id.to_owned(),
+                                                },
+                                            )?;
+                                            vafs[i] = Some(vaf_range.clone().into());
+                                        }
+                                        if vafs.iter().all(|vaf| vaf.is_some()) {
+                                            caller_builder = caller_builder.event(
+                                                event_name,
+                                                vafs.into_iter()
+                                                    .map(|range| range.unwrap())
+                                                    .collect_vec(),
+                                            );
+                                        } else {
+                                            Err(errors::CLIError::MissingSampleEvent {
+                                                event_name: event_name.to_owned(),
+                                            })?
+                                        }
+                                    }
+                                    caller_builder = caller_builder.outbcf(output.as_ref())?;
+
+                                    let mut caller = caller_builder.build()?;
+
+                                    caller.call()?;
+                                } else {
+                                    Err(errors::CLIError::InvalidAlignmentPropertiesSpec)?
+                                }
+                            } else {
+                                Err(errors::CLIError::InvalidBAMSpec)?
+                            }
+                        }
+                        VariantCallMode::TumorNormal {
+                            ref tumor,
+                            ref normal,
+                            purity,
+                            ref tumor_alignment_properties,
+                            ref normal_alignment_properties,
+                        } => {
+                            if let Some(testcase_builder) = testcase_builder {
+                                let mut testcase = testcase_builder
+                                    .register_bam("tumor", tumor)
+                                    .register_bam("normal", normal)
+                                    .scenario(None)
+                                    .build()?;
+                                testcase.write()?;
+                                return Ok(());
+                            }
+
+                            let tumor_alignment_properties = est_or_load_alignment_properites(
+                                tumor_alignment_properties,
+                                tumor,
+                            )?;
+                            let normal_alignment_properties = est_or_load_alignment_properites(
+                                normal_alignment_properties,
+                                normal,
+                            )?;
+                            info!("Estimated alignment properties:");
+                            info!("{:?}", tumor_alignment_properties);
+                            info!("{:?}", normal_alignment_properties);
+
+                            let tumor_bam = bam::IndexedReader::from_path(tumor)?;
+                            let normal_bam = bam::IndexedReader::from_path(normal)?;
+
+                            let tumor_sample = sample_builder()
+                                .name("tumor".to_owned())
+                                .alignments(tumor_bam, tumor_alignment_properties)
+                                .build()?;
+                            let normal_sample = sample_builder()
+                                .name("normal".to_owned())
+                                .alignments(normal_bam, normal_alignment_properties)
+                                .build()?;
+
+                            let model = GenericModelBuilder::default()
+                                .prior(FlatPrior::new())
+                                .push_sample(
+                                    100,
+                                    Some(Contamination {
+                                        by: 1,
+                                        fraction: 1.0 - purity,
+                                    }),
+                                )
+                                .push_sample(5, None)
+                                .build()?;
+
+                            let mut caller = CallerBuilder::default()
+                                .samples(vec![tumor_sample, normal_sample])
+                                .reference(reference)?
+                                .inbcf(candidates.as_ref())?
+                                .model(model)
+                                .omit_snvs(omit_snvs)
+                                .omit_indels(omit_indels)
+                                .max_indel_len(max_indel_len)
+                                .event(
+                                    "germline_het",
+                                    TumorNormalPair {
+                                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
+                                        normal: ContinuousAlleleFreqs::singleton(0.5),
+                                    },
+                                )
+                                .event(
+                                    "germline_hom",
+                                    TumorNormalPair {
+                                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
+                                        normal: ContinuousAlleleFreqs::singleton(1.0),
+                                    },
+                                )
+                                .event(
+                                    "somatic_tumor",
+                                    TumorNormalPair {
+                                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0)
+                                            .min_observations(2),
+                                        normal: ContinuousAlleleFreqs::absent(),
+                                    },
+                                )
+                                .event(
+                                    "somatic_normal",
+                                    TumorNormalPair {
+                                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
+                                        normal: ContinuousAlleleFreqs::exclusive(0.0..0.5)
+                                            .min_observations(2),
+                                    },
+                                )
+                                .event(
+                                    "absent",
+                                    TumorNormalPair {
+                                        tumor: ContinuousAlleleFreqs::absent(),
+                                        normal: ContinuousAlleleFreqs::absent(),
+                                    },
+                                )
+                                .outbcf(output.as_ref())?
+                                .build()?;
+
+                            caller.call()?;
+                        }
                     }
-                } else {
-                    Err(errors::TestcaseError::MissingPrefix)?;
+                }
+                CallKind::CNVs {
+                    calls,
+                    output,
+                    min_bayes_factor,
+                    threads,
+                    purity,
+                    max_dist,
+                } => {
+                    rayon::ThreadPoolBuilder::new()
+                        .num_threads(threads)
+                        .build_global()?;
+
+                    if min_bayes_factor <= 1.0 {
+                        Err(errors::CallCNVError::InvalidMinBayesFactor)?
+                    }
+
+                    let mut caller = call_cnvs::CallerBuilder::default()
+                        .bcfs(calls.as_ref(), output.as_ref())?
+                        .min_bayes_factor(min_bayes_factor)
+                        .purity(purity)
+                        .max_dist(max_dist)
+                        .build()?;
+                    caller.call()?;
                 }
             }
-
-            let tumor_alignment_properties =
-                est_or_load_alignment_properites(tumor_alignment_properties, tumor)?;
-            let normal_alignment_properties =
-                est_or_load_alignment_properites(normal_alignment_properties, normal)?;
-            info!("Estimated alignment properties:");
-            info!("{:?}", tumor_alignment_properties);
-            info!("{:?}", normal_alignment_properties);
-
-            let tumor_bam = bam::IndexedReader::from_path(tumor)?;
-            let normal_bam = bam::IndexedReader::from_path(normal)?;
-
-            let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
-            let spurious_del_rate = Prob::checked(spurious_del_rate)?;
-            let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
-            let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
-
-            let sample_builder = || {
-                SampleBuilder::default()
-                    .error_probs(
-                        spurious_ins_rate,
-                        spurious_del_rate,
-                        spurious_insext_rate,
-                        spurious_delext_rate,
-                        indel_window as u32,
-                    )
-                    .max_depth(max_depth)
-            };
-
-            let tumor_sample = sample_builder()
-                .name("tumor".to_owned())
-                .alignments(tumor_bam, tumor_alignment_properties)
-                .build()?;
-            let normal_sample = sample_builder()
-                .name("normal".to_owned())
-                .alignments(normal_bam, normal_alignment_properties)
-                .build()?;
-
-            let model = Model::new(
-                TumorNormalLikelihood::new(purity),
-                FlatPrior::new(),
-                TumorNormalPosterior::new(),
-            );
-
-            let mut caller = CallerBuilder::default()
-                .samples(vec![tumor_sample, normal_sample])
-                .reference(reference)?
-                .inbcf(candidates.as_ref())?
-                .model(model)
-                .omit_snvs(omit_snvs)
-                .omit_indels(omit_indels)
-                .max_indel_len(max_indel_len)
-                .event(
-                    "germline_het",
-                    TumorNormalPair {
-                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                        normal: ContinuousAlleleFreqs::singleton(0.5),
-                    },
-                )
-                .event(
-                    "germline_hom",
-                    TumorNormalPair {
-                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                        normal: ContinuousAlleleFreqs::singleton(1.0),
-                    },
-                )
-                .event(
-                    "somatic_tumor",
-                    TumorNormalPair {
-                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0).min_observations(2),
-                        normal: ContinuousAlleleFreqs::absent(),
-                    },
-                )
-                .event(
-                    "somatic_normal",
-                    TumorNormalPair {
-                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
-                        normal: ContinuousAlleleFreqs::exclusive(0.0..0.5).min_observations(2),
-                    },
-                )
-                .event(
-                    "absent",
-                    TumorNormalPair {
-                        tumor: ContinuousAlleleFreqs::absent(),
-                        normal: ContinuousAlleleFreqs::absent(),
-                    },
-                )
-                .outbcf(output.as_ref())?
-                .build()?;
-
-            caller.call()?;
-        }
-        Varlociraptor::CallCNVs {
-            ref calls,
-            ref output,
-            min_bayes_factor,
-            threads,
-            purity,
-            max_dist,
-        } => {
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(threads)
-                .build_global()?;
-
-            if min_bayes_factor <= 1.0 {
-                Err(errors::CallCNVError::InvalidMinBayesFactor)?
-            }
-
-            let mut caller = call_cnvs::CallerBuilder::default()
-                .bcfs(calls.as_ref(), output.as_ref())?
-                .min_bayes_factor(min_bayes_factor)
-                .purity(purity)
-                .max_dist(max_dist)
-                .build()?;
-            caller.call()?;
         }
         Varlociraptor::FilterCalls { method } => match method {
             FilterMethod::ControlFDR {
-                ref calls,
-                ref events,
+                calls,
+                events,
                 fdr,
-                ref vartype,
+                vartype,
                 minlen,
                 maxlen,
             } => {
@@ -420,17 +657,17 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                     })
                     .collect_vec();
                 let vartype = match (vartype, minlen, maxlen) {
-                    (&VariantType::Insertion(None), Some(minlen), Some(maxlen)) => {
+                    (VariantType::Insertion(None), Some(minlen), Some(maxlen)) => {
                         VariantType::Insertion(Some(minlen..maxlen))
                     }
-                    (&VariantType::Deletion(None), Some(minlen), Some(maxlen)) => {
+                    (VariantType::Deletion(None), Some(minlen), Some(maxlen)) => {
                         VariantType::Deletion(Some(minlen..maxlen))
                     }
                     (vartype @ _, _, _) => vartype.clone(),
                 };
 
                 filtration::fdr::control_fdr::<_, &PathBuf, &str>(
-                    calls,
+                    &calls,
                     None,
                     &events,
                     &vartype,

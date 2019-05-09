@@ -11,16 +11,20 @@ expected:
 samples:
   {% for (name, sample) in samples -%}
   {{ name }}:
-    path: {{ sample.path }}
+    path: '{{ sample.path }}'
     properties: '{{ sample.properties }}'
   {% endfor %}
 
 # candidate variant
-candidate: {{ candidate }}
+candidate: '{{ candidate }}'
+
+{% if scenario.is_some() -%}
+scenario: '{{ scenario.as_ref().unwrap() }}'
+{% endif %}
 
 # reference sequence
 reference:
-  name: {{ ref_name }}
-  seq: {{ ref_seq }}
+  name: '{{ ref_name }}'
+  seq: '{{ ref_seq }}'
 
 options: '{{ options }}'

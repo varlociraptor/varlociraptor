@@ -19,6 +19,7 @@ tests/resources/*/*.fa
 tests/resources/*/*.fa.fai
 tests/resources/testcases/*/*
 !tests/resources/testcases/*/testcase.yaml
-!tests/resources/testcases/*/normal.bam
-!tests/resources/testcases/*/candidates.vcf
-!tests/resources/testcases/*/tumor.bam
+!tests/resources/testcases/*/*.bam
+!tests/resources/testcases/*/*.vcf
+!tests/resources/testcases/*/*.bam
+!tests/resources/testcases/*/scenario.yaml

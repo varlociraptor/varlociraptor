@@ -3,12 +3,17 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::BTreeMap;
+
 use bio::stats::{bayesian::model::Likelihood, LogProb};
 
 use crate::model::evidence::Observation;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, StrandBias};
 use crate::utils::NUMERICAL_EPSILON;
+
+pub type ContaminatedSampleCache = BTreeMap<ContaminatedSampleEvent, LogProb>;
+pub type SingleSampleCache = BTreeMap<Event, LogProb>;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Event {
@@ -41,6 +46,12 @@ impl<T> ContaminatedSamplePairView<T> for Vec<T> {
     fn secondary(&self) -> &T {
         &self[1]
     }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+pub struct ContaminatedSampleEvent {
+    pub primary: Event,
+    pub secondary: Event,
 }
 
 /// Variant calling model, taking purity and allele frequencies into account.
@@ -108,38 +119,45 @@ impl ContaminatedSampleLikelihoodModel {
     }
 }
 
-impl Likelihood for ContaminatedSampleLikelihoodModel {
-    type Event = Vec<Event>;
+impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
+    type Event = ContaminatedSampleEvent;
     type Data = Pileup;
 
-    fn compute(&self, events: &Self::Event, pileup: &Self::Data) -> LogProb {
-        let ln_af_primary = LogProb(events.primary().allele_freq.ln());
-        let ln_af_secondary = LogProb(events.secondary().allele_freq.ln());
-        let ln_forward_rate_primary = events.primary().strand_bias.forward_rate();
-        let ln_forward_rate_secondary = events.secondary().strand_bias.forward_rate();
-        let ln_reverse_rate_primary = events.primary().strand_bias.reverse_rate();
-        let ln_reverse_rate_secondary = events.secondary().strand_bias.reverse_rate();
+    fn compute(
+        &self,
+        events: &Self::Event,
+        pileup: &Self::Data,
+        cache: &mut ContaminatedSampleCache,
+    ) -> LogProb {
+        if cache.contains_key(events) {
+            *cache.get(events).unwrap()
+        } else {
+            let ln_af_primary = LogProb(events.primary.allele_freq.ln());
+            let ln_af_secondary = LogProb(events.secondary.allele_freq.ln());
+            let ln_forward_rate_primary = events.primary.strand_bias.forward_rate();
+            let ln_forward_rate_secondary = events.secondary.strand_bias.forward_rate();
+            let ln_reverse_rate_primary = events.primary.strand_bias.reverse_rate();
+            let ln_reverse_rate_secondary = events.secondary.strand_bias.reverse_rate();
 
-        // calculate product of per-oservation likelihoods in log space
-        let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-            let lh = self.likelihood_observation(
-                ln_af_primary,
-                ln_af_secondary,
-                ln_forward_rate_primary,
-                ln_reverse_rate_primary,
-                ln_forward_rate_secondary,
-                ln_reverse_rate_secondary,
-                obs,
-            );
-            prob + lh
-        });
-        // if **allelefreqs.secondary() == 0.0 {
-        //     dbg!(**allelefreqs.primary());
-        //     dbg!(*likelihood);
-        // }
+            // calculate product of per-oservation likelihoods in log space
+            let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
+                let lh = self.likelihood_observation(
+                    ln_af_primary,
+                    ln_af_secondary,
+                    ln_forward_rate_primary,
+                    ln_reverse_rate_primary,
+                    ln_forward_rate_secondary,
+                    ln_reverse_rate_secondary,
+                    obs,
+                );
+                prob + lh
+            });
 
-        assert!(!likelihood.is_nan());
-        likelihood
+            assert!(!likelihood.is_nan());
+            cache.insert(events.clone(), likelihood);
+
+            likelihood
+        }
     }
 }
 
@@ -222,30 +240,38 @@ fn likelihood_mapping(
     prob
 }
 
-impl Likelihood for SampleLikelihoodModel {
+impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
     type Event = Event;
     type Data = Pileup;
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
-    fn compute(&self, event: &Event, pileup: &Pileup) -> LogProb {
-        let ln_af = LogProb(event.allele_freq.ln());
-        let forward_rate = event.strand_bias.forward_rate();
-        let reverse_rate = event.strand_bias.reverse_rate();
+    fn compute(&self, event: &Event, pileup: &Pileup, cache: &mut SingleSampleCache) -> LogProb {
+        if cache.contains_key(event) {
+            *cache.get(event).unwrap()
+        } else {
+            let ln_af = LogProb(event.allele_freq.ln());
+            let forward_rate = event.strand_bias.forward_rate();
+            let reverse_rate = event.strand_bias.reverse_rate();
 
-        // calculate product of per-read likelihoods in log space
-        let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-            let lh = self.likelihood_observation(ln_af, forward_rate, reverse_rate, obs);
-            prob + lh
-        });
+            // calculate product of per-read likelihoods in log space
+            let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
+                let lh = self.likelihood_observation(ln_af, forward_rate, reverse_rate, obs);
+                prob + lh
+            });
 
-        assert!(!likelihood.is_nan());
-        likelihood
+            assert!(!likelihood.is_nan());
+
+            cache.insert(event.clone(), likelihood);
+
+            likelihood
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::likelihood;
     use crate::model::tests::observation;
     use crate::model::StrandBias;
     use bio::stats::LogProb;
@@ -305,8 +331,16 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
+        let mut cache = likelihood::ContaminatedSampleCache::default();
 
-        let lh = model.compute(&vec![event(0.0), event(0.0)], &observations);
+        let lh = model.compute(
+            &ContaminatedSampleEvent {
+                primary: event(0.0),
+                secondary: event(0.0),
+            },
+            &observations,
+            &mut cache,
+        );
         assert_relative_eq!(*lh, *LogProb::ln_one());
     }
 
@@ -321,9 +355,11 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-
-        let lh = model.compute(&event(0.0), &observations);
+        let mut cache = likelihood::SingleSampleCache::default();
+        let evt = event(0.0);
+        let lh = model.compute(&evt, &observations, &mut cache);
         assert_relative_eq!(*lh, *LogProb::ln_one());
+        assert!(cache.contains_key(&evt))
     }
 
     #[test]
@@ -465,11 +501,24 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let lh = model.compute(&vec![event(0.5), event(0.0)], &observations);
+        let mut cache = likelihood::ContaminatedSampleCache::default();
+        let lh = model.compute(
+            &ContaminatedSampleEvent {
+                primary: event(0.5),
+                secondary: event(0.0),
+            },
+            &observations,
+            &mut cache,
+        );
         for af in linspace(0.0, 1.0, 10) {
             if af != 0.5 {
-                let l = model.compute(&vec![event(af), event(0.0)], &observations);
+                let evt = ContaminatedSampleEvent {
+                    primary: event(af),
+                    secondary: event(0.0),
+                };
+                let l = model.compute(&evt, &observations, &mut cache);
                 assert!(lh > l);
+                assert!(cache.contains_key(&evt));
             }
         }
     }

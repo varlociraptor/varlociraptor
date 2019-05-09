@@ -50,6 +50,6 @@ script:
 
 after_success: |
   if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-    cargo tarpaulin --out Xml &&
+    cargo tarpaulin --out Xml --skip-clean &&
     bash <(curl -s https://codecov.io/bash)
   fi
