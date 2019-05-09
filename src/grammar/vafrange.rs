@@ -83,7 +83,7 @@ impl<'de> de::Visitor<'de> for VAFRangeVisitor {
                         &self,
                     ))
                 }
-                Rule::vafdef => unreachable!("vafdef is not recursive")
+                Rule::vafdef => unreachable!("vafdef is not recursive"),
             })
         } else {
             Err(de::Error::invalid_value(

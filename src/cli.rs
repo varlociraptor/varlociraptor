@@ -351,12 +351,14 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                         if let Some(testcase_prefix) = testcase_prefix {
                             if let Some(candidates) = candidates.as_ref() {
                                 // just write a testcase and quit
-                                Some(TestcaseBuilder::default()
-                                    .prefix(PathBuf::from(testcase_prefix))
-                                    .options(opt_clone)
-                                    .locus(&testcase_locus)?
-                                    .reference(&reference)?
-                                    .candidates(candidates)?)
+                                Some(
+                                    TestcaseBuilder::default()
+                                        .prefix(PathBuf::from(testcase_prefix))
+                                        .options(opt_clone)
+                                        .locus(&testcase_locus)?
+                                        .reference(&reference)?
+                                        .candidates(candidates)?,
+                                )
                             } else {
                                 Err(errors::TestcaseError::MissingCandidates)?;
                                 None
@@ -381,10 +383,13 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 {
                                     if let Some(mut testcase_builder) = testcase_builder {
                                         for (name, bam) in &bams {
-                                            testcase_builder = testcase_builder.register_bam(name, bam);
+                                            testcase_builder =
+                                                testcase_builder.register_bam(name, bam);
                                         }
 
-                                        let mut testcase = testcase_builder.build()?;
+                                        let mut testcase = testcase_builder
+                                            .scenario(Some(scenario.to_owned()))
+                                            .build()?;
                                         testcase.write()?;
                                         return Ok(());
                                     }
@@ -516,6 +521,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 let mut testcase = testcase_builder
                                     .register_bam("tumor", tumor)
                                     .register_bam("normal", normal)
+                                    .scenario(None)
                                     .build()?;
                                 testcase.write()?;
                                 return Ok(());

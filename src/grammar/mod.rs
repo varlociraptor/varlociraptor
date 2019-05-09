@@ -15,7 +15,7 @@ pub struct Scenario {
 }
 
 #[derive(Deserialize)]
-pub struct Event (
+pub struct Event(
     /// Map from sample/group name to allele freq range
     HashMap<String, VAFRange>,
 );

@@ -73,15 +73,21 @@ impl Testcase {
                             bams.clear();
                             alignment_properties.clear();
                             let mut temp_props = Vec::new();
-                            for (sample_name, sample) in self.yaml()["samples"].as_hash().unwrap().iter() {
+                            for (sample_name, sample) in
+                                self.yaml()["samples"].as_hash().unwrap().iter()
+                            {
                                 let sample_name = sample_name.as_str().unwrap();
                                 let bam = self.path.join(sample["path"].as_str().unwrap());
                                 bam::index::build(&bam, None, bam::index::Type::BAI, 1).unwrap();
                                 bams.push(format!("{}={}", sample_name, bam.to_str().unwrap()));
-                                let props = Self::alignment_properties(sample["properties"].as_str().unwrap())?;
-                                alignment_properties.push(
-                                    format!("{}={}", sample_name, props.path().to_str().unwrap())
-                                );
+                                let props = Self::alignment_properties(
+                                    sample["properties"].as_str().unwrap(),
+                                )?;
+                                alignment_properties.push(format!(
+                                    "{}={}",
+                                    sample_name,
+                                    props.path().to_str().unwrap()
+                                ));
                                 temp_props.push(props);
                             }
                             println!("{:?}", options);
