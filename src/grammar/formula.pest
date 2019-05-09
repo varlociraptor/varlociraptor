@@ -1,0 +1,9 @@
+vafdef = _{ vaf | vafrange }
+vafrange = { ASCII_ALPHANUMERIC+ ~ ":" ~ bound ~ vaf ~ "," ~ vaf ~ bound }
+vaf = { ASCII_ALPHANUMERIC+ ~ ":" ~ ("0" ~ "." ~ ASCII_DIGIT+ | "1.0") }
+bound = { ( "[" | "]" ) }
+conjunction = { subformula ~ ( "&" ~ subformula )+ }
+disjunction = { subformula ~ ( "|" ~ subformula )+ }
+negation = { "!" ~ subformula }
+subformula = _{ ( vafdef | "(" ~ conjunction ~ ")" | "(" ~ disjunction ~ ")" | negation )}
+formula = _{ ( vafdef | conjunction | disjunction | negation ) }
