@@ -2,6 +2,17 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.0.0] - 2019-05-09
+- Rewrite of statistical model, using rust-bios new trait machinery.
+- Generalization of the model, allowing arbitrary allele frequency events and sample numbers.
+- Inclusion of strand bias in the model.
+- Better VCF output.
+- Various bug fixes.
+- New test framework.
+- CLI overhaul.
+- Experimental tumor-normal CNV calling.
+- Various improvements to calling accuracy and fixed corner cases.
+
 ## [0.7.0] - 2018-11-06
 ### Changed
 - overhaul of FDR machinery to make it only one tool that outputs a BCF filtered at a provided FDR threshold
