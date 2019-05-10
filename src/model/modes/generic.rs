@@ -8,6 +8,7 @@ use crate::model;
 use crate::model::likelihood;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, Contamination, ContinuousAlleleFreqs};
+use crate::grammar;
 
 #[derive(Debug)]
 pub enum CacheEntry {
@@ -64,24 +65,6 @@ where
 pub struct GenericPosterior {
     resolutions: Vec<usize>,
 }
-
-// impl GenericPosteriorBuilder {
-//     pub fn contaminations(&mut self, contaminations: &[Option<Contamination>]) -> &mut Self {
-//         let mut contamination_graph = Graph::new_undirected();
-//         for _ in 0..contaminations.len() {
-//             contamination_graph.add_node(());
-//         }
-//         for (sample, contamination) in contaminations.iter().enumerate() {
-//             if let Some(contamination) = contamination {
-//                 contamination_graph.add_edge(NodeIndex::new(sample), NodeIndex::new(contamination.by), ());
-//             }
-//         }
-//
-//         self.groups(kosaraju_scc(&contamination_graph).into_iter().map(|group| {
-//             group.into_iter().map(|i| i.index()).collect_vec()
-//         }).collect_vec())
-//     }
-// }
 
 impl GenericPosterior {
     fn grid_points(&self, pileups: &[Pileup]) -> Vec<usize> {
@@ -145,7 +128,7 @@ impl GenericPosterior {
 
 impl Posterior for GenericPosterior {
     type BaseEvent = Vec<likelihood::Event>;
-    type Event = Vec<model::Event<ContinuousAlleleFreqs>>;
+    type Event = model::Event;
     type Data = Vec<Pileup>;
 
     fn compute<F: FnMut(&Self::BaseEvent, &Self::Data) -> LogProb>(

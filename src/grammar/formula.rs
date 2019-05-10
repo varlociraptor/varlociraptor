@@ -1,6 +1,7 @@
 use std::ops;
 use std::collections::{BTreeSet, HashMap};
 use std::fmt;
+use std::cmp::{Ordering, Ord, PartialOrd};
 
 use itertools::Itertools;
 use pest::iterators::Pair;
@@ -14,6 +15,7 @@ use crate::model::AlleleFreq;
 #[grammar = "grammar/formula.pest"]
 pub struct FormulaParser;
 
+#[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
 pub enum Formula<T> {
     Conjunction {
         operands: Vec<Box<Formula<T>>>
@@ -44,19 +46,54 @@ impl Formula<String> {
     }
 }
 
-#[derive(Clone, Debug) ]
+impl Formula<usize> {
+    pub fn absent(n_samples: usize) -> Formula<usize> {
+        Formula::Conjunction { operands: (0..n_samples).into_iter().map(|sample| Box::new(Formula::Atom { sample, vafs: VAFSpectrum::Singleton(AlleleFreq(0.0)) })).collect_vec() }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord) ]
 pub enum VAFSpectrum {
     Singleton(AlleleFreq),
     Set(BTreeSet<AlleleFreq>),
     Range(VAFRange)
 }
 
-#[derive(Clone, Debug) ]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VAFRange {
     Exclusive(ops::Range<AlleleFreq>),
     LeftExclusive(ops::Range<AlleleFreq>),
     RightExclusive(ops::Range<AlleleFreq>),
     Inclusive(ops::Range<AlleleFreq>),
+}
+
+impl ops::Deref for VAFRange {
+    type Target = ops::Range<AlleleFreq>;
+
+    fn deref(&self) -> &ops::Range<AlleleFreq> {
+        match self {
+            VAFRange::Exclusive(ref range) => range,
+            VAFRange::LeftExclusive(ref range) => range,
+            VAFRange::RightExclusive(ref range) => range,
+            VAFRange::Inclusive(ref range) => range,
+        }
+    }
+}
+
+
+impl Ord for VAFRange {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.start.cmp(&other.start) {
+            Ordering::Equal => self.end.cmp(&other.end),
+            ord @ _ => ord,
+        }
+    }
+}
+
+impl PartialOrd for VAFRange {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 

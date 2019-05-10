@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 pub mod formula;
 
-use crate::grammar::formula::Formula;
+pub use crate::grammar::formula::Formula;
 
 #[derive(Deserialize, Getters)]
 #[get = "pub"]

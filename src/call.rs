@@ -22,6 +22,7 @@ use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
 use crate::model::{AlleleFreq, AlleleFreqs, StrandBias};
 use crate::utils;
+use crate::grammar;
 
 pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
@@ -75,9 +76,9 @@ where
     #[builder(private)]
     bcf_writer: bcf::Writer,
     #[builder(private)]
-    events: HashMap<String, Vec<model::Event<A>>>,
+    events: HashMap<String, model::Event>,
     #[builder(private)]
-    strand_bias_events: Vec<Vec<model::Event<A>>>,
+    strand_bias_events: Vec<model::Event>,
     model: bayesian::Model<L, Pr, Po, ModelPayload>,
     omit_snvs: bool,
     omit_indels: bool,
@@ -89,7 +90,7 @@ where
     A: AlleleFreqs + Ord + Clone,
     L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
-    Po: bayesian::model::Posterior<Event = Vec<model::Event<A>>>,
+    Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
     pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<Error>> {
@@ -107,27 +108,38 @@ where
     }
 
     /// Register events.
-    pub fn event<E: Into<Vec<A>>>(mut self, name: &str, event: E) -> Self {
+    pub fn event(mut self, name: &str, event: grammar::Formula<usize>) -> Self {
         assert_ne!(
             name.to_ascii_lowercase(),
             "artifact",
             "the event name artifact is reserved for internal use"
         );
+        assert_ne!(
+            name.to_ascii_lowercase(),
+            "absent",
+            "the event name absent is reserved for internal use"
+        );
+        // TODO check that this is not the absent event by looking at !
+
         if self.events.is_none() {
-            self = self.events(HashMap::default());
+            let mut events = HashMap::default();
+            if let Some(samples) = self.samples {
+                events.insert("absent".to_owned(), model::Event {
+                    formula: grammar::Formula::absent(samples.len()),
+                    strand_bias: StrandBias::None
+                });
+            } else {
+                panic!("bug: events must be registered after adding samples");
+            }
+            self = self.events(events);
             self = self.strand_bias_events(Vec::new());
         }
-        let event = event.into();
 
         let annotate_event = |strand_bias| {
-            event
-                .iter()
-                .cloned()
-                .map(|e| model::Event {
-                    allele_freqs: e,
-                    strand_bias: strand_bias,
-                })
-                .collect_vec()
+            model::Event {
+                formula: event.clone(),
+                strand_bias: strand_bias,
+            }
         };
 
         self.events
@@ -135,18 +147,15 @@ where
             .unwrap()
             .insert(name.to_owned(), annotate_event(StrandBias::None));
 
-        // If this is not the absent event, add strand bias cases.
-        // For absent event, we don't need them.
-        if !event.iter().all(|e| e.is_absent()) {
-            self.strand_bias_events
-                .as_mut()
-                .unwrap()
-                .push(annotate_event(StrandBias::Forward));
-            self.strand_bias_events
-                .as_mut()
-                .unwrap()
-                .push(annotate_event(StrandBias::Reverse));
-        }
+        // Add strand bias cases.
+        self.strand_bias_events
+            .as_mut()
+            .unwrap()
+            .push(annotate_event(StrandBias::Forward));
+        self.strand_bias_events
+            .as_mut()
+            .unwrap()
+            .push(annotate_event(StrandBias::Reverse));
 
         self
     }
@@ -243,7 +252,7 @@ where
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
     Po: bayesian::model::Posterior<
         BaseEvent = AlleleFreqCombination,
-        Event = Vec<model::Event<A>>,
+        Event = model::Event,
         Data = Vec<Pileup>,
     >,
     ModelPayload: Default,
