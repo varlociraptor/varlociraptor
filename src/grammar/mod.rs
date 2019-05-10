@@ -8,7 +8,7 @@ use crate::grammar::formula::Formula;
 #[get = "pub"]
 pub struct Scenario {
     // map of events
-    events: HashMap<String, Formula>,
+    events: HashMap<String, Formula<String>>,
     // map of samples
     samples: HashMap<String, Sample>,
 }
