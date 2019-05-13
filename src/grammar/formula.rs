@@ -1,5 +1,5 @@
 use std::ops;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::fmt;
 use std::cmp::{Ordering, Ord, PartialOrd};
 
@@ -10,6 +10,7 @@ use serde::de;
 use serde::Deserialize;
 
 use crate::model::AlleleFreq;
+
 
 #[derive(Parser)]
 #[grammar = "grammar/formula.pest"]
@@ -32,6 +33,85 @@ pub enum Formula<T> {
     }
 }
 
+impl<T: Hash + Eq> Formula<T> {
+
+    /// Negate formula.
+    pub fn negate(self, vaf_universe: &HashMap<T, BTreeSet<VAFSpectrum>>) -> Formula<T> {
+        match self {
+            Formula::Conjunction { operands } => Formula::Disjunction { operands },
+            Formula::Disjunction { operands } => Formula::Conjunction { operands },
+            Formula::Negation { operand } => *operand,
+            Formula::Atom { sample, vafs } => {
+                let universe = vaf_universe.get(&sample).expect(format!("No VAF-Universe given for sample {}", sample));
+                let mut disjunction = Vec::new();
+                match vafs {
+                    spectrum @ VAFSpectrum::Set(vafs) => {
+                        let uvaf_stack: VecDeque<_> = universe.iter().cloned().collect();
+                        loop {
+                            let uvafs = universe.pop();
+                            match uvafs {
+                                VAFSpectrum::Set(uvafs) => {
+                                    let mut difference = uvafs.clone();
+                                    difference.remove(vafs);
+                                    if !difference.is_empty() {
+                                        disjunction.push(VAFSpectrum::Set(difference));
+                                    }
+                                }
+                                uspectrum @ VAFSpectrum::Range(urange) => {
+                                    for vaf in vafs {
+                                        if urange.contains(vaf) {
+                                            let (left_urange, right_urange) = urange.split_at(vaf);
+                                            uvaf_stack.push(VAFSpectrum::Range(right_urange));
+                                            disjunction.push(VAFSpectrum::Range(left_urange));
+                                        } else {
+                                            disjunction.push(uspectrum.clone());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    VAFSpectrum::Range(range) => {
+                        for uvafs in universe {
+                            match uvafs {
+                                uspectrum @ VAFSpectrum::Set(uvafs) => {
+                                    for uvaf in uvafs {
+                                        if !range.contains(uvaf) {
+                                            disjunction.push(uspectrum.clone());
+                                        }
+                                    }
+                                }
+                                uspectrum @ VAFSpectrum::Range(urange) => {
+                                    match range.overlap(urange) {
+                                        VAFRangeOverlap::Contained => {
+                                            let left = urange.split_at(range.start).0;
+                                            let right = urange.split_at(range.end).1;
+                                            disjunction.push(VAFSpectrum::Range(left));
+                                            disjunction.push(VAFSpectrum::Range(right));
+                                        }
+                                        VAFRangeOverlap::End => {
+                                            disjunction.push(VAFSpectrum::Range(urange.split_at(range.end).1));
+                                        }
+                                        VAFRangeOverlap::Start => {
+                                            disjunction.push(VAFSpectrum::Range(urange.split_at(range.start).0));
+                                        }
+                                        VAFRangeOverlap::None => {
+                                            disjunction.push(uspectrum.clone())
+                                        }
+                                        VAFRangeOverlap::Contains => {
+                                            ()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 impl Formula<String> {
     pub fn to_sample_idx(&self, sample_idx: &HashMap<String, usize>) -> Formula<usize> {
         let recurse_to_operands = |operands: &[Box<Formula<String>>]| {
@@ -48,35 +128,89 @@ impl Formula<String> {
 
 impl Formula<usize> {
     pub fn absent(n_samples: usize) -> Formula<usize> {
-        Formula::Conjunction { operands: (0..n_samples).into_iter().map(|sample| Box::new(Formula::Atom { sample, vafs: VAFSpectrum::Singleton(AlleleFreq(0.0)) })).collect_vec() }
+        Formula::Conjunction { operands: (0..n_samples).into_iter().map(|sample| Box::new(Formula::Atom { sample, vafs: VAFSpectrum::singleton(AlleleFreq(0.0)) })).collect_vec() }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord) ]
 pub enum VAFSpectrum {
-    Singleton(AlleleFreq),
     Set(BTreeSet<AlleleFreq>),
     Range(VAFRange)
 }
 
+impl VAFSpectrum {
+    pub fn singleton(vaf: AlleleFreq) -> Self {
+        let mut set = BTreeSet::new();
+        set.insert(vaf);
+        VAFSpectrum::Set(set)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum VAFRange {
-    Exclusive(ops::Range<AlleleFreq>),
-    LeftExclusive(ops::Range<AlleleFreq>),
-    RightExclusive(ops::Range<AlleleFreq>),
-    Inclusive(ops::Range<AlleleFreq>),
+pub struct VAFRange {
+    inner: ops::Range<AlleleFreq>,
+    left_exclusive: bool,
+    right_exclusive: bool,
+}
+
+pub enum VAFRangeOverlap {
+    Contained,
+    Contains,
+    End,
+    Start,
+    None
+}
+
+impl VAFRange {
+    pub fn contains(&self, vaf: AlleleFreq) -> bool {
+        match (self.left_exclusive, self.right_exclusive) {
+            (true, true) => self.start < vaf && self.end > vaf,
+            (true, false) => self.start < vaf && self.end >= vaf,
+            (false, true) => self.start <= vaf && self.end > vaf,
+            (true, true) => self.start <= vaf && self.end >= vaf,
+        }
+    }
+
+    pub fn split_at(&self, vaf: AlleleFreq) -> (VAFRange, VAFRange) {
+        assert!(self.contains(vaf), "bug: split_at is only defined if given VAF is contained in range");
+        let left = VAFRange { inner: self.start..vaf, left_exclusive: self.left_exclusive, right_exclusive: true };
+        let right = VAFRange { inner: vaf..self.end, left_exclusive: true, right_exclusive: self.right_exclusive };
+        (left, right)
+    }
+
+    pub fn overlap(&self, vafs: &VAFRange) -> VAFRangeOverlap {
+        let range = *self;
+        let other_range = **vafs;
+        let start_is_right_of_start = match (self.left_exclusive, self.right_exclusive) {
+            (true, true)  => range.start >= other_range.start,
+            (true, false) => range.start >= other_range.start,
+            (false, true) => range.start > other_range.start,
+            (false, false) => range.start >= other_range.start,
+        };
+        let end_is_left_of_end = match (self.left_exclusive, self.right_exclusive) {
+            (true, true)  => range.end <= other_range.end,
+            (true, false) => range.end <= other_range.end,
+            (false, true) => range.end < other_range.end,
+            (false, false) => range.end <= other_range.end,
+        };
+        if range.end < other_range.start || range.start >= other_range.end {
+            VAFRangeOverlap::None
+        } else {
+            match (start_is_right_of_start, end_is_left_of_end) {
+                (true, true) => VAFRangeOverlap::Contained,
+                (true, false) => VAFRangeOverlap::Start,
+                (false, true) => VAFRangeOverlap::End,
+                (false, false) => VAFRangeOverlap::Contains,
+            }
+        }
+    }
 }
 
 impl ops::Deref for VAFRange {
     type Target = ops::Range<AlleleFreq>;
 
     fn deref(&self) -> &ops::Range<AlleleFreq> {
-        match self {
-            VAFRange::Exclusive(ref range) => range,
-            VAFRange::LeftExclusive(ref range) => range,
-            VAFRange::RightExclusive(ref range) => range,
-            VAFRange::Inclusive(ref range) => range,
-        }
+        &self.inner
     }
 }
 
@@ -143,7 +277,7 @@ where
             let inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
             let vaf = inner.next().unwrap().as_str().parse().unwrap();
-            Formula::Atom { sample, vafs: VAFSpectrum::Singleton(AlleleFreq(vaf)) }
+            Formula::Atom { sample, vafs: VAFSpectrum::singleton(AlleleFreq(vaf)) }
         }
         Rule::vafrange => {
             let inner = pair.into_inner();
