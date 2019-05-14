@@ -267,6 +267,7 @@ testcase!(test32);
 testcase!(test33);
 testcase!(test34);
 testcase!(test35);
+testcase!(pattern_too_long);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
