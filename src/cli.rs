@@ -546,53 +546,31 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .push_sample(5, None)
                                 .build()?;
 
-                            let mut caller = CallerBuilder::default()
+                            let caller_builder = CallerBuilder::default()
                                 .samples(vec![tumor_sample, normal_sample])
                                 .reference(reference)?
                                 .inbcf(candidates.as_ref())?
                                 .model(model)
                                 .omit_snvs(omit_snvs)
                                 .omit_indels(omit_indels)
-                                .max_indel_len(max_indel_len)
-                                .event(
-                                    "germline_het",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                                        normal: ContinuousAlleleFreqs::singleton(0.5),
-                                    },
-                                )
-                                .event(
-                                    "germline_hom",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                                        normal: ContinuousAlleleFreqs::singleton(1.0),
-                                    },
-                                )
-                                .event(
-                                    "somatic_tumor",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0)
-                                            .min_observations(2),
-                                        normal: ContinuousAlleleFreqs::absent(),
-                                    },
-                                )
-                                .event(
-                                    "somatic_normal",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
-                                        normal: ContinuousAlleleFreqs::exclusive(0.0..0.5)
-                                            .min_observations(2),
-                                    },
-                                )
-                                .event(
-                                    "absent",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::absent(),
-                                        normal: ContinuousAlleleFreqs::absent(),
-                                    },
-                                )
-                                .outbcf(output.as_ref())?
-                                .build()?;
+                                .max_indel_len(max_indel_len);
+
+                            let events: HashMap<String, grammar::Formula<String>> = serde_yaml::from_str(r#"
+                                events:
+                                  somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
+                                  somatic_normal: "tumor:]0.0,1.0] & normal:]0.0,0.5["
+                                  germline_het:   "tumor:[0.0,1.0] & normal:0.5"
+                                  germline_hom:   "tumor:[0.0,1.0] & normal:1.0"
+                                  absent:         "tumor:0.0 & normal:0.0"
+                                "#)?;
+                            let sample_idx = HashMap::new();
+                            sample_idx.insert("tumor".to_owned(), 0);
+                            sample_idx.insert("normal".to_owned(), 1);
+
+                            for (event_name, event) in events {
+                                caller_builder = caller_builder.event(&event_name, event.to_sample_idx(&sample_idx)?);
+                            }
+                            let mut caller = caller_builder.outbcf(output.as_ref())?.build()?;
 
                             caller.call()?;
                         }

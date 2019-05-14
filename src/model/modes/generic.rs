@@ -103,8 +103,8 @@ impl GenericPosterior {
 
         match formula {
             grammar::Formula::Atom { sample, ref vafs } => {
-                let mut push_base_event = |allele_freq, base_events: Rc<VecMap<likelihood::Event>>| {
-                    base_events.insert(
+                let push_base_event = |allele_freq, base_events: Rc<VecMap<likelihood::Event>>| {
+                    Rc::get_mut(&mut base_events).insert(
                         *sample,
                         likelihood::Event {
                             allele_freq: allele_freq,
@@ -180,6 +180,7 @@ impl GenericPosterior {
                     )
                 }).collect_vec())
             }
+            grammar::Formula::Negation { .. } => unreachable!()
         }
     }
 }

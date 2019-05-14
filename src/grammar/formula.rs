@@ -4,12 +4,18 @@ use std::fmt;
 use std::cmp::{Ordering, Ord, PartialOrd};
 use std::hash::Hash;
 use std::fmt::Display;
+use std::convert::TryFrom;
+use std::error::Error;
 
 use itertools::Itertools;
 use pest::iterators::{Pair,Pairs};
 use pest::Parser;
 use serde::de;
 use serde::Deserialize;
+use serde::de::IntoDeserializer;
+use serde::de::value::StrDeserializer;
+use serde::de::Deserializer;
+
 
 use crate::model::AlleleFreq;
 use crate::errors;
@@ -48,7 +54,7 @@ impl<T: Hash + Eq + Display + Clone> Formula<T> {
                 let universe = vaf_universe.get(&sample).expect(&format!("bug: no VAF-Universe given for sample {}", sample));
                 let mut disjunction = Vec::new();
                 match vafs {
-                    spectrum @ VAFSpectrum::Set(vafs) => {
+                    VAFSpectrum::Set(vafs) => {
                         let uvaf_stack: VecDeque<_> = universe.iter().cloned().collect();
                         while let Some(uvafs) = uvaf_stack.pop_front() {
                             match uvafs {
@@ -58,14 +64,14 @@ impl<T: Hash + Eq + Display + Clone> Formula<T> {
                                         disjunction.push(VAFSpectrum::Set(difference));
                                     }
                                 }
-                                uspectrum @ VAFSpectrum::Range(urange) => {
+                                VAFSpectrum::Range(urange) => {
                                     for vaf in vafs {
                                         if urange.contains(vaf) {
                                             let (left_urange, right_urange) = urange.split_at(vaf);
                                             uvaf_stack.push_back(VAFSpectrum::Range(right_urange));
                                             disjunction.push(VAFSpectrum::Range(left_urange));
                                         } else {
-                                            disjunction.push(uspectrum.clone());
+                                            disjunction.push(VAFSpectrum::Range(urange.clone()));
                                         }
                                     }
                                 }
@@ -75,14 +81,15 @@ impl<T: Hash + Eq + Display + Clone> Formula<T> {
                     VAFSpectrum::Range(range) => {
                         for uvafs in universe.iter() {
                             match uvafs {
-                                uspectrum @ VAFSpectrum::Set(uvafs) => {
-                                    for uvaf in uvafs {
-                                        if !range.contains(*uvaf) {
-                                            disjunction.push(uspectrum.clone());
-                                        }
+                                VAFSpectrum::Set(uvafs) => {
+                                    let set: BTreeSet<_> = uvafs.into_iter().filter(|uvaf| {
+                                        !range.contains(**uvaf)
+                                    }).cloned().collect();
+                                    if !set.is_empty() {
+                                        disjunction.push(VAFSpectrum::Set(set));
                                     }
                                 }
-                                uspectrum @ VAFSpectrum::Range(urange) => {
+                                VAFSpectrum::Range(urange) => {
                                     match range.overlap(urange) {
                                         VAFRangeOverlap::Contained => {
                                             let left = urange.split_at(range.start).0;
@@ -97,7 +104,7 @@ impl<T: Hash + Eq + Display + Clone> Formula<T> {
                                             disjunction.push(VAFSpectrum::Range(urange.split_at(range.start).0));
                                         }
                                         VAFRangeOverlap::None => {
-                                            disjunction.push(uspectrum.clone())
+                                            disjunction.push(VAFSpectrum::Range(urange.clone()))
                                         }
                                         VAFRangeOverlap::Contains => {
                                             ()
@@ -186,7 +193,7 @@ impl VAFRange {
             (true, true) => self.start < vaf && self.end > vaf,
             (true, false) => self.start < vaf && self.end >= vaf,
             (false, true) => self.start <= vaf && self.end > vaf,
-            (true, true) => self.start <= vaf && self.end >= vaf,
+            (false, false) => self.start <= vaf && self.end >= vaf,
         }
     }
 
@@ -356,6 +363,7 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
                     }
                     Ok(VAFUniverse(operands))
                 }
+                _ => unreachable!()
             }
 
         } else {
@@ -473,5 +481,7 @@ where
         Rule::formula => unreachable!(),
         Rule::subformula => unreachable!(),
         Rule::vafdef => unreachable!(),
+        Rule::bound => unreachable!(),
+        Rule::universe => unreachable!(),
     })
 }

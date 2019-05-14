@@ -243,9 +243,8 @@ where
     }
 }
 
-impl<A, L, Pr, Po, ModelPayload> Caller<A, L, Pr, Po, ModelPayload>
+impl<L, Pr, Po, ModelPayload> Caller<L, Pr, Po, ModelPayload>
 where
-    A: AlleleFreqs + Clone + Ord,
     L: bayesian::model::Likelihood<ModelPayload, Event = AlleleFreqCombination, Data = Vec<Pileup>>,
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
     Po: bayesian::model::Posterior<
