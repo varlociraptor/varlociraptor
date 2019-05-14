@@ -127,10 +127,11 @@ pub enum CallKind {
         max_indel_len: u32,
         #[structopt(
             long = "indel-window",
-            default_value = "100",
+            default_value = "64",
             help = "Number of bases to consider left and right of indel breakpoint when \
                     calculating read support. This number should not be too large in order to \
-                    avoid biases caused by other close variants."
+                    avoid biases caused by other close variants. Currently implemented maximum \
+                    value is 64."
         )]
         indel_window: u32,
         #[structopt(
@@ -334,6 +335,9 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                     let spurious_del_rate = Prob::checked(spurious_del_rate)?;
                     let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
                     let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
+                    if indel_window > (128 / 2) {
+                        Err(structopt::clap::Error::with_description( "Command-line option --indel-window requires a value <= 64 with the current implementation.", structopt::clap::ErrorKind::ValueValidation))?;
+                    };
 
                     let sample_builder = || {
                         SampleBuilder::default()
