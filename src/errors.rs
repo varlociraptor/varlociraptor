@@ -17,6 +17,10 @@ custom_error! {pub CLIError
     InvalidAlignmentPropertiesSpec = "alignment property files must be provided as name=path",
     InvalidContaminationSampleName { name: String } = "contamination refers to unknown sample {name}; it is not defined in the scenario",
     InvalidBAMSampleName { name: String } = "no BAM file given for sample {name}",
-    InvalidEventSampleName { event_name:String, name: String } = "event refers to unknown sample {name}; it is not defined in the scenario",
     MissingSampleEvent { event_name: String } = "event {event_name} does not define VAF range for all samples"
+}
+
+
+custom_error! {pub FormulaError
+    InvalidSampleName { name: String } = "formula refers to unknown sample {name}"
 }

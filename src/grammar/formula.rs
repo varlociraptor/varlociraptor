@@ -12,6 +12,7 @@ use serde::de;
 use serde::Deserialize;
 
 use crate::model::AlleleFreq;
+use crate::errors;
 
 
 #[derive(Parser)]
@@ -38,7 +39,7 @@ pub enum Formula<T> {
 impl<T: Hash + Eq + Display + Clone> Formula<T> {
 
     /// Negate formula.
-    pub fn negate(self, vaf_universe: &HashMap<T, BTreeSet<VAFSpectrum>>) -> Formula<T> {
+    pub fn negate(self, vaf_universe: &HashMap<T, VAFUniverse>) -> Formula<T> {
         match self {
             Formula::Conjunction { operands } => Formula::Disjunction { operands: operands.iter().map(|o| Box::new(o.negate(vaf_universe))).collect() },
             Formula::Disjunction { operands } => Formula::Conjunction { operands: operands.iter().map(|o| Box::new(o.negate(vaf_universe))).collect() },
@@ -72,7 +73,7 @@ impl<T: Hash + Eq + Display + Clone> Formula<T> {
                         }
                     },
                     VAFSpectrum::Range(range) => {
-                        for uvafs in universe {
+                        for uvafs in universe.iter() {
                             match uvafs {
                                 uspectrum @ VAFSpectrum::Set(uvafs) => {
                                     for uvaf in uvafs {
@@ -112,19 +113,35 @@ impl<T: Hash + Eq + Display + Clone> Formula<T> {
             }
         }
     }
+
+    pub fn atomize_negations(self, vaf_universe: &HashMap<T, VAFUniverse>) -> Formula<T> {
+        match self {
+            Formula::Negation { operand } => operand.negate(vaf_universe).atomize_negations(vaf_universe),
+            Formula::Atom { .. } => self,
+            Formula::Conjunction { operands } => Formula::Conjunction { operands: operands.into_iter().map(|o| Box::new(o.atomize_negations(vaf_universe))).collect() },
+            Formula::Disjunction { operands } => Formula::Disjunction { operands: operands.into_iter().map(|o| Box::new(o.atomize_negations(vaf_universe))).collect() },
+        }
+    }
 }
 
 impl Formula<String> {
-    pub fn to_sample_idx(&self, sample_idx: &HashMap<String, usize>) -> Formula<usize> {
+    pub fn to_sample_idx(&self, sample_idx: &HashMap<String, usize>) -> Result<Formula<usize>, errors::FormulaError> {
         let recurse_to_operands = |operands: &[Box<Formula<String>>]| {
-            operands.iter().map(|f| Box::new(f.to_sample_idx(sample_idx))).collect_vec()
+            let operands: Result<Vec<_>, _> = operands.iter().map(|f| Ok(Box::new(f.to_sample_idx(sample_idx)?))).collect();
+            operands
         };
-        match self {
-            &Formula::Conjunction { ref operands } => Formula::Conjunction { operands: recurse_to_operands(operands) },
-            &Formula::Disjunction { ref operands } => Formula::Disjunction { operands: recurse_to_operands(operands) },
-            &Formula::Negation { ref operand } => Formula::Negation { operand: Box::new(operand.to_sample_idx(sample_idx)) },
-            &Formula::Atom { ref sample, ref vafs } => Formula::Atom { sample: *sample_idx.get(sample).unwrap(), vafs: vafs.clone() },
-        }
+        Ok(match self {
+            &Formula::Conjunction { ref operands } => Formula::Conjunction { operands: recurse_to_operands(operands)? },
+            &Formula::Disjunction { ref operands } => Formula::Disjunction { operands: recurse_to_operands(operands)? },
+            &Formula::Negation { ref operand } => Formula::Negation { operand: Box::new(operand.to_sample_idx(sample_idx)?) },
+            &Formula::Atom { ref sample, ref vafs } => {
+                if let Some(idx) = sample_idx.get(sample) {
+                    Formula::Atom { sample: *idx, vafs: vafs.clone() }
+                } else {
+                    return Err(errors::FormulaError::InvalidSampleName { name: sample.to_owned() });
+                }
+            },
+        })
     }
 }
 
@@ -232,8 +249,15 @@ impl PartialOrd for VAFRange {
     }
 }
 
-pub struct VAFUniverse {
-    vafs: BTreeSet<VAFSpectrum>
+#[derive(Debug, Clone)]
+pub struct VAFUniverse(BTreeSet<VAFSpectrum>);
+
+impl ops::Deref for VAFUniverse {
+    type Target = BTreeSet<VAFSpectrum>;
+
+    fn deref(&self) -> &BTreeSet<VAFSpectrum> {
+        &self.0
+    }
 }
 
 impl<'de> Deserialize<'de> for VAFUniverse {
@@ -285,7 +309,7 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
                             break;
                         }
                     }
-                    Ok(VAFUniverse { vafs: operands })
+                    Ok(VAFUniverse(operands))
                 }
             }
 
@@ -364,11 +388,15 @@ where
         Rule::vaf => {
             let inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
+            // the colon
+            inner.next().unwrap();
             Formula::Atom { sample, vafs: parse_vaf(inner) }
         }
         Rule::vafrange => {
             let inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
+            // the colon
+            inner.next().unwrap();
             Formula::Atom { sample, vafs: parse_vafrange(inner) }
         }
         Rule::conjunction => {

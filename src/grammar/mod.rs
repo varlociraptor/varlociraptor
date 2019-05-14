@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 pub mod formula;
 
-pub use crate::grammar::formula::Formula;
+pub use crate::grammar::formula::{Formula, VAFUniverse};
 
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
@@ -22,6 +22,8 @@ pub struct Sample {
     contamination: Option<Contamination>,
     /// grid point resolution for integration over continuous allele frequency ranges
     resolution: usize,
+    /// possible VAFs of given sample
+    universe: VAFUniverse,
 }
 
 #[derive(Deserialize, Getters)]

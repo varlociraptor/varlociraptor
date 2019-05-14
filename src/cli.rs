@@ -409,10 +409,11 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         .samples()
                                         .keys()
                                         .enumerate()
-                                        .map(|(i, s)| (s, i))
+                                        .map(|(i, s)| (s.to_owned(), i))
                                         .collect();
 
                                     // parse samples
+                                    let mut vaf_universe = HashMap::new();
                                     for (sample_name, sample) in scenario.samples().iter() {
                                         let contamination =
                                             if let Some(contamination) = sample.contamination() {
@@ -433,6 +434,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         model_builder = model_builder
                                             .push_sample(*sample.resolution(), contamination);
 
+                                        vaf_universe.insert(sample_name.to_owned(), sample.universe().clone());
+
                                         let bam = bams.get(sample_name).ok_or(
                                             errors::CLIError::InvalidBAMSampleName {
                                                 name: sample_name.to_owned(),
@@ -452,14 +455,14 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                     }
 
                                     // register groups
-                                    for (sample_name, sample) in scenario.samples().iter() {
-                                        if let Some(group) = sample.group() {
-                                            sample_idx.insert(
-                                                group,
-                                                *sample_idx.get(sample_name).unwrap(),
-                                            );
-                                        }
-                                    }
+                                    // for (sample_name, sample) in scenario.samples().iter() {
+                                    //     if let Some(group) = sample.group() {
+                                    //         sample_idx.insert(
+                                    //             group,
+                                    //             *sample_idx.get(sample_name).unwrap(),
+                                    //         );
+                                    //     }
+                                    // }
 
                                     let model = model_builder.build()?;
 
@@ -473,30 +476,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         .omit_snvs(omit_snvs)
                                         .omit_indels(omit_indels)
                                         .max_indel_len(max_indel_len);
-                                    for (event_name, event) in scenario.events() {
-                                        let mut vafs: Vec<Option<ContinuousAlleleFreqs>> =
-                                            vec![None; n_samples];
-                                        for (id, vaf_range) in event.iter() {
-                                            let i = *sample_idx.get(id).ok_or(
-                                                errors::CLIError::InvalidEventSampleName {
-                                                    event_name: event_name.to_owned(),
-                                                    name: id.to_owned(),
-                                                },
-                                            )?;
-                                            vafs[i] = Some(vaf_range.clone().into());
-                                        }
-                                        if vafs.iter().all(|vaf| vaf.is_some()) {
-                                            caller_builder = caller_builder.event(
-                                                event_name,
-                                                vafs.into_iter()
-                                                    .map(|range| range.unwrap())
-                                                    .collect_vec(),
-                                            );
-                                        } else {
-                                            Err(errors::CLIError::MissingSampleEvent {
-                                                event_name: event_name.to_owned(),
-                                            })?
-                                        }
+                                    for (event_name, event_formula) in scenario.events() {
+                                        let event_formula = event_formula.atomize_negations(&vaf_universe);
+                                        let event_formula = event_formula.to_sample_idx(&sample_idx)?;
+                                        caller_builder = caller_builder.event(event_name, event_formula);
                                     }
                                     caller_builder = caller_builder.outbcf(output.as_ref())?;
 
