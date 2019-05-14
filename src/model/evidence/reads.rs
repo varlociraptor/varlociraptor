@@ -213,7 +213,6 @@ impl AbstractReadEvidence for IndelEvidence {
     ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
         let read_seq = record.seq();
         let read_qual = record.qual();
-        self.max_window = cmp::min( (read_seq.len() / 2) as u32, self.max_window);
 
         let (read_offset, read_end, breakpoint, overlap) = {
             let (varstart, varend) = match variant {
