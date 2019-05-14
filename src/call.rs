@@ -24,7 +24,7 @@ use crate::model::{AlleleFreq, AlleleFreqs, StrandBias};
 use crate::utils;
 use crate::grammar;
 
-pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
+pub type AlleleFreqCombination = VecMap<model::likelihood::Event>;
 
 #[derive(Default, Clone, Debug, Builder)]
 pub struct Call {
@@ -60,9 +60,8 @@ pub fn event_tag_name(event: &str) -> String {
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct Caller<A, L, Pr, Po, ModelPayload>
+pub struct Caller<L, Pr, Po, ModelPayload>
 where
-    A: AlleleFreqs + Ord + Clone,
     L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
     Po: bayesian::model::Posterior,
@@ -85,9 +84,8 @@ where
     max_indel_len: u32,
 }
 
-impl<A, L, Pr, Po, ModelPayload> CallerBuilder<A, L, Pr, Po, ModelPayload>
+impl<L, Pr, Po, ModelPayload> CallerBuilder<L, Pr, Po, ModelPayload>
 where
-    A: AlleleFreqs + Ord + Clone,
     L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
     Po: bayesian::model::Posterior<Event = model::Event>,
@@ -488,7 +486,7 @@ where
                     pileups
                         .into_iter()
                         .zip(map_estimates.into_iter())
-                        .map(|(pileup, estimate)| {
+                        .map(|(pileup, (sample, estimate))| {
                             let mut sample_builder = SampleInfoBuilder::default();
                             sample_builder.observations(pileup);
                             match estimate {

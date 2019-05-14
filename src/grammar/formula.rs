@@ -223,6 +223,51 @@ impl VAFRange {
             }
         }
     }
+
+    pub fn observable_min(&self, n_obs: usize) -> AlleleFreq {
+        if n_obs < 10 {
+            self.start
+        } else {
+            let obs_count = Self::expected_observation_count(self.start, n_obs);
+            let adjust_allelefreq = |obs_count: f64| AlleleFreq(obs_count.ceil() / n_obs as f64);
+
+            if self.left_exclusive && obs_count % 1.0 == 0.0 {
+                // We are left exclusive and need to find a supremum from the right.
+
+                let adjusted_end = self.observable_max(n_obs);
+
+                for offset in &[1.0, 0.0] {
+                    let adjusted_obs_count = obs_count + offset;
+                    let adjusted_start = adjust_allelefreq(adjusted_obs_count);
+                    if *adjusted_start <= 1.0 && adjusted_start <= adjusted_end {
+                        return adjusted_start;
+                    }
+                }
+            }
+
+            adjust_allelefreq(obs_count)
+        }
+    }
+
+    pub fn observable_max(&self, n_obs: usize) -> AlleleFreq {
+        assert!(
+            *self.end != 0.0,
+            "bug: observable_max may not be called if end=0.0."
+        );
+        if n_obs < 10 {
+            self.end
+        } else {
+            let mut obs_count = Self::expected_observation_count(self.end, n_obs);
+            if self.right_exclusive && obs_count % 1.0 == 0.0 {
+                obs_count -= 1.0;
+            }
+            AlleleFreq(obs_count.floor() / n_obs as f64)
+        }
+    }
+
+    fn expected_observation_count(freq: AlleleFreq, n_obs: usize) -> f64 {
+        n_obs as f64 * *freq
+    }
 }
 
 impl ops::Deref for VAFRange {
