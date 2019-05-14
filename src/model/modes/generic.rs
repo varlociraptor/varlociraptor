@@ -84,10 +84,9 @@ impl GenericPosterior {
 
     fn density<F: FnMut(&<Self as Posterior>::BaseEvent, &<Self as Posterior>::Data) -> LogProb>(
         &self,
-        sample: usize,
-        base_events: Vec<likelihood::Event>,
+        formula: &grammar::Formula<usize>,
+        base_events: VecMap<likelihood::Event>,
         sample_grid_points: &[usize],
-        event: &<Self as Posterior>::Event,
         pileups: &<Self as Posterior>::Data,
         joint_prob: &mut F,
     ) -> LogProb {
@@ -103,15 +102,55 @@ impl GenericPosterior {
                 joint_prob(&base_events, pileups)
             } else {
                 self.density(
-                    sample + 1,
                     base_events,
                     sample_grid_points,
-                    event,
                     pileups,
                     joint_prob,
                 )
             }
         };
+
+        match formula {
+            grammar::Formula::Atom { sample, ref vafs } => {
+                match vafs {
+                    grammar::VAFSpectrum::Set(vafs) => {
+                        if vafs.len() == 1 {
+                            subdensity(vafs.iter().next().unwrap())
+                        } else {
+                            LogProb::ln_sum_exp(&vafs.iter().cloned().map(|vaf| subdensity(vaf)).collect_vec())
+                        }
+                    }
+                    grammar::VAFSpectrum::Range(range) => {
+                        let n_obs = pileups[sample].len();
+                        LogProb::ln_simpsons_integrate_exp(
+                            |_, allele_freq| subdensity(AlleleFreq(allele_freq)),
+                            range.observable_min(n_obs),
+                            range.observable_max(n_obs),
+                            sample_grid_points[sample],
+                        )
+                    }
+                }
+            }
+            grammar::Formula::Conjunction { operands } => {
+                operands.iter().map(|o| self.density(
+                    o.as_ref(),
+                    base_events,
+                    sample_grid_points,
+                    pileups,
+                    joint_prob)
+                ).sum()
+            }
+            grammar::Formula::Disjunction { operands } => {
+                LogProb::ln_sum_exp(&operands.iter().map(|o| self.density(
+                    o.as_ref(),
+                    base_events,
+                    sample_grid_points,
+                    pileups,
+                    joint_prob)
+                ).collect_vec())
+            }
+        }
+
         if e.allele_freqs.is_singleton() {
             subdensity(e.allele_freqs.start)
         } else {
