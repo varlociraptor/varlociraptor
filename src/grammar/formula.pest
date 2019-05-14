@@ -7,3 +7,4 @@ disjunction = { subformula ~ ( "|" ~ subformula )+ }
 negation = { "!" ~ subformula }
 subformula = _{ ( vafdef | "(" ~ conjunction ~ ")" | "(" ~ disjunction ~ ")" | negation )}
 formula = _{ ( vafdef | conjunction | disjunction | negation ) }
+universe = _{ vafdef ~ ( "|" ~ vafdef )* }

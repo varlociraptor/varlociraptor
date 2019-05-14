@@ -2,9 +2,11 @@ use std::ops;
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::fmt;
 use std::cmp::{Ordering, Ord, PartialOrd};
+use std::hash::Hash;
+use std::fmt::Display;
 
 use itertools::Itertools;
-use pest::iterators::Pair;
+use pest::iterators::{Pair,Pairs};
 use pest::Parser;
 use serde::de;
 use serde::Deserialize;
@@ -33,26 +35,24 @@ pub enum Formula<T> {
     }
 }
 
-impl<T: Hash + Eq> Formula<T> {
+impl<T: Hash + Eq + Display + Clone> Formula<T> {
 
     /// Negate formula.
     pub fn negate(self, vaf_universe: &HashMap<T, BTreeSet<VAFSpectrum>>) -> Formula<T> {
         match self {
-            Formula::Conjunction { operands } => Formula::Disjunction { operands },
-            Formula::Disjunction { operands } => Formula::Conjunction { operands },
+            Formula::Conjunction { operands } => Formula::Disjunction { operands: operands.iter().map(|o| Box::new(o.negate(vaf_universe))).collect() },
+            Formula::Disjunction { operands } => Formula::Conjunction { operands: operands.iter().map(|o| Box::new(o.negate(vaf_universe))).collect() },
             Formula::Negation { operand } => *operand,
             Formula::Atom { sample, vafs } => {
-                let universe = vaf_universe.get(&sample).expect(format!("No VAF-Universe given for sample {}", sample));
+                let universe = vaf_universe.get(&sample).expect(&format!("bug: no VAF-Universe given for sample {}", sample));
                 let mut disjunction = Vec::new();
                 match vafs {
                     spectrum @ VAFSpectrum::Set(vafs) => {
                         let uvaf_stack: VecDeque<_> = universe.iter().cloned().collect();
-                        loop {
-                            let uvafs = universe.pop();
+                        while let Some(uvafs) = uvaf_stack.pop_front() {
                             match uvafs {
                                 VAFSpectrum::Set(uvafs) => {
-                                    let mut difference = uvafs.clone();
-                                    difference.remove(vafs);
+                                    let mut difference: BTreeSet<_> = uvafs.difference(&vafs).cloned().collect();
                                     if !difference.is_empty() {
                                         disjunction.push(VAFSpectrum::Set(difference));
                                     }
@@ -61,7 +61,7 @@ impl<T: Hash + Eq> Formula<T> {
                                     for vaf in vafs {
                                         if urange.contains(vaf) {
                                             let (left_urange, right_urange) = urange.split_at(vaf);
-                                            uvaf_stack.push(VAFSpectrum::Range(right_urange));
+                                            uvaf_stack.push_back(VAFSpectrum::Range(right_urange));
                                             disjunction.push(VAFSpectrum::Range(left_urange));
                                         } else {
                                             disjunction.push(uspectrum.clone());
@@ -76,7 +76,7 @@ impl<T: Hash + Eq> Formula<T> {
                             match uvafs {
                                 uspectrum @ VAFSpectrum::Set(uvafs) => {
                                     for uvaf in uvafs {
-                                        if !range.contains(uvaf) {
+                                        if !range.contains(*uvaf) {
                                             disjunction.push(uspectrum.clone());
                                         }
                                     }
@@ -105,8 +105,10 @@ impl<T: Hash + Eq> Formula<T> {
                                 }
                             }
                         }
+
                     }
                 }
+                Formula::Disjunction { operands: disjunction.into_iter().map(|vafs| Box::new(Formula::Atom { sample: sample.clone(), vafs })).collect() }
             }
         }
     }
@@ -230,6 +232,72 @@ impl PartialOrd for VAFRange {
     }
 }
 
+pub struct VAFUniverse {
+    vafs: BTreeSet<VAFSpectrum>
+}
+
+impl<'de> Deserialize<'de> for VAFUniverse {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        deserializer.deserialize_string(VAFUniverseVisitor)
+    }
+}
+
+
+struct VAFUniverseVisitor;
+
+impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
+    type Value = VAFUniverse;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(
+            "a valid disjunction of possible VAFs (see https://varlociraptor.github.io/docs/calling)",
+        )
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        let res = FormulaParser::parse(Rule::universe, v);
+        if let Ok(mut pairs) = res {
+            let pair = pairs.next().unwrap();
+            match pair.as_rule() {
+                Rule::universe => {
+                    let inner = pair.into_inner();
+                    let mut operands = BTreeSet::new();
+                    loop {
+                        let pair = inner.next().unwrap();
+                        match pair.as_rule() {
+                            Rule::vaf => {
+                                let inner = pair.into_inner();
+                                operands.insert(parse_vaf(inner));
+                            }
+                            Rule::vafrange => {
+                                let inner = pair.into_inner();
+                                operands.insert(parse_vafrange(inner));
+                            }
+                            _ => unreachable!()
+                        }
+                        if inner.next().is_none() {
+                            break;
+                        }
+                    }
+                    Ok(VAFUniverse { vafs: operands })
+                }
+            }
+
+        } else {
+            Err(de::Error::invalid_value(
+                serde::de::Unexpected::Other("invalid VAF formula"),
+                &self,
+            ))
+        }
+    }
+}
+
 
 impl<'de> Deserialize<'de> for Formula<String> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -268,6 +336,26 @@ impl<'de> de::Visitor<'de> for FormulaVisitor {
     }
 }
 
+fn parse_vaf(inner: Pairs<Rule>) -> VAFSpectrum {
+    let vaf = inner.next().unwrap().as_str().parse().unwrap();
+    VAFSpectrum::singleton(AlleleFreq(vaf))
+}
+
+fn parse_vafrange(inner: Pairs<Rule>) -> VAFSpectrum {
+    let left = inner.next().unwrap().as_str();
+    let lower = inner.next().unwrap().as_str().parse().unwrap();
+    let upper = inner.next().unwrap().as_str().parse().unwrap();
+    let right = inner.next().unwrap().as_str();
+
+    let range = VAFRange {
+        inner: lower..upper,
+        left_exclusive: left == "]",
+        right_exclusive: right == "[",
+    };
+
+    VAFSpectrum::Range(range)
+}
+
 fn parse_formula<E>(pair: Pair<Rule>) -> Result<Formula<String>, E>
 where
     E: de::Error
@@ -276,25 +364,12 @@ where
         Rule::vaf => {
             let inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
-            let vaf = inner.next().unwrap().as_str().parse().unwrap();
-            Formula::Atom { sample, vafs: VAFSpectrum::singleton(AlleleFreq(vaf)) }
+            Formula::Atom { sample, vafs: parse_vaf(inner) }
         }
         Rule::vafrange => {
             let inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
-            let left = inner.next().unwrap().as_str();
-            let lower = inner.next().unwrap().as_str().parse().unwrap();
-            let upper = inner.next().unwrap().as_str().parse().unwrap();
-            let right = inner.next().unwrap().as_str();
-
-            let range = match (left, right) {
-                ("[", "]") => VAFRange::Inclusive(lower..upper),
-                ("]", "]") => VAFRange::LeftExclusive(lower..upper),
-                ("[", "[") => VAFRange::RightExclusive(lower..upper),
-                ("]", "[") => VAFRange::Exclusive(lower..upper),
-                _ => unreachable!(),
-            };
-            Formula::Atom { sample, vafs: VAFSpectrum::Range(range) }
+            Formula::Atom { sample, vafs: parse_vafrange(inner) }
         }
         Rule::conjunction => {
             let inner = pair.into_inner();
