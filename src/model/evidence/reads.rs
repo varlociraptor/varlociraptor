@@ -329,7 +329,7 @@ impl AbstractReadEvidence for IndelEvidence {
         assert!(!prob_ref.is_nan());
         assert!(!prob_alt.is_nan());
 
-        // Normalize probabilities. By this, we avoid biases due to proximal variants that are in
+        // METHOD: Normalize probabilities. By this, we avoid biases due to proximal variants that are in
         // cis with the considered one. They are normalized away since they affect both ref and alt.
         // In a sense, this assumes that the two considered alleles are the only possible ones.
         // However, if the read actually comes from a third allele, both probabilities will be
@@ -338,12 +338,19 @@ impl AbstractReadEvidence for IndelEvidence {
         // probabilities is relevant!
 
         if prob_ref != LogProb::ln_zero() && prob_alt != LogProb::ln_zero() {
-            // Only perform normalization if both probs are non-zero
+            // METHOD: Only perform normalization if both probs are non-zero
             // otherwise, we would artificially magnify the ratio
             // (compared to an epsilon for the zero case).
             let prob_total = prob_alt.ln_add_exp(prob_ref);
             prob_ref -= prob_total;
             prob_alt -= prob_total;
+        }
+
+        if prob_ref == LogProb::ln_zero() && prob_alt == LogProb::ln_zero() {
+            // METHOD: if both are zero, use 0.5 instead. Since only the ratio matters, this
+            // has the same effect, without rendering the entire pileup likelihood zero.
+            prob_ref = LogProb::from(Prob(0.5));
+            prob_alt = prob_ref;
         }
 
         Ok(Some((prob_ref, prob_alt)))
