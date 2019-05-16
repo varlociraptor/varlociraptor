@@ -12,10 +12,11 @@ A Rust library for calling genomic variants using a latent variable model. This 
 
 ### Model
 
-* [Johannes Köster](https://github.com/johanneskoester) (strand bias, sampling probability, allele probabilities, FDR control, prior probabilities, grammar of variants, CNV calling)
-* [Louis Dijkstra](https://github.com/louisdijkstra) (latent variable model)
-* [David Lähnemann](https://github.com/dlaehnemann) (single cell whole genome amplification model, single cell & bulk joint calling model / event setup)
-* [Alexander Schönhuth](https://github.com/aschoen) (latent variable model, single cell whole genome amplification model, single cell & bulk joint calling model / event setup)
+* [Johannes Köster](https://github.com/johanneskoester)
+* [Louis Dijkstra](https://github.com/louisdijkstra)
+* [David Lähnemann](https://github.com/dlaehnemann)
+* [Tobias Marschall](https://github.com/tobiasmarschall)
+* [Alexander Schönhuth](https://github.com/aschoen)
 
 ### Implementation
 
