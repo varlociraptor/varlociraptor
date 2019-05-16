@@ -54,8 +54,6 @@ where
     pub fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
         let posterior = GenericPosterior::new(self.resolutions);
         let likelihood = GenericLikelihood::new(self.contaminations);
-        dbg!(&posterior);
-        dbg!(&likelihood);
         Ok(Model::new(likelihood, self.prior, posterior))
     }
 }
