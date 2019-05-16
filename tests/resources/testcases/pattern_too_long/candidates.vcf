@@ -21,5 +21,6 @@
 ##INFO=<ID=RAW_MQ,Number=1,Type=Float,Description="Raw data for RMS Mapping Quality">
 ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float,Description="Z-score from Wilcoxon rank sum test of Alt vs. Ref read position bias">
 ##INFO=<ID=SOR,Number=1,Type=Float,Description="Symmetric Odds Ratio of 2x2 contingency table to detect strand bias">
+##contig=<ID=chr7,length=159345973>
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
 chr7	1040	.	GGAATTAAGAGAAGCA	G	15737.9	.	AC=2;AF=0.027;AN=74;BaseQRankSum=12.13;ClippingRankSum=0;DP=5569;ExcessHet=3.0702;FS=4.182;InbreedingCoeff=-0.0306;MLEAC=2;MLEAF=0.027;MQ=60;MQRankSum=0;QD=17.55;ReadPosRankSum=3.02;SOR=0.454
