@@ -230,8 +230,11 @@ impl AbstractReadEvidence for IndelEvidence {
                 (Some(qstart), Some(qend)) => {
                     let qstart = qstart as usize;
                     let qend = qend as usize;
-                    let read_offset = qstart.saturating_sub(self.max_window as usize);
-                    let read_end = cmp::min(qend + self.max_window as usize, read_seq.len());
+                    // ensure that distance between qstart and qend does not make the window too
+                    // large
+                    let max_window = (self.max_window as usize).saturating_sub(qend - qstart);
+                    let read_offset = qstart.saturating_sub(max_window);
+                    let read_end = cmp::min(qend + max_window as usize, read_seq.len());
                     (read_offset, read_end, varstart as usize, true)
                 }
 

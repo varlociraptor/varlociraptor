@@ -1,12 +1,3 @@
-expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
-
 # necessary bam files
 samples:
   tumor:
