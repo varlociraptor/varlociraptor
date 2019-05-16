@@ -25,7 +25,7 @@ reference:
 
 options: '{"Call": {"kind": {"Variants": {"spurious_ins_rate": 2.8e-06, "spurious_del_rate":
   5.1e-06, "spurious_insext_rate": 0.0, "spurious_delext_rate": 0.0, "indel_window":
-  100, "omit_snvs": false, "omit_indels": false, "max_indel_len": 1000, "max_depth":
+  64, "omit_snvs": false, "omit_indels": false, "max_indel_len": 1000, "max_depth":
   200, "reference": "../hg18/chr2.fa", "candidates": "candidates.vcf", "output": null,
   "testcase_locus": "chr2:240746520", "testcase_prefix": "../testcases/test11", "mode":
   {"TumorNormal": {"tumor": "tumor.bam", "normal": "normal.bam", "purity": 0.75, "tumor_alignment_properties":

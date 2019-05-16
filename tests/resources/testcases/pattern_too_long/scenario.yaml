@@ -1,0 +1,13 @@
+samples:
+  tumor:
+    resolution: 100
+    contaminated:
+      fraction: 0.2
+
+events:
+  hom_ref:
+    tumor: "0.0"
+  het:
+    tumor: "0.5"
+  hom_alt:
+    tumor: "1.0"
