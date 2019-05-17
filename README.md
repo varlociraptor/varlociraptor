@@ -12,7 +12,7 @@ A Rust library for calling genomic variants using a latent variable model. This 
 
 ### Model
 
-Johannes Köster, Louis Dijkstra, Tobias Marschall, Alexander Schönhuth. Enhancing sensitivity and controlling false discovery rate in somatic indel discovery using a latent variable model. preprint (upcoming).
+**Johannes Köster**, **Louis Dijkstra**, Tobias Marschall, **Alexander Schönhuth**. Enhancing sensitivity and controlling false discovery rate in somatic indel discovery using a latent variable model. preprint (upcoming).
 
 ### Implementation
 
