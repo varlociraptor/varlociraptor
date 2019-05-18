@@ -1,16 +1,17 @@
+use std::cell::RefCell;
 use std::cmp;
 use std::rc::Rc;
 
 use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
-use vec_map::VecMap;
 use itertools::Itertools;
+use vec_map::VecMap;
 
+use crate::grammar;
 use crate::model;
 use crate::model::likelihood;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, Contamination, StrandBias};
-use crate::grammar;
 
 #[derive(Debug)]
 pub enum CacheEntry {
@@ -86,36 +87,61 @@ impl GenericPosterior {
         &self,
         formula: &grammar::Formula<usize>,
         operand: Option<usize>,
-        base_events: Rc<VecMap<likelihood::Event>>,
+        base_events: Rc<RefCell<VecMap<likelihood::Event>>>,
         sample_grid_points: &[usize],
         pileups: &<Self as Posterior>::Data,
         strand_bias: StrandBias,
         joint_prob: &mut F,
+        universe: Vec<Formula<usize>>,
     ) -> LogProb {
         let (subformula, is_leaf) = match (formula, operand) {
             (grammar::Formula::Conjunction { operands }, Some(operand)) => {
                 let is_last = operand == operands.len() - 1;
                 (operands[operand].as_ref(), is_last)
-            },
+            }
             (grammar::Formula::Atom { .. }, None) => (formula, true),
             _ => (formula, false),
         };
+        // TODO use subformula!!
 
         match formula {
             grammar::Formula::Atom { sample, ref vafs } => {
                 let push_base_event = |allele_freq, base_events: Rc<VecMap<likelihood::Event>>| {
-                    Rc::get_mut(&mut base_events).insert(
+                    base_events.borrow_mut().insert(
                         *sample,
                         likelihood::Event {
                             allele_freq: allele_freq,
                             strand_bias: strand_bias,
-                        }
+                        },
                     );
                 };
 
-                let subdensity = |base_events: Rc<VecMap<likelihood::Event>>| {
+                let subdensity = |base_events: Rc<RefCell<VecMap<likelihood::Event>>>| {
                     if is_leaf {
-                        joint_prob(base_events.as_ref(), pileups)
+                        // Check if any sample is not covered yet.
+                        // If so, add stuff from universe.
+                        let operands = (0..pileups.len())
+                            .filter_map(|sample| {
+                                if !base_events.borrow().contains_key(sample) {
+                                    Some(Box::new(universe[sample].clone()))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect_vec();
+                        if !operands.is_empty() {
+                            self.density(
+                                &grammar::Formula::Conjunction { operands },
+                                None,
+                                Rc::clone(&base_events),
+                                sample_grid_points,
+                                pileups,
+                                strand_bias,
+                                joint_prob,
+                            )
+                        } else {
+                            joint_prob(&base_events.borrow().values().cloned().collect(), pileups)
+                        }
                     } else {
                         self.density(
                             formula,
@@ -134,11 +160,17 @@ impl GenericPosterior {
                             push_base_event(*vafs.iter().next().unwrap(), base_events);
                             subdensity(base_events)
                         } else {
-                            LogProb::ln_sum_exp(&vafs.iter().cloned().map(|vaf| {
-                                let base_events = base_events.clone();
-                                push_base_event(vaf, base_events);
-                                subdensity(base_events)
-                            }).collect_vec())
+                            LogProb::ln_sum_exp(
+                                &vafs
+                                    .iter()
+                                    .cloned()
+                                    .map(|vaf| {
+                                        let base_events = base_events.clone();
+                                        push_base_event(vaf, base_events);
+                                        subdensity(base_events)
+                                    })
+                                    .collect_vec(),
+                            )
                         }
                     }
                     grammar::VAFSpectrum::Range(range) => {
@@ -156,37 +188,38 @@ impl GenericPosterior {
                     }
                 }
             }
-            grammar::Formula::Conjunction { operands } => {
-                self.density(
-                    formula,
-                    Some(operand.map_or(0, |o| o + 1)),
-                    base_events,
-                    sample_grid_points,
-                    pileups,
-                    strand_bias,
-                    joint_prob,
-                )
-            }
-            grammar::Formula::Disjunction { operands } => {
-                LogProb::ln_sum_exp(&operands.iter().map(|o| {
-                    self.density(
-                        o.as_ref(),
-                        None,
-                        base_events,
-                        sample_grid_points,
-                        pileups,
-                        strand_bias,
-                        joint_prob,
-                    )
-                }).collect_vec())
-            }
-            grammar::Formula::Negation { .. } => unreachable!()
+            grammar::Formula::Conjunction { operands } => self.density(
+                formula,
+                Some(operand.map_or(0, |o| o + 1)),
+                base_events,
+                sample_grid_points,
+                pileups,
+                strand_bias,
+                joint_prob,
+            ),
+            grammar::Formula::Disjunction { operands } => LogProb::ln_sum_exp(
+                &operands
+                    .iter()
+                    .map(|o| {
+                        self.density(
+                            o.as_ref(),
+                            None,
+                            base_events,
+                            sample_grid_points,
+                            pileups,
+                            strand_bias,
+                            joint_prob,
+                        )
+                    })
+                    .collect_vec(),
+            ),
+            grammar::Formula::Negation { .. } => unreachable!(),
         }
     }
 }
 
 impl Posterior for GenericPosterior {
-    type BaseEvent = VecMap<likelihood::Event>;
+    type BaseEvent = Vec<likelihood::Event>;
     type Event = model::Event;
     type Data = Vec<Pileup>;
 
@@ -198,7 +231,15 @@ impl Posterior for GenericPosterior {
     ) -> LogProb {
         let grid_points = self.grid_points(pileups);
 
-        self.density(&event.formula, None, Rc::new(VecMap::new()), &grid_points, pileups, event.strand_bias, joint_prob)
+        self.density(
+            &event.formula,
+            None,
+            Rc::new(RefCell::new(VecMap::new())),
+            &grid_points,
+            pileups,
+            event.strand_bias,
+            joint_prob,
+        )
     }
 }
 
@@ -236,15 +277,18 @@ impl GenericLikelihood {
 }
 
 impl Likelihood<Cache> for GenericLikelihood {
-    type Event = VecMap<likelihood::Event>;
+    type Event = Vec<likelihood::Event>;
     type Data = Vec<Pileup>;
 
     fn compute(&self, events: &Self::Event, pileups: &Self::Data, cache: &mut Cache) -> LogProb {
         let mut p = LogProb::ln_one();
 
-        for (sample, event) in events {
-            let pileup = &pileups[sample];
-            let inner = &self.inner[sample];
+        for (((sample, event), pileup), inner) in events
+            .iter()
+            .enumerate()
+            .zip(pileups.iter())
+            .zip(self.inner.iter())
+        {
             p += match inner {
                 &SampleModel::Contaminated {
                     ref likelihood_model,
@@ -256,8 +300,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                         likelihood_model.compute(
                             &likelihood::ContaminatedSampleEvent {
                                 primary: event.clone(),
-                                // TODO ensure that VAF is always defined for contaminating sample
-                                secondary: events.get(by).expect("bug: no allele frequency given for contaminating sample").clone(),
+                                secondary: events[by].clone(),
                             },
                             pileup,
                             cache,

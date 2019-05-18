@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 pub mod formula;
 
-pub use crate::grammar::formula::{Formula, VAFUniverse, VAFSpectrum, VAFRange};
+pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 
 #[derive(Deserialize, Getters)]
 #[get = "pub"]

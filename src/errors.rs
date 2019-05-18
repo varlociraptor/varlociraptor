@@ -20,7 +20,6 @@ custom_error! {pub CLIError
     MissingSampleEvent { event_name: String } = "event {event_name} does not define VAF range for all samples"
 }
 
-
 custom_error! {pub FormulaError
     InvalidSampleName { name: String } = "formula refers to unknown sample {name}"
 }

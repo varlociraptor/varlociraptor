@@ -16,13 +16,13 @@ use itertools::Itertools;
 use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
+use crate::grammar;
 use crate::model;
 use crate::model::evidence::observation::expected_depth;
 use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
 use crate::model::{AlleleFreq, AlleleFreqs, StrandBias};
 use crate::utils;
-use crate::grammar;
 
 pub type AlleleFreqCombination = VecMap<model::likelihood::Event>;
 
@@ -122,10 +122,13 @@ where
         if self.events.is_none() {
             let mut events = HashMap::default();
             if let Some(samples) = self.samples {
-                events.insert("absent".to_owned(), model::Event {
-                    formula: grammar::Formula::absent(samples.len()),
-                    strand_bias: StrandBias::None
-                });
+                events.insert(
+                    "absent".to_owned(),
+                    model::Event {
+                        formula: grammar::Formula::absent(samples.len()),
+                        strand_bias: StrandBias::None,
+                    },
+                );
             } else {
                 panic!("bug: events must be registered after adding samples");
             }
@@ -133,11 +136,9 @@ where
             self = self.strand_bias_events(Vec::new());
         }
 
-        let annotate_event = |strand_bias| {
-            model::Event {
-                formula: event.clone(),
-                strand_bias: strand_bias,
-            }
+        let annotate_event = |strand_bias| model::Event {
+            formula: event.clone(),
+            strand_bias: strand_bias,
         };
 
         self.events

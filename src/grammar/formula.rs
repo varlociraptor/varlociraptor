@@ -1,25 +1,23 @@
-use std::ops;
-use std::collections::{BTreeSet, HashMap, VecDeque};
-use std::fmt;
-use std::cmp::{Ordering, Ord, PartialOrd};
-use std::hash::Hash;
-use std::fmt::Display;
+use std::cmp::{Ord, Ordering, PartialOrd};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::convert::TryFrom;
 use std::error::Error;
+use std::fmt;
+use std::fmt::Display;
+use std::hash::Hash;
+use std::ops;
 
 use itertools::Itertools;
-use pest::iterators::{Pair,Pairs};
+use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use serde::de;
-use serde::Deserialize;
-use serde::de::IntoDeserializer;
 use serde::de::value::StrDeserializer;
 use serde::de::Deserializer;
+use serde::de::IntoDeserializer;
+use serde::Deserialize;
 
-
-use crate::model::AlleleFreq;
 use crate::errors;
-
+use crate::model::AlleleFreq;
 
 #[derive(Parser)]
 #[grammar = "grammar/formula.pest"]
@@ -27,31 +25,47 @@ pub struct FormulaParser;
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
 pub enum Formula<T> {
+    Conjunction { operands: Vec<Box<Formula<T>>> },
+    Disjunction { operands: Vec<Box<Formula<T>>> },
+    Negation { operand: Box<Formula<T>> },
+    Atom { sample: T, vafs: VAFSpectrum },
+}
+
+#[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
+pub enum NormalizedFormula<T> {
     Conjunction {
-        operands: Vec<Box<Formula<T>>>
+        operands: Vec<Box<NormalizedFormula<T>>>,
     },
     Disjunction {
-        operands: Vec<Box<Formula<T>>>
-    },
-    Negation {
-        operand: Box<Formula<T>>
+        operands: Vec<Box<NormalizedFormula<T>>>,
     },
     Atom {
         sample: T,
-        vafs: VAFSpectrum
-    }
+        vafs: VAFSpectrum,
+    },
 }
 
 impl<T: Hash + Eq + Display + Clone> Formula<T> {
-
     /// Negate formula.
     pub fn negate(self, vaf_universe: &HashMap<T, VAFUniverse>) -> Formula<T> {
         match self {
-            Formula::Conjunction { operands } => Formula::Disjunction { operands: operands.iter().map(|o| Box::new(o.negate(vaf_universe))).collect() },
-            Formula::Disjunction { operands } => Formula::Conjunction { operands: operands.iter().map(|o| Box::new(o.negate(vaf_universe))).collect() },
+            Formula::Conjunction { operands } => Formula::Disjunction {
+                operands: operands
+                    .iter()
+                    .map(|o| Box::new(o.negate(vaf_universe)))
+                    .collect(),
+            },
+            Formula::Disjunction { operands } => Formula::Conjunction {
+                operands: operands
+                    .iter()
+                    .map(|o| Box::new(o.negate(vaf_universe)))
+                    .collect(),
+            },
             Formula::Negation { operand } => *operand,
             Formula::Atom { sample, vafs } => {
-                let universe = vaf_universe.get(&sample).expect(&format!("bug: no VAF-Universe given for sample {}", sample));
+                let universe = vaf_universe
+                    .get(&sample)
+                    .expect(&format!("bug: no VAF-Universe given for sample {}", sample));
                 let mut disjunction = Vec::new();
                 match vafs {
                     VAFSpectrum::Set(vafs) => {
@@ -59,7 +73,8 @@ impl<T: Hash + Eq + Display + Clone> Formula<T> {
                         while let Some(uvafs) = uvaf_stack.pop_front() {
                             match uvafs {
                                 VAFSpectrum::Set(uvafs) => {
-                                    let mut difference: BTreeSet<_> = uvafs.difference(&vafs).cloned().collect();
+                                    let mut difference: BTreeSet<_> =
+                                        uvafs.difference(&vafs).cloned().collect();
                                     if !difference.is_empty() {
                                         disjunction.push(VAFSpectrum::Set(difference));
                                     }
@@ -77,91 +92,266 @@ impl<T: Hash + Eq + Display + Clone> Formula<T> {
                                 }
                             }
                         }
-                    },
+                    }
                     VAFSpectrum::Range(range) => {
                         for uvafs in universe.iter() {
                             match uvafs {
                                 VAFSpectrum::Set(uvafs) => {
-                                    let set: BTreeSet<_> = uvafs.into_iter().filter(|uvaf| {
-                                        !range.contains(**uvaf)
-                                    }).cloned().collect();
+                                    let set: BTreeSet<_> = uvafs
+                                        .into_iter()
+                                        .filter(|uvaf| !range.contains(**uvaf))
+                                        .cloned()
+                                        .collect();
                                     if !set.is_empty() {
                                         disjunction.push(VAFSpectrum::Set(set));
                                     }
                                 }
-                                VAFSpectrum::Range(urange) => {
-                                    match range.overlap(urange) {
-                                        VAFRangeOverlap::Contained => {
-                                            let left = urange.split_at(range.start).0;
-                                            let right = urange.split_at(range.end).1;
-                                            disjunction.push(VAFSpectrum::Range(left));
-                                            disjunction.push(VAFSpectrum::Range(right));
-                                        }
-                                        VAFRangeOverlap::End => {
-                                            disjunction.push(VAFSpectrum::Range(urange.split_at(range.end).1));
-                                        }
-                                        VAFRangeOverlap::Start => {
-                                            disjunction.push(VAFSpectrum::Range(urange.split_at(range.start).0));
-                                        }
-                                        VAFRangeOverlap::None => {
-                                            disjunction.push(VAFSpectrum::Range(urange.clone()))
-                                        }
-                                        VAFRangeOverlap::Contains => {
-                                            ()
-                                        }
+                                VAFSpectrum::Range(urange) => match range.overlap(urange) {
+                                    VAFRangeOverlap::Contained => {
+                                        let left = urange.split_at(range.start).0;
+                                        let right = urange.split_at(range.end).1;
+                                        disjunction.push(VAFSpectrum::Range(left));
+                                        disjunction.push(VAFSpectrum::Range(right));
                                     }
-                                }
+                                    VAFRangeOverlap::End => {
+                                        disjunction
+                                            .push(VAFSpectrum::Range(urange.split_at(range.end).1));
+                                    }
+                                    VAFRangeOverlap::Start => {
+                                        disjunction.push(VAFSpectrum::Range(
+                                            urange.split_at(range.start).0,
+                                        ));
+                                    }
+                                    VAFRangeOverlap::None => {
+                                        disjunction.push(VAFSpectrum::Range(urange.clone()))
+                                    }
+                                    VAFRangeOverlap::Contains => (),
+                                },
                             }
                         }
-
                     }
                 }
-                Formula::Disjunction { operands: disjunction.into_iter().map(|vafs| Box::new(Formula::Atom { sample: sample.clone(), vafs })).collect() }
+                Formula::Disjunction {
+                    operands: disjunction
+                        .into_iter()
+                        .map(|vafs| {
+                            Box::new(Formula::Atom {
+                                sample: sample.clone(),
+                                vafs,
+                            })
+                        })
+                        .collect(),
+                }
             }
         }
     }
 
-    pub fn atomize_negations(self, vaf_universe: &HashMap<T, VAFUniverse>) -> Formula<T> {
+    pub fn normalize(self, vaf_universe: &HashMap<T, VAFUniverse>) -> NormalizedFormula<T> {
         match self {
-            Formula::Negation { operand } => operand.negate(vaf_universe).atomize_negations(vaf_universe),
-            Formula::Atom { .. } => self,
-            Formula::Conjunction { operands } => Formula::Conjunction { operands: operands.into_iter().map(|o| Box::new(o.atomize_negations(vaf_universe))).collect() },
-            Formula::Disjunction { operands } => Formula::Disjunction { operands: operands.into_iter().map(|o| Box::new(o.atomize_negations(vaf_universe))).collect() },
+            Formula::Negation { operand } => operand.negate(vaf_universe).normalize(vaf_universe),
+            Formula::Atom { sample, vafs } => NormalizedFormula::Atom { sample, vafs },
+            Formula::Conjunction { operands } => NormalizedFormula::Conjunction {
+                operands: operands
+                    .into_iter()
+                    .map(|o| Box::new(o.normalize(vaf_universe)))
+                    .collect(),
+            },
+            Formula::Disjunction { operands } => NormalizedFormula::Disjunction {
+                operands: operands
+                    .into_iter()
+                    .map(|o| Box::new(o.normalize(vaf_universe)))
+                    .collect(),
+            },
         }
     }
 }
 
 impl Formula<String> {
-    pub fn to_sample_idx(&self, sample_idx: &HashMap<String, usize>) -> Result<Formula<usize>, errors::FormulaError> {
+    pub fn to_sample_idx(
+        &self,
+        sample_idx: &HashMap<String, usize>,
+    ) -> Result<Formula<usize>, errors::FormulaError> {
         let recurse_to_operands = |operands: &[Box<Formula<String>>]| {
-            let operands: Result<Vec<_>, _> = operands.iter().map(|f| Ok(Box::new(f.to_sample_idx(sample_idx)?))).collect();
+            let operands: Result<Vec<_>, _> = operands
+                .iter()
+                .map(|f| Ok(Box::new(f.to_sample_idx(sample_idx)?)))
+                .collect();
             operands
         };
         Ok(match self {
-            &Formula::Conjunction { ref operands } => Formula::Conjunction { operands: recurse_to_operands(operands)? },
-            &Formula::Disjunction { ref operands } => Formula::Disjunction { operands: recurse_to_operands(operands)? },
-            &Formula::Negation { ref operand } => Formula::Negation { operand: Box::new(operand.to_sample_idx(sample_idx)?) },
-            &Formula::Atom { ref sample, ref vafs } => {
-                if let Some(idx) = sample_idx.get(sample) {
-                    Formula::Atom { sample: *idx, vafs: vafs.clone() }
-                } else {
-                    return Err(errors::FormulaError::InvalidSampleName { name: sample.to_owned() });
-                }
+            &Formula::Conjunction { ref operands } => Formula::Conjunction {
+                operands: recurse_to_operands(operands)?,
             },
+            &Formula::Disjunction { ref operands } => Formula::Disjunction {
+                operands: recurse_to_operands(operands)?,
+            },
+            &Formula::Negation { ref operand } => Formula::Negation {
+                operand: Box::new(operand.to_sample_idx(sample_idx)?),
+            },
+            &Formula::Atom {
+                ref sample,
+                ref vafs,
+            } => {
+                if let Some(idx) = sample_idx.get(sample) {
+                    Formula::Atom {
+                        sample: *idx,
+                        vafs: vafs.clone(),
+                    }
+                } else {
+                    return Err(errors::FormulaError::InvalidSampleName {
+                        name: sample.to_owned(),
+                    });
+                }
+            }
         })
     }
 }
 
 impl Formula<usize> {
     pub fn absent(n_samples: usize) -> Formula<usize> {
-        Formula::Conjunction { operands: (0..n_samples).into_iter().map(|sample| Box::new(Formula::Atom { sample, vafs: VAFSpectrum::singleton(AlleleFreq(0.0)) })).collect_vec() }
+        Formula::Conjunction {
+            operands: (0..n_samples)
+                .into_iter()
+                .map(|sample| {
+                    Box::new(Formula::Atom {
+                        sample,
+                        vafs: VAFSpectrum::singleton(AlleleFreq(0.0)),
+                    })
+                })
+                .collect_vec(),
+        }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord) ]
+impl<T> NormalizedFormula<T> {
+    pub fn len(&self) -> usize {
+        match self {
+            NormalizedFormula::Conjunction { operands } => operands.len(),
+            NormalizedFormula::Disjunction { operands } => operands.len(),
+            NormalizedFormula::Atom { .. } => 1,
+        }
+    }
+}
+
+impl<T: Hash + Eq + Display + Clone> NormalizedFormula<T> {
+    fn _add_missing_samples(
+        formula: FormulaPointer<T>,
+        seen: HashSet<T>,
+        vaf_universe: &HashMap<T, VAFUniverse>,
+        parent_operands: &mut Vec<Box<Self>>,
+    ) {
+
+        match formula.as_ref() {
+            NormalizedFormula::Atom { sample, vafs } => {
+                seen.insert(sample.clone());
+                parent_operands.push(Box::new(
+                    if formula.is_last_operand() {
+                        let missing_operands = vaf_universe
+                            .iter()
+                            .filter_map(|(sample, vafs)| {
+                                if seen.contains(sample) {
+                                    None
+                                } else {
+                                    Some(Box::new(vafs.as_formula(sample)))
+                                }
+                            })
+                            .collect_vec();
+                        if missing_operands.is_empty() {
+                            // all fine
+                            NormalizedFormula::Atom {
+                                sample: sample.clone(),
+                                vafs: vafs.clone(),
+                            }
+                        } else {
+                            // add missing
+                            NormalizedFormula::Conjunction {
+                                operands: missing_operands,
+                            }
+                        }
+                    } else {
+                        NormalizedFormula::Atom {
+                            sample: sample.clone(),
+                            vafs: vafs.clone(),
+                        }
+                    }
+                ));
+            }
+            NormalizedFormula::Disjunction { operands } => {
+                let mut new_operands = Vec::new();
+                for operand in operands {
+                    Self::_add_missing_samples(
+                        FormulaPointer::new(operand.as_ref()),
+                        seen.clone(),
+                        vaf_universe,
+                        &mut new_operands,
+                    )
+                }
+                parent_operands.push(Box::new(NormalizedFormula::Disjunction { operands: new_operands }));
+            }
+            NormalizedFormula::Conjunction { operands } => {
+                let mut new_operands = Vec::new();
+                Self::_add_missing_samples(formula.next_operand(), seen.clone(), vaf_universe, &mut new_operands);
+                parent_operands.push(Box::new(NormalizedFormula::Conjunction { operands: new_operands }));
+            }
+        }
+        if let NormalizedFormula::Conjunction { .. } = formula.formula {
+            // recurse into next operand
+            if !formula.is_last_operand() {
+                Self::_add_missing_samples(formula.next_operand(), seen, vaf_universe, parent_operands);
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct FormulaPointer<'a, T> {
+    formula: &'a NormalizedFormula<T>,
+    operand: Option<usize>,
+}
+
+impl<'a, T> FormulaPointer<'a, T> {
+    pub fn new(formula: &'a NormalizedFormula<T>) -> Self {
+        FormulaPointer {
+            formula,
+            operand: None
+        }
+    }
+
+    pub fn next_operand(&self) -> Self {
+        if let NormalizedFormula::Atom { .. } = self.formula {
+            panic!("bug: next_operand may only be called on conjunctions or disjunctions");
+        }
+        FormulaPointer {
+            formula: self.formula,
+            operand: Some(self.operand.map_or(0, |o| {
+                assert!(o < self.formula.len() - 1, "bug: next_operand() may only be called once for each operand");
+                o + 1
+            })),
+        }
+    }
+
+    pub fn is_last_operand(&self) -> bool {
+        match (self.formula, self.operand) {
+            (NormalizedFormula::Conjunction { operands }, Some(operand)) => operand == operands.len() - 1,
+            (NormalizedFormula::Disjunction { operands }, Some(operand)) => operand == operands.len() - 1,
+        }
+    }
+}
+
+impl<'a, T> AsRef<NormalizedFormula<T>> for FormulaPointer<'a, T> {
+    fn as_ref(&self) -> &NormalizedFormula<T> {
+        match (self.formula, self.operand) {
+            (NormalizedFormula::Conjunction { operands }, Some(operand)) => operands[operand].as_ref(),
+            (NormalizedFormula::Disjunction { operands }, Some(operand)) => operands[operand].as_ref(),
+            _ => &self.formula,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VAFSpectrum {
     Set(BTreeSet<AlleleFreq>),
-    Range(VAFRange)
+    Range(VAFRange),
 }
 
 impl VAFSpectrum {
@@ -184,7 +374,7 @@ pub enum VAFRangeOverlap {
     Contains,
     End,
     Start,
-    None
+    None,
 }
 
 impl VAFRange {
@@ -198,9 +388,20 @@ impl VAFRange {
     }
 
     pub fn split_at(&self, vaf: AlleleFreq) -> (VAFRange, VAFRange) {
-        assert!(self.contains(vaf), "bug: split_at is only defined if given VAF is contained in range");
-        let left = VAFRange { inner: self.start..vaf, left_exclusive: self.left_exclusive, right_exclusive: true };
-        let right = VAFRange { inner: vaf..self.end, left_exclusive: true, right_exclusive: self.right_exclusive };
+        assert!(
+            self.contains(vaf),
+            "bug: split_at is only defined if given VAF is contained in range"
+        );
+        let left = VAFRange {
+            inner: self.start..vaf,
+            left_exclusive: self.left_exclusive,
+            right_exclusive: true,
+        };
+        let right = VAFRange {
+            inner: vaf..self.end,
+            left_exclusive: true,
+            right_exclusive: self.right_exclusive,
+        };
         (left, right)
     }
 
@@ -208,13 +409,13 @@ impl VAFRange {
         let range = *self;
         let other_range = **vafs;
         let start_is_right_of_start = match (self.left_exclusive, self.right_exclusive) {
-            (true, true)  => range.start >= other_range.start,
+            (true, true) => range.start >= other_range.start,
             (true, false) => range.start >= other_range.start,
             (false, true) => range.start > other_range.start,
             (false, false) => range.start >= other_range.start,
         };
         let end_is_left_of_end = match (self.left_exclusive, self.right_exclusive) {
-            (true, true)  => range.end <= other_range.end,
+            (true, true) => range.end <= other_range.end,
             (true, false) => range.end <= other_range.end,
             (false, true) => range.end < other_range.end,
             (false, false) => range.end <= other_range.end,
@@ -285,7 +486,6 @@ impl ops::Deref for VAFRange {
     }
 }
 
-
 impl Ord for VAFRange {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.start.cmp(&other.start) {
@@ -304,6 +504,29 @@ impl PartialOrd for VAFRange {
 #[derive(Debug, Clone)]
 pub struct VAFUniverse(BTreeSet<VAFSpectrum>);
 
+impl VAFUniverse {
+    pub fn as_formula<T: Clone>(&self, sample: &T) -> NormalizedFormula<T> {
+        if self.len() == 1 {
+            NormalizedFormula::Atom {
+                sample: sample.clone(),
+                vafs: self.iter().next().unwrap().clone(),
+            }
+        } else {
+            NormalizedFormula::Disjunction {
+                operands: self
+                    .iter()
+                    .map(|vafs| {
+                        Box::new(NormalizedFormula::Atom {
+                            sample: sample.clone(),
+                            vafs: vafs.clone(),
+                        })
+                    })
+                    .collect(),
+            }
+        }
+    }
+}
+
 impl ops::Deref for VAFUniverse {
     type Target = BTreeSet<VAFSpectrum>;
 
@@ -320,7 +543,6 @@ impl<'de> Deserialize<'de> for VAFUniverse {
         deserializer.deserialize_string(VAFUniverseVisitor)
     }
 }
-
 
 struct VAFUniverseVisitor;
 
@@ -355,7 +577,7 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
                                 let inner = pair.into_inner();
                                 operands.insert(parse_vafrange(inner));
                             }
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         }
                         if inner.next().is_none() {
                             break;
@@ -363,9 +585,8 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
                     }
                     Ok(VAFUniverse(operands))
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
-
         } else {
             Err(de::Error::invalid_value(
                 serde::de::Unexpected::Other("invalid VAF formula"),
@@ -374,7 +595,6 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
         }
     }
 }
-
 
 impl<'de> Deserialize<'de> for Formula<String> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -391,9 +611,8 @@ impl<'de> de::Visitor<'de> for FormulaVisitor {
     type Value = Formula<String>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str(
-            "a valid VAF formula (see https://varlociraptor.github.io/docs/calling)",
-        )
+        formatter
+            .write_str("a valid VAF formula (see https://varlociraptor.github.io/docs/calling)")
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
@@ -435,7 +654,7 @@ fn parse_vafrange(inner: Pairs<Rule>) -> VAFSpectrum {
 
 fn parse_formula<E>(pair: Pair<Rule>) -> Result<Formula<String>, E>
 where
-    E: de::Error
+    E: de::Error,
 {
     Ok(match pair.as_rule() {
         Rule::vaf => {
@@ -443,14 +662,20 @@ where
             let sample = inner.next().unwrap().as_str().to_owned();
             // the colon
             inner.next().unwrap();
-            Formula::Atom { sample, vafs: parse_vaf(inner) }
+            Formula::Atom {
+                sample,
+                vafs: parse_vaf(inner),
+            }
         }
         Rule::vafrange => {
             let inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
             // the colon
             inner.next().unwrap();
-            Formula::Atom { sample, vafs: parse_vafrange(inner) }
+            Formula::Atom {
+                sample,
+                vafs: parse_vafrange(inner),
+            }
         }
         Rule::conjunction => {
             let inner = pair.into_inner();
@@ -476,7 +701,9 @@ where
         }
         Rule::negation => {
             let inner = pair.into_inner();
-            Formula::Negation { operand: Box::new(parse_formula(inner.next().unwrap())?) }
+            Formula::Negation {
+                operand: Box::new(parse_formula(inner.next().unwrap())?),
+            }
         }
         Rule::formula => unreachable!(),
         Rule::subformula => unreachable!(),

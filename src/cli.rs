@@ -434,7 +434,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         model_builder = model_builder
                                             .push_sample(*sample.resolution(), contamination);
 
-                                        vaf_universe.insert(sample_name.to_owned(), sample.universe().clone());
+                                        vaf_universe.insert(
+                                            sample_name.to_owned(),
+                                            sample.universe().clone(),
+                                        );
 
                                         let bam = bams.get(sample_name).ok_or(
                                             errors::CLIError::InvalidBAMSampleName {
@@ -477,9 +480,12 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         .omit_indels(omit_indels)
                                         .max_indel_len(max_indel_len);
                                     for (event_name, event_formula) in scenario.events() {
-                                        let event_formula = event_formula.atomize_negations(&vaf_universe);
-                                        let event_formula = event_formula.to_sample_idx(&sample_idx)?;
-                                        caller_builder = caller_builder.event(event_name, event_formula);
+                                        let event_formula =
+                                            event_formula.atomize_negations(&vaf_universe);
+                                        let event_formula =
+                                            event_formula.to_sample_idx(&sample_idx)?;
+                                        caller_builder =
+                                            caller_builder.event(event_name, event_formula);
                                     }
                                     caller_builder = caller_builder.outbcf(output.as_ref())?;
 
@@ -555,20 +561,24 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .omit_indels(omit_indels)
                                 .max_indel_len(max_indel_len);
 
-                            let events: HashMap<String, grammar::Formula<String>> = serde_yaml::from_str(r#"
+                            let events: HashMap<String, grammar::Formula<String>> =
+                                serde_yaml::from_str(
+                                    r#"
                                 events:
                                   somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
                                   somatic_normal: "tumor:]0.0,1.0] & normal:]0.0,0.5["
                                   germline_het:   "tumor:[0.0,1.0] & normal:0.5"
                                   germline_hom:   "tumor:[0.0,1.0] & normal:1.0"
                                   absent:         "tumor:0.0 & normal:0.0"
-                                "#)?;
+                                "#,
+                                )?;
                             let sample_idx = HashMap::new();
                             sample_idx.insert("tumor".to_owned(), 0);
                             sample_idx.insert("normal".to_owned(), 1);
 
                             for (event_name, event) in events {
-                                caller_builder = caller_builder.event(&event_name, event.to_sample_idx(&sample_idx)?);
+                                caller_builder = caller_builder
+                                    .event(&event_name, event.to_sample_idx(&sample_idx)?);
                             }
                             let mut caller = caller_builder.outbcf(output.as_ref())?.build()?;
 
