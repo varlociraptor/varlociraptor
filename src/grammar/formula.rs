@@ -224,6 +224,19 @@ impl Formula<usize> {
 }
 
 impl<T> NormalizedFormula<T> {
+    pub fn atoms(&self) -> Vec<&Self> {
+        fn atoms<T>(formula: &NormalizedFormula<T>, leafs: &mut Vec<NormalizedFormula<T>>) {
+            match formula {
+                NormalizedFormula::Conjunction { operands } => operands.iter().for_each(|operand| atoms(operand, leafs)),
+                NormalizedFormula::Disjunction { operands } => operands.iter().for_each(|operand| atoms(operand, leafs)),
+                NormalizedFormula::Atom { .. } => leafs.push(formula),
+            }
+        }
+        let mut leafs = Vec::new();
+        atoms(self, &mut leafs);
+        leafs
+    }
+
     pub fn len(&self) -> usize {
         match self {
             NormalizedFormula::Conjunction { operands } => operands.len(),
