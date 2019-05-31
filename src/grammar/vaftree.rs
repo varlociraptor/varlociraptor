@@ -1,9 +1,9 @@
 use std::collections::HashSet;
-use vec_map::VecMap;
+use std::collections::HashMap;
 
 use itertools::Itertools;
 
-use crate::grammar::{formula::NormalizedFormula, formula::VAFUniverse, VAFSpectrum};
+use crate::grammar::{formula::NormalizedFormula, VAFSpectrum, Scenario};
 use crate::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -71,15 +71,17 @@ impl Node {
 }
 
 impl VAFTree {
-    fn new(formula: &NormalizedFormula<usize>, vaf_universe: &VecMap<VAFUniverse>) -> Self {
-        fn from(formula: &NormalizedFormula<usize>) -> Vec<Box<Node>> {
+    fn new(formula: &NormalizedFormula, scenario: &Scenario) -> Self {
+        let sample_idx: HashMap<_, _> = scenario.samples().keys().enumerate().map(|(i, s)| (s.as_str(), i)).collect();
+
+        fn from(formula: &NormalizedFormula, sample_idx: &HashMap<&str, usize>) -> Vec<Box<Node>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
-                    vec![Box::new(Node::new(*sample, vafs.clone()))]
+                    vec![Box::new(Node::new(*sample_idx.get(sample.as_str()).unwrap(), vafs.clone()))]
                 }
                 NormalizedFormula::Disjunction { operands } => operands
                     .iter()
-                    .map(|operand| from(operand))
+                    .map(|operand| from(operand, sample_idx))
                     .flatten()
                     .collect_vec(),
                 NormalizedFormula::Conjunction { operands } => {
@@ -91,7 +93,7 @@ impl VAFTree {
                     let mut leafs: Option<Vec<&Node>> = None;
                     let mut roots = None;
                     for operand in operands {
-                        let subtrees = from(operand);
+                        let subtrees = from(operand, sample_idx);
                         if let Some(leafs) = leafs {
                             for leaf in leafs {
                                 leaf.children = subtrees.clone();
@@ -113,37 +115,39 @@ impl VAFTree {
             }
         }
 
-        fn add_missing_samples(
+        fn add_missing_samples<'a>(
             node: &mut Node,
-            seen: HashSet<usize>,
-            vaf_universe: &VecMap<VAFUniverse>,
+            seen: HashSet<&'a str>,
+            scenario: &'a Scenario,
+            sample_idx: &HashMap<&str, usize>
         ) {
             if node.is_leaf() {
                 // leaf, add missing samples
-                for (sample, universe) in vaf_universe {
-                    if !seen.contains(&sample) {
-                        seen.insert(sample);
-                        node.children = universe
+                for (name, sample) in scenario.samples() {
+                    if !seen.contains(name.as_str()) {
+                        seen.insert(name.as_str());
+                        node.children = sample
+                            .universe()
                             .iter()
-                            .map(|vafs| Box::new(Node::new(sample, vafs.clone())))
+                            .map(|vafs| Box::new(Node::new(*sample_idx.get(name.as_str()).unwrap(), vafs.clone())))
                             .collect();
-                        add_missing_samples(node, seen, vaf_universe);
+                        add_missing_samples(node, seen, scenario, sample_idx);
                     }
                 }
             } else {
                 if node.is_branching() {
                     for child in &mut node.children[1..] {
-                        add_missing_samples(child.as_mut(), seen.clone(), vaf_universe);
+                        add_missing_samples(child.as_mut(), seen.clone(), scenario, sample_idx);
                     }
                 }
-                add_missing_samples(node.children[0].as_mut(), seen, vaf_universe);
+                add_missing_samples(node.children[0].as_mut(), seen, scenario, sample_idx);
             }
         }
 
-        let mut inner = from(formula);
+        let mut inner = from(formula, &sample_idx);
         for node in &mut inner {
             let seen = HashSet::new();
-            add_missing_samples(node, seen, vaf_universe);
+            add_missing_samples(node, seen, scenario, &sample_idx);
         }
 
         VAFTree { inner }

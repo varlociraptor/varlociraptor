@@ -18,54 +18,57 @@ use serde::Deserialize;
 
 use crate::errors;
 use crate::model::AlleleFreq;
+use crate::grammar::Scenario;
 
 #[derive(Parser)]
 #[grammar = "grammar/formula.pest"]
 pub struct FormulaParser;
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
-pub enum Formula<T> {
-    Conjunction { operands: Vec<Box<Formula<T>>> },
-    Disjunction { operands: Vec<Box<Formula<T>>> },
-    Negation { operand: Box<Formula<T>> },
-    Atom { sample: T, vafs: VAFSpectrum },
+pub enum Formula {
+    Conjunction { operands: Vec<Box<Formula>> },
+    Disjunction { operands: Vec<Box<Formula>> },
+    Negation { operand: Box<Formula> },
+    Atom { sample: String, vafs: VAFSpectrum },
 }
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
-pub enum NormalizedFormula<T> {
+pub enum NormalizedFormula {
     Conjunction {
-        operands: Vec<Box<NormalizedFormula<T>>>,
+        operands: Vec<Box<NormalizedFormula>>,
     },
     Disjunction {
-        operands: Vec<Box<NormalizedFormula<T>>>,
+        operands: Vec<Box<NormalizedFormula>>,
     },
     Atom {
-        sample: T,
+        sample: String,
         vafs: VAFSpectrum,
     },
 }
 
-impl<T: Hash + Eq + Display + Clone> Formula<T> {
+impl Formula {
     /// Negate formula.
-    pub fn negate(self, vaf_universe: &HashMap<T, VAFUniverse>) -> Formula<T> {
-        match self {
+    pub fn negate(self, scenario: &Scenario) -> Result<Formula, errors::FormulaError> {
+        Ok(match self {
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Box::new(o.negate(vaf_universe)))
-                    .collect(),
+                    .map(|o| Box::new(o.negate(scenario)))
+                    .collect()?,
             },
             Formula::Disjunction { operands } => Formula::Conjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Box::new(o.negate(vaf_universe)))
-                    .collect(),
+                    .map(|o| Box::new(o.negate(scenario)))
+                    .collect()?,
             },
             Formula::Negation { operand } => *operand,
             Formula::Atom { sample, vafs } => {
-                let universe = vaf_universe
+                let universe = scenario
+                    .samples()
                     .get(&sample)
-                    .expect(&format!("bug: no VAF-Universe given for sample {}", sample));
+                    .ok_or_else(|| errors::FormulaError::InvalidSampleName { name: sample.to_owned() })?
+                    .universe();
                 let mut disjunction = Vec::new();
                 match vafs {
                     VAFSpectrum::Set(vafs) => {
@@ -143,83 +146,26 @@ impl<T: Hash + Eq + Display + Clone> Formula<T> {
                         .collect(),
                 }
             }
-        }
+        })
     }
 
-    pub fn normalize(self, vaf_universe: &HashMap<T, VAFUniverse>) -> NormalizedFormula<T> {
-        match self {
-            Formula::Negation { operand } => operand.negate(vaf_universe).normalize(vaf_universe),
+    pub fn normalize(self, scenario: &Scenario) -> Result<NormalizedFormula, errors::FormulaError> {
+        Ok(match self {
+            Formula::Negation { operand } => operand.negate(scenario)?.normalize(scenario)?,
             Formula::Atom { sample, vafs } => NormalizedFormula::Atom { sample, vafs },
             Formula::Conjunction { operands } => NormalizedFormula::Conjunction {
                 operands: operands
                     .into_iter()
-                    .map(|o| Box::new(o.normalize(vaf_universe)))
-                    .collect(),
+                    .map(|o| Box::new(o.normalize(scenario)))
+                    .collect()?,
             },
             Formula::Disjunction { operands } => NormalizedFormula::Disjunction {
                 operands: operands
                     .into_iter()
-                    .map(|o| Box::new(o.normalize(vaf_universe)))
-                    .collect(),
+                    .map(|o| Box::new(o.normalize(scenario)))
+                    .collect()?,
             },
-        }
-    }
-}
-
-impl Formula<String> {
-    pub fn to_sample_idx(
-        &self,
-        sample_idx: &HashMap<String, usize>,
-    ) -> Result<Formula<usize>, errors::FormulaError> {
-        let recurse_to_operands = |operands: &[Box<Formula<String>>]| {
-            let operands: Result<Vec<_>, _> = operands
-                .iter()
-                .map(|f| Ok(Box::new(f.to_sample_idx(sample_idx)?)))
-                .collect();
-            operands
-        };
-        Ok(match self {
-            &Formula::Conjunction { ref operands } => Formula::Conjunction {
-                operands: recurse_to_operands(operands)?,
-            },
-            &Formula::Disjunction { ref operands } => Formula::Disjunction {
-                operands: recurse_to_operands(operands)?,
-            },
-            &Formula::Negation { ref operand } => Formula::Negation {
-                operand: Box::new(operand.to_sample_idx(sample_idx)?),
-            },
-            &Formula::Atom {
-                ref sample,
-                ref vafs,
-            } => {
-                if let Some(idx) = sample_idx.get(sample) {
-                    Formula::Atom {
-                        sample: *idx,
-                        vafs: vafs.clone(),
-                    }
-                } else {
-                    return Err(errors::FormulaError::InvalidSampleName {
-                        name: sample.to_owned(),
-                    });
-                }
-            }
         })
-    }
-}
-
-impl Formula<usize> {
-    pub fn absent(n_samples: usize) -> Formula<usize> {
-        Formula::Conjunction {
-            operands: (0..n_samples)
-                .into_iter()
-                .map(|sample| {
-                    Box::new(Formula::Atom {
-                        sample,
-                        vafs: VAFSpectrum::singleton(AlleleFreq(0.0)),
-                    })
-                })
-                .collect_vec(),
-        }
     }
 }
 

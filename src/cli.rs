@@ -404,21 +404,16 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         // TODO allow to define prior in the grammar
                                         .prior(FlatPrior::new());
 
-                                    // register sample idx
-                                    let mut sample_idx: HashMap<_, _> = scenario
-                                        .samples()
-                                        .keys()
-                                        .enumerate()
-                                        .map(|(i, s)| (s.to_owned(), i))
-                                        .collect();
+                                    // get sample idx
+                                    let mut sample_index = scenario.sample_index();
 
                                     // parse samples
                                     let mut vaf_universe = HashMap::new();
                                     for (sample_name, sample) in scenario.samples().iter() {
                                         let contamination =
                                             if let Some(contamination) = sample.contamination() {
-                                                let contaminant = *sample_idx
-                                                .get(contamination.by())
+                                                let contaminant = sample_index
+                                                .idx(contamination.by())
                                                 .ok_or(
                                                 errors::CLIError::InvalidContaminationSampleName {
                                                     name: sample_name.to_owned(),
