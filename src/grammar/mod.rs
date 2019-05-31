@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
 pub mod formula;
+pub mod vaftree;
 
 pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
+pub use crate::grammar::vaftree::VAFTree;
 
 #[derive(Deserialize, Getters)]
 #[get = "pub"]

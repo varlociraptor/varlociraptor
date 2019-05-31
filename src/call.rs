@@ -106,7 +106,7 @@ where
     }
 
     /// Register events.
-    pub fn event(mut self, name: &str, event: grammar::Formula<usize>) -> Self {
+    pub fn event(mut self, name: &str, event: grammar::VAFTree) -> Self {
         assert_ne!(
             name.to_ascii_lowercase(),
             "artifact",
@@ -125,7 +125,7 @@ where
                 events.insert(
                     "absent".to_owned(),
                     model::Event {
-                        formula: grammar::Formula::absent(samples.len()),
+                        vafs: grammar::VAFTree::absent(samples.len()),
                         strand_bias: StrandBias::None,
                     },
                 );
@@ -137,7 +137,7 @@ where
         }
 
         let annotate_event = |strand_bias| model::Event {
-            formula: event.clone(),
+            vafs: event.clone(),
             strand_bias: strand_bias,
         };
 

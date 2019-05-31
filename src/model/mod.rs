@@ -27,7 +27,7 @@ pub struct Contamination {
 
 #[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
 pub struct Event {
-    pub formula: grammar::Formula<usize>,
+    pub vafs: grammar::VAFTree,
     pub strand_bias: StrandBias,
 }
 

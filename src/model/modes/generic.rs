@@ -40,7 +40,7 @@ pub struct GenericModelBuilder<P> {
 
 impl<P: Prior> GenericModelBuilder<P>
 where
-    P: Prior<Event = VecMap<likelihood::Event>>,
+    P: Prior<Event = Vec<likelihood::Event>>,
 {
     pub fn push_sample(mut self, resolution: usize, contamination: Option<Contamination>) -> Self {
         self.contaminations.push(contamination);
@@ -85,135 +85,89 @@ impl GenericPosterior {
 
     fn density<F: FnMut(&<Self as Posterior>::BaseEvent, &<Self as Posterior>::Data) -> LogProb>(
         &self,
-        formula: &grammar::Formula<usize>,
-        operand: Option<usize>,
+        vaf_tree_node: &grammar::vaftree::Node,
         base_events: Rc<RefCell<VecMap<likelihood::Event>>>,
         sample_grid_points: &[usize],
         pileups: &<Self as Posterior>::Data,
         strand_bias: StrandBias,
         joint_prob: &mut F,
-        universe: Vec<Formula<usize>>,
     ) -> LogProb {
-        let (subformula, is_leaf) = match (formula, operand) {
-            (grammar::Formula::Conjunction { operands }, Some(operand)) => {
-                let is_last = operand == operands.len() - 1;
-                (operands[operand].as_ref(), is_last)
-            }
-            (grammar::Formula::Atom { .. }, None) => (formula, true),
-            _ => (formula, false),
-        };
-        // TODO use subformula!!
-
-        match formula {
-            grammar::Formula::Atom { sample, ref vafs } => {
-                let push_base_event = |allele_freq, base_events: Rc<VecMap<likelihood::Event>>| {
-                    base_events.borrow_mut().insert(
-                        *sample,
-                        likelihood::Event {
-                            allele_freq: allele_freq,
-                            strand_bias: strand_bias,
-                        },
-                    );
-                };
-
-                let subdensity = |base_events: Rc<RefCell<VecMap<likelihood::Event>>>| {
-                    if is_leaf {
-                        // Check if any sample is not covered yet.
-                        // If so, add stuff from universe.
-                        let operands = (0..pileups.len())
-                            .filter_map(|sample| {
-                                if !base_events.borrow().contains_key(sample) {
-                                    Some(Box::new(universe[sample].clone()))
-                                } else {
-                                    None
-                                }
+        let sample = *vaf_tree_node.sample();
+        let subdensity = |base_events: Rc<RefCell<VecMap<likelihood::Event>>>| {
+            if vaf_tree_node.is_leaf() {
+                joint_prob(&base_events.borrow().values().cloned().collect(), pileups)
+            } else {
+                if vaf_tree_node.is_branching() {
+                    LogProb::ln_sum_exp(
+                        &vaf_tree_node
+                            .children()
+                            .iter()
+                            .map(|child| {
+                                self.density(
+                                    child,
+                                    base_events.clone(),
+                                    sample_grid_points,
+                                    pileups,
+                                    strand_bias,
+                                    joint_prob,
+                                )
                             })
-                            .collect_vec();
-                        if !operands.is_empty() {
-                            self.density(
-                                &grammar::Formula::Conjunction { operands },
-                                None,
-                                Rc::clone(&base_events),
-                                sample_grid_points,
-                                pileups,
-                                strand_bias,
-                                joint_prob,
-                            )
-                        } else {
-                            joint_prob(&base_events.borrow().values().cloned().collect(), pileups)
-                        }
-                    } else {
-                        self.density(
-                            formula,
-                            operand.map(|o| o + 1),
-                            Rc::clone(&base_events),
-                            sample_grid_points,
-                            pileups,
-                            strand_bias,
-                            joint_prob,
-                        )
-                    }
-                };
-                match vafs {
-                    grammar::VAFSpectrum::Set(vafs) => {
-                        if vafs.len() == 1 {
-                            push_base_event(*vafs.iter().next().unwrap(), base_events);
-                            subdensity(base_events)
-                        } else {
-                            LogProb::ln_sum_exp(
-                                &vafs
-                                    .iter()
-                                    .cloned()
-                                    .map(|vaf| {
-                                        let base_events = base_events.clone();
-                                        push_base_event(vaf, base_events);
-                                        subdensity(base_events)
-                                    })
-                                    .collect_vec(),
-                            )
-                        }
-                    }
-                    grammar::VAFSpectrum::Range(range) => {
-                        let n_obs = pileups[*sample].len();
-                        LogProb::ln_simpsons_integrate_exp(
-                            |_, vaf| {
-                                let base_events = base_events.clone();
-                                push_base_event(AlleleFreq(vaf), base_events);
-                                subdensity(base_events)
-                            },
-                            *range.observable_min(n_obs),
-                            *range.observable_max(n_obs),
-                            sample_grid_points[*sample],
-                        )
-                    }
+                            .collect_vec(),
+                    )
+                } else {
+                    self.density(
+                        &vaf_tree_node.children()[0],
+                        base_events.clone(),
+                        sample_grid_points,
+                        pileups,
+                        strand_bias,
+                        joint_prob,
+                    )
                 }
             }
-            grammar::Formula::Conjunction { operands } => self.density(
-                formula,
-                Some(operand.map_or(0, |o| o + 1)),
-                base_events,
-                sample_grid_points,
-                pileups,
-                strand_bias,
-                joint_prob,
-            ),
-            grammar::Formula::Disjunction { operands } => LogProb::ln_sum_exp(
-                &operands
-                    .iter()
-                    .map(|o| {
-                        self.density(
-                            o.as_ref(),
-                            None,
-                            base_events,
-                            sample_grid_points,
-                            pileups,
-                            strand_bias,
-                            joint_prob,
-                        )
-                    })
-                    .collect_vec(),
-            ),
-            grammar::Formula::Negation { .. } => unreachable!(),
+        };
+
+        let push_base_event = |allele_freq, base_events: Rc<RefCell<VecMap<likelihood::Event>>>| {
+            base_events.borrow_mut().insert(
+                sample,
+                likelihood::Event {
+                    allele_freq: allele_freq,
+                    strand_bias: strand_bias,
+                },
+            );
+        };
+
+        match vaf_tree_node.vafs() {
+            grammar::VAFSpectrum::Set(vafs) => {
+                if vafs.len() == 1 {
+                    push_base_event(vafs.iter().next().unwrap().clone(), base_events);
+                    subdensity(base_events)
+                } else {
+                    LogProb::ln_sum_exp(
+                        &vafs
+                            .iter()
+                            .map(|vaf| {
+                                let base_events = base_events.clone();
+                                push_base_event(*vaf, base_events);
+                                subdensity(base_events)
+                            })
+                            .collect_vec(),
+                    )
+                }
+            }
+            grammar::VAFSpectrum::Range(vafs) => {
+                let n_obs = pileups[sample].len();
+                LogProb::ln_simpsons_integrate_exp(
+                    |_, vaf| {
+                        let base_events = base_events.clone();
+                        push_base_event(AlleleFreq(vaf), base_events);
+                        subdensity(base_events)
+                    },
+                    *vafs.observable_min(n_obs),
+                    *vafs.observable_max(n_obs),
+                    sample_grid_points[sample],
+                )
+            }
         }
     }
 }
@@ -230,15 +184,21 @@ impl Posterior for GenericPosterior {
         joint_prob: &mut F,
     ) -> LogProb {
         let grid_points = self.grid_points(pileups);
-
-        self.density(
-            &event.formula,
-            None,
-            Rc::new(RefCell::new(VecMap::new())),
-            &grid_points,
-            pileups,
-            event.strand_bias,
-            joint_prob,
+        let vaf_tree = &event.vafs;
+        LogProb::ln_sum_exp(
+            &vaf_tree
+                .iter()
+                .map(|node| {
+                    self.density(
+                        node,
+                        Rc::new(RefCell::new(VecMap::with_capacity(pileups.len()))),
+                        &grid_points,
+                        pileups,
+                        event.strand_bias,
+                        joint_prob,
+                    )
+                })
+                .collect_vec(),
         )
     }
 }
@@ -336,7 +296,7 @@ impl FlatPrior {
 }
 
 impl Prior for FlatPrior {
-    type Event = VecMap<likelihood::Event>;
+    type Event = Vec<likelihood::Event>;
 
     fn compute(&self, _event: &Self::Event) -> LogProb {
         LogProb::ln_one()
