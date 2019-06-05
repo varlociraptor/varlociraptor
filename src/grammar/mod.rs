@@ -58,7 +58,7 @@ impl Scenario {
     }
 }
 
-impl TryFrom<&'static str> for Scenario {
+impl<'a> TryFrom<&'a str> for Scenario {
     type Error = serde_yaml::Error;
 
     fn try_from(yaml: &str) -> Result<Self, Self::Error> {

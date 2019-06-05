@@ -373,7 +373,7 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(
-            "a valid disjunction of possible VAFs (see https://varlociraptor.github.io/docs/calling)",
+            "a disjunction of possible VAFs (see https://varlociraptor.github.io/docs/calling)",
         )
     }
 
