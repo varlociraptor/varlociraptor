@@ -21,10 +21,10 @@ use crate::model;
 use crate::model::evidence::observation::expected_depth;
 use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
-use crate::model::{AlleleFreq, AlleleFreqs, StrandBias};
+use crate::model::{AlleleFreq, StrandBias};
 use crate::utils;
 
-pub type AlleleFreqCombination = VecMap<model::likelihood::Event>;
+pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
 #[derive(Default, Clone, Debug, Builder)]
 pub struct Call {
@@ -64,7 +64,7 @@ pub struct Caller<L, Pr, Po, ModelPayload>
 where
     L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
-    Po: bayesian::model::Posterior,
+    Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
     samples: Vec<Sample>,
@@ -121,7 +121,7 @@ where
 
         if self.events.is_none() {
             let mut events = HashMap::default();
-            if let Some(samples) = self.samples {
+            if let Some(ref samples) = self.samples {
                 events.insert(
                     "absent".to_owned(),
                     model::Event {
@@ -486,7 +486,7 @@ where
                     pileups
                         .into_iter()
                         .zip(map_estimates.into_iter())
-                        .map(|(pileup, (sample, estimate))| {
+                        .map(|(pileup, estimate)| {
                             let mut sample_builder = SampleInfoBuilder::default();
                             sample_builder.observations(pileup);
                             match estimate {

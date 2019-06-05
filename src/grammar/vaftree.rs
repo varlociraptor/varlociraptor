@@ -1,9 +1,9 @@
 use std::collections::HashSet;
-use std::collections::HashMap;
 
 use itertools::Itertools;
 
-use crate::grammar::{formula::NormalizedFormula, VAFSpectrum, Scenario};
+use crate::errors;
+use crate::grammar::{formula::NormalizedFormula, Scenario, VAFSpectrum};
 use crate::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -45,12 +45,12 @@ pub struct Node {
 }
 
 impl Node {
-    pub fn leafs<'a>(&'a self) -> Vec<&'a Node> {
-        fn collect_leafs<'a>(node: &'a Node, leafs: &mut Vec<&'a Node>) {
+    pub fn leafs<'a>(&'a mut self) -> Vec<&'a mut Node> {
+        fn collect_leafs<'a>(node: &'a mut Node, leafs: &mut Vec<&'a mut Node>) {
             if node.children.is_empty() {
                 leafs.push(node);
             } else {
-                for child in &node.children {
+                for child in &mut node.children {
                     collect_leafs(child, leafs);
                 }
             }
@@ -71,55 +71,59 @@ impl Node {
 }
 
 impl VAFTree {
-    fn new(formula: &NormalizedFormula, scenario: &Scenario) -> Self {
-        let sample_idx: HashMap<_, _> = scenario.samples().keys().enumerate().map(|(i, s)| (s.as_str(), i)).collect();
-
-        fn from(formula: &NormalizedFormula, sample_idx: &HashMap<&str, usize>) -> Vec<Box<Node>> {
+    pub fn new(
+        formula: &NormalizedFormula,
+        scenario: &Scenario,
+    ) -> Result<Self, errors::FormulaError> {
+        fn from(
+            formula: &NormalizedFormula,
+            scenario: &Scenario,
+        ) -> Result<Vec<Box<Node>>, errors::FormulaError> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
-                    vec![Box::new(Node::new(*sample_idx.get(sample.as_str()).unwrap(), vafs.clone()))]
+                    let sample = scenario.idx(sample.as_str()).ok_or_else(|| {
+                        errors::FormulaError::InvalidSampleName {
+                            name: sample.to_owned(),
+                        }
+                    })?;
+                    Ok(vec![Box::new(Node::new(sample, vafs.clone()))])
                 }
-                NormalizedFormula::Disjunction { operands } => operands
-                    .iter()
-                    .map(|operand| from(operand, sample_idx))
-                    .flatten()
-                    .collect_vec(),
+                NormalizedFormula::Disjunction { operands } => {
+                    let mut subtrees = Vec::new();
+                    for operand in operands {
+                        for subtree in from(operand, scenario)? {
+                            subtrees.push(subtree);
+                        }
+                    }
+                    Ok(subtrees)
+                }
                 NormalizedFormula::Conjunction { operands } => {
                     // sort disjunctions to the end
-                    let operands = operands.iter().sorted_by_key(|o| match o.as_ref() {
-                        NormalizedFormula::Disjunction { .. } => 1,
-                        _ => 0,
-                    });
-                    let mut leafs: Option<Vec<&Node>> = None;
-                    let mut roots = None;
+                    let operands = operands
+                        .iter()
+                        .sorted_by_key(|o| match o.as_ref() {
+                            NormalizedFormula::Disjunction { .. } => 1,
+                            _ => 0,
+                        })
+                        .collect_vec();
+                    let mut roots = from(&operands[0], scenario)?;
                     for operand in operands {
-                        let subtrees = from(operand, sample_idx);
-                        if let Some(leafs) = leafs {
-                            for leaf in leafs {
+                        let subtrees = from(operand, scenario)?;
+                        for subtree in &mut roots {
+                            for leaf in subtree.leafs() {
                                 leaf.children = subtrees.clone();
                             }
                         }
-                        leafs = Some(
-                            subtrees
-                                .iter()
-                                .map(|subtree| subtree.leafs())
-                                .flatten()
-                                .collect_vec(),
-                        );
-                        if roots.is_none() {
-                            roots = Some(subtrees);
-                        }
                     }
-                    roots.unwrap()
+                    Ok(roots)
                 }
             }
         }
 
         fn add_missing_samples<'a>(
             node: &mut Node,
-            seen: HashSet<&'a str>,
+            seen: &mut HashSet<&'a str>,
             scenario: &'a Scenario,
-            sample_idx: &HashMap<&str, usize>
         ) {
             if node.is_leaf() {
                 // leaf, add missing samples
@@ -129,28 +133,33 @@ impl VAFTree {
                         node.children = sample
                             .universe()
                             .iter()
-                            .map(|vafs| Box::new(Node::new(*sample_idx.get(name.as_str()).unwrap(), vafs.clone())))
+                            .map(|vafs| {
+                                Box::new(Node::new(
+                                    scenario.idx(name.as_str()).unwrap(),
+                                    vafs.clone(),
+                                ))
+                            })
                             .collect();
-                        add_missing_samples(node, seen, scenario, sample_idx);
+                        add_missing_samples(node, seen, scenario);
                     }
                 }
             } else {
                 if node.is_branching() {
                     for child in &mut node.children[1..] {
-                        add_missing_samples(child.as_mut(), seen.clone(), scenario, sample_idx);
+                        add_missing_samples(child.as_mut(), &mut seen.clone(), scenario);
                     }
                 }
-                add_missing_samples(node.children[0].as_mut(), seen, scenario, sample_idx);
+                add_missing_samples(node.children[0].as_mut(), seen, scenario);
             }
         }
 
-        let mut inner = from(formula, &sample_idx);
+        let mut inner = from(formula, scenario)?;
         for node in &mut inner {
-            let seen = HashSet::new();
-            add_missing_samples(node, seen, scenario, &sample_idx);
+            let mut seen = HashSet::new();
+            add_missing_samples(node, &mut seen, scenario);
         }
 
-        VAFTree { inner }
+        Ok(VAFTree { inner })
     }
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Node> {

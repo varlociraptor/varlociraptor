@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::cmp;
-use std::rc::Rc;
 
 use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
@@ -86,16 +84,16 @@ impl GenericPosterior {
     fn density<F: FnMut(&<Self as Posterior>::BaseEvent, &<Self as Posterior>::Data) -> LogProb>(
         &self,
         vaf_tree_node: &grammar::vaftree::Node,
-        base_events: Rc<RefCell<VecMap<likelihood::Event>>>,
+        base_events: &mut VecMap<likelihood::Event>,
         sample_grid_points: &[usize],
         pileups: &<Self as Posterior>::Data,
         strand_bias: StrandBias,
         joint_prob: &mut F,
     ) -> LogProb {
         let sample = *vaf_tree_node.sample();
-        let subdensity = |base_events: Rc<RefCell<VecMap<likelihood::Event>>>| {
+        let mut subdensity = |base_events: &mut VecMap<likelihood::Event>| {
             if vaf_tree_node.is_leaf() {
-                joint_prob(&base_events.borrow().values().cloned().collect(), pileups)
+                joint_prob(&base_events.values().cloned().collect(), pileups)
             } else {
                 if vaf_tree_node.is_branching() {
                     LogProb::ln_sum_exp(
@@ -105,7 +103,7 @@ impl GenericPosterior {
                             .map(|child| {
                                 self.density(
                                     child,
-                                    base_events.clone(),
+                                    &mut base_events.clone(),
                                     sample_grid_points,
                                     pileups,
                                     strand_bias,
@@ -117,7 +115,7 @@ impl GenericPosterior {
                 } else {
                     self.density(
                         &vaf_tree_node.children()[0],
-                        base_events.clone(),
+                        base_events,
                         sample_grid_points,
                         pileups,
                         strand_bias,
@@ -127,8 +125,8 @@ impl GenericPosterior {
             }
         };
 
-        let push_base_event = |allele_freq, base_events: Rc<RefCell<VecMap<likelihood::Event>>>| {
-            base_events.borrow_mut().insert(
+        let push_base_event = |allele_freq, base_events: &mut VecMap<likelihood::Event>| {
+            base_events.insert(
                 sample,
                 likelihood::Event {
                     allele_freq: allele_freq,
@@ -147,9 +145,9 @@ impl GenericPosterior {
                         &vafs
                             .iter()
                             .map(|vaf| {
-                                let base_events = base_events.clone();
-                                push_base_event(*vaf, base_events);
-                                subdensity(base_events)
+                                let mut base_events = base_events.clone();
+                                push_base_event(*vaf, &mut base_events);
+                                subdensity(&mut base_events)
                             })
                             .collect_vec(),
                     )
@@ -159,9 +157,9 @@ impl GenericPosterior {
                 let n_obs = pileups[sample].len();
                 LogProb::ln_simpsons_integrate_exp(
                     |_, vaf| {
-                        let base_events = base_events.clone();
-                        push_base_event(AlleleFreq(vaf), base_events);
-                        subdensity(base_events)
+                        let mut base_events = base_events.clone();
+                        push_base_event(AlleleFreq(vaf), &mut base_events);
+                        subdensity(&mut base_events)
                     },
                     *vafs.observable_min(n_obs),
                     *vafs.observable_max(n_obs),
@@ -189,9 +187,10 @@ impl Posterior for GenericPosterior {
             &vaf_tree
                 .iter()
                 .map(|node| {
+                    let mut base_events = VecMap::with_capacity(pileups.len());
                     self.density(
                         node,
-                        Rc::new(RefCell::new(VecMap::with_capacity(pileups.len()))),
+                        &mut base_events,
                         &grid_points,
                         pileups,
                         event.strand_bias,

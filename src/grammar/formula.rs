@@ -1,24 +1,17 @@
 use std::cmp::{Ord, Ordering, PartialOrd};
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
-use std::convert::TryFrom;
-use std::error::Error;
+use std::collections::{BTreeSet, VecDeque};
+
 use std::fmt;
-use std::fmt::Display;
-use std::hash::Hash;
 use std::ops;
 
-use itertools::Itertools;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use serde::de;
-use serde::de::value::StrDeserializer;
-use serde::de::Deserializer;
-use serde::de::IntoDeserializer;
 use serde::Deserialize;
 
 use crate::errors;
-use crate::model::AlleleFreq;
 use crate::grammar::Scenario;
+use crate::model::AlleleFreq;
 
 #[derive(Parser)]
 #[grammar = "grammar/formula.pest"]
@@ -48,42 +41,44 @@ pub enum NormalizedFormula {
 
 impl Formula {
     /// Negate formula.
-    pub fn negate(self, scenario: &Scenario) -> Result<Formula, errors::FormulaError> {
+    pub fn negate(&self, scenario: &Scenario) -> Result<Formula, errors::FormulaError> {
         Ok(match self {
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Box::new(o.negate(scenario)))
-                    .collect()?,
+                    .map(|o| Ok(Box::new(o.negate(scenario)?)))
+                    .collect::<Result<Vec<Box<Formula>>, errors::FormulaError>>()?,
             },
             Formula::Disjunction { operands } => Formula::Conjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Box::new(o.negate(scenario)))
-                    .collect()?,
+                    .map(|o| Ok(Box::new(o.negate(scenario)?)))
+                    .collect::<Result<Vec<Box<Formula>>, errors::FormulaError>>()?,
             },
-            Formula::Negation { operand } => *operand,
+            Formula::Negation { operand } => operand.as_ref().clone(),
             Formula::Atom { sample, vafs } => {
                 let universe = scenario
                     .samples()
-                    .get(&sample)
-                    .ok_or_else(|| errors::FormulaError::InvalidSampleName { name: sample.to_owned() })?
+                    .get(sample)
+                    .ok_or_else(|| errors::FormulaError::InvalidSampleName {
+                        name: sample.to_owned(),
+                    })?
                     .universe();
                 let mut disjunction = Vec::new();
                 match vafs {
                     VAFSpectrum::Set(vafs) => {
-                        let uvaf_stack: VecDeque<_> = universe.iter().cloned().collect();
+                        let mut uvaf_stack: VecDeque<_> = universe.iter().cloned().collect();
                         while let Some(uvafs) = uvaf_stack.pop_front() {
                             match uvafs {
                                 VAFSpectrum::Set(uvafs) => {
-                                    let mut difference: BTreeSet<_> =
+                                    let difference: BTreeSet<_> =
                                         uvafs.difference(&vafs).cloned().collect();
                                     if !difference.is_empty() {
                                         disjunction.push(VAFSpectrum::Set(difference));
                                     }
                                 }
                                 VAFSpectrum::Range(urange) => {
-                                    for vaf in vafs {
+                                    for &vaf in vafs {
                                         if urange.contains(vaf) {
                                             let (left_urange, right_urange) = urange.split_at(vaf);
                                             uvaf_stack.push_back(VAFSpectrum::Range(right_urange));
@@ -149,21 +144,27 @@ impl Formula {
         })
     }
 
-    pub fn normalize(self, scenario: &Scenario) -> Result<NormalizedFormula, errors::FormulaError> {
+    pub fn normalize(
+        &self,
+        scenario: &Scenario,
+    ) -> Result<NormalizedFormula, errors::FormulaError> {
         Ok(match self {
             Formula::Negation { operand } => operand.negate(scenario)?.normalize(scenario)?,
-            Formula::Atom { sample, vafs } => NormalizedFormula::Atom { sample, vafs },
+            Formula::Atom { sample, vafs } => NormalizedFormula::Atom {
+                sample: sample.to_owned(),
+                vafs: vafs.to_owned(),
+            },
             Formula::Conjunction { operands } => NormalizedFormula::Conjunction {
                 operands: operands
                     .into_iter()
-                    .map(|o| Box::new(o.normalize(scenario)))
-                    .collect()?,
+                    .map(|o| Ok(Box::new(o.normalize(scenario)?)))
+                    .collect::<Result<Vec<Box<NormalizedFormula>>, errors::FormulaError>>()?,
             },
             Formula::Disjunction { operands } => NormalizedFormula::Disjunction {
                 operands: operands
                     .into_iter()
-                    .map(|o| Box::new(o.normalize(scenario)))
-                    .collect()?,
+                    .map(|o| Ok(Box::new(o.normalize(scenario)?)))
+                    .collect::<Result<Vec<Box<NormalizedFormula>>, errors::FormulaError>>()?,
             },
         })
     }
@@ -227,8 +228,8 @@ impl VAFRange {
     }
 
     pub fn overlap(&self, vafs: &VAFRange) -> VAFRangeOverlap {
-        let range = *self;
-        let other_range = **vafs;
+        let range = self;
+        let other_range = vafs;
         let start_is_right_of_start = match (self.left_exclusive, self.right_exclusive) {
             (true, true) => range.start >= other_range.start,
             (true, false) => range.start >= other_range.start,
@@ -326,10 +327,10 @@ impl PartialOrd for VAFRange {
 pub struct VAFUniverse(BTreeSet<VAFSpectrum>);
 
 impl VAFUniverse {
-    pub fn as_formula<T: Clone>(&self, sample: &T) -> NormalizedFormula<T> {
+    pub fn as_formula<T: Clone>(&self, sample: &str) -> NormalizedFormula {
         if self.len() == 1 {
             NormalizedFormula::Atom {
-                sample: sample.clone(),
+                sample: sample.to_owned(),
                 vafs: self.iter().next().unwrap().clone(),
             }
         } else {
@@ -338,7 +339,7 @@ impl VAFUniverse {
                     .iter()
                     .map(|vafs| {
                         Box::new(NormalizedFormula::Atom {
-                            sample: sample.clone(),
+                            sample: sample.to_owned(),
                             vafs: vafs.clone(),
                         })
                     })
@@ -385,7 +386,7 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
             let pair = pairs.next().unwrap();
             match pair.as_rule() {
                 Rule::universe => {
-                    let inner = pair.into_inner();
+                    let mut inner = pair.into_inner();
                     let mut operands = BTreeSet::new();
                     loop {
                         let pair = inner.next().unwrap();
@@ -417,7 +418,7 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
     }
 }
 
-impl<'de> Deserialize<'de> for Formula<String> {
+impl<'de> Deserialize<'de> for Formula {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
@@ -429,7 +430,7 @@ impl<'de> Deserialize<'de> for Formula<String> {
 struct FormulaVisitor;
 
 impl<'de> de::Visitor<'de> for FormulaVisitor {
-    type Value = Formula<String>;
+    type Value = Formula;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter
@@ -453,12 +454,12 @@ impl<'de> de::Visitor<'de> for FormulaVisitor {
     }
 }
 
-fn parse_vaf(inner: Pairs<Rule>) -> VAFSpectrum {
+fn parse_vaf(mut inner: Pairs<Rule>) -> VAFSpectrum {
     let vaf = inner.next().unwrap().as_str().parse().unwrap();
     VAFSpectrum::singleton(AlleleFreq(vaf))
 }
 
-fn parse_vafrange(inner: Pairs<Rule>) -> VAFSpectrum {
+fn parse_vafrange(mut inner: Pairs<Rule>) -> VAFSpectrum {
     let left = inner.next().unwrap().as_str();
     let lower = inner.next().unwrap().as_str().parse().unwrap();
     let upper = inner.next().unwrap().as_str().parse().unwrap();
@@ -473,13 +474,13 @@ fn parse_vafrange(inner: Pairs<Rule>) -> VAFSpectrum {
     VAFSpectrum::Range(range)
 }
 
-fn parse_formula<E>(pair: Pair<Rule>) -> Result<Formula<String>, E>
+fn parse_formula<E>(pair: Pair<Rule>) -> Result<Formula, E>
 where
     E: de::Error,
 {
     Ok(match pair.as_rule() {
         Rule::vaf => {
-            let inner = pair.into_inner();
+            let mut inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
             // the colon
             inner.next().unwrap();
@@ -489,7 +490,7 @@ where
             }
         }
         Rule::vafrange => {
-            let inner = pair.into_inner();
+            let mut inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
             // the colon
             inner.next().unwrap();
@@ -499,7 +500,7 @@ where
             }
         }
         Rule::conjunction => {
-            let inner = pair.into_inner();
+            let mut inner = pair.into_inner();
             let mut operands = Vec::new();
             loop {
                 operands.push(Box::new(parse_formula(inner.next().unwrap())?));
@@ -510,7 +511,7 @@ where
             Formula::Conjunction { operands: operands }
         }
         Rule::disjunction => {
-            let inner = pair.into_inner();
+            let mut inner = pair.into_inner();
             let mut operands = Vec::new();
             loop {
                 operands.push(Box::new(parse_formula(inner.next().unwrap())?));
@@ -521,7 +522,7 @@ where
             Formula::Disjunction { operands: operands }
         }
         Rule::negation => {
-            let inner = pair.into_inner();
+            let mut inner = pair.into_inner();
             Formula::Negation {
                 operand: Box::new(parse_formula(inner.next().unwrap())?),
             }

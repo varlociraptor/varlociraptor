@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use std::collections::HashMap;
-use std::convert::From;
+use std::convert::{From, TryFrom};
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
@@ -26,9 +26,8 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
 use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
-use crate::model::modes::tumor::TumorNormalPair;
 use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
-use crate::model::{Contamination, ContinuousAlleleFreqs, VariantType};
+use crate::model::{Contamination, VariantType};
 use crate::testcase::TestcaseBuilder;
 use crate::SimpleEvent;
 
@@ -404,15 +403,11 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         // TODO allow to define prior in the grammar
                                         .prior(FlatPrior::new());
 
-                                    // get sample idx
-                                    let mut sample_index = scenario.sample_index();
-
                                     // parse samples
-                                    let mut vaf_universe = HashMap::new();
                                     for (sample_name, sample) in scenario.samples().iter() {
                                         let contamination =
                                             if let Some(contamination) = sample.contamination() {
-                                                let contaminant = sample_index
+                                                let contaminant = scenario
                                                 .idx(contamination.by())
                                                 .ok_or(
                                                 errors::CLIError::InvalidContaminationSampleName {
@@ -428,11 +423,6 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                             };
                                         model_builder = model_builder
                                             .push_sample(*sample.resolution(), contamination);
-
-                                        vaf_universe.insert(
-                                            sample_name.to_owned(),
-                                            sample.universe().clone(),
-                                        );
 
                                         let bam = bams.get(sample_name).ok_or(
                                             errors::CLIError::InvalidBAMSampleName {
@@ -464,7 +454,6 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 
                                     let model = model_builder.build()?;
 
-                                    let n_samples = samples.len();
                                     // setup caller
                                     let mut caller_builder = CallerBuilder::default()
                                         .samples(samples)
@@ -474,13 +463,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         .omit_snvs(omit_snvs)
                                         .omit_indels(omit_indels)
                                         .max_indel_len(max_indel_len);
-                                    for (event_name, event_formula) in scenario.events() {
-                                        let event_formula =
-                                            event_formula.atomize_negations(&vaf_universe);
-                                        let event_formula =
-                                            event_formula.to_sample_idx(&sample_idx)?;
-                                        caller_builder =
-                                            caller_builder.event(event_name, event_formula);
+                                    for (event_name, vaftree) in scenario.vaftrees()? {
+                                        caller_builder = caller_builder.event(&event_name, vaftree);
                                     }
                                     caller_builder = caller_builder.outbcf(output.as_ref())?;
 
@@ -511,6 +495,27 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 return Ok(());
                             }
 
+                            let scenario = grammar::Scenario::try_from(
+                                r#"
+                            samples:
+                              tumor:
+                                resolution: 100
+                                contamination:
+                                  by: normal
+                                  fraction: {impurity}
+                                universe: "[0.0,1.0]"
+                              normal:
+                                resolution: 5
+                                universe: "[0.0,0.5[ | 0.5 | 1.0"
+                            events:
+                              somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
+                              somatic_normal: "tumor:]0.0,1.0] & normal:]0.0,0.5["
+                              germline_het:   "tumor:[0.0,1.0] & normal:0.5"
+                              germline_hom:   "tumor:[0.0,1.0] & normal:1.0"
+                              absent:         "tumor:0.0 & normal:0.0"
+                            "#,
+                            )?;
+
                             let tumor_alignment_properties = est_or_load_alignment_properites(
                                 tumor_alignment_properties,
                                 tumor,
@@ -535,6 +540,9 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .alignments(normal_bam, normal_alignment_properties)
                                 .build()?;
 
+                            let mut samples = vec![tumor_sample, normal_sample];
+                            scenario.sort_samples_by_idx(&mut samples);
+
                             let model = GenericModelBuilder::default()
                                 .prior(FlatPrior::new())
                                 .push_sample(
@@ -547,8 +555,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .push_sample(5, None)
                                 .build()?;
 
-                            let caller_builder = CallerBuilder::default()
-                                .samples(vec![tumor_sample, normal_sample])
+                            let mut caller_builder = CallerBuilder::default()
+                                .samples(samples)
                                 .reference(reference)?
                                 .inbcf(candidates.as_ref())?
                                 .model(model)
@@ -556,25 +564,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .omit_indels(omit_indels)
                                 .max_indel_len(max_indel_len);
 
-                            let events: HashMap<String, grammar::Formula<String>> =
-                                serde_yaml::from_str(
-                                    r#"
-                                events:
-                                  somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
-                                  somatic_normal: "tumor:]0.0,1.0] & normal:]0.0,0.5["
-                                  germline_het:   "tumor:[0.0,1.0] & normal:0.5"
-                                  germline_hom:   "tumor:[0.0,1.0] & normal:1.0"
-                                  absent:         "tumor:0.0 & normal:0.0"
-                                "#,
-                                )?;
-                            let sample_idx = HashMap::new();
-                            sample_idx.insert("tumor".to_owned(), 0);
-                            sample_idx.insert("normal".to_owned(), 1);
-
-                            for (event_name, event) in events {
-                                caller_builder = caller_builder
-                                    .event(&event_name, event.to_sample_idx(&sample_idx)?);
+                            for (event_name, vaftree) in scenario.vaftrees()? {
+                                caller_builder = caller_builder.event(&event_name, vaftree);
                             }
+
                             let mut caller = caller_builder.outbcf(output.as_ref())?.build()?;
 
                             caller.call()?;
