@@ -50,8 +50,11 @@ impl Scenario {
         self.events()
             .iter()
             .map(|(name, formula)| {
+                dbg!(&name);
+                dbg!(&formula);
                 let normalized = formula.normalize(self)?;
                 let vaftree = VAFTree::new(&normalized, self)?;
+                dbg!(&vaftree);
                 Ok((name.to_owned(), vaftree))
             })
             .collect()

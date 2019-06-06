@@ -4,12 +4,13 @@ samples:
       by: normal
       fraction: 0.25
     resolution: 100
+    universe: "[0.0,1.0]"
   normal:
     resolution: 5
+    universe: "[0.0,0.5[ | 0.5 | 1.0"
 
 events:
   somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
   somatic_normal: "tumor:]0.0,1.0] & normal:]0.0,0.5["
   germline_het:   "tumor:[0.0,1.0] & normal:0.5"
   germline_hom:   "tumor:[0.0,1.0] & normal:1.0"
-  absent:         "tumor:0.0 & normal:0.0"

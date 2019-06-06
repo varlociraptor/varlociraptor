@@ -1,10 +1,19 @@
+universe = _{ SOI ~ ( vafdef ~ ( "|" ~ vafdef )* ) ~ EOI }
 vafdef = _{ vaf | vafrange }
-vafrange = { ASCII_ALPHANUMERIC+ ~ ":" ~ bound ~ vaf ~ "," ~ vaf ~ bound }
-vaf = { ASCII_ALPHANUMERIC+ ~ ":" ~ ("0" ~ "." ~ ASCII_DIGIT+ | "1.0") }
-bound = { ( "[" | "]" ) }
+vafrange = { bound ~ vaf ~ "," ~ vaf ~ bound }
+
+formula = { SOI ~ (conjunction | disjunction | negation | sample_vafdef) ~ EOI }
 conjunction = { subformula ~ ( "&" ~ subformula )+ }
 disjunction = { subformula ~ ( "|" ~ subformula )+ }
 negation = { "!" ~ subformula }
-subformula = _{ ( vafdef | "(" ~ conjunction ~ ")" | "(" ~ disjunction ~ ")" | negation )}
-formula = _{ ( vafdef | conjunction | disjunction | negation ) }
-universe = _{ vafdef ~ ( "|" ~ vafdef )* }
+subformula = _{ sample_vafdef | ("(" ~ conjunction ~ ")") | ("(" ~ disjunction ~ ")") | negation }
+sample_vafdef = _{ sample_vaf | sample_vafrange }
+sample_vafrange = { identifier ~ ":" ~ vafrange }
+sample_vaf = { identifier ~ ":" ~ vaf }
+identifier = { ASCII_ALPHANUMERIC+ }
+
+vaf = @{ ("0" ~ "." ~ ASCII_DIGIT+ | "1.0") }
+bound = @{ ( "[" | "]" ) }
+
+WHITESPACE = _{ " " }
+COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }

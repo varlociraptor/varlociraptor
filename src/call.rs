@@ -115,7 +115,7 @@ where
         assert_ne!(
             name.to_ascii_lowercase(),
             "absent",
-            "the event name absent is reserved for internal use"
+            "the 'absent' event will be created automatically"
         );
         // TODO check that this is not the absent event by looking at !
 

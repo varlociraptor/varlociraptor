@@ -382,38 +382,32 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
         E: de::Error,
     {
         let res = FormulaParser::parse(Rule::universe, v);
-        if let Ok(mut pairs) = res {
-            let pair = pairs.next().unwrap();
-            match pair.as_rule() {
-                Rule::universe => {
-                    let mut inner = pair.into_inner();
-                    let mut operands = BTreeSet::new();
-                    loop {
-                        let pair = inner.next().unwrap();
-                        match pair.as_rule() {
-                            Rule::vaf => {
-                                let inner = pair.into_inner();
-                                operands.insert(parse_vaf(inner));
-                            }
-                            Rule::vafrange => {
-                                let inner = pair.into_inner();
-                                operands.insert(parse_vafrange(inner));
-                            }
-                            _ => unreachable!(),
+        match res {
+            Ok(pairs) => {
+                let mut operands = BTreeSet::new();
+                for pair in pairs {
+                    match pair.as_rule() {
+                        Rule::vaf => {
+                            let inner = pair.into_inner();
+                            operands.insert(parse_vaf(inner));
                         }
-                        if inner.next().is_none() {
-                            break;
+                        Rule::vafrange => {
+                            let inner = pair.into_inner();
+                            operands.insert(parse_vafrange(inner));
                         }
+                        Rule::EOI => (),
+                        _ => unreachable!(),
                     }
-                    Ok(VAFUniverse(operands))
                 }
-                _ => unreachable!(),
+                Ok(VAFUniverse(operands))
             }
-        } else {
-            Err(de::Error::invalid_value(
-                serde::de::Unexpected::Other("invalid VAF formula"),
-                &self,
-            ))
+            Err(e) => {
+                eprintln!("{}", e);
+                Err(de::Error::invalid_value(
+                    serde::de::Unexpected::Other("invalid VAF formula"),
+                    &self,
+                ))
+            }
         }
     }
 }
@@ -443,7 +437,7 @@ impl<'de> de::Visitor<'de> for FormulaVisitor {
     {
         let res = FormulaParser::parse(Rule::formula, v);
         if let Ok(mut pairs) = res {
-            let pair = pairs.next().unwrap();
+            let pair = pairs.next().expect("bug: expecting formula");
             parse_formula(pair)
         } else {
             Err(de::Error::invalid_value(
@@ -479,24 +473,20 @@ where
     E: de::Error,
 {
     Ok(match pair.as_rule() {
-        Rule::vaf => {
+        Rule::sample_vaf => {
             let mut inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
-            // the colon
-            inner.next().unwrap();
             Formula::Atom {
                 sample,
                 vafs: parse_vaf(inner),
             }
         }
-        Rule::vafrange => {
+        Rule::sample_vafrange => {
             let mut inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
-            // the colon
-            inner.next().unwrap();
             Formula::Atom {
                 sample,
-                vafs: parse_vafrange(inner),
+                vafs: parse_vafrange(inner.next().unwrap().into_inner()),
             }
         }
         Rule::conjunction => {
@@ -532,5 +522,12 @@ where
         Rule::vafdef => unreachable!(),
         Rule::bound => unreachable!(),
         Rule::universe => unreachable!(),
+        Rule::vafrange => unreachable!(),
+        Rule::identifier => unreachable!(),
+        Rule::vaf => unreachable!(),
+        Rule::sample_vafdef => unreachable!(),
+        Rule::EOI => unreachable!(),
+        Rule::WHITESPACE => unreachable!(),
+        Rule::COMMENT => unreachable!(),
     })
 }
