@@ -388,8 +388,7 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
                 for pair in pairs {
                     match pair.as_rule() {
                         Rule::vaf => {
-                            let inner = pair.into_inner();
-                            operands.insert(parse_vaf(inner));
+                            operands.insert(parse_vaf(pair));
                         }
                         Rule::vafrange => {
                             let inner = pair.into_inner();
@@ -448,8 +447,8 @@ impl<'de> de::Visitor<'de> for FormulaVisitor {
     }
 }
 
-fn parse_vaf(mut inner: Pairs<Rule>) -> VAFSpectrum {
-    let vaf = inner.next().unwrap().as_str().parse().unwrap();
+fn parse_vaf(pair: Pair<Rule>) -> VAFSpectrum {
+    let vaf = pair.as_str().parse().unwrap();
     VAFSpectrum::singleton(AlleleFreq(vaf))
 }
 
@@ -478,7 +477,7 @@ where
             let sample = inner.next().unwrap().as_str().to_owned();
             Formula::Atom {
                 sample,
-                vafs: parse_vaf(inner),
+                vafs: parse_vaf(inner.next().unwrap()),
             }
         }
         Rule::sample_vafrange => {
@@ -493,8 +492,9 @@ where
             let mut inner = pair.into_inner();
             let mut operands = Vec::new();
             loop {
-                operands.push(Box::new(parse_formula(inner.next().unwrap())?));
-                if inner.next().is_none() {
+                if let Some(operand) = inner.next() {
+                    operands.push(Box::new(parse_formula(operand)?));
+                } else {
                     break;
                 }
             }

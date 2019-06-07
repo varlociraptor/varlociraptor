@@ -2,7 +2,7 @@ universe = _{ SOI ~ ( vafdef ~ ( "|" ~ vafdef )* ) ~ EOI }
 vafdef = _{ vaf | vafrange }
 vafrange = { bound ~ vaf ~ "," ~ vaf ~ bound }
 
-formula = { SOI ~ (conjunction | disjunction | negation | sample_vafdef) ~ EOI }
+formula = _{ SOI ~ (conjunction | disjunction | negation | sample_vafdef) ~ EOI }
 conjunction = { subformula ~ ( "&" ~ subformula )+ }
 disjunction = { subformula ~ ( "|" ~ subformula )+ }
 negation = { "!" ~ subformula }

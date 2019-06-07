@@ -107,7 +107,7 @@ impl VAFTree {
                         })
                         .collect_vec();
                     let mut roots = from(&operands[0], scenario)?;
-                    for operand in operands {
+                    for operand in &operands[1..] {
                         let subtrees = from(operand, scenario)?;
                         for subtree in &mut roots {
                             for leaf in subtree.leafs() {
@@ -122,25 +122,28 @@ impl VAFTree {
 
         fn add_missing_samples<'a>(
             node: &mut Node,
-            seen: &mut HashSet<&'a str>,
+            seen: &mut HashSet<usize>,
             scenario: &'a Scenario,
         ) {
+            seen.insert(node.sample);
             if node.is_leaf() {
                 // leaf, add missing samples
                 for (name, sample) in scenario.samples() {
-                    if !seen.contains(name.as_str()) {
-                        seen.insert(name.as_str());
+                    let idx = scenario.idx(name).unwrap();
+                    if !seen.contains(&idx) {
+                        seen.insert(idx);
                         node.children = sample
                             .universe()
                             .iter()
                             .map(|vafs| {
                                 Box::new(Node::new(
-                                    scenario.idx(name.as_str()).unwrap(),
+                                    idx,
                                     vafs.clone(),
                                 ))
                             })
                             .collect();
                         add_missing_samples(node, seen, scenario);
+                        break;
                     }
                 }
             } else {
