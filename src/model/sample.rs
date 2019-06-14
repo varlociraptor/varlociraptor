@@ -42,6 +42,7 @@ pub type Pileup = Vec<Observation>;
 
 /// Ringbuffer of BAM records. This data structure ensures that no bam record is read twice while
 /// extracting observations for given variants.
+#[derive(Debug)]
 pub struct RecordBuffer {
     reader: bam::IndexedReader,
     inner: VecDeque<bam::Record>,
@@ -196,7 +197,7 @@ pub fn estimate_alignment_properties<P: AsRef<Path>>(
 }
 
 /// A sequenced sample, e.g., a tumor or a normal sample.
-#[derive(Builder)]
+#[derive(Builder, Debug)]
 #[builder(pattern = "owned")]
 pub struct Sample {
     name: String,

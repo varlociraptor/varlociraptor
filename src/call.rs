@@ -67,7 +67,7 @@ where
     Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
-    samples: Vec<Sample>,
+    samples: grammar::SampleInfo<Sample>,
     #[builder(private)]
     reference_buffer: utils::ReferenceBuffer,
     #[builder(private)]
@@ -167,6 +167,7 @@ where
             .samples
             .as_ref()
             .expect(".samples() has to be called before .outbcf()")
+            .iter()
         {
             header.push_sample(sample.name().as_bytes());
         }
@@ -452,7 +453,7 @@ where
         for variant in variants.into_iter() {
             if let Some(variant) = variant {
                 let mut pileups = Vec::new();
-                for sample in &mut self.samples {
+                for sample in self.samples.iter_mut() {
                     let chrom_seq = self.reference_buffer.seq(&chrom)?;
                     let pileup = sample.extract_observations(start, &variant, chrom, chrom_seq)?;
                     pileups.push(pileup);

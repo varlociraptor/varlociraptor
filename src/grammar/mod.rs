@@ -1,8 +1,10 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::ops::Deref;
 
 use serde_yaml;
+use vec_map::VecMap;
 
 pub mod formula;
 pub mod vaftree;
@@ -11,6 +13,64 @@ use crate::errors;
 pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub use crate::grammar::vaftree::VAFTree;
 use crate::model;
+
+/// Container for arbitrary sample information.
+/// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
+#[derive(Clone, Debug)]
+pub struct SampleInfo<T> {
+    inner: Vec<T>
+}
+
+impl<T> SampleInfo<T> {
+    /// Map to other value type.
+    pub fn map<U, F: Fn(&T) -> U>(&self, f: F) -> SampleInfo<U> {
+        SampleInfo {
+            inner: self.inner.iter().map(f).collect()
+        }
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item=&mut T> {
+        self.inner.iter_mut()
+    }
+}
+
+impl<T> Default for SampleInfo<T> {
+    fn default() -> Self {
+        SampleInfo {
+            inner: Vec::default()
+        }
+    }
+}
+
+impl<T> Deref for SampleInfo<T> {
+    type Target = Vec<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+/// Builder for `SampleInfo`.
+#[derive(new)]
+pub struct SampleInfoBuilder<T> {
+    #[new(default)]
+    inner: VecMap<T>,
+    sample_idx: HashMap<String, usize>,
+}
+
+impl<T> SampleInfoBuilder<T> {
+    pub fn push(mut self, sample_name: &str, value: T) -> Self {
+        let idx = *self.sample_idx.get(sample_name).expect("unknown sample name, it does not occur in the scenario");
+        self.inner.insert(idx, value);
+
+        self
+    }
+
+    pub fn build(self) -> SampleInfo<T> {
+        SampleInfo { inner: self.inner.into_iter().map(|(_, v)| v).collect() }
+    }
+}
+
 
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
@@ -24,6 +84,19 @@ pub struct Scenario {
 }
 
 impl Scenario {
+    pub fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
+        if self.sample_idx.borrow().is_none() {
+            self.sample_idx.borrow_mut().get_or_insert(
+                self.samples()
+                    .keys()
+                    .enumerate()
+                    .map(|(i, s)| (s.to_owned(), i))
+                    .collect(),
+            );
+        }
+        SampleInfoBuilder::new(self.sample_idx.borrow().as_ref().unwrap().clone())
+    }
+
     pub fn idx(&self, sample: &str) -> Option<usize> {
         if self.sample_idx.borrow().is_none() {
             self.sample_idx.borrow_mut().get_or_insert(

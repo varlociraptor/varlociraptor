@@ -398,10 +398,9 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 
                                     let scenario: grammar::Scenario =
                                         serde_yaml::from_str(&scenario_content)?;
-                                    let mut samples = Vec::new();
-                                    let mut model_builder = GenericModelBuilder::default()
-                                        // TODO allow to define prior in the grammar
-                                        .prior(FlatPrior::new());
+                                    let mut contaminations = scenario.sample_info();
+                                    let mut resolutions = scenario.sample_info();
+                                    let mut samples = scenario.sample_info();
 
                                     // parse samples
                                     for (sample_name, sample) in scenario.samples().iter() {
@@ -421,8 +420,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                             } else {
                                                 None
                                             };
-                                        model_builder = model_builder
-                                            .push_sample(*sample.resolution(), contamination);
+                                        contaminations = contaminations.push(sample_name, contamination);
+                                        resolutions = resolutions.push(sample_name, *sample.resolution());
 
                                         let bam = bams.get(sample_name).ok_or(
                                             errors::CLIError::InvalidBAMSampleName {
@@ -439,7 +438,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                             .name(sample_name.to_owned())
                                             .alignments(bam_reader, alignment_properties)
                                             .build()?;
-                                        samples.push(sample);
+                                        samples = samples.push(sample_name, sample);
                                     }
 
                                     // register groups
@@ -452,11 +451,16 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                     //     }
                                     // }
 
-                                    let model = model_builder.build()?;
+                                    let model = GenericModelBuilder::default()
+                                        // TODO allow to define prior in the grammar
+                                        .prior(FlatPrior::new())
+                                        .contaminations(contaminations.build())
+                                        .resolutions(resolutions.build())
+                                        .build()?;
 
                                     // setup caller
                                     let mut caller_builder = CallerBuilder::default()
-                                        .samples(samples)
+                                        .samples(samples.build())
                                         .reference(reference)?
                                         .inbcf(candidates.as_ref())?
                                         .model(model)
@@ -539,19 +543,23 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .alignments(normal_bam, normal_alignment_properties)
                                 .build()?;
 
-                            let mut samples = vec![tumor_sample, normal_sample];
-                            scenario.sort_samples_by_idx(&mut samples);
+                            let samples = scenario.sample_info().push("tumor", tumor_sample).push("normal", normal_sample).build();
+                            let contaminations = scenario.sample_info()
+                                .push("tumor", Some(Contamination {
+                                    by: 1,
+                                    fraction: 1.0 - purity,
+                                }))
+                                .push("normal", None)
+                                .build();
+                            let resolutions = scenario.sample_info()
+                                .push("tumor", 100)
+                                .push("normal", 5)
+                                .build();
 
                             let model = GenericModelBuilder::default()
                                 .prior(FlatPrior::new())
-                                .push_sample(
-                                    100,
-                                    Some(Contamination {
-                                        by: 1,
-                                        fraction: 1.0 - purity,
-                                    }),
-                                )
-                                .push_sample(5, None)
+                                .contaminations(contaminations)
+                                .resolutions(resolutions)
                                 .build()?;
 
                             let mut caller_builder = CallerBuilder::default()

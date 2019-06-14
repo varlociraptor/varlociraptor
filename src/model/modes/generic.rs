@@ -4,6 +4,7 @@ use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
 use itertools::Itertools;
 use vec_map::VecMap;
+use derive_builder::Builder;
 
 use crate::grammar;
 use crate::model;
@@ -29,20 +30,28 @@ impl CacheEntry {
 
 pub type Cache = VecMap<CacheEntry>;
 
-#[derive(Default, Debug, Clone)]
-pub struct GenericModelBuilder<P> {
-    resolutions: Vec<usize>,
-    contaminations: Vec<Option<Contamination>>,
+#[derive(Default, Debug, Clone, Builder)]
+pub struct GenericModelBuilder<P>
+where
+    P: Prior<Event = Vec<likelihood::Event>>
+{
+    resolutions: Option<grammar::SampleInfo<usize>>,
+    contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
     prior: P,
 }
 
-impl<P: Prior> GenericModelBuilder<P>
+impl<P> GenericModelBuilder<P>
 where
-    P: Prior<Event = Vec<likelihood::Event>>,
+    P: Prior<Event = Vec<likelihood::Event>>
 {
-    pub fn push_sample(mut self, resolution: usize, contamination: Option<Contamination>) -> Self {
-        self.contaminations.push(contamination);
-        self.resolutions.push(resolution);
+    pub fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
+        self.resolutions = Some(resolutions);
+
+        self
+    }
+
+    pub fn contaminations(mut self, contaminations: grammar::SampleInfo<Option<Contamination>>) -> Self {
+        self.contaminations = Some(contaminations);
 
         self
     }
@@ -54,15 +63,15 @@ where
     }
 
     pub fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
-        let posterior = GenericPosterior::new(self.resolutions);
-        let likelihood = GenericLikelihood::new(self.contaminations);
+        let posterior = GenericPosterior::new(self.resolutions.expect("GenericModelBuilder: need to call resolutions() before build()"));
+        let likelihood = GenericLikelihood::new(self.contaminations.expect("GenericModelBuilder: need to call contaminations() before build()"));
         Ok(Model::new(likelihood, self.prior, posterior))
     }
 }
 
-#[derive(new, Default, Clone, Debug)]
+#[derive(new, Clone, Debug, Default)]
 pub struct GenericPosterior {
-    resolutions: Vec<usize>,
+    resolutions: grammar::SampleInfo<usize>,
 }
 
 impl GenericPosterior {
@@ -211,26 +220,26 @@ enum SampleModel {
     Normal(likelihood::SampleLikelihoodModel),
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct GenericLikelihood {
-    inner: Vec<SampleModel>,
+    inner: grammar::SampleInfo<SampleModel>,
 }
 
 impl GenericLikelihood {
-    pub fn new(contaminations: Vec<Option<Contamination>>) -> Self {
-        let mut inner = Vec::new();
-        for contamination in contaminations.iter() {
+    pub fn new(contaminations: grammar::SampleInfo<Option<Contamination>>) -> Self {
+        let inner = contaminations.map(|contamination| {
             if let Some(contamination) = contamination {
-                inner.push(SampleModel::Contaminated {
+                SampleModel::Contaminated {
                     likelihood_model: likelihood::ContaminatedSampleLikelihoodModel::new(
                         1.0 - contamination.fraction,
                     ),
                     by: contamination.by,
-                });
+                }
             } else {
-                inner.push(SampleModel::Normal(likelihood::SampleLikelihoodModel::new()));
+                SampleModel::Normal(likelihood::SampleLikelihoodModel::new())
             }
-        }
+        });
+
         GenericLikelihood { inner }
     }
 }

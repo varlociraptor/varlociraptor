@@ -147,7 +147,8 @@ impl AbstractReadEvidence for SNVEvidence {
 /// Width of band around alignment with optimal edit distance.
 pub const EDIT_BAND: usize = 2;
 
-/// Calculate read evindence for an indel.
+/// Calculate read evidence for an indel.
+#[derive(Debug)]
 pub struct IndelEvidence {
     gap_params: IndelGapParams,
     pairhmm: pairhmm::PairHMM,
@@ -400,6 +401,7 @@ pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
 }
 
 /// Gap parameters for PairHMM.
+#[derive(Debug, Clone)]
 pub struct IndelGapParams {
     pub prob_insertion_artifact: LogProb,
     pub prob_deletion_artifact: LogProb,
