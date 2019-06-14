@@ -514,8 +514,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                             events:
                               somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
                               somatic_normal: "tumor:]0.0,1.0] & normal:]0.0,0.5["
-                              germline_het:   "tumor:[0.0,1.0] & normal:0.5"
-                              germline_hom:   "tumor:[0.0,1.0] & normal:1.0"
+                              germline_het:   "tumor:]0.0,1.0] & normal:0.5"
+                              germline_hom:   "tumor:]0.0,1.0] & normal:1.0"
                             "#, impurity = 1.0 - purity).as_str(),
                             )?;
 
