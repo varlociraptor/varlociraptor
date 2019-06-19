@@ -408,24 +408,27 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 
                                     // parse samples
                                     for (sample_name, sample) in scenario.samples().iter() {
-                                        let contamination =
-                                            if let Some(contamination) = sample.contamination() {
-                                                let contaminant = scenario
-                                                    .idx(contamination.by())
-                                                    .ok_or(
-                                                        errors::CLIError::InvalidContaminationSampleName {
-                                                            name: sample_name.to_owned(),
-                                                        },
-                                                    )?;
-                                                Some(Contamination {
-                                                    by: contaminant,
-                                                    fraction: *contamination.fraction(),
-                                                })
-                                            } else {
-                                                None
-                                            };
-                                        contaminations = contaminations.push(sample_name, contamination);
-                                        resolutions = resolutions.push(sample_name, *sample.resolution());
+                                        let contamination = if let Some(contamination) =
+                                            sample.contamination()
+                                        {
+                                            let contaminant = scenario
+                                                .idx(contamination.by())
+                                                .ok_or(
+                                                errors::CLIError::InvalidContaminationSampleName {
+                                                    name: sample_name.to_owned(),
+                                                },
+                                            )?;
+                                            Some(Contamination {
+                                                by: contaminant,
+                                                fraction: *contamination.fraction(),
+                                            })
+                                        } else {
+                                            None
+                                        };
+                                        contaminations =
+                                            contaminations.push(sample_name, contamination);
+                                        resolutions =
+                                            resolutions.push(sample_name, *sample.resolution());
 
                                         let bam = bams.get(sample_name).ok_or(
                                             errors::CLIError::InvalidBAMSampleName {
@@ -504,7 +507,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                             }
 
                             let scenario = grammar::Scenario::try_from(
-                                format!(r#"
+                                format!(
+                                    r#"
                             samples:
                               tumor:
                                 resolution: 100
@@ -520,7 +524,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                               somatic_normal: "tumor:]0.0,1.0] & normal:]0.0,0.5["
                               germline_het:   "tumor:]0.0,1.0] & normal:0.5"
                               germline_hom:   "tumor:]0.0,1.0] & normal:1.0"
-                            "#, impurity = 1.0 - purity).as_str(),
+                            "#,
+                                    impurity = 1.0 - purity
+                                )
+                                .as_str(),
                             )?;
 
                             let tumor_alignment_properties = est_or_load_alignment_properites(
@@ -547,15 +554,24 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .alignments(normal_bam, normal_alignment_properties)
                                 .build()?;
 
-                            let samples = scenario.sample_info().push("tumor", tumor_sample).push("normal", normal_sample).build();
-                            let contaminations = scenario.sample_info()
-                                .push("tumor", Some(Contamination {
-                                    by: scenario.idx("normal").unwrap(),
-                                    fraction: 1.0 - purity,
-                                }))
+                            let samples = scenario
+                                .sample_info()
+                                .push("tumor", tumor_sample)
+                                .push("normal", normal_sample)
+                                .build();
+                            let contaminations = scenario
+                                .sample_info()
+                                .push(
+                                    "tumor",
+                                    Some(Contamination {
+                                        by: scenario.idx("normal").unwrap(),
+                                        fraction: 1.0 - purity,
+                                    }),
+                                )
                                 .push("normal", None)
                                 .build();
-                            let resolutions = scenario.sample_info()
+                            let resolutions = scenario
+                                .sample_info()
                                 .push("tumor", 100)
                                 .push("normal", 5)
                                 .build();

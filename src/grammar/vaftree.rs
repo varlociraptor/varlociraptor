@@ -135,12 +135,7 @@ impl VAFTree {
                         node.children = sample
                             .universe()
                             .iter()
-                            .map(|vafs| {
-                                Box::new(Node::new(
-                                    idx,
-                                    vafs.clone(),
-                                ))
-                            })
+                            .map(|vafs| Box::new(Node::new(idx, vafs.clone())))
                             .collect();
                         add_missing_samples(node, seen, scenario);
                         break;

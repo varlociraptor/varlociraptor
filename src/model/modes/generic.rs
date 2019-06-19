@@ -2,9 +2,9 @@ use std::cmp;
 
 use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
+use derive_builder::Builder;
 use itertools::Itertools;
 use vec_map::VecMap;
-use derive_builder::Builder;
 
 use crate::grammar;
 use crate::model;
@@ -33,7 +33,7 @@ pub type Cache = VecMap<CacheEntry>;
 #[derive(Default, Debug, Clone, Builder)]
 pub struct GenericModelBuilder<P>
 where
-    P: Prior<Event = Vec<likelihood::Event>>
+    P: Prior<Event = Vec<likelihood::Event>>,
 {
     resolutions: Option<grammar::SampleInfo<usize>>,
     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
@@ -42,7 +42,7 @@ where
 
 impl<P> GenericModelBuilder<P>
 where
-    P: Prior<Event = Vec<likelihood::Event>>
+    P: Prior<Event = Vec<likelihood::Event>>,
 {
     pub fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
         self.resolutions = Some(resolutions);
@@ -50,7 +50,10 @@ where
         self
     }
 
-    pub fn contaminations(mut self, contaminations: grammar::SampleInfo<Option<Contamination>>) -> Self {
+    pub fn contaminations(
+        mut self,
+        contaminations: grammar::SampleInfo<Option<Contamination>>,
+    ) -> Self {
         self.contaminations = Some(contaminations);
 
         self
@@ -63,8 +66,14 @@ where
     }
 
     pub fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
-        let posterior = GenericPosterior::new(self.resolutions.expect("GenericModelBuilder: need to call resolutions() before build()"));
-        let likelihood = GenericLikelihood::new(self.contaminations.expect("GenericModelBuilder: need to call contaminations() before build()"));
+        let posterior = GenericPosterior::new(
+            self.resolutions
+                .expect("GenericModelBuilder: need to call resolutions() before build()"),
+        );
+        let likelihood = GenericLikelihood::new(
+            self.contaminations
+                .expect("GenericModelBuilder: need to call contaminations() before build()"),
+        );
         Ok(Model::new(likelihood, self.prior, posterior))
     }
 }

@@ -18,18 +18,18 @@ use crate::model;
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
 #[derive(Clone, Debug)]
 pub struct SampleInfo<T> {
-    inner: Vec<T>
+    inner: Vec<T>,
 }
 
 impl<T> SampleInfo<T> {
     /// Map to other value type.
     pub fn map<U, F: Fn(&T) -> U>(&self, f: F) -> SampleInfo<U> {
         SampleInfo {
-            inner: self.inner.iter().map(f).collect()
+            inner: self.inner.iter().map(f).collect(),
         }
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item=&mut T> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.inner.iter_mut()
     }
 }
@@ -37,7 +37,7 @@ impl<T> SampleInfo<T> {
 impl<T> Default for SampleInfo<T> {
     fn default() -> Self {
         SampleInfo {
-            inner: Vec::default()
+            inner: Vec::default(),
         }
     }
 }
@@ -60,17 +60,21 @@ pub struct SampleInfoBuilder<T> {
 
 impl<T> SampleInfoBuilder<T> {
     pub fn push(mut self, sample_name: &str, value: T) -> Self {
-        let idx = *self.sample_idx.get(sample_name).expect("unknown sample name, it does not occur in the scenario");
+        let idx = *self
+            .sample_idx
+            .get(sample_name)
+            .expect("unknown sample name, it does not occur in the scenario");
         self.inner.insert(idx, value);
 
         self
     }
 
     pub fn build(self) -> SampleInfo<T> {
-        SampleInfo { inner: self.inner.into_iter().map(|(_, v)| v).collect() }
+        SampleInfo {
+            inner: self.inner.into_iter().map(|(_, v)| v).collect(),
+        }
     }
 }
-
 
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
