@@ -1,55 +1,8 @@
 language: rust
-
 rust:
   - stable
-  - nightly
-
-env:
-  global:
-    - CARGO_TARGET_DIR=target/ext
-
-cache: 
-  - cargo
-  - directories:
-    - target/ext
-
-sudo: false
-
-# Dependencies of kcov, used for cargo-travis
-addons:
-  apt:
-    packages:
-      - libcurl4-openssl-dev
-      - libelf-dev
-      - libdw-dev
-      - binutils-dev
-      - cmake
-      - libgsl0-dev
-      - samtools
-      - curl
-    sources:
-      - kalakris-cmake
-
-before_script:
-#  - which cargo-coveralls || cargo install cargo-travis
-  - export PATH=$HOME/.cargo/bin:$PATH
-  - rustup component add rustfmt
-
-before_cache: |
-  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-      RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install -f cargo-tarpaulin
-  fi
-
+os:
+  - linux
 script:
-  - cargo fmt -- --check
-  - cargo build
-  - cargo test -- --test-threads=1
-
-#after_success:
-#  - cargo coveralls
-
-after_success: |
-  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-    cargo tarpaulin --out Xml --skip-clean &&
-    bash <(curl -s https://codecov.io/bash)
-  fi
+  - cargo install --debug cargo-make
+  - cargo make ci-flow
