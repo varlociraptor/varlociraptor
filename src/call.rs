@@ -16,11 +16,12 @@ use itertools::Itertools;
 use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
+use crate::grammar;
 use crate::model;
 use crate::model::evidence::observation::expected_depth;
 use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
-use crate::model::{AlleleFreq, AlleleFreqs, StrandBias};
+use crate::model::{AlleleFreq, StrandBias};
 use crate::utils;
 
 pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
@@ -59,15 +60,14 @@ pub fn event_tag_name(event: &str) -> String {
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct Caller<A, L, Pr, Po, ModelPayload>
+pub struct Caller<L, Pr, Po, ModelPayload>
 where
-    A: AlleleFreqs + Ord + Clone,
     L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
-    Po: bayesian::model::Posterior,
+    Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
-    samples: Vec<Sample>,
+    samples: grammar::SampleInfo<Sample>,
     #[builder(private)]
     reference_buffer: utils::ReferenceBuffer,
     #[builder(private)]
@@ -75,21 +75,20 @@ where
     #[builder(private)]
     bcf_writer: bcf::Writer,
     #[builder(private)]
-    events: HashMap<String, Vec<model::Event<A>>>,
+    events: HashMap<String, model::Event>,
     #[builder(private)]
-    strand_bias_events: Vec<Vec<model::Event<A>>>,
+    strand_bias_events: Vec<model::Event>,
     model: bayesian::Model<L, Pr, Po, ModelPayload>,
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: u32,
 }
 
-impl<A, L, Pr, Po, ModelPayload> CallerBuilder<A, L, Pr, Po, ModelPayload>
+impl<L, Pr, Po, ModelPayload> CallerBuilder<L, Pr, Po, ModelPayload>
 where
-    A: AlleleFreqs + Ord + Clone,
     L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
-    Po: bayesian::model::Posterior<Event = Vec<model::Event<A>>>,
+    Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
     pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<Error>> {
@@ -107,27 +106,39 @@ where
     }
 
     /// Register events.
-    pub fn event<E: Into<Vec<A>>>(mut self, name: &str, event: E) -> Self {
+    pub fn event(mut self, name: &str, event: grammar::VAFTree) -> Self {
         assert_ne!(
             name.to_ascii_lowercase(),
             "artifact",
             "the event name artifact is reserved for internal use"
         );
+        assert_ne!(
+            name.to_ascii_lowercase(),
+            "absent",
+            "the 'absent' event will be created automatically"
+        );
+        // TODO check that this is not the absent event by looking at !
+
         if self.events.is_none() {
-            self = self.events(HashMap::default());
+            let mut events = HashMap::default();
+            if let Some(ref samples) = self.samples {
+                events.insert(
+                    "absent".to_owned(),
+                    model::Event {
+                        vafs: grammar::VAFTree::absent(samples.len()),
+                        strand_bias: StrandBias::None,
+                    },
+                );
+            } else {
+                panic!("bug: events must be registered after adding samples");
+            }
+            self = self.events(events);
             self = self.strand_bias_events(Vec::new());
         }
-        let event = event.into();
 
-        let annotate_event = |strand_bias| {
-            event
-                .iter()
-                .cloned()
-                .map(|e| model::Event {
-                    allele_freqs: e,
-                    strand_bias: strand_bias,
-                })
-                .collect_vec()
+        let annotate_event = |strand_bias| model::Event {
+            vafs: event.clone(),
+            strand_bias: strand_bias,
         };
 
         self.events
@@ -135,18 +146,15 @@ where
             .unwrap()
             .insert(name.to_owned(), annotate_event(StrandBias::None));
 
-        // If this is not the absent event, add strand bias cases.
-        // For absent event, we don't need them.
-        if !event.iter().all(|e| e.is_absent()) {
-            self.strand_bias_events
-                .as_mut()
-                .unwrap()
-                .push(annotate_event(StrandBias::Forward));
-            self.strand_bias_events
-                .as_mut()
-                .unwrap()
-                .push(annotate_event(StrandBias::Reverse));
-        }
+        // Add strand bias cases.
+        self.strand_bias_events
+            .as_mut()
+            .unwrap()
+            .push(annotate_event(StrandBias::Forward));
+        self.strand_bias_events
+            .as_mut()
+            .unwrap()
+            .push(annotate_event(StrandBias::Reverse));
 
         self
     }
@@ -159,6 +167,7 @@ where
             .samples
             .as_ref()
             .expect(".samples() has to be called before .outbcf()")
+            .iter()
         {
             header.push_sample(sample.name().as_bytes());
         }
@@ -236,14 +245,13 @@ where
     }
 }
 
-impl<A, L, Pr, Po, ModelPayload> Caller<A, L, Pr, Po, ModelPayload>
+impl<L, Pr, Po, ModelPayload> Caller<L, Pr, Po, ModelPayload>
 where
-    A: AlleleFreqs + Clone + Ord,
     L: bayesian::model::Likelihood<ModelPayload, Event = AlleleFreqCombination, Data = Vec<Pileup>>,
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
     Po: bayesian::model::Posterior<
         BaseEvent = AlleleFreqCombination,
-        Event = Vec<model::Event<A>>,
+        Event = model::Event,
         Data = Vec<Pileup>,
     >,
     ModelPayload: Default,
@@ -445,7 +453,7 @@ where
         for variant in variants.into_iter() {
             if let Some(variant) = variant {
                 let mut pileups = Vec::new();
-                for sample in &mut self.samples {
+                for sample in self.samples.iter_mut() {
                     let chrom_seq = self.reference_buffer.seq(&chrom)?;
                     let pileup = sample.extract_observations(start, &variant, chrom, chrom_seq)?;
                     pileups.push(pileup);

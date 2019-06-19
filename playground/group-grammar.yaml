@@ -1,0 +1,5 @@
+events:
+  absent:
+    group: "all(0.0)"
+  present:
+    group: "any({0.5, 1.0})"

@@ -12,6 +12,8 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
+use crate::grammar;
+
 pub mod evidence;
 pub mod likelihood;
 pub mod modes;
@@ -24,8 +26,8 @@ pub struct Contamination {
 }
 
 #[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
-pub struct Event<A: AlleleFreqs + Ord + Clone> {
-    pub allele_freqs: A,
+pub struct Event {
+    pub vafs: grammar::VAFTree,
     pub strand_bias: StrandBias,
 }
 

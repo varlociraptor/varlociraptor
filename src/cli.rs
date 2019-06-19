@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use std::collections::HashMap;
-use std::convert::From;
+use std::convert::{From, TryFrom};
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
@@ -26,9 +26,8 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
 use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
-use crate::model::modes::tumor::TumorNormalPair;
 use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
-use crate::model::{Contamination, ContinuousAlleleFreqs, VariantType};
+use crate::model::{Contamination, VariantType};
 use crate::testcase::TestcaseBuilder;
 use crate::SimpleEvent;
 
@@ -403,25 +402,16 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 
                                     let scenario: grammar::Scenario =
                                         serde_yaml::from_str(&scenario_content)?;
-                                    let mut samples = Vec::new();
-                                    let mut model_builder = GenericModelBuilder::default()
-                                        // TODO allow to define prior in the grammar
-                                        .prior(FlatPrior::new());
-
-                                    // register sample idx
-                                    let mut sample_idx: HashMap<_, _> = scenario
-                                        .samples()
-                                        .keys()
-                                        .enumerate()
-                                        .map(|(i, s)| (s, i))
-                                        .collect();
+                                    let mut contaminations = scenario.sample_info();
+                                    let mut resolutions = scenario.sample_info();
+                                    let mut samples = scenario.sample_info();
 
                                     // parse samples
                                     for (sample_name, sample) in scenario.samples().iter() {
                                         let contamination =
                                             if let Some(contamination) = sample.contamination() {
-                                                let contaminant = *sample_idx
-                                                .get(contamination.by())
+                                                let contaminant = scenario
+                                                .idx(contamination.by())
                                                 .ok_or(
                                                 errors::CLIError::InvalidContaminationSampleName {
                                                     name: sample_name.to_owned(),
@@ -434,8 +424,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                             } else {
                                                 None
                                             };
-                                        model_builder = model_builder
-                                            .push_sample(*sample.resolution(), contamination);
+                                        contaminations =
+                                            contaminations.push(sample_name, contamination);
+                                        resolutions =
+                                            resolutions.push(sample_name, *sample.resolution());
 
                                         let bam = bams.get(sample_name).ok_or(
                                             errors::CLIError::InvalidBAMSampleName {
@@ -452,55 +444,37 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                             .name(sample_name.to_owned())
                                             .alignments(bam_reader, alignment_properties)
                                             .build()?;
-                                        samples.push(sample);
+                                        samples = samples.push(sample_name, sample);
                                     }
 
                                     // register groups
-                                    for (sample_name, sample) in scenario.samples().iter() {
-                                        if let Some(group) = sample.group() {
-                                            sample_idx.insert(
-                                                group,
-                                                *sample_idx.get(sample_name).unwrap(),
-                                            );
-                                        }
-                                    }
+                                    // for (sample_name, sample) in scenario.samples().iter() {
+                                    //     if let Some(group) = sample.group() {
+                                    //         sample_idx.insert(
+                                    //             group,
+                                    //             *sample_idx.get(sample_name).unwrap(),
+                                    //         );
+                                    //     }
+                                    // }
 
-                                    let model = model_builder.build()?;
+                                    let model = GenericModelBuilder::default()
+                                        // TODO allow to define prior in the grammar
+                                        .prior(FlatPrior::new())
+                                        .contaminations(contaminations.build())
+                                        .resolutions(resolutions.build())
+                                        .build()?;
 
-                                    let n_samples = samples.len();
                                     // setup caller
                                     let mut caller_builder = CallerBuilder::default()
-                                        .samples(samples)
+                                        .samples(samples.build())
                                         .reference(reference)?
                                         .inbcf(candidates.as_ref())?
                                         .model(model)
                                         .omit_snvs(omit_snvs)
                                         .omit_indels(omit_indels)
                                         .max_indel_len(max_indel_len);
-                                    for (event_name, event) in scenario.events() {
-                                        let mut vafs: Vec<Option<ContinuousAlleleFreqs>> =
-                                            vec![None; n_samples];
-                                        for (id, vaf_range) in event.iter() {
-                                            let i = *sample_idx.get(id).ok_or(
-                                                errors::CLIError::InvalidEventSampleName {
-                                                    event_name: event_name.to_owned(),
-                                                    name: id.to_owned(),
-                                                },
-                                            )?;
-                                            vafs[i] = Some(vaf_range.clone().into());
-                                        }
-                                        if vafs.iter().all(|vaf| vaf.is_some()) {
-                                            caller_builder = caller_builder.event(
-                                                event_name,
-                                                vafs.into_iter()
-                                                    .map(|range| range.unwrap())
-                                                    .collect_vec(),
-                                            );
-                                        } else {
-                                            Err(errors::CLIError::MissingSampleEvent {
-                                                event_name: event_name.to_owned(),
-                                            })?
-                                        }
+                                    for (event_name, vaftree) in scenario.vaftrees()? {
+                                        caller_builder = caller_builder.event(&event_name, vaftree);
                                     }
                                     caller_builder = caller_builder.outbcf(output.as_ref())?;
 
@@ -531,6 +505,30 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 return Ok(());
                             }
 
+                            let scenario = grammar::Scenario::try_from(
+                                format!(
+                                    r#"
+                            samples:
+                              tumor:
+                                resolution: 100
+                                contamination:
+                                  by: normal
+                                  fraction: {impurity}
+                                universe: "[0.0,1.0]"
+                              normal:
+                                resolution: 5
+                                universe: "[0.0,0.5[ | 0.5 | 1.0"
+                            events:
+                              somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
+                              somatic_normal: "tumor:]0.0,1.0] & normal:]0.0,0.5["
+                              germline_het:   "tumor:]0.0,1.0] & normal:0.5"
+                              germline_hom:   "tumor:]0.0,1.0] & normal:1.0"
+                            "#,
+                                    impurity = 1.0 - purity
+                                )
+                                .as_str(),
+                            )?;
+
                             let tumor_alignment_properties = est_or_load_alignment_properites(
                                 tumor_alignment_properties,
                                 tumor,
@@ -555,65 +553,48 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .alignments(normal_bam, normal_alignment_properties)
                                 .build()?;
 
-                            let model = GenericModelBuilder::default()
-                                .prior(FlatPrior::new())
-                                .push_sample(
-                                    100,
+                            let samples = scenario
+                                .sample_info()
+                                .push("tumor", tumor_sample)
+                                .push("normal", normal_sample)
+                                .build();
+                            let contaminations = scenario
+                                .sample_info()
+                                .push(
+                                    "tumor",
                                     Some(Contamination {
-                                        by: 1,
+                                        by: scenario.idx("normal").unwrap(),
                                         fraction: 1.0 - purity,
                                     }),
                                 )
-                                .push_sample(5, None)
+                                .push("normal", None)
+                                .build();
+                            let resolutions = scenario
+                                .sample_info()
+                                .push("tumor", 100)
+                                .push("normal", 5)
+                                .build();
+
+                            let model = GenericModelBuilder::default()
+                                .prior(FlatPrior::new())
+                                .contaminations(contaminations)
+                                .resolutions(resolutions)
                                 .build()?;
 
-                            let mut caller = CallerBuilder::default()
-                                .samples(vec![tumor_sample, normal_sample])
+                            let mut caller_builder = CallerBuilder::default()
+                                .samples(samples)
                                 .reference(reference)?
                                 .inbcf(candidates.as_ref())?
                                 .model(model)
                                 .omit_snvs(omit_snvs)
                                 .omit_indels(omit_indels)
-                                .max_indel_len(max_indel_len)
-                                .event(
-                                    "germline_het",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                                        normal: ContinuousAlleleFreqs::singleton(0.5),
-                                    },
-                                )
-                                .event(
-                                    "germline_hom",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::inclusive(0.0..1.0),
-                                        normal: ContinuousAlleleFreqs::singleton(1.0),
-                                    },
-                                )
-                                .event(
-                                    "somatic_tumor",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0)
-                                            .min_observations(2),
-                                        normal: ContinuousAlleleFreqs::absent(),
-                                    },
-                                )
-                                .event(
-                                    "somatic_normal",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::left_exclusive(0.0..1.0),
-                                        normal: ContinuousAlleleFreqs::exclusive(0.0..0.5)
-                                            .min_observations(2),
-                                    },
-                                )
-                                .event(
-                                    "absent",
-                                    TumorNormalPair {
-                                        tumor: ContinuousAlleleFreqs::absent(),
-                                        normal: ContinuousAlleleFreqs::absent(),
-                                    },
-                                )
-                                .outbcf(output.as_ref())?
-                                .build()?;
+                                .max_indel_len(max_indel_len);
+
+                            for (event_name, vaftree) in scenario.vaftrees()? {
+                                caller_builder = caller_builder.event(&event_name, vaftree);
+                            }
+
+                            let mut caller = caller_builder.outbcf(output.as_ref())?.build()?;
 
                             caller.call()?;
                         }
