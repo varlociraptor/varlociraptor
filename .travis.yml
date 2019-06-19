@@ -7,6 +7,12 @@ os:
 env:
   global:
     - CARGO_MAKE_RUN_CODECOV="true"
+addons:
+  apt:
+    packages:
+      - libgsl0-dev
+      - samtools
+      - curl
 script:
   - cargo install --debug cargo-make
   - cargo make ci-flow
