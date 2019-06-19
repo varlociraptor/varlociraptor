@@ -408,23 +408,22 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 
                                     // parse samples
                                     for (sample_name, sample) in scenario.samples().iter() {
-                                        let contamination = if let Some(contamination) =
-                                            sample.contamination()
-                                        {
-                                            let contaminant = scenario
+                                        let contamination =
+                                            if let Some(contamination) = sample.contamination() {
+                                                let contaminant = scenario
                                                 .idx(contamination.by())
                                                 .ok_or(
                                                 errors::CLIError::InvalidContaminationSampleName {
                                                     name: sample_name.to_owned(),
                                                 },
                                             )?;
-                                            Some(Contamination {
-                                                by: contaminant,
-                                                fraction: *contamination.fraction(),
-                                            })
-                                        } else {
-                                            None
-                                        };
+                                                Some(Contamination {
+                                                    by: contaminant,
+                                                    fraction: *contamination.fraction(),
+                                                })
+                                            } else {
+                                                None
+                                            };
                                         contaminations =
                                             contaminations.push(sample_name, contamination);
                                         resolutions =
