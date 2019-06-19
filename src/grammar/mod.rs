@@ -51,7 +51,7 @@ impl<T> Deref for SampleInfo<T> {
 }
 
 /// Builder for `SampleInfo`.
-#[derive(new)]
+#[derive(new, Debug)]
 pub struct SampleInfoBuilder<T> {
     #[new(default)]
     inner: VecMap<T>,

@@ -2,7 +2,7 @@
 
 expected:
   allelefreqs:
-  - tumor >= 0.94
+  - tumor == 1.0
   - normal == 0.0
 
 # necessary bam files

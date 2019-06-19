@@ -407,12 +407,12 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         let contamination =
                                             if let Some(contamination) = sample.contamination() {
                                                 let contaminant = scenario
-                                                .idx(contamination.by())
-                                                .ok_or(
-                                                errors::CLIError::InvalidContaminationSampleName {
-                                                    name: sample_name.to_owned(),
-                                                },
-                                            )?;
+                                                    .idx(contamination.by())
+                                                    .ok_or(
+                                                        errors::CLIError::InvalidContaminationSampleName {
+                                                            name: sample_name.to_owned(),
+                                                        },
+                                                    )?;
                                                 Some(Contamination {
                                                     by: contaminant,
                                                     fraction: *contamination.fraction(),
@@ -546,7 +546,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                             let samples = scenario.sample_info().push("tumor", tumor_sample).push("normal", normal_sample).build();
                             let contaminations = scenario.sample_info()
                                 .push("tumor", Some(Contamination {
-                                    by: 1,
+                                    by: scenario.idx("normal").unwrap(),
                                     fraction: 1.0 - purity,
                                 }))
                                 .push("normal", None)
