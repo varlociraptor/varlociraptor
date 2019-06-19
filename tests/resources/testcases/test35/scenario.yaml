@@ -1,11 +1,12 @@
 samples:
   sample0:
     resolution: 100
+    universe: "[0.0,1.0]"
   sample1:
     resolution: 100
+    universe: "[0.0,1.0]"
 
 events:
   de_novo: "sample0:0.0 & sample1:[0.1,1.0]"
   loss:    "sample0:[0.1,1.0] & sample1:0.0"
-  absent:  "sample0:0.0 & sample1:0.0"
   present: "sample0:]0.0,1.0] & sample1:]0.0,1.0]"

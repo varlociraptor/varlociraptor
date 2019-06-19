@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.0.1] - 2019-05-15
+- Fix numerical issue with indel variant calling.
+- Fix indel window length issues with reads >100bp.
+
 ## [1.0.0] - 2019-05-09
 - Rewrite of statistical model, using rust-bios new trait machinery.
 - Generalization of the model, allowing arbitrary allele frequency events and sample numbers.
