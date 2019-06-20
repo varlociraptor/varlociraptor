@@ -10,7 +10,7 @@ env:
 addons:
   apt:
     packages:
-      - libgsl0-dev
+      - libgsl-dev
       - samtools
       - curl
 script:
