@@ -1,4 +1,5 @@
 language: rust
+dist: xenial
 cache: cargo
 rust:
   - stable
@@ -10,7 +11,7 @@ env:
 addons:
   apt:
     packages:
-      - libgsl-dev
+      - libgsl0-dev
       - samtools
       - curl
 script:
