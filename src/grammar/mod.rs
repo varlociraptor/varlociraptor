@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::convert::TryFrom;
 use std::ops::Deref;
 
@@ -80,9 +80,9 @@ impl<T> SampleInfoBuilder<T> {
 #[get = "pub"]
 pub struct Scenario {
     // map of events
-    events: HashMap<String, Formula>,
+    events: BTreeMap<String, Formula>,
     // map of samples
-    samples: HashMap<String, Sample>,
+    samples: BTreeMap<String, Sample>,
     #[serde(skip)]
     sample_idx: RefCell<Option<HashMap<String, usize>>>,
 }
