@@ -435,6 +435,7 @@ mod tests {
             prob_ref,
             utils::max_prob(prob_ref, prob_alt),
             LogProb::ln_one(),
+            LogProb::ln_zero(),
             true,
             true,
             Evidence::dummy_alignment(),

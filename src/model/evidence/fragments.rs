@@ -8,7 +8,7 @@ use std::error::Error;
 use std::f64;
 use std::ops::Range;
 
-use bio::stats::LogProb;
+use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rgsl::randist::gaussian::ugaussian_P;
 use rust_htslib::bam;
@@ -275,6 +275,77 @@ impl IndelEvidence {
             // for SNVs sampling is unbiased
             &Variant::SNV(_) | &Variant::None => LogProb::ln_one(),
         }
+    }
+
+    pub fn prob_double_overlap(
+        &self,
+        left_read_len: u32,
+        right_read_len: u32,
+        variant: &Variant,
+        alignment_properties: &AlignmentProperties,
+    ) -> LogProb {
+        let delta = match variant {
+            &Variant::Deletion(l) => l,
+            &Variant::Insertion(ref seq) => seq.len() as u32,
+            // for SNVs sampling is unbiased
+            &Variant::SNV(_) | &Variant::None => 0,
+        };
+
+        LogProb::ln_sum_exp(
+            &self
+                .pmf_range(alignment_properties)
+                .map(|insert_size| {
+                    if insert_size < left_read_len + right_read_len {
+                        // skip infeasible insert sizes
+                        return LogProb::ln_zero();
+                    }
+
+                    let insert_size_prob = self.pmf(insert_size, 0.0, alignment_properties);
+
+                    let internal_segment =
+                        insert_size as i32 - left_read_len as i32 - right_read_len as i32;
+
+                    let p = if internal_segment < 0 {
+                        let overlap = internal_segment.abs() as u32;
+                        // METHOD: overlapping reads, this means less placements possible
+                        // hence we subtract the overlapping part once, in order to not count it twice.
+                        let all_placements = left_read_len + right_read_len - overlap;
+                        // METHOD: every overlap position is feasible, plus all positions where the variant
+                        // starts left of the overlap but at least the last base is contained.
+                        LogProb::from(Prob((overlap + delta - 1) as f64 / all_placements as f64))
+                    } else {
+                        let internal_segment = internal_segment as u32;
+                        if delta > insert_size {
+                            // METHOD: insertion is larger than the insert size. In this case,
+                            // only placements of one read outside the insertion lead to no double overlap.
+                            // all_placements is the movement of the fragment over the insertion, from one
+                            // base overlap at the right to one base overlap at the left.
+                            let all_placements = (insert_size - 1) * 2 + delta;
+                            LogProb::from(Prob(
+                                (all_placements
+                                    - (left_read_len + right_read_len + internal_segment * 2))
+                                    as f64
+                                    / all_placements as f64,
+                            ))
+                        } else {
+                            let all_placements = left_read_len + right_read_len;
+                            // METHOD: the freedom of double overlapping placement is given by the extend at
+                            // which the variant len exceeds the internal segment.
+                            // If it does not exceed it (e.g. with delta = 0 for deletions and SNVs), there
+                            // is no feasible placement for a double overlap, hence returning 0.
+                            LogProb::from(Prob(
+                                delta.saturating_sub(internal_segment) as f64
+                                    / all_placements as f64,
+                            ))
+                        }
+                    };
+
+                    // multiply with probability for this insert size
+                    p + insert_size_prob
+                })
+                .collect_vec(),
+        )
+        .cap_numerical_overshoot(NUMERICAL_EPSILON)
     }
 }
 

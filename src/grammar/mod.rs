@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ops::Deref;
 
