@@ -1,11 +1,13 @@
 # A small lancet deletion that is a clear germline variant.
+# TODO there are three N* observations in the normal which go down to 1 N* in
+# in the tumor. These should be investigated, maybe they are wrongly mapped?
 
 expected:
   allelefreqs:
   - tumor == 1.0
-  - normal == 1.0
+  - normal == 0.5
   posteriors:
-  - PROB_SOMATIC_TUMOR >= 2530.0
+  - PROB_SOMATIC_TUMOR >= 2392.0
 
 # necessary bam files
 samples:
