@@ -6,7 +6,7 @@ expected:
   - tumor >= 0.46 && tumor <= 0.54
   - normal <= 0.5 && normal >= 0.36
   posteriors:
-  - PROB_GERMLINE_HET <= 0.95
+  - PROB_GERMLINE_HET <= 1.7
 
 # necessary bam files
 samples:

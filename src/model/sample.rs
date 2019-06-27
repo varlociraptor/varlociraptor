@@ -504,6 +504,7 @@ impl Sample {
                 prob_ref,
                 prob_missed_allele,
                 prob_sample_alt,
+                LogProb::ln_zero(), // no double overlap possible
                 strand == Strand::Forward,
                 strand == Strand::Reverse,
                 Evidence::alignment(cigar, record),
@@ -618,6 +619,7 @@ impl Sample {
             forward_strand = true;
             reverse_strand = true;
         }
+        let prob_double_overlap = self.indel_fragment_evidence.borrow().prob_double_overlap(left_read_len, right_read_len, variant, &self.alignment_properties);
 
         let obs = Observation::new(
             prob_mismapping.ln_one_minus_exp(),
@@ -626,6 +628,7 @@ impl Sample {
             p_ref_isize + p_ref_left + p_ref_right,
             p_missed_left + p_missed_right,
             prob_sample_alt,
+            prob_double_overlap,
             forward_strand,
             reverse_strand,
             Evidence::insert_size(
