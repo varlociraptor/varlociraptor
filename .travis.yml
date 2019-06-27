@@ -17,6 +17,7 @@ addons:
       - libgsl0-dev
       - samtools
       - curl
-script:
+install:
   - cargo install --debug cargo-make
+script:
   - cargo make ci-flow
