@@ -4,6 +4,7 @@ cache:
   cargo: true
   directories:
     - $HOME/.cargo
+    - $HOME/.cache
 rust:
   - stable
 os:
@@ -11,6 +12,7 @@ os:
 env:
   global:
     - CARGO_MAKE_RUN_CODECOV="true"
+    - CARGO_MAKE_KCOV_INSTALLATION_DIRECTORY="$HOME/.cache/kcov"
 addons:
   apt:
     packages:
@@ -18,6 +20,6 @@ addons:
       - samtools
       - curl
 install:
-  - cargo install --debug cargo-make
+  - command -v cargo-make >/dev/null 2>&1 || cargo install --debug cargo-make
 script:
   - cargo make ci-flow
