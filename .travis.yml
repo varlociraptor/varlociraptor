@@ -1,6 +1,9 @@
 language: rust
 dist: xenial
-cache: cargo
+cache: 
+  cargo: true
+  directories:
+    - $HOME/.cargo
 rust:
   - stable
 os:
