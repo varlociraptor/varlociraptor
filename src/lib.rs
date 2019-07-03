@@ -33,6 +33,7 @@ pub mod grammar;
 pub mod model;
 pub mod testcase;
 pub mod utils;
+pub mod batches;
 
 pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
 pub use crate::model::likelihood;
