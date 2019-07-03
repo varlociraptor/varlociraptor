@@ -19,6 +19,12 @@ addons:
       - libgsl0-dev
       - samtools
       - curl
+      - libcurl4
+      - libelf1
+      - libdw1
+      - cmake
+      - gcc 
+      - binutils
 install:
   - command -v cargo-make >/dev/null 2>&1 || cargo install --debug cargo-make
 script:
