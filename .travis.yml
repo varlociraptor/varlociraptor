@@ -19,7 +19,7 @@ addons:
       - libgsl0-dev
       - samtools
       - curl
-      - libcurl4
+      - libcurl3
       - libelf1
       - libdw1
       - cmake
