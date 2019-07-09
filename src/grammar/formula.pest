@@ -10,7 +10,7 @@ subformula = _{ sample_vafdef | ("(" ~ conjunction ~ ")") | ("(" ~ disjunction ~
 sample_vafdef = _{ sample_vaf | sample_vafrange }
 sample_vafrange = { identifier ~ ":" ~ vafrange }
 sample_vaf = { identifier ~ ":" ~ vaf }
-identifier = { ASCII_ALPHANUMERIC+ }
+identifier = { (ASCII_ALPHANUMERIC | "_" | "-" | ".")+ }
 
 vaf = @{ ("0" ~ "." ~ ASCII_DIGIT+ | "1.0") }
 bound = @{ ( "[" | "]" ) }
