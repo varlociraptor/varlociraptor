@@ -505,6 +505,7 @@ impl Sample {
                 prob_missed_allele,
                 prob_sample_alt,
                 LogProb::ln_zero(), // no double overlap possible
+                LogProb::from(Prob(0.5)),
                 strand == Strand::Forward,
                 strand == Strand::Reverse,
                 Evidence::alignment(cigar, record),
@@ -629,6 +630,7 @@ impl Sample {
             p_missed_left + p_missed_right,
             prob_sample_alt,
             prob_double_overlap,
+            LogProb::from(Prob(1.0/3.0)), // TODO make this configurable for mate-pair sequencing (only ++, -- possible, so prob=1/2)
             forward_strand,
             reverse_strand,
             Evidence::insert_size(
