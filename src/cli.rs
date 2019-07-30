@@ -28,6 +28,7 @@ use crate::grammar;
 use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
 use crate::model::{Contamination, VariantType};
+use crate::plotting;
 use crate::testcase::TestcaseBuilder;
 use crate::SimpleEvent;
 
@@ -61,6 +62,24 @@ pub enum Varlociraptor {
         about = "Decode PHRED-scaled values to human readable probabilities."
     )]
     DecodePHRED,
+    #[structopt(name = "plot", about = "Plot stuff.")]
+    Plot {
+        #[structopt(subcommand)]
+        kind: PlotKind,
+    },
+}
+
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
+pub enum PlotKind {
+    #[structopt(
+        raw(setting = "structopt::clap::AppSettings::ColoredHelp"),
+        name = "cnvs",
+        about = "Plot CNVs."
+    )]
+    CNVs {
+        #[structopt(parse(from_os_str), help = "Calls from `varlociraptor call cnvs ...`.")]
+        cnvfile: Option<PathBuf>,
+    },
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -675,6 +694,11 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
         Varlociraptor::DecodePHRED => {
             conversion::decode_phred::decode_phred()?;
         }
+        Varlociraptor::Plot { kind } => match kind {
+            PlotKind::CNVs { cnvfile } => {
+                plotting::cnv::plot::<&PathBuf>(cnvfile.as_ref())?;
+            }
+        },
     }
     Ok(())
 }

@@ -31,6 +31,7 @@ pub mod estimation;
 pub mod filtration;
 pub mod grammar;
 pub mod model;
+pub mod plotting;
 pub mod testcase;
 pub mod utils;
 
