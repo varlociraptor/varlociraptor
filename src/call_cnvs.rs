@@ -13,6 +13,7 @@ use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb,
 use derive_builder::Builder;
 use itertools::join;
 use itertools::Itertools;
+use itertools::repeat_n;
 use itertools_num::linspace;
 use rayon::prelude::*;
 use rgsl::randist::binomial::binomial_pdf;
@@ -384,8 +385,9 @@ pub struct HMM {
     states: Vec<CNV>,
     state_by_gain: HashMap<i32, Vec<hmm::State>>,
     depth_norm_factor: f64,
-    insertion_prior: LogProb,
-    deletion_prior: LogProb,
+    prob_insertions: Vec<LogProb>,
+    prob_deletions: Vec<LogProb>,
+    prob_complement: LogProb,
 }
 
 impl HMM {
@@ -415,12 +417,17 @@ impl HMM {
             }
         }
 
+        let prob_insertions = LogProb::ln_cumsum_exp(repeat_n(insertion_prior, MAX_GAIN as usize)).collect_vec();
+        let prob_deletions = LogProb::ln_cumsum_exp(repeat_n(deletion_prior, 2)).collect_vec();
+        let prob_complement = prob_insertions.iter().last().unwrap().ln_add_exp(prob_deletions.iter().last().unwrap()).ln_one_minus_exp();
+
         HMM {
             states,
             state_by_gain,
             depth_norm_factor,
-            insertion_prior,
-            deletion_prior,
+            prob_insertions,
+            prob_deletions,
+            prob_complement,
         }
     }
 
@@ -506,21 +513,23 @@ impl hmm::Model<Call> for HMM {
     fn transition_prob(&self, from: hmm::State, to: hmm::State) -> LogProb {
         let from = self.states[*from];
         let to = self.states[*to];
+        let prob05 = LogProb(0.5f64.ln());
 
-        let gains = to.gain - from.gain;
-
-        if gains == 0 {
-            LogProb::ln_zero()
+        if to.gain == 0 {
+            self.prob_complement + prob05
+        } else if to.gain == from.gain {
+            if to.allele_freq == from.allele_freq {
+                self.prob_complement + prob05
+            } else {
+                LogProb::ln_zero()
+            }
         } else {
-            LogProb::from(Prob(
-                if gains > 0 {
-                    self.insertion_prior
-                } else {
-                    self.deletion_prior
-                }
-                .exp()
-                    * gains as f64,
-            ))
+            let gains = to.gain - from.gain;
+            if gains > 0 {
+                self.prob_insertions[gains as usize + 1]
+            } else {
+                self.prob_deletions[gains.abs() as usize + 1]
+            }
         }
     }
 
