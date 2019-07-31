@@ -48,7 +48,8 @@ pub struct Caller {
     bcf_reader: bcf::Reader,
     #[builder(private)]
     bcf_writer: bcf::Writer,
-    min_bayes_factor: f64,
+    insertion_prior: LogProb,
+    deletion_prior: LogProb,
     purity: f64,
     max_dist: u32,
     #[builder(private)]
@@ -218,12 +219,13 @@ impl Caller {
         let mean_depth_normal = mean_depth(&|call: &Call| call.depth_normal);
         let depth_norm_factor = mean_depth_tumor / mean_depth_normal;
 
-        let min_bayes_factor = self.min_bayes_factor;
+        let insertion_prior = self.insertion_prior;
+        let deletion_prior = self.deletion_prior;
         let purity = self.purity;
         let cnv_calls: BTreeMap<_, _> = calls
             .par_iter()
             .map(|(region, calls)| {
-                let hmm = HMM::new(depth_norm_factor, min_bayes_factor, purity);
+                let hmm = HMM::new(depth_norm_factor, insertion_prior, deletion_prior, purity);
 
                 let (states, _prob) = hmm::viterbi(&hmm, calls);
 
@@ -382,12 +384,17 @@ pub struct HMM {
     states: Vec<CNV>,
     state_by_gain: HashMap<i32, Vec<hmm::State>>,
     depth_norm_factor: f64,
-    prob_keep_state: LogProb,
-    prob_change_state: LogProb,
+    insertion_prior: LogProb,
+    deletion_prior: LogProb,
 }
 
 impl HMM {
-    fn new(depth_norm_factor: f64, min_bayes_factor: f64, purity: f64) -> Self {
+    fn new(
+        depth_norm_factor: f64,
+        insertion_prior: LogProb,
+        deletion_prior: LogProb,
+        purity: f64,
+    ) -> Self {
         let n_allele_freqs = 10;
         let mut states = Vec::new();
         let mut state_by_gain = HashMap::new();
@@ -408,25 +415,12 @@ impl HMM {
             }
         }
 
-        // METHOD:
-        // We choose the probability to keep a state to be higher than the probability
-        // to switch a state. In addition, we want the switch to the null state to be as likely
-        // as keeping the state. The amount is defined by an epsilon, which is derived from the
-        // minimum bayes factor over the products of emission probabilities between
-        // two stretches of two different states.
-        assert!(min_bayes_factor > 1.0);
-        let n = states.len() as f64;
-        let epsilon = min_bayes_factor - 1.0;
-        let denominator = n + epsilon;
-        let prob_keep_state = LogProb::from(Prob((1.0 + epsilon) / denominator));
-        let prob_change_state = LogProb::from(Prob(1.0 / denominator));
-
         HMM {
             states,
             state_by_gain,
             depth_norm_factor,
-            prob_keep_state,
-            prob_change_state,
+            insertion_prior,
+            deletion_prior,
         }
     }
 
@@ -510,11 +504,20 @@ impl hmm::Model<Call> for HMM {
     }
 
     fn transition_prob(&self, from: hmm::State, to: hmm::State) -> LogProb {
-        if from == to {
-            self.prob_keep_state
-        } else {
-            self.prob_change_state
-        }
+        let from = self.states[*from];
+        let to = self.states[*to];
+
+        let gains = to.gain - from.gain;
+
+        LogProb::from(Prob(
+            if gains > 0 {
+                self.insertion_prior
+            } else {
+                self.deletion_prior
+            }
+            .exp()
+                * gains as f64,
+        ))
     }
 
     fn initial_prob(&self, _: hmm::State) -> LogProb {

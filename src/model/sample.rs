@@ -619,7 +619,12 @@ impl Sample {
             forward_strand = true;
             reverse_strand = true;
         }
-        let prob_double_overlap = self.indel_fragment_evidence.borrow().prob_double_overlap(left_read_len, right_read_len, variant, &self.alignment_properties);
+        let prob_double_overlap = self.indel_fragment_evidence.borrow().prob_double_overlap(
+            left_read_len,
+            right_read_len,
+            variant,
+            &self.alignment_properties,
+        );
 
         let obs = Observation::new(
             prob_mismapping.ln_one_minus_exp(),

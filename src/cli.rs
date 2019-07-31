@@ -177,15 +177,17 @@ pub enum CallKind {
         #[structopt(long, short = "p", help = "Tumor purity.")]
         purity: f64,
         #[structopt(
-            long = "min-bayes-factor",
-            default_value = "1.01",
-            help = "Minimum bayes factor (> 1.0) between likelihoods of CNV and no CNV to consider. \
-                    The higher this value, the fewer candidate CNVs will be investigated. \
-                    Note that this can be usually left unchanged, because every CNV is provided \
-                    with a posterior probability that can be used for filtering, e.g., via \
-                    'varlociraptor control-fdr'."
+            long = "insertion-prior",
+            default_value = "0.0001",
+            help = "Prior probability for an insertion."
         )]
-        min_bayes_factor: f64,
+        insertion_prior: f64,
+        #[structopt(
+            long = "deletion-prior",
+            default_value = "0.0001",
+            help = "Prior probability for an deletion."
+        )]
+        deletion_prior: f64,
         #[structopt(
             long,
             default_value = "1000",
@@ -603,7 +605,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                 CallKind::CNVs {
                     calls,
                     output,
-                    min_bayes_factor,
+                    insertion_prior,
+                    deletion_prior,
                     threads,
                     purity,
                     max_dist,
@@ -612,13 +615,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                         .num_threads(threads)
                         .build_global()?;
 
-                    if min_bayes_factor <= 1.0 {
-                        Err(errors::CallCNVError::InvalidMinBayesFactor)?
-                    }
-
                     let mut caller = call_cnvs::CallerBuilder::default()
                         .bcfs(calls.as_ref(), output.as_ref())?
-                        .min_bayes_factor(min_bayes_factor)
+                        .insertion_prior(LogProb::from(Prob::checked(insertion_prior)?)) // TODO customize error once we have moved to snafu
+                        .deletion_prior(LogProb::from(Prob::checked(deletion_prior)?))
                         .purity(purity)
                         .max_dist(max_dist)
                         .build()?;
