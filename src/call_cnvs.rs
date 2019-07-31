@@ -14,7 +14,7 @@ use derive_builder::Builder;
 use itertools::join;
 use itertools::repeat_n;
 use itertools::Itertools;
-use itertools_num::linspace;
+use itertools_num::{linspace, ItertoolsNum};
 use rayon::prelude::*;
 use rgsl::randist::binomial::binomial_pdf;
 use rgsl::randist::poisson::poisson_pdf;
@@ -420,16 +420,19 @@ impl HMM {
                 }
             }
         }
+        let mut prob_insertions = Vec::new();
+        let mut prob_deletions = Vec::new();
+        for _ in 0..MAX_GAIN as usize + 2 {
+            prob_insertions.push(prob_insertions.last().cloned().unwrap_or(LogProb::ln_one()) + insertion_prior);
+            prob_deletions.push(prob_deletions.last().cloned().unwrap_or(LogProb::ln_one()) + deletion_prior);
+        }
 
-        let prob_insertions =
-            LogProb::ln_cumsum_exp(repeat_n(insertion_prior, MAX_GAIN as usize + 2)).collect_vec();
-        let prob_deletions =
-            LogProb::ln_cumsum_exp(repeat_n(deletion_prior, MAX_GAIN as usize + 2)).collect_vec();
+        // TODO use cumsum, but need to start with LogProb::ln_one() somehow, not the default element which is LogProb::ln_zero()
+        // let prob_insertions: Vec<LogProb> = repeat_n(insertion_prior, MAX_GAIN as usize + 2).cumsum().collect_vec();
+        // let prob_deletions: Vec<LogProb> = repeat_n(deletion_prior, MAX_GAIN as usize + 2).cumsum().collect_vec();
         let prob_complement = prob_insertions
-            .iter()
-            .last()
-            .unwrap()
-            .ln_add_exp(*prob_deletions.iter().last().unwrap())
+            .last().unwrap()
+            .ln_add_exp(*prob_deletions.last().unwrap())
             .ln_one_minus_exp();
 
         HMM {
