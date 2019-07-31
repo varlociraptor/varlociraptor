@@ -473,8 +473,6 @@ impl HMM {
 
     pub fn bayes_factors(&self, state: hmm::State, observations: &[&Call]) -> Vec<BayesFactor> {
         let null_state = self.null_state();
-        dbg!(self.states[*null_state]);
-        dbg!(self.states[*state]);
         observations
             .into_iter()
             .map(|obs| {
@@ -493,7 +491,6 @@ impl HMM {
         // handle allele freq changes
         let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
             let ref_af = cnv.expected_allele_freq_ref_affected().unwrap();
-            dbg!((self.states[*state], alt_af, ref_af));
 
             prob05
                 + call
@@ -503,7 +500,6 @@ impl HMM {
             LogProb::ln_one()
         };
 
-        dbg!(cnv.expected_depth_factor());
         // handle depth changes
         let prob_depth = call.prob_depth_tumor(
             call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor(),
@@ -548,8 +544,12 @@ impl hmm::Model<Call> for HMM {
         }
     }
 
-    fn initial_prob(&self, _: hmm::State) -> LogProb {
-        LogProb((1.0 / self.states.len() as f64).ln())
+    fn initial_prob(&self, state: hmm::State) -> LogProb {
+        if state == self.null_state() {
+            LogProb::ln_one()
+        } else {
+            LogProb::ln_zero()
+        }
     }
 
     fn observation_prob(&self, state: hmm::State, call: &Call) -> LogProb {
