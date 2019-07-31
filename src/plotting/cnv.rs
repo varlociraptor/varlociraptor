@@ -40,6 +40,7 @@ pub fn plot<P: AsRef<Path>>(cnv_calls: Option<P>) -> Result<(), Box<Error>> {
                     start: previous_record
                         .info(b"END")
                         .integer()?
+                        // TODO handle this and other expects below as errors once we have moved to snafu.
                         .expect("Failed reading info tag 'END'")[0]
                         as u32
                         + cumulative_pos,
