@@ -419,7 +419,7 @@ impl HMM {
 
         let prob_insertions = LogProb::ln_cumsum_exp(repeat_n(insertion_prior, MAX_GAIN as usize)).collect_vec();
         let prob_deletions = LogProb::ln_cumsum_exp(repeat_n(deletion_prior, 2)).collect_vec();
-        let prob_complement = prob_insertions.iter().last().unwrap().ln_add_exp(prob_deletions.iter().last().unwrap()).ln_one_minus_exp();
+        let prob_complement = prob_insertions.iter().last().unwrap().ln_add_exp(*prob_deletions.iter().last().unwrap()).ln_one_minus_exp();
 
         HMM {
             states,
@@ -526,9 +526,9 @@ impl hmm::Model<Call> for HMM {
         } else {
             let gains = to.gain - from.gain;
             if gains > 0 {
-                self.prob_insertions[gains as usize + 1]
+                self.prob_insertions[gains as usize - 1]
             } else {
-                self.prob_deletions[gains.abs() as usize + 1]
+                self.prob_deletions[gains.abs() as usize - 1]
             }
         }
     }
