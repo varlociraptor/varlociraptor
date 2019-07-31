@@ -12,8 +12,8 @@ use std::path::Path;
 use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb, Prob};
 use derive_builder::Builder;
 use itertools::join;
-use itertools::Itertools;
 use itertools::repeat_n;
+use itertools::Itertools;
 use itertools_num::linspace;
 use rayon::prelude::*;
 use rgsl::randist::binomial::binomial_pdf;
@@ -133,8 +133,12 @@ impl CallerBuilder {
         for rec in bcf_reader.header().header_records() {
             match rec {
                 bcf::header::HeaderRecord::Contig { values, .. } => {
-                    let name = values.get("ID").unwrap();
-                    let len = values.get("length").unwrap();
+                    let name = values
+                        .get("ID")
+                        .expect("Invalid header, contig entries need an ID."); // TODO migrate to snafu errors
+                    let len = values
+                        .get("length")
+                        .expect("Invalid header, contig entries need a length attribute.");
                     contig_lens.insert(name.clone().into_bytes(), len.parse()?);
                     header.push_record(format!("##contig=<ID={},length={}>", name, len).as_bytes());
                 }
@@ -417,9 +421,16 @@ impl HMM {
             }
         }
 
-        let prob_insertions = LogProb::ln_cumsum_exp(repeat_n(insertion_prior, MAX_GAIN as usize)).collect_vec();
-        let prob_deletions = LogProb::ln_cumsum_exp(repeat_n(deletion_prior, 2)).collect_vec();
-        let prob_complement = prob_insertions.iter().last().unwrap().ln_add_exp(*prob_deletions.iter().last().unwrap()).ln_one_minus_exp();
+        let prob_insertions =
+            LogProb::ln_cumsum_exp(repeat_n(insertion_prior, MAX_GAIN as usize + 2)).collect_vec();
+        let prob_deletions =
+            LogProb::ln_cumsum_exp(repeat_n(deletion_prior, MAX_GAIN as usize + 2)).collect_vec();
+        let prob_complement = prob_insertions
+            .iter()
+            .last()
+            .unwrap()
+            .ln_add_exp(*prob_deletions.iter().last().unwrap())
+            .ln_one_minus_exp();
 
         HMM {
             states,
@@ -462,6 +473,8 @@ impl HMM {
 
     pub fn bayes_factors(&self, state: hmm::State, observations: &[&Call]) -> Vec<BayesFactor> {
         let null_state = self.null_state();
+        dbg!(self.states[*null_state]);
+        dbg!(self.states[*state]);
         observations
             .into_iter()
             .map(|obs| {
@@ -480,6 +493,7 @@ impl HMM {
         // handle allele freq changes
         let prob_af = if let Some(alt_af) = cnv.expected_allele_freq_alt_affected() {
             let ref_af = cnv.expected_allele_freq_ref_affected().unwrap();
+            dbg!((self.states[*state], alt_af, ref_af));
 
             prob05
                 + call
@@ -489,6 +503,7 @@ impl HMM {
             LogProb::ln_one()
         };
 
+        dbg!(cnv.expected_depth_factor());
         // handle depth changes
         let prob_depth = call.prob_depth_tumor(
             call.depth_normal as f64 * self.depth_norm_factor * cnv.expected_depth_factor(),
@@ -539,9 +554,8 @@ impl hmm::Model<Call> for HMM {
 
     fn observation_prob(&self, state: hmm::State, call: &Call) -> LogProb {
         let prob_af_depth = self.prob_af_depth(state, call);
-        let prob_null = self.prob_af_depth(self.null_state(), call);
         (call.prob_germline_het + prob_af_depth)
-            .ln_add_exp(call.prob_germline_het.ln_one_minus_exp() + prob_null)
+            .ln_add_exp(call.prob_germline_het.ln_one_minus_exp())
     }
 }
 
@@ -665,11 +679,12 @@ impl CNV {
                 *self.allele_freq * (1.0 + self.gain as f64) / (2.0 + self.gain as f64)
                     + (1.0 - *self.allele_freq) * 0.5,
             ))
-        } else if self.purity < 1.0 {
+        } else if self.purity < 1.0 || *self.allele_freq < 1.0 {
             // gain = -2: all lost in tumor cells, hence 100% normal cells at this locus.
             // Therefore VAF=0.5.
             Some(AlleleFreq(0.5))
         } else {
+            // gain = -2, pure and AF=1: we don't know about AF, but depth has to be 0
             None
         }
     }
@@ -699,6 +714,63 @@ mod tests {
             allele_freq_pdf(AlleleFreq(0.1), AlleleFreq(0.0), 10),
             LogProb::ln_zero()
         );
+    }
+
+    fn setup_hmm() -> HMM {
+        let hmm = HMM::new(
+            1.0,
+            LogProb::from(Prob(1e-5)),
+            LogProb::from(Prob(3e-5)),
+            1.0,
+        );
+
+        hmm
+    }
+
+    #[test]
+    fn test_prob_af_depth() {
+        let hmm = setup_hmm();
+        let call = Call {
+            prob_germline_het: LogProb::ln_one(),
+            allele_freq_tumor: AlleleFreq(0.25),
+            allele_freq_normal: AlleleFreq(0.5),
+            depth_tumor: 30,
+            depth_normal: 15,
+            start: 1000,
+            rid: 0,
+            prev_start: None,
+            next_start: None,
+        };
+        let prob_doubling = hmm.prob_af_depth(hmm::State(202), &call);
+        dbg!(prob_doubling);
+        for i in 0..hmm.states.len() {
+            let p = hmm.prob_af_depth(hmm::State(i), &call);
+            dbg!((i, hmm.states[i], p));
+            assert!(i == 202 || p <= prob_doubling);
+        }
+    }
+
+    #[test]
+    fn test_prob_af_depth_null() {
+        let hmm = setup_hmm();
+        let call = Call {
+            prob_germline_het: LogProb::ln_one(),
+            allele_freq_tumor: AlleleFreq(0.5),
+            allele_freq_normal: AlleleFreq(0.5),
+            depth_tumor: 15,
+            depth_normal: 15,
+            start: 1000,
+            rid: 0,
+            prev_start: None,
+            next_start: None,
+        };
+        let prob_null = hmm.prob_af_depth(hmm.null_state(), &call);
+        dbg!(prob_null);
+        for i in 0..hmm.states.len() {
+            let p = hmm.prob_af_depth(hmm::State(i), &call);
+            dbg!((i, hmm.states[i], p));
+            assert!(i == *hmm.null_state() || p <= prob_null);
+        }
     }
 
     // #[test]
