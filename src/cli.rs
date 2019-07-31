@@ -178,14 +178,14 @@ pub enum CallKind {
         purity: f64,
         #[structopt(
             long = "insertion-prior",
-            default_value = "0.0001",
-            help = "Prior probability for an insertion."
+            default_value = "1e-5",
+            help = "Prior probability for an insertion. Default is human heterozygosity (0.001) times the ratio of insertions compared to SNVs defined by Hodkinson et al. Nature Reviews Genetics 2011 (0.01)"
         )]
         insertion_prior: f64,
         #[structopt(
             long = "deletion-prior",
-            default_value = "0.0001",
-            help = "Prior probability for an deletion."
+            default_value = "3e-5",
+            help = "Prior probability for a deletion. Default is human heterozygosity (0.001) times the ratio of deletions compared to SNVs defined by Hodkinson et al. Nature Reviews Genetics 2011 (0.03)"
         )]
         deletion_prior: f64,
         #[structopt(
