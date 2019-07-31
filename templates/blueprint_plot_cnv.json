@@ -74,60 +74,70 @@
     {
       "width": 1200,
       "height": 40,
-      "selection": {
-        "brush": {"type": "interval", "encodings": ["x"]}
-      },
       "encoding": {
         "color": {
           "field": "copynumber",
+          "aggregate": "median",
           "scale": {
-            "scheme": "blueorange",
-            "domain": [0, 4]
+            "domain": [
+              0,
+              4
+            ],
+            "scheme": "blueorange"
           },
           "type": "quantitative"
         },
         "x": {
-          "field": "start",
-          "title": "Position on genome (bp)",
-          "type": "quantitative",
-          "scale": {"domain": {"selection": "brush"}},
           "axis": {
-              "values": [
-                    248956422,
-                    491149951,
-                    689445510,
-                    879660065,
-                    1061198324,
-                    1232004303,
-                    1391350276,
-                    1536488912,
-                    1674883629,
-                    1808681051,
-                    1943767673,
-                    2077042982,
-                    2191407310,
-                    2298451028,
-                    2400442217,
-                    2490780562,
-                    2574038003,
-                    2654411288,
-                    2713028904,
-                    2777473071,
-                    2824183054,
-                    2875001522,
-                    3031042417,
-                    3088269832
-                    ],
-            "grid": true
-          }
-        },
-        "x2": {
-          "field": "end"
-        },
-        "y": 0
+            "grid": true,
+            "values": [
+              248956422,
+              491149951,
+              689445510,
+              879660065,
+              1061198324,
+              1232004303,
+              1391350276,
+              1536488912,
+              1674883629,
+              1808681051,
+              1943767673,
+              2077042982,
+              2191407310,
+              2298451028,
+              2400442217,
+              2490780562,
+              2574038003,
+              2654411288,
+              2713028904,
+              2777473071,
+              2824183054,
+              2875001522,
+              3031042417,
+              3088269832
+            ]
+          },
+          "field": "start",
+          "bin": {"maxbins": 255},
+          "scale": {
+            "domain": {
+              "selection": "brush"
+            }
+          },
+          "title": "Position on genome (bp)",
+          "type": "quantitative"
+        }
       },
       "mark": {
         "type": "rect"
+      },
+      "selection": {
+        "brush": {
+          "encodings": [
+            "x"
+          ],
+          "type": "interval"
+        }
       }
     }
   ],
