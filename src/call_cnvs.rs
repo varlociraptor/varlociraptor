@@ -509,15 +509,19 @@ impl hmm::Model<Call> for HMM {
 
         let gains = to.gain - from.gain;
 
-        LogProb::from(Prob(
-            if gains > 0 {
-                self.insertion_prior
-            } else {
-                self.deletion_prior
-            }
-            .exp()
-                * gains as f64,
-        ))
+        if gains == 0 {
+            LogProb::ln_zero()
+        } else {
+            LogProb::from(Prob(
+                if gains > 0 {
+                    self.insertion_prior
+                } else {
+                    self.deletion_prior
+                }
+                .exp()
+                    * gains as f64,
+            ))
+        }
     }
 
     fn initial_prob(&self, _: hmm::State) -> LogProb {
