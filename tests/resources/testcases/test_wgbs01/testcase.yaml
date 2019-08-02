@@ -1,0 +1,27 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - sample0 > 0.0 && sample1 > 0.0
+
+# necessary bam files
+samples:
+  sample1:
+    path: 'sample1.bam'
+    properties: '{"insert_size":{"mean":188.0,"sd":35.55013502953111},"max_del_cigar_len":10,"max_ins_cigar_len":8,"frac_max_softclip":0.5562913907284768}'
+  sample0:
+    path: 'sample0.bam'
+    properties: '{"insert_size":{"mean":401.0,"sd":66.33306583244769},"max_del_cigar_len":4,"max_ins_cigar_len":5,"frac_max_softclip":0.8675496688741722}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+# reference sequence
+reference:
+  name: '1'
+  seq: 'attaaatgttgtccttataagagttcccttgaccatagtgtctgctcatagtagtaaaaacctaattaagacaGTTACACACCTGAGAATGGGACCCAGGGTTCCAAAACTCAACCTTGCTCACCAttttttttATTACTCTATTTGACTCACTTCTGGGGAAATTTAGTGGACCAAGACTCTTCGAACTTTCTTCCAAGTCCTACATGACCCAAGGAAATAGAACACAATACCTGATTTTATCATCTTTCCAAGTTATATCATATTCTGGGCAGAAGTAGGGGCATTAGAAGATGCCAATATGAAAACAGAATCAAGTTGATTTCTTAGTTTGACAAATTCCCAACAGTAAAATGACATTTAAAAGAGAAGGAAGGATTATATCCGGAGAGATGATGAATTGGTGATAAATGGATATAGAAAAGATTGATGGAAAATTGATAGGAGGTTGGCAGATATAAATGCCTGTGTGATTTAACACTGTAGCTCCAGATTCTTTTCTGTTTTTATCTCTTGCAGTAATGCAATATTAACAAAGAAGGAACACGGACAGGAGCATGAGTGAGTCTCTCTGCAAGTTTCTCCCAAAATCATCCCTACCAAGAATGTATTTAACGAATATAACCCTTTGGTTTTTCATAATAATATGGCATTTATAATAATGCTTTTATTGTGTAATTTTAGATAGTAGCAAGGTCATCATTCCAGCTGAACACTTTCTTTCCCCTTCATCTTGAATGCTGTTCCTGACAAAGACATGGCTTGCTCCCAATTGTACTCTCTtaaaaaaataataataa'
+
+options: '{"Call":{"kind":{"Variants":{"mode":{"Generic":{"scenario":"varlociraptor_new.yaml","bams":["sample0=../bams/tumor02_XD029_511950_merged.mdup.bam","sample1=/vol/tiny/WGBS_laura/results/mm10/multi/bam/AS_175436.bam"],"alignment_properties":[]}},"reference":"/vol/tiny/WGBS_laura/bwa06_GRCm38mm10_PhiX/GRCm38mm10_PhiX.fa","candidates":"../varlociraptor_out_new/511950.FDR.DE_NOVO.SNV.vcf","output":null,"spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"omit_snvs":false,"omit_indels":false,"max_indel_len":1000,"indel_window":64,"max_depth":200,"testcase_locus":"1:124699518","testcase_prefix":"testcase_511950"}}}}'
