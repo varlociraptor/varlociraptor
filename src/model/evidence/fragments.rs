@@ -198,7 +198,7 @@ impl IndelEvidence {
                 // If we don't need enclosing, the fragment may also overlap on the far right or left.
                 // Hence, the are less infeasible positions (by the maximal feasible overlap).
                 infeasible_read_pos_left = infeasible_read_pos_left.saturating_sub(left_feasible);
-                infeasible_read_pos_right = infeasible_read_pos_left.saturating_sub(right_feasible);
+                infeasible_read_pos_right = infeasible_read_pos_right.saturating_sub(right_feasible);
             }
             let infeasible_read_pos = infeasible_read_pos_left + infeasible_read_pos_right;
 
