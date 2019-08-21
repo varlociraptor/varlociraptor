@@ -1,0 +1,27 @@
+# The variant here is likely somatic in the normal, but occurs at such low VAF that it is not captured properly with a resolution of 5 in the normal sample
+expected:
+  posteriors:
+    - PROB_SOMATIC_NORMAL <= 0.05
+
+# necessary bam files
+samples:
+  normal:
+    path: 'normal.bam'
+    properties: '{"insert_size":{"mean":188.0,"sd":48.033087310066676},"max_del_cigar_len":10,"max_ins_cigar_len":9,"frac_max_softclip":0.7920792079207921}'
+  tumor:
+    path: 'tumor.bam'
+    properties: '{"insert_size":{"mean":190.0,"sd":51.62130777002762},"max_del_cigar_len":10,"max_ins_cigar_len":10,"frac_max_softclip":0.801980198019802}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+# reference sequence
+reference:
+  name: 'chr1'
+  seq: 'GATCTACCATCACTTGCCTGGAGCGGGGCGGGCCCCCAGGGACATCACCAAGCCTGAGCCAGCTGGGAGGGCCTGCCTGCCTCGAGTCCCACCTCTCTCCCGCAGAACGGCGACTACAACAAGCCGATCCCCGCCCAGTACTTGGAGCACCTGAACCACGTGGTGAGCAGCGCGCCCAGCCTGCGCGACCCTTCGCAGCCGCAGCAGTGGGTGAGCAGCCAAGTCCTGCTGTGCAAGAGGTGCAACCACCACCAGACCACCAAGATCAAGCAGCTGGCCGCCTTCGCTCCCCGCGAGGAGGTGAGGCCGGGTTGGGAGGGCAGGGGTCCTGGCTGGGGCCAGGGATGCTTAGAGCAGCCGGGGGACAGGCACGTGCAGGGTGCTGACTCTGGTCCTCTGGCCCCTGCTCTGCTAGACAGCGGCTTTTCTGTTCTGAGTGCCCAAAGGGGCCCCCTCATCCTTGCCACTGCCAGCACATTCCAGGATGTGTTAGTTCTTCTGACCCCGTTGGAGCTGAGCTGCTTCTCCCCATGTCTTACAGTCACTGCTATCGGGGTTCCAAGCCTAGGAACACCGTGGAAACCCCAGCACCTGCCAGTCCAG'
+
+options: '{"Call":{"kind":{"Variants":{"mode":{"Generic":{"scenario":"scenarios/H021-M8LTP4.yaml","bams":["tumor=dedup/H021-M8LTP4-M1-D1.bam","normal=dedup/H021-M8LTP4-N1-D1.bam"],"alignment_properties":[]}},"reference":"/vol/tiny/ref/autoref/Homo_sapiens/UCSC/hg38/BWAIndex/genome.fa","candidates":"candidate-calls/H021-M8LTP4.freebayes.bcf","output":null,"spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"omit_snvs":false,"omit_indels":false,"max_indel_len":1000,"indel_window":64,"max_depth":200,"testcase_locus":"chr1:9597055","testcase_prefix":"testcase"}}}}'

@@ -1,0 +1,7 @@
+samples:
+  normal:
+    resolution: 300
+    universe: "0.0 | ]0.0,0.5["
+
+events:
+  somatic_normal: "normal:]0.0,0.5["
