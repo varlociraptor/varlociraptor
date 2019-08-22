@@ -158,10 +158,6 @@ impl GenericPosterior {
                 if vafs.len() == 1 {
                     push_base_event(vafs.iter().next().unwrap().clone(), base_events);
                     let p = subdensity(base_events);
-                    if *vaf_tree_node.sample() == 0 {
-                        dbg!(vaf_tree_node);
-                        dbg!(p);
-                    }
                     p
                 } else {
                     LogProb::ln_sum_exp(
@@ -178,24 +174,18 @@ impl GenericPosterior {
             }
             grammar::VAFSpectrum::Range(vafs) => {
                 let n_obs = pileups[sample].len();
-                if *vaf_tree_node.sample() == 0 {
-                    dbg!(vaf_tree_node);
-                    dbg!(vafs.observable_min(n_obs));
-                }
-                LogProb::ln_simpsons_integrate_exp(
+                let p = LogProb::ln_simpsons_integrate_exp(
                     |_, vaf| {
                         let mut base_events = base_events.clone();
                         push_base_event(AlleleFreq(vaf), &mut base_events);
                         let p = subdensity(&mut base_events);
-                        if *vaf_tree_node.sample() == 0 {
-                            dbg!(p);
-                        }
                         p
                     },
-                    *vafs.observable_min(n_obs) - 0.01,
+                    *vafs.observable_min(n_obs),
                     *vafs.observable_max(n_obs),
                     sample_grid_points[sample],
-                )
+                );
+                p
             }
         }
     }

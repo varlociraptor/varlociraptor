@@ -128,10 +128,7 @@ impl Scenario {
             .iter()
             .map(|(name, formula)| {
                 let normalized = formula.normalize(self)?;
-                // dbg!(&name);
-                // dbg!(&normalized);
                 let vaftree = VAFTree::new(&normalized, self)?;
-                // dbg!(&vaftree);
                 Ok((name.to_owned(), vaftree))
             })
             .collect()

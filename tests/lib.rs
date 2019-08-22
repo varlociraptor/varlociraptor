@@ -90,7 +90,6 @@ impl Testcase {
                                 ));
                                 temp_props.push(props);
                             }
-                            println!("{:?}", options);
                             run(options)
                         }
                         VariantCallMode::TumorNormal {

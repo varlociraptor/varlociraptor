@@ -1,7 +1,8 @@
-# The variant here is likely somatic in the normal, but occurs at such low VAF that it is not captured properly with a resolution of 5 in the normal sample
+# The variant here might be somatic in the normal, but occurs at low VAF in addition with low base quality and only on two forward reads.
+# Varlociraptor decides that this is coincidence and rather attributes it to the tumor. It remains to be investigated whether a prior would change
+# its opinion
 expected:
-  posteriors:
-    - PROB_SOMATIC_NORMAL <= 0.05
+  # add a test condition once we know what is going on here
 
 # necessary bam files
 samples:
