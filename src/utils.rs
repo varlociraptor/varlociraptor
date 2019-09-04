@@ -27,6 +27,7 @@ use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-3;
 
+
 /// Select values with given indices from a slice and return them as an iterator.
 pub fn select<'a, T: Clone>(idx: &'a [usize], values: &'a [T]) -> impl Iterator<Item = T> + 'a {
     idx.iter().map(move |i| values[*i].clone())
