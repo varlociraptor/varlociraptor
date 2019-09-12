@@ -6,4 +6,4 @@
 [![Crates.io](https://img.shields.io/crates/d/varlociraptor.svg)](https://crates.io/crates/varlociraptor)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 
-Varlociraptor implements a novel, unified fully uncertainty-aware approach to variant calling in any scenario. Details can be found here: https://varlociraptor.github.io
+Varlociraptor implements a novel, unified fully uncertainty-aware approach to genomic variant calling in any scenario. For details, see the homepage: https://varlociraptor.github.io
