@@ -398,7 +398,13 @@ where
             let obs = if observations.values().any(|obs| !obs.is_empty()) {
                 observations
                     .values()
-                    .map(|obs| join(obs.iter(), ",").into_bytes())
+                    .map(|allele_obs| join(allele_obs.iter().map(|o| {
+                        if o.is_empty() {
+                            "."
+                        } else  {
+                            o
+                        }
+                    }), ",").into_bytes())
                     .collect_vec()
             } else {
                 vec![b".".to_vec()]
