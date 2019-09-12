@@ -1,4 +1,4 @@
-# varlociraptor
+# Varlociraptor
 
 [![Travis](https://img.shields.io/travis/varlociraptor/varlociraptor/master.svg?maxAge=2592000)](https://travis-ci.org/varlociraptor/varlociraptor)
 [![Codecov](https://img.shields.io/codecov/c/github/varlociraptor/varlociraptor/master.svg)](https://codecov.io/gh/varlociraptor/varlociraptor)
