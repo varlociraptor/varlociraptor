@@ -337,6 +337,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                     if indel_window > (128 / 2) {
                         Err(structopt::clap::Error::with_description( "Command-line option --indel-window requires a value <= 64 with the current implementation.", structopt::clap::ErrorKind::ValueValidation))?;
                     };
+                    dbg!(indel_window);
 
                     let sample_builder = || {
                         SampleBuilder::default()
