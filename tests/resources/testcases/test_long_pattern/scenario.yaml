@@ -1,0 +1,10 @@
+
+
+samples:
+  PaTu-S:
+    resolution: 100
+    universe: "[0.0,1.0]"
+
+events:
+  present: "PaTu-S:]0.05,1.0]"
+  ffpe_artifact: "PaTu-S:]0.0,0.05]"

@@ -230,12 +230,20 @@ impl AbstractReadEvidence for IndelEvidence {
                 // read encloses variant
                 (Some(qstart), Some(qend)) => {
                     let qstart = qstart as usize;
+                    // exclusive end of variant
                     let qend = qend as usize;
                     // ensure that distance between qstart and qend does not make the window too
                     // large
-                    let max_window = (self.max_window as usize).saturating_sub(qend - qstart);
-                    let read_offset = qstart.saturating_sub(max_window);
-                    let read_end = cmp::min(qend + max_window as usize, read_seq.len());
+                    let max_window = (self.max_window as usize).saturating_sub((qend - qstart) / 2);
+                    let mut read_offset = qstart.saturating_sub(max_window);
+                    let mut read_end = cmp::min(qend + max_window as usize, read_seq.len());
+
+                    // correct for reads that enclose the entire variant while that exceeds the maximum pattern len
+                    let exceed = (read_end - read_offset).saturating_sub(EditDistanceCalculation::max_pattern_len());
+                    if exceed > 0 {
+                        read_offset += exceed / 2;
+                        read_end -= (exceed as f64 / 2.0).ceil() as usize;
+                    }
                     (read_offset, read_end, varstart as usize, true)
                 }
 
@@ -254,7 +262,7 @@ impl AbstractReadEvidence for IndelEvidence {
                 (None, None) => {
                     let m = read_seq.len() / 2;
                     let read_offset = m.saturating_sub(self.max_window as usize);
-                    let read_end = cmp::min(m + self.max_window as usize, read_seq.len());
+                    let read_end = cmp::min(m + self.max_window as usize - 1, read_seq.len());
                     let breakpoint = record.pos() as usize + m;
                     // The following should only happen with deletions.
                     // It occurs if the read comes from ref allele and is mapped within start
@@ -700,6 +708,10 @@ pub struct EditDistanceCalculation {
 }
 
 impl EditDistanceCalculation {
+    pub fn max_pattern_len() -> usize {
+        128
+    }
+
     /// Create new instance.
     ///
     /// # Arguments
