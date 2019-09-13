@@ -26,6 +26,11 @@ addons:
       - cmake
       - gcc 
       - binutils
+
+      - libssl-dev 
+      - pkg-config
+      - cmake 
+      - zlib1g-dev
 install:
   - command -v cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
   - command -v cargo-make >/dev/null 2>&1 || cargo install --debug cargo-make
