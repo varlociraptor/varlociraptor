@@ -18,8 +18,7 @@ use rust_htslib::bam;
 use serde_yaml;
 use structopt::StructOpt;
 
-use crate::call::CallerBuilder;
-use crate::call_cnvs;
+use crate::calling;
 use crate::conversion;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -466,7 +465,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         .build()?;
 
                                     // setup caller
-                                    let mut caller_builder = CallerBuilder::default()
+                                    let mut caller_builder = calling::variants::CallerBuilder::default()
                                         .samples(samples.build())
                                         .reference(reference)?
                                         .inbcf(candidates.as_ref())?
@@ -582,7 +581,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                 .resolutions(resolutions)
                                 .build()?;
 
-                            let mut caller_builder = CallerBuilder::default()
+                            let mut caller_builder = calling::variants::CallerBuilder::default()
                                 .samples(samples)
                                 .reference(reference)?
                                 .inbcf(candidates.as_ref())?
@@ -617,7 +616,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                         Err(errors::CallCNVError::InvalidMinBayesFactor)?
                     }
 
-                    let mut caller = call_cnvs::CallerBuilder::default()
+                    let mut caller = calling::cnvs::CallerBuilder::default()
                         .bcfs(calls.as_ref(), output.as_ref())?
                         .min_bayes_factor(min_bayes_factor)
                         .purity(purity)

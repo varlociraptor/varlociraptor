@@ -21,8 +21,7 @@ extern crate pest_derive;
 #[macro_use]
 extern crate getset;
 
-pub mod call;
-pub mod call_cnvs;
+pub mod calling;
 pub mod cli;
 pub mod constants;
 pub mod conversion;
