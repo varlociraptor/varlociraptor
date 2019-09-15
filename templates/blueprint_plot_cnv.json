@@ -1,0 +1,213 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v3.json",
+  "datasets": {
+    "copynumbers": [],
+    "contigs": []
+  },
+  "vconcat": [
+    {
+      "layer": [
+        {
+          "data": {
+            "name": "copynumbers"
+          },
+          "encoding": {
+            "color": {
+              "field": "subclone_fraction",
+              "bin": {
+                "step": 0.1
+              },
+              "scale": {
+                "scheme": "yellowgreenblue"
+              },
+              "legend": {
+                "gradientLength": 300
+              },
+              "title": "Subclone fraction",
+              "type": "quantitative"
+            },
+            "x": {
+              "field": "start",
+              "axis": {
+                "labels": false
+              },
+              "scale": {
+                "domain": {
+                  "selection": "range"
+                }
+              },
+              "title": "Position on genome (bp)",
+              "type": "quantitative"
+            },
+            "x2": {
+              "field": "end"
+            },
+            "y": {
+              "field": "copynumber",
+              "title": "Copynumber",
+              "type": "quantitative"
+            }
+          },
+          "mark": {
+            "strokeCap": "square",
+            "strokeWidth": 10,
+            "type": "rule"
+          },
+          "height": 500,
+          "width": 1200
+        },
+        {
+          "data": {
+            "name": "contigs"
+          },
+          "mark": {
+            "type": "rule",
+            "y": "height"
+          },
+          "encoding": {
+            "x": {
+              "field": "cumulative_position",
+              "type": "quantitative",
+              "scale": {
+                "domain": {
+                  "selection": "range"
+                }
+              },
+              "axis": {
+                "grid": false
+              }
+            }
+          }
+        },
+        {
+          "data": {
+            "name": "contigs"
+          },
+          "mark": {
+            "type": "text",
+            "y": 0,
+            "fontStyle": "bold",
+            "fontSize": 12,
+            "angle": 90,
+            "dy": -8,
+            "dx": 20
+          },
+          "encoding": {
+            "text": {
+              "field": "id",
+              "type": "ordinal"
+            },
+            "x": {
+              "field": "cumulative_position",
+              "type": "quantitative",
+              "scale": {
+                "domain": {
+                  "selection": "range"
+                }
+              },
+              "axis": {
+                "grid": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "layer": [
+        {
+          "data": {
+            "name": "copynumbers"
+          },
+          "selection": {
+            "range": {
+              "encodings": [
+                "x"
+              ],
+              "type": "interval",
+              "resolve": "global"
+            }
+          },
+          "encoding": {
+            "color": {
+              "aggregate": "median",
+              "field": "copynumber",
+              "scale": {
+                "domain": [
+                  0,
+                  4
+                ],
+                "scheme": "blueorange"
+              },
+              "type": "quantitative"
+            },
+            "x": {
+              "bin": {
+                "maxbins": 500
+              },
+              "field": "start",
+              "scale": {
+                "domain": {
+                  "selection": "range"
+                }
+              },
+              "axis": {
+                "ticks": false
+              },
+              "title": "",
+              "type": "quantitative"
+            }
+          },
+          "height": 40,
+          "mark": {
+            "type": "rect"
+          },
+          "width": 1200
+        },
+        {
+          "data": {
+            "name": "contigs"
+          },
+          "mark": {
+            "type": "text",
+            "y": "height",
+            "angle": 90,
+            "dy": 0,
+            "dx": 30
+          },
+          "encoding": {
+            "text": {
+              "field": "id",
+              "type": "ordinal"
+            },
+            "x": {
+              "field": "cumulative_position",
+              "type": "quantitative",
+              "axis": {
+                "grid": true
+              }
+            }
+          }
+        },
+        {
+          "data": {
+            "name": "contigs"
+          },
+          "mark": {
+            "type": "rule",
+            "y": "height"
+          },
+          "encoding": {
+            "x": {
+              "field": "cumulative_position",
+              "type": "quantitative",
+              "axis": {
+                "grid": true
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
