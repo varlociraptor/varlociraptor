@@ -12,6 +12,7 @@ use serde::Deserialize;
 use crate::errors;
 use crate::grammar::Scenario;
 use crate::model::AlleleFreq;
+use crate::errors::Result;
 
 #[derive(Parser)]
 #[grammar = "grammar/formula.pest"]
@@ -41,26 +42,26 @@ pub enum NormalizedFormula {
 
 impl Formula {
     /// Negate formula.
-    pub fn negate(&self, scenario: &Scenario) -> Result<Formula, errors::FormulaError> {
+    pub fn negate(&self, scenario: &Scenario) -> Result<Formula> {
         Ok(match self {
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
                     .map(|o| Ok(Box::new(o.negate(scenario)?)))
-                    .collect::<Result<Vec<Box<Formula>>, errors::FormulaError>>()?,
+                    .collect::<Result<Vec<Box<Formula>>>>()?,
             },
             Formula::Disjunction { operands } => Formula::Conjunction {
                 operands: operands
                     .iter()
                     .map(|o| Ok(Box::new(o.negate(scenario)?)))
-                    .collect::<Result<Vec<Box<Formula>>, errors::FormulaError>>()?,
+                    .collect::<Result<Vec<Box<Formula>>>>()?,
             },
             Formula::Negation { operand } => operand.as_ref().clone(),
             Formula::Atom { sample, vafs } => {
                 let universe = scenario
                     .samples()
                     .get(sample)
-                    .ok_or_else(|| errors::FormulaError::InvalidSampleName {
+                    .ok_or_else(|| errors::Error::InvalidSampleName {
                         name: sample.to_owned(),
                     })?
                     .universe();
@@ -147,7 +148,7 @@ impl Formula {
     pub fn normalize(
         &self,
         scenario: &Scenario,
-    ) -> Result<NormalizedFormula, errors::FormulaError> {
+    ) -> Result<NormalizedFormula> {
         Ok(match self {
             Formula::Negation { operand } => operand.negate(scenario)?.normalize(scenario)?,
             Formula::Atom { sample, vafs } => NormalizedFormula::Atom {
@@ -158,13 +159,13 @@ impl Formula {
                 operands: operands
                     .into_iter()
                     .map(|o| Ok(Box::new(o.normalize(scenario)?)))
-                    .collect::<Result<Vec<Box<NormalizedFormula>>, errors::FormulaError>>()?,
+                    .collect::<Result<Vec<Box<NormalizedFormula>>>>()?,
             },
             Formula::Disjunction { operands } => NormalizedFormula::Disjunction {
                 operands: operands
                     .into_iter()
                     .map(|o| Ok(Box::new(o.normalize(scenario)?)))
-                    .collect::<Result<Vec<Box<NormalizedFormula>>, errors::FormulaError>>()?,
+                    .collect::<Result<Vec<Box<NormalizedFormula>>>>()?,
             },
         })
     }

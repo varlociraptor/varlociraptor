@@ -1,25 +1,34 @@
-use custom_error::custom_error;
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-custom_error! {pub TestcaseError
-    MissingCandidates = "candidate variants must be provided via --candidates",
-    MissingPrefix = "testcase prefix must be given with --testcase-prefix",
-    NoCandidateFound = "no candidate variant at the given locus",
-    InvalidLocus = "invalid locus for --testcase-locus. Use CHROM:POS syntax",
-    InvalidIndex = "invalid variant index given, must be not higher than the number of variants at the locus",
-}
-
-custom_error! {pub CallCNVError
-    InvalidMinBayesFactor = "invalid minimum bayes factor, must be > 1.0",
-}
-
-custom_error! {pub CLIError
-    InvalidBAMSpec = "BAM files must be provided as name=path",
-    InvalidAlignmentPropertiesSpec = "alignment property files must be provided as name=path",
-    InvalidContaminationSampleName { name: String } = "contamination refers to unknown sample {name}; it is not defined in the scenario",
-    InvalidBAMSampleName { name: String } = "no BAM file given for sample {name}",
-    MissingSampleEvent { event_name: String } = "event {event_name} does not define VAF range for all samples"
-}
-
-custom_error! {pub FormulaError
-    InvalidSampleName { name: String } = "formula refers to unknown sample {name}"
+#[derive(Snafu, Debug, PartialEq)]
+#[snafu(visibility = "pub")]
+pub enum Error {
+    #[snafu(display("formula refers to unknown sample {}", name))]
+    InvalidSampleName { name: String },
+    #[snafu(display("event {} does not define VAF range for all samples", event_name))]
+    MissingSampleEvent { event_name: String },
+    #[snafu(display("no BAM file given for sample {}", name))]
+    InvalidBAMSampleName { name: String },
+    #[snafu(display("contamination refers to unknown sample {}; it is not defined in the scenario", name))]
+    InvalidContaminationSampleName { name: String },
+    #[snafu(display("alignment property files must be provided as name=path"))]
+    InvalidAlignmentPropertiesSpec,
+    #[snafu(display("BAM files must be provided as name=path"))]
+    InvalidBAMSpec,
+    #[snafu(display("invalid variant index given, must be not higher than the number of variants at the locus"))]
+    InvalidIndex,
+    #[snafu(display("invalid locus for --testcase-locus. Use CHROM:POS syntax"))]
+    InvalidLocus,
+    #[snafu(display("no candidate variant at the given locus"))]
+    NoCandidateFound,
+    #[snafu(display("testcase prefix must be given with --testcase-prefix"))]
+    MissingPrefix,
+    #[snafu(display("candidate variants must be provided via --candidates"))]
+    MissingCandidates,
+    #[snafu(display("--min-bayes-factor must be between 0.0 and 1.0"))]
+    InvalidMinBayesFactor,
+    #[snafu(display("expected tag {} missing from BCF record", name))]
+    MissingBCFTag { name: String },
+    #[snafu(display("invalid BCF record: {}", msg))]
+    InvalidBCFRecord { msg: String },
 }

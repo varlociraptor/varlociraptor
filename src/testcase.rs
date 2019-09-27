@@ -17,10 +17,10 @@ use serde::Serialize;
 use serde_json;
 use structopt::StructOpt;
 
-use crate::errors;
 use crate::model::sample;
 use crate::model::Variant;
 use crate::utils;
+use crate::errors;
 
 lazy_static! {
     static ref TESTCASE_RE: Regex =
@@ -72,15 +72,15 @@ impl<T> TestcaseBuilder<T>
 where
     T: StructOpt,
 {
-    pub fn reference(self, path: impl AsRef<Path>) -> Result<Self, Box<Error>> {
+    pub fn reference(self, path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
     }
 
-    pub fn candidates(self, path: impl AsRef<Path>) -> Result<Self, Box<Error>> {
+    pub fn candidates(self, path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         Ok(self.candidate_reader(bcf::Reader::from_path(path)?))
     }
 
-    pub fn locus(self, locus: &str) -> Result<Self, Box<Error>> {
+    pub fn locus(self, locus: &str) -> Result<Self, Box<dyn Error>> {
         if locus == "all" {
             Ok(self.chrom_name(None).pos(None).idx(0))
         } else if let Some(captures) = TESTCASE_RE.captures(locus) {
@@ -101,7 +101,7 @@ where
 
             Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)).idx(idx))
         } else {
-            Err(errors::TestcaseError::InvalidLocus)?
+            Err(errors::Error::InvalidLocus)?
         }
     }
 
@@ -123,7 +123,7 @@ impl<T> Testcase<T>
 where
     T: StructOpt + Serialize,
 {
-    fn variants(&mut self) -> Result<Vec<bcf::Record>, Box<Error>> {
+    fn variants(&mut self) -> Result<Vec<bcf::Record>, Box<dyn Error>> {
         // get variant
         let rid = if let Some(name) = self.chrom_name.as_ref() {
             Some(self.candidate_reader.header().name2rid(name)?)
@@ -146,13 +146,13 @@ where
             }
         }
         if found.len() == 0 {
-            Err(errors::TestcaseError::NoCandidateFound)?
+            Err(errors::Error::NoCandidateFound)?
         } else {
             Ok(found)
         }
     }
 
-    pub fn write(&mut self) -> Result<(), Box<Error>> {
+    pub fn write(&mut self) -> Result<(), Box<dyn Error>> {
         fs::create_dir_all(&self.prefix)?;
 
         let candidate_filename = Path::new("candidates.vcf");
@@ -171,7 +171,7 @@ where
                             self.chrom_name = Some(
                                 self.candidate_reader
                                     .header()
-                                    .rid2name(record.rid().unwrap())
+                                    .rid2name(record.rid().unwrap()).unwrap()
                                     .to_owned(),
                             );
                             self.pos = Some(record.pos());
@@ -186,7 +186,7 @@ where
             }
         }
         if candidate.is_none() {
-            return Err(errors::TestcaseError::InvalidIndex)?;
+            return Err(errors::Error::InvalidIndex)?;
         }
         let candidate = candidate.unwrap();
 
@@ -214,7 +214,7 @@ where
                 let rec = res?;
                 let seq_len = rec.seq().len() as u32;
                 ref_start = cmp::min((rec.pos() as u32).saturating_sub(seq_len), ref_start);
-                ref_end = cmp::max(rec.cigar().end_pos()? as u32 + seq_len, ref_end);
+                ref_end = cmp::max(rec.cigar().end_pos() as u32 + seq_len, ref_end);
             }
         }
 
@@ -227,6 +227,7 @@ where
             let mut bam_writer = bam::Writer::from_path(
                 self.prefix.join(&filename),
                 &bam::Header::from_template(bam_reader.header()),
+                bam::Format::BAM,
             )?;
 
             let tid = bam_reader.header().tid(chrom_name).unwrap();
@@ -252,7 +253,7 @@ where
             self.prefix.join(candidate_filename),
             &bcf::Header::from_template(self.candidate_reader.header()),
             true,
-            true,
+            bcf::Format::BCF,
         )?;
         let (_, mut candidate_record) = candidate;
         candidate_record.set_pos((candidate_record.pos() - ref_start) as i32);

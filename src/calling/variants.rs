@@ -91,13 +91,13 @@ where
     Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
-    pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<Error>> {
+    pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<dyn Error>> {
         Ok(self.reference_buffer(utils::ReferenceBuffer::new(
             fasta::IndexedReader::from_file(&path)?,
         )))
     }
 
-    pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<Error>> {
+    pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<dyn Error>> {
         Ok(self.bcf_reader(if let Some(path) = path {
             bcf::Reader::from_path(path)?
         } else {
@@ -159,7 +159,7 @@ where
         self
     }
 
-    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<Error>> {
+    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<dyn Error>> {
         let mut header = bcf::Header::new();
 
         // register samples
@@ -237,9 +237,9 @@ where
         }
 
         let writer = if let Some(path) = path {
-            bcf::Writer::from_path(path, &header, false, false)?
+            bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)?
         } else {
-            bcf::Writer::from_stdout(&header, false, false)?
+            bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?
         };
         Ok(self.bcf_writer(writer))
     }
@@ -256,17 +256,15 @@ where
     >,
     ModelPayload: Default,
 {
-    pub fn call(&mut self) -> Result<(), Box<Error>> {
+    pub fn call(&mut self) -> Result<(), Box<dyn Error>> {
         let mut universe = self.events.values().cloned().collect_vec();
         universe.extend(self.strand_bias_events.iter().cloned());
 
         let mut i = 0;
         let mut record = self.bcf_reader.empty_record();
         loop {
-            match self.bcf_reader.read(&mut record) {
-                Err(bcf::ReadError::NoMoreRecord) => return Ok(()),
-                Err(e) => return Err(Box::new(e)),
-                Ok(()) => (),
+            if !self.bcf_reader.read(&mut record)? {
+                return Ok(());
             }
 
             i += 1;
@@ -280,7 +278,7 @@ where
         }
     }
 
-    fn write_call(&mut self, call: &Call) -> Result<(), Box<Error>> {
+    fn write_call(&mut self, call: &Call) -> Result<(), Box<dyn Error>> {
         let rid = self.bcf_writer.header().name2rid(&call.chrom)?;
         for (ref_allele, group) in call
             .variants
@@ -428,7 +426,7 @@ where
         &mut self,
         record: &mut bcf::Record,
         universe: &[Po::Event],
-    ) -> Result<Option<Call>, Box<Error>> {
+    ) -> Result<Option<Call>, Box<dyn Error>> {
         let start = record.pos();
         let chrom = chrom(&self.bcf_reader, &record);
         let variants = utils::collect_variants(
@@ -571,5 +569,5 @@ where
 }
 
 fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
-    inbcf.header().rid2name(record.rid().unwrap())
+    inbcf.header().rid2name(record.rid().unwrap()).unwrap()
 }

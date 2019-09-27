@@ -34,7 +34,7 @@ pub trait AbstractReadEvidence {
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<Option<(LogProb, LogProb)>, Box<Error>>;
+    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>>;
 
     /// Calculate mapping and mismapping probability of given record.
     fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
@@ -74,7 +74,7 @@ impl AbstractReadEvidence for NoneEvidence {
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
+    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>> {
         // TODO: Should we make this check against potential indel alt alleles, as well? Would need to collect respective observations / reads, then.
         if let &Variant::None = variant {
             if let Some(qpos) = cigar.read_pos(start, false, false)? {
@@ -120,7 +120,7 @@ impl AbstractReadEvidence for SNVEvidence {
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
+    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>> {
         if let &Variant::SNV(base) = variant {
             if let Some(qpos) = cigar.read_pos(start, false, false)? {
                 let read_base = record.seq()[qpos as usize];
@@ -211,7 +211,7 @@ impl AbstractReadEvidence for IndelEvidence {
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<Option<(LogProb, LogProb)>, Box<Error>> {
+    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>> {
         let read_seq = record.seq();
         let read_qual = record.qual();
 
@@ -268,7 +268,7 @@ impl AbstractReadEvidence for IndelEvidence {
                     // It occurs if the read comes from ref allele and is mapped within start
                     // and end of deletion. Usually, such reads strongly support the ref allele.
                     let read_enclosed_by_variant = record.pos() >= varstart as i32
-                        && cigar.end_pos().unwrap() <= varend as i32;
+                        && cigar.end_pos() <= varend as i32;
                     (read_offset, read_end, breakpoint, read_enclosed_by_variant)
                 }
             }
@@ -810,7 +810,7 @@ mod tests {
         seq = b"TATTaC";
         let qual = [20, 30, 30, 30, 40, 30];
         let mut record1 = bam::Record::new();
-        record1.set(qname, &cigar, seq, &qual);
+        record1.set(qname, Some(&cigar), seq, &qual);
         record1.set_pos(1);
         records.push(record1);
 
@@ -824,7 +824,7 @@ mod tests {
         seq = b"TTTTCC";
         let qual = [15, 15, 20, 20, 30, 20];
         let mut record2 = bam::Record::new();
-        record2.set(qname, &cigar, seq, &qual);
+        record2.set(qname, Some(&cigar), seq, &qual);
         record2.set_pos(2);
         records.push(record2);
 
@@ -838,7 +838,7 @@ mod tests {
         seq = b"ACATA";
         let qual = [50, 20, 20, 20, 20, 20];
         let mut record3 = bam::Record::new();
-        record3.set(qname, &cigar, seq, &qual);
+        record3.set(qname, Some(&cigar), seq, &qual);
         record3.set_pos(4);
         records.push(record3);
 
@@ -848,7 +848,7 @@ mod tests {
         seq = b"GATA";
         let qual = [10, 30, 30, 30];
         let mut record4 = bam::Record::new();
-        record4.set(qname, &cigar, seq, &qual);
+        record4.set(qname, Some(&cigar), seq, &qual);
         record4.set_pos(0);
         records.push(record4);
 
@@ -900,7 +900,7 @@ mod tests {
         seq = b"AATATACG";
         let qual = [20, 20, 30, 30, 30, 40, 30, 30];
         let mut record1 = bam::Record::new();
-        record1.set(qname, &cigar, seq, &qual);
+        record1.set(qname, Some(&cigar), seq, &qual);
         record1.set_pos(2);
         records.push(record1);
 
@@ -910,7 +910,7 @@ mod tests {
         seq = b"TTTATGCG";
         let qual = [20, 20, 20, 20, 20, 30, 20, 20];
         let mut record2 = bam::Record::new();
-        record2.set(qname, &cigar, seq, &qual);
+        record2.set(qname, Some(&cigar), seq, &qual);
         record2.set_pos(2);
         records.push(record2);
 
@@ -925,7 +925,7 @@ mod tests {
         seq = b"CCAACGCG";
         let qual = [30, 30, 30, 50, 30, 30, 30, 30];
         let mut record3 = bam::Record::new();
-        record3.set(qname, &cigar, seq, &qual);
+        record3.set(qname, Some(&cigar), seq, &qual);
         record3.set_pos(0);
         records.push(record3);
 
@@ -935,7 +935,7 @@ mod tests {
         seq = b"CTATCGCG";
         let qual = [10, 30, 30, 30, 30, 30, 30, 30];
         let mut record4 = bam::Record::new();
-        record4.set(qname, &cigar, seq, &qual);
+        record4.set(qname, Some(&cigar), seq, &qual);
         record4.set_pos(1);
         records.push(record4);
 
@@ -951,7 +951,7 @@ mod tests {
         seq = b"CTTAGCGT";
         let qual = [10, 30, 30, 30, 30, 30, 30, 30];
         let mut record5 = bam::Record::new();
-        record5.set(qname, &cigar, seq, &qual);
+        record5.set(qname, Some(&cigar), seq, &qual);
         record5.set_pos(0);
         records.push(record5);
 

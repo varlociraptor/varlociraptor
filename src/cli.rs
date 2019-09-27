@@ -5,10 +5,10 @@
 
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
-use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::error::Error;
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
@@ -21,6 +21,7 @@ use structopt::StructOpt;
 use crate::calling;
 use crate::conversion;
 use crate::errors;
+use crate::estimation;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
@@ -35,10 +36,8 @@ use crate::SimpleEvent;
     name = "varlociraptor",
     about = "A caller for SNVs and indels in tumor-normal pairs."
 )]
-#[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
 pub enum Varlociraptor {
     #[structopt(
-        raw(setting = "structopt::clap::AppSettings::ColoredHelp"),
         name = "call",
         about = "Call variants."
     )]
@@ -50,7 +49,6 @@ pub enum Varlociraptor {
         name = "filter-calls",
         about = "Filter calls by either controlling the false discovery rate (FDR) at given level, or by posterior odds against the given events."
     )]
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     FilterCalls {
         #[structopt(subcommand)]
         method: FilterMethod,
@@ -60,12 +58,49 @@ pub enum Varlociraptor {
         about = "Decode PHRED-scaled values to human readable probabilities."
     )]
     DecodePHRED,
+    #[structopt(
+        name = "estimate",
+        about = "Perform estimations."
+    )]
+    #[structopt(
+        name = "estimate",
+        about = "Perform estimations."
+    )]
+    Estimate{
+        #[structopt(subcommand)]
+        kind: EstimateKind
+    },
+}
+
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
+pub enum EstimateKind {
+    #[structopt(
+        name = "tmb",
+        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT."
+    )]
+    TMB {
+        #[structopt(
+            long = "somatic-tumor-events",
+            help = "Events to consider (e.g. SOMATIC_TUMOR).",
+            required = true
+        )]
+        somatic_tumor_events: Vec<String>,
+        #[structopt(
+            long = "tumor-sample",
+            help = "Name of the tumor sample in the given VCF/BCF."
+        )]
+        tumor_sample: String,
+        #[structopt(
+            long = "coding-genome-size",
+            help = "Size of the covered coding genome."
+        )]
+        coding_genome_size: f64,
+    }
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum CallKind {
     #[structopt(
-        raw(setting = "structopt::clap::AppSettings::ColoredHelp"),
         name = "variants",
         about = "Call variants."
     )]
@@ -158,7 +193,6 @@ pub enum CallKind {
         name = "cnvs",
         about = "Call CNVs in tumor-normal sample pairs. This is experimental."
     )]
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     CNVs {
         #[structopt(
             parse(from_os_str),
@@ -202,7 +236,6 @@ pub enum VariantCallMode {
         name = "tumor-normal",
         about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants."
     )]
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
     TumorNormal {
         #[structopt(parse(from_os_str), help = "BAM file with reads from tumor sample.")]
         tumor: PathBuf,
@@ -226,7 +259,6 @@ pub enum VariantCallMode {
         normal_alignment_properties: Option<PathBuf>,
     },
     #[structopt(
-        raw(setting = "structopt::clap::AppSettings::ColoredHelp"),
         name = "generic",
         about = "Call variants for a given scenario specified with the varlociraptor calling \
                  grammar and a VCF/BCF with candidate variants."
@@ -251,16 +283,16 @@ pub enum VariantCallMode {
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum FilterMethod {
-    #[structopt(name = "control-fdr")]
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
+    #[structopt(
+        name = "control-fdr",
+        about = "Filter variant calls by controlling FDR. Filtered calls a printed to STDOUT."
+    )]
     ControlFDR {
         #[structopt(parse(from_os_str), help = "BCF file with varlociraptor calls.")]
         calls: PathBuf,
         #[structopt(
             long = "var",
-            raw(
-                possible_values = "{use strum::IntoEnumIterator; &VariantType::iter().map(|v| v.into()).collect_vec()}"
-            ),
+            possible_values = { use strum::IntoEnumIterator; &VariantType::iter().map(|v| v.into()).collect_vec() },
             help = "Variant type to consider."
         )]
         vartype: VariantType,
@@ -273,13 +305,13 @@ pub enum FilterMethod {
         #[structopt(long, help = "Maximum indel length to consider (exclusive).")]
         maxlen: Option<u32>,
     },
-    #[structopt(name = "posterior-odds")]
-    #[structopt(raw(setting = "structopt::clap::AppSettings::ColoredHelp"))]
+    #[structopt(
+        name = "posterior-odds",
+        about = "Filter variant calls by posterior odds of given events against the rest of events."
+    )]
     PosteriorOdds {
         #[structopt(
-            raw(
-                possible_values = "{use strum::IntoEnumIterator; &KassRaftery::iter().map(|v| v.into()).collect_vec()}"
-            ),
+            possible_values = { use strum::IntoEnumIterator; &KassRaftery::iter().map(|v| v.into()).collect_vec() },
             help = "Kass-Raftery score to filter against."
         )]
         odds: KassRaftery,
@@ -307,7 +339,7 @@ impl Default for Varlociraptor {
     }
 }
 
-pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
+pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
     let opt_clone = opt.clone();
     match opt {
         Varlociraptor::Call { kind } => {
@@ -363,11 +395,11 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                         .candidates(candidates)?,
                                 )
                             } else {
-                                Err(errors::TestcaseError::MissingCandidates)?;
+                                Err(errors::Error::MissingCandidates)?;
                                 None
                             }
                         } else {
-                            Err(errors::TestcaseError::MissingPrefix)?;
+                            Err(errors::Error::MissingPrefix)?;
                             None
                         }
                     } else {
@@ -413,7 +445,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                                 let contaminant = scenario
                                                 .idx(contamination.by())
                                                 .ok_or(
-                                                errors::CLIError::InvalidContaminationSampleName {
+                                                errors::Error::InvalidContaminationSampleName {
                                                     name: sample_name.to_owned(),
                                                 },
                                             )?;
@@ -430,7 +462,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                                             resolutions.push(sample_name, *sample.resolution());
 
                                         let bam = bams.get(sample_name).ok_or(
-                                            errors::CLIError::InvalidBAMSampleName {
+                                            errors::Error::InvalidBAMSampleName {
                                                 name: sample_name.to_owned(),
                                             },
                                         )?;
@@ -482,10 +514,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 
                                     caller.call()?;
                                 } else {
-                                    Err(errors::CLIError::InvalidAlignmentPropertiesSpec)?
+                                    Err(errors::Error::InvalidAlignmentPropertiesSpec)?
                                 }
                             } else {
-                                Err(errors::CLIError::InvalidBAMSpec)?
+                                Err(errors::Error::InvalidBAMSpec)?
                             }
                         }
                         VariantCallMode::TumorNormal {
@@ -613,7 +645,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
                         .build_global()?;
 
                     if min_bayes_factor <= 1.0 {
-                        Err(errors::CallCNVError::InvalidMinBayesFactor)?
+                        Err(errors::Error::InvalidMinBayesFactor)?
                     }
 
                     let mut caller = calling::cnvs::CallerBuilder::default()
@@ -674,6 +706,17 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
         },
         Varlociraptor::DecodePHRED => {
             conversion::decode_phred::decode_phred()?;
+        },
+        Varlociraptor::Estimate { kind } => {
+            match kind {
+                EstimateKind::TMB {
+                    somatic_tumor_events,
+                    tumor_sample,
+                    coding_genome_size,
+                } => {
+                    estimation::tumor_mutational_burden::estimate(&somatic_tumor_events, &tumor_sample, coding_genome_size as u64)?
+                },
+            }
         }
     }
     Ok(())
@@ -682,7 +725,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<Error>> {
 pub fn est_or_load_alignment_properites(
     alignment_properties_file: &Option<impl AsRef<Path>>,
     bam_file: impl AsRef<Path>,
-) -> Result<AlignmentProperties, Box<Error>> {
+) -> Result<AlignmentProperties, Box<dyn Error>> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,

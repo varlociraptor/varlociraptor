@@ -22,7 +22,7 @@ use rust_htslib::{bam, bcf, bcf::record::Numeric};
 
 use crate::model;
 use crate::utils;
-use crate::BCFError;
+use crate::errors;
 use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-3;
@@ -78,7 +78,7 @@ pub fn collect_variants(
     omit_snvs: bool,
     omit_indels: bool,
     indel_len_range: Option<Range<u32>>,
-) -> Result<Vec<Option<model::Variant>>, Box<Error>> {
+) -> Result<Vec<Option<model::Variant>>, Box<dyn Error>> {
     let pos = record.pos();
     let svlens = match record.info(b"SVLEN").integer() {
         Ok(Some(svlens)) => Some(
@@ -138,9 +138,7 @@ pub fn collect_variants(
             // get sequence
             let alleles = record.alleles();
             if alleles.len() > 2 {
-                return Err(Box::new(BCFError::InvalidRecord(
-                    "SVTYPE=INS but more than one ALT allele".to_owned(),
-                )));
+                return Err(errors::Error::InvalidBCFRecord {msg: "SVTYPE=INS but more than one ALT allele".to_owned()})?;
             }
             let ref_allele = alleles[0];
             let alt_allele = alleles[1];
@@ -164,19 +162,19 @@ pub fn collect_variants(
                 (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
                 (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
                 _ => {
-                    return Err(Box::new(BCFError::MissingTag("SVLEN or END".to_owned())));
+                    return Err(errors::Error::MissingBCFTag { name: "SVLEN or END".to_owned() })?;
                 }
             };
             if svlen == 0 {
-                return Err(Box::new(BCFError::InvalidRecord(
-                    "Absolute value of SVLEN or END - POS must be greater than zero.".to_owned(),
-                )));
+                return Err(errors::Error::InvalidBCFRecord {
+                    msg: "Absolute value of SVLEN or END - POS must be greater than zero.".to_owned()
+                })?;
             }
             let alleles = record.alleles();
             if alleles.len() > 2 {
-                return Err(Box::new(BCFError::InvalidRecord(
-                    "SVTYPE=DEL but more than one ALT allele".to_owned(),
-                )));
+                return Err(errors::Error::InvalidBCFRecord {
+                    msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
+                })?;
             }
             let ref_allele = alleles[0];
             let alt_allele = alleles[1];
@@ -279,7 +277,7 @@ impl ReferenceBuffer {
     }
 
     /// Load given chromosome and return it as a slice. This is O(1) if chromosome was loaded before.
-    pub fn seq(&mut self, chrom: &[u8]) -> Result<&[u8], Box<Error>> {
+    pub fn seq(&mut self, chrom: &[u8]) -> Result<&[u8], Box<dyn Error>> {
         if let Some(ref last_chrom) = self.chrom {
             if last_chrom == &chrom {
                 return Ok(&self.sequence);
@@ -307,7 +305,7 @@ pub fn tags_prob_sum(
     record: &mut bcf::Record,
     tags: &[String],
     vartype: Option<&model::VariantType>,
-) -> Result<Vec<Option<LogProb>>, Box<Error>> {
+) -> Result<Vec<Option<LogProb>>, Box<dyn Error>> {
     let variants = (utils::collect_variants(record, false, false, None))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
@@ -360,7 +358,7 @@ pub fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: &model::VariantType,
-) -> Result<Vec<NotNan<f64>>, Box<Error>>
+) -> Result<Vec<NotNan<f64>>, Box<dyn Error>>
 where
     E: Event,
 {
@@ -368,12 +366,8 @@ where
     let mut prob_dist = Vec::new();
     let tags = events_to_tags(events);
     loop {
-        if let Err(e) = calls.read(&mut record) {
-            if e.is_eof() {
-                break;
-            } else {
-                return Err(Box::new(e));
-            }
+        if !calls.read(&mut record)? {
+            break;
         }
 
         for p in utils::tags_prob_sum(&mut record, &tags, Some(&vartype))? {
@@ -404,7 +398,7 @@ pub fn filter_by_threshold<E: Event>(
     out: &mut bcf::Writer,
     events: &[E],
     vartype: &model::VariantType,
-) -> Result<(), Box<Error>> {
+) -> Result<(), Box<dyn Error>> {
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     let filter = |record: &mut bcf::Record| {
         let probs = utils::tags_prob_sum(record, &tags, Some(vartype))?;
@@ -431,20 +425,16 @@ pub fn filter_calls<F, I, II>(
     calls: &mut bcf::Reader,
     out: &mut bcf::Writer,
     filter: F,
-) -> Result<(), Box<Error>>
+) -> Result<(), Box<dyn Error>>
 where
-    F: Fn(&mut bcf::Record) -> Result<II, Box<Error>>,
+    F: Fn(&mut bcf::Record) -> Result<II, Box<dyn Error>>,
     I: Iterator<Item = bool>,
     II: IntoIterator<Item = bool, IntoIter = I>,
 {
     let mut record = calls.empty_record();
     loop {
-        if let Err(e) = calls.read(&mut record) {
-            if e.is_eof() {
-                return Ok(());
-            } else {
-                return Err(Box::new(e));
-            }
+        if !calls.read(&mut record)? {
+            return Ok(());
         }
 
         let mut remove = vec![false]; // don't remove the reference allele
@@ -486,9 +476,9 @@ impl Overlap {
         start: u32,
         variant: &model::Variant,
         consider_clips: bool,
-    ) -> Result<Overlap, Box<Error>> {
+    ) -> Result<Overlap, Box<dyn Error>> {
         let mut pos = record.pos() as u32;
-        let mut end_pos = cigar.end_pos()? as u32;
+        let mut end_pos = cigar.end_pos() as u32;
 
         if consider_clips {
             // consider soft clips for overlap detection

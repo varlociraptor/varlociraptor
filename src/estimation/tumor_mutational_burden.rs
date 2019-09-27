@@ -8,10 +8,11 @@ use itertools::Itertools;
 use serde_json::{Value,json};
 
 use crate::model::AlleleFreq;
+use crate::{SimpleEvent, Event};
 
 /// Consider only variants in coding regions.
 /// We rely on the ANN field for this.
-fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool, Box<Error>> {
+fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool, Box<dyn Error>> {
     
     for ann in rec.info(b"ANN").string()?.expect("ANN field not found. Annotate VCF with e.g. snpEff.") {
         for entry in ann.split(|c| *c == b'|') {
@@ -29,15 +30,19 @@ struct TMB {
     tmb: f64,
 }
 
-/// Estimate tumor mutational burden and print result to STDOUT.
-pub fn estimate(bcf: &mut bcf::Reader, somatic_tumor_events: Vec<&[u8]>, tumor_name: &[u8], coding_genome_size: u64) -> Result<(), Box<Error>> {
-    let tumor_id = bcf.header().sample_id(tumor_name).expect(&format!("Sample {} not found", str::from_utf8(tumor_name).unwrap()));
+/// Estimate tumor mutational burden based on Varlociraptor calls from STDIN and print result to STDOUT.
+pub fn estimate(somatic_tumor_events: &[String], tumor_name: &str, coding_genome_size: u64) -> Result<(), Box<dyn Error>> {
+    let mut bcf = bcf::Reader::from_stdin()?;
+    let header = bcf.header().to_owned();
+
+    let tumor_id = bcf.header().sample_id(tumor_name.as_bytes()).expect(&format!("Sample {} not found", tumor_name));
 
     let mut tmb = BTreeMap::new();
     for res in bcf.records() {
         let mut rec = res?;
 
         if !is_valid_variant(&mut rec)? {
+            info!("Skipping variant {}:{} because it is not coding.", str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap()).unwrap(), rec.pos());
             continue;
         }
 
@@ -45,8 +50,10 @@ pub fn estimate(bcf: &mut bcf::Reader, somatic_tumor_events: Vec<&[u8]>, tumor_n
 
         // collect allele probabilities for given events
         let allele_probs = vec![LogProb::ln_zero(); alt_allele_count];
-        for e in &somatic_tumor_events {
-            let probs = rec.info(e).float()?.expect(&format!("Event {} not found in VCF/BCF file.", str::from_utf8(e).unwrap()));
+        for e in somatic_tumor_events {
+            let e = SimpleEvent { name: e.to_owned() };
+            let tag_name = e.tag_name("PROB");
+            let probs = rec.info(tag_name.as_bytes()).float()?.expect(&format!("Event {} not found in VCF/BCF file.", e.name));
             for i in 0..alt_allele_count {
                 allele_probs[i].ln_add_exp(LogProb::from(PHREDProb(probs[i] as f64)));
             }

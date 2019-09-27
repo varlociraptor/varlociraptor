@@ -71,7 +71,7 @@ impl AlignmentProperties {
 
     /// Estimate `AlignmentProperties` from first 10000 fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
-    pub fn estimate<R: bam::Read>(bam: &mut R) -> Result<Self, Box<Error>> {
+    pub fn estimate<R: bam::Read>(bam: &mut R) -> Result<Self, Box<dyn Error>> {
         let mut properties = AlignmentProperties {
             insert_size: InsertSize::default(),
             max_del_cigar_len: 0,
@@ -84,12 +84,10 @@ impl AlignmentProperties {
         let mut max_mapq = 0;
         let mut i = 0;
         while i <= 10000 {
-            if let Err(e) = bam.read(&mut record) {
-                if e.is_eof() {
-                    break;
-                }
-                return Err(Box::new(e));
+            if !bam.read(&mut record)? {
+                break;
             }
+            
             if record.is_unmapped() || record.is_duplicate() || record.is_quality_check_failed() {
                 continue;
             }
@@ -151,7 +149,7 @@ impl InsertSize {
     /// Obtain insert size from samtools stats output.
     pub fn from_samtools_stats<R: io::Read>(
         samtools_stats: &mut R,
-    ) -> Result<InsertSize, Box<Error>> {
+    ) -> Result<InsertSize, Box<dyn Error>> {
         let mut rdr = csv::ReaderBuilder::new()
             .delimiter(b'\t')
             .comment(Some(b'#'))

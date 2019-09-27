@@ -10,8 +10,6 @@ extern crate approx;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
-extern crate quick_error;
-#[macro_use]
 extern crate lazy_static;
 extern crate askama;
 #[macro_use]
@@ -20,6 +18,8 @@ extern crate derive_new;
 extern crate pest_derive;
 #[macro_use]
 extern crate getset;
+#[macro_use]
+extern crate snafu;
 
 pub mod calling;
 pub mod cli;
@@ -37,20 +37,6 @@ pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSiz
 pub use crate::model::likelihood;
 pub use crate::model::modes;
 pub use crate::model::sample::Sample;
-
-quick_error! {
-    #[derive(Debug)]
-    pub enum BCFError {
-        MissingTag(name: String) {
-            description("unexpected missing tag")
-            display("expected tag {} missing from BCF record", name)
-        }
-        InvalidRecord(msg: String) {
-            description("invalid record")
-            display("{}", msg)
-        }
-    }
-}
 
 /// Event to call.
 pub trait Event {
