@@ -20,13 +20,12 @@ use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf, bcf::record::Numeric};
 
+use crate::errors;
 use crate::model;
 use crate::utils;
-use crate::errors;
 use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-3;
-
 
 /// Select values with given indices from a slice and return them as an iterator.
 pub fn select<'a, T: Clone>(idx: &'a [usize], values: &'a [T]) -> impl Iterator<Item = T> + 'a {
@@ -139,7 +138,9 @@ pub fn collect_variants(
             // get sequence
             let alleles = record.alleles();
             if alleles.len() > 2 {
-                return Err(errors::Error::InvalidBCFRecord {msg: "SVTYPE=INS but more than one ALT allele".to_owned()})?;
+                return Err(errors::Error::InvalidBCFRecord {
+                    msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
+                })?;
             }
             let ref_allele = alleles[0];
             let alt_allele = alleles[1];
@@ -163,12 +164,15 @@ pub fn collect_variants(
                 (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
                 (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
                 _ => {
-                    return Err(errors::Error::MissingBCFTag { name: "SVLEN or END".to_owned() })?;
+                    return Err(errors::Error::MissingBCFTag {
+                        name: "SVLEN or END".to_owned(),
+                    })?;
                 }
             };
             if svlen == 0 {
                 return Err(errors::Error::InvalidBCFRecord {
-                    msg: "Absolute value of SVLEN or END - POS must be greater than zero.".to_owned()
+                    msg: "Absolute value of SVLEN or END - POS must be greater than zero."
+                        .to_owned(),
                 })?;
             }
             let alleles = record.alleles();

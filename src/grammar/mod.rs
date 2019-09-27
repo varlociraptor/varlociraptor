@@ -9,10 +9,10 @@ use vec_map::VecMap;
 pub mod formula;
 pub mod vaftree;
 
+use crate::errors::Result;
 pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub use crate::grammar::vaftree::VAFTree;
 use crate::model;
-use crate::errors::Result;
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.

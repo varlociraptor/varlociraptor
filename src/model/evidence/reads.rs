@@ -239,7 +239,8 @@ impl AbstractReadEvidence for IndelEvidence {
                     let mut read_end = cmp::min(qend + max_window as usize, read_seq.len());
 
                     // correct for reads that enclose the entire variant while that exceeds the maximum pattern len
-                    let exceed = (read_end - read_offset).saturating_sub(EditDistanceCalculation::max_pattern_len());
+                    let exceed = (read_end - read_offset)
+                        .saturating_sub(EditDistanceCalculation::max_pattern_len());
                     if exceed > 0 {
                         read_offset += exceed / 2;
                         read_end -= (exceed as f64 / 2.0).ceil() as usize;
@@ -267,8 +268,8 @@ impl AbstractReadEvidence for IndelEvidence {
                     // The following should only happen with deletions.
                     // It occurs if the read comes from ref allele and is mapped within start
                     // and end of deletion. Usually, such reads strongly support the ref allele.
-                    let read_enclosed_by_variant = record.pos() >= varstart as i32
-                        && cigar.end_pos() <= varend as i32;
+                    let read_enclosed_by_variant =
+                        record.pos() >= varstart as i32 && cigar.end_pos() <= varend as i32;
                     (read_offset, read_end, breakpoint, read_enclosed_by_variant)
                 }
             }

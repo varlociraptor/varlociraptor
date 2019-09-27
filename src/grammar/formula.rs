@@ -10,9 +10,9 @@ use serde::de;
 use serde::Deserialize;
 
 use crate::errors;
+use crate::errors::Result;
 use crate::grammar::Scenario;
 use crate::model::AlleleFreq;
-use crate::errors::Result;
 
 #[derive(Parser)]
 #[grammar = "grammar/formula.pest"]
@@ -145,10 +145,7 @@ impl Formula {
         })
     }
 
-    pub fn normalize(
-        &self,
-        scenario: &Scenario,
-    ) -> Result<NormalizedFormula> {
+    pub fn normalize(&self, scenario: &Scenario) -> Result<NormalizedFormula> {
         Ok(match self {
             Formula::Negation { operand } => operand.negate(scenario)?.normalize(scenario)?,
             Formula::Atom { sample, vafs } => NormalizedFormula::Atom {

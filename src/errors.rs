@@ -9,13 +9,18 @@ pub enum Error {
     MissingSampleEvent { event_name: String },
     #[snafu(display("no BAM file given for sample {}", name))]
     InvalidBAMSampleName { name: String },
-    #[snafu(display("contamination refers to unknown sample {}; it is not defined in the scenario", name))]
+    #[snafu(display(
+        "contamination refers to unknown sample {}; it is not defined in the scenario",
+        name
+    ))]
     InvalidContaminationSampleName { name: String },
     #[snafu(display("alignment property files must be provided as name=path"))]
     InvalidAlignmentPropertiesSpec,
     #[snafu(display("BAM files must be provided as name=path"))]
     InvalidBAMSpec,
-    #[snafu(display("invalid variant index given, must be not higher than the number of variants at the locus"))]
+    #[snafu(display(
+        "invalid variant index given, must be not higher than the number of variants at the locus"
+    ))]
     InvalidIndex,
     #[snafu(display("invalid locus for --testcase-locus. Use CHROM:POS syntax"))]
     InvalidLocus,
@@ -31,6 +36,8 @@ pub enum Error {
     MissingBCFTag { name: String },
     #[snafu(display("invalid BCF record: {}", msg))]
     InvalidBCFRecord { msg: String },
-    #[snafu(display("unable to estimate TMB because no valid records were found in the given BCF/VCF"))]
-    NoRecordsFound
+    #[snafu(display(
+        "unable to estimate TMB because no valid records were found in the given BCF/VCF"
+    ))]
+    NoRecordsFound,
 }

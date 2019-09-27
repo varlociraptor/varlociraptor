@@ -5,10 +5,10 @@
 
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
+use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::error::Error;
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
@@ -73,9 +73,9 @@ pub enum Varlociraptor {
         about = "Perform estimations.",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
-    Estimate{
+    Estimate {
         #[structopt(subcommand)]
-        kind: EstimateKind
+        kind: EstimateKind,
     },
 }
 
@@ -103,7 +103,7 @@ pub enum EstimateKind {
             help = "Size of the covered coding genome."
         )]
         coding_genome_size: f64,
-    }
+    },
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -297,7 +297,7 @@ pub enum VariantCallMode {
 pub enum FilterMethod {
     #[structopt(
         name = "control-fdr",
-        about = "Filter variant calls by controlling FDR. Filtered calls a printed to STDOUT.",
+        about = "Filter variant calls by controlling FDR. Filtered calls are printed to STDOUT.",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     ControlFDR {
@@ -320,7 +320,7 @@ pub enum FilterMethod {
     },
     #[structopt(
         name = "posterior-odds",
-        about = "Filter variant calls by posterior odds of given events against the rest of events.",
+        about = "Filter variant calls by posterior odds of given events against the rest of events. Calls are taken from STDIN, filtered calls are printed to STDOUT.",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     PosteriorOdds {
@@ -454,22 +454,22 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 
                                     // parse samples
                                     for (sample_name, sample) in scenario.samples().iter() {
-                                        let contamination =
-                                            if let Some(contamination) = sample.contamination() {
-                                                let contaminant = scenario
-                                                .idx(contamination.by())
-                                                .ok_or(
-                                                errors::Error::InvalidContaminationSampleName {
-                                                    name: sample_name.to_owned(),
-                                                },
-                                            )?;
-                                                Some(Contamination {
-                                                    by: contaminant,
-                                                    fraction: *contamination.fraction(),
-                                                })
-                                            } else {
-                                                None
-                                            };
+                                        let contamination = if let Some(contamination) =
+                                            sample.contamination()
+                                        {
+                                            let contaminant =
+                                                scenario.idx(contamination.by()).ok_or(
+                                                    errors::Error::InvalidContaminationSampleName {
+                                                        name: sample_name.to_owned(),
+                                                    },
+                                                )?;
+                                            Some(Contamination {
+                                                by: contaminant,
+                                                fraction: *contamination.fraction(),
+                                            })
+                                        } else {
+                                            None
+                                        };
                                         contaminations =
                                             contaminations.push(sample_name, contamination);
                                         resolutions =
@@ -511,14 +511,15 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                         .build()?;
 
                                     // setup caller
-                                    let mut caller_builder = calling::variants::CallerBuilder::default()
-                                        .samples(samples.build())
-                                        .reference(reference)?
-                                        .inbcf(candidates.as_ref())?
-                                        .model(model)
-                                        .omit_snvs(omit_snvs)
-                                        .omit_indels(omit_indels)
-                                        .max_indel_len(max_indel_len);
+                                    let mut caller_builder =
+                                        calling::variants::CallerBuilder::default()
+                                            .samples(samples.build())
+                                            .reference(reference)?
+                                            .inbcf(candidates.as_ref())?
+                                            .model(model)
+                                            .omit_snvs(omit_snvs)
+                                            .omit_indels(omit_indels)
+                                            .max_indel_len(max_indel_len);
                                     for (event_name, vaftree) in scenario.vaftrees()? {
                                         caller_builder = caller_builder.event(&event_name, vaftree);
                                     }
@@ -720,18 +721,18 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
         },
         Varlociraptor::DecodePHRED => {
             conversion::decode_phred::decode_phred()?;
-        },
-        Varlociraptor::Estimate { kind } => {
-            match kind {
-                EstimateKind::TMB {
-                    somatic_tumor_events,
-                    tumor_sample,
-                    coding_genome_size,
-                } => {
-                    estimation::tumor_mutational_burden::estimate(&somatic_tumor_events, &tumor_sample, coding_genome_size as u64)?
-                },
-            }
         }
+        Varlociraptor::Estimate { kind } => match kind {
+            EstimateKind::TMB {
+                somatic_tumor_events,
+                tumor_sample,
+                coding_genome_size,
+            } => estimation::tumor_mutational_burden::estimate(
+                &somatic_tumor_events,
+                &tumor_sample,
+                coding_genome_size as u64,
+            )?,
+        },
     }
     Ok(())
 }

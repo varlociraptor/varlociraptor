@@ -17,10 +17,10 @@ use serde::Serialize;
 use serde_json;
 use structopt::StructOpt;
 
+use crate::errors;
 use crate::model::sample;
 use crate::model::Variant;
 use crate::utils;
-use crate::errors;
 
 lazy_static! {
     static ref TESTCASE_RE: Regex =
@@ -171,7 +171,8 @@ where
                             self.chrom_name = Some(
                                 self.candidate_reader
                                     .header()
-                                    .rid2name(record.rid().unwrap()).unwrap()
+                                    .rid2name(record.rid().unwrap())
+                                    .unwrap()
                                     .to_owned(),
                             );
                             self.pos = Some(record.pos());

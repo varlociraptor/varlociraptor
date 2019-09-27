@@ -87,7 +87,7 @@ impl AlignmentProperties {
             if !bam.read(&mut record)? {
                 break;
             }
-            
+
             if record.is_unmapped() || record.is_duplicate() || record.is_quality_check_failed() {
                 continue;
             }

@@ -15,7 +15,7 @@ use bio_types::strand::Strand;
 use derive_builder::Builder;
 use rand::distributions;
 use rand::distributions::Distribution;
-use rand::{SeedableRng, rngs::StdRng};
+use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
 
@@ -152,7 +152,10 @@ impl SampleBuilder {
 }
 
 fn is_valid_record(record: &bam::Record) -> bool {
-    !(record.is_secondary() || record.is_duplicate() || record.is_unmapped() || record.is_quality_check_failed())
+    !(record.is_secondary()
+        || record.is_duplicate()
+        || record.is_unmapped()
+        || record.is_quality_check_failed())
 }
 
 impl Sample {
@@ -177,7 +180,11 @@ impl Sample {
             }
         }
 
-        self.record_buffer.fetch(chrom, start.saturating_sub(self.buffer_window), variant.end(start) + self.buffer_window)?;
+        self.record_buffer.fetch(
+            chrom,
+            start.saturating_sub(self.buffer_window),
+            variant.end(start) + self.buffer_window,
+        )?;
 
         let mut observations = Vec::new();
 
@@ -522,7 +529,12 @@ impl Sample {
             forward_strand = true;
             reverse_strand = true;
         }
-        let prob_double_overlap = self.indel_fragment_evidence.borrow().prob_double_overlap(left_read_len, right_read_len, variant, &self.alignment_properties);
+        let prob_double_overlap = self.indel_fragment_evidence.borrow().prob_double_overlap(
+            left_read_len,
+            right_read_len,
+            variant,
+            &self.alignment_properties,
+        );
 
         let obs = Observation::new(
             prob_mismapping.ln_one_minus_exp(),

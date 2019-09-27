@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use itertools::Itertools;
 
 use crate::errors;
+use crate::errors::Result;
 use crate::grammar::{formula::NormalizedFormula, Scenario, VAFSpectrum};
 use crate::model::AlleleFreq;
-use crate::errors::Result;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VAFTree {
@@ -72,14 +72,8 @@ impl Node {
 }
 
 impl VAFTree {
-    pub fn new(
-        formula: &NormalizedFormula,
-        scenario: &Scenario,
-    ) -> Result<Self> {
-        fn from(
-            formula: &NormalizedFormula,
-            scenario: &Scenario,
-        ) -> Result<Vec<Box<Node>>> {
+    pub fn new(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Self> {
+        fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Box<Node>>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
                     let sample = scenario.idx(sample.as_str()).ok_or_else(|| {
