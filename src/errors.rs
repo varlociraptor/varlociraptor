@@ -31,4 +31,6 @@ pub enum Error {
     MissingBCFTag { name: String },
     #[snafu(display("invalid BCF record: {}", msg))]
     InvalidBCFRecord { msg: String },
+    #[snafu(display("unable to estimate TMB because no valid records were found in the given BCF/VCF"))]
+    NoRecordsFound
 }

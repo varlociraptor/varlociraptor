@@ -1,10 +1,10 @@
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
   "description": "Tumor mutational burden.",
-  "data": [],
+  "data": { "values": [] },
   "mark": "line",
   "encoding": {
-    "x": {"field": "min_vaf", "type": "quantitative", "axis": { "labelExpr": "'minimum VAF'" }},
-    "y": {"field": "tmb", "type": "quantitative", "axis": { "labelExpr": "'mutations/Mb'" }}
+    "x": {"field": "min_vaf", "type": "quantitative", "axis": { "title": "minimum VAF" }},
+    "y": {"field": "tmb", "type": "quantitative", "axis": { "title": "mutations/Mb" }}
   }
 }

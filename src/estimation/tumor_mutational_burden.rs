@@ -9,6 +9,7 @@ use serde_json::{Value,json};
 
 use crate::model::AlleleFreq;
 use crate::{SimpleEvent, Event};
+use crate::errors;
 
 /// Consider only variants in coding regions.
 /// We rely on the ANN field for this.
@@ -38,24 +39,29 @@ pub fn estimate(somatic_tumor_events: &[String], tumor_name: &str, coding_genome
     let tumor_id = bcf.header().sample_id(tumor_name.as_bytes()).expect(&format!("Sample {} not found", tumor_name));
 
     let mut tmb = BTreeMap::new();
-    for res in bcf.records() {
+    'records: for res in bcf.records() {
         let mut rec = res?;
+        let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
 
         if !is_valid_variant(&mut rec)? {
-            info!("Skipping variant {}:{} because it is not coding.", str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap()).unwrap(), rec.pos());
+            info!("Skipping variant {}:{} because it is not coding.", contig, rec.pos());
             continue;
         }
 
         let alt_allele_count = (rec.allele_count() - 1) as usize;
 
         // collect allele probabilities for given events
-        let allele_probs = vec![LogProb::ln_zero(); alt_allele_count];
+        let mut allele_probs = vec![LogProb::ln_zero(); alt_allele_count];
         for e in somatic_tumor_events {
             let e = SimpleEvent { name: e.to_owned() };
             let tag_name = e.tag_name("PROB");
-            let probs = rec.info(tag_name.as_bytes()).float()?.expect(&format!("Event {} not found in VCF/BCF file.", e.name));
-            for i in 0..alt_allele_count {
-                allele_probs[i].ln_add_exp(LogProb::from(PHREDProb(probs[i] as f64)));
+            if let Some(probs) = rec.info(tag_name.as_bytes()).float()? {
+                for i in 0..alt_allele_count {
+                    allele_probs[i] = allele_probs[i].ln_add_exp(LogProb::from(PHREDProb(probs[i] as f64)));
+                }
+            } else {
+                info!("Skipping variant {}:{} because it does not contain the required INFO tag {}.", contig, rec.pos(), tag_name);
+                continue 'records;
             }
         }
 
@@ -70,11 +76,15 @@ pub fn estimate(somatic_tumor_events: &[String], tumor_name: &str, coding_genome
         }
     }
 
+    if tmb.is_empty() {
+        return Err(errors::Error::NoRecordsFound)?
+    }
+
     let mut plot_data = Vec::new();
     // calculate TMB function (expected number of somatic variants per minimum allele frequency)
     for min_vaf in tmb.keys() {
         let probs = tmb.range(min_vaf..).map(|(_, probs)| probs).flatten().cloned().collect_vec();
-        let count = *LogProb::ln_sum_exp(&probs);
+        let count = LogProb::ln_sum_exp(&probs).exp();
         // Expected number of variants with VAF>=min_vaf per megabase.
         let tmb = count / coding_genome_size as f64 * 1000000.0;
         plot_data.push(TMB { min_vaf: **min_vaf, tmb });
@@ -82,7 +92,7 @@ pub fn estimate(somatic_tumor_events: &[String], tumor_name: &str, coding_genome
 
     let mut blueprint = serde_json::from_str(include_str!("../../templates/plots/tmb.json"))?;
     if let Value::Object(ref mut blueprint) = blueprint {
-        blueprint["data"] = json!(plot_data);
+        blueprint["data"]["values"] = json!(plot_data);
         // print to STDOUT
         println!("{}", serde_json::to_string_pretty(blueprint)?);
     } else {

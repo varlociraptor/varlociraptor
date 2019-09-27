@@ -16,6 +16,7 @@ use itertools::Itertools;
 use rayon;
 use rust_htslib::bam;
 use serde_yaml;
+use structopt;
 use structopt::StructOpt;
 
 use crate::calling;
@@ -34,12 +35,14 @@ use crate::SimpleEvent;
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
     name = "varlociraptor",
-    about = "A caller for SNVs and indels in tumor-normal pairs."
+    about = "A caller for SNVs and indels in tumor-normal pairs.",
+    setting = structopt::clap::AppSettings::ColoredHelp,
 )]
 pub enum Varlociraptor {
     #[structopt(
         name = "call",
-        about = "Call variants."
+        about = "Call variants.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Call {
         #[structopt(subcommand)]
@@ -47,7 +50,8 @@ pub enum Varlociraptor {
     },
     #[structopt(
         name = "filter-calls",
-        about = "Filter calls by either controlling the false discovery rate (FDR) at given level, or by posterior odds against the given events."
+        about = "Filter calls by either controlling the false discovery rate (FDR) at given level, or by posterior odds against the given events.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     FilterCalls {
         #[structopt(subcommand)]
@@ -55,16 +59,19 @@ pub enum Varlociraptor {
     },
     #[structopt(
         name = "decode-phred",
-        about = "Decode PHRED-scaled values to human readable probabilities."
+        about = "Decode PHRED-scaled values to human readable probabilities.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     DecodePHRED,
     #[structopt(
         name = "estimate",
-        about = "Perform estimations."
+        about = "Perform estimations.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     #[structopt(
         name = "estimate",
-        about = "Perform estimations."
+        about = "Perform estimations.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Estimate{
         #[structopt(subcommand)]
@@ -76,7 +83,8 @@ pub enum Varlociraptor {
 pub enum EstimateKind {
     #[structopt(
         name = "tmb",
-        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT."
+        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     TMB {
         #[structopt(
@@ -102,7 +110,8 @@ pub enum EstimateKind {
 pub enum CallKind {
     #[structopt(
         name = "variants",
-        about = "Call variants."
+        about = "Call variants.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Variants {
         #[structopt(subcommand)]
@@ -191,7 +200,8 @@ pub enum CallKind {
     },
     #[structopt(
         name = "cnvs",
-        about = "Call CNVs in tumor-normal sample pairs. This is experimental."
+        about = "Call CNVs in tumor-normal sample pairs. This is experimental.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     CNVs {
         #[structopt(
@@ -234,7 +244,8 @@ pub enum CallKind {
 pub enum VariantCallMode {
     #[structopt(
         name = "tumor-normal",
-        about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants."
+        about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     TumorNormal {
         #[structopt(parse(from_os_str), help = "BAM file with reads from tumor sample.")]
@@ -261,7 +272,8 @@ pub enum VariantCallMode {
     #[structopt(
         name = "generic",
         about = "Call variants for a given scenario specified with the varlociraptor calling \
-                 grammar and a VCF/BCF with candidate variants."
+                 grammar and a VCF/BCF with candidate variants.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Generic {
         #[structopt(
@@ -285,7 +297,8 @@ pub enum VariantCallMode {
 pub enum FilterMethod {
     #[structopt(
         name = "control-fdr",
-        about = "Filter variant calls by controlling FDR. Filtered calls a printed to STDOUT."
+        about = "Filter variant calls by controlling FDR. Filtered calls a printed to STDOUT.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     ControlFDR {
         #[structopt(parse(from_os_str), help = "BCF file with varlociraptor calls.")]
@@ -307,7 +320,8 @@ pub enum FilterMethod {
     },
     #[structopt(
         name = "posterior-odds",
-        about = "Filter variant calls by posterior odds of given events against the rest of events."
+        about = "Filter variant calls by posterior odds of given events against the rest of events.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     PosteriorOdds {
         #[structopt(
