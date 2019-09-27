@@ -2,8 +2,6 @@
 # will have compiled files and executables
 /target/
 
-Cargo.lock
-
 #tests/resources/test0*/*
 #tests/resources/test1*/*
 #tests/resources/test2*/*
