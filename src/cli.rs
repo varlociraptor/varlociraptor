@@ -83,7 +83,11 @@ pub enum Varlociraptor {
 pub enum EstimateKind {
     #[structopt(
         name = "tmb",
-        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT.",
+        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated \
+                 with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT. \
+                 It can be converted to an image via vega-lite-cli (see conda package).",
+        usage = "varlociraptor estimate tmb --coding-genome-size 3e7 --somatic-tumor-events SOMATIC_TUMOR \
+                 --tumor-sample tumor < calls.bcf | vg2svg > tmb.svg",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     TMB {
@@ -200,7 +204,7 @@ pub enum CallKind {
     },
     #[structopt(
         name = "cnvs",
-        about = "Call CNVs in tumor-normal sample pairs. This is experimental.",
+        about = "Call CNVs in tumor-normal sample pairs. This is experimental (do not use it yet).",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     CNVs {
@@ -226,7 +230,7 @@ pub enum CallKind {
                     The higher this value, the fewer candidate CNVs will be investigated. \
                     Note that this can be usually left unchanged, because every CNV is provided \
                     with a posterior probability that can be used for filtering, e.g., via \
-                    'varlociraptor control-fdr'."
+                    'varlociraptor filter-calls control-fdr'."
         )]
         min_bayes_factor: f64,
         #[structopt(
@@ -245,6 +249,7 @@ pub enum VariantCallMode {
     #[structopt(
         name = "tumor-normal",
         about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants.",
+        usage = "varlociraptor call variants reference.fa tumor-normal --purity 0.75 tumor.bam normal.bam < candidates.bcf > calls.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     TumorNormal {
@@ -273,6 +278,8 @@ pub enum VariantCallMode {
         name = "generic",
         about = "Call variants for a given scenario specified with the varlociraptor calling \
                  grammar and a VCF/BCF with candidate variants.",
+        usage = "varlociraptor call variants reference.fa generic --bams relapse=relapse.bam \
+                 tumor=tumor.bam normal=normal.bam < candidates.bcf > calls.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Generic {
@@ -298,6 +305,8 @@ pub enum FilterMethod {
     #[structopt(
         name = "control-fdr",
         about = "Filter variant calls by controlling FDR. Filtered calls are printed to STDOUT.",
+        usage = "varlociraptor filter-calls control-fdr calls.bcf --events SOMATIC_TUMOR --fdr 0.05 \
+                 --var SNV > calls.filtered.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     ControlFDR {
@@ -320,7 +329,9 @@ pub enum FilterMethod {
     },
     #[structopt(
         name = "posterior-odds",
-        about = "Filter variant calls by posterior odds of given events against the rest of events. Calls are taken from STDIN, filtered calls are printed to STDOUT.",
+        about = "Filter variant calls by posterior odds of given events against the rest of events. \
+                 Calls are taken from STDIN, filtered calls are printed to STDOUT.",
+        usage = "varlociraptor filter-calls posterior-odds --events SOMATIC_TUMOR --odds strong < calls.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     PosteriorOdds {

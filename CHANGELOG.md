@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.2.0] - 2019-09-27
+- Estimation of tumor mutational burden as a curve of expectations over minimum allele frequencies.
+- Various small bug fixes.
+
+## [1.1.0] - 2019-07-03
+- Numerical improvements to strand bias model.
+
 ## [1.0.1] - 2019-05-15
 - Fix numerical issue with indel variant calling.
 - Fix indel window length issues with reads >100bp.
