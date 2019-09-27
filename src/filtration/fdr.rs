@@ -37,7 +37,7 @@ pub fn control_fdr<E: Event, R, W>(
     events: &[E],
     vartype: &model::VariantType,
     alpha: LogProb,
-) -> Result<(), Box<Error>>
+) -> Result<(), Box<dyn Error>>
 where
     R: AsRef<Path>,
     W: AsRef<Path>,
@@ -48,8 +48,8 @@ where
     // setup output file
     let header = bcf::Header::from_template(inbcf_reader.header());
     let mut outbcf = match outbcf {
-        Some(p) => bcf::Writer::from_path(p, &header, false, false)?,
-        None => bcf::Writer::from_stdout(&header, false, false)?,
+        Some(p) => bcf::Writer::from_path(p, &header, false, bcf::Format::BCF)?,
+        None => bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?,
     };
 
     let mut threshold = None;

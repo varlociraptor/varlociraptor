@@ -60,7 +60,7 @@ impl CallerBuilder {
         mut self,
         in_path: Option<P>,
         out_path: Option<P>,
-    ) -> Result<Self, Box<Error>> {
+    ) -> Result<Self, Box<dyn Error>> {
         self = self.bcf_reader(if let Some(path) = in_path {
             bcf::Reader::from_path(path)?
         } else {
@@ -143,15 +143,15 @@ impl CallerBuilder {
         self = self.contig_lens(contig_lens);
 
         Ok(self.bcf_writer(if let Some(path) = out_path {
-            bcf::Writer::from_path(path, &header, false, false)?
+            bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)?
         } else {
-            bcf::Writer::from_stdout(&header, false, false)?
+            bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?
         }))
     }
 }
 
 impl Caller {
-    pub fn call(&mut self) -> Result<(), Box<Error>> {
+    pub fn call(&mut self) -> Result<(), Box<dyn Error>> {
         // obtain records
 
         let calls = {
@@ -160,12 +160,8 @@ impl Caller {
             let mut curr_region = None;
             let mut _calls = Vec::new();
             loop {
-                if let Err(e) = self.bcf_reader.read(&mut record) {
-                    if e.is_eof() {
-                        break;
-                    } else {
-                        Err(e)?;
-                    }
+                if !self.bcf_reader.read(&mut record)? {
+                    break;
                 }
 
                 if let Some(call) = Call::new(&mut record)? {
@@ -211,7 +207,7 @@ impl Caller {
         };
 
         // normalization
-        let mean_depth = |filter: &Fn(&Call) -> u32| {
+        let mean_depth = |filter: &dyn Fn(&Call) -> u32| {
             calls.values().flatten().map(filter).sum::<u32>() as f64 / calls.len() as f64
         };
         let mean_depth_tumor = mean_depth(&|call: &Call| call.depth_tumor);
@@ -268,7 +264,7 @@ impl Caller {
             .collect();
 
         for (region, calls) in cnv_calls {
-            let contig = self.bcf_reader.header().rid2name(region.rid);
+            let contig = self.bcf_reader.header().rid2name(region.rid)?;
             let rid = self.bcf_writer.header().name2rid(contig)?;
             for call in calls {
                 let mut record = self.bcf_writer.empty_record();
@@ -309,7 +305,7 @@ impl<'a> CNVCall<'a> {
         record: &mut bcf::Record,
         depth_norm_factor: f64,
         contig_len: u32,
-    ) -> Result<(), Box<Error>> {
+    ) -> Result<(), Box<dyn Error>> {
         record.set_rid(&Some(rid));
         record.set_pos(self.pos as i32);
         record.set_alleles(&[b"N", b"<CNV>"])?;
@@ -530,7 +526,7 @@ impl hmm::Model<Call> for HMM {
 }
 
 pub fn likelihood<'a, O: 'a>(
-    hmm: &hmm::Model<O>,
+    hmm: &dyn hmm::Model<O>,
     states: impl IntoIterator<Item = hmm::State>,
     observations: impl Iterator<Item = &'a O>,
 ) -> LogProb {
@@ -543,7 +539,7 @@ pub fn likelihood<'a, O: 'a>(
 }
 
 pub fn marginal<'a, O: 'a>(
-    hmm: &hmm::Model<O>,
+    hmm: &dyn hmm::Model<O>,
     observations: impl IntoIterator<Item = &'a O>,
 ) -> LogProb {
     let mut prev = vec![LogProb::ln_zero(); hmm.num_states()];
@@ -584,7 +580,7 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn new(record: &mut bcf::Record) -> Result<Option<Self>, Box<Error>> {
+    pub fn new(record: &mut bcf::Record) -> Result<Option<Self>, Box<dyn Error>> {
         let pos = record.pos();
         let prob_germline_het = record.info(b"PROB_GERMLINE_HET").float()?;
         if let Some(_prob_germline_het) = prob_germline_het {

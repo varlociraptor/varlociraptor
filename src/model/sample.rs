@@ -4,8 +4,7 @@
 // except according to those terms.
 
 use std::cell::{RefCell, RefMut};
-use std::cmp;
-use std::collections::{vec_deque, BTreeMap, VecDeque};
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::f64;
 use std::path::Path;
@@ -15,11 +14,10 @@ use bio::stats::{LogProb, Prob};
 use bio_types::strand::Strand;
 use derive_builder::Builder;
 use rand::distributions;
-use rand::distributions::IndependentSample;
-use rand::{SeedableRng, StdRng};
+use rand::distributions::Distribution;
+use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
-use rust_htslib::bam::Read;
 
 use crate::estimation::alignment_properties;
 use crate::model::evidence;
@@ -28,116 +26,7 @@ use crate::model::evidence::{Evidence, Observation};
 use crate::model::{Variant, VariantType};
 use crate::utils::{is_repeat_variant, max_prob, Overlap};
 
-quick_error! {
-    #[derive(Debug)]
-    pub enum RecordBufferError {
-        UnknownSequence(chrom: String) {
-            description("unknown sequence")
-            display("sequence {} cannot be found in BAM", chrom)
-        }
-    }
-}
-
 pub type Pileup = Vec<Observation>;
-
-/// Ringbuffer of BAM records. This data structure ensures that no bam record is read twice while
-/// extracting observations for given variants.
-#[derive(Debug)]
-pub struct RecordBuffer {
-    reader: bam::IndexedReader,
-    inner: VecDeque<bam::Record>,
-    pub window: u32,
-    use_secondary: bool,
-}
-
-unsafe impl Sync for RecordBuffer {}
-unsafe impl Send for RecordBuffer {}
-
-impl RecordBuffer {
-    /// Create a new `RecordBuffer`.
-    pub fn new(bam: bam::IndexedReader, window: u32, use_secondary: bool) -> Self {
-        RecordBuffer {
-            reader: bam,
-            inner: VecDeque::with_capacity(window as usize * 2),
-            window: window as u32,
-            use_secondary: use_secondary,
-        }
-    }
-
-    /// Return end position of buffer.
-    fn end(&self) -> Option<u32> {
-        self.inner.back().map(|rec| rec.pos() as u32)
-    }
-
-    fn tid(&self) -> Option<i32> {
-        self.inner.back().map(|rec| rec.tid())
-    }
-
-    /// Fill buffer around the given interval.
-    pub fn fill(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<(), Box<Error>> {
-        if let Some(tid) = self.reader.header().tid(chrom) {
-            let window_start = cmp::max(start as i32 - self.window as i32 - 1, 0) as u32;
-            if self.inner.is_empty()
-                || self.end().unwrap() < window_start
-                || self.tid().unwrap() != tid as i32
-            {
-                let end = self.reader.header().target_len(tid).unwrap();
-                self.reader.fetch(tid, window_start, end)?;
-                debug!("Clearing ringbuffer");
-                self.inner.clear();
-            } else {
-                // remove records too far left
-                let to_remove = self
-                    .inner
-                    .iter()
-                    .take_while(|rec| rec.pos() < window_start as i32)
-                    .count();
-                debug!("Removing {} records", to_remove);
-                for _ in 0..to_remove {
-                    self.inner.pop_front();
-                }
-            }
-
-            // extend to the right
-            loop {
-                let mut record = bam::Record::new();
-                if let Err(e) = self.reader.read(&mut record) {
-                    if e.is_eof() {
-                        break;
-                    }
-                    return Err(Box::new(e));
-                }
-
-                let pos = record.pos();
-                if record.is_duplicate() || record.is_unmapped() || record.is_quality_check_failed()
-                {
-                    continue;
-                }
-                if !self.use_secondary && record.is_secondary() {
-                    continue;
-                }
-                // unpack cigar string
-                record.cache_cigar();
-                self.inner.push_back(record);
-                if pos > end as i32 + self.window as i32 {
-                    break;
-                }
-            }
-
-            debug!("New buffer length: {}", self.inner.len());
-
-            Ok(())
-        } else {
-            Err(Box::new(RecordBufferError::UnknownSequence(
-                str::from_utf8(chrom).unwrap().to_owned(),
-            )))
-        }
-    }
-
-    pub fn iter(&self) -> vec_deque::Iter<bam::Record> {
-        self.inner.iter()
-    }
-}
 
 struct Candidate<'a> {
     left: &'a bam::Record,
@@ -157,7 +46,7 @@ pub enum SubsampleCandidates {
     Necessary {
         rng: StdRng,
         prob: f64,
-        prob_range: distributions::Range<f64>,
+        prob_range: distributions::Uniform<f64>,
     },
     None,
 }
@@ -166,9 +55,9 @@ impl SubsampleCandidates {
     pub fn new(max_depth: usize, depth: usize) -> Self {
         if depth > max_depth {
             SubsampleCandidates::Necessary {
-                rng: StdRng::from_seed(&[48074578]),
+                rng: StdRng::seed_from_u64(48074578),
                 prob: max_depth as f64 / depth as f64,
-                prob_range: distributions::Range::new(0.0, 1.0),
+                prob_range: distributions::Uniform::new(0.0, 1.0),
             }
         } else {
             SubsampleCandidates::None
@@ -181,7 +70,7 @@ impl SubsampleCandidates {
                 rng,
                 prob,
                 prob_range,
-            } => prob_range.ind_sample(rng) <= *prob,
+            } => prob_range.sample(rng) <= *prob,
             SubsampleCandidates::None => true,
         }
     }
@@ -189,7 +78,7 @@ impl SubsampleCandidates {
 
 pub fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
-) -> Result<alignment_properties::AlignmentProperties, Box<Error>> {
+) -> Result<alignment_properties::AlignmentProperties, Box<dyn Error>> {
     let mut bam = bam::Reader::from_path(path)?;
     Ok(alignment_properties::AlignmentProperties::estimate(
         &mut bam,
@@ -202,7 +91,7 @@ pub fn estimate_alignment_properties<P: AsRef<Path>>(
 pub struct Sample {
     name: String,
     #[builder(private)]
-    record_buffer: RecordBuffer,
+    record_buffer: bam::buffer::RecordBuffer,
     #[builder(default = "true")]
     use_fragment_evidence: bool,
     #[builder(private)]
@@ -219,6 +108,8 @@ pub struct Sample {
     max_depth: usize,
     #[builder(default = "Vec::new()")]
     omit_repeat_regions: Vec<VariantType>,
+    #[builder(private)]
+    buffer_window: u32,
 }
 
 impl SampleBuilder {
@@ -234,7 +125,8 @@ impl SampleBuilder {
         let pileup_window = (alignment_properties.insert_size().mean
             + alignment_properties.insert_size().sd * 6.0) as u32;
         self.alignment_properties(alignment_properties)
-            .record_buffer(RecordBuffer::new(bam, pileup_window, false))
+            .record_buffer(bam::RecordBuffer::new(bam, true))
+            .buffer_window(pileup_window)
     }
 
     /// Register error probabilities and window to check around indels.
@@ -259,6 +151,13 @@ impl SampleBuilder {
     }
 }
 
+fn is_valid_record(record: &bam::Record) -> bool {
+    !(record.is_secondary()
+        || record.is_duplicate()
+        || record.is_unmapped()
+        || record.is_quality_check_failed())
+}
+
 impl Sample {
     pub fn name(&self) -> &str {
         &self.name
@@ -271,7 +170,7 @@ impl Sample {
         variant: &Variant,
         chrom: &[u8],
         chrom_seq: &[u8],
-    ) -> Result<Pileup, Box<Error>> {
+    ) -> Result<Pileup, Box<dyn Error>> {
         let centerpoint = variant.centerpoint(start);
 
         for vartype in &self.omit_repeat_regions {
@@ -281,7 +180,11 @@ impl Sample {
             }
         }
 
-        self.record_buffer.fill(chrom, start, variant.end(start))?;
+        self.record_buffer.fetch(
+            chrom,
+            start.saturating_sub(self.buffer_window),
+            variant.end(start) + self.buffer_window,
+        )?;
 
         let mut observations = Vec::new();
 
@@ -291,6 +194,9 @@ impl Sample {
                 let mut candidate_records = Vec::new();
                 // iterate over records
                 for record in self.record_buffer.iter() {
+                    if !is_valid_record(record) {
+                        continue;
+                    }
                     if record.pos() as u32 > start {
                         // the read cannot overlap the variant
                         continue;
@@ -330,6 +236,10 @@ impl Sample {
 
                 // iterate over records
                 for record in self.record_buffer.iter() {
+                    if !is_valid_record(record) {
+                        continue;
+                    }
+
                     // First, we check whether the record contains an indel in the cigar.
                     // We store the maximum indel size to update the global estimates, in case
                     // it is larger in this region.
@@ -383,7 +293,7 @@ impl Sample {
 
                         let cigar = right.cigar_cached().unwrap();
                         let end_pos =
-                            cigar.end_pos()? as u32 + evidence::Clips::trailing(cigar).soft();
+                            cigar.end_pos() as u32 + evidence::Clips::trailing(cigar).soft();
 
                         if end_pos < centerpoint {
                             continue;
@@ -472,8 +382,8 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
-    ) -> Result<Option<Observation>, Box<Error>> {
-        let mut evidence: RefMut<evidence::reads::AbstractReadEvidence> = match variant {
+    ) -> Result<Option<Observation>, Box<dyn Error>> {
+        let mut evidence: RefMut<dyn evidence::reads::AbstractReadEvidence> = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => self.indel_read_evidence.borrow_mut(),
             &Variant::SNV(_) => self.snv_read_evidence.borrow_mut(),
             &Variant::None => self.none_read_evidence.borrow_mut(),
@@ -535,10 +445,10 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
-    ) -> Result<Option<Observation>, Box<Error>> {
+    ) -> Result<Option<Observation>, Box<dyn Error>> {
         let prob_read = |record: &bam::Record,
                          cigar: &CigarStringView|
-         -> Result<(LogProb, LogProb), Box<Error>> {
+         -> Result<(LogProb, LogProb), Box<dyn Error>> {
             // Calculate read evidence.
             // We also calculate it in case of no overlap. Otherwise, there would be a bias due to
             // non-overlapping fragments having higher likelihoods.
@@ -619,7 +529,12 @@ impl Sample {
             forward_strand = true;
             reverse_strand = true;
         }
-        let prob_double_overlap = self.indel_fragment_evidence.borrow().prob_double_overlap(left_read_len, right_read_len, variant, &self.alignment_properties);
+        let prob_double_overlap = self.indel_fragment_evidence.borrow().prob_double_overlap(
+            left_read_len,
+            right_read_len,
+            variant,
+            &self.alignment_properties,
+        );
 
         let obs = Observation::new(
             prob_mismapping.ln_one_minus_exp(),
@@ -723,17 +638,6 @@ mod tests {
                 panic!("read_observation() test for indels failed; it returned 'None'.")
             }
         }
-    }
-
-    #[test]
-    fn test_record_buffer() {
-        let bam = bam::IndexedReader::from_path(&"tests/indels.bam").unwrap();
-        let mut buffer = RecordBuffer::new(bam, 10, true);
-
-        buffer.fill(b"17", 10, 20).unwrap();
-        buffer.fill(b"17", 478, 500).unwrap();
-        buffer.fill(b"17", 1000, 1700).unwrap();
-        // TODO add assertions
     }
 
     fn ref_seq() -> Vec<u8> {

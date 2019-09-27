@@ -89,19 +89,11 @@ impl ContaminatedSampleLikelihoodModel {
     ) -> LogProb {
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
-        let prob_primary = self.purity
-            + likelihood_mapping(
-                allele_freq_primary,
-                strand_bias_primary,
-                observation,
-            );
+        let prob_primary =
+            self.purity + likelihood_mapping(allele_freq_primary, strand_bias_primary, observation);
         // Case 2: read comes from secondary sample and is correctly mapped
         let prob_secondary = self.impurity
-            + likelihood_mapping(
-                allele_freq_secondary,
-                strand_bias_secondary,
-                observation,
-            );
+            + likelihood_mapping(allele_freq_secondary, strand_bias_secondary, observation);
 
         // Step 4: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
@@ -197,7 +189,6 @@ fn likelihood_mapping(
     // Step 1: calculate probability to sample from alt allele
     let prob_sample_alt = prob_sample_alt(observation, allele_freq);
     let prob_sample_ref = prob_sample_alt.ln_one_minus_exp();
-
 
     let obs_strand = (observation.forward_strand, observation.reverse_strand);
 

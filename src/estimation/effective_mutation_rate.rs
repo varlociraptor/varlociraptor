@@ -4,6 +4,7 @@
 // except according to those terms.
 
 use std::collections::BTreeMap;
+use std::error::Error;
 
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -26,7 +27,9 @@ impl Estimate {
     }
 }
 
-pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Estimate {
+pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(
+    allele_frequencies: F,
+) -> Result<Estimate, Box<dyn Error>> {
     let mut observations = BTreeMap::new();
     for f in allele_frequencies {
         // count occurrences of 1 / f
@@ -54,13 +57,13 @@ pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Es
     let counts = Vector::new(_counts);
 
     let mut lin_mod = LinRegressor::default();
-    lin_mod.train(&freqs, &counts);
+    lin_mod.train(&freqs, &counts)?;
 
-    Estimate {
+    Ok(Estimate {
         observations: observations,
         intercept: lin_mod.parameters().unwrap()[0],
         slope: lin_mod.parameters().unwrap()[1],
-    }
+    })
 }
 
 #[cfg(test)]
@@ -73,7 +76,7 @@ mod tests {
     fn test_estimate() {
         // example from Williams et al. Nature Genetics 2016.
         let freqs = linspace(0.12, 0.25, 2539).map(|af| AlleleFreq(af));
-        let estimate = estimate(freqs);
+        let estimate = estimate(freqs).unwrap();
         assert_relative_eq!(estimate.effective_mutation_rate(), 596.16, epsilon = 0.01);
     }
 }

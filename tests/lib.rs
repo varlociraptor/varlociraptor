@@ -25,7 +25,7 @@ struct Testcase {
 }
 
 impl Testcase {
-    fn new(path: impl AsRef<Path>) -> Result<Self, Box<Error>> {
+    fn new(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         let mut reader = File::open(path.as_ref().join("testcase.yaml"))?;
         let mut content2 = String::new();
         reader.read_to_string(&mut content2)?;
@@ -39,7 +39,7 @@ impl Testcase {
         &self.inner[0]
     }
 
-    fn run(&self) -> Result<(), Box<Error>> {
+    fn run(&self) -> Result<(), Box<dyn Error>> {
         let mut options = serde_json::from_str(self.yaml()["options"].as_str().unwrap())?;
         let temp_ref = Self::reference(
             self.yaml()["reference"]["name"].as_str().unwrap(),
@@ -188,7 +188,7 @@ impl Testcase {
         }
     }
 
-    fn reference(ref_name: &str, ref_seq: &str) -> Result<NamedTempFile, Box<Error>> {
+    fn reference(ref_name: &str, ref_seq: &str) -> Result<NamedTempFile, Box<dyn Error>> {
         let mut tmp_ref = tempfile::Builder::new().suffix(".fasta").tempfile()?;
         {
             let mut writer = fasta::Writer::new(&mut tmp_ref);
@@ -202,7 +202,7 @@ impl Testcase {
         Ok(tmp_ref)
     }
 
-    fn alignment_properties(properties: &str) -> Result<NamedTempFile, Box<Error>> {
+    fn alignment_properties(properties: &str) -> Result<NamedTempFile, Box<dyn Error>> {
         let mut tmp_props = tempfile::Builder::new().suffix(".json").tempfile()?;
         tmp_props.as_file_mut().write_all(properties.as_bytes())?;
 

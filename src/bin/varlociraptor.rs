@@ -3,26 +3,22 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::process::exit;
+use std::error::Error;
 
 use structopt::StructOpt;
 use varlociraptor::cli::{run, Varlociraptor};
 
-pub fn main() {
+pub fn main() -> Result<(), Box<dyn Error>> {
     let opt = Varlociraptor::from_args();
 
     // setup logger
     fern::Dispatch::new()
-        .level(log::LogLevelFilter::Info)
+        .level(log::LevelFilter::Info)
         .chain(std::io::stderr())
         .apply()
         .unwrap();
 
-    exit(match run(opt) {
-        Err(e) => {
-            println!("Error: {}", e);
-            1
-        }
-        _ => 0,
-    })
+    run(opt)?;
+
+    Ok(())
 }

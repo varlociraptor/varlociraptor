@@ -6,7 +6,7 @@ use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
 /// Decode PHRED scaled values to probabilities.
-pub fn decode_phred() -> Result<(), Box<Error>> {
+pub fn decode_phred() -> Result<(), Box<dyn Error>> {
     let mut inbcf = bcf::Reader::from_stdin()?;
 
     let tags = inbcf
@@ -26,7 +26,7 @@ pub fn decode_phred() -> Result<(), Box<Error>> {
 
     // setup output file
     let header = bcf::Header::from_template(inbcf.header());
-    let mut outbcf = bcf::Writer::from_stdout(&header, false, false)?;
+    let mut outbcf = bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?;
 
     for record in inbcf.records() {
         let mut record = record?;

@@ -20,7 +20,7 @@ pub fn filter_by_odds<E, R, W>(
     outbcf: Option<W>,
     events: &[E],
     min_evidence: KassRaftery,
-) -> Result<(), Box<Error>>
+) -> Result<(), Box<dyn Error>>
 where
     E: Event,
     R: AsRef<Path>,
@@ -52,8 +52,8 @@ where
     // setup output file
     let header = bcf::Header::from_template(inbcf_reader.header());
     let mut outbcf = match outbcf {
-        Some(p) => bcf::Writer::from_path(p, &header, false, false)?,
-        None => bcf::Writer::from_stdout(&header, false, false)?,
+        Some(p) => bcf::Writer::from_path(p, &header, false, bcf::Format::BCF)?,
+        None => bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?,
     };
 
     let filter = |record: &mut bcf::Record| {
