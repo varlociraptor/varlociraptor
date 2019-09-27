@@ -54,6 +54,20 @@ pub struct SampleInfo {
     strand_bias: StrandBias,
 }
 
+/// Wrapper for comparing alleles for compatibility in BCF files.
+/// PartialEq::eq() returns true for all alleles that can occur in the same BCF record.
+pub struct BCFGrouper<'a>(pub &'a Variant);
+
+impl<'a> PartialEq for BCFGrouper<'a> {
+    fn eq(&self, other: &BCFGrouper) -> bool {
+        let s = self.0;
+        let o = other.0;
+        // Ensure that all compatible alleles have the same ref.
+        // Disallow two <DEL> alleles in the same record (because e.g. htsjdk fails then, many others likely as well).
+        s.ref_allele.eq(&o.ref_allele) && !(&s.alt_allele == b"<DEL>" && o.alt_allele == b"<DEL>")
+    }
+}
+
 pub fn event_tag_name(event: &str) -> String {
     format!("PROB_{}", event.to_ascii_uppercase())
 }
@@ -280,12 +294,13 @@ where
 
     fn write_call(&mut self, call: &Call) -> Result<(), Box<dyn Error>> {
         let rid = self.bcf_writer.header().name2rid(&call.chrom)?;
-        for (ref_allele, group) in call
+        for (first_grouper, group) in call
             .variants
             .iter()
-            .group_by(|variant| &variant.ref_allele)
+            .group_by(|variant| BCFGrouper(&variant))
             .into_iter()
         {
+            let ref_allele = &first_grouper.0.ref_allele;
             let mut record = self.bcf_writer.empty_record();
             record.set_rid(&Some(rid));
             record.set_pos(call.pos as i32);
