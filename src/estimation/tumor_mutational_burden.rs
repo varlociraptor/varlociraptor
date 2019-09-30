@@ -19,10 +19,17 @@ fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool, Box<dyn Error>> {
         .string()?
         .expect("ANN field not found. Annotate VCF with e.g. snpEff.")
     {
-        for entry in ann.split(|c| *c == b'|') {
-            if entry == b"protein_coding" {
-                return Ok(true);
+        let mut coding = false;
+        for (i, entry) in ann.split(|c| *c == b'|').enumerate() {
+            if i == 7 {
+                coding = entry == b"protein_coding";
             }
+            if i == 13 {
+                coding &= entry != b"";
+            }
+        }
+        if coding {
+            return Ok(true);
         }
     }
     Ok(false)
@@ -49,15 +56,20 @@ pub fn estimate(
         .expect(&format!("Sample {} not found", tumor_name));
 
     let mut tmb = BTreeMap::new();
-    'records: for res in bcf.records() {
-        let mut rec = res?;
+    let mut rec = bcf.empty_record();
+    'records: loop {
+        if !bcf.read(&mut rec)? {
+            break;
+        }
+
         let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
+        let vcfpos = rec.pos() + 1;
 
         if !is_valid_variant(&mut rec)? {
-            info!(
+            debug!(
                 "Skipping variant {}:{} because it is not coding.",
                 contig,
-                rec.pos()
+                vcfpos
             );
             continue;
         }
@@ -78,7 +90,7 @@ pub fn estimate(
                 info!(
                     "Skipping variant {}:{} because it does not contain the required INFO tag {}.",
                     contig,
-                    rec.pos(),
+                    vcfpos,
                     tag_name
                 );
                 continue 'records;
@@ -111,7 +123,7 @@ pub fn estimate(
             .collect_vec();
         let count = LogProb::ln_sum_exp(&probs).exp();
         // Expected number of variants with VAF>=min_vaf per megabase.
-        let tmb = count / coding_genome_size as f64 * 1000000.0;
+        let tmb = (count / coding_genome_size as f64) * 1000000.0;
         plot_data.push(TMB {
             min_vaf: **min_vaf,
             tmb,

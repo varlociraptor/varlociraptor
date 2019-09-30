@@ -93,18 +93,20 @@ pub enum EstimateKind {
     TMB {
         #[structopt(
             long = "somatic-tumor-events",
+            default_value = "SOMATIC_TUMOR",
             help = "Events to consider (e.g. SOMATIC_TUMOR).",
-            required = true
         )]
         somatic_tumor_events: Vec<String>,
         #[structopt(
             long = "tumor-sample",
-            help = "Name of the tumor sample in the given VCF/BCF."
+            default_value = "tumor",
+            help = "Name of the tumor sample in the given VCF/BCF.",
         )]
         tumor_sample: String,
         #[structopt(
             long = "coding-genome-size",
-            help = "Size of the covered coding genome."
+            default_value = "3e7",
+            help = "Size (in bases) of the covered coding genome."
         )]
         coding_genome_size: f64,
     },
