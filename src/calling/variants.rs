@@ -196,7 +196,7 @@ where
             header.push_record(
                 format!(
                     "##INFO=<ID={},Number=A,Type=Float,\
-                     Description=\"Posterior probability for event {}\">",
+                     Description=\"Posterior probability for event {} (PHRED)\">",
                     event_tag_name(event),
                     event
                 )
