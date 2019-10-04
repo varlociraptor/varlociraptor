@@ -592,6 +592,32 @@ impl Overlap {
     }
 }
 
+/// Returns true if all PROB_{event}s are PHRED scaled
+pub fn is_phred_scaled(inbcf: &bcf::Reader) -> bool {
+    get_event_tags(inbcf)
+        .iter()
+        .all(|(_, d)| d.ends_with("(PHRED)"))
+}
+
+/// Returns (ID, Description) for each PROB_{event} INFO tag
+pub fn get_event_tags(inbcf: &bcf::Reader) -> Vec<(String, String)> {
+    inbcf
+        .header()
+        .header_records()
+        .into_iter()
+        .filter_map(|rec| {
+            if let bcf::header::HeaderRecord::Info { values, .. } = rec {
+                let id = values["ID"].clone();
+                if id.starts_with("PROB_") {
+                    let description = values["Description"].clone();
+                    return Some((id, description));
+                }
+            }
+            None
+        })
+        .collect_vec()
+}
+
 /// Returns true if given variant is located in a repeat region.
 pub fn is_repeat_variant(start: u32, variant: &model::Variant, chrom_seq: &[u8]) -> bool {
     let end = match variant {

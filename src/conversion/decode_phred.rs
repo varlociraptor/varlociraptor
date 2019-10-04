@@ -1,5 +1,6 @@
 use std::error::Error;
 
+use crate::utils::get_event_tags;
 use bio::stats::{PHREDProb, Prob};
 use itertools::Itertools;
 use rust_htslib::bcf;
@@ -9,23 +10,10 @@ use rust_htslib::bcf::Read;
 pub fn decode_phred() -> Result<(), Box<Error>> {
     let mut inbcf = bcf::Reader::from_stdin()?;
 
-    let tags = inbcf
-        .header()
-        .header_records()
-        .into_iter()
-        .filter_map(|rec| {
-            if let bcf::header::HeaderRecord::Info { values, .. } = rec {
-                let id = values.get("ID").unwrap().clone();
-                if id.starts_with("PROB_") {
-                    let description = values.get("Description").unwrap().clone();
-                    // only consider PHRED scaled probabilities
-                    if description.ends_with("(PHRED)") {
-                        return Some((id, description));
-                    }
-                }
-            }
-            None
-        })
+    let tags = get_event_tags(&inbcf)
+        .iter()
+        .filter(|(tag, desc)| desc.ends_with("(PHRED)"))
+        .cloned()
         .collect_vec();
 
     // setup output file
