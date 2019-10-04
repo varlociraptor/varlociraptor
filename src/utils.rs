@@ -596,7 +596,8 @@ impl Overlap {
 pub fn is_phred_scaled(inbcf: &bcf::Reader) -> bool {
     get_event_tags(inbcf)
         .iter()
-        .all(|(_, d)| d.ends_with("(PHRED)"))
+        // check for missing closing parenthesis for backward compatibility
+        .all(|(_, d)| d.ends_with("(PHRED)") || !d.ends_with(")"))
 }
 
 /// Returns (ID, Description) for each PROB_{event} INFO tag
