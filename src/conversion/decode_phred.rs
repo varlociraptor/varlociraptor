@@ -12,7 +12,7 @@ pub fn decode_phred() -> Result<(), Box<dyn Error>> {
 
     let tags = get_event_tags(&inbcf)
         .iter()
-        .filter(|(tag, desc)| desc.ends_with("(PHRED)") || !desc.ends_with(")"))
+        .filter(|(_tag, desc)| desc.ends_with("(PHRED)") || !desc.ends_with(")"))
         .cloned()
         .collect_vec();
 
