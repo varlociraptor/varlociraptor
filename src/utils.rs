@@ -611,6 +611,7 @@ pub fn get_event_tags(inbcf: &bcf::Reader) -> Vec<(String, String)> {
                 let id = values["ID"].clone();
                 if id.starts_with("PROB_") {
                     let description = values["Description"].clone();
+                    let description = description.trim_matches('"').into();
                     return Some((id, description));
                 }
             }
