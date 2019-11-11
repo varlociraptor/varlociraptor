@@ -620,7 +620,7 @@ mod tests {
 
         let true_alt_probs = [-0.09, -0.02, -73.09, -16.95, -73.09];
 
-        for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.into_iter()) {
+        for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.iter()) {
             let mut record = record.unwrap();
             record.cache_cigar();
             let cigar = record.cigar_cached().unwrap();
