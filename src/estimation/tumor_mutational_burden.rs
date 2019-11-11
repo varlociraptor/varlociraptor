@@ -68,8 +68,7 @@ pub fn estimate(
         if !is_valid_variant(&mut rec)? {
             debug!(
                 "Skipping variant {}:{} because it is not coding.",
-                contig,
-                vcfpos
+                contig, vcfpos
             );
             continue;
         }
@@ -89,9 +88,7 @@ pub fn estimate(
             } else {
                 info!(
                     "Skipping variant {}:{} because it does not contain the required INFO tag {}.",
-                    contig,
-                    vcfpos,
-                    tag_name
+                    contig, vcfpos, tag_name
                 );
                 continue 'records;
             }
