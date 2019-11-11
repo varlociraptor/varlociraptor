@@ -13,6 +13,7 @@ env:
   global:
     - CARGO_MAKE_RUN_CODECOV="true"
     - CARGO_MAKE_KCOV_INSTALLATION_DIRECTORY="$HOME/.cache/kcov"
+    #- CARGO_MAKE_COVERAGE_PROVIDER="tarpaulin"
 addons:
   apt:
     packages:
@@ -25,7 +26,14 @@ addons:
       - cmake
       - gcc 
       - binutils
+      # tarpaulin
+      - libssl-dev 
+      - pkg-config
+      - cmake 
+      - zlib1g-dev
 install:
+  # tarpaulin is currently segfaulting
+  #- command -v cargo-tarpaulin >/dev/null 2>&1 || cargo install cargo-tarpaulin
   - command -v cargo-make >/dev/null 2>&1 || cargo install --debug cargo-make
 script:
   - cargo make ci-flow

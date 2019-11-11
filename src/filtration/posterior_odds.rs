@@ -11,6 +11,7 @@ use std::error::Error;
 use std::path::Path;
 
 use crate::utils;
+use crate::utils::{get_event_tags, is_phred_scaled};
 use crate::Event;
 
 /// Filter calls by posterior odds against the given events.
@@ -20,7 +21,7 @@ pub fn filter_by_odds<E, R, W>(
     outbcf: Option<W>,
     events: &[E],
     min_evidence: KassRaftery,
-) -> Result<(), Box<Error>>
+) -> Result<(), Box<dyn Error>>
 where
     E: Event,
     R: AsRef<Path>,
@@ -31,29 +32,23 @@ where
         None => bcf::Reader::from_stdin()?,
     };
 
-    let other_event_tags = inbcf_reader
-        .header()
-        .header_records()
+    if !is_phred_scaled(&inbcf_reader) {
+        panic!("Event probabilities are not PHRED scaled, aborting.")
+    }
+
+    let other_event_tags = get_event_tags(&inbcf_reader);
+    let other_event_tags = other_event_tags
         .iter()
-        .filter_map(|rec| {
-            if let bcf::header::HeaderRecord::Info { ref values, .. } = rec {
-                if values["ID"].starts_with("PROB_") {
-                    Some(values["ID"].clone())
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        })
+        .map(|(tag, _desc)| tag)
+        .cloned()
         .collect_vec();
     let event_tags = utils::events_to_tags(events);
 
     // setup output file
     let header = bcf::Header::from_template(inbcf_reader.header());
     let mut outbcf = match outbcf {
-        Some(p) => bcf::Writer::from_path(p, &header, false, false)?,
-        None => bcf::Writer::from_stdout(&header, false, false)?,
+        Some(p) => bcf::Writer::from_path(p, &header, false, bcf::Format::BCF)?,
+        None => bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?,
     };
 
     let filter = |record: &mut bcf::Record| {

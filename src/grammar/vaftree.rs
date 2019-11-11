@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use itertools::Itertools;
 
 use crate::errors;
+use crate::errors::Result;
 use crate::grammar::{formula::NormalizedFormula, Scenario, VAFSpectrum};
 use crate::model::AlleleFreq;
 
@@ -71,18 +72,12 @@ impl Node {
 }
 
 impl VAFTree {
-    pub fn new(
-        formula: &NormalizedFormula,
-        scenario: &Scenario,
-    ) -> Result<Self, errors::FormulaError> {
-        fn from(
-            formula: &NormalizedFormula,
-            scenario: &Scenario,
-        ) -> Result<Vec<Box<Node>>, errors::FormulaError> {
+    pub fn new(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Self> {
+        fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Box<Node>>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
                     let sample = scenario.idx(sample.as_str()).ok_or_else(|| {
-                        errors::FormulaError::InvalidSampleName {
+                        errors::Error::InvalidSampleName {
                             name: sample.to_owned(),
                         }
                     })?;

@@ -70,7 +70,10 @@ impl Observation {
         reverse_strand: bool,
         evidence: Evidence,
     ) -> Self {
-        assert!(forward_strand | reverse_strand, "bug: observation has to be either from forward or reverse strand");
+        assert!(
+            forward_strand | reverse_strand,
+            "bug: observation has to be either from forward or reverse strand"
+        );
         Observation {
             prob_mapping: prob_mapping,
             prob_mismapping: prob_mismapping,

@@ -157,7 +157,8 @@ impl GenericPosterior {
             grammar::VAFSpectrum::Set(vafs) => {
                 if vafs.len() == 1 {
                     push_base_event(vafs.iter().next().unwrap().clone(), base_events);
-                    subdensity(base_events)
+                    let p = subdensity(base_events);
+                    p
                 } else {
                     LogProb::ln_sum_exp(
                         &vafs
@@ -173,16 +174,18 @@ impl GenericPosterior {
             }
             grammar::VAFSpectrum::Range(vafs) => {
                 let n_obs = pileups[sample].len();
-                LogProb::ln_simpsons_integrate_exp(
+                let p = LogProb::ln_simpsons_integrate_exp(
                     |_, vaf| {
                         let mut base_events = base_events.clone();
                         push_base_event(AlleleFreq(vaf), &mut base_events);
-                        subdensity(&mut base_events)
+                        let p = subdensity(&mut base_events);
+                        p
                     },
                     *vafs.observable_min(n_obs),
                     *vafs.observable_max(n_obs),
                     sample_grid_points[sample],
-                )
+                );
+                p
             }
         }
     }

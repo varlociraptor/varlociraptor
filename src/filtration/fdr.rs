@@ -19,6 +19,7 @@ use rust_htslib::bcf::Read;
 use crate::model;
 use crate::utils;
 use crate::Event;
+use crate::utils::is_phred_scaled;
 
 /// Print thresholds to control FDR of given calls at multiple levels.
 ///
@@ -37,7 +38,7 @@ pub fn control_fdr<E: Event, R, W>(
     events: &[E],
     vartype: &model::VariantType,
     alpha: LogProb,
-) -> Result<(), Box<Error>>
+) -> Result<(), Box<dyn Error>>
 where
     R: AsRef<Path>,
     W: AsRef<Path>,
@@ -45,11 +46,15 @@ where
     // first pass on bcf file
     let mut inbcf_reader = bcf::Reader::from_path(&inbcf)?;
 
+    if !is_phred_scaled(&inbcf_reader) {
+        panic!("Event probabilities are not PHRED scaled, aborting.")
+    }
+
     // setup output file
     let header = bcf::Header::from_template(inbcf_reader.header());
     let mut outbcf = match outbcf {
-        Some(p) => bcf::Writer::from_path(p, &header, false, false)?,
-        None => bcf::Writer::from_stdout(&header, false, false)?,
+        Some(p) => bcf::Writer::from_path(p, &header, false, bcf::Format::BCF)?,
+        None => bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?,
     };
 
     let mut threshold = None;

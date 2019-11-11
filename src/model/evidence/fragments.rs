@@ -55,14 +55,17 @@ pub fn n_fragment_positions(
 ///
 /// * `left` - left read of the pair
 /// * `right` - right read of the pair
-pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u32, Box<Error>> {
+pub fn estimate_insert_size(
+    left: &bam::Record,
+    right: &bam::Record,
+) -> Result<u32, Box<dyn Error>> {
     let left_cigar = left.cigar_cached().unwrap();
     let right_cigar = right.cigar_cached().unwrap();
 
-    let aln = |rec: &bam::Record, cigar| -> Result<(u32, u32), Box<Error>> {
+    let aln = |rec: &bam::Record, cigar| -> Result<(u32, u32), Box<dyn Error>> {
         Ok((
             (rec.pos() as u32).saturating_sub(evidence::Clips::leading(cigar).both()),
-            cigar.end_pos()? as u32 + evidence::Clips::trailing(cigar).both(),
+            cigar.end_pos() as u32 + evidence::Clips::trailing(cigar).both(),
         ))
     };
 
@@ -140,7 +143,7 @@ impl IndelEvidence {
         insert_size: u32,
         variant: &Variant,
         alignment_properties: &AlignmentProperties,
-    ) -> Result<(LogProb, LogProb), Box<Error>> {
+    ) -> Result<(LogProb, LogProb), Box<dyn Error>> {
         let shift = match variant {
             &Variant::Deletion(_) => variant.len() as f64,
             &Variant::Insertion(_) => {
@@ -198,7 +201,8 @@ impl IndelEvidence {
                 // If we don't need enclosing, the fragment may also overlap on the far right or left.
                 // Hence, the are less infeasible positions (by the maximal feasible overlap).
                 infeasible_read_pos_left = infeasible_read_pos_left.saturating_sub(left_feasible);
-                infeasible_read_pos_right = infeasible_read_pos_left.saturating_sub(right_feasible);
+                infeasible_read_pos_right =
+                    infeasible_read_pos_right.saturating_sub(right_feasible);
             }
             let infeasible_read_pos = infeasible_read_pos_left + infeasible_read_pos_right;
 

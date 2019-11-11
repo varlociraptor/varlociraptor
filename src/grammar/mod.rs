@@ -9,7 +9,7 @@ use vec_map::VecMap;
 pub mod formula;
 pub mod vaftree;
 
-use crate::errors;
+use crate::errors::Result;
 pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub use crate::grammar::vaftree::VAFTree;
 use crate::model;
@@ -123,15 +123,12 @@ impl Scenario {
         samples.sort_by_key(|sample| self.idx(sample.name()));
     }
 
-    pub fn vaftrees(&self) -> Result<HashMap<String, VAFTree>, errors::FormulaError> {
+    pub fn vaftrees(&self) -> Result<HashMap<String, VAFTree>> {
         self.events()
             .iter()
             .map(|(name, formula)| {
                 let normalized = formula.normalize(self)?;
-                // dbg!(&name);
-                // dbg!(&normalized);
                 let vaftree = VAFTree::new(&normalized, self)?;
-                // dbg!(&vaftree);
                 Ok((name.to_owned(), vaftree))
             })
             .collect()

@@ -54,6 +54,20 @@ pub struct SampleInfo {
     strand_bias: StrandBias,
 }
 
+/// Wrapper for comparing alleles for compatibility in BCF files.
+/// PartialEq::eq() returns true for all alleles that can occur in the same BCF record.
+pub struct BCFGrouper<'a>(pub &'a Variant);
+
+impl<'a> PartialEq for BCFGrouper<'a> {
+    fn eq(&self, other: &BCFGrouper) -> bool {
+        let s = self.0;
+        let o = other.0;
+        // Ensure that all compatible alleles have the same ref.
+        // Disallow two <DEL> alleles in the same record (because e.g. htsjdk fails then, many others likely as well).
+        s.ref_allele.eq(&o.ref_allele) && !(&s.alt_allele == b"<DEL>" && o.alt_allele == b"<DEL>")
+    }
+}
+
 pub fn event_tag_name(event: &str) -> String {
     format!("PROB_{}", event.to_ascii_uppercase())
 }
@@ -91,13 +105,13 @@ where
     Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
-    pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<Error>> {
+    pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<dyn Error>> {
         Ok(self.reference_buffer(utils::ReferenceBuffer::new(
             fasta::IndexedReader::from_file(&path)?,
         )))
     }
 
-    pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<Error>> {
+    pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<dyn Error>> {
         Ok(self.bcf_reader(if let Some(path) = path {
             bcf::Reader::from_path(path)?
         } else {
@@ -159,7 +173,7 @@ where
         self
     }
 
-    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<Error>> {
+    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<dyn Error>> {
         let mut header = bcf::Header::new();
 
         // register samples
@@ -182,7 +196,7 @@ where
             header.push_record(
                 format!(
                     "##INFO=<ID={},Number=A,Type=Float,\
-                     Description=\"Posterior probability for event {}\">",
+                     Description=\"Posterior probability for event {} (PHRED)\">",
                     event_tag_name(event),
                     event
                 )
@@ -237,9 +251,9 @@ where
         }
 
         let writer = if let Some(path) = path {
-            bcf::Writer::from_path(path, &header, false, false)?
+            bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)?
         } else {
-            bcf::Writer::from_stdout(&header, false, false)?
+            bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?
         };
         Ok(self.bcf_writer(writer))
     }
@@ -256,17 +270,15 @@ where
     >,
     ModelPayload: Default,
 {
-    pub fn call(&mut self) -> Result<(), Box<Error>> {
+    pub fn call(&mut self) -> Result<(), Box<dyn Error>> {
         let mut universe = self.events.values().cloned().collect_vec();
         universe.extend(self.strand_bias_events.iter().cloned());
 
         let mut i = 0;
         let mut record = self.bcf_reader.empty_record();
         loop {
-            match self.bcf_reader.read(&mut record) {
-                Err(bcf::ReadError::NoMoreRecord) => return Ok(()),
-                Err(e) => return Err(Box::new(e)),
-                Ok(()) => (),
+            if !self.bcf_reader.read(&mut record)? {
+                return Ok(());
             }
 
             i += 1;
@@ -280,14 +292,15 @@ where
         }
     }
 
-    fn write_call(&mut self, call: &Call) -> Result<(), Box<Error>> {
+    fn write_call(&mut self, call: &Call) -> Result<(), Box<dyn Error>> {
         let rid = self.bcf_writer.header().name2rid(&call.chrom)?;
-        for (ref_allele, group) in call
+        for (first_grouper, group) in call
             .variants
             .iter()
-            .group_by(|variant| &variant.ref_allele)
+            .group_by(|variant| BCFGrouper(&variant))
             .into_iter()
         {
+            let ref_allele = &first_grouper.0.ref_allele;
             let mut record = self.bcf_writer.empty_record();
             record.set_rid(&Some(rid));
             record.set_pos(call.pos as i32);
@@ -398,7 +411,15 @@ where
             let obs = if observations.values().any(|obs| !obs.is_empty()) {
                 observations
                     .values()
-                    .map(|obs| join(obs.iter(), ",").into_bytes())
+                    .map(|allele_obs| {
+                        join(
+                            allele_obs
+                                .iter()
+                                .map(|o| if o.is_empty() { "." } else { o }),
+                            ",",
+                        )
+                        .into_bytes()
+                    })
                     .collect_vec()
             } else {
                 vec![b".".to_vec()]
@@ -422,7 +443,7 @@ where
         &mut self,
         record: &mut bcf::Record,
         universe: &[Po::Event],
-    ) -> Result<Option<Call>, Box<Error>> {
+    ) -> Result<Option<Call>, Box<dyn Error>> {
         let start = record.pos();
         let chrom = chrom(&self.bcf_reader, &record);
         let variants = utils::collect_variants(
@@ -565,5 +586,5 @@ where
 }
 
 fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
-    inbcf.header().rid2name(record.rid().unwrap())
+    inbcf.header().rid2name(record.rid().unwrap()).unwrap()
 }
