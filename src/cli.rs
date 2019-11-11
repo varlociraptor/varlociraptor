@@ -27,7 +27,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
 use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
-use crate::model::sample::{estimate_alignment_properties, SampleBuilder};
+use crate::model::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
 use crate::model::{Contamination, VariantType};
 use crate::testcase::TestcaseBuilder;
 use crate::SimpleEvent;
@@ -94,13 +94,13 @@ pub enum EstimateKind {
         #[structopt(
             long = "somatic-tumor-events",
             default_value = "SOMATIC_TUMOR",
-            help = "Events to consider (e.g. SOMATIC_TUMOR).",
+            help = "Events to consider (e.g. SOMATIC_TUMOR)."
         )]
         somatic_tumor_events: Vec<String>,
         #[structopt(
             long = "tumor-sample",
             default_value = "tumor",
-            help = "Name of the tumor sample in the given VCF/BCF.",
+            help = "Name of the tumor sample in the given VCF/BCF."
         )]
         tumor_sample: String,
         #[structopt(
@@ -163,6 +163,13 @@ pub enum CallKind {
             help = "Extension rate of spurious deletions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
         )]
         spurious_delext_rate: f64,
+        #[structopt(
+            long = "strandedness",
+            default_value = "opposite",
+            possible_values = { use strum::IntoEnumIterator; &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec() },
+            help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
+        )]
+        protocol_strandedness: ProtocolStrandedness,
         #[structopt(long = "omit-snvs", help = "Don't call SNVs.")]
         omit_snvs: bool,
         #[structopt(long = "omit-indels", help = "Don't call Indels.")]
@@ -387,6 +394,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     output,
                     testcase_locus,
                     testcase_prefix,
+                    protocol_strandedness,
                 } => {
                     let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
                     let spurious_del_rate = Prob::checked(spurious_del_rate)?;
@@ -407,6 +415,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                 indel_window as u32,
                             )
                             .max_depth(max_depth)
+                            // TODO this could as well be handled sample-specific!
+                            .protocol_strandedness(protocol_strandedness)
                     };
 
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
@@ -467,22 +477,21 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 
                                     // parse samples
                                     for (sample_name, sample) in scenario.samples().iter() {
-                                        let contamination = if let Some(contamination) =
-                                            sample.contamination()
-                                        {
-                                            let contaminant =
+                                        let contamination =
+                                            if let Some(contamination) = sample.contamination() {
+                                                let contaminant =
                                                 scenario.idx(contamination.by()).ok_or(
                                                     errors::Error::InvalidContaminationSampleName {
                                                         name: sample_name.to_owned(),
                                                     },
                                                 )?;
-                                            Some(Contamination {
-                                                by: contaminant,
-                                                fraction: *contamination.fraction(),
-                                            })
-                                        } else {
-                                            None
-                                        };
+                                                Some(Contamination {
+                                                    by: contaminant,
+                                                    fraction: *contamination.fraction(),
+                                                })
+                                            } else {
+                                                None
+                                            };
                                         contaminations =
                                             contaminations.push(sample_name, contamination);
                                         resolutions =

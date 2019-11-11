@@ -46,6 +46,8 @@ pub struct Observation {
     pub prob_double_overlap: LogProb,
     /// Probability to overlap with one strand only (1-prob_double_overlap)
     pub prob_single_overlap: LogProb,
+    /// Probability to observe any overlapping strand combination (when not associated with alt allele)
+    pub prob_any_strand: LogProb,
     /// Observation relies on forward strand evidence
     pub forward_strand: bool,
     /// Observation relies on reverse strand evidence
@@ -63,6 +65,7 @@ impl Observation {
         prob_missed_allele: LogProb,
         prob_sample_alt: LogProb,
         prob_double_overlap: LogProb,
+        prob_any_strand: LogProb,
         forward_strand: bool,
         reverse_strand: bool,
         evidence: Evidence,
@@ -80,6 +83,7 @@ impl Observation {
             prob_sample_alt: prob_sample_alt,
             prob_double_overlap: prob_double_overlap,
             prob_single_overlap: prob_double_overlap.ln_one_minus_exp(),
+            prob_any_strand: prob_any_strand,
             forward_strand: forward_strand,
             reverse_strand: reverse_strand,
             evidence: evidence,

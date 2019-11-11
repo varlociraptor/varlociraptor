@@ -101,7 +101,11 @@ impl ContaminatedSampleLikelihoodModel {
         // differences in the likelihood for alt and ref allele with low probabilities and very
         // low allele frequencies, such that we loose sensitivity for those.
         let total = (observation.prob_mapping + prob_secondary.ln_add_exp(prob_primary))
-            .ln_add_exp(observation.prob_mismapping + observation.prob_missed_allele);
+            .ln_add_exp(
+                observation.prob_mismapping
+                    + observation.prob_missed_allele
+                    + observation.prob_any_strand,
+            );
         assert!(!total.is_nan());
         total
     }
@@ -143,10 +147,6 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
     }
 }
 
-lazy_static! {
-    static ref PROB_STRAND: LogProb = LogProb(0.5_f64.ln());
-}
-
 /// Likelihood model for single sample.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SampleLikelihoodModel {}
@@ -172,8 +172,11 @@ impl SampleLikelihoodModel {
         // in the mismapping case. Otherwise, it can happen that mismapping dominates subtle
         // differences in the likelihood for alt and ref allele with low probabilities and very
         // low allele frequencies, such that we loose sensitivity for those.
-        let total = (observation.prob_mapping + prob)
-            .ln_add_exp(observation.prob_mismapping + observation.prob_missed_allele);
+        let total = (observation.prob_mapping + prob).ln_add_exp(
+            observation.prob_mismapping
+                + observation.prob_missed_allele
+                + observation.prob_any_strand,
+        );
         assert!(!total.is_nan());
         total
     }
@@ -214,7 +217,7 @@ fn likelihood_mapping(
         // alt allele
         prob_sample_alt + prob_strand + observation.prob_alt,
         // ref allele (we don't care about the strand)
-        prob_sample_ref + observation.prob_ref,
+        prob_sample_ref + observation.prob_ref + observation.prob_any_strand,
     ]);
     assert!(!prob.is_nan());
 

@@ -26,6 +26,23 @@ use crate::model::evidence::{Evidence, Observation};
 use crate::model::{Variant, VariantType};
 use crate::utils::{is_repeat_variant, max_prob, Overlap};
 
+/// Strand combination for read pairs as given by the sequencing protocol.
+#[derive(
+    Display, Debug, Clone, Copy, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr,
+)]
+pub enum ProtocolStrandedness {
+    #[strum(serialize = "opposite")]
+    Opposite,
+    #[strum(serialize = "same")]
+    Same,
+}
+
+impl Default for ProtocolStrandedness {
+    fn default() -> Self {
+        ProtocolStrandedness::Opposite
+    }
+}
+
 pub type Pileup = Vec<Observation>;
 
 struct Candidate<'a> {
@@ -110,6 +127,7 @@ pub struct Sample {
     omit_repeat_regions: Vec<VariantType>,
     #[builder(private)]
     buffer_window: u32,
+    protocol_strandedness: ProtocolStrandedness,
 }
 
 impl SampleBuilder {
@@ -415,6 +433,7 @@ impl Sample {
                 prob_missed_allele,
                 prob_sample_alt,
                 LogProb::ln_zero(), // no double overlap possible
+                LogProb::from(Prob(0.5)),
                 strand == Strand::Forward,
                 strand == Strand::Reverse,
                 Evidence::alignment(cigar, record),
@@ -536,6 +555,11 @@ impl Sample {
             &self.alignment_properties,
         );
 
+        let prob_any_strand = LogProb::from(match self.protocol_strandedness {
+            ProtocolStrandedness::Opposite => Prob(1.0 / 3.0),
+            ProtocolStrandedness::Same => Prob(0.5),
+        });
+
         let obs = Observation::new(
             prob_mismapping.ln_one_minus_exp(),
             prob_mismapping,
@@ -544,6 +568,7 @@ impl Sample {
             p_missed_left + p_missed_right,
             prob_sample_alt,
             prob_double_overlap,
+            prob_any_strand,
             forward_strand,
             reverse_strand,
             Evidence::insert_size(

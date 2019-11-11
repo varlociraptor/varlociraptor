@@ -20,6 +20,8 @@ extern crate pest_derive;
 extern crate getset;
 #[macro_use]
 extern crate snafu;
+#[macro_use]
+extern crate strum_macros;
 
 pub mod calling;
 pub mod cli;
