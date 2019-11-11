@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.2.2] - 2019-10-04
+- Explicitly annotate unit (PHRED, or linear) of probabilities in BCF output.
+
 ## [1.2.1] - 2019-09-27
 - Fixed a bug in usage of htslib that could lead to a segmentation fault when estimating TMB.
 
