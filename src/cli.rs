@@ -166,6 +166,7 @@ pub enum CallKind {
         #[structopt(
             long = "strandedness",
             default_value = "opposite",
+            possible_values = { use strum::IntoEnumIterator; &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec() },
             help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
         )]
         protocol_strandedness: ProtocolStrandedness,

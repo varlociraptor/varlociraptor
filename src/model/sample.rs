@@ -27,7 +27,9 @@ use crate::model::{Variant, VariantType};
 use crate::utils::{is_repeat_variant, max_prob, Overlap};
 
 /// Strand combination for read pairs as given by the sequencing protocol.
-#[derive(Display, Debug, Clone, Copy, Serialize, Deserialize, EnumString)]
+#[derive(
+    Display, Debug, Clone, Copy, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr,
+)]
 pub enum ProtocolStrandedness {
     #[strum(serialize = "opposite")]
     Opposite,
