@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
+use bio::io::fasta;
 use itertools::Itertools;
 use rayon;
 use rust_htslib::bam;
@@ -419,6 +420,10 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             .protocol_strandedness(protocol_strandedness)
                     };
 
+                    // obtain reference reader
+                    let reference_reader = fasta::IndexedReader::from_file(&reference)?;
+                    let contigs = reference_reader.index.sequences();
+
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
                             if let Some(candidates) = candidates.as_ref() {
@@ -536,15 +541,19 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                     let mut caller_builder =
                                         calling::variants::CallerBuilder::default()
                                             .samples(samples.build())
-                                            .reference(reference)?
+                                            .reference(reference_reader)?
                                             .inbcf(candidates.as_ref())?
                                             .model(model)
                                             .omit_snvs(omit_snvs)
                                             .omit_indels(omit_indels)
                                             .max_indel_len(max_indel_len);
-                                    for (event_name, vaftree) in scenario.vaftrees()? {
-                                        caller_builder = caller_builder.event(&event_name, vaftree);
+                                    
+                                    for contig in &contigs {
+                                        for (event_name, vaftree) in scenario.vaftrees(&contig.name)? {
+                                            caller_builder = caller_builder.event(&contig.name, &event_name, vaftree);
+                                        }
                                     }
+
                                     caller_builder = caller_builder.outbcf(output.as_ref())?;
 
                                     let mut caller = caller_builder.build()?;
@@ -652,15 +661,17 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 
                             let mut caller_builder = calling::variants::CallerBuilder::default()
                                 .samples(samples)
-                                .reference(reference)?
+                                .reference(reference_reader)?
                                 .inbcf(candidates.as_ref())?
                                 .model(model)
                                 .omit_snvs(omit_snvs)
                                 .omit_indels(omit_indels)
                                 .max_indel_len(max_indel_len);
 
-                            for (event_name, vaftree) in scenario.vaftrees()? {
-                                caller_builder = caller_builder.event(&event_name, vaftree);
+                            for contig in &contigs {
+                                for (event_name, vaftree) in scenario.vaftrees(&contig.name)? {
+                                    caller_builder = caller_builder.event(&contig.name, &event_name, vaftree);
+                                }
                             }
 
                             let mut caller = caller_builder.outbcf(output.as_ref())?.build()?;

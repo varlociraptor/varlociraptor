@@ -72,7 +72,7 @@ impl Node {
 }
 
 impl VAFTree {
-    pub fn new(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Self> {
+    pub fn new(formula: &NormalizedFormula, scenario: &Scenario, contig: &str) -> Result<Self> {
         fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Box<Node>>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
@@ -119,7 +119,8 @@ impl VAFTree {
             node: &mut Node,
             seen: &mut HashSet<usize>,
             scenario: &'a Scenario,
-        ) {
+            contig: &str,
+        ) -> Result<()> {
             seen.insert(node.sample);
             if node.is_leaf() {
                 // leaf, add missing samples
@@ -127,29 +128,32 @@ impl VAFTree {
                     let idx = scenario.idx(name).unwrap();
                     if !seen.contains(&idx) {
                         seen.insert(idx);
+
                         node.children = sample
-                            .universe()
+                            .contig_universe(contig)?
                             .iter()
                             .map(|vafs| Box::new(Node::new(idx, vafs.clone())))
                             .collect();
-                        add_missing_samples(node, seen, scenario);
+                        add_missing_samples(node, seen, scenario, contig)?;
                         break;
                     }
                 }
             } else {
                 if node.is_branching() {
                     for child in &mut node.children[1..] {
-                        add_missing_samples(child.as_mut(), &mut seen.clone(), scenario);
+                        add_missing_samples(child.as_mut(), &mut seen.clone(), scenario, contig)?;
                     }
                 }
-                add_missing_samples(node.children[0].as_mut(), seen, scenario);
+                add_missing_samples(node.children[0].as_mut(), seen, scenario, contig)?;
             }
+
+            Ok(())
         }
 
         let mut inner = from(formula, scenario)?;
         for node in &mut inner {
             let mut seen = HashSet::new();
-            add_missing_samples(node, &mut seen, scenario);
+            add_missing_samples(node, &mut seen, scenario, contig)?;
         }
 
         Ok(VAFTree { inner })

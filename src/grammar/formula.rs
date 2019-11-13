@@ -42,18 +42,18 @@ pub enum NormalizedFormula {
 
 impl Formula {
     /// Negate formula.
-    pub fn negate(&self, scenario: &Scenario) -> Result<Formula> {
+    pub fn negate(&self, scenario: &Scenario, contig: &str) -> Result<Formula> {
         Ok(match self {
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Ok(Box::new(o.negate(scenario)?)))
+                    .map(|o| Ok(Box::new(o.negate(scenario, contig)?)))
                     .collect::<Result<Vec<Box<Formula>>>>()?,
             },
             Formula::Disjunction { operands } => Formula::Conjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Ok(Box::new(o.negate(scenario)?)))
+                    .map(|o| Ok(Box::new(o.negate(scenario, contig)?)))
                     .collect::<Result<Vec<Box<Formula>>>>()?,
             },
             Formula::Negation { operand } => operand.as_ref().clone(),
@@ -64,7 +64,8 @@ impl Formula {
                     .ok_or_else(|| errors::Error::InvalidSampleName {
                         name: sample.to_owned(),
                     })?
-                    .universe();
+                    .contig_universe(contig)?;
+
                 let mut disjunction = Vec::new();
                 match vafs {
                     VAFSpectrum::Set(vafs) => {
@@ -145,9 +146,9 @@ impl Formula {
         })
     }
 
-    pub fn normalize(&self, scenario: &Scenario) -> Result<NormalizedFormula> {
+    pub fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
         Ok(match self {
-            Formula::Negation { operand } => operand.negate(scenario)?.normalize(scenario)?,
+            Formula::Negation { operand } => operand.negate(scenario, contig)?.normalize(scenario, contig)?,
             Formula::Atom { sample, vafs } => NormalizedFormula::Atom {
                 sample: sample.to_owned(),
                 vafs: vafs.to_owned(),
@@ -155,13 +156,13 @@ impl Formula {
             Formula::Conjunction { operands } => NormalizedFormula::Conjunction {
                 operands: operands
                     .into_iter()
-                    .map(|o| Ok(Box::new(o.normalize(scenario)?)))
+                    .map(|o| Ok(Box::new(o.normalize(scenario, contig)?)))
                     .collect::<Result<Vec<Box<NormalizedFormula>>>>()?,
             },
             Formula::Disjunction { operands } => NormalizedFormula::Disjunction {
                 operands: operands
                     .into_iter()
-                    .map(|o| Ok(Box::new(o.normalize(scenario)?)))
+                    .map(|o| Ok(Box::new(o.normalize(scenario, contig)?)))
                     .collect::<Result<Vec<Box<NormalizedFormula>>>>()?,
             },
         })

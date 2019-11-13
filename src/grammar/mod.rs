@@ -9,6 +9,7 @@ use vec_map::VecMap;
 pub mod formula;
 pub mod vaftree;
 
+use crate::errors;
 use crate::errors::Result;
 pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub use crate::grammar::vaftree::VAFTree;
@@ -123,12 +124,12 @@ impl Scenario {
         samples.sort_by_key(|sample| self.idx(sample.name()));
     }
 
-    pub fn vaftrees(&self) -> Result<HashMap<String, VAFTree>> {
+    pub fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {
         self.events()
             .iter()
             .map(|(name, formula)| {
-                let normalized = formula.normalize(self)?;
-                let vaftree = VAFTree::new(&normalized, self)?;
+                let normalized = formula.normalize(self, contig)?;
+                let vaftree = VAFTree::new(&normalized, self, contig)?;
                 Ok((name.to_owned(), vaftree))
             })
             .collect()
@@ -153,7 +154,23 @@ pub struct Sample {
     /// grid point resolution for integration over continuous allele frequency ranges
     resolution: usize,
     /// possible VAFs of given sample
-    universe: VAFUniverse,
+    universe: UniverseDefinition,
+}
+
+impl Sample {
+    pub fn contig_universe(&self, contig: &str) -> Result<&VAFUniverse> {
+        Ok(match self.universe {
+            UniverseDefinition::Simple(ref universe) => universe,
+            UniverseDefinition::Map(ref map) => {
+                match map.get(contig) {
+                    Some(universe) => universe,
+                    None => {
+                        map.get("all").ok_or_else(|| errors::Error::UniverseContigNotFound {contig: contig.to_owned()})?
+                    },
+                }
+            },
+        })
+    }
 }
 
 #[derive(Deserialize, Getters)]
@@ -163,4 +180,11 @@ pub struct Contamination {
     by: String,
     /// fraction of contamination
     fraction: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum UniverseDefinition {
+    Map(BTreeMap<String, VAFUniverse>),
+    Simple(VAFUniverse),
 }
