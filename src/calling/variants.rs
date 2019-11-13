@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
 use std::str;
+use std::fs;
 
 use bio::io::fasta;
 use bio::stats::{bayesian, LogProb, PHREDProb};
@@ -23,6 +24,7 @@ use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
 use crate::model::{AlleleFreq, StrandBias};
 use crate::utils;
+use crate::errors;
 
 pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
@@ -89,7 +91,7 @@ where
     #[builder(private)]
     bcf_writer: bcf::Writer,
     #[builder(private)]
-    events: HashMap<String, model::Event>,
+    events: HashMap<Vec<u8>, HashMap<String, model::Event>>,
     #[builder(private)]
     strand_bias_events: Vec<model::Event>,
     model: bayesian::Model<L, Pr, Po, ModelPayload>,
@@ -105,9 +107,9 @@ where
     Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
-    pub fn reference<P: AsRef<Path>>(self, path: P) -> Result<Self, Box<dyn Error>> {
+    pub fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self, Box<dyn Error>> {
         Ok(self.reference_buffer(utils::ReferenceBuffer::new(
-            fasta::IndexedReader::from_file(&path)?,
+            reader,
         )))
     }
 
@@ -120,7 +122,7 @@ where
     }
 
     /// Register events.
-    pub fn event(mut self, name: &str, event: grammar::VAFTree) -> Self {
+    pub fn event(mut self, contig: &str, name: &str, event: grammar::VAFTree) -> Self {
         assert_ne!(
             name.to_ascii_lowercase(),
             "artifact",
@@ -131,9 +133,18 @@ where
             "absent",
             "the 'absent' event will be created automatically"
         );
-        // TODO check that this is not the absent event by looking at !
+        // TODO check that this is not the absent event by looking at formula!
 
         if self.events.is_none() {
+            let events = HashMap::default();
+            
+            self = self.events(events);
+            self = self.strand_bias_events(Vec::new());
+        }
+        let contig = contig.as_bytes();
+
+        // initialize event map for contig if necessary
+        if !self.events.as_ref().unwrap().contains_key(contig) {
             let mut events = HashMap::default();
             if let Some(ref samples) = self.samples {
                 events.insert(
@@ -146,18 +157,17 @@ where
             } else {
                 panic!("bug: events must be registered after adding samples");
             }
-            self = self.events(events);
-            self = self.strand_bias_events(Vec::new());
+            self.events.as_mut().unwrap().insert(contig.to_owned(), events);
         }
+
+        let contig_events = self.events.as_mut().unwrap().get_mut(contig).unwrap();
 
         let annotate_event = |strand_bias| model::Event {
             vafs: event.clone(),
             strand_bias: strand_bias,
         };
 
-        self.events
-            .as_mut()
-            .unwrap()
+        contig_events
             .insert(name.to_owned(), annotate_event(StrandBias::None));
 
         // Add strand bias cases.
@@ -191,6 +201,9 @@ where
             .events
             .as_ref()
             .expect(".events() has to be called before .outbcf()")
+            .values()
+            .next()
+            .expect("reference must contain at least one contig")
             .keys()
         {
             header.push_record(
@@ -271,9 +284,8 @@ where
     ModelPayload: Default,
 {
     pub fn call(&mut self) -> Result<(), Box<dyn Error>> {
-        let mut universe = self.events.values().cloned().collect_vec();
-        universe.extend(self.strand_bias_events.iter().cloned());
-
+        let mut rid = None;
+        let mut event_universe: Option<Vec<Po::Event>> = None;
         let mut i = 0;
         let mut record = self.bcf_reader.empty_record();
         loop {
@@ -282,7 +294,19 @@ where
             }
 
             i += 1;
-            let call = self.call_record(&mut record, &universe)?;
+            let current_rid = record.rid().ok_or_else(|| errors::Error::RecordMissingChrom { i: i + 1 })?;
+
+            if !rid.map_or(false, |rid: u32| current_rid == rid) {
+                // rid is not the same as before, obtain event universe
+                let contig = self.bcf_reader.header().rid2name(record.rid().unwrap())?;
+                let mut _event_universe = self.events.get(contig).ok_or_else(|| errors::Error::ReferenceContigNotFound{ contig: str::from_utf8(contig).unwrap().to_owned() })?.values().cloned().collect_vec();
+                // add strand bias events
+                _event_universe.extend(self.strand_bias_events.iter().cloned());
+                rid = Some(current_rid);
+                event_universe = Some(_event_universe);
+            }
+
+            let call = self.call_record(&mut record, event_universe.as_ref().unwrap())?;
             if let Some(call) = call {
                 self.write_call(&call)?;
             }
@@ -487,6 +511,8 @@ where
                 // add calling results
                 let mut event_probs: HashMap<String, LogProb> = self
                     .events
+                    .get(chrom)
+                    .unwrap()
                     .iter()
                     .map(|(name, event)| (name.clone(), m.posterior(event).unwrap()))
                     .collect();
