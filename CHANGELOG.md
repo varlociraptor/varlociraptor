@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.3.2] - 2019-11-13
+- Enable setting of the strandedness of the sequencing protocol at the command line (same or opposite).
+- Allow contig-specific definition of the allele frequency universe in the grammar.
+
 ## [1.2.2] - 2019-10-04
 - Explicitly annotate unit (PHRED, or linear) of probabilities in BCF output.
 
