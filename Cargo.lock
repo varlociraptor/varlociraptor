@@ -1853,7 +1853,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "varlociraptor"
-version = "1.2.2-alpha.0"
+version = "1.3.0"
 dependencies = [
  "GSL 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "approx 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
