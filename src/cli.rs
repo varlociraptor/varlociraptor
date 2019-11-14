@@ -355,7 +355,9 @@ pub enum FilterMethod {
     },
 }
 
-fn parse_key_values(values: &[String]) -> Option<HashMap<String, PathBuf>> {
+pub type PathMap = HashMap<String, PathBuf>;
+
+fn parse_key_values(values: &[String]) -> Option<PathMap> {
     let mut map = HashMap::new();
     for value in values {
         let kv = value.split_terminator('=').collect_vec();
@@ -448,6 +450,103 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                         None
                     };
 
+                    let call_generic = |scenario: grammar::Scenario, bams: PathMap, alignment_properties: PathMap| -> Result<(), Box<dyn Error>> {
+                        let mut contaminations = scenario.sample_info();
+                        let mut resolutions = scenario.sample_info();
+                        let mut samples = scenario.sample_info();
+
+                        // parse samples
+                        for (sample_name, sample) in scenario.samples().iter() {
+                            let contamination =
+                                if let Some(contamination) = sample.contamination() {
+                                    let contaminant =
+                                    scenario.idx(contamination.by()).ok_or(
+                                        errors::Error::InvalidContaminationSampleName {
+                                            name: sample_name.to_owned(),
+                                        },
+                                    )?;
+                                    Some(Contamination {
+                                        by: contaminant,
+                                        fraction: *contamination.fraction(),
+                                    })
+                                } else {
+                                    None
+                                };
+                            contaminations =
+                                contaminations.push(sample_name, contamination);
+                            resolutions =
+                                resolutions.push(sample_name, *sample.resolution());
+
+                            let bam = bams.get(sample_name).ok_or(
+                                errors::Error::InvalidBAMSampleName {
+                                    name: sample_name.to_owned(),
+                                },
+                            )?;
+                            let alignment_properties =
+                                est_or_load_alignment_properites(
+                                    &alignment_properties.get(sample_name).as_ref(),
+                                    bam,
+                                )?;
+                            let bam_reader = bam::IndexedReader::from_path(bam)?;
+                            let sample = sample_builder()
+                                .name(sample_name.to_owned())
+                                .alignments(bam_reader, alignment_properties)
+                                .build()?;
+                            samples = samples.push(sample_name, sample);
+                        }
+
+                        // register groups
+                        // for (sample_name, sample) in scenario.samples().iter() {
+                        //     if let Some(group) = sample.group() {
+                        //         sample_idx.insert(
+                        //             group,
+                        //             *sample_idx.get(sample_name).unwrap(),
+                        //         );
+                        //     }
+                        // }
+
+                        let model = GenericModelBuilder::default()
+                            // TODO allow to define prior in the grammar
+                            .prior(FlatPrior::new())
+                            .contaminations(contaminations.build())
+                            .resolutions(resolutions.build())
+                            .build()?;
+
+                        // setup caller
+                        let mut caller_builder =
+                            calling::variants::CallerBuilder::default()
+                                .samples(samples.build())
+                                .reference(reference_reader)?
+                                .inbcf(candidates.as_ref())?
+                                .model(model)
+                                .omit_snvs(omit_snvs)
+                                .omit_indels(omit_indels)
+                                .max_indel_len(max_indel_len);
+                        
+                        for contig in &contigs {
+                            // populate contig universes
+                            let mut universes = scenario.sample_info();
+                            for (sample_name, sample) in scenario.samples().iter() {
+                                let universe = sample.contig_universe(&contig.name)?;
+                                universes = universes.push(sample_name, universe.to_owned());
+                            }
+                            caller_builder = caller_builder.add_contig_universes(&contig.name, universes.build());
+
+                            // populate contig vaftrees
+                            for (event_name, vaftree) in scenario.vaftrees(&contig.name)? {
+                                caller_builder = caller_builder.event(&contig.name, &event_name, vaftree);
+                            }
+                        }
+
+                        caller_builder = caller_builder.outbcf(output.as_ref())?;
+
+                        let mut caller = caller_builder.build()?;
+
+                        caller.call()?;
+
+                        Ok(())
+                    };
+
                     match mode {
                         VariantCallMode::Generic {
                             ref scenario,
@@ -476,89 +575,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 
                                     let scenario: grammar::Scenario =
                                         serde_yaml::from_str(&scenario_content)?;
-                                    let mut contaminations = scenario.sample_info();
-                                    let mut resolutions = scenario.sample_info();
-                                    let mut samples = scenario.sample_info();
 
-                                    // parse samples
-                                    for (sample_name, sample) in scenario.samples().iter() {
-                                        let contamination =
-                                            if let Some(contamination) = sample.contamination() {
-                                                let contaminant =
-                                                scenario.idx(contamination.by()).ok_or(
-                                                    errors::Error::InvalidContaminationSampleName {
-                                                        name: sample_name.to_owned(),
-                                                    },
-                                                )?;
-                                                Some(Contamination {
-                                                    by: contaminant,
-                                                    fraction: *contamination.fraction(),
-                                                })
-                                            } else {
-                                                None
-                                            };
-                                        contaminations =
-                                            contaminations.push(sample_name, contamination);
-                                        resolutions =
-                                            resolutions.push(sample_name, *sample.resolution());
-
-                                        let bam = bams.get(sample_name).ok_or(
-                                            errors::Error::InvalidBAMSampleName {
-                                                name: sample_name.to_owned(),
-                                            },
-                                        )?;
-                                        let alignment_properties =
-                                            est_or_load_alignment_properites(
-                                                &alignment_properties.get(sample_name).as_ref(),
-                                                bam,
-                                            )?;
-                                        let bam_reader = bam::IndexedReader::from_path(bam)?;
-                                        let sample = sample_builder()
-                                            .name(sample_name.to_owned())
-                                            .alignments(bam_reader, alignment_properties)
-                                            .build()?;
-                                        samples = samples.push(sample_name, sample);
-                                    }
-
-                                    // register groups
-                                    // for (sample_name, sample) in scenario.samples().iter() {
-                                    //     if let Some(group) = sample.group() {
-                                    //         sample_idx.insert(
-                                    //             group,
-                                    //             *sample_idx.get(sample_name).unwrap(),
-                                    //         );
-                                    //     }
-                                    // }
-
-                                    let model = GenericModelBuilder::default()
-                                        // TODO allow to define prior in the grammar
-                                        .prior(FlatPrior::new())
-                                        .contaminations(contaminations.build())
-                                        .resolutions(resolutions.build())
-                                        .build()?;
-
-                                    // setup caller
-                                    let mut caller_builder =
-                                        calling::variants::CallerBuilder::default()
-                                            .samples(samples.build())
-                                            .reference(reference_reader)?
-                                            .inbcf(candidates.as_ref())?
-                                            .model(model)
-                                            .omit_snvs(omit_snvs)
-                                            .omit_indels(omit_indels)
-                                            .max_indel_len(max_indel_len);
-                                    
-                                    for contig in &contigs {
-                                        for (event_name, vaftree) in scenario.vaftrees(&contig.name)? {
-                                            caller_builder = caller_builder.event(&contig.name, &event_name, vaftree);
-                                        }
-                                    }
-
-                                    caller_builder = caller_builder.outbcf(output.as_ref())?;
-
-                                    let mut caller = caller_builder.build()?;
-
-                                    caller.call()?;
+                                    call_generic(scenario, bams, alignment_properties)?;
                                 } else {
                                     Err(errors::Error::InvalidAlignmentPropertiesSpec)?
                                 }
@@ -607,76 +625,18 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                 .as_str(),
                             )?;
 
-                            let tumor_alignment_properties = est_or_load_alignment_properites(
-                                tumor_alignment_properties,
-                                tumor,
-                            )?;
-                            let normal_alignment_properties = est_or_load_alignment_properites(
-                                normal_alignment_properties,
-                                normal,
-                            )?;
-                            info!("Estimated alignment properties:");
-                            info!("{:?}", tumor_alignment_properties);
-                            info!("{:?}", normal_alignment_properties);
-
-                            let tumor_bam = bam::IndexedReader::from_path(tumor)?;
-                            let normal_bam = bam::IndexedReader::from_path(normal)?;
-
-                            let tumor_sample = sample_builder()
-                                .name("tumor".to_owned())
-                                .alignments(tumor_bam, tumor_alignment_properties)
-                                .build()?;
-                            let normal_sample = sample_builder()
-                                .name("normal".to_owned())
-                                .alignments(normal_bam, normal_alignment_properties)
-                                .build()?;
-
-                            let samples = scenario
-                                .sample_info()
-                                .push("tumor", tumor_sample)
-                                .push("normal", normal_sample)
-                                .build();
-                            let contaminations = scenario
-                                .sample_info()
-                                .push(
-                                    "tumor",
-                                    Some(Contamination {
-                                        by: scenario.idx("normal").unwrap(),
-                                        fraction: 1.0 - purity,
-                                    }),
-                                )
-                                .push("normal", None)
-                                .build();
-                            let resolutions = scenario
-                                .sample_info()
-                                .push("tumor", 100)
-                                .push("normal", 5)
-                                .build();
-
-                            let model = GenericModelBuilder::default()
-                                .prior(FlatPrior::new())
-                                .contaminations(contaminations)
-                                .resolutions(resolutions)
-                                .build()?;
-
-                            let mut caller_builder = calling::variants::CallerBuilder::default()
-                                .samples(samples)
-                                .reference(reference_reader)?
-                                .inbcf(candidates.as_ref())?
-                                .model(model)
-                                .omit_snvs(omit_snvs)
-                                .omit_indels(omit_indels)
-                                .max_indel_len(max_indel_len);
-
-                            for contig in &contigs {
-                                for (event_name, vaftree) in scenario.vaftrees(&contig.name)? {
-                                    caller_builder = caller_builder.event(&contig.name, &event_name, vaftree);
-                                }
+                            let mut alignment_properties = PathMap::default();
+                            if let Some(prop) = tumor_alignment_properties {
+                                alignment_properties.insert("tumor".to_owned(), prop.to_owned());
                             }
+                            if let Some(prop) = normal_alignment_properties {
+                                alignment_properties.insert("normal".to_owned(), prop.to_owned());
+                            }
+                            let mut bams = PathMap::default();
+                            bams.insert("tumor".to_owned(), tumor.to_owned());
+                            bams.insert("normal".to_owned(), normal.to_owned());
 
-                            let mut caller = caller_builder.outbcf(output.as_ref())?.build()?;
-
-                            caller.call()?;
+                            call_generic(scenario, bams, alignment_properties)?;
                         }
                     }
                 }

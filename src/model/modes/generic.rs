@@ -307,18 +307,30 @@ impl Likelihood<Cache> for GenericLikelihood {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct FlatPrior {}
+pub struct FlatPrior {
+    universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>
+}
 
 impl FlatPrior {
     pub fn new() -> Self {
-        FlatPrior {}
+        FlatPrior {universe: None}
     }
 }
 
 impl Prior for FlatPrior {
     type Event = Vec<likelihood::Event>;
 
-    fn compute(&self, _event: &Self::Event) -> LogProb {
+    fn compute(&self, event: &Self::Event) -> LogProb {
+        if event.iter().zip(self.universe.as_ref().unwrap().iter()).any(|(e, u)| !u.contains(e.allele_freq)) {
+            // if any of the events is not allowed in the universe of the corresponding sample, return probability zero.
+            return LogProb::ln_zero();
+        }
         LogProb::ln_one()
+    }
+}
+
+impl model::modes::UniverseDrivenPrior for FlatPrior {
+    fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>) {
+        self.universe = Some(universe);
     }
 }

@@ -85,6 +85,8 @@ where
 {
     samples: grammar::SampleInfo<Sample>,
     #[builder(private)]
+    contig_universes: HashMap<Vec<u8>, grammar::SampleInfo<grammar::VAFUniverse>>,
+    #[builder(private)]
     reference_buffer: utils::ReferenceBuffer,
     #[builder(private)]
     bcf_reader: bcf::Reader,
@@ -119,6 +121,16 @@ where
         } else {
             bcf::Reader::from_stdin()?
         }))
+    }
+
+    pub fn add_contig_universes(mut self, contig: &str, universes: grammar::SampleInfo<grammar::VAFUniverse>) -> Self {
+        if self.contig_universes.is_none() {
+            self = self.contig_universes(HashMap::default());
+        }
+
+        self.contig_universes.as_mut().unwrap().insert(contig.as_bytes().to_owned(), universes);
+
+        self
     }
 
     /// Register events.
@@ -275,7 +287,7 @@ where
 impl<L, Pr, Po, ModelPayload> Caller<L, Pr, Po, ModelPayload>
 where
     L: bayesian::model::Likelihood<ModelPayload, Event = AlleleFreqCombination, Data = Vec<Pileup>>,
-    Pr: bayesian::model::Prior<Event = AlleleFreqCombination>,
+    Pr: bayesian::model::Prior<Event = AlleleFreqCombination> + model::modes::UniverseDrivenPrior,
     Po: bayesian::model::Posterior<
         BaseEvent = AlleleFreqCombination,
         Event = model::Event,
@@ -296,6 +308,8 @@ where
             i += 1;
             let current_rid = record.rid().ok_or_else(|| errors::Error::RecordMissingChrom { i: i + 1 })?;
 
+            dbg!((rid, current_rid));
+
             if !rid.map_or(false, |rid: u32| current_rid == rid) {
                 // rid is not the same as before, obtain event universe
                 let contig = self.bcf_reader.header().rid2name(record.rid().unwrap())?;
@@ -304,6 +318,9 @@ where
                 _event_universe.extend(self.strand_bias_events.iter().cloned());
                 rid = Some(current_rid);
                 event_universe = Some(_event_universe);
+
+                // update prior to the VAF universe of the current chromosome
+                self.model.prior_mut().set_universe(self.contig_universes.get(contig).unwrap().to_owned());
             }
 
             let call = self.call_record(&mut record, event_universe.as_ref().unwrap())?;

@@ -5,3 +5,9 @@
 
 pub mod generic;
 pub mod tumor;
+
+use crate::grammar;
+
+pub trait UniverseDrivenPrior {
+    fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>);
+}

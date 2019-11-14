@@ -181,6 +181,13 @@ impl VAFSpectrum {
         set.insert(vaf);
         VAFSpectrum::Set(set)
     }
+
+    pub fn contains(&self, vaf: AlleleFreq) -> bool {
+        match self {
+            VAFSpectrum::Set(ref set) => set.contains(&vaf),
+            VAFSpectrum::Range(ref range) => range.contains(vaf),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -345,6 +352,15 @@ impl VAFUniverse {
                     .collect(),
             }
         }
+    }
+
+    pub fn contains(&self, vaf: AlleleFreq) -> bool {
+        for atom in &**self {
+            if atom.contains(vaf) {
+                return true;
+            }
+        }
+        false
     }
 }
 
