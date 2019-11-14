@@ -5,9 +5,9 @@
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs;
 use std::path::Path;
 use std::str;
-use std::fs;
 
 use bio::io::fasta;
 use bio::stats::{bayesian, LogProb, PHREDProb};
@@ -17,6 +17,7 @@ use itertools::Itertools;
 use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
+use crate::errors;
 use crate::grammar;
 use crate::model;
 use crate::model::evidence::observation::expected_depth;
@@ -24,7 +25,6 @@ use crate::model::evidence::Observation;
 use crate::model::sample::{Pileup, Sample};
 use crate::model::{AlleleFreq, StrandBias};
 use crate::utils;
-use crate::errors;
 
 pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
@@ -110,9 +110,7 @@ where
     ModelPayload: Default,
 {
     pub fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self, Box<dyn Error>> {
-        Ok(self.reference_buffer(utils::ReferenceBuffer::new(
-            reader,
-        )))
+        Ok(self.reference_buffer(utils::ReferenceBuffer::new(reader)))
     }
 
     pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<dyn Error>> {
@@ -123,12 +121,19 @@ where
         }))
     }
 
-    pub fn add_contig_universes(mut self, contig: &str, universes: grammar::SampleInfo<grammar::VAFUniverse>) -> Self {
+    pub fn add_contig_universes(
+        mut self,
+        contig: &str,
+        universes: grammar::SampleInfo<grammar::VAFUniverse>,
+    ) -> Self {
         if self.contig_universes.is_none() {
             self = self.contig_universes(HashMap::default());
         }
 
-        self.contig_universes.as_mut().unwrap().insert(contig.as_bytes().to_owned(), universes);
+        self.contig_universes
+            .as_mut()
+            .unwrap()
+            .insert(contig.as_bytes().to_owned(), universes);
 
         self
     }
@@ -149,7 +154,7 @@ where
 
         if self.events.is_none() {
             let events = HashMap::default();
-            
+
             self = self.events(events);
             self = self.strand_bias_events(Vec::new());
         }
@@ -169,7 +174,10 @@ where
             } else {
                 panic!("bug: events must be registered after adding samples");
             }
-            self.events.as_mut().unwrap().insert(contig.to_owned(), events);
+            self.events
+                .as_mut()
+                .unwrap()
+                .insert(contig.to_owned(), events);
         }
 
         let contig_events = self.events.as_mut().unwrap().get_mut(contig).unwrap();
@@ -179,8 +187,7 @@ where
             strand_bias: strand_bias,
         };
 
-        contig_events
-            .insert(name.to_owned(), annotate_event(StrandBias::None));
+        contig_events.insert(name.to_owned(), annotate_event(StrandBias::None));
 
         // Add strand bias cases.
         self.strand_bias_events
@@ -306,21 +313,33 @@ where
             }
 
             i += 1;
-            let current_rid = record.rid().ok_or_else(|| errors::Error::RecordMissingChrom { i: i + 1 })?;
+            let current_rid = record
+                .rid()
+                .ok_or_else(|| errors::Error::RecordMissingChrom { i: i + 1 })?;
 
             dbg!((rid, current_rid));
 
             if !rid.map_or(false, |rid: u32| current_rid == rid) {
                 // rid is not the same as before, obtain event universe
                 let contig = self.bcf_reader.header().rid2name(record.rid().unwrap())?;
-                let mut _event_universe = self.events.get(contig).ok_or_else(|| errors::Error::ReferenceContigNotFound{ contig: str::from_utf8(contig).unwrap().to_owned() })?.values().cloned().collect_vec();
+                let mut _event_universe = self
+                    .events
+                    .get(contig)
+                    .ok_or_else(|| errors::Error::ReferenceContigNotFound {
+                        contig: str::from_utf8(contig).unwrap().to_owned(),
+                    })?
+                    .values()
+                    .cloned()
+                    .collect_vec();
                 // add strand bias events
                 _event_universe.extend(self.strand_bias_events.iter().cloned());
                 rid = Some(current_rid);
                 event_universe = Some(_event_universe);
 
                 // update prior to the VAF universe of the current chromosome
-                self.model.prior_mut().set_universe(self.contig_universes.get(contig).unwrap().to_owned());
+                self.model
+                    .prior_mut()
+                    .set_universe(self.contig_universes.get(contig).unwrap().to_owned());
             }
 
             let call = self.call_record(&mut record, event_universe.as_ref().unwrap())?;

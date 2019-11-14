@@ -148,7 +148,9 @@ impl Formula {
 
     pub fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
         Ok(match self {
-            Formula::Negation { operand } => operand.negate(scenario, contig)?.normalize(scenario, contig)?,
+            Formula::Negation { operand } => operand
+                .negate(scenario, contig)?
+                .normalize(scenario, contig)?,
             Formula::Atom { sample, vafs } => NormalizedFormula::Atom {
                 sample: sample.to_owned(),
                 vafs: vafs.to_owned(),

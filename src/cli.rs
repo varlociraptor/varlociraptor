@@ -10,9 +10,9 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
-use bio::io::fasta;
 use itertools::Itertools;
 use rayon;
 use rust_htslib::bam;
@@ -450,43 +450,42 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                         None
                     };
 
-                    let call_generic = |scenario: grammar::Scenario, bams: PathMap, alignment_properties: PathMap| -> Result<(), Box<dyn Error>> {
+                    let call_generic = |scenario: grammar::Scenario,
+                                        bams: PathMap,
+                                        alignment_properties: PathMap|
+                     -> Result<(), Box<dyn Error>> {
                         let mut contaminations = scenario.sample_info();
                         let mut resolutions = scenario.sample_info();
                         let mut samples = scenario.sample_info();
 
                         // parse samples
                         for (sample_name, sample) in scenario.samples().iter() {
-                            let contamination =
-                                if let Some(contamination) = sample.contamination() {
-                                    let contaminant =
-                                    scenario.idx(contamination.by()).ok_or(
-                                        errors::Error::InvalidContaminationSampleName {
-                                            name: sample_name.to_owned(),
-                                        },
-                                    )?;
-                                    Some(Contamination {
-                                        by: contaminant,
-                                        fraction: *contamination.fraction(),
-                                    })
-                                } else {
-                                    None
-                                };
-                            contaminations =
-                                contaminations.push(sample_name, contamination);
-                            resolutions =
-                                resolutions.push(sample_name, *sample.resolution());
+                            let contamination = if let Some(contamination) = sample.contamination()
+                            {
+                                let contaminant = scenario.idx(contamination.by()).ok_or(
+                                    errors::Error::InvalidContaminationSampleName {
+                                        name: sample_name.to_owned(),
+                                    },
+                                )?;
+                                Some(Contamination {
+                                    by: contaminant,
+                                    fraction: *contamination.fraction(),
+                                })
+                            } else {
+                                None
+                            };
+                            contaminations = contaminations.push(sample_name, contamination);
+                            resolutions = resolutions.push(sample_name, *sample.resolution());
 
                             let bam = bams.get(sample_name).ok_or(
                                 errors::Error::InvalidBAMSampleName {
                                     name: sample_name.to_owned(),
                                 },
                             )?;
-                            let alignment_properties =
-                                est_or_load_alignment_properites(
-                                    &alignment_properties.get(sample_name).as_ref(),
-                                    bam,
-                                )?;
+                            let alignment_properties = est_or_load_alignment_properites(
+                                &alignment_properties.get(sample_name).as_ref(),
+                                bam,
+                            )?;
                             let bam_reader = bam::IndexedReader::from_path(bam)?;
                             let sample = sample_builder()
                                 .name(sample_name.to_owned())
@@ -513,16 +512,15 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             .build()?;
 
                         // setup caller
-                        let mut caller_builder =
-                            calling::variants::CallerBuilder::default()
-                                .samples(samples.build())
-                                .reference(reference_reader)?
-                                .inbcf(candidates.as_ref())?
-                                .model(model)
-                                .omit_snvs(omit_snvs)
-                                .omit_indels(omit_indels)
-                                .max_indel_len(max_indel_len);
-                        
+                        let mut caller_builder = calling::variants::CallerBuilder::default()
+                            .samples(samples.build())
+                            .reference(reference_reader)?
+                            .inbcf(candidates.as_ref())?
+                            .model(model)
+                            .omit_snvs(omit_snvs)
+                            .omit_indels(omit_indels)
+                            .max_indel_len(max_indel_len);
+
                         for contig in &contigs {
                             // populate contig universes
                             let mut universes = scenario.sample_info();
@@ -530,11 +528,13 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                 let universe = sample.contig_universe(&contig.name)?;
                                 universes = universes.push(sample_name, universe.to_owned());
                             }
-                            caller_builder = caller_builder.add_contig_universes(&contig.name, universes.build());
+                            caller_builder = caller_builder
+                                .add_contig_universes(&contig.name, universes.build());
 
                             // populate contig vaftrees
                             for (event_name, vaftree) in scenario.vaftrees(&contig.name)? {
-                                caller_builder = caller_builder.event(&contig.name, &event_name, vaftree);
+                                caller_builder =
+                                    caller_builder.event(&contig.name, &event_name, vaftree);
                             }
                         }
 

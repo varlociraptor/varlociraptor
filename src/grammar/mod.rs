@@ -161,13 +161,13 @@ impl Sample {
     pub fn contig_universe(&self, contig: &str) -> Result<&VAFUniverse> {
         Ok(match self.universe {
             UniverseDefinition::Simple(ref universe) => universe,
-            UniverseDefinition::Map(ref map) => {
-                match map.get(contig) {
-                    Some(universe) => universe,
-                    None => {
-                        map.get("all").ok_or_else(|| errors::Error::UniverseContigNotFound {contig: contig.to_owned()})?
-                    },
-                }
+            UniverseDefinition::Map(ref map) => match map.get(contig) {
+                Some(universe) => universe,
+                None => map
+                    .get("all")
+                    .ok_or_else(|| errors::Error::UniverseContigNotFound {
+                        contig: contig.to_owned(),
+                    })?,
             },
         })
     }

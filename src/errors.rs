@@ -40,10 +40,13 @@ pub enum Error {
         "unable to estimate TMB because no valid records were found in the given BCF/VCF"
     ))]
     NoRecordsFound,
-    #[snafu(display("contig {} not found in universe definition and no 'all' defined", contig))]
-    UniverseContigNotFound {contig: String },
+    #[snafu(display(
+        "contig {} not found in universe definition and no 'all' defined",
+        contig
+    ))]
+    UniverseContigNotFound { contig: String },
     #[snafu(display("contig {} not found in the reference", contig))]
-    ReferenceContigNotFound {contig: String },
+    ReferenceContigNotFound { contig: String },
     #[snafu(display("record {} in candidate BCF/VCF does not define a chromosome", i))]
     RecordMissingChrom { i: usize },
 }
