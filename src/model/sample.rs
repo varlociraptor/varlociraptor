@@ -22,7 +22,7 @@ use rust_htslib::bam::record::CigarStringView;
 use crate::estimation::alignment_properties;
 use crate::model::evidence;
 use crate::model::evidence::reads::AbstractReadEvidence;
-use crate::model::evidence::{Evidence, Observation};
+use crate::model::evidence::{Observation};
 use crate::model::{Variant, VariantType};
 use crate::utils::{is_repeat_variant, max_prob, Overlap};
 
@@ -425,19 +425,18 @@ impl Sample {
                 &self.alignment_properties,
             );
             let strand = evidence.strand(record);
-            Ok(Some(Observation::new(
-                prob_mapping,
-                prob_mismapping,
-                prob_alt,
-                prob_ref,
-                prob_missed_allele,
-                prob_sample_alt,
-                LogProb::ln_zero(), // no double overlap possible
-                LogProb::from(Prob(0.5)),
-                strand == Strand::Forward,
-                strand == Strand::Reverse,
-                Evidence::alignment(cigar, record),
-            )))
+            Ok(Some(ObservationBuilder::default()
+                .prob_mapping(prob_mapping)
+                .prob_alt(prob_alt)
+                .prob_ref(prob_ref)
+                .prob_missed_allele(prob_missed_allele)
+                .prob_sample_alt(prob_sample_alt)
+                .prob_double_overlap(LogProb::ln_zero()) // no double overlap possible
+                .prob_any_strand(LogProb::from(Prob(0.5)))
+                .forward_strand(strand == Strand::Forward)
+                .reverse_strand(strand == Strand::Reverse)
+                .build().unwrap()
+            ))
         } else {
             Ok(None)
         }
@@ -560,31 +559,18 @@ impl Sample {
             ProtocolStrandedness::Same => Prob(0.5),
         });
 
-        let obs = Observation::new(
-            prob_mismapping.ln_one_minus_exp(),
-            prob_mismapping,
-            p_alt_isize + p_alt_left + p_alt_right,
-            p_ref_isize + p_ref_left + p_ref_right,
-            p_missed_left + p_missed_right,
-            prob_sample_alt,
-            prob_double_overlap,
-            prob_any_strand,
-            forward_strand,
-            reverse_strand,
-            Evidence::insert_size(
-                insert_size as u32,
-                left_record.cigar_cached().unwrap(),
-                right_record.cigar_cached().unwrap(),
-                left_record,
-                right_record,
-                p_ref_left,
-                p_alt_left,
-                p_ref_right,
-                p_alt_right,
-                p_ref_isize,
-                p_alt_isize,
-            ),
-        );
+        let obs = ObservationBuilder::default()
+            .prob_mismapping(prob_mismapping.ln_one_minus_exp())
+            .prob_alt(p_alt_isize + p_alt_left + p_alt_right)
+            .prob_ref(p_ref_isize + p_ref_left + p_ref_right)
+            .prob_missed_allele(p_missed_left + p_missed_right)
+            .prob_sample_alt(prob_sample_alt)
+            .prob_double_overlap(prob_double_overlap)
+            .prob_any_strand(prob_any_strand)
+            .forward_strand(forward_strand)
+            .reverse_strand(reverse_strand)
+            .build().unwrap();
+
         assert!(obs.prob_alt.is_valid());
         assert!(obs.prob_ref.is_valid());
 

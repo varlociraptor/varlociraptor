@@ -41,6 +41,15 @@ use crate::SimpleEvent;
 )]
 pub enum Varlociraptor {
     #[structopt(
+        name = "preprocess",
+        about = "Preprocess variants",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Preprocess {
+        #[structopt(subcommand)]
+        kind: PreprocessKind,
+    },
+    #[structopt(
         name = "call",
         about = "Call variants.",
         setting = structopt::clap::AppSettings::ColoredHelp,
@@ -81,48 +90,17 @@ pub enum Varlociraptor {
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-pub enum EstimateKind {
-    #[structopt(
-        name = "tmb",
-        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated \
-                 with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT. \
-                 It can be converted to an image via vega-lite-cli (see conda package).",
-        usage = "varlociraptor estimate tmb --coding-genome-size 3e7 --somatic-tumor-events SOMATIC_TUMOR \
-                 --tumor-sample tumor < calls.bcf | vg2svg > tmb.svg",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
-    TMB {
-        #[structopt(
-            long = "somatic-tumor-events",
-            default_value = "SOMATIC_TUMOR",
-            help = "Events to consider (e.g. SOMATIC_TUMOR)."
-        )]
-        somatic_tumor_events: Vec<String>,
-        #[structopt(
-            long = "tumor-sample",
-            default_value = "tumor",
-            help = "Name of the tumor sample in the given VCF/BCF."
-        )]
-        tumor_sample: String,
-        #[structopt(
-            long = "coding-genome-size",
-            default_value = "3e7",
-            help = "Size (in bases) of the covered coding genome."
-        )]
-        coding_genome_size: f64,
-    },
-}
-
-#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-pub enum CallKind {
+pub enum PreprocessKind {
     #[structopt(
         name = "variants",
-        about = "Call variants.",
+        about = "Preprocess given variants by calculating various probabilities for each fragment. \
+                 The obtained information is printed to STDOUT in BCF format. Note that the resulting BCFs \
+                 will be very large and are only intended for internal use (e.g. for piping into 'varlociraptor \
+                 call variants generic').",
+        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --output sample.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Variants {
-        #[structopt(subcommand)]
-        mode: VariantCallMode,
         #[structopt(
             parse(from_os_str),
             help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
@@ -134,6 +112,14 @@ pub enum CallKind {
             help = "VCF/BCF file to process (if omitted, read from STDIN)."
         )]
         candidates: Option<PathBuf>,
+        #[structopt(long, help = "BAM file with aligned reads from a single sample.")]
+        bam: PathBuf,
+        #[structopt(
+            long = "alignment-properties",
+            help = "Alignment properties JSON file for normal sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        alignment_properties: PathBuf,
         #[structopt(
             parse(from_os_str),
             long,
@@ -197,6 +183,52 @@ pub enum CallKind {
                     number, downsampling is performed."
         )]
         max_depth: usize,
+    }
+}
+
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
+pub enum EstimateKind {
+    #[structopt(
+        name = "tmb",
+        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated \
+                 with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT. \
+                 It can be converted to an image via vega-lite-cli (see conda package).",
+        usage = "varlociraptor estimate tmb --coding-genome-size 3e7 --somatic-tumor-events SOMATIC_TUMOR \
+                 --tumor-sample tumor < calls.bcf | vg2svg > tmb.svg",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    TMB {
+        #[structopt(
+            long = "somatic-tumor-events",
+            default_value = "SOMATIC_TUMOR",
+            help = "Events to consider (e.g. SOMATIC_TUMOR)."
+        )]
+        somatic_tumor_events: Vec<String>,
+        #[structopt(
+            long = "tumor-sample",
+            default_value = "tumor",
+            help = "Name of the tumor sample in the given VCF/BCF."
+        )]
+        tumor_sample: String,
+        #[structopt(
+            long = "coding-genome-size",
+            default_value = "3e7",
+            help = "Size (in bases) of the covered coding genome."
+        )]
+        coding_genome_size: f64,
+    },
+}
+
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
+pub enum CallKind {
+    #[structopt(
+        name = "variants",
+        about = "Call variants.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Variants {
+        #[structopt(subcommand)]
+        mode: VariantCallMode,
         #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
@@ -259,14 +291,22 @@ pub enum VariantCallMode {
     #[structopt(
         name = "tumor-normal",
         about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants reference.fa tumor-normal --purity 0.75 tumor.bam normal.bam < candidates.bcf > calls.bcf",
+        usage = "varlociraptor call variants tumor-normal --purity 0.75 --tumor tumor.bcf --normal normal.bcf --output calls.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     TumorNormal {
-        #[structopt(parse(from_os_str), help = "BAM file with reads from tumor sample.")]
-        tumor: PathBuf,
-        #[structopt(parse(from_os_str), help = "BAM file with reads from normal sample.")]
-        normal: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "tumor",
+            help = "BCF file with varlociraptor preprocess results for the tumor sample."
+        )]
+        tumor_observations: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "normal",
+            help = "BCF file with varlociraptor preprocess results for the normal sample."
+        )]
+        normal_observations: PathBuf,
         #[structopt(short, long, default_value = "1.0", help = "Purity of tumor sample.")]
         purity: f64,
         #[structopt(
@@ -288,8 +328,8 @@ pub enum VariantCallMode {
         name = "generic",
         about = "Call variants for a given scenario specified with the varlociraptor calling \
                  grammar and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants reference.fa generic --bams relapse=relapse.bam \
-                 tumor=tumor.bam normal=normal.bam < candidates.bcf > calls.bcf",
+        usage = "varlociraptor call variants generic --observations relapse=relapse.bcf \
+                 tumor=tumor.bcf normal=normal.bcf --output calls.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Generic {
@@ -299,14 +339,12 @@ pub enum VariantCallMode {
             help = "Scenario defined in the varlociraptor calling grammar."
         )]
         scenario: PathBuf,
-        #[structopt(long, help = "BAM files with aligned reads for each sample.")]
-        bams: Vec<String>,
         #[structopt(
-            long = "alignment-properties",
-            help = "Alignment properties JSON file for normal sample. If not provided, properties \
-                    will be estimated from the given BAM file."
+            parse(from_os_str),
+            long,
+            help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario."
         )]
-        alignment_properties: Vec<String>,
+        observations: Vec<String>,
     },
 }
 
