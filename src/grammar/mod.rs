@@ -171,6 +171,12 @@ impl Sample {
             },
         })
     }
+
+    pub fn universe_contigs(&self) -> Vec<String> {
+        match self.universe {
+            UniverseDefinition::Simple(_) => 
+        }
+    }
 }
 
 #[derive(Deserialize, Getters)]

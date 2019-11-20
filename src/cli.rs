@@ -116,10 +116,10 @@ pub enum PreprocessKind {
         bam: PathBuf,
         #[structopt(
             long = "alignment-properties",
-            help = "Alignment properties JSON file for normal sample. If not provided, properties \
+            help = "Alignment properties JSON file for sample. If not provided, properties \
                     will be estimated from the given BAM file."
         )]
-        alignment_properties: PathBuf,
+        alignment_properties: Option<PathBuf>,
         #[structopt(
             parse(from_os_str),
             long,
@@ -342,7 +342,7 @@ pub enum VariantCallMode {
         #[structopt(
             parse(from_os_str),
             long,
-            help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario."
+            help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario (given as samplename=path/to/calls.bcf)."
         )]
         observations: Vec<String>,
     },
@@ -417,26 +417,27 @@ impl Default for Varlociraptor {
 pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
     let opt_clone = opt.clone();
     match opt {
-        Varlociraptor::Call { kind } => {
+        Varlociraptor::Preprocess { kind } => {
             match kind {
-                CallKind::Variants {
-                    mode,
+                PreprocessKind::Variants {
+                    reference,
+                    candidates,
+                    bam,
+                    alignment_properties,
+                    output,
                     spurious_ins_rate,
                     spurious_del_rate,
                     spurious_insext_rate,
                     spurious_delext_rate,
-                    indel_window,
+                    protocol_strandedness,
                     omit_snvs,
                     omit_indels,
                     max_indel_len,
+                    indel_window,
                     max_depth,
-                    reference,
-                    candidates,
-                    output,
-                    testcase_locus,
-                    testcase_prefix,
-                    protocol_strandedness,
                 } => {
+                    // TODO: handle testcases
+
                     let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
                     let spurious_del_rate = Prob::checked(spurious_del_rate)?;
                     let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
@@ -444,57 +445,82 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     if indel_window > (128 / 2) {
                         Err(structopt::clap::Error::with_description( "Command-line option --indel-window requires a value <= 64 with the current implementation.", structopt::clap::ErrorKind::ValueValidation))?;
                     };
-                    dbg!(indel_window);
 
-                    let sample_builder = || {
-                        SampleBuilder::default()
-                            .error_probs(
-                                spurious_ins_rate,
-                                spurious_del_rate,
-                                spurious_insext_rate,
-                                spurious_delext_rate,
-                                indel_window as u32,
-                            )
-                            .max_depth(max_depth)
-                            // TODO this could as well be handled sample-specific!
-                            .protocol_strandedness(protocol_strandedness)
-                    };
+                    let alignment_properties = est_or_load_alignment_properites(
+                        alignment_properties,
+                        bam,
+                    )?;
 
-                    // obtain reference reader
-                    let reference_reader = fasta::IndexedReader::from_file(&reference)?;
-                    let contigs = reference_reader.index.sequences();
+                    let bam_reader = bam::IndexedReader::from_path(bam)?;
 
-                    let testcase_builder = if let Some(testcase_locus) = testcase_locus {
-                        if let Some(testcase_prefix) = testcase_prefix {
-                            if let Some(candidates) = candidates.as_ref() {
-                                // just write a testcase and quit
-                                Some(
-                                    TestcaseBuilder::default()
-                                        .prefix(PathBuf::from(testcase_prefix))
-                                        .options(opt_clone)
-                                        .locus(&testcase_locus)?
-                                        .reference(&reference)?
-                                        .candidates(candidates)?,
-                                )
-                            } else {
-                                Err(errors::Error::MissingCandidates)?;
-                                None
-                            }
-                        } else {
-                            Err(errors::Error::MissingPrefix)?;
-                            None
-                        }
-                    } else {
-                        None
-                    };
+                    let sample = SampleBuilder::default()
+                        .error_probs(
+                            spurious_ins_rate,
+                            spurious_del_rate,
+                            spurious_insext_rate,
+                            spurious_delext_rate,
+                            indel_window as u32,
+                        )
+                        .max_depth(max_depth)
+                        .protocol_strandedness(protocol_strandedness)
+                        .alignments(bam_reader, alignment_properties)
+                        .build()?;
+
+                    let mut processor = ObservationProcessorBuilder::default()
+                        .sample(sample)
+                        .max_indel_len(max_indel_len)
+                        .omit_snvs(omit_snvs)
+                        .omit_indels(omit_indels)
+                        .reference(fasta::IndexedReader::from_file(&reference)?)
+                        .inbcf(candidates)
+                        .outpcf(output)
+                        .build()?;
+
+                    processor.process()?
+                }
+            }
+        },
+        Varlociraptor::Call { kind } => {
+            match kind {
+                CallKind::Variants {
+                    mode,
+                    testcase_locus,
+                    testcase_prefix,
+                } => {
+
+                    // let testcase_builder = if let Some(testcase_locus) = testcase_locus {
+                    //     if let Some(testcase_prefix) = testcase_prefix {
+                    //         // TODO obtain sample information from input bcfs!
+
+                    //         if let Some(candidates) = candidates.as_ref() {
+                    //             // just write a testcase and quit
+                    //             Some(
+                    //                 TestcaseBuilder::default()
+                    //                     .prefix(PathBuf::from(testcase_prefix))
+                    //                     .options(opt_clone)
+                    //                     .locus(&testcase_locus)?
+                    //                     .reference(&reference)?
+                    //                     .candidates(candidates)?,
+                    //             )
+                    //         } else {
+                    //             Err(errors::Error::MissingCandidates)?;
+                    //             None
+                    //         }
+                    //     } else {
+                    //         Err(errors::Error::MissingPrefix)?;
+                    //         None
+                    //     }
+                    // } else {
+                    //     None
+                    // };
 
                     let call_generic = |scenario: grammar::Scenario,
-                                        bams: PathMap,
-                                        alignment_properties: PathMap|
+                                        observations: PathMap|
                      -> Result<(), Box<dyn Error>> {
                         let mut contaminations = scenario.sample_info();
                         let mut resolutions = scenario.sample_info();
-                        let mut samples = scenario.sample_info();
+                        let mut sample_names = scenario.sample_info();
+                        let mut sample_observations = scenario.sample_info();
 
                         // parse samples
                         for (sample_name, sample) in scenario.samples().iter() {
@@ -515,21 +541,13 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             contaminations = contaminations.push(sample_name, contamination);
                             resolutions = resolutions.push(sample_name, *sample.resolution());
 
-                            let bam = bams.get(sample_name).ok_or(
-                                errors::Error::InvalidBAMSampleName {
+                            let obs = observations.get(sample_name).ok_or(
+                                errors::Error::InvalidObservationSampleName {
                                     name: sample_name.to_owned(),
                                 },
                             )?;
-                            let alignment_properties = est_or_load_alignment_properites(
-                                &alignment_properties.get(sample_name).as_ref(),
-                                bam,
-                            )?;
-                            let bam_reader = bam::IndexedReader::from_path(bam)?;
-                            let sample = sample_builder()
-                                .name(sample_name.to_owned())
-                                .alignments(bam_reader, alignment_properties)
-                                .build()?;
-                            samples = samples.push(sample_name, sample);
+                            sample_observations = sample_observations.push(bcf::Reader::from_path(obs)?);
+                            sample_names = sample_names.push(sample_name);
                         }
 
                         // register groups
@@ -551,13 +569,11 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 
                         // setup caller
                         let mut caller_builder = calling::variants::CallerBuilder::default()
-                            .samples(samples.build())
-                            .reference(reference_reader)?
-                            .inbcf(candidates.as_ref())?
+                            .samplenames(sample_names.build())
+                            .observations(sample_observations.build())
+                            .scenario(scenario)
                             .model(model)
-                            .omit_snvs(omit_snvs)
-                            .omit_indels(omit_indels)
-                            .max_indel_len(max_indel_len);
+                            .outbcf(output.as_ref())?;
 
                         for contig in &contigs {
                             // populate contig universes
@@ -575,8 +591,6 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                     caller_builder.event(&contig.name, &event_name, vaftree);
                             }
                         }
-
-                        caller_builder = caller_builder.outbcf(output.as_ref())?;
 
                         let mut caller = caller_builder.build()?;
 

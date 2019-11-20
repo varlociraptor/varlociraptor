@@ -49,4 +49,6 @@ pub enum Error {
     ReferenceContigNotFound { contig: String },
     #[snafu(display("record {} in candidate BCF/VCF does not define a chromosome", i))]
     RecordMissingChrom { i: usize },
+    #[snafu(display("inconsistent observations: input observation BCF files do not contain exactly the same records"))]
+    InconsistentObservations,
 }

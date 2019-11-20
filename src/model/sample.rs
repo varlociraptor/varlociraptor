@@ -106,7 +106,6 @@ pub fn estimate_alignment_properties<P: AsRef<Path>>(
 #[derive(Builder, Debug)]
 #[builder(pattern = "owned")]
 pub struct Sample {
-    name: String,
     #[builder(private)]
     record_buffer: bam::buffer::RecordBuffer,
     #[builder(default = "true")]
@@ -177,10 +176,6 @@ fn is_valid_record(record: &bam::Record) -> bool {
 }
 
 impl Sample {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,
@@ -596,7 +591,6 @@ mod tests {
 
     fn setup_sample(isize_mean: f64) -> Sample {
         SampleBuilder::default()
-            .name("test".to_owned())
             .alignments(
                 bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
                 AlignmentProperties::default(InsertSize {

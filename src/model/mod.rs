@@ -27,8 +27,15 @@ pub struct Contamination {
 
 #[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
 pub struct Event {
+    pub name: String,
     pub vafs: grammar::VAFTree,
     pub strand_bias: StrandBias,
+}
+
+impl Event {
+    pub fn is_artifact(&self) -> bool {
+        self.strand_bias != StrandBias::None
+    }
 }
 
 pub type AlleleFreq = NotNan<f64>;

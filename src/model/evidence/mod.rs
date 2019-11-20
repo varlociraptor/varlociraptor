@@ -10,7 +10,6 @@ pub mod fragments;
 pub mod observation;
 pub mod reads;
 
-pub use self::observation::Evidence;
 pub use self::observation::Observation;
 
 pub struct Clips {

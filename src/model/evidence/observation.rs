@@ -60,7 +60,7 @@ pub struct Observation {
 impl ObservationBuilder {
     pub fn prob_mapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self.prob_mapping = Some(prob_mapping);
-        self.prob_mismapping = Some(prob_mapping.ln_one_minus_exp())
+        self.prob_mismapping = Some(prob_mapping.ln_one_minus_exp());
 
         self
     }
