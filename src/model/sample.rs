@@ -421,12 +421,12 @@ impl Sample {
             );
             let strand = evidence.strand(record);
             Ok(Some(ObservationBuilder::default()
-                .prob_mapping(prob_mapping)
+                .prob_mapping_mismapping(prob_mapping)
                 .prob_alt(prob_alt)
                 .prob_ref(prob_ref)
                 .prob_missed_allele(prob_missed_allele)
                 .prob_sample_alt(prob_sample_alt)
-                .prob_double_overlap(LogProb::ln_zero()) // no double overlap possible
+                .prob_overlap(LogProb::ln_zero()) // no double overlap possible
                 .prob_any_strand(LogProb::from(Prob(0.5)))
                 .forward_strand(strand == Strand::Forward)
                 .reverse_strand(strand == Strand::Reverse)
@@ -555,12 +555,12 @@ impl Sample {
         });
 
         let obs = ObservationBuilder::default()
-            .prob_mismapping(prob_mismapping.ln_one_minus_exp())
+            .prob_mapping_mismapping(prob_mismapping.ln_one_minus_exp())
             .prob_alt(p_alt_isize + p_alt_left + p_alt_right)
             .prob_ref(p_ref_isize + p_ref_left + p_ref_right)
             .prob_missed_allele(p_missed_left + p_missed_right)
             .prob_sample_alt(prob_sample_alt)
-            .prob_double_overlap(prob_double_overlap)
+            .prob_overlap(prob_double_overlap)
             .prob_any_strand(prob_any_strand)
             .forward_strand(forward_strand)
             .reverse_strand(reverse_strand)

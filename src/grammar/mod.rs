@@ -30,6 +30,17 @@ impl<T> SampleInfo<T> {
         }
     }
 
+    /// Map to other value type or fail at first error.
+    pub fn try_map<U, E, F: Fn(&T) -> Result<U, E>>(&self, f: F) -> Result<SampleInfo<U>, E> {
+        let mut inner = Vec::with_capacity(self.inner.len());
+        for res in self.inner.iter().map(f) {
+            inner.push(res?);
+        }
+        Ok(SampleInfo {
+            inner: inner,
+        })
+    }
+
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.inner.iter_mut()
     }
@@ -120,10 +131,6 @@ impl Scenario {
             .map(|idx| *idx)
     }
 
-    pub fn sort_samples_by_idx(&self, samples: &mut Vec<model::sample::Sample>) {
-        samples.sort_by_key(|sample| self.idx(sample.name()));
-    }
-
     pub fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {
         self.events()
             .iter()
@@ -170,12 +177,6 @@ impl Sample {
                     })?,
             },
         })
-    }
-
-    pub fn universe_contigs(&self) -> Vec<String> {
-        match self.universe {
-            UniverseDefinition::Simple(_) => 
-        }
     }
 }
 

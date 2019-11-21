@@ -6,7 +6,6 @@
 use std::f64;
 use std::str;
 
-use derive_builder::Builder;
 use rgsl::randist::poisson::poisson_pdf;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
@@ -45,6 +44,7 @@ pub struct Observation {
     /// Probability to sample the alt allele
     pub prob_sample_alt: LogProb,
     /// Probability to overlap with both strands
+    #[builder(private)]
     pub prob_double_overlap: LogProb,
     /// Probability to overlap with one strand only (1-prob_double_overlap)
     #[builder(private)]
@@ -58,26 +58,16 @@ pub struct Observation {
 }
 
 impl ObservationBuilder {
-    pub fn prob_mapping(&mut self, prob_mapping: LogProb) -> &mut Self {
-        self.prob_mapping = Some(prob_mapping);
-        self.prob_mismapping = Some(prob_mapping.ln_one_minus_exp());
-
+    pub fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self
+            .prob_mapping(prob_mapping)
+            .prob_mismapping(prob_mapping.ln_one_minus_exp())
     }
 
-    pub fn prob_mismapping(&mut self, prob_mismapping: LogProb) -> &mut Self {
-        self.prob_mapping = Some(prob_mismapping.ln_one_minus_exp());
-        self.prob_mismapping = Some(prob_mapping);
-
+    pub fn prob_overlap(&mut self, prob_double_overlap: LogProb) -> &mut Self {
         self
-    }
-
-
-    pub fn prob_double_overlap(&mut self, prob_double_overlap: LogProb) -> &mut Self {
-        self.prob_double_overlap = Some(prob_double_overlap);
-        self.prob_single_overlap = Some(prob_double_overlap.ln_one_minus_exp());
-
-        self
+            .prob_double_overlap(prob_double_overlap)
+            .prob_single_overlap(prob_double_overlap.ln_one_minus_exp())
     }
 }
 

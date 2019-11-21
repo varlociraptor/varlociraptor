@@ -51,4 +51,6 @@ pub enum Error {
     RecordMissingChrom { i: usize },
     #[snafu(display("inconsistent observations: input observation BCF files do not contain exactly the same records"))]
     InconsistentObservations,
+    #[snafu(display("No observations given for sample {}.", name))]
+    InvalidObservationSampleName { name: String },
 }

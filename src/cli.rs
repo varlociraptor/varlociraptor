@@ -309,20 +309,6 @@ pub enum VariantCallMode {
         normal_observations: PathBuf,
         #[structopt(short, long, default_value = "1.0", help = "Purity of tumor sample.")]
         purity: f64,
-        #[structopt(
-            parse(from_os_str),
-            long = "tumor-alignment-properties",
-            help = "Alignment properties JSON file for tumor sample. If not provided, properties \
-                    will be estimated from the given BAM file."
-        )]
-        tumor_alignment_properties: Option<PathBuf>,
-        #[structopt(
-            parse(from_os_str),
-            long = "normal-alignment-properties",
-            help = "Alignment properties JSON file for normal sample. If not provided, properties \
-                    will be estimated from the given BAM file."
-        )]
-        normal_alignment_properties: Option<PathBuf>,
     },
     #[structopt(
         name = "generic",
@@ -340,7 +326,6 @@ pub enum VariantCallMode {
         )]
         scenario: PathBuf,
         #[structopt(
-            parse(from_os_str),
             long,
             help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario (given as samplename=path/to/calls.bcf)."
         )]
@@ -447,8 +432,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     };
 
                     let alignment_properties = est_or_load_alignment_properites(
-                        alignment_properties,
-                        bam,
+                        &alignment_properties,
+                        &bam,
                     )?;
 
                     let bam_reader = bam::IndexedReader::from_path(bam)?;
@@ -546,8 +531,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                     name: sample_name.to_owned(),
                                 },
                             )?;
-                            sample_observations = sample_observations.push(bcf::Reader::from_path(obs)?);
-                            sample_names = sample_names.push(sample_name);
+                            sample_observations = sample_observations.push(sample_name, bcf::Reader::from_path(obs)?);
+                            sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
 
                         // register groups
@@ -575,23 +560,6 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             .model(model)
                             .outbcf(output.as_ref())?;
 
-                        for contig in &contigs {
-                            // populate contig universes
-                            let mut universes = scenario.sample_info();
-                            for (sample_name, sample) in scenario.samples().iter() {
-                                let universe = sample.contig_universe(&contig.name)?;
-                                universes = universes.push(sample_name, universe.to_owned());
-                            }
-                            caller_builder = caller_builder
-                                .add_contig_universes(&contig.name, universes.build());
-
-                            // populate contig vaftrees
-                            for (event_name, vaftree) in scenario.vaftrees(&contig.name)? {
-                                caller_builder =
-                                    caller_builder.event(&contig.name, &event_name, vaftree);
-                            }
-                        }
-
                         let mut caller = caller_builder.build()?;
 
                         caller.call()?;
@@ -601,34 +569,35 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 
                     match mode {
                         VariantCallMode::Generic {
-                            ref scenario,
-                            ref bams,
-                            ref alignment_properties,
+                            scenario,
+                            observations
                         } => {
                             if let Some(bams) = parse_key_values(bams) {
                                 if let Some(alignment_properties) =
                                     parse_key_values(alignment_properties)
                                 {
-                                    if let Some(mut testcase_builder) = testcase_builder {
-                                        for (name, bam) in &bams {
-                                            testcase_builder =
-                                                testcase_builder.register_bam(name, bam);
-                                        }
+                                    // if let Some(mut testcase_builder) = testcase_builder {
+                                    //     for (name, bam) in &bams {
+                                    //         testcase_builder =
+                                    //             testcase_builder.register_bam(name, bam);
+                                    //     }
 
-                                        let mut testcase = testcase_builder
-                                            .scenario(Some(scenario.to_owned()))
-                                            .build()?;
-                                        testcase.write()?;
-                                        return Ok(());
-                                    }
+                                    //     let mut testcase = testcase_builder
+                                    //         .scenario(Some(scenario.to_owned()))
+                                    //         .build()?;
+                                    //     testcase.write()?;
+                                    //     return Ok(());
+                                    // }
 
                                     let mut scenario_content = String::new();
                                     File::open(scenario)?.read_to_string(&mut scenario_content)?;
 
                                     let scenario: grammar::Scenario =
                                         serde_yaml::from_str(&scenario_content)?;
+                                    
+                                    let observations = parse_key_values(&observations).unwrap();
 
-                                    call_generic(scenario, bams, alignment_properties)?;
+                                    call_generic(scenario, observations)?;
                                 } else {
                                     Err(errors::Error::InvalidAlignmentPropertiesSpec)?
                                 }
@@ -637,21 +606,19 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             }
                         }
                         VariantCallMode::TumorNormal {
-                            ref tumor,
-                            ref normal,
+                            tumor_observations,
+                            normal_observations,
                             purity,
-                            ref tumor_alignment_properties,
-                            ref normal_alignment_properties,
                         } => {
-                            if let Some(testcase_builder) = testcase_builder {
-                                let mut testcase = testcase_builder
-                                    .register_bam("tumor", tumor)
-                                    .register_bam("normal", normal)
-                                    .scenario(None)
-                                    .build()?;
-                                testcase.write()?;
-                                return Ok(());
-                            }
+                            // if let Some(testcase_builder) = testcase_builder {
+                            //     let mut testcase = testcase_builder
+                            //         .register_bam("tumor", tumor)
+                            //         .register_bam("normal", normal)
+                            //         .scenario(None)
+                            //         .build()?;
+                            //     testcase.write()?;
+                            //     return Ok(());
+                            // }
 
                             let scenario = grammar::Scenario::try_from(
                                 format!(
@@ -677,18 +644,11 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                 .as_str(),
                             )?;
 
-                            let mut alignment_properties = PathMap::default();
-                            if let Some(prop) = tumor_alignment_properties {
-                                alignment_properties.insert("tumor".to_owned(), prop.to_owned());
-                            }
-                            if let Some(prop) = normal_alignment_properties {
-                                alignment_properties.insert("normal".to_owned(), prop.to_owned());
-                            }
-                            let mut bams = PathMap::default();
-                            bams.insert("tumor".to_owned(), tumor.to_owned());
-                            bams.insert("normal".to_owned(), normal.to_owned());
+                            let mut observations = PathMap::default();
+                            observations.insert("tumor".to_owned(), tumor_observations.to_owned());
+                            observations.insert("normal".to_owned(), normal_observations.to_owned());
 
-                            call_generic(scenario, bams, alignment_properties)?;
+                            call_generic(scenario, observations)?;
                         }
                     }
                 }
