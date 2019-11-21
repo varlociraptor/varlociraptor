@@ -4,7 +4,6 @@
 // except according to those terms.
 
 use std::f64;
-use std::str;
 
 use rgsl::randist::poisson::poisson_pdf;
 use serde::ser::{SerializeStruct, Serializer};
@@ -14,8 +13,6 @@ use bio::stats::LogProb;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
-use rust_htslib::bam;
-use rust_htslib::bam::record::CigarString;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
 pub fn expected_depth(obs: &[Observation]) -> u32 {

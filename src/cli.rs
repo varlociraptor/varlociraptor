@@ -15,7 +15,7 @@ use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rayon;
-use rust_htslib::bam;
+use rust_htslib::{bam, bcf};
 use serde_yaml;
 use structopt;
 use structopt::StructOpt;
@@ -243,6 +243,12 @@ pub enum CallKind {
             help = "Create test case files in the given directory."
         )]
         testcase_prefix: Option<String>,
+        #[structopt(
+            long,
+            short,
+            help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
+        )]
+        output: Option<PathBuf>,
     },
     #[structopt(
         name = "cnvs",
@@ -451,14 +457,14 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                         .alignments(bam_reader, alignment_properties)
                         .build()?;
 
-                    let mut processor = ObservationProcessorBuilder::default()
+                    let mut processor = calling::variants::preprocessing::ObservationProcessorBuilder::default()
                         .sample(sample)
                         .max_indel_len(max_indel_len)
                         .omit_snvs(omit_snvs)
                         .omit_indels(omit_indels)
-                        .reference(fasta::IndexedReader::from_file(&reference)?)
-                        .inbcf(candidates)
-                        .outpcf(output)
+                        .reference(fasta::IndexedReader::from_file(&reference)?)?
+                        .inbcf(candidates)?
+                        .outbcf(output)?
                         .build()?;
 
                     processor.process()?
@@ -471,6 +477,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     mode,
                     testcase_locus,
                     testcase_prefix,
+                    output,
                 } => {
 
                     // let testcase_builder = if let Some(testcase_locus) = testcase_locus {
@@ -572,37 +579,31 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             scenario,
                             observations
                         } => {
-                            if let Some(bams) = parse_key_values(bams) {
-                                if let Some(alignment_properties) =
-                                    parse_key_values(alignment_properties)
-                                {
-                                    // if let Some(mut testcase_builder) = testcase_builder {
-                                    //     for (name, bam) in &bams {
-                                    //         testcase_builder =
-                                    //             testcase_builder.register_bam(name, bam);
-                                    //     }
+                            if let Some(observations) =
+                                parse_key_values(&observations)
+                            {
+                                // if let Some(mut testcase_builder) = testcase_builder {
+                                //     for (name, bam) in &bams {
+                                //         testcase_builder =
+                                //             testcase_builder.register_bam(name, bam);
+                                //     }
 
-                                    //     let mut testcase = testcase_builder
-                                    //         .scenario(Some(scenario.to_owned()))
-                                    //         .build()?;
-                                    //     testcase.write()?;
-                                    //     return Ok(());
-                                    // }
+                                //     let mut testcase = testcase_builder
+                                //         .scenario(Some(scenario.to_owned()))
+                                //         .build()?;
+                                //     testcase.write()?;
+                                //     return Ok(());
+                                // }
 
-                                    let mut scenario_content = String::new();
-                                    File::open(scenario)?.read_to_string(&mut scenario_content)?;
+                                let mut scenario_content = String::new();
+                                File::open(scenario)?.read_to_string(&mut scenario_content)?;
 
-                                    let scenario: grammar::Scenario =
-                                        serde_yaml::from_str(&scenario_content)?;
-                                    
-                                    let observations = parse_key_values(&observations).unwrap();
+                                let scenario: grammar::Scenario =
+                                    serde_yaml::from_str(&scenario_content)?;
 
-                                    call_generic(scenario, observations)?;
-                                } else {
-                                    Err(errors::Error::InvalidAlignmentPropertiesSpec)?
-                                }
+                                call_generic(scenario, observations)?;
                             } else {
-                                Err(errors::Error::InvalidBAMSpec)?
+                                Err(errors::Error::InvalidObservationsSpec)?
                             }
                         }
                         VariantCallMode::TumorNormal {

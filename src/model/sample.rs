@@ -22,7 +22,7 @@ use rust_htslib::bam::record::CigarStringView;
 use crate::estimation::alignment_properties;
 use crate::model::evidence;
 use crate::model::evidence::reads::AbstractReadEvidence;
-use crate::model::evidence::{Observation};
+use crate::model::evidence::{Observation, observation::ObservationBuilder};
 use crate::model::{Variant, VariantType};
 use crate::utils::{is_repeat_variant, max_prob, Overlap};
 

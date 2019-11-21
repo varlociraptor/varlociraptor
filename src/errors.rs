@@ -14,10 +14,8 @@ pub enum Error {
         name
     ))]
     InvalidContaminationSampleName { name: String },
-    #[snafu(display("alignment property files must be provided as name=path"))]
-    InvalidAlignmentPropertiesSpec,
-    #[snafu(display("BAM files must be provided as name=path"))]
-    InvalidBAMSpec,
+    #[snafu(display("observation files must be provided as samplename=path"))]
+    InvalidObservationsSpec,
     #[snafu(display(
         "invalid variant index given, must be not higher than the number of variants at the locus"
     ))]
