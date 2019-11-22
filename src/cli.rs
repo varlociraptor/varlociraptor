@@ -639,6 +639,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                     .register_sample("tumor", tumor_options.preprocess_input().bam, &tumor_options)?
                                     .register_sample("normal", normal_options.preprocess_input().bam, &normal_options)?
                                     .scenario(None)
+                                    .purity(Some(purity))
                                     .build()?;
 
                                 testcase.write()?;

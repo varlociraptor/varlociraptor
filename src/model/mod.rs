@@ -429,7 +429,7 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::evidence::{Evidence, Observation};
+    use crate::model::evidence::Observation;
     use crate::utils;
 
     use bio::stats::LogProb;
@@ -446,7 +446,6 @@ mod tests {
             LogProb::ln_one(),
             true,
             true,
-            Evidence::dummy_alignment(),
         )
     }
 

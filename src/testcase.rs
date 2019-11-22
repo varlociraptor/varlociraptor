@@ -34,6 +34,8 @@ struct TestcaseTemplate {
     scenario: Option<String>,
     ref_name: String,
     ref_seq: String,
+    mode: Mode,
+    purity: Option<f64>,
 }
 
 #[derive(Debug)]
@@ -41,6 +43,12 @@ struct Sample {
     path: String,
     properties: String,
     options: String,
+}
+
+#[derive(Debug, Clone, Copy, EnumString, Display)]
+pub enum Mode {
+    TumorNormal,
+    Generic,
 }
 
 #[derive(Builder)]
@@ -64,6 +72,9 @@ pub struct Testcase
     scenario: Option<PathBuf>,
     #[builder(private)]
     options: HashMap<String, String>,
+    #[builder(default = "None")]
+    purity: Option<f64>,
+    mode: Mode,
 }
 
 impl TestcaseBuilder {
@@ -292,6 +303,8 @@ impl Testcase {
                 ref_seq: String::from_utf8(ref_seq)?.to_owned(),
                 ref_name: ref_name.to_owned(),
                 scenario: scenario,
+                mode: self.mode,
+                purity: self.purity,
             }
             .render()?
             .as_bytes(),
