@@ -19,14 +19,16 @@ use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
-use crate::model::{StrandBias, AlleleFreq};
-use crate::model::evidence::Observation;
 use crate::model;
 use crate::model::evidence::observation::expected_depth;
+use crate::model::evidence::Observation;
+use crate::model::{AlleleFreq, StrandBias};
 use crate::utils;
 
-pub use crate::calling::variants::calling::{CallerBuilder, Caller};
-pub use crate::calling::variants::preprocessing::{ObservationProcessorBuilder, ObservationProcessor};
+pub use crate::calling::variants::calling::{Caller, CallerBuilder};
+pub use crate::calling::variants::preprocessing::{
+    ObservationProcessor, ObservationProcessorBuilder,
+};
 
 #[derive(Default, Clone, Debug, Builder)]
 pub struct Call {
@@ -38,12 +40,12 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<(), Box<dyn Error>> {
+    pub fn write_preprocessed_record(
+        &self,
+        bcf_writer: &mut bcf::Writer,
+    ) -> Result<(), Box<dyn Error>> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
-        for variant in self
-            .variants
-            .iter()
-        {
+        for variant in self.variants.iter() {
             let mut record = bcf_writer.empty_record();
             record.set_rid(&Some(rid));
             record.set_pos(self.pos as i32);
@@ -63,7 +65,7 @@ impl Call {
 
             // add raw observations
             write_observations(variant.observations.as_ref().unwrap(), &mut record)?;
-            
+
             bcf_writer.write(&record)?;
         }
 
@@ -100,14 +102,24 @@ impl Call {
             for variant in group {
                 alleles.push(&variant.alt_allele[..]);
 
-                for (event, prob) in variant.event_probs.as_ref().expect("bug: event probs must be set") {
+                for (event, prob) in variant
+                    .event_probs
+                    .as_ref()
+                    .expect("bug: event probs must be set")
+                {
                     event_probs
                         .entry(event)
                         .or_insert_with(|| Vec::new())
                         .push(*prob);
                 }
 
-                for (i, sample_info) in variant.sample_info.as_ref().expect("bug: sample_info must be set").iter().enumerate() {
+                for (i, sample_info) in variant
+                    .sample_info
+                    .as_ref()
+                    .expect("bug: sample_info must be set")
+                    .iter()
+                    .enumerate()
+                {
                     strand_bias.entry(i).or_insert_with(Vec::new).push(
                         match sample_info.strand_bias {
                             StrandBias::None => '.',
@@ -243,21 +255,22 @@ impl VariantBuilder {
             .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0])))
     }
 
-    pub fn variant(&mut self, variant: &model::Variant, start: usize, chrom_seq: &[u8]) -> &mut Self {
+    pub fn variant(
+        &mut self,
+        variant: &model::Variant,
+        start: usize,
+        chrom_seq: &[u8],
+    ) -> &mut Self {
         match variant {
             model::Variant::Deletion(l) => {
                 let l = l.clone();
                 let svlen = -(l as i32);
                 if l <= 50 {
-                    self
-                        .ref_allele(
-                            chrom_seq[start..start + 1 + l as usize].to_ascii_uppercase(),
-                        )
+                    self.ref_allele(chrom_seq[start..start + 1 + l as usize].to_ascii_uppercase())
                         .alt_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
                         .svlen(Some(svlen))
                 } else {
-                    self
-                        .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                    self.ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
                         .alt_allele(b"<DEL>".to_ascii_uppercase())
                         .svlen(Some(svlen))
                 }
@@ -268,21 +281,16 @@ impl VariantBuilder {
                 let mut alt_allele = ref_allele.clone();
                 alt_allele.extend(seq);
 
-                self
-                    .ref_allele(ref_allele.to_ascii_uppercase())
+                self.ref_allele(ref_allele.to_ascii_uppercase())
                     .alt_allele(alt_allele.to_ascii_uppercase())
                     .svlen(Some(svlen))
             }
-            model::Variant::SNV(base) => {
-                self
-                    .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
-                    .alt_allele(vec![*base].to_ascii_uppercase())
-            }
-            model::Variant::None => {
-                self
-                    .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
-                    .alt_allele(b"<REF>".to_ascii_uppercase())
-            }
+            model::Variant::SNV(base) => self
+                .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                .alt_allele(vec![*base].to_ascii_uppercase()),
+            model::Variant::None => self
+                .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                .alt_allele(b"<REF>".to_ascii_uppercase()),
         }
     }
 }

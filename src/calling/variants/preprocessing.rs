@@ -13,11 +13,11 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 
+use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::errors;
-use crate::model::evidence::{Observation, observation::ObservationBuilder};
+use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::sample::Sample;
 use crate::utils;
-use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -100,10 +100,7 @@ impl ObservationProcessor {
         }
     }
 
-    fn process_record(
-        &mut self,
-        record: &mut bcf::Record,
-    ) -> Result<Option<Call>, Box<dyn Error>> {
+    fn process_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>, Box<dyn Error>> {
         let start = record.pos();
         let chrom = chrom(&self.bcf_reader, &record);
         let variants = utils::collect_variants(
@@ -134,7 +131,9 @@ impl ObservationProcessor {
         for variant in variants.into_iter() {
             if let Some(variant) = variant {
                 let chrom_seq = self.reference_buffer.seq(&chrom)?;
-                let pileup = self.sample.extract_observations(start, &variant, chrom, chrom_seq)?;
+                let pileup = self
+                    .sample
+                    .extract_observations(start, &variant, chrom, chrom_seq)?;
 
                 let start = start as usize;
 
@@ -143,7 +142,7 @@ impl ObservationProcessor {
                     VariantBuilder::default()
                         .variant(&variant, start, chrom_seq)
                         .observations(Some(pileup))
-                        .build()?
+                        .build()?,
                 );
             }
         }
@@ -152,16 +151,32 @@ impl ObservationProcessor {
     }
 }
 
-
-
 /// Read observations from BCF record.
-pub fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observation>, Box<dyn Error>> {
-    fn read_float_entry<'a>(record: &'a mut bcf::Record, entry_name: &'a [u8]) -> Result<&'a [f32], Box<dyn Error>> {
-        Ok(record.info(entry_name).float()?.ok_or_else(|| errors::Error::InvalidBCFRecord { msg: "No varlociraptor observations found in record.".to_owned() } )?)
+pub fn read_observations<'a>(
+    record: &'a mut bcf::Record,
+) -> Result<Vec<Observation>, Box<dyn Error>> {
+    fn read_float_entry<'a>(
+        record: &'a mut bcf::Record,
+        entry_name: &'a [u8],
+    ) -> Result<&'a [f32], Box<dyn Error>> {
+        Ok(record
+            .info(entry_name)
+            .float()?
+            .ok_or_else(|| errors::Error::InvalidBCFRecord {
+                msg: "No varlociraptor observations found in record.".to_owned(),
+            })?)
     };
 
-    fn read_string_entry<'a>(record: &'a mut bcf::Record, entry_name: &'a [u8]) ->  Result<Vec<&'a [u8]>, Box<dyn Error>> {
-        Ok(record.info(entry_name).string()?.ok_or_else(|| errors::Error::InvalidBCFRecord { msg: "No varlociraptor observations found in record.".to_owned() } )?)
+    fn read_string_entry<'a>(
+        record: &'a mut bcf::Record,
+        entry_name: &'a [u8],
+    ) -> Result<Vec<&'a [u8]>, Box<dyn Error>> {
+        Ok(record
+            .info(entry_name)
+            .string()?
+            .ok_or_else(|| errors::Error::InvalidBCFRecord {
+                msg: "No varlociraptor observations found in record.".to_owned(),
+            })?)
     };
 
     let prob_mapping = read_float_entry(record, b"PROB_MAPPING")?.to_owned();
@@ -175,24 +190,29 @@ pub fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observat
     let reverse_strand = read_string_entry(record, b"REVERSE_STRAND")?[0].to_owned();
 
     let decode_bool = |value| if value == b'1' { true } else { false };
-    
-    Ok((0..prob_mapping.len()).map(|i| {
-        ObservationBuilder::default()
-            .prob_mapping_mismapping(LogProb(prob_mapping[i] as f64))
-            .prob_alt(LogProb(prob_alt[i] as f64))
-            .prob_ref(LogProb(prob_ref[i] as f64))
-            .prob_missed_allele(LogProb(prob_missed_allele[i] as f64))
-            .prob_sample_alt(LogProb(prob_sample_alt[i] as f64))
-            .prob_overlap(LogProb(prob_double_overlap[i] as f64))
-            .prob_any_strand(LogProb(prob_any_strand[i] as f64))
-            .forward_strand(decode_bool(forward_strand[i]))
-            .reverse_strand(decode_bool(reverse_strand[i]))
-            .build()
-            .unwrap()
-    }).collect_vec())
+
+    Ok((0..prob_mapping.len())
+        .map(|i| {
+            ObservationBuilder::default()
+                .prob_mapping_mismapping(LogProb(prob_mapping[i] as f64))
+                .prob_alt(LogProb(prob_alt[i] as f64))
+                .prob_ref(LogProb(prob_ref[i] as f64))
+                .prob_missed_allele(LogProb(prob_missed_allele[i] as f64))
+                .prob_sample_alt(LogProb(prob_sample_alt[i] as f64))
+                .prob_overlap(LogProb(prob_double_overlap[i] as f64))
+                .prob_any_strand(LogProb(prob_any_strand[i] as f64))
+                .forward_strand(decode_bool(forward_strand[i]))
+                .reverse_strand(decode_bool(reverse_strand[i]))
+                .build()
+                .unwrap()
+        })
+        .collect_vec())
 }
 
-pub fn write_observations(observations: &[Observation], record: &mut bcf::Record) -> Result<(), Box<dyn Error>> {
+pub fn write_observations(
+    observations: &[Observation],
+    record: &mut bcf::Record,
+) -> Result<(), Box<dyn Error>> {
     let vec = || Vec::with_capacity(observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();

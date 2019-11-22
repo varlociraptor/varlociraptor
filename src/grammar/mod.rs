@@ -35,9 +35,7 @@ impl<T> SampleInfo<T> {
         for res in self.inner.iter().map(f) {
             inner.push(res?);
         }
-        Ok(SampleInfo {
-            inner: inner,
-        })
+        Ok(SampleInfo { inner: inner })
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {

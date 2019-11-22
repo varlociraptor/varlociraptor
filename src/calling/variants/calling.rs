@@ -8,13 +8,17 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 
+use crate::calling::variants::preprocessing::{
+    read_observations, remove_observation_header_entries,
+};
+use crate::calling::variants::{
+    chrom, event_tag_name, Call, CallBuilder, SampleInfoBuilder, VariantBuilder,
+};
 use crate::errors;
 use crate::grammar;
 use crate::model;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, StrandBias};
-use crate::calling::variants::preprocessing::{read_observations, remove_observation_header_entries};
-use crate::calling::variants::{Call, CallBuilder, VariantBuilder, SampleInfoBuilder, chrom, event_tag_name};
 
 pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
@@ -43,7 +47,14 @@ where
     ModelPayload: Default,
 {
     pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<dyn Error>> {
-        let mut header = bcf::Header::from_template(self.observations.as_ref().expect("bug: observations() must be called bfore outbcf()").first().unwrap().header());
+        let mut header = bcf::Header::from_template(
+            self.observations
+                .as_ref()
+                .expect("bug: observations() must be called bfore outbcf()")
+                .first()
+                .unwrap()
+                .header(),
+        );
 
         remove_observation_header_entries(&mut header);
 
@@ -136,14 +147,14 @@ where
             for (reader, record) in self.observations.iter_mut().zip(records.iter_mut()) {
                 eof.push(!reader.read(record)?);
             }
-            
+
             if eof.iter().all(|v| *v) {
                 return Ok(());
             } else if !eof.iter().all(|v| !v) {
                 // only some are EOF, this is an error
                 return Err(errors::Error::InconsistentObservations)?;
             }
-            
+
             i += 1;
 
             // ensure that all observation BCFs contain exactly the same calls
@@ -152,17 +163,29 @@ where
             let current_pos = first_record.pos();
             let current_alleles = first_record.alleles();
             for record in &records[1..] {
-                if record.rid() != current_rid || record.pos() != current_pos || record.alleles() != current_alleles {
+                if record.rid() != current_rid
+                    || record.pos() != current_pos
+                    || record.alleles() != current_alleles
+                {
                     return Err(errors::Error::InconsistentObservations)?;
                 }
             }
 
             // rid must not be missind
-            let current_rid = current_rid.ok_or_else(|| errors::Error::RecordMissingChrom { i: i + 1 })?;
+            let current_rid =
+                current_rid.ok_or_else(|| errors::Error::RecordMissingChrom { i: i + 1 })?;
 
             if !rid.map_or(false, |rid: u32| current_rid == rid) {
                 // rid is not the same as before, obtain event universe
-                let contig = str::from_utf8(self.observations.first().unwrap().header().rid2name(current_rid)?).unwrap().to_owned();
+                let contig = str::from_utf8(
+                    self.observations
+                        .first()
+                        .unwrap()
+                        .header()
+                        .rid2name(current_rid)?,
+                )
+                .unwrap()
+                .to_owned();
 
                 // clear old events
                 events.clear();
@@ -176,29 +199,22 @@ where
 
                 // add events from scenario
                 for (event_name, vaftree) in self.scenario.vaftrees(&contig)? {
-                    events.push(
-                        model::Event {
-                            name: event_name.clone(),
-                            vafs: vaftree.clone(),
-                            strand_bias: StrandBias::None,
-                        }
-                    );
-                    events.push(
-                        model::Event {
-                            name: event_name.clone(),
-                            vafs: vaftree.clone(),
-                            strand_bias: StrandBias::Forward,
-                        }
-                    );
-                    events.push(
-                        model::Event {
-                            name: event_name,
-                            vafs: vaftree,
-                            strand_bias: StrandBias::Reverse,
-                        }
-                    );
+                    events.push(model::Event {
+                        name: event_name.clone(),
+                        vafs: vaftree.clone(),
+                        strand_bias: StrandBias::None,
+                    });
+                    events.push(model::Event {
+                        name: event_name.clone(),
+                        vafs: vaftree.clone(),
+                        strand_bias: StrandBias::Forward,
+                    });
+                    events.push(model::Event {
+                        name: event_name,
+                        vafs: vaftree,
+                        strand_bias: StrandBias::Reverse,
+                    });
                 }
-
 
                 // update prior to the VAF universe of the current chromosome
 
@@ -208,15 +224,13 @@ where
                     vaf_universes = vaf_universes.push(sample_name, universe.to_owned());
                 }
 
-                self.model
-                    .prior_mut()
-                    .set_universe(vaf_universes.build());
+                self.model.prior_mut().set_universe(vaf_universes.build());
 
                 rid = Some(current_rid);
             }
 
             let call = self.call_record(&mut records, &events)?;
-            
+
             if let Some(call) = call {
                 call.write_final_record(&mut self.bcf_writer)?;
             }
@@ -232,9 +246,17 @@ where
         event_universe: &[Po::Event],
     ) -> Result<Option<Call>, Box<dyn Error>> {
         let (mut call, mut variant_builder) = {
-            let first_record = records.first_mut().expect("bug: there must be at least one record");
+            let first_record = records
+                .first_mut()
+                .expect("bug: there must be at least one record");
             let start = first_record.pos();
-            let chrom = chrom(&self.observations.first().expect("bug: there must be at least one observation reader"), first_record);
+            let chrom = chrom(
+                &self
+                    .observations
+                    .first()
+                    .expect("bug: there must be at least one observation reader"),
+                first_record,
+            );
 
             let call = CallBuilder::default()
                 .chrom(chrom.to_owned())
@@ -249,13 +271,13 @@ where
                 })
                 .variants(Vec::new())
                 .build()?;
-            
+
             let mut variant_builder = VariantBuilder::default();
             variant_builder.record(first_record)?;
 
             (call, variant_builder)
         };
-        
+
         // obtain pileups
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
@@ -289,36 +311,38 @@ where
                             None
                         }
                     })
-                    .collect_vec()
+                    .collect_vec(),
             ),
         );
         variant_builder.event_probs(Some(event_probs));
 
         // add sample specific information
         variant_builder.sample_info(if let Some(map_estimates) = m.maximum_posterior() {
-            Some(pileups
-                .into_iter()
-                .zip(map_estimates.into_iter())
-                .map(|(pileup, estimate)| {
-                    let mut sample_builder = SampleInfoBuilder::default();
-                    sample_builder.observations(pileup);
-                    match estimate {
-                        model::likelihood::Event { strand_bias, .. }
-                            if strand_bias.is_some() =>
-                        {
-                            sample_builder
-                                .allelefreq_estimate(AlleleFreq(0.0))
-                                .strand_bias(*strand_bias);
-                        }
-                        model::likelihood::Event { allele_freq, .. } => {
-                            sample_builder
-                                .allelefreq_estimate(*allele_freq)
-                                .strand_bias(StrandBias::None);
-                        }
-                    };
-                    sample_builder.build().unwrap()
-                })
-                .collect_vec())
+            Some(
+                pileups
+                    .into_iter()
+                    .zip(map_estimates.into_iter())
+                    .map(|(pileup, estimate)| {
+                        let mut sample_builder = SampleInfoBuilder::default();
+                        sample_builder.observations(pileup);
+                        match estimate {
+                            model::likelihood::Event { strand_bias, .. }
+                                if strand_bias.is_some() =>
+                            {
+                                sample_builder
+                                    .allelefreq_estimate(AlleleFreq(0.0))
+                                    .strand_bias(*strand_bias);
+                            }
+                            model::likelihood::Event { allele_freq, .. } => {
+                                sample_builder
+                                    .allelefreq_estimate(*allele_freq)
+                                    .strand_bias(StrandBias::None);
+                            }
+                        };
+                        sample_builder.build().unwrap()
+                    })
+                    .collect_vec(),
+            )
         } else {
             // no observations
             Some(Vec::new())

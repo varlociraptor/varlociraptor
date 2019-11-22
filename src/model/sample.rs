@@ -22,7 +22,7 @@ use rust_htslib::bam::record::CigarStringView;
 use crate::estimation::alignment_properties;
 use crate::model::evidence;
 use crate::model::evidence::reads::AbstractReadEvidence;
-use crate::model::evidence::{Observation, observation::ObservationBuilder};
+use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::{Variant, VariantType};
 use crate::utils::{is_repeat_variant, max_prob, Overlap};
 
@@ -420,17 +420,19 @@ impl Sample {
                 &self.alignment_properties,
             );
             let strand = evidence.strand(record);
-            Ok(Some(ObservationBuilder::default()
-                .prob_mapping_mismapping(prob_mapping)
-                .prob_alt(prob_alt)
-                .prob_ref(prob_ref)
-                .prob_missed_allele(prob_missed_allele)
-                .prob_sample_alt(prob_sample_alt)
-                .prob_overlap(LogProb::ln_zero()) // no double overlap possible
-                .prob_any_strand(LogProb::from(Prob(0.5)))
-                .forward_strand(strand == Strand::Forward)
-                .reverse_strand(strand == Strand::Reverse)
-                .build().unwrap()
+            Ok(Some(
+                ObservationBuilder::default()
+                    .prob_mapping_mismapping(prob_mapping)
+                    .prob_alt(prob_alt)
+                    .prob_ref(prob_ref)
+                    .prob_missed_allele(prob_missed_allele)
+                    .prob_sample_alt(prob_sample_alt)
+                    .prob_overlap(LogProb::ln_zero()) // no double overlap possible
+                    .prob_any_strand(LogProb::from(Prob(0.5)))
+                    .forward_strand(strand == Strand::Forward)
+                    .reverse_strand(strand == Strand::Reverse)
+                    .build()
+                    .unwrap(),
             ))
         } else {
             Ok(None)
@@ -564,7 +566,8 @@ impl Sample {
             .prob_any_strand(prob_any_strand)
             .forward_strand(forward_strand)
             .reverse_strand(reverse_strand)
-            .build().unwrap();
+            .build()
+            .unwrap();
 
         assert!(obs.prob_alt.is_valid());
         assert!(obs.prob_ref.is_valid());

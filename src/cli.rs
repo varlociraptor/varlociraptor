@@ -183,7 +183,7 @@ pub enum PreprocessKind {
                     number, downsampling is performed."
         )]
         max_depth: usize,
-    }
+    },
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -437,10 +437,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                         Err(structopt::clap::Error::with_description( "Command-line option --indel-window requires a value <= 64 with the current implementation.", structopt::clap::ErrorKind::ValueValidation))?;
                     };
 
-                    let alignment_properties = est_or_load_alignment_properites(
-                        &alignment_properties,
-                        &bam,
-                    )?;
+                    let alignment_properties =
+                        est_or_load_alignment_properites(&alignment_properties, &bam)?;
 
                     let bam_reader = bam::IndexedReader::from_path(bam)?;
 
@@ -457,20 +455,21 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                         .alignments(bam_reader, alignment_properties)
                         .build()?;
 
-                    let mut processor = calling::variants::preprocessing::ObservationProcessorBuilder::default()
-                        .sample(sample)
-                        .max_indel_len(max_indel_len)
-                        .omit_snvs(omit_snvs)
-                        .omit_indels(omit_indels)
-                        .reference(fasta::IndexedReader::from_file(&reference)?)?
-                        .inbcf(candidates)?
-                        .outbcf(output)?
-                        .build()?;
+                    let mut processor =
+                        calling::variants::preprocessing::ObservationProcessorBuilder::default()
+                            .sample(sample)
+                            .max_indel_len(max_indel_len)
+                            .omit_snvs(omit_snvs)
+                            .omit_indels(omit_indels)
+                            .reference(fasta::IndexedReader::from_file(&reference)?)?
+                            .inbcf(candidates)?
+                            .outbcf(output)?
+                            .build()?;
 
                     processor.process()?
                 }
             }
-        },
+        }
         Varlociraptor::Call { kind } => {
             match kind {
                 CallKind::Variants {
@@ -479,7 +478,6 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     testcase_prefix,
                     output,
                 } => {
-
                     // let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                     //     if let Some(testcase_prefix) = testcase_prefix {
                     //         // TODO obtain sample information from input bcfs!
@@ -538,7 +536,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                     name: sample_name.to_owned(),
                                 },
                             )?;
-                            sample_observations = sample_observations.push(sample_name, bcf::Reader::from_path(obs)?);
+                            sample_observations =
+                                sample_observations.push(sample_name, bcf::Reader::from_path(obs)?);
                             sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
 
@@ -577,11 +576,9 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     match mode {
                         VariantCallMode::Generic {
                             scenario,
-                            observations
+                            observations,
                         } => {
-                            if let Some(observations) =
-                                parse_key_values(&observations)
-                            {
+                            if let Some(observations) = parse_key_values(&observations) {
                                 // if let Some(mut testcase_builder) = testcase_builder {
                                 //     for (name, bam) in &bams {
                                 //         testcase_builder =
@@ -647,7 +644,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 
                             let mut observations = PathMap::default();
                             observations.insert("tumor".to_owned(), tumor_observations.to_owned());
-                            observations.insert("normal".to_owned(), normal_observations.to_owned());
+                            observations
+                                .insert("normal".to_owned(), normal_observations.to_owned());
 
                             call_generic(scenario, observations)?;
                         }
