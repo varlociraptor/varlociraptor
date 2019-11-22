@@ -89,6 +89,28 @@ pub enum Varlociraptor {
     },
 }
 
+pub struct PreprocessInput {
+    reference: PathBuf,
+    bam: PathBuf,
+}
+
+impl Varlociraptor {
+    fn preprocess_input(&self) -> PreprocessInput {
+        if let Varlociraptor::Preprocess { kind: PreprocessKind::Variants {
+            ref reference,
+            ref bam,
+            ..
+        } } = &self {
+            PreprocessInput {
+                reference: reference.to_owned(),
+                bam: bam.to_owned(),
+            }
+        } else {
+            panic!("bug: these are not preprocess options.");
+        }
+    }
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -328,14 +350,15 @@ pub enum VariantCallMode {
         #[structopt(
             parse(from_os_str),
             long,
+            required = true,
             help = "Scenario defined in the varlociraptor calling grammar."
         )]
         scenario: PathBuf,
         #[structopt(
-            long,
+            long = "obs",
             help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario (given as samplename=path/to/calls.bcf)."
         )]
-        observations: Vec<String>,
+        sample_observations: Vec<String>,
     },
 }
 
@@ -463,7 +486,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             .omit_indels(omit_indels)
                             .reference(fasta::IndexedReader::from_file(&reference)?)?
                             .inbcf(candidates)?
-                            .outbcf(output)?
+                            .outbcf(output, &opt_clone)?
                             .build()?;
 
                     processor.process()?
@@ -478,31 +501,21 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     testcase_prefix,
                     output,
                 } => {
-                    // let testcase_builder = if let Some(testcase_locus) = testcase_locus {
-                    //     if let Some(testcase_prefix) = testcase_prefix {
-                    //         // TODO obtain sample information from input bcfs!
-
-                    //         if let Some(candidates) = candidates.as_ref() {
-                    //             // just write a testcase and quit
-                    //             Some(
-                    //                 TestcaseBuilder::default()
-                    //                     .prefix(PathBuf::from(testcase_prefix))
-                    //                     .options(opt_clone)
-                    //                     .locus(&testcase_locus)?
-                    //                     .reference(&reference)?
-                    //                     .candidates(candidates)?,
-                    //             )
-                    //         } else {
-                    //             Err(errors::Error::MissingCandidates)?;
-                    //             None
-                    //         }
-                    //     } else {
-                    //         Err(errors::Error::MissingPrefix)?;
-                    //         None
-                    //     }
-                    // } else {
-                    //     None
-                    // };
+                    let testcase_builder = if let Some(testcase_locus) = testcase_locus {
+                        if let Some(testcase_prefix) = testcase_prefix {
+                            // TODO obtain sample information from input bcfs?
+                            Some(
+                                TestcaseBuilder::default()
+                                    .prefix(PathBuf::from(testcase_prefix))
+                                    .locus(&testcase_locus)?
+                            )
+                        } else {
+                            Err(errors::Error::MissingPrefix)?;
+                            None
+                        }
+                    } else {
+                        None
+                    };
 
                     let call_generic = |scenario: grammar::Scenario,
                                         observations: PathMap|
@@ -576,21 +589,30 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     match mode {
                         VariantCallMode::Generic {
                             scenario,
-                            observations,
+                            sample_observations,
                         } => {
-                            if let Some(observations) = parse_key_values(&observations) {
-                                // if let Some(mut testcase_builder) = testcase_builder {
-                                //     for (name, bam) in &bams {
-                                //         testcase_builder =
-                                //             testcase_builder.register_bam(name, bam);
-                                //     }
+                            if let Some(sample_observations) = parse_key_values(&sample_observations) {
+                                if let Some(mut testcase_builder) = testcase_builder {
+                                    for (i, (sample_name, obspath)) in sample_observations.iter().enumerate() {
+                                        let options = calling::variants::preprocessing::read_preprocess_options(obspath)?;
+                                        let preprocess_input = options.preprocess_input();
+                                        testcase_builder = testcase_builder.register_sample(
+                                            &sample_name,
+                                            preprocess_input.bam,
+                                            &options
+                                        )?;
+                                        if i == 0 {
+                                            testcase_builder = testcase_builder.candidates(obspath)?;
+                                            testcase_builder = testcase_builder.reference(preprocess_input.reference)?;
+                                        }
+                                    }
 
-                                //     let mut testcase = testcase_builder
-                                //         .scenario(Some(scenario.to_owned()))
-                                //         .build()?;
-                                //     testcase.write()?;
-                                //     return Ok(());
-                                // }
+                                    let mut testcase = testcase_builder
+                                        .scenario(Some(scenario.to_owned()))
+                                        .build()?;
+                                    testcase.write()?;
+                                    return Ok(());
+                                }
 
                                 let mut scenario_content = String::new();
                                 File::open(scenario)?.read_to_string(&mut scenario_content)?;
@@ -598,7 +620,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                 let scenario: grammar::Scenario =
                                     serde_yaml::from_str(&scenario_content)?;
 
-                                call_generic(scenario, observations)?;
+                                call_generic(scenario, sample_observations)?;
                             } else {
                                 Err(errors::Error::InvalidObservationsSpec)?
                             }
@@ -608,15 +630,20 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             normal_observations,
                             purity,
                         } => {
-                            // if let Some(testcase_builder) = testcase_builder {
-                            //     let mut testcase = testcase_builder
-                            //         .register_bam("tumor", tumor)
-                            //         .register_bam("normal", normal)
-                            //         .scenario(None)
-                            //         .build()?;
-                            //     testcase.write()?;
-                            //     return Ok(());
-                            // }
+                            if let Some(testcase_builder) = testcase_builder {
+                                let tumor_options = calling::variants::preprocessing::read_preprocess_options(&tumor_observations)?;
+                                let normal_options = calling::variants::preprocessing::read_preprocess_options(&normal_observations)?;
+                                let mut testcase = testcase_builder
+                                    .candidates(tumor_observations)?
+                                    .reference(tumor_options.preprocess_input().reference)?
+                                    .register_sample("tumor", tumor_options.preprocess_input().bam, &tumor_options)?
+                                    .register_sample("normal", normal_options.preprocess_input().bam, &normal_options)?
+                                    .scenario(None)
+                                    .build()?;
+
+                                testcase.write()?;
+                                return Ok(());
+                            }
 
                             let scenario = grammar::Scenario::try_from(
                                 format!(

@@ -13,6 +13,7 @@ samples:
   {{ name }}:
     path: '{{ sample.path }}'
     properties: '{{ sample.properties }}'
+    options: '{{ sample.options }}'
   {% endfor %}
 
 # candidate variant
@@ -26,5 +27,3 @@ scenario: '{{ scenario.as_ref().unwrap() }}'
 reference:
   name: '{{ ref_name }}'
   seq: '{{ ref_seq }}'
-
-options: '{{ options }}'

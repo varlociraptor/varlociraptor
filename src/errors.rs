@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug, PartialEq)]
@@ -51,4 +53,6 @@ pub enum Error {
     InconsistentObservations,
     #[snafu(display("No observations given for sample {}.", name))]
     InvalidObservationSampleName { name: String },
+    #[snafu(display("invalid observations: varlociraptor arguments cannot be parsed from given observations ({}); either the file has not been preprocessed with varlociraptor or with a too old version", path.display()))]
+    InvalidObservations { path: PathBuf },
 }

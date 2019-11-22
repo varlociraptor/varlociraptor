@@ -12,12 +12,14 @@ use bio::stats::LogProb;
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
+use serde_json;
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::errors;
 use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::sample::Sample;
 use crate::utils;
+use crate::cli;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -47,7 +49,7 @@ impl ObservationProcessorBuilder {
         }))
     }
 
-    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<dyn Error>> {
+    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>, options: &cli::Varlociraptor) -> Result<Self, Box<dyn Error>> {
         let mut header = bcf::Header::new();
 
         // register SVLEN
@@ -69,6 +71,12 @@ impl ObservationProcessorBuilder {
                 format!("##contig=<ID={},length={}>", sequence.name, sequence.len).as_bytes(),
             );
         }
+
+        // store options
+        header.push_record(
+            format!("##varlociraptor_preprocess_args={}", serde_json::to_string(options)?).as_bytes()
+        );
+        
 
         let writer = if let Some(path) = path {
             bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)?
@@ -261,4 +269,19 @@ pub fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PROB_ANY_STRAND");
     header.remove_info(b"FORWARD_STRAND");
     header.remove_info(b"REVERSE_STRAND");
+}
+
+pub fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor, Box<dyn Error>> {
+    let reader = bcf::Reader::from_path(&bcfpath)?;
+    for rec in reader.header().header_records() {
+        match rec {
+            bcf::header::HeaderRecord::Generic { ref key, ref value } => {
+                if key == "varlociraptor_preprocess_args" {
+                    return Ok(serde_json::from_str(value)?)
+                }
+            },
+            _ => ()
+        }
+    }
+    Err(errors::Error::InvalidObservations { path: bcfpath.as_ref().to_owned() })?
 }
