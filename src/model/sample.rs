@@ -405,7 +405,7 @@ impl Sample {
         if let Some((prob_ref, prob_alt)) =
             evidence.prob(record, cigar, start, variant, chrom_seq)?
         {
-            let (prob_mapping, prob_mismapping) = evidence.prob_mapping_mismapping(record);
+            let (prob_mapping, _) = evidence.prob_mapping_mismapping(record);
 
             // METHOD: This is an estimate of the allele likelihood at the true location in case
             // the read is mismapped. The value has to be approximately in the range of prob_alt

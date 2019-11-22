@@ -560,15 +560,15 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             .build()?;
 
                         // setup caller
-                        let mut caller_builder = calling::variants::CallerBuilder::default()
+                        let mut caller = calling::variants::CallerBuilder::default()
                             .samplenames(sample_names.build())
                             .observations(sample_observations.build())
                             .scenario(scenario)
                             .model(model)
-                            .outbcf(output.as_ref())?;
+                            .outbcf(output.as_ref())?
+                            .build()?;
 
-                        let mut caller = caller_builder.build()?;
-
+                        // call
                         caller.call()?;
 
                         Ok(())
