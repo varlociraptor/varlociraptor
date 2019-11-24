@@ -72,6 +72,18 @@ impl ObservationProcessorBuilder {
             );
         }
 
+        // store observations
+        for name in &vec!["PROB_MAPPING", "PROB_ALT", "PROB_REF", "PROB_MISSED_ALLELE", "PROB_SAMPLE_ALT", "PROB_DOUBLE_OVERLAP", "PROB_ANY_STRAND"] {
+            header.push_record(
+                format!("##INFO=<ID={},Number=.,Type=Float,Description=\"Varlociraptor observation probability (internal use).\"", name).as_bytes()
+            );
+        }
+        for name in &vec!["FORWARD_STRAND", "REVERSE_STRAND"] {
+            header.push_record(
+                format!("##INFO=<ID={},Number=.,Type=String,Description=\"Varlociraptor strand observation (internal use).\"", name).as_bytes()
+            );
+        }
+
         // store options
         header.push_record(
             format!("##varlociraptor_preprocess_args={}", serde_json::to_string(options)?).as_bytes()

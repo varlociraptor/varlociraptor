@@ -34,6 +34,7 @@ pub use crate::calling::variants::preprocessing::{
 pub struct Call {
     chrom: Vec<u8>,
     pos: u32,
+    #[builder(default = "None")]
     id: Option<Vec<u8>>,
     #[builder(default = "Vec::new()")]
     variants: Vec<Variant>,
@@ -238,6 +239,7 @@ pub struct Variant {
     alt_allele: Vec<u8>,
     #[builder(private, default = "None")]
     svlen: Option<i32>,
+    #[builder(private, default = "None")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
     observations: Option<Vec<Observation>>,

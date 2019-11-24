@@ -88,7 +88,11 @@ where
         }
         header.push_record(
             b"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,\
-             Description=\"Posterior probability for strand bias artifact\">",
+             Description=\"Posterior probability for strand bias artifact (PHRED)\">",
+        );
+        header.push_record(
+            b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
+             Description=\"Posterior probability for not having a variant (PHRED)\">",
         );
 
         // register sample specific tags

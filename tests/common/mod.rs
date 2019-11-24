@@ -92,7 +92,7 @@ pub trait Testcase {
     }
 
     fn sample_bam(&self, sample_name: &str) -> PathBuf {
-        PathBuf::from_str(self.sample(sample_name)["path"].as_str().unwrap()).unwrap()
+        self.path().join(self.sample(sample_name)["path"].as_str().unwrap())
     }
 
     fn sample_alignment_properties(&self, sample_name: &str) -> String {
@@ -100,7 +100,7 @@ pub trait Testcase {
     }
 
     fn scenario(&self) -> Option<PathBuf> {
-        self.yaml()["scenario"].as_str().map(|p| PathBuf::from_str(p).unwrap())
+        self.yaml()["scenario"].as_str().map(|p| self.path().join(p))
     }
 
     fn purity(&self) -> Option<f64> {
@@ -114,8 +114,6 @@ pub trait Testcase {
         )?;
 
         let temp_preprocess = tempfile::tempdir()?;
-
-        serde_json::from_str(self.yaml()["options"].as_str().unwrap())?;
 
         // Step 1: preprocess all samples
         for sample_name in &self.samples() {

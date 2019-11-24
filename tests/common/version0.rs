@@ -46,6 +46,21 @@ impl Testcase for TestcaseVersion0 {
         }
     }
 
+    fn purity(&self) -> Option<f64> {
+        match self.options() {
+            cli::Varlociraptor::Call {
+                kind: cli::CallKind::Variants {
+                    mode: cli::VariantCallMode::TumorNormal {
+                        purity,
+                        ..
+                    },
+                    ..
+                }
+            } => Some(purity),
+            _ => panic!("Invalid options")
+        }
+    }
+
     fn preprocess_options(&self, _: &str) -> String {
         let options = self.options();
 
