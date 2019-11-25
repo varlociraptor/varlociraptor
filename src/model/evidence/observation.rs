@@ -67,37 +67,6 @@ impl ObservationBuilder {
 }
 
 impl Observation {
-    pub fn new(
-        prob_mapping: LogProb,
-        prob_mismapping: LogProb,
-        prob_alt: LogProb,
-        prob_ref: LogProb,
-        prob_missed_allele: LogProb,
-        prob_sample_alt: LogProb,
-        prob_double_overlap: LogProb,
-        prob_any_strand: LogProb,
-        forward_strand: bool,
-        reverse_strand: bool,
-    ) -> Self {
-        assert!(
-            forward_strand | reverse_strand,
-            "bug: observation has to be either from forward or reverse strand"
-        );
-        Observation {
-            prob_mapping: prob_mapping,
-            prob_mismapping: prob_mismapping,
-            prob_alt: prob_alt,
-            prob_ref: prob_ref,
-            prob_missed_allele: prob_missed_allele,
-            prob_sample_alt: prob_sample_alt,
-            prob_double_overlap: prob_double_overlap,
-            prob_single_overlap: prob_double_overlap.ln_one_minus_exp(),
-            prob_any_strand: prob_any_strand,
-            forward_strand: forward_strand,
-            reverse_strand: reverse_strand,
-        }
-    }
-
     pub fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }

@@ -429,24 +429,24 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::evidence::Observation;
+    use crate::model::evidence::{Observation, observation::ObservationBuilder};
     use crate::utils;
 
     use bio::stats::LogProb;
 
     pub fn observation(prob_mapping: LogProb, prob_alt: LogProb, prob_ref: LogProb) -> Observation {
-        Observation::new(
-            prob_mapping,
-            prob_mapping.ln_one_minus_exp(),
-            prob_alt,
-            prob_ref,
-            utils::max_prob(prob_ref, prob_alt),
-            LogProb::ln_one(),
-            LogProb::ln_one(),
-            LogProb::ln_one(),
-            true,
-            true,
-        )
+        ObservationBuilder::default()
+            .prob_mapping_mismapping(prob_mapping)
+            .prob_alt(prob_alt)
+            .prob_ref(prob_ref)
+            .prob_missed_allele(utils::max_prob(prob_ref, prob_alt))
+            .prob_sample_alt(LogProb::ln_one())
+            .prob_overlap(LogProb::ln_one())
+            .prob_any_strand(LogProb::ln_one())
+            .forward_strand(true)
+            .reverse_strand(true)
+            .build()
+            .unwrap()
     }
 
     // fn setup_pairwise_test<'a>(

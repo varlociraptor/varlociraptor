@@ -480,10 +480,13 @@ impl Sample {
         let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
         let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
 
-        // This is an estimate of the allele likelihood at the true location in case the read is
-        // mismapped.
-        let p_missed_left = max_prob(p_ref_left, p_alt_left);
-        let p_missed_right = max_prob(p_ref_right, p_alt_right);
+        // METHOD: This is an estimate of the allele likelihood at the true location in case
+        // the read is mismapped. The value has to be approximately in the range of prob_alt
+        // and prob_ref. Otherwise it could cause numerical problems, by dominating the
+        // likelihood such that subtle differences in allele frequencies become numercically
+        // invisible in the resulting likelihood.
+        let p_missed_left = p_ref_left.ln_add_exp(p_alt_left) - LogProb(2.0_f64.ln());
+        let p_missed_right = p_ref_right.ln_add_exp(p_alt_right) - LogProb(2.0_f64.ln());
 
         let left_read_len = left_record.seq().len() as u32;
         let right_read_len = right_record.seq().len() as u32;
