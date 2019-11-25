@@ -14,12 +14,12 @@ use std::str;
 use bio::io::fasta;
 use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb};
 use counter::Counter;
+use half::f16;
 use itertools::join;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf, bcf::record::Numeric};
-use half::f16;
 
 use crate::errors;
 use crate::model;
@@ -660,7 +660,6 @@ impl MiniLogProb {
         })
     }
 }
-
 
 #[cfg(test)]
 mod tests {

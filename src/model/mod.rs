@@ -429,7 +429,7 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::evidence::{Observation, observation::ObservationBuilder};
+    use crate::model::evidence::{observation::ObservationBuilder, Observation};
     use crate::utils;
 
     use bio::stats::LogProb;

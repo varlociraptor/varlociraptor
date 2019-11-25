@@ -15,11 +15,11 @@ use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
 use serde_json;
 
+use crate::cli;
 use crate::errors;
 use crate::model::sample;
 use crate::model::Variant;
 use crate::utils;
-use crate::cli;
 
 lazy_static! {
     static ref TESTCASE_RE: Regex =
@@ -53,8 +53,7 @@ pub enum Mode {
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct Testcase
-{
+pub struct Testcase {
     #[builder(setter(into))]
     prefix: PathBuf,
     #[builder(private)]
@@ -111,7 +110,12 @@ impl TestcaseBuilder {
         }
     }
 
-    pub fn register_sample(mut self, name: &str, bam: impl AsRef<Path>, options: &cli::Varlociraptor) -> Result<Self, Box<dyn Error>> {
+    pub fn register_sample(
+        mut self,
+        name: &str,
+        bam: impl AsRef<Path>,
+        options: &cli::Varlociraptor,
+    ) -> Result<Self, Box<dyn Error>> {
         if self.bams.is_none() {
             self = self.bams(HashMap::new());
         }
@@ -120,7 +124,7 @@ impl TestcaseBuilder {
             .as_mut()
             .unwrap()
             .insert(name.to_owned(), bam.as_ref().to_owned());
-        
+
         if self.options.is_none() {
             self = self.options(HashMap::new());
         }

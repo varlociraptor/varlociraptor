@@ -96,11 +96,15 @@ pub struct PreprocessInput {
 
 impl Varlociraptor {
     fn preprocess_input(&self) -> PreprocessInput {
-        if let Varlociraptor::Preprocess { kind: PreprocessKind::Variants {
-            ref reference,
-            ref bam,
-            ..
-        } } = &self {
+        if let Varlociraptor::Preprocess {
+            kind:
+                PreprocessKind::Variants {
+                    ref reference,
+                    ref bam,
+                    ..
+                },
+        } = &self
+        {
             PreprocessInput {
                 reference: reference.to_owned(),
                 bam: bam.to_owned(),
@@ -507,7 +511,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             Some(
                                 TestcaseBuilder::default()
                                     .prefix(PathBuf::from(testcase_prefix))
-                                    .locus(&testcase_locus)?
+                                    .locus(&testcase_locus)?,
                             )
                         } else {
                             Err(errors::Error::MissingPrefix)?;
@@ -591,19 +595,25 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             scenario,
                             sample_observations,
                         } => {
-                            if let Some(sample_observations) = parse_key_values(&sample_observations) {
+                            if let Some(sample_observations) =
+                                parse_key_values(&sample_observations)
+                            {
                                 if let Some(mut testcase_builder) = testcase_builder {
-                                    for (i, (sample_name, obspath)) in sample_observations.iter().enumerate() {
+                                    for (i, (sample_name, obspath)) in
+                                        sample_observations.iter().enumerate()
+                                    {
                                         let options = calling::variants::preprocessing::read_preprocess_options(obspath)?;
                                         let preprocess_input = options.preprocess_input();
                                         testcase_builder = testcase_builder.register_sample(
                                             &sample_name,
                                             preprocess_input.bam,
-                                            &options
+                                            &options,
                                         )?;
                                         if i == 0 {
-                                            testcase_builder = testcase_builder.candidates(obspath)?;
-                                            testcase_builder = testcase_builder.reference(preprocess_input.reference)?;
+                                            testcase_builder =
+                                                testcase_builder.candidates(obspath)?;
+                                            testcase_builder = testcase_builder
+                                                .reference(preprocess_input.reference)?;
                                         }
                                     }
 
@@ -631,13 +641,27 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             purity,
                         } => {
                             if let Some(testcase_builder) = testcase_builder {
-                                let tumor_options = calling::variants::preprocessing::read_preprocess_options(&tumor_observations)?;
-                                let normal_options = calling::variants::preprocessing::read_preprocess_options(&normal_observations)?;
+                                let tumor_options =
+                                    calling::variants::preprocessing::read_preprocess_options(
+                                        &tumor_observations,
+                                    )?;
+                                let normal_options =
+                                    calling::variants::preprocessing::read_preprocess_options(
+                                        &normal_observations,
+                                    )?;
                                 let mut testcase = testcase_builder
                                     .candidates(tumor_observations)?
                                     .reference(tumor_options.preprocess_input().reference)?
-                                    .register_sample("tumor", tumor_options.preprocess_input().bam, &tumor_options)?
-                                    .register_sample("normal", normal_options.preprocess_input().bam, &normal_options)?
+                                    .register_sample(
+                                        "tumor",
+                                        tumor_options.preprocess_input().bam,
+                                        &tumor_options,
+                                    )?
+                                    .register_sample(
+                                        "normal",
+                                        normal_options.preprocess_input().bam,
+                                        &normal_options,
+                                    )?
                                     .scenario(None)
                                     .purity(Some(purity))
                                     .build()?;

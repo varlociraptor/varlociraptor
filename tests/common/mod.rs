@@ -21,7 +21,7 @@ use serde_json;
 use tempfile::{self, NamedTempFile};
 use yaml_rust::{Yaml, YamlLoader};
 
-use varlociraptor::cli::{run, CallKind, VariantCallMode, Varlociraptor, PreprocessKind};
+use varlociraptor::cli::{run, CallKind, PreprocessKind, VariantCallMode, Varlociraptor};
 use varlociraptor::testcase::Mode;
 
 pub fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>, Box<dyn Error>> {
@@ -30,19 +30,15 @@ pub fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>, Box<dy
     reader.read_to_string(&mut content2)?;
     let yaml = YamlLoader::load_from_str(&content2)?;
     Ok(match &yaml[0]["version"] {
-        Yaml::BadValue => {
-            Box::new(TestcaseVersion0 {
-                inner: yaml,
-                path: path.as_ref().to_owned(),
-            })
-        },
-        Yaml::String(version) if version == "1" => {
-            Box::new(TestcaseVersion1 {
-                inner: yaml,
-                path: path.as_ref().to_owned(),
-            })
-        },
-        _ => panic!("unsupported testcase version")
+        Yaml::BadValue => Box::new(TestcaseVersion0 {
+            inner: yaml,
+            path: path.as_ref().to_owned(),
+        }),
+        Yaml::String(version) if version == "1" => Box::new(TestcaseVersion1 {
+            inner: yaml,
+            path: path.as_ref().to_owned(),
+        }),
+        _ => panic!("unsupported testcase version"),
     })
 }
 
@@ -50,7 +46,7 @@ pub trait Testcase {
     fn inner(&self) -> &[Yaml];
 
     fn path(&self) -> &PathBuf;
-    
+
     fn preprocess_options(&self, sample_name: &str) -> String;
 
     fn mode(&self) -> Mode;
@@ -76,10 +72,19 @@ pub trait Testcase {
     }
 
     fn samples(&self) -> Vec<String> {
-        self.yaml()["samples"].as_hash().unwrap().keys().map(|name| name.as_str().unwrap().to_owned()).collect_vec()
+        self.yaml()["samples"]
+            .as_hash()
+            .unwrap()
+            .keys()
+            .map(|name| name.as_str().unwrap().to_owned())
+            .collect_vec()
     }
 
-    fn sample_preprocessed_path(&self, sample_name: &str, temp_preprocess: &tempfile::TempDir) -> PathBuf {
+    fn sample_preprocessed_path(
+        &self,
+        sample_name: &str,
+        temp_preprocess: &tempfile::TempDir,
+    ) -> PathBuf {
         let mut path = temp_preprocess.as_ref().join(sample_name);
         path.set_extension(".bcf");
 
@@ -91,15 +96,21 @@ pub trait Testcase {
     }
 
     fn sample_bam(&self, sample_name: &str) -> PathBuf {
-        self.path().join(self.sample(sample_name)["path"].as_str().unwrap())
+        self.path()
+            .join(self.sample(sample_name)["path"].as_str().unwrap())
     }
 
     fn sample_alignment_properties(&self, sample_name: &str) -> String {
-        self.sample(sample_name)["properties"].as_str().unwrap().to_owned()
+        self.sample(sample_name)["properties"]
+            .as_str()
+            .unwrap()
+            .to_owned()
     }
 
     fn scenario(&self) -> Option<PathBuf> {
-        self.yaml()["scenario"].as_str().map(|p| self.path().join(p))
+        self.yaml()["scenario"]
+            .as_str()
+            .map(|p| self.path().join(p))
     }
 
     fn purity(&self) -> Option<f64> {
@@ -107,10 +118,7 @@ pub trait Testcase {
     }
 
     fn run(&self) -> Result<(), Box<dyn Error>> {
-        let temp_ref = self.reference(
-            self.reference_name(),
-            self.reference_seq(),
-        )?;
+        let temp_ref = self.reference(self.reference_name(), self.reference_seq())?;
 
         let temp_preprocess = tempfile::tempdir()?;
 
@@ -118,24 +126,24 @@ pub trait Testcase {
         for sample_name in &self.samples() {
             let mut options = serde_json::from_str(&self.preprocess_options(sample_name))?;
             match &mut options {
-                Varlociraptor::Preprocess { 
-                    kind: PreprocessKind::Variants {
-                        ref mut reference,
-                        ref mut candidates,
-                        ref mut output,
-                        ref mut bam,
-                        ref mut alignment_properties,
-                        ..
-                    }
-                 } => { 
+                Varlociraptor::Preprocess {
+                    kind:
+                        PreprocessKind::Variants {
+                            ref mut reference,
+                            ref mut candidates,
+                            ref mut output,
+                            ref mut bam,
+                            ref mut alignment_properties,
+                            ..
+                        },
+                } => {
                     // prepare test bam
                     let test_bam = self.sample_bam(sample_name);
                     bam::index::build(&test_bam, None, bam::index::Type::BAI, 1).unwrap();
 
                     // prepare alignment properties
-                    let props = self.alignment_properties(
-                        &self.sample_alignment_properties(sample_name),
-                    )?;
+                    let props =
+                        self.alignment_properties(&self.sample_alignment_properties(sample_name))?;
 
                     // replace options
                     *bam = test_bam;
@@ -145,8 +153,8 @@ pub trait Testcase {
                     *alignment_properties = Some(props.path().to_owned());
 
                     run(options)?;
-                 },
-                _ => panic!("bug: unsupported options")
+                }
+                _ => panic!("bug: unsupported options"),
             }
         }
 
@@ -160,15 +168,28 @@ pub trait Testcase {
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
-                            sample_observations: self.samples().iter().map(|sample_name| {
-                                format!("{}={}", sample_name, self.sample_preprocessed_path(sample_name, &temp_preprocess).to_str().unwrap())
-                            }).collect_vec()
-                        }
-                    }
+                            sample_observations: self
+                                .samples()
+                                .iter()
+                                .map(|sample_name| {
+                                    format!(
+                                        "{}={}",
+                                        sample_name,
+                                        self.sample_preprocessed_path(
+                                            sample_name,
+                                            &temp_preprocess
+                                        )
+                                        .to_str()
+                                        .unwrap()
+                                    )
+                                })
+                                .collect_vec(),
+                        },
+                    },
                 };
 
                 Ok(run(options)?)
-            },
+            }
             Mode::TumorNormal => {
                 let options = Varlociraptor::Call {
                     kind: CallKind::Variants {
@@ -176,11 +197,13 @@ pub trait Testcase {
                         testcase_prefix: None,
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
-                            tumor_observations: self.sample_preprocessed_path("tumor", &temp_preprocess),
-                            normal_observations: self.sample_preprocessed_path("normal", &temp_preprocess),
-                            purity: self.purity().unwrap()
-                        }
-                    }
+                            tumor_observations: self
+                                .sample_preprocessed_path("tumor", &temp_preprocess),
+                            normal_observations: self
+                                .sample_preprocessed_path("normal", &temp_preprocess),
+                            purity: self.purity().unwrap(),
+                        },
+                    },
                 };
 
                 Ok(run(options)?)

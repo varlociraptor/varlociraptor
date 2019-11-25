@@ -1,11 +1,11 @@
 use std::fs;
-use std::path::{Path};
+use std::path::Path;
 use std::str;
 
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
-use rust_htslib::bcf::Read as BCFRead;
 use rust_htslib::bcf;
+use rust_htslib::bcf::Read as BCFRead;
 
 mod common;
 

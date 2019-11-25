@@ -1,12 +1,12 @@
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::str;
 
 use serde_json;
-use yaml_rust::{Yaml};
+use yaml_rust::Yaml;
 
-use varlociraptor::cli::{Varlociraptor, PreprocessKind};
-use varlociraptor::testcase::Mode;
 use crate::common::Testcase;
+use varlociraptor::cli::{PreprocessKind, Varlociraptor};
+use varlociraptor::testcase::Mode;
 
 #[derive(Debug)]
 pub struct TestcaseVersion0 {
@@ -33,31 +33,25 @@ impl Testcase for TestcaseVersion0 {
         let options = self.options();
         match options {
             cli::Varlociraptor::Call {
-                kind: cli::CallKind::Variants {
-                    mode, ..
-                }
-            } => {
-                match mode {
-                    cli::VariantCallMode::Generic { .. } => Mode::Generic,
-                    cli::VariantCallMode::TumorNormal { .. } => Mode::TumorNormal,
-                }
+                kind: cli::CallKind::Variants { mode, .. },
+            } => match mode {
+                cli::VariantCallMode::Generic { .. } => Mode::Generic,
+                cli::VariantCallMode::TumorNormal { .. } => Mode::TumorNormal,
             },
-            _ => panic!("unexpected options")
+            _ => panic!("unexpected options"),
         }
     }
 
     fn purity(&self) -> Option<f64> {
         match self.options() {
             cli::Varlociraptor::Call {
-                kind: cli::CallKind::Variants {
-                    mode: cli::VariantCallMode::TumorNormal {
-                        purity,
+                kind:
+                    cli::CallKind::Variants {
+                        mode: cli::VariantCallMode::TumorNormal { purity, .. },
                         ..
                     },
-                    ..
-                }
             } => Some(purity),
-            _ => panic!("Invalid options")
+            _ => panic!("Invalid options"),
         }
     }
 
@@ -66,18 +60,19 @@ impl Testcase for TestcaseVersion0 {
 
         match options {
             cli::Varlociraptor::Call {
-                kind: cli::CallKind::Variants {
-                    reference,
-                    spurious_ins_rate,
-                    spurious_del_rate,
-                    spurious_insext_rate,
-                    spurious_delext_rate,
-                    protocol_strandedness,
-                    max_indel_len,
-                    indel_window,
-                    max_depth,
-                    ..
-                }
+                kind:
+                    cli::CallKind::Variants {
+                        reference,
+                        spurious_ins_rate,
+                        spurious_del_rate,
+                        spurious_insext_rate,
+                        spurious_delext_rate,
+                        protocol_strandedness,
+                        max_indel_len,
+                        indel_window,
+                        max_depth,
+                        ..
+                    },
             } => {
                 let options = Varlociraptor::Preprocess {
                     kind: PreprocessKind::Variants {
@@ -97,12 +92,12 @@ impl Testcase for TestcaseVersion0 {
                         bam: PathBuf::from("dummy"),
                         candidates: None,
                         output: None,
-                    }
+                    },
                 };
 
                 serde_json::to_string(&options).unwrap()
-            },
-            _ => panic!("invalid options for testcase")
+            }
+            _ => panic!("invalid options for testcase"),
         }
     }
 }
@@ -111,10 +106,10 @@ impl Testcase for TestcaseVersion0 {
 pub mod cli {
     use std::path::PathBuf;
 
-    use itertools::Itertools;
-    use structopt::StructOpt;
-    use serde::{Serialize, Deserialize};
     use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
+    use itertools::Itertools;
+    use serde::{Deserialize, Serialize};
+    use structopt::StructOpt;
 
     use varlociraptor::model::sample::ProtocolStrandedness;
     use varlociraptor::model::VariantType;

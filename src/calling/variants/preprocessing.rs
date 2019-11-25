@@ -5,24 +5,24 @@
 
 use std::error::Error;
 use std::fs;
-use std::path::Path;
 use std::mem;
+use std::path::Path;
 
+use bincode;
 use bio::io::fasta;
 use bio::stats::LogProb;
+use bv::BitVec;
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 use serde_json;
-use bincode;
-use bv::BitVec;
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
+use crate::cli;
 use crate::errors;
 use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::sample::Sample;
 use crate::utils;
-use crate::cli;
 use crate::utils::MiniLogProb;
 
 #[derive(Builder)]
@@ -53,7 +53,11 @@ impl ObservationProcessorBuilder {
         }))
     }
 
-    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>, options: &cli::Varlociraptor) -> Result<Self, Box<dyn Error>> {
+    pub fn outbcf<P: AsRef<Path>>(
+        self,
+        path: Option<P>,
+        options: &cli::Varlociraptor,
+    ) -> Result<Self, Box<dyn Error>> {
         let mut header = bcf::Header::new();
 
         // register SVLEN
@@ -77,7 +81,17 @@ impl ObservationProcessorBuilder {
         }
 
         // store observations
-        for name in &vec!["PROB_MAPPING", "PROB_ALT", "PROB_REF", "PROB_MISSED_ALLELE", "PROB_SAMPLE_ALT", "PROB_DOUBLE_OVERLAP", "PROB_ANY_STRAND", "FORWARD_STRAND", "REVERSE_STRAND"] {
+        for name in &vec![
+            "PROB_MAPPING",
+            "PROB_ALT",
+            "PROB_REF",
+            "PROB_MISSED_ALLELE",
+            "PROB_SAMPLE_ALT",
+            "PROB_DOUBLE_OVERLAP",
+            "PROB_ANY_STRAND",
+            "FORWARD_STRAND",
+            "REVERSE_STRAND",
+        ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant internal use only).\"", name).as_bytes()
             );
@@ -85,9 +99,12 @@ impl ObservationProcessorBuilder {
 
         // store options
         header.push_record(
-            format!("##varlociraptor_preprocess_args={}", serde_json::to_string(options)?).as_bytes()
+            format!(
+                "##varlociraptor_preprocess_args={}",
+                serde_json::to_string(options)?
+            )
+            .as_bytes(),
         );
-        
 
         let writer = if let Some(path) = path {
             bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)?
@@ -174,13 +191,20 @@ impl ObservationProcessor {
 pub unsafe fn read_observations<'a>(
     record: &'a mut bcf::Record,
 ) -> Result<Vec<Observation>, Box<dyn Error>> {
-    unsafe fn read_values<'a, T>(record: &'a mut bcf::Record, tag: &[u8]) -> Result<T, Box<dyn Error>> 
+    unsafe fn read_values<'a, T>(
+        record: &'a mut bcf::Record,
+        tag: &[u8],
+    ) -> Result<T, Box<dyn Error>>
     where
-        T: serde::Deserialize<'a>
+        T: serde::Deserialize<'a>,
     {
-        let raw_values = record.info(tag).integer()?.ok_or_else(|| errors::Error::InvalidBCFRecord {
-            msg: "No varlociraptor observations found in record.".to_owned(),
-        })?;
+        let raw_values =
+            record
+                .info(tag)
+                .integer()?
+                .ok_or_else(|| errors::Error::InvalidBCFRecord {
+                    msg: "No varlociraptor observations found in record.".to_owned(),
+                })?;
         let values = bincode::deserialize(mem::transmute_copy(&raw_values))?;
 
         Ok(values)
@@ -197,21 +221,21 @@ pub unsafe fn read_observations<'a>(
     let reverse_strand: BitVec<u8> = read_values(record, b"REVERSE_STRAND")?;
 
     Ok((0..prob_mapping.len())
-    .map(|i| {
-        ObservationBuilder::default()
-            .prob_mapping_mismapping(prob_mapping[i].to_logprob())
-            .prob_alt(prob_alt[i].to_logprob())
-            .prob_ref(prob_ref[i].to_logprob())
-            .prob_missed_allele(prob_missed_allele[i].to_logprob())
-            .prob_sample_alt(prob_sample_alt[i].to_logprob())
-            .prob_overlap(prob_double_overlap[i].to_logprob())
-            .prob_any_strand(prob_any_strand[i].to_logprob())
-            .forward_strand(forward_strand[i as u64])
-            .reverse_strand(reverse_strand[i as u64])
-            .build()
-            .unwrap()
-    })
-    .collect_vec())
+        .map(|i| {
+            ObservationBuilder::default()
+                .prob_mapping_mismapping(prob_mapping[i].to_logprob())
+                .prob_alt(prob_alt[i].to_logprob())
+                .prob_ref(prob_ref[i].to_logprob())
+                .prob_missed_allele(prob_missed_allele[i].to_logprob())
+                .prob_sample_alt(prob_sample_alt[i].to_logprob())
+                .prob_overlap(prob_double_overlap[i].to_logprob())
+                .prob_any_strand(prob_any_strand[i].to_logprob())
+                .forward_strand(forward_strand[i as u64])
+                .reverse_strand(reverse_strand[i as u64])
+                .build()
+                .unwrap()
+        })
+        .collect_vec())
 }
 
 pub fn write_observations(
@@ -243,9 +267,13 @@ pub fn write_observations(
         reverse_strand.push(obs.reverse_strand);
     }
 
-    unsafe fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<(), Box<dyn Error>> 
+    unsafe fn push_values<T>(
+        record: &mut bcf::Record,
+        tag: &[u8],
+        values: &T,
+    ) -> Result<(), Box<dyn Error>>
     where
-        T: serde::Serialize
+        T: serde::Serialize,
     {
         // serialize and convert into i32
         record.push_info_integer(tag, mem::transmute_copy(&bincode::serialize(values)?))?;
@@ -280,17 +308,21 @@ pub fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"REVERSE_STRAND");
 }
 
-pub fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor, Box<dyn Error>> {
+pub fn read_preprocess_options<P: AsRef<Path>>(
+    bcfpath: P,
+) -> Result<cli::Varlociraptor, Box<dyn Error>> {
     let reader = bcf::Reader::from_path(&bcfpath)?;
     for rec in reader.header().header_records() {
         match rec {
             bcf::header::HeaderRecord::Generic { ref key, ref value } => {
                 if key == "varlociraptor_preprocess_args" {
-                    return Ok(serde_json::from_str(value)?)
+                    return Ok(serde_json::from_str(value)?);
                 }
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
-    Err(errors::Error::InvalidObservations { path: bcfpath.as_ref().to_owned() })?
+    Err(errors::Error::InvalidObservations {
+        path: bcfpath.as_ref().to_owned(),
+    })?
 }
