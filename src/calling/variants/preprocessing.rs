@@ -14,7 +14,6 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 use serde_json;
-use half::f16;
 use bincode;
 use bv::BitVec;
 

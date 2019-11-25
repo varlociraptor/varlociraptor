@@ -24,7 +24,7 @@ use crate::model::evidence;
 use crate::model::evidence::reads::AbstractReadEvidence;
 use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::{Variant, VariantType};
-use crate::utils::{is_repeat_variant, max_prob, Overlap};
+use crate::utils::{is_repeat_variant, Overlap};
 
 /// Strand combination for read pairs as given by the sequencing protocol.
 #[derive(

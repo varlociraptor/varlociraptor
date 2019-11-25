@@ -11,7 +11,6 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
-use std::str::FromStr;
 
 use bio::io::fasta;
 use eval::Expr;
