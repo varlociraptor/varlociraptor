@@ -127,7 +127,9 @@ impl AbstractReadEvidence for SNVEvidence {
                 let base_qual = record.qual()[qpos as usize];
                 let prob_alt = prob_read_base(read_base, base, base_qual);
                 let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
-                Ok(Some((prob_ref, prob_alt)))
+                // normalize (only the ratio is relevant for the likelihood function)
+                let total = prob_ref.ln_add_exp(prob_alt);
+                Ok(Some((prob_ref - total, prob_alt - total)))
             } else {
                 // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
                 // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
@@ -957,9 +959,9 @@ mod tests {
         records.push(record5);
 
         // truth
-        let probs_ref = [0.9999, 0.00033, 0.99999];
-        let probs_alt = [0.000033, 0.999, 0.0000033];
-        let eps = [0.000001, 0.00001, 0.0000001];
+        let probs_ref = [0.99996, 0.00033, 0.999996];
+        let probs_alt = [0.000033, 0.9996, 0.0000033];
+        let eps = [0.00001, 0.0001, 0.000001];
 
         let vpos = 5;
         let variant = model::Variant::SNV(b'G');
