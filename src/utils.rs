@@ -19,6 +19,7 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf, bcf::record::Numeric};
+use half::f16;
 
 use crate::errors;
 use crate::model;
@@ -631,6 +632,35 @@ pub fn is_repeat_variant(start: u32, variant: &model::Variant, chrom_seq: &[u8])
 
     false
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum MiniLogProb {
+    F16(f16),
+    F32(f32),
+}
+
+impl MiniLogProb {
+    /// Convert LogProb into a minimal representation for storage.
+    /// If integer part is less than -1 and can be represented in f16,
+    /// we use f16. Else, we use f32.
+    pub fn new(prob: LogProb) -> Self {
+        let half = f16::from_f64(*prob);
+        let proj = half.to_f64();
+        if prob.floor() < -1.0 && proj.floor() == prob.floor() {
+            MiniLogProb::F16(half)
+        } else {
+            MiniLogProb::F32(*prob as f32)
+        }
+    }
+
+    pub fn to_logprob(&self) -> LogProb {
+        LogProb(match self {
+            MiniLogProb::F16(p) => p.to_f64(),
+            MiniLogProb::F32(p) => *p as f64,
+        })
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

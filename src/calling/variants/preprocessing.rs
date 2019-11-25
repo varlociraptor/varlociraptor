@@ -6,6 +6,7 @@
 use std::error::Error;
 use std::fs;
 use std::path::Path;
+use std::mem;
 
 use bio::io::fasta;
 use bio::stats::LogProb;
@@ -13,6 +14,9 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 use serde_json;
+use half::f16;
+use bincode;
+use bv::BitVec;
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::errors;
@@ -20,6 +24,7 @@ use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::sample::Sample;
 use crate::utils;
 use crate::cli;
+use crate::utils::MiniLogProb;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -73,14 +78,9 @@ impl ObservationProcessorBuilder {
         }
 
         // store observations
-        for name in &vec!["PROB_MAPPING", "PROB_ALT", "PROB_REF", "PROB_MISSED_ALLELE", "PROB_SAMPLE_ALT", "PROB_DOUBLE_OVERLAP", "PROB_ANY_STRAND"] {
+        for name in &vec!["PROB_MAPPING", "PROB_ALT", "PROB_REF", "PROB_MISSED_ALLELE", "PROB_SAMPLE_ALT", "PROB_DOUBLE_OVERLAP", "PROB_ANY_STRAND", "FORWARD_STRAND", "REVERSE_STRAND"] {
             header.push_record(
-                format!("##INFO=<ID={},Number=.,Type=Float,Description=\"Varlociraptor observation probability (internal use).\"", name).as_bytes()
-            );
-        }
-        for name in &vec!["FORWARD_STRAND", "REVERSE_STRAND"] {
-            header.push_record(
-                format!("##INFO=<ID={},Number=.,Type=String,Description=\"Varlociraptor strand observation (internal use).\"", name).as_bytes()
+                format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant internal use only).\"", name).as_bytes()
             );
         }
 
@@ -172,61 +172,47 @@ impl ObservationProcessor {
 }
 
 /// Read observations from BCF record.
-pub fn read_observations<'a>(
+pub unsafe fn read_observations<'a>(
     record: &'a mut bcf::Record,
 ) -> Result<Vec<Observation>, Box<dyn Error>> {
-    fn read_float_entry<'a>(
-        record: &'a mut bcf::Record,
-        entry_name: &'a [u8],
-    ) -> Result<&'a [f32], Box<dyn Error>> {
-        Ok(record
-            .info(entry_name)
-            .float()?
-            .ok_or_else(|| errors::Error::InvalidBCFRecord {
-                msg: "No varlociraptor observations found in record.".to_owned(),
-            })?)
-    };
+    unsafe fn read_values<'a, T>(record: &'a mut bcf::Record, tag: &[u8]) -> Result<T, Box<dyn Error>> 
+    where
+        T: serde::Deserialize<'a>
+    {
+        let raw_values = record.info(tag).integer()?.ok_or_else(|| errors::Error::InvalidBCFRecord {
+            msg: "No varlociraptor observations found in record.".to_owned(),
+        })?;
+        let values = bincode::deserialize(mem::transmute_copy(&raw_values))?;
 
-    fn read_string_entry<'a>(
-        record: &'a mut bcf::Record,
-        entry_name: &'a [u8],
-    ) -> Result<Vec<&'a [u8]>, Box<dyn Error>> {
-        Ok(record
-            .info(entry_name)
-            .string()?
-            .ok_or_else(|| errors::Error::InvalidBCFRecord {
-                msg: "No varlociraptor observations found in record.".to_owned(),
-            })?)
-    };
+        Ok(values)
+    }
 
-    let prob_mapping = read_float_entry(record, b"PROB_MAPPING")?.to_owned();
-    let prob_ref = read_float_entry(record, b"PROB_REF")?.to_owned();
-    let prob_alt = read_float_entry(record, b"PROB_ALT")?.to_owned();
-    let prob_missed_allele = read_float_entry(record, b"PROB_MISSED_ALLELE")?.to_owned();
-    let prob_sample_alt = read_float_entry(record, b"PROB_SAMPLE_ALT")?.to_owned();
-    let prob_double_overlap = read_float_entry(record, b"PROB_DOUBLE_OVERLAP")?.to_owned();
-    let prob_any_strand = read_float_entry(record, b"PROB_ANY_STRAND")?.to_owned();
-    let forward_strand = read_string_entry(record, b"FORWARD_STRAND")?[0].to_owned();
-    let reverse_strand = read_string_entry(record, b"REVERSE_STRAND")?[0].to_owned();
-
-    let decode_bool = |value| if value == b'1' { true } else { false };
+    let prob_mapping: Vec<MiniLogProb> = read_values(record, b"PROB_MAPPING")?;
+    let prob_ref: Vec<MiniLogProb> = read_values(record, b"PROB_REF")?;
+    let prob_alt: Vec<MiniLogProb> = read_values(record, b"PROB_ALT")?;
+    let prob_missed_allele: Vec<MiniLogProb> = read_values(record, b"PROB_MISSED_ALLELE")?;
+    let prob_sample_alt: Vec<MiniLogProb> = read_values(record, b"PROB_SAMPLE_ALT")?;
+    let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP")?;
+    let prob_any_strand: Vec<MiniLogProb> = read_values(record, b"PROB_ANY_STRAND")?;
+    let forward_strand: BitVec<u8> = read_values(record, b"FORWARD_STRAND")?;
+    let reverse_strand: BitVec<u8> = read_values(record, b"REVERSE_STRAND")?;
 
     Ok((0..prob_mapping.len())
-        .map(|i| {
-            ObservationBuilder::default()
-                .prob_mapping_mismapping(LogProb(prob_mapping[i] as f64))
-                .prob_alt(LogProb(prob_alt[i] as f64))
-                .prob_ref(LogProb(prob_ref[i] as f64))
-                .prob_missed_allele(LogProb(prob_missed_allele[i] as f64))
-                .prob_sample_alt(LogProb(prob_sample_alt[i] as f64))
-                .prob_overlap(LogProb(prob_double_overlap[i] as f64))
-                .prob_any_strand(LogProb(prob_any_strand[i] as f64))
-                .forward_strand(decode_bool(forward_strand[i]))
-                .reverse_strand(decode_bool(reverse_strand[i]))
-                .build()
-                .unwrap()
-        })
-        .collect_vec())
+    .map(|i| {
+        ObservationBuilder::default()
+            .prob_mapping_mismapping(prob_mapping[i].to_logprob())
+            .prob_alt(prob_alt[i].to_logprob())
+            .prob_ref(prob_ref[i].to_logprob())
+            .prob_missed_allele(prob_missed_allele[i].to_logprob())
+            .prob_sample_alt(prob_sample_alt[i].to_logprob())
+            .prob_overlap(prob_double_overlap[i].to_logprob())
+            .prob_any_strand(prob_any_strand[i].to_logprob())
+            .forward_strand(forward_strand[i as u64])
+            .reverse_strand(reverse_strand[i as u64])
+            .build()
+            .unwrap()
+    })
+    .collect_vec())
 }
 
 pub fn write_observations(
@@ -241,32 +227,44 @@ pub fn write_observations(
     let mut prob_sample_alt = vec();
     let mut prob_double_overlap = vec();
     let mut prob_any_strand = vec();
-    let mut forward_strand = Vec::with_capacity(observations.len());
-    let mut reverse_strand = Vec::with_capacity(observations.len());
-    let encode_bool = |value| if value { b'1' } else { b'0' };
+    let mut forward_strand: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
+    let mut reverse_strand: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
+    let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
 
     // TODO use bincode to compress as f16 and store in i32 blocks.
     for obs in observations {
-        prob_mapping.push(*obs.prob_mapping as f32);
-        prob_ref.push(*obs.prob_ref as f32);
-        prob_alt.push(*obs.prob_alt as f32);
-        prob_missed_allele.push(*obs.prob_missed_allele as f32);
-        prob_sample_alt.push(*obs.prob_sample_alt as f32);
-        prob_double_overlap.push(*obs.prob_double_overlap as f32);
-        prob_any_strand.push(*obs.prob_any_strand as f32);
-        forward_strand.push(encode_bool(obs.forward_strand));
-        reverse_strand.push(encode_bool(obs.reverse_strand));
+        prob_mapping.push(encode_logprob(obs.prob_mapping));
+        prob_ref.push(encode_logprob(obs.prob_ref));
+        prob_alt.push(encode_logprob(obs.prob_alt));
+        prob_missed_allele.push(encode_logprob(obs.prob_missed_allele));
+        prob_sample_alt.push(encode_logprob(obs.prob_sample_alt));
+        prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));
+        prob_any_strand.push(encode_logprob(obs.prob_any_strand));
+        forward_strand.push(obs.forward_strand);
+        reverse_strand.push(obs.reverse_strand);
     }
 
-    record.push_info_float(b"PROB_MAPPING", &prob_mapping)?;
-    record.push_info_float(b"PROB_REF", &prob_ref)?;
-    record.push_info_float(b"PROB_ALT", &prob_alt)?;
-    record.push_info_float(b"PROB_MISSED_ALLELE", &prob_missed_allele)?;
-    record.push_info_float(b"PROB_SAMPLE_ALT", &prob_sample_alt)?;
-    record.push_info_float(b"PROB_DOUBLE_OVERLAP", &prob_double_overlap)?;
-    record.push_info_float(b"PROB_ANY_STRAND", &prob_any_strand)?;
-    record.push_info_string(b"FORWARD_STRAND", &[&forward_strand])?;
-    record.push_info_string(b"REVERSE_STRAND", &[&reverse_strand])?;
+    unsafe fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<(), Box<dyn Error>> 
+    where
+        T: serde::Serialize
+    {
+        // serialize and convert into i32
+        record.push_info_integer(tag, mem::transmute_copy(&bincode::serialize(values)?))?;
+
+        Ok(())
+    }
+
+    unsafe {
+        push_values(record, b"PROB_MAPPING", &prob_mapping)?;
+        push_values(record, b"PROB_REF", &prob_ref)?;
+        push_values(record, b"PROB_ALT", &prob_alt)?;
+        push_values(record, b"PROB_MISSED_ALLELE", &prob_missed_allele)?;
+        push_values(record, b"PROB_SAMPLE_ALT", &prob_sample_alt)?;
+        push_values(record, b"PROB_DOUBLE_OVERLAP", &prob_double_overlap)?;
+        push_values(record, b"PROB_ANY_STRAND", &prob_any_strand)?;
+        push_values(record, b"FORWARD_STRAND", &forward_strand)?;
+        push_values(record, b"REVERSE_STRAND", &reverse_strand)?;
+    }
 
     Ok(())
 }
