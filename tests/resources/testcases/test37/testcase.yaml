@@ -1,0 +1,27 @@
+
+
+# necessary bam files
+samples:
+  father:
+    path: 'father.bam'
+    properties: '{"insert_size":{"mean":361.0,"sd":80.85618131151946},"max_del_cigar_len":22,"max_ins_cigar_len":19,"frac_max_softclip":0.8733333333333333}'
+  index:
+    path: 'index.bam'
+    properties: '{"insert_size":{"mean":348.0,"sd":76.62338998789966},"max_del_cigar_len":32,"max_ins_cigar_len":23,"frac_max_softclip":0.8733333333333333}'
+  mother:
+    path: 'mother.bam'
+    properties: '{"insert_size":{"mean":366.0,"sd":83.29480536279246},"max_del_cigar_len":25,"max_ins_cigar_len":22,"frac_max_softclip":0.8733333333333333}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+# reference sequence
+reference:
+  name: '1'
+  seq: 'NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCCTAACCCTAACCCTAACCCTAACCCTAACCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCCTAACCCTAACCCTAAACCCTAAACCCTAACCCTAACCCTAACCCTAACCCTAACCCCAACCCCAACCCCAACCCCAACCCCAACCCCAACCCTAACCCCTAACCCTAACCCTAACCCTACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCCCTAACCCCTA'
+
+options: '{"Call":{"kind":{"Variants":{"mode":{"Generic":{"scenario":"config/varlociraptor_trio_male.yaml","bams":["index=results/bam/1480-0_Blood.bam","father=results/bam/1480-2.bam","mother=results/bam/1480-1.bam"],"alignment_properties":[]}},"reference":"/vol/nano/ref/autoref/ncbi-pipelines-genomes/homo_sapiens/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna","candidates":"results/vcf/family/1480.vcf","output":null,"spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","omit_snvs":false,"omit_indels":false,"max_indel_len":1000,"indel_window":64,"max_depth":200,"testcase_locus":"1:10000","testcase_prefix":"/tmp/testcase-grammar"}}}}'
