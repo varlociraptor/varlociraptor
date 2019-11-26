@@ -566,6 +566,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                         let mut testcase = testcase_builder
                                             .scenario(Some(scenario.to_owned()))
                                             .build()?;
+                                        info!("Writing testcase.");
                                         testcase.write()?;
                                         return Ok(());
                                     }

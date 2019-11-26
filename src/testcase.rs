@@ -138,6 +138,7 @@ where
                 if let Some(rid) = rid {
                     if rec_rid == rid && rec.pos() == self.pos.unwrap() {
                         found.push(rec);
+                        break;
                     }
                 } else {
                     // add all variants
