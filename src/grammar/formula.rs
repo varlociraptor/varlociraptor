@@ -465,7 +465,7 @@ impl<'de> de::Visitor<'de> for FormulaVisitor {
 }
 
 fn parse_vaf(pair: Pair<Rule>) -> VAFSpectrum {
-    let vaf = pair.as_str().parse().unwrap();
+    let vaf = pair.as_str().parse().expect("bug: unable to parse VAF");
     VAFSpectrum::singleton(AlleleFreq(vaf))
 }
 
@@ -521,8 +521,9 @@ where
             let mut inner = pair.into_inner();
             let mut operands = Vec::new();
             loop {
-                operands.push(Box::new(parse_formula(inner.next().unwrap())?));
-                if inner.next().is_none() {
+                if let Some(operand) = inner.next() {
+                    operands.push(Box::new(parse_formula(operand)?));
+                } else {
                     break;
                 }
             }
