@@ -317,8 +317,6 @@ where
                 .rid()
                 .ok_or_else(|| errors::Error::RecordMissingChrom { i: i + 1 })?;
 
-            dbg!((rid, current_rid));
-
             if !rid.map_or(false, |rid: u32| current_rid == rid) {
                 // rid is not the same as before, obtain event universe
                 let contig = self.bcf_reader.header().rid2name(record.rid().unwrap())?;
