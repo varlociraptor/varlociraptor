@@ -123,7 +123,7 @@ pub enum PreprocessKind {
                  The obtained information is printed to STDOUT in BCF format. Note that the resulting BCFs \
                  will be very large and are only intended for internal use (e.g. for piping into 'varlociraptor \
                  call variants generic').",
-        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --output sample.bcf",
+        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam --output sample.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Variants {
