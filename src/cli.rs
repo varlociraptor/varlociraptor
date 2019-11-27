@@ -119,11 +119,12 @@ impl Varlociraptor {
 pub enum PreprocessKind {
     #[structopt(
         name = "variants",
-        about = "Preprocess given variants by calculating various probabilities for each fragment. \
-                 The obtained information is printed to STDOUT in BCF format. Note that the resulting BCFs \
+        about = "Preprocess given variants by obtaining internal observations (allele likelihoods, strand information, ...)\
+                 for each fragment. \
+                 The obtained observations are printed to STDOUT in BCF format. Note that the resulting BCFs \
                  will be very large and are only intended for internal use (e.g. for piping into 'varlociraptor \
                  call variants generic').",
-        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam --output sample.bcf",
+        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam --output sample.observations.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Variants {
@@ -138,7 +139,11 @@ pub enum PreprocessKind {
             help = "VCF/BCF file to process (if omitted, read from STDIN)."
         )]
         candidates: Option<PathBuf>,
-        #[structopt(long, help = "BAM file with aligned reads from a single sample.")]
+        #[structopt(
+            long,
+            required = true,
+            help = "BAM file with aligned reads from a single sample."
+        )]
         bam: PathBuf,
         #[structopt(
             long = "alignment-properties",
@@ -330,12 +335,14 @@ pub enum VariantCallMode {
         #[structopt(
             parse(from_os_str),
             long = "tumor",
+            required = true,
             help = "BCF file with varlociraptor preprocess results for the tumor sample."
         )]
         tumor_observations: PathBuf,
         #[structopt(
             parse(from_os_str),
             long = "normal",
+            required = true,
             help = "BCF file with varlociraptor preprocess results for the normal sample."
         )]
         normal_observations: PathBuf,
@@ -360,6 +367,7 @@ pub enum VariantCallMode {
         scenario: PathBuf,
         #[structopt(
             long = "obs",
+            required = true,
             help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario (given as samplename=path/to/calls.bcf)."
         )]
         sample_observations: Vec<String>,
