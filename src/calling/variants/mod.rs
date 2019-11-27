@@ -313,12 +313,16 @@ pub struct SampleInfo {
 pub struct BCFGrouper<'a>(pub &'a Variant);
 
 impl<'a> PartialEq for BCFGrouper<'a> {
-    fn eq(&self, other: &BCFGrouper) -> bool {
-        let s = self.0;
-        let o = other.0;
-        // Ensure that all compatible alleles have the same ref.
-        // Disallow two <DEL> alleles in the same record (because e.g. htsjdk fails then, many others likely as well).
-        s.ref_allele.eq(&o.ref_allele) && !(&s.alt_allele == b"<DEL>" && o.alt_allele == b"<DEL>")
+    fn eq(&self, _other: &BCFGrouper) -> bool {
+        // Currently, we want all variants to be in a separate record.
+        // This might change again in the future.
+        false
+
+        // let s = self.0;
+        // let o = other.0;
+        // // Ensure that all compatible alleles have the same ref.
+        // // Disallow two <DEL> alleles in the same record (because e.g. htsjdk fails then, many others likely as well).
+        // s.ref_allele.eq(&o.ref_allele) && !(&s.alt_allele == b"<DEL>" && o.alt_allele == b"<DEL>")
     }
 }
 
