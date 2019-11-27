@@ -236,8 +236,8 @@ pub fn collect_variants(
                         Some(model::Variant::SNV(alt_allele[0]))
                     }
                 } else if alt_allele.len() == ref_allele.len() {
-                    // neither indel nor SNV
-                    None
+                    // MNV
+                    Some(model::Variant::MNV(alt_allele.to_vec()))
                 } else {
                     let indel_len =
                         (alt_allele.len() as i32 - ref_allele.len() as i32).abs() as u32;
