@@ -265,7 +265,9 @@ impl AbstractReadEvidence for IndelEvidence {
                 &Variant::Deletion(_) => (start, start + variant.len()),
                 &Variant::Insertion(_) => (start, start + 1),
                 //TODO: add support for &Variant::Ref if we want to check against potential indel alt alleles
-                &Variant::SNV(_) | &Variant::MNV(_) | &Variant::None => panic!("bug: unsupported variant"),
+                &Variant::SNV(_) | &Variant::MNV(_) | &Variant::None => {
+                    panic!("bug: unsupported variant")
+                }
             };
 
             match (
