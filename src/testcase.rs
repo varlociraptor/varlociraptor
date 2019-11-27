@@ -154,6 +154,7 @@ impl Testcase {
                 if let Some(rid) = rid {
                     if rec_rid == rid && rec.pos() == self.pos.unwrap() {
                         found.push(rec);
+                        break;
                     }
                 } else {
                     // add all variants
@@ -216,6 +217,7 @@ impl Testcase {
                 (pos.saturating_sub(1000), pos + seq.len() as u32 + 1000)
             }
             (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
+            (Variant::MNV(ref bases), _) => (pos.saturating_sub(100), pos + bases.len() as u32 + 100),
             (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
         };
 

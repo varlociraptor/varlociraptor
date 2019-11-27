@@ -1,0 +1,27 @@
+samples:
+  index:
+    resolution: 3
+    universe:
+      all: "0.0 | 0.5 | 1.0"
+      X: "0.0 | 1.0"
+      Y: "0.0 | 1.0"
+  father:
+    resolution: 3
+    universe:
+      all: "0.0 | 0.5 | 1.0"
+      X: "0.0 | 1.0"
+      Y: "0.0 | 1.0"
+  mother:
+    resolution: 3
+    universe:
+      all: "0.0 | 0.5 | 1.0"
+      Y: "0.0"
+
+events:
+  denovo:               "index:0.0 | index:1.0"
+  #denovo:               "(index:0.5 | index:1.0) & father:0.0 & mother:0.0"
+  #rezessive_homozygous: "index:1.0 & father:0.5 & mother:0.5"
+  #pos_ch_mother_strong: "index:0.5 & father:0.0 & mother:0.5"
+  #pos_ch_father_strong: "index:0.5 & father:0.5 & mother:0.0"
+  #pos_ch_weak:          "index:0.5 & father:0.5 & mother:0.5"
+  #not_interesting:      "index:0.0 | father:1.0 | mother:1.0"

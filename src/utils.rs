@@ -236,8 +236,8 @@ pub fn collect_variants(
                         Some(model::Variant::SNV(alt_allele[0]))
                     }
                 } else if alt_allele.len() == ref_allele.len() {
-                    // neither indel nor SNV
-                    None
+                    // MNV
+                    Some(model::Variant::MNV(alt_allele.to_vec()))
                 } else {
                     let indel_len =
                         (alt_allele.len() as i32 - ref_allele.len() as i32).abs() as u32;
@@ -500,6 +500,13 @@ impl Overlap {
                     Overlap::None
                 }
             }
+            &model::Variant::MNV(_) => {
+                if pos <= start && end_pos > variant.end(start) {
+                    Overlap::Enclosing(variant.len())
+                } else {
+                    Overlap::None
+                }
+            }
             &model::Variant::Deletion(l) => {
                 let end = start + l;
                 let enclosing = pos < start && end_pos > end;
@@ -618,12 +625,7 @@ pub fn get_event_tags(inbcf: &bcf::Reader) -> Vec<(String, String)> {
 
 /// Returns true if given variant is located in a repeat region.
 pub fn is_repeat_variant(start: u32, variant: &model::Variant, chrom_seq: &[u8]) -> bool {
-    let end = match variant {
-        &model::Variant::SNV(_) | &model::Variant::None | &model::Variant::Insertion(_) => {
-            start + 1
-        }
-        &model::Variant::Deletion(l) => start + l,
-    } as usize;
+    let end = variant.end(start) as usize;
     for nuc in &chrom_seq[start as usize..end] {
         if (*nuc as char).is_lowercase() {
             return true;

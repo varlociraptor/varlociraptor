@@ -290,6 +290,9 @@ impl VariantBuilder {
             model::Variant::SNV(base) => self
                 .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
                 .alt_allele(vec![*base].to_ascii_uppercase()),
+            model::Variant::MNV(bases) => self
+                .ref_allele(chrom_seq[start..start + bases.len()].to_ascii_uppercase())
+                .alt_allele(bases.to_ascii_uppercase()),
             model::Variant::None => self
                 .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
                 .alt_allele(b"<REF>".to_ascii_uppercase()),

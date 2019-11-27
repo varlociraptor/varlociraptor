@@ -328,6 +328,8 @@ pub enum VariantType {
     Deletion(Option<Range<u32>>),
     #[strum(serialize = "SNV")]
     SNV,
+    #[strum(serialize = "MNV")]
+    MNV,
     #[strum(serialize = "REF")]
     None, // site with no suggested alternative allele
 }
@@ -349,6 +351,7 @@ pub enum Variant {
     Deletion(u32),
     Insertion(Vec<u8>),
     SNV(u8),
+    MNV(Vec<u8>),
     None,
 }
 
@@ -358,6 +361,7 @@ impl Variant {
             &Variant::Deletion(_) => true,
             &Variant::Insertion(_) => true,
             &Variant::SNV(_) => false,
+            &Variant::MNV(_) => false,
             &Variant::None => false,
         }
     }
@@ -381,6 +385,7 @@ impl Variant {
             &Variant::Deletion(_) => true,
             &Variant::Insertion(_) => true,
             &Variant::SNV(_) => false,
+            &Variant::MNV(_) => false,
             &Variant::None => false,
         }
     }
@@ -396,6 +401,7 @@ impl Variant {
             (&Variant::Deletion(_), &VariantType::Deletion(None)) => true,
             (&Variant::Insertion(_), &VariantType::Insertion(None)) => true,
             (&Variant::SNV(_), &VariantType::SNV) => true,
+            (&Variant::MNV(_), &VariantType::MNV) => true,
             (&Variant::None, &VariantType::None) => true,
             _ => false,
         }
@@ -406,6 +412,7 @@ impl Variant {
             &Variant::Deletion(length) => start + length,
             &Variant::Insertion(_) => start + 1, // end of insertion is the next regular base
             &Variant::SNV(_) | &Variant::None => start,
+            &Variant::MNV(ref alt) => start + alt.len() as u32,
         }
     }
 
@@ -414,6 +421,7 @@ impl Variant {
             &Variant::Deletion(length) => start + length / 2,
             &Variant::Insertion(_) => start, // end of insertion is the next regular base
             &Variant::SNV(_) | &Variant::None => start,
+            &Variant::MNV(ref alt) => start + alt.len() as u32 / 2,
         }
     }
 
@@ -422,6 +430,7 @@ impl Variant {
             &Variant::Deletion(l) => l,
             &Variant::Insertion(ref s) => s.len() as u32,
             &Variant::SNV(_) => 1,
+            &Variant::MNV(ref alt) => alt.len() as u32,
             &Variant::None => 1,
         }
     }
