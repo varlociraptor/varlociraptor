@@ -156,6 +156,7 @@ impl IndelEvidence {
                 );
             }
             &Variant::SNV(_) => panic!("no fragment observations for SNV"),
+            &Variant::MNV(_) => panic!("no fragment observations for MNV"),
             &Variant::None => panic!("no fragment observations for None"),
         };
 
@@ -277,7 +278,7 @@ impl IndelEvidence {
                 expected_prob(left_feasible, right_feasible, delta_ref, delta_alt, false)
             }
             // for SNVs sampling is unbiased
-            &Variant::SNV(_) | &Variant::None => LogProb::ln_one(),
+            &Variant::SNV(_) | &Variant::None | &Variant::MNV(_) => LogProb::ln_one(),
         }
     }
 
@@ -292,7 +293,7 @@ impl IndelEvidence {
             &Variant::Deletion(l) => l,
             &Variant::Insertion(ref seq) => seq.len() as u32,
             // for SNVs sampling is unbiased
-            &Variant::SNV(_) | &Variant::None => 0,
+            &Variant::SNV(_) | &Variant::MNV(_) | &Variant::None => 0,
         };
 
         LogProb::ln_sum_exp(
