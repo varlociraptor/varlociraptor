@@ -1,2 +1,2 @@
-[tasks.build]
-args = ["build"]
+[tasks.build-verbose]
+args = ["build", "--verbose"]
