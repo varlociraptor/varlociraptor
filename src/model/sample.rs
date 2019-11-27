@@ -119,6 +119,8 @@ pub struct Sample {
     #[builder(private)]
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
     #[builder(private)]
+    pub(crate) mnv_read_evidence: RefCell<evidence::reads::MNVEvidence>,
+    #[builder(private)]
     pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
     #[builder(default = "200")]
     max_depth: usize,
@@ -163,6 +165,7 @@ impl SampleBuilder {
             indel_haplotype_window,
         )))
         .snv_read_evidence(RefCell::new(evidence::reads::SNVEvidence::new()))
+        .mnv_read_evidence(RefCell::new(evidence::reads::MNVEvidence::new()))
         .indel_fragment_evidence(RefCell::new(evidence::fragments::IndelEvidence::new()))
         .none_read_evidence(RefCell::new(evidence::reads::NoneEvidence::new()))
     }
@@ -203,7 +206,7 @@ impl Sample {
 
         match variant {
             //TODO: make &Variant::None add reads with position deleted if we want to check against indel alt alleles
-            &Variant::SNV(_) | &Variant::None => {
+            &Variant::SNV(_) | &Variant::MNV(_) | &Variant::None => {
                 let mut candidate_records = Vec::new();
                 // iterate over records
                 for record in self.record_buffer.iter() {
@@ -399,6 +402,7 @@ impl Sample {
         let mut evidence: RefMut<dyn evidence::reads::AbstractReadEvidence> = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => self.indel_read_evidence.borrow_mut(),
             &Variant::SNV(_) => self.snv_read_evidence.borrow_mut(),
+            &Variant::MNV(_) => self.mnv_read_evidence.borrow_mut(),
             &Variant::None => self.none_read_evidence.borrow_mut(),
         };
 
