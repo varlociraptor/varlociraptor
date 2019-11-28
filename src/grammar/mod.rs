@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use serde_yaml;
 use vec_map::VecMap;
@@ -13,7 +13,6 @@ use crate::errors;
 use crate::errors::Result;
 pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub use crate::grammar::vaftree::VAFTree;
-use crate::model;
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -28,6 +27,15 @@ impl<T> SampleInfo<T> {
         SampleInfo {
             inner: self.inner.iter().map(f).collect(),
         }
+    }
+
+    /// Map to other value type or fail at first error.
+    pub fn try_map<U, E, F: Fn(&T) -> Result<U, E>>(&self, f: F) -> Result<SampleInfo<U>, E> {
+        let mut inner = Vec::with_capacity(self.inner.len());
+        for res in self.inner.iter().map(f) {
+            inner.push(res?);
+        }
+        Ok(SampleInfo { inner: inner })
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
@@ -48,6 +56,12 @@ impl<T> Deref for SampleInfo<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+impl<T> DerefMut for SampleInfo<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
 
@@ -118,10 +132,6 @@ impl Scenario {
             .unwrap()
             .get(sample)
             .map(|idx| *idx)
-    }
-
-    pub fn sort_samples_by_idx(&self, samples: &mut Vec<model::sample::Sample>) {
-        samples.sort_by_key(|sample| self.idx(sample.name()));
     }
 
     pub fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {

@@ -15,7 +15,7 @@ use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rayon;
-use rust_htslib::bam;
+use rust_htslib::{bam, bcf};
 use serde_yaml;
 use structopt;
 use structopt::StructOpt;
@@ -40,6 +40,15 @@ use crate::SimpleEvent;
     setting = structopt::clap::AppSettings::ColoredHelp,
 )]
 pub enum Varlociraptor {
+    #[structopt(
+        name = "preprocess",
+        about = "Preprocess variants",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Preprocess {
+        #[structopt(subcommand)]
+        kind: PreprocessKind,
+    },
     #[structopt(
         name = "call",
         about = "Call variants.",
@@ -80,49 +89,45 @@ pub enum Varlociraptor {
     },
 }
 
-#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-pub enum EstimateKind {
-    #[structopt(
-        name = "tmb",
-        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated \
-                 with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT. \
-                 It can be converted to an image via vega-lite-cli (see conda package).",
-        usage = "varlociraptor estimate tmb --coding-genome-size 3e7 --somatic-tumor-events SOMATIC_TUMOR \
-                 --tumor-sample tumor < calls.bcf | vg2svg > tmb.svg",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
-    TMB {
-        #[structopt(
-            long = "somatic-tumor-events",
-            default_value = "SOMATIC_TUMOR",
-            help = "Events to consider (e.g. SOMATIC_TUMOR)."
-        )]
-        somatic_tumor_events: Vec<String>,
-        #[structopt(
-            long = "tumor-sample",
-            default_value = "tumor",
-            help = "Name of the tumor sample in the given VCF/BCF."
-        )]
-        tumor_sample: String,
-        #[structopt(
-            long = "coding-genome-size",
-            default_value = "3e7",
-            help = "Size (in bases) of the covered coding genome."
-        )]
-        coding_genome_size: f64,
-    },
+pub struct PreprocessInput {
+    reference: PathBuf,
+    bam: PathBuf,
+}
+
+impl Varlociraptor {
+    fn preprocess_input(&self) -> PreprocessInput {
+        if let Varlociraptor::Preprocess {
+            kind:
+                PreprocessKind::Variants {
+                    ref reference,
+                    ref bam,
+                    ..
+                },
+        } = &self
+        {
+            PreprocessInput {
+                reference: reference.to_owned(),
+                bam: bam.to_owned(),
+            }
+        } else {
+            panic!("bug: these are not preprocess options.");
+        }
+    }
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-pub enum CallKind {
+pub enum PreprocessKind {
     #[structopt(
         name = "variants",
-        about = "Call variants.",
+        about = "Preprocess given variants by obtaining internal observations (allele likelihoods, strand information, ...)\
+                 for each fragment. \
+                 The obtained observations are printed to STDOUT in BCF format. Note that the resulting BCFs \
+                 will be very large and are only intended for internal use (e.g. for piping into 'varlociraptor \
+                 call variants generic').",
+        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam --output sample.observations.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Variants {
-        #[structopt(subcommand)]
-        mode: VariantCallMode,
         #[structopt(
             parse(from_os_str),
             help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
@@ -134,6 +139,18 @@ pub enum CallKind {
             help = "VCF/BCF file to process (if omitted, read from STDIN)."
         )]
         candidates: Option<PathBuf>,
+        #[structopt(
+            long,
+            required = true,
+            help = "BAM file with aligned reads from a single sample."
+        )]
+        bam: PathBuf,
+        #[structopt(
+            long = "alignment-properties",
+            help = "Alignment properties JSON file for sample. If not provided, properties \
+                    will be estimated from the given BAM file."
+        )]
+        alignment_properties: Option<PathBuf>,
         #[structopt(
             parse(from_os_str),
             long,
@@ -197,6 +214,52 @@ pub enum CallKind {
                     number, downsampling is performed."
         )]
         max_depth: usize,
+    },
+}
+
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
+pub enum EstimateKind {
+    #[structopt(
+        name = "tmb",
+        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated \
+                 with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT. \
+                 It can be converted to an image via vega-lite-cli (see conda package).",
+        usage = "varlociraptor estimate tmb --coding-genome-size 3e7 --somatic-tumor-events SOMATIC_TUMOR \
+                 --tumor-sample tumor < calls.bcf | vg2svg > tmb.svg",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    TMB {
+        #[structopt(
+            long = "somatic-tumor-events",
+            default_value = "SOMATIC_TUMOR",
+            help = "Events to consider (e.g. SOMATIC_TUMOR)."
+        )]
+        somatic_tumor_events: Vec<String>,
+        #[structopt(
+            long = "tumor-sample",
+            default_value = "tumor",
+            help = "Name of the tumor sample in the given VCF/BCF."
+        )]
+        tumor_sample: String,
+        #[structopt(
+            long = "coding-genome-size",
+            default_value = "3e7",
+            help = "Size (in bases) of the covered coding genome."
+        )]
+        coding_genome_size: f64,
+    },
+}
+
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
+pub enum CallKind {
+    #[structopt(
+        name = "variants",
+        about = "Call variants.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Variants {
+        #[structopt(subcommand)]
+        mode: VariantCallMode,
         #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
@@ -211,6 +274,12 @@ pub enum CallKind {
             help = "Create test case files in the given directory."
         )]
         testcase_prefix: Option<String>,
+        #[structopt(
+            long,
+            short,
+            help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
+        )]
+        output: Option<PathBuf>,
     },
     #[structopt(
         name = "cnvs",
@@ -259,54 +328,49 @@ pub enum VariantCallMode {
     #[structopt(
         name = "tumor-normal",
         about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants reference.fa tumor-normal --purity 0.75 tumor.bam normal.bam < candidates.bcf > calls.bcf",
+        usage = "varlociraptor call variants tumor-normal --purity 0.75 --tumor tumor.bcf --normal normal.bcf --output calls.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     TumorNormal {
-        #[structopt(parse(from_os_str), help = "BAM file with reads from tumor sample.")]
-        tumor: PathBuf,
-        #[structopt(parse(from_os_str), help = "BAM file with reads from normal sample.")]
-        normal: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "tumor",
+            required = true,
+            help = "BCF file with varlociraptor preprocess results for the tumor sample."
+        )]
+        tumor_observations: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "normal",
+            required = true,
+            help = "BCF file with varlociraptor preprocess results for the normal sample."
+        )]
+        normal_observations: PathBuf,
         #[structopt(short, long, default_value = "1.0", help = "Purity of tumor sample.")]
         purity: f64,
-        #[structopt(
-            parse(from_os_str),
-            long = "tumor-alignment-properties",
-            help = "Alignment properties JSON file for tumor sample. If not provided, properties \
-                    will be estimated from the given BAM file."
-        )]
-        tumor_alignment_properties: Option<PathBuf>,
-        #[structopt(
-            parse(from_os_str),
-            long = "normal-alignment-properties",
-            help = "Alignment properties JSON file for normal sample. If not provided, properties \
-                    will be estimated from the given BAM file."
-        )]
-        normal_alignment_properties: Option<PathBuf>,
     },
     #[structopt(
         name = "generic",
         about = "Call variants for a given scenario specified with the varlociraptor calling \
                  grammar and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants reference.fa generic --bams relapse=relapse.bam \
-                 tumor=tumor.bam normal=normal.bam < candidates.bcf > calls.bcf",
+        usage = "varlociraptor call variants generic --observations relapse=relapse.bcf \
+                 tumor=tumor.bcf normal=normal.bcf --output calls.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Generic {
         #[structopt(
             parse(from_os_str),
             long,
+            required = true,
             help = "Scenario defined in the varlociraptor calling grammar."
         )]
         scenario: PathBuf,
-        #[structopt(long, help = "BAM files with aligned reads for each sample.")]
-        bams: Vec<String>,
         #[structopt(
-            long = "alignment-properties",
-            help = "Alignment properties JSON file for normal sample. If not provided, properties \
-                    will be estimated from the given BAM file."
+            long = "obs",
+            required = true,
+            help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario (given as samplename=path/to/calls.bcf)."
         )]
-        alignment_properties: Vec<String>,
+        sample_observations: Vec<String>,
     },
 }
 
@@ -379,26 +443,27 @@ impl Default for Varlociraptor {
 pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
     let opt_clone = opt.clone();
     match opt {
-        Varlociraptor::Call { kind } => {
+        Varlociraptor::Preprocess { kind } => {
             match kind {
-                CallKind::Variants {
-                    mode,
+                PreprocessKind::Variants {
+                    reference,
+                    candidates,
+                    bam,
+                    alignment_properties,
+                    output,
                     spurious_ins_rate,
                     spurious_del_rate,
                     spurious_insext_rate,
                     spurious_delext_rate,
-                    indel_window,
+                    protocol_strandedness,
                     omit_snvs,
                     omit_indels,
                     max_indel_len,
+                    indel_window,
                     max_depth,
-                    reference,
-                    candidates,
-                    output,
-                    testcase_locus,
-                    testcase_prefix,
-                    protocol_strandedness,
                 } => {
+                    // TODO: handle testcases
+
                     let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
                     let spurious_del_rate = Prob::checked(spurious_del_rate)?;
                     let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
@@ -406,42 +471,56 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     if indel_window > (128 / 2) {
                         Err(structopt::clap::Error::with_description( "Command-line option --indel-window requires a value <= 64 with the current implementation.", structopt::clap::ErrorKind::ValueValidation))?;
                     };
-                    dbg!(indel_window);
 
-                    let sample_builder = || {
-                        SampleBuilder::default()
-                            .error_probs(
-                                spurious_ins_rate,
-                                spurious_del_rate,
-                                spurious_insext_rate,
-                                spurious_delext_rate,
-                                indel_window as u32,
-                            )
-                            .max_depth(max_depth)
-                            // TODO this could as well be handled sample-specific!
-                            .protocol_strandedness(protocol_strandedness)
-                    };
+                    let alignment_properties =
+                        est_or_load_alignment_properites(&alignment_properties, &bam)?;
 
-                    // obtain reference reader
-                    let reference_reader = fasta::IndexedReader::from_file(&reference)?;
-                    let contigs = reference_reader.index.sequences();
+                    let bam_reader = bam::IndexedReader::from_path(bam)?;
 
+                    let sample = SampleBuilder::default()
+                        .error_probs(
+                            spurious_ins_rate,
+                            spurious_del_rate,
+                            spurious_insext_rate,
+                            spurious_delext_rate,
+                            indel_window as u32,
+                        )
+                        .max_depth(max_depth)
+                        .protocol_strandedness(protocol_strandedness)
+                        .alignments(bam_reader, alignment_properties)
+                        .build()?;
+
+                    let mut processor =
+                        calling::variants::preprocessing::ObservationProcessorBuilder::default()
+                            .sample(sample)
+                            .max_indel_len(max_indel_len)
+                            .omit_snvs(omit_snvs)
+                            .omit_indels(omit_indels)
+                            .reference(fasta::IndexedReader::from_file(&reference)?)?
+                            .inbcf(candidates)?
+                            .outbcf(output, &opt_clone)?
+                            .build()?;
+
+                    processor.process()?
+                }
+            }
+        }
+        Varlociraptor::Call { kind } => {
+            match kind {
+                CallKind::Variants {
+                    mode,
+                    testcase_locus,
+                    testcase_prefix,
+                    output,
+                } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
-                            if let Some(candidates) = candidates.as_ref() {
-                                // just write a testcase and quit
-                                Some(
-                                    TestcaseBuilder::default()
-                                        .prefix(PathBuf::from(testcase_prefix))
-                                        .options(opt_clone)
-                                        .locus(&testcase_locus)?
-                                        .reference(&reference)?
-                                        .candidates(candidates)?,
-                                )
-                            } else {
-                                Err(errors::Error::MissingCandidates)?;
-                                None
-                            }
+                            // TODO obtain sample information from input bcfs?
+                            Some(
+                                TestcaseBuilder::default()
+                                    .prefix(PathBuf::from(testcase_prefix))
+                                    .locus(&testcase_locus)?,
+                            )
                         } else {
                             Err(errors::Error::MissingPrefix)?;
                             None
@@ -451,12 +530,12 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     };
 
                     let call_generic = |scenario: grammar::Scenario,
-                                        bams: PathMap,
-                                        alignment_properties: PathMap|
+                                        observations: PathMap|
                      -> Result<(), Box<dyn Error>> {
                         let mut contaminations = scenario.sample_info();
                         let mut resolutions = scenario.sample_info();
-                        let mut samples = scenario.sample_info();
+                        let mut sample_names = scenario.sample_info();
+                        let mut sample_observations = scenario.sample_info();
 
                         // parse samples
                         for (sample_name, sample) in scenario.samples().iter() {
@@ -477,21 +556,14 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             contaminations = contaminations.push(sample_name, contamination);
                             resolutions = resolutions.push(sample_name, *sample.resolution());
 
-                            let bam = bams.get(sample_name).ok_or(
-                                errors::Error::InvalidBAMSampleName {
+                            let obs = observations.get(sample_name).ok_or(
+                                errors::Error::InvalidObservationSampleName {
                                     name: sample_name.to_owned(),
                                 },
                             )?;
-                            let alignment_properties = est_or_load_alignment_properites(
-                                &alignment_properties.get(sample_name).as_ref(),
-                                bam,
-                            )?;
-                            let bam_reader = bam::IndexedReader::from_path(bam)?;
-                            let sample = sample_builder()
-                                .name(sample_name.to_owned())
-                                .alignments(bam_reader, alignment_properties)
-                                .build()?;
-                            samples = samples.push(sample_name, sample);
+                            sample_observations =
+                                sample_observations.push(sample_name, bcf::Reader::from_path(obs)?);
+                            sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
 
                         // register groups
@@ -512,36 +584,15 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             .build()?;
 
                         // setup caller
-                        let mut caller_builder = calling::variants::CallerBuilder::default()
-                            .samples(samples.build())
-                            .reference(reference_reader)?
-                            .inbcf(candidates.as_ref())?
+                        let mut caller = calling::variants::CallerBuilder::default()
+                            .samplenames(sample_names.build())
+                            .observations(sample_observations.build())
+                            .scenario(scenario)
                             .model(model)
-                            .omit_snvs(omit_snvs)
-                            .omit_indels(omit_indels)
-                            .max_indel_len(max_indel_len);
+                            .outbcf(output.as_ref())?
+                            .build()?;
 
-                        for contig in &contigs {
-                            // populate contig universes
-                            let mut universes = scenario.sample_info();
-                            for (sample_name, sample) in scenario.samples().iter() {
-                                let universe = sample.contig_universe(&contig.name)?;
-                                universes = universes.push(sample_name, universe.to_owned());
-                            }
-                            caller_builder = caller_builder
-                                .add_contig_universes(&contig.name, universes.build());
-
-                            // populate contig vaftrees
-                            for (event_name, vaftree) in scenario.vaftrees(&contig.name)? {
-                                caller_builder =
-                                    caller_builder.event(&contig.name, &event_name, vaftree);
-                            }
-                        }
-
-                        caller_builder = caller_builder.outbcf(output.as_ref())?;
-
-                        let mut caller = caller_builder.build()?;
-
+                        // call
                         caller.call()?;
 
                         Ok(())
@@ -549,18 +600,28 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 
                     match mode {
                         VariantCallMode::Generic {
-                            ref scenario,
-                            ref bams,
-                            ref alignment_properties,
+                            scenario,
+                            sample_observations,
                         } => {
-                            if let Some(bams) = parse_key_values(bams) {
-                                if let Some(alignment_properties) =
-                                    parse_key_values(alignment_properties)
-                                {
-                                    if let Some(mut testcase_builder) = testcase_builder {
-                                        for (name, bam) in &bams {
+                            if let Some(sample_observations) =
+                                parse_key_values(&sample_observations)
+                            {
+                                if let Some(mut testcase_builder) = testcase_builder {
+                                    for (i, (sample_name, obspath)) in
+                                        sample_observations.iter().enumerate()
+                                    {
+                                        let options = calling::variants::preprocessing::read_preprocess_options(obspath)?;
+                                        let preprocess_input = options.preprocess_input();
+                                        testcase_builder = testcase_builder.register_sample(
+                                            &sample_name,
+                                            preprocess_input.bam,
+                                            &options,
+                                        )?;
+                                        if i == 0 {
                                             testcase_builder =
-                                                testcase_builder.register_bam(name, bam);
+                                                testcase_builder.candidates(obspath)?;
+                                            testcase_builder = testcase_builder
+                                                .reference(preprocess_input.reference)?;
                                         }
 
                                         let mut testcase = testcase_builder
@@ -571,33 +632,55 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                         return Ok(());
                                     }
 
-                                    let mut scenario_content = String::new();
-                                    File::open(scenario)?.read_to_string(&mut scenario_content)?;
-
-                                    let scenario: grammar::Scenario =
-                                        serde_yaml::from_str(&scenario_content)?;
-
-                                    call_generic(scenario, bams, alignment_properties)?;
-                                } else {
-                                    Err(errors::Error::InvalidAlignmentPropertiesSpec)?
+                                    let mut testcase = testcase_builder
+                                        .scenario(Some(scenario.to_owned()))
+                                        .build()?;
+                                    testcase.write()?;
+                                    return Ok(());
                                 }
+
+                                let mut scenario_content = String::new();
+                                File::open(scenario)?.read_to_string(&mut scenario_content)?;
+
+                                let scenario: grammar::Scenario =
+                                    serde_yaml::from_str(&scenario_content)?;
+
+                                call_generic(scenario, sample_observations)?;
                             } else {
-                                Err(errors::Error::InvalidBAMSpec)?
+                                Err(errors::Error::InvalidObservationsSpec)?
                             }
                         }
                         VariantCallMode::TumorNormal {
-                            ref tumor,
-                            ref normal,
+                            tumor_observations,
+                            normal_observations,
                             purity,
-                            ref tumor_alignment_properties,
-                            ref normal_alignment_properties,
                         } => {
                             if let Some(testcase_builder) = testcase_builder {
+                                let tumor_options =
+                                    calling::variants::preprocessing::read_preprocess_options(
+                                        &tumor_observations,
+                                    )?;
+                                let normal_options =
+                                    calling::variants::preprocessing::read_preprocess_options(
+                                        &normal_observations,
+                                    )?;
                                 let mut testcase = testcase_builder
-                                    .register_bam("tumor", tumor)
-                                    .register_bam("normal", normal)
+                                    .candidates(tumor_observations)?
+                                    .reference(tumor_options.preprocess_input().reference)?
+                                    .register_sample(
+                                        "tumor",
+                                        tumor_options.preprocess_input().bam,
+                                        &tumor_options,
+                                    )?
+                                    .register_sample(
+                                        "normal",
+                                        normal_options.preprocess_input().bam,
+                                        &normal_options,
+                                    )?
                                     .scenario(None)
+                                    .purity(Some(purity))
                                     .build()?;
+
                                 testcase.write()?;
                                 return Ok(());
                             }
@@ -626,18 +709,12 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                 .as_str(),
                             )?;
 
-                            let mut alignment_properties = PathMap::default();
-                            if let Some(prop) = tumor_alignment_properties {
-                                alignment_properties.insert("tumor".to_owned(), prop.to_owned());
-                            }
-                            if let Some(prop) = normal_alignment_properties {
-                                alignment_properties.insert("normal".to_owned(), prop.to_owned());
-                            }
-                            let mut bams = PathMap::default();
-                            bams.insert("tumor".to_owned(), tumor.to_owned());
-                            bams.insert("normal".to_owned(), normal.to_owned());
+                            let mut observations = PathMap::default();
+                            observations.insert("tumor".to_owned(), tumor_observations.to_owned());
+                            observations
+                                .insert("normal".to_owned(), normal_observations.to_owned());
 
-                            call_generic(scenario, bams, alignment_properties)?;
+                            call_generic(scenario, observations)?;
                         }
                     }
                 }

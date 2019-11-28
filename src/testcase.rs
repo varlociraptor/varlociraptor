@@ -13,10 +13,9 @@ use derive_builder::Builder;
 use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
-use serde::Serialize;
 use serde_json;
-use structopt::StructOpt;
 
+use crate::cli;
 use crate::errors;
 use crate::model::sample;
 use crate::model::Variant;
@@ -35,21 +34,26 @@ struct TestcaseTemplate {
     scenario: Option<String>,
     ref_name: String,
     ref_seq: String,
-    options: String,
+    mode: Mode,
+    purity: Option<f64>,
 }
 
 #[derive(Debug)]
 struct Sample {
     path: String,
     properties: String,
+    options: String,
+}
+
+#[derive(Debug, Clone, Copy, EnumString, Display)]
+pub enum Mode {
+    TumorNormal,
+    Generic,
 }
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct Testcase<T>
-where
-    T: StructOpt,
-{
+pub struct Testcase {
     #[builder(setter(into))]
     prefix: PathBuf,
     #[builder(private)]
@@ -65,13 +69,14 @@ where
     #[builder(private)]
     bams: HashMap<String, PathBuf>,
     scenario: Option<PathBuf>,
-    options: T,
+    #[builder(private)]
+    options: HashMap<String, String>,
+    #[builder(default = "None")]
+    purity: Option<f64>,
+    mode: Mode,
 }
 
-impl<T> TestcaseBuilder<T>
-where
-    T: StructOpt,
-{
+impl TestcaseBuilder {
     pub fn reference(self, path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
     }
@@ -105,7 +110,12 @@ where
         }
     }
 
-    pub fn register_bam(mut self, name: &str, path: impl AsRef<Path>) -> Self {
+    pub fn register_sample(
+        mut self,
+        name: &str,
+        bam: impl AsRef<Path>,
+        options: &cli::Varlociraptor,
+    ) -> Result<Self, Box<dyn Error>> {
         if self.bams.is_none() {
             self = self.bams(HashMap::new());
         }
@@ -113,16 +123,22 @@ where
         self.bams
             .as_mut()
             .unwrap()
-            .insert(name.to_owned(), path.as_ref().to_owned());
+            .insert(name.to_owned(), bam.as_ref().to_owned());
 
-        self
+        if self.options.is_none() {
+            self = self.options(HashMap::new());
+        }
+
+        self.options
+            .as_mut()
+            .unwrap()
+            .insert(name.to_owned(), serde_json::to_string(options)?);
+
+        Ok(self)
     }
 }
 
-impl<T> Testcase<T>
-where
-    T: StructOpt + Serialize,
-{
+impl Testcase {
     fn variants(&mut self) -> Result<Vec<bcf::Record>, Box<dyn Error>> {
         // get variant
         let rid = if let Some(name) = self.chrom_name.as_ref() {
@@ -201,6 +217,9 @@ where
                 (pos.saturating_sub(1000), pos + seq.len() as u32 + 1000)
             }
             (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
+            (Variant::MNV(ref bases), _) => {
+                (pos.saturating_sub(100), pos + bases.len() as u32 + 100)
+            }
             (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
         };
 
@@ -246,6 +265,7 @@ where
                 Sample {
                     path: filename.to_str().unwrap().to_owned(),
                     properties: serde_json::to_string(&properties)?,
+                    options: self.options.get(name).unwrap().to_owned(),
                 },
             );
         }
@@ -287,11 +307,12 @@ where
         desc.write_all(
             TestcaseTemplate {
                 samples,
-                options: serde_json::to_string(&self.options)?,
                 candidate: candidate_filename.to_str().unwrap().to_owned(),
                 ref_seq: String::from_utf8(ref_seq)?.to_owned(),
                 ref_name: ref_name.to_owned(),
                 scenario: scenario,
+                mode: self.mode,
+                purity: self.purity,
             }
             .render()?
             .as_bytes(),

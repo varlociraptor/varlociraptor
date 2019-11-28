@@ -1,0 +1,5 @@
+[tasks.build-verbose]
+args = ["build", "--verbose"]
+
+[tasks.test-verbose]
+args = ["test", "--verbose"]

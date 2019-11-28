@@ -4,9 +4,7 @@
 // except according to those terms.
 
 use std::f64;
-use std::str;
 
-use derive_builder::Builder;
 use rgsl::randist::poisson::poisson_pdf;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
@@ -15,8 +13,6 @@ use bio::stats::LogProb;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
-use rust_htslib::bam;
-use rust_htslib::bam::record::CigarString;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
 pub fn expected_depth(obs: &[Observation]) -> u32 {
@@ -26,11 +22,13 @@ pub fn expected_depth(obs: &[Observation]) -> u32 {
 }
 
 /// An observation for or against a variant.
-#[derive(Clone, Debug, Builder)]
+#[derive(Clone, Debug, Builder, Default)]
 pub struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
+    #[builder(private)]
     pub prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
+    #[builder(private)]
     pub prob_mismapping: LogProb,
     /// Probability that the read/read-pair comes from the alternative allele.
     pub prob_alt: LogProb,
@@ -43,8 +41,10 @@ pub struct Observation {
     /// Probability to sample the alt allele
     pub prob_sample_alt: LogProb,
     /// Probability to overlap with both strands
+    #[builder(private)]
     pub prob_double_overlap: LogProb,
     /// Probability to overlap with one strand only (1-prob_double_overlap)
+    #[builder(private)]
     pub prob_single_overlap: LogProb,
     /// Probability to observe any overlapping strand combination (when not associated with alt allele)
     pub prob_any_strand: LogProb,
@@ -52,52 +52,21 @@ pub struct Observation {
     pub forward_strand: bool,
     /// Observation relies on reverse strand evidence
     pub reverse_strand: bool,
-    /// Type of evidence.
-    pub evidence: Evidence,
+}
+
+impl ObservationBuilder {
+    pub fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
+        self.prob_mapping(prob_mapping)
+            .prob_mismapping(prob_mapping.ln_one_minus_exp())
+    }
+
+    pub fn prob_overlap(&mut self, prob_double_overlap: LogProb) -> &mut Self {
+        self.prob_double_overlap(prob_double_overlap)
+            .prob_single_overlap(prob_double_overlap.ln_one_minus_exp())
+    }
 }
 
 impl Observation {
-    pub fn new(
-        prob_mapping: LogProb,
-        prob_mismapping: LogProb,
-        prob_alt: LogProb,
-        prob_ref: LogProb,
-        prob_missed_allele: LogProb,
-        prob_sample_alt: LogProb,
-        prob_double_overlap: LogProb,
-        prob_any_strand: LogProb,
-        forward_strand: bool,
-        reverse_strand: bool,
-        evidence: Evidence,
-    ) -> Self {
-        assert!(
-            forward_strand | reverse_strand,
-            "bug: observation has to be either from forward or reverse strand"
-        );
-        Observation {
-            prob_mapping: prob_mapping,
-            prob_mismapping: prob_mismapping,
-            prob_alt: prob_alt,
-            prob_ref: prob_ref,
-            prob_missed_allele: prob_missed_allele,
-            prob_sample_alt: prob_sample_alt,
-            prob_double_overlap: prob_double_overlap,
-            prob_single_overlap: prob_double_overlap.ln_one_minus_exp(),
-            prob_any_strand: prob_any_strand,
-            forward_strand: forward_strand,
-            reverse_strand: reverse_strand,
-            evidence: evidence,
-        }
-    }
-
-    pub fn is_alignment_evidence(&self) -> bool {
-        if let Evidence::Alignment(_) = self.evidence {
-            true
-        } else {
-            false
-        }
-    }
-
     pub fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
@@ -166,68 +135,6 @@ impl Serialize for Observation {
         s.serialize_field("prob_alt", &self.prob_alt)?;
         s.serialize_field("prob_ref", &self.prob_ref)?;
         s.serialize_field("prob_sample_alt", &self.prob_sample_alt)?;
-        s.serialize_field("evidence", &self.evidence)?;
         s.end()
-    }
-}
-
-/// Types of evidence that lead to an observation.
-/// The contained information is intended for debugging and will be printed together with
-/// observations.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Evidence {
-    /// Insert size of fragment
-    InsertSize(String),
-    /// Alignment of a single read
-    Alignment(String),
-}
-
-impl Evidence {
-    /// Create a dummy alignment.
-    pub fn dummy_alignment() -> Self {
-        Evidence::Alignment("Dummy-Alignment".to_owned())
-    }
-
-    /// Create dummy insert size evidence.
-    pub fn dummy_insert_size(insert_size: u32) -> Self {
-        Evidence::InsertSize(format!("insert-size={}", insert_size))
-    }
-
-    /// Create insert size evidence.
-    pub fn insert_size(
-        insert_size: u32,
-        left: &CigarString,
-        right: &CigarString,
-        left_record: &bam::Record,
-        right_record: &bam::Record,
-        p_left_ref: LogProb,
-        p_left_alt: LogProb,
-        p_right_ref: LogProb,
-        p_right_alt: LogProb,
-        p_isize_ref: LogProb,
-        p_isize_alt: LogProb,
-    ) -> Self {
-        Evidence::InsertSize(format!(
-            "left: cigar={} ({:e} vs {:e}), right: cigar={} ({:e} vs {:e}), insert-size={} ({:e} vs {:e}), qname={}, left: AS={:?}, XS={:?}, right: AS={:?}, XS={:?}",
-            left, p_left_ref.exp(), p_left_alt.exp(),
-            right, p_right_ref.exp(), p_right_alt.exp(),
-            insert_size, p_isize_ref.exp(), p_isize_alt.exp(),
-            str::from_utf8(left_record.qname()).unwrap(),
-            left_record.aux(b"AS").map(|a| a.integer()),
-            left_record.aux(b"XS").map(|a| a.integer()),
-            right_record.aux(b"AS").map(|a| a.integer()),
-            right_record.aux(b"XS").map(|a| a.integer())
-        ))
-    }
-
-    /// Create alignment evidence.
-    pub fn alignment(cigar: &CigarString, record: &bam::Record) -> Self {
-        Evidence::Alignment(format!(
-            "cigar={}, qname={}, AS={:?}, XS={:?}",
-            cigar,
-            str::from_utf8(record.qname()).unwrap(),
-            record.aux(b"AS").map(|a| a.integer()),
-            record.aux(b"XS").map(|a| a.integer())
-        ))
     }
 }

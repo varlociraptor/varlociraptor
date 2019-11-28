@@ -22,9 +22,9 @@ use rust_htslib::bam::record::CigarStringView;
 use crate::estimation::alignment_properties;
 use crate::model::evidence;
 use crate::model::evidence::reads::AbstractReadEvidence;
-use crate::model::evidence::{Evidence, Observation};
+use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::{Variant, VariantType};
-use crate::utils::{is_repeat_variant, max_prob, Overlap};
+use crate::utils::{is_repeat_variant, Overlap};
 
 /// Strand combination for read pairs as given by the sequencing protocol.
 #[derive(
@@ -106,7 +106,6 @@ pub fn estimate_alignment_properties<P: AsRef<Path>>(
 #[derive(Builder, Debug)]
 #[builder(pattern = "owned")]
 pub struct Sample {
-    name: String,
     #[builder(private)]
     record_buffer: bam::buffer::RecordBuffer,
     #[builder(default = "true")]
@@ -119,6 +118,8 @@ pub struct Sample {
     pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
     #[builder(private)]
     pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
+    #[builder(private)]
+    pub(crate) mnv_read_evidence: RefCell<evidence::reads::MNVEvidence>,
     #[builder(private)]
     pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
     #[builder(default = "200")]
@@ -164,6 +165,7 @@ impl SampleBuilder {
             indel_haplotype_window,
         )))
         .snv_read_evidence(RefCell::new(evidence::reads::SNVEvidence::new()))
+        .mnv_read_evidence(RefCell::new(evidence::reads::MNVEvidence::new()))
         .indel_fragment_evidence(RefCell::new(evidence::fragments::IndelEvidence::new()))
         .none_read_evidence(RefCell::new(evidence::reads::NoneEvidence::new()))
     }
@@ -177,10 +179,6 @@ fn is_valid_record(record: &bam::Record) -> bool {
 }
 
 impl Sample {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     /// Extract observations for the given variant.
     pub fn extract_observations(
         &mut self,
@@ -208,7 +206,7 @@ impl Sample {
 
         match variant {
             //TODO: make &Variant::None add reads with position deleted if we want to check against indel alt alleles
-            &Variant::SNV(_) | &Variant::None => {
+            &Variant::SNV(_) | &Variant::MNV(_) | &Variant::None => {
                 let mut candidate_records = Vec::new();
                 // iterate over records
                 for record in self.record_buffer.iter() {
@@ -404,13 +402,14 @@ impl Sample {
         let mut evidence: RefMut<dyn evidence::reads::AbstractReadEvidence> = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => self.indel_read_evidence.borrow_mut(),
             &Variant::SNV(_) => self.snv_read_evidence.borrow_mut(),
+            &Variant::MNV(_) => self.mnv_read_evidence.borrow_mut(),
             &Variant::None => self.none_read_evidence.borrow_mut(),
         };
 
         if let Some((prob_ref, prob_alt)) =
             evidence.prob(record, cigar, start, variant, chrom_seq)?
         {
-            let (prob_mapping, prob_mismapping) = evidence.prob_mapping_mismapping(record);
+            let (prob_mapping, _) = evidence.prob_mapping_mismapping(record);
 
             // METHOD: This is an estimate of the allele likelihood at the true location in case
             // the read is mismapped. The value has to be approximately in the range of prob_alt
@@ -425,19 +424,20 @@ impl Sample {
                 &self.alignment_properties,
             );
             let strand = evidence.strand(record);
-            Ok(Some(Observation::new(
-                prob_mapping,
-                prob_mismapping,
-                prob_alt,
-                prob_ref,
-                prob_missed_allele,
-                prob_sample_alt,
-                LogProb::ln_zero(), // no double overlap possible
-                LogProb::from(Prob(0.5)),
-                strand == Strand::Forward,
-                strand == Strand::Reverse,
-                Evidence::alignment(cigar, record),
-            )))
+            Ok(Some(
+                ObservationBuilder::default()
+                    .prob_mapping_mismapping(prob_mapping)
+                    .prob_alt(prob_alt)
+                    .prob_ref(prob_ref)
+                    .prob_missed_allele(prob_missed_allele)
+                    .prob_sample_alt(prob_sample_alt)
+                    .prob_overlap(LogProb::ln_zero()) // no double overlap possible
+                    .prob_any_strand(LogProb::from(Prob(0.5)))
+                    .forward_strand(strand == Strand::Forward)
+                    .reverse_strand(strand == Strand::Reverse)
+                    .build()
+                    .unwrap(),
+            ))
         } else {
             Ok(None)
         }
@@ -484,10 +484,13 @@ impl Sample {
         let (p_ref_left, p_alt_left) = prob_read(left_record, left_cigar)?;
         let (p_ref_right, p_alt_right) = prob_read(right_record, right_cigar)?;
 
-        // This is an estimate of the allele likelihood at the true location in case the read is
-        // mismapped.
-        let p_missed_left = max_prob(p_ref_left, p_alt_left);
-        let p_missed_right = max_prob(p_ref_right, p_alt_right);
+        // METHOD: This is an estimate of the allele likelihood at the true location in case
+        // the read is mismapped. The value has to be approximately in the range of prob_alt
+        // and prob_ref. Otherwise it could cause numerical problems, by dominating the
+        // likelihood such that subtle differences in allele frequencies become numercically
+        // invisible in the resulting likelihood.
+        let p_missed_left = p_ref_left.ln_add_exp(p_alt_left) - LogProb(2.0_f64.ln());
+        let p_missed_right = p_ref_right.ln_add_exp(p_alt_right) - LogProb(2.0_f64.ln());
 
         let left_read_len = left_record.seq().len() as u32;
         let right_read_len = right_record.seq().len() as u32;
@@ -560,31 +563,19 @@ impl Sample {
             ProtocolStrandedness::Same => Prob(0.5),
         });
 
-        let obs = Observation::new(
-            prob_mismapping.ln_one_minus_exp(),
-            prob_mismapping,
-            p_alt_isize + p_alt_left + p_alt_right,
-            p_ref_isize + p_ref_left + p_ref_right,
-            p_missed_left + p_missed_right,
-            prob_sample_alt,
-            prob_double_overlap,
-            prob_any_strand,
-            forward_strand,
-            reverse_strand,
-            Evidence::insert_size(
-                insert_size as u32,
-                left_record.cigar_cached().unwrap(),
-                right_record.cigar_cached().unwrap(),
-                left_record,
-                right_record,
-                p_ref_left,
-                p_alt_left,
-                p_ref_right,
-                p_alt_right,
-                p_ref_isize,
-                p_alt_isize,
-            ),
-        );
+        let obs = ObservationBuilder::default()
+            .prob_mapping_mismapping(prob_mismapping.ln_one_minus_exp())
+            .prob_alt(p_alt_isize + p_alt_left + p_alt_right)
+            .prob_ref(p_ref_isize + p_ref_left + p_ref_right)
+            .prob_missed_allele(p_missed_left + p_missed_right)
+            .prob_sample_alt(prob_sample_alt)
+            .prob_overlap(prob_double_overlap)
+            .prob_any_strand(prob_any_strand)
+            .forward_strand(forward_strand)
+            .reverse_strand(reverse_strand)
+            .build()
+            .unwrap();
+
         assert!(obs.prob_alt.is_valid());
         assert!(obs.prob_ref.is_valid());
 
@@ -610,7 +601,6 @@ mod tests {
 
     fn setup_sample(isize_mean: f64) -> Sample {
         SampleBuilder::default()
-            .name("test".to_owned())
             .alignments(
                 bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
                 AlignmentProperties::default(InsertSize {

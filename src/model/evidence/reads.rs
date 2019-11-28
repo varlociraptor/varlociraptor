@@ -144,6 +144,51 @@ impl AbstractReadEvidence for SNVEvidence {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct MNVEvidence;
+
+impl MNVEvidence {
+    pub fn new() -> Self {
+        MNVEvidence
+    }
+}
+
+impl AbstractReadEvidence for MNVEvidence {
+    fn prob(
+        &mut self,
+        record: &bam::Record,
+        cigar: &CigarStringView,
+        start: u32,
+        variant: &Variant,
+        ref_seq: &[u8],
+    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>> {
+        if let &Variant::MNV(ref bases) = variant {
+            let mut prob_ref = LogProb::ln_one();
+            let mut prob_alt = LogProb::ln_one();
+            for (base, pos) in bases.into_iter().zip(start..variant.end(start)) {
+                if let Some(qpos) = cigar.read_pos(pos, false, false)? {
+                    let read_base = record.seq()[qpos as usize];
+                    let base_qual = record.qual()[qpos as usize];
+                    prob_alt += prob_read_base(read_base, *base, base_qual);
+                    prob_ref += prob_read_base(read_base, ref_seq[pos as usize], base_qual);
+                } else {
+                    // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
+                    // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
+                    // but instead needs to know NOT to add those reads (as observations) further up
+                    return Ok(None);
+                }
+            }
+            Ok(Some((prob_ref, prob_alt)))
+        } else {
+            panic!("bug: unsupported variant");
+        }
+    }
+
+    fn prob_sample_alt(&self, _: u32, _: &Variant, _: &AlignmentProperties) -> LogProb {
+        LogProb::ln_one()
+    }
+}
+
 /// Width of band around alignment with optimal edit distance.
 pub const EDIT_BAND: usize = 2;
 
@@ -220,7 +265,9 @@ impl AbstractReadEvidence for IndelEvidence {
                 &Variant::Deletion(_) => (start, start + variant.len()),
                 &Variant::Insertion(_) => (start, start + 1),
                 //TODO: add support for &Variant::Ref if we want to check against potential indel alt alleles
-                &Variant::SNV(_) | &Variant::None => panic!("bug: unsupported variant"),
+                &Variant::SNV(_) | &Variant::MNV(_) | &Variant::None => {
+                    panic!("bug: unsupported variant")
+                }
             };
 
             match (
@@ -332,7 +379,7 @@ impl AbstractReadEvidence for IndelEvidence {
                     &edit_dist,
                 )
             }
-            &Variant::SNV(_) | &Variant::None => {
+            &Variant::SNV(_) | &Variant::MNV(_) | &Variant::None => {
                 panic!("bug: unsupported variant");
             }
         };
@@ -381,7 +428,7 @@ impl AbstractReadEvidence for IndelEvidence {
         let delta = match variant {
             &Variant::Deletion(_) => variant.len() as u32,
             &Variant::Insertion(_) => variant.len() as u32,
-            &Variant::SNV(_) | &Variant::None => panic!("unsupported variant"),
+            &Variant::SNV(_) | &Variant::MNV(_) | &Variant::None => panic!("unsupported variant"),
         };
 
         let feasible = alignment_properties.feasible_bases(read_len, variant);

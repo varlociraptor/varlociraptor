@@ -22,6 +22,8 @@ extern crate getset;
 extern crate snafu;
 #[macro_use]
 extern crate strum_macros;
+#[macro_use]
+extern crate derive_builder;
 
 pub mod calling;
 pub mod cli;

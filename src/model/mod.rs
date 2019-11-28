@@ -27,8 +27,15 @@ pub struct Contamination {
 
 #[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
 pub struct Event {
+    pub name: String,
     pub vafs: grammar::VAFTree,
     pub strand_bias: StrandBias,
+}
+
+impl Event {
+    pub fn is_artifact(&self) -> bool {
+        self.strand_bias != StrandBias::None
+    }
 }
 
 pub type AlleleFreq = NotNan<f64>;
@@ -321,6 +328,8 @@ pub enum VariantType {
     Deletion(Option<Range<u32>>),
     #[strum(serialize = "SNV")]
     SNV,
+    #[strum(serialize = "MNV")]
+    MNV,
     #[strum(serialize = "REF")]
     None, // site with no suggested alternative allele
 }
@@ -342,6 +351,7 @@ pub enum Variant {
     Deletion(u32),
     Insertion(Vec<u8>),
     SNV(u8),
+    MNV(Vec<u8>),
     None,
 }
 
@@ -351,6 +361,7 @@ impl Variant {
             &Variant::Deletion(_) => true,
             &Variant::Insertion(_) => true,
             &Variant::SNV(_) => false,
+            &Variant::MNV(_) => false,
             &Variant::None => false,
         }
     }
@@ -374,6 +385,7 @@ impl Variant {
             &Variant::Deletion(_) => true,
             &Variant::Insertion(_) => true,
             &Variant::SNV(_) => false,
+            &Variant::MNV(_) => false,
             &Variant::None => false,
         }
     }
@@ -389,6 +401,7 @@ impl Variant {
             (&Variant::Deletion(_), &VariantType::Deletion(None)) => true,
             (&Variant::Insertion(_), &VariantType::Insertion(None)) => true,
             (&Variant::SNV(_), &VariantType::SNV) => true,
+            (&Variant::MNV(_), &VariantType::MNV) => true,
             (&Variant::None, &VariantType::None) => true,
             _ => false,
         }
@@ -399,6 +412,7 @@ impl Variant {
             &Variant::Deletion(length) => start + length,
             &Variant::Insertion(_) => start + 1, // end of insertion is the next regular base
             &Variant::SNV(_) | &Variant::None => start,
+            &Variant::MNV(ref alt) => start + alt.len() as u32,
         }
     }
 
@@ -407,6 +421,7 @@ impl Variant {
             &Variant::Deletion(length) => start + length / 2,
             &Variant::Insertion(_) => start, // end of insertion is the next regular base
             &Variant::SNV(_) | &Variant::None => start,
+            &Variant::MNV(ref alt) => start + alt.len() as u32 / 2,
         }
     }
 
@@ -415,6 +430,7 @@ impl Variant {
             &Variant::Deletion(l) => l,
             &Variant::Insertion(ref s) => s.len() as u32,
             &Variant::SNV(_) => 1,
+            &Variant::MNV(ref alt) => alt.len() as u32,
             &Variant::None => 1,
         }
     }
@@ -422,25 +438,24 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::evidence::{Evidence, Observation};
+    use crate::model::evidence::{observation::ObservationBuilder, Observation};
     use crate::utils;
 
     use bio::stats::LogProb;
 
     pub fn observation(prob_mapping: LogProb, prob_alt: LogProb, prob_ref: LogProb) -> Observation {
-        Observation::new(
-            prob_mapping,
-            prob_mapping.ln_one_minus_exp(),
-            prob_alt,
-            prob_ref,
-            utils::max_prob(prob_ref, prob_alt),
-            LogProb::ln_one(),
-            LogProb::ln_one(),
-            LogProb::ln_one(),
-            true,
-            true,
-            Evidence::dummy_alignment(),
-        )
+        ObservationBuilder::default()
+            .prob_mapping_mismapping(prob_mapping)
+            .prob_alt(prob_alt)
+            .prob_ref(prob_ref)
+            .prob_missed_allele(utils::max_prob(prob_ref, prob_alt))
+            .prob_sample_alt(LogProb::ln_one())
+            .prob_overlap(LogProb::ln_one())
+            .prob_any_strand(LogProb::ln_one())
+            .forward_strand(true)
+            .reverse_strand(true)
+            .build()
+            .unwrap()
     }
 
     // fn setup_pairwise_test<'a>(

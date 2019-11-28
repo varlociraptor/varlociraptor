@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Snafu, Debug, PartialEq)]
@@ -14,10 +16,8 @@ pub enum Error {
         name
     ))]
     InvalidContaminationSampleName { name: String },
-    #[snafu(display("alignment property files must be provided as name=path"))]
-    InvalidAlignmentPropertiesSpec,
-    #[snafu(display("BAM files must be provided as name=path"))]
-    InvalidBAMSpec,
+    #[snafu(display("observation files must be provided as samplename=path"))]
+    InvalidObservationsSpec,
     #[snafu(display(
         "invalid variant index given, must be not higher than the number of variants at the locus"
     ))]
@@ -49,4 +49,10 @@ pub enum Error {
     ReferenceContigNotFound { contig: String },
     #[snafu(display("record {} in candidate BCF/VCF does not define a chromosome", i))]
     RecordMissingChrom { i: usize },
+    #[snafu(display("inconsistent observations: input observation BCF files do not contain exactly the same records"))]
+    InconsistentObservations,
+    #[snafu(display("No observations given for sample {}.", name))]
+    InvalidObservationSampleName { name: String },
+    #[snafu(display("invalid observations: varlociraptor arguments cannot be parsed from given observations ({}); either the file has not been preprocessed with varlociraptor or with a too old version", path.display()))]
+    InvalidObservations { path: PathBuf },
 }
