@@ -220,7 +220,7 @@ pub unsafe fn read_observations<'a>(
     let forward_strand: BitVec<u8> = read_values(record, b"FORWARD_STRAND")?;
     let reverse_strand: BitVec<u8> = read_values(record, b"REVERSE_STRAND")?;
 
-    Ok((0..prob_mapping.len())
+    let obs = (0..prob_mapping.len())
         .map(|i| {
             ObservationBuilder::default()
                 .prob_mapping_mismapping(prob_mapping[i].to_logprob())
@@ -235,7 +235,9 @@ pub unsafe fn read_observations<'a>(
                 .build()
                 .unwrap()
         })
-        .collect_vec())
+        .collect_vec();
+    
+    Ok(obs)
 }
 
 pub fn write_observations(
@@ -254,7 +256,6 @@ pub fn write_observations(
     let mut reverse_strand: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
 
-    // TODO use bincode to compress as f16 and store in i32 blocks.
     for obs in observations {
         prob_mapping.push(encode_logprob(obs.prob_mapping));
         prob_ref.push(encode_logprob(obs.prob_ref));

@@ -648,7 +648,7 @@ impl MiniLogProb {
     pub fn new(prob: LogProb) -> Self {
         let half = f16::from_f64(*prob);
         let proj = half.to_f64();
-        if prob.floor() < -1.0 && proj.floor() == prob.floor() {
+        if *prob < -10.0 && proj.floor() == prob.floor() {
             MiniLogProb::F16(half)
         } else {
             MiniLogProb::F32(*prob as f32)

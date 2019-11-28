@@ -424,7 +424,6 @@ impl Sample {
                 &self.alignment_properties,
             );
             let strand = evidence.strand(record);
-            dbg!(&strand);
             Ok(Some(
                 ObservationBuilder::default()
                     .prob_mapping_mismapping(prob_mapping)
