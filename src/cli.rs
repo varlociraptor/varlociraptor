@@ -328,7 +328,7 @@ pub enum VariantCallMode {
     #[structopt(
         name = "tumor-normal",
         about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants tumor-normal --purity 0.75 --tumor tumor.bcf --normal normal.bcf --output calls.bcf",
+        usage = "varlociraptor call variants --output calls.bcf tumor-normal --purity 0.75 --tumor tumor.bcf --normal normal.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     TumorNormal {
@@ -353,8 +353,8 @@ pub enum VariantCallMode {
         name = "generic",
         about = "Call variants for a given scenario specified with the varlociraptor calling \
                  grammar and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants generic --observations relapse=relapse.bcf \
-                 tumor=tumor.bcf normal=normal.bcf --output calls.bcf",
+        usage = "varlociraptor call variants --output calls.bcf generic --observations relapse=relapse.bcf \
+                 tumor=tumor.bcf normal=normal.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Generic {
