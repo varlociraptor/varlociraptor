@@ -145,8 +145,8 @@ where
         let mut rid = None;
         let mut events = Vec::new();
         let mut i = 0;
-        let mut records = self.observations.map(|reader| reader.empty_record());
         loop {
+            let mut records = self.observations.map(|reader| reader.empty_record());
             let mut eof = Vec::new();
             for (reader, record) in self.observations.iter_mut().zip(records.iter_mut()) {
                 eof.push(!reader.read(record)?);

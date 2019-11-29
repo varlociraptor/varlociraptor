@@ -118,8 +118,8 @@ impl ObservationProcessorBuilder {
 impl ObservationProcessor {
     pub fn process(&mut self) -> Result<(), Box<dyn Error>> {
         let mut i = 0;
-        let mut record = self.bcf_reader.empty_record();
         loop {
+            let mut record = self.bcf_reader.empty_record();
             if !self.bcf_reader.read(&mut record)? {
                 return Ok(());
             }
