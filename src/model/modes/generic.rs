@@ -12,6 +12,18 @@ use crate::model::likelihood;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, Contamination, StrandBias};
 
+#[derive(Clone, Debug)]
+pub struct SNV {
+    refbase: u8,
+    altbase: u8,
+}
+
+#[derive(new, Clone, Debug)]
+pub struct Data {
+    pileups: Vec<Pileup>,
+    snv: Option<SNV>,
+}
+
 #[derive(Debug)]
 pub enum CacheEntry {
     ContaminatedSample(likelihood::ContaminatedSampleCache),
@@ -104,14 +116,13 @@ impl GenericPosterior {
         vaf_tree_node: &grammar::vaftree::Node,
         base_events: &mut VecMap<likelihood::Event>,
         sample_grid_points: &[usize],
-        pileups: &<Self as Posterior>::Data,
+        data: &<Self as Posterior>::Data,
         strand_bias: StrandBias,
         joint_prob: &mut F,
     ) -> LogProb {
-        let sample = *vaf_tree_node.sample();
         let mut subdensity = |base_events: &mut VecMap<likelihood::Event>| {
             if vaf_tree_node.is_leaf() {
-                joint_prob(&base_events.values().cloned().collect(), pileups)
+                joint_prob(&base_events.values().cloned().collect(), data)
             } else {
                 if vaf_tree_node.is_branching() {
                     LogProb::ln_sum_exp(
@@ -123,7 +134,7 @@ impl GenericPosterior {
                                     child,
                                     &mut base_events.clone(),
                                     sample_grid_points,
-                                    pileups,
+                                    data,
                                     strand_bias,
                                     joint_prob,
                                 )
@@ -135,7 +146,7 @@ impl GenericPosterior {
                         &vaf_tree_node.children()[0],
                         base_events,
                         sample_grid_points,
-                        pileups,
+                        data,
                         strand_bias,
                         joint_prob,
                     )
@@ -143,77 +154,92 @@ impl GenericPosterior {
             }
         };
 
-        let push_base_event = |allele_freq, base_events: &mut VecMap<likelihood::Event>| {
-            base_events.insert(
-                sample,
-                likelihood::Event {
-                    allele_freq: allele_freq,
-                    strand_bias: strand_bias,
-                },
-            );
-        };
+        match vaf_tree_node.kind {
 
-        match vaf_tree_node.vafs() {
-            grammar::VAFSpectrum::Set(vafs) => {
-                if vafs.len() == 1 {
-                    push_base_event(vafs.iter().next().unwrap().clone(), base_events);
-                    let p = subdensity(base_events);
-                    p
-                } else {
-                    LogProb::ln_sum_exp(
-                        &vafs
-                            .iter()
-                            .map(|vaf| {
+            grammar::vaftree::NodeKind::Sample { sample, vafs } => {
+                let push_base_event = |allele_freq, base_events: &mut VecMap<likelihood::Event>| {
+                    base_events.insert(
+                        sample,
+                        likelihood::Event {
+                            allele_freq: allele_freq,
+                            strand_bias: strand_bias,
+                        },
+                    );
+                };
+
+                match vaf_tree_node.vafs() {
+                    grammar::VAFSpectrum::Set(vafs) => {
+                        if vafs.len() == 1 {
+                            push_base_event(vafs.iter().next().unwrap().clone(), base_events);
+                            let p = subdensity(base_events);
+                            p
+                        } else {
+                            LogProb::ln_sum_exp(
+                                &vafs
+                                    .iter()
+                                    .map(|vaf| {
+                                        let mut base_events = base_events.clone();
+                                        push_base_event(*vaf, &mut base_events);
+                                        subdensity(&mut base_events)
+                                    })
+                                    .collect_vec(),
+                            )
+                        }
+                    }
+                    grammar::VAFSpectrum::Range(vafs) => {
+                        let n_obs = data.pileups[sample].len();
+                        let p = LogProb::ln_simpsons_integrate_exp(
+                            |_, vaf| {
                                 let mut base_events = base_events.clone();
-                                push_base_event(*vaf, &mut base_events);
-                                subdensity(&mut base_events)
-                            })
-                            .collect_vec(),
-                    )
+                                push_base_event(AlleleFreq(vaf), &mut base_events);
+                                let p = subdensity(&mut base_events);
+                                p
+                            },
+                            *vafs.observable_min(n_obs),
+                            *vafs.observable_max(n_obs),
+                            sample_grid_points[sample],
+                        );
+                        p
+                    }
                 }
             }
-            grammar::VAFSpectrum::Range(vafs) => {
-                let n_obs = pileups[sample].len();
-                let p = LogProb::ln_simpsons_integrate_exp(
-                    |_, vaf| {
-                        let mut base_events = base_events.clone();
-                        push_base_event(AlleleFreq(vaf), &mut base_events);
-                        let p = subdensity(&mut base_events);
-                        p
-                    },
-                    *vafs.observable_min(n_obs),
-                    *vafs.observable_max(n_obs),
-                    sample_grid_points[sample],
-                );
-                p
+            grammar::vaftree::NodeKind::Variant { positive, refbase, altbase } => {
+                if let SNV { _refbase, _altbase } = data.snv {
+                    let contains = refbase.contains(_refbase) && _altbase.contains(altbase);
+                    if contains != positive {
+                        // abort computation, branch does not allow this variant
+                        return LogProb::ln_zero()
+                    }
+                }
+                // skip this node
+                subdensity(base_events)
             }
-        }
     }
 }
 
 impl Posterior for GenericPosterior {
     type BaseEvent = Vec<likelihood::Event>;
     type Event = model::Event;
-    type Data = Vec<Pileup>;
+    type Data = Data;
 
     fn compute<F: FnMut(&Self::BaseEvent, &Self::Data) -> LogProb>(
         &self,
         event: &Self::Event,
-        pileups: &Self::Data,
+        data: &Self::Data,
         joint_prob: &mut F,
     ) -> LogProb {
-        let grid_points = self.grid_points(pileups);
+        let grid_points = self.grid_points(data.pileups);
         let vaf_tree = &event.vafs;
         LogProb::ln_sum_exp(
             &vaf_tree
                 .iter()
                 .map(|node| {
-                    let mut base_events = VecMap::with_capacity(pileups.len());
+                    let mut base_events = VecMap::with_capacity(data.pileups.len());
                     self.density(
                         node,
                         &mut base_events,
                         &grid_points,
-                        pileups,
+                        data,
                         event.strand_bias,
                         joint_prob,
                     )
@@ -258,15 +284,15 @@ impl GenericLikelihood {
 
 impl Likelihood<Cache> for GenericLikelihood {
     type Event = Vec<likelihood::Event>;
-    type Data = Vec<Pileup>;
+    type Data = Data;
 
-    fn compute(&self, events: &Self::Event, pileups: &Self::Data, cache: &mut Cache) -> LogProb {
+    fn compute(&self, events: &Self::Event, data: &Self::Data, cache: &mut Cache) -> LogProb {
         let mut p = LogProb::ln_one();
 
         for (((sample, event), pileup), inner) in events
             .iter()
             .enumerate()
-            .zip(pileups.iter())
+            .zip(data.pileups.iter())
             .zip(self.inner.iter())
         {
             p += match inner {
