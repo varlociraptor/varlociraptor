@@ -5,13 +5,13 @@
 
 use std::error::Error;
 use std::fs;
-use std::mem;
 use std::path::Path;
 
 use bincode;
 use bio::io::fasta;
 use bio::stats::LogProb;
 use bv::BitVec;
+use byteorder::{ByteOrder, LittleEndian};
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
@@ -188,15 +188,12 @@ impl ObservationProcessor {
 }
 
 /// Read observations from BCF record.
-pub unsafe fn read_observations<'a>(
+pub fn read_observations<'a>(
     record: &'a mut bcf::Record,
 ) -> Result<Vec<Observation>, Box<dyn Error>> {
-    unsafe fn read_values<'a, T>(
-        record: &'a mut bcf::Record,
-        tag: &[u8],
-    ) -> Result<T, Box<dyn Error>>
+    fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T, Box<dyn Error>>
     where
-        T: serde::Deserialize<'a>,
+        T: serde::de::DeserializeOwned,
     {
         let raw_values =
             record
@@ -205,7 +202,9 @@ pub unsafe fn read_observations<'a>(
                 .ok_or_else(|| errors::Error::InvalidBCFRecord {
                     msg: "No varlociraptor observations found in record.".to_owned(),
                 })?;
-        let values = bincode::deserialize(mem::transmute_copy(&raw_values))?;
+        let mut values_u8 = vec![0; raw_values.len() * 4];
+        LittleEndian::write_i32_into(raw_values, &mut values_u8);
+        let values = bincode::deserialize(&values_u8)?;
 
         Ok(values)
     }
@@ -236,7 +235,7 @@ pub unsafe fn read_observations<'a>(
                 .unwrap()
         })
         .collect_vec();
-    
+
     Ok(obs)
 }
 
@@ -268,7 +267,7 @@ pub fn write_observations(
         reverse_strand.push(obs.reverse_strand);
     }
 
-    unsafe fn push_values<T>(
+    fn push_values<T>(
         record: &mut bcf::Record,
         tag: &[u8],
         values: &T,
@@ -277,22 +276,30 @@ pub fn write_observations(
         T: serde::Serialize,
     {
         // serialize and convert into i32
-        record.push_info_integer(tag, mem::transmute_copy(&bincode::serialize(values)?))?;
+        let mut values = bincode::serialize(values)?;
+        if values.len() % 4 > 0 {
+            // add padding zeros
+            for _ in 0..4 - values.len() % 4 {
+                values.push(0);
+            }
+        }
+
+        let mut values_i32 = vec![0; values.len() / 4];
+        LittleEndian::read_i32_into(&values, &mut values_i32);
+        record.push_info_integer(tag, &values_i32)?;
 
         Ok(())
     }
 
-    unsafe {
-        push_values(record, b"PROB_MAPPING", &prob_mapping)?;
-        push_values(record, b"PROB_REF", &prob_ref)?;
-        push_values(record, b"PROB_ALT", &prob_alt)?;
-        push_values(record, b"PROB_MISSED_ALLELE", &prob_missed_allele)?;
-        push_values(record, b"PROB_SAMPLE_ALT", &prob_sample_alt)?;
-        push_values(record, b"PROB_DOUBLE_OVERLAP", &prob_double_overlap)?;
-        push_values(record, b"PROB_ANY_STRAND", &prob_any_strand)?;
-        push_values(record, b"FORWARD_STRAND", &forward_strand)?;
-        push_values(record, b"REVERSE_STRAND", &reverse_strand)?;
-    }
+    push_values(record, b"PROB_MAPPING", &prob_mapping)?;
+    push_values(record, b"PROB_REF", &prob_ref)?;
+    push_values(record, b"PROB_ALT", &prob_alt)?;
+    push_values(record, b"PROB_MISSED_ALLELE", &prob_missed_allele)?;
+    push_values(record, b"PROB_SAMPLE_ALT", &prob_sample_alt)?;
+    push_values(record, b"PROB_DOUBLE_OVERLAP", &prob_double_overlap)?;
+    push_values(record, b"PROB_ANY_STRAND", &prob_any_strand)?;
+    push_values(record, b"FORWARD_STRAND", &forward_strand)?;
+    push_values(record, b"REVERSE_STRAND", &reverse_strand)?;
 
     Ok(())
 }

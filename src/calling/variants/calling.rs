@@ -285,7 +285,7 @@ where
         // obtain pileups
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
-            pileups.push(unsafe { read_observations(record)? });
+            pileups.push(read_observations(record)?);
         }
 
         // Compute probabilities for given events.
