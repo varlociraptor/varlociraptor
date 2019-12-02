@@ -9,7 +9,7 @@ use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 
 use crate::calling::variants::preprocessing::{
-    read_observations, remove_observation_header_entries,
+    read_observations, remove_observation_header_entries, OBSERVATION_FORMAT_VERSION,
 };
 use crate::calling::variants::{
     chrom, event_tag_name, Call, CallBuilder, SampleInfoBuilder, VariantBuilder,
@@ -142,6 +142,22 @@ where
     }
 
     pub fn call(&mut self) -> Result<(), Box<dyn Error>> {
+        for obs_reader in self.observations.iter() {
+            let mut valid = false;
+            for record in obs_reader.header().header_records() {
+                if let bcf::HeaderRecord::Generic { key, value } = record {
+                    if key == "varlociraptor_observation_format_version" {
+                        if value == OBSERVATION_FORMAT_VERSION {
+                            valid = true;
+                        }
+                    }
+                }
+            }
+            if !valid {
+                return Err(errors::Error::InvalidObservationFormat)?;
+            }
+        }
+
         let mut rid = None;
         let mut events = Vec::new();
         let mut i = 0;

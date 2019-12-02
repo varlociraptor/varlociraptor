@@ -53,6 +53,8 @@ pub enum Error {
     InconsistentObservations,
     #[snafu(display("No observations given for sample {}.", name))]
     InvalidObservationSampleName { name: String },
-    #[snafu(display("invalid observations: varlociraptor arguments cannot be parsed from given observations ({}); either the file has not been preprocessed with varlociraptor or with a too old version", path.display()))]
+    #[snafu(display("invalid observations: varlociraptor cannot be parsed from given observations ({}); either the file has not been preprocessed with varlociraptor or with a too old version", path.display()))]
     InvalidObservations { path: PathBuf },
+    #[snafu(display("invalid observations: varlociraptor cannot read given observations; either the file has not been preprocessed with varlociraptor or with a too old version"))]
+    InvalidObservationFormat,
 }

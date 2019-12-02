@@ -106,6 +106,15 @@ impl ObservationProcessorBuilder {
             .as_bytes(),
         );
 
+        // store observation format version
+        header.push_record(
+            format!(
+                "##varlociraptor_observation_format_version={}",
+                OBSERVATION_FORMAT_VERSION
+            )
+            .as_bytes(),
+        );
+
         let writer = if let Some(path) = path {
             bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)?
         } else {
@@ -187,6 +196,8 @@ impl ObservationProcessor {
     }
 }
 
+pub static OBSERVATION_FORMAT_VERSION: &'static str = "1";
+
 /// Read observations from BCF record.
 pub fn read_observations<'a>(
     record: &'a mut bcf::Record,
@@ -202,9 +213,10 @@ pub fn read_observations<'a>(
                 .ok_or_else(|| errors::Error::InvalidBCFRecord {
                     msg: "No varlociraptor observations found in record.".to_owned(),
                 })?;
-        let mut values_u8 = vec![0; raw_values.len() * 4];
-        LittleEndian::write_i32_into(raw_values, &mut values_u8);
-        let values = bincode::deserialize(&values_u8)?;
+        let n = raw_values[0] as usize;
+        let mut values_u8 = vec![0; (raw_values.len() - 1) * 4];
+        LittleEndian::write_i32_into(&raw_values[1..], &mut values_u8);
+        let values = bincode::deserialize(&values_u8[..n])?;
 
         Ok(values)
     }
@@ -277,15 +289,18 @@ pub fn write_observations(
     {
         // serialize and convert into i32
         let mut values = bincode::serialize(values)?;
-        if values.len() % 4 > 0 {
+        let n = values.len();
+        if n % 4 > 0 {
             // add padding zeros
-            for _ in 0..4 - values.len() % 4 {
+            for _ in 0..4 - n % 4 {
                 values.push(0);
             }
         }
 
-        let mut values_i32 = vec![0; values.len() / 4];
-        LittleEndian::read_i32_into(&values, &mut values_i32);
+        let mut values_i32 = vec![0; values.len() / 4 + 1];
+        LittleEndian::read_i32_into(&values, &mut values_i32[1..]);
+        // Store original length in first entry.
+        values_i32[0] = n as i32;
         record.push_info_integer(tag, &values_i32)?;
 
         Ok(())
