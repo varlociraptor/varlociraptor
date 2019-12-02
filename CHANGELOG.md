@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.4.3] - 2019-12-02
+- Make observation reading and writing more robust by controlling the length of INFO field vectors. This fixes a bug when reading leads to invalid strand information.
+
 ## [1.4.2] - 2019-12-01
 - Avoid unsafe memory operations when writing and reading preprocessed observations.
 
