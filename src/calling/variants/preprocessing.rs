@@ -6,6 +6,7 @@
 use std::error::Error;
 use std::fs;
 use std::path::Path;
+use std::fmt::Debug;
 
 use bincode;
 use bio::io::fasta;
@@ -204,7 +205,7 @@ pub fn read_observations<'a>(
 ) -> Result<Vec<Observation>, Box<dyn Error>> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T, Box<dyn Error>>
     where
-        T: serde::de::DeserializeOwned,
+        T: serde::de::DeserializeOwned + Debug,
     {
         let raw_values =
             record
@@ -213,10 +214,17 @@ pub fn read_observations<'a>(
                 .ok_or_else(|| errors::Error::InvalidBCFRecord {
                     msg: "No varlociraptor observations found in record.".to_owned(),
                 })?;
-        let n = raw_values[0] as usize;
-        let mut values_u8 = vec![0; (raw_values.len() - 1) * 4];
-        LittleEndian::write_i32_into(&raw_values[1..], &mut values_u8);
-        let values = bincode::deserialize(&values_u8[..n])?;
+        
+        // decode from i32 to u16 to u8
+        let mut values_u8 = Vec::new();
+        for v in raw_values {
+            let mut buf = [0; 2];
+            LittleEndian::write_u16(&mut buf, *v as u16);
+            values_u8.extend(&buf);
+        }
+
+        // deserialize
+        let values = bincode::deserialize(&values_u8)?;
 
         Ok(values)
     }
@@ -285,22 +293,20 @@ pub fn write_observations(
         values: &T,
     ) -> Result<(), Box<dyn Error>>
     where
-        T: serde::Serialize,
+        T: serde::Serialize + Debug,
     {
-        // serialize and convert into i32
-        let mut values = bincode::serialize(values)?;
-        let n = values.len();
-        if n % 4 > 0 {
-            // add padding zeros
-            for _ in 0..4 - n % 4 {
-                values.push(0);
-            }
+        // serialize
+        let mut encoded_values = bincode::serialize(values)?;
+
+        // add padding zero if length is odd
+        if encoded_values.len() % 2 > 0 {
+            encoded_values.push(0);
         }
 
-        let mut values_i32 = vec![0; values.len() / 4 + 1];
-        LittleEndian::read_i32_into(&values, &mut values_i32[1..]);
-        // Store original length in first entry.
-        values_i32[0] = n as i32;
+        // Encode as i32 (must first encode as u16, because the maximum i32 is used internally by BCF to indicate vector end)
+        // This should not cause much wasted space, because similar (empty) bytes will be compressed away.
+        let values_i32 = (0..encoded_values.len()).step_by(2).map(|i| LittleEndian::read_u16(&encoded_values[i..i+2]) as i32).collect_vec();
+        // write to record
         record.push_info_integer(tag, &values_i32)?;
 
         Ok(())
