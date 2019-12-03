@@ -197,7 +197,7 @@ impl ObservationProcessor {
     }
 }
 
-pub static OBSERVATION_FORMAT_VERSION: &'static str = "1";
+pub static OBSERVATION_FORMAT_VERSION: &'static str = "2";
 
 /// Read observations from BCF record.
 pub fn read_observations<'a>(
