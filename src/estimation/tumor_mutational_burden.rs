@@ -56,8 +56,8 @@ pub fn estimate(
         .expect(&format!("Sample {} not found", tumor_name));
 
     let mut tmb = BTreeMap::new();
-    let mut rec = bcf.empty_record();
     'records: loop {
+        let mut rec = bcf.empty_record();
         if !bcf.read(&mut rec)? {
             break;
         }
