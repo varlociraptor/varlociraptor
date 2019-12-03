@@ -30,7 +30,7 @@ use crate::grammar;
 use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::model::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
 use crate::model::{Contamination, VariantType};
-use crate::testcase::TestcaseBuilder;
+use crate::testcase;
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -517,7 +517,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                         if let Some(testcase_prefix) = testcase_prefix {
                             // TODO obtain sample information from input bcfs?
                             Some(
-                                TestcaseBuilder::default()
+                                testcase::TestcaseBuilder::default()
                                     .prefix(PathBuf::from(testcase_prefix))
                                     .locus(&testcase_locus)?,
                             )
@@ -624,17 +624,13 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                                 .reference(preprocess_input.reference)?;
                                         }
 
-                                        let mut testcase = testcase_builder
-                                            .scenario(Some(scenario.to_owned()))
-                                            .build()?;
-                                        info!("Writing testcase.");
-                                        testcase.write()?;
-                                        return Ok(());
                                     }
 
                                     let mut testcase = testcase_builder
                                         .scenario(Some(scenario.to_owned()))
+                                        .mode(testcase::Mode::Generic)
                                         .build()?;
+                                    info!("Writing testcase.");
                                     testcase.write()?;
                                     return Ok(());
                                 }
@@ -678,6 +674,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                         &normal_options,
                                     )?
                                     .scenario(None)
+                                    .mode(testcase::Mode::TumorNormal)
                                     .purity(Some(purity))
                                     .build()?;
 

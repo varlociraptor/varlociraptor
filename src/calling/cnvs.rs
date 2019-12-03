@@ -306,7 +306,7 @@ impl<'a> CNVCall<'a> {
         depth_norm_factor: f64,
         contig_len: u32,
     ) -> Result<(), Box<dyn Error>> {
-        record.set_rid(&Some(rid));
+        record.set_rid(Some(rid));
         record.set_pos(self.pos as i32);
         record.set_alleles(&[b"N", b"<CNV>"])?;
         record.push_info_integer(b"END", &[self.end as i32])?;
