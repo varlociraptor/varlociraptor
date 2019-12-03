@@ -17,7 +17,6 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::model;
-use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, StrandBias};
 
 pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
@@ -128,12 +127,16 @@ where
 
 impl<L, Pr, Po, ModelPayload> Caller<L, Pr, Po, ModelPayload>
 where
-    L: bayesian::model::Likelihood<ModelPayload, Event = AlleleFreqCombination, Data = Vec<Pileup>>,
+    L: bayesian::model::Likelihood<
+        ModelPayload,
+        Event = AlleleFreqCombination,
+        Data = model::modes::generic::Data,
+    >,
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination> + model::modes::UniverseDrivenPrior,
     Po: bayesian::model::Posterior<
         BaseEvent = AlleleFreqCombination,
         Event = model::Event,
-        Data = Vec<Pileup>,
+        Data = model::modes::generic::Data,
     >,
     ModelPayload: Default,
 {
@@ -265,7 +268,7 @@ where
         records: &mut grammar::SampleInfo<bcf::Record>,
         event_universe: &[Po::Event],
     ) -> Result<Option<Call>, Box<dyn Error>> {
-        let (mut call, mut variant_builder) = {
+        let (mut call, mut variant_builder, snv) = {
             let first_record = records
                 .first_mut()
                 .expect("bug: there must be at least one record");
@@ -295,7 +298,20 @@ where
             let mut variant_builder = VariantBuilder::default();
             variant_builder.record(first_record)?;
 
-            (call, variant_builder)
+            // store information about SNV for special handling in posterior computation (variant selection operations)
+            let snv = {
+                let alleles = first_record.alleles();
+                if alleles[0].len() == 1 && alleles[1].len() == 1 {
+                    Some(model::modes::generic::SNV::new(
+                        alleles[0][0],
+                        alleles[1][0],
+                    ))
+                } else {
+                    None
+                }
+            };
+
+            (call, variant_builder, snv)
         };
 
         // obtain pileups
@@ -303,9 +319,10 @@ where
         for record in records.iter_mut() {
             pileups.push(read_observations(record)?);
         }
+        let data = model::modes::generic::Data::new(pileups, snv);
 
         // Compute probabilities for given events.
-        let m = self.model.compute(event_universe.iter().cloned(), &pileups);
+        let m = self.model.compute(event_universe.iter().cloned(), &data);
 
         // add calling results
         let mut event_probs: HashMap<String, LogProb> = event_universe
@@ -339,7 +356,7 @@ where
         // add sample specific information
         variant_builder.sample_info(if let Some(map_estimates) = m.maximum_posterior() {
             Some(
-                pileups
+                data.into_pileups()
                     .into_iter()
                     .zip(map_estimates.into_iter())
                     .map(|(pileup, estimate)| {

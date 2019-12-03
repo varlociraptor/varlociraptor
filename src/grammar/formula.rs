@@ -45,11 +45,24 @@ pub struct FormulaParser;
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
 pub enum Formula {
-    Conjunction { operands: Vec<Box<Formula>> },
-    Disjunction { operands: Vec<Box<Formula>> },
-    Negation { operand: Box<Formula> },
-    Atom { sample: String, vafs: VAFSpectrum },
-    Variant { positive: bool, refbase: IUPAC, altbase: IUPAC },
+    Conjunction {
+        operands: Vec<Box<Formula>>,
+    },
+    Disjunction {
+        operands: Vec<Box<Formula>>,
+    },
+    Negation {
+        operand: Box<Formula>,
+    },
+    Atom {
+        sample: String,
+        vafs: VAFSpectrum,
+    },
+    Variant {
+        positive: bool,
+        refbase: IUPAC,
+        altbase: IUPAC,
+    },
 }
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
@@ -64,7 +77,11 @@ pub enum NormalizedFormula {
         sample: String,
         vafs: VAFSpectrum,
     },
-    Variant { positive: bool, refbase: IUPAC, altbase: IUPAC },
+    Variant {
+        positive: bool,
+        refbase: IUPAC,
+        altbase: IUPAC,
+    },
 }
 
 impl Formula {
@@ -84,12 +101,14 @@ impl Formula {
                     .collect::<Result<Vec<Box<Formula>>>>()?,
             },
             Formula::Negation { operand } => operand.as_ref().clone(),
-            &Formula::Variant { positive, refbase, altbase } => {
-                Formula::Variant {
-                    positive: !positive,
-                    refbase,
-                    altbase,
-                }
+            &Formula::Variant {
+                positive,
+                refbase,
+                altbase,
+            } => Formula::Variant {
+                positive: !positive,
+                refbase,
+                altbase,
             },
             Formula::Atom { sample, vafs } => {
                 let universe = scenario
@@ -201,9 +220,15 @@ impl Formula {
                     .map(|o| Ok(Box::new(o.normalize(scenario, contig)?)))
                     .collect::<Result<Vec<Box<NormalizedFormula>>>>()?,
             },
-            &Formula::Variant { positive, refbase, altbase } => NormalizedFormula::Variant {
-                positive, refbase, altbase
-            }
+            &Formula::Variant {
+                positive,
+                refbase,
+                altbase,
+            } => NormalizedFormula::Variant {
+                positive,
+                refbase,
+                altbase,
+            },
         })
     }
 }

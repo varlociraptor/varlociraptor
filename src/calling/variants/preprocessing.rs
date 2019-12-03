@@ -4,9 +4,9 @@
 // except according to those terms.
 
 use std::error::Error;
+use std::fmt::Debug;
 use std::fs;
 use std::path::Path;
-use std::fmt::Debug;
 
 use bincode;
 use bio::io::fasta;
@@ -214,7 +214,7 @@ pub fn read_observations<'a>(
                 .ok_or_else(|| errors::Error::InvalidBCFRecord {
                     msg: "No varlociraptor observations found in record.".to_owned(),
                 })?;
-        
+
         // decode from i32 to u16 to u8
         let mut values_u8 = Vec::new();
         for v in raw_values {
@@ -305,7 +305,10 @@ pub fn write_observations(
 
         // Encode as i32 (must first encode as u16, because the maximum i32 is used internally by BCF to indicate vector end)
         // This should not cause much wasted space, because similar (empty) bytes will be compressed away.
-        let values_i32 = (0..encoded_values.len()).step_by(2).map(|i| LittleEndian::read_u16(&encoded_values[i..i+2]) as i32).collect_vec();
+        let values_i32 = (0..encoded_values.len())
+            .step_by(2)
+            .map(|i| LittleEndian::read_u16(&encoded_values[i..i + 2]) as i32)
+            .collect_vec();
         // write to record
         record.push_info_integer(tag, &values_i32)?;
 

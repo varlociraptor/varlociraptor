@@ -12,16 +12,23 @@ use crate::model::likelihood;
 use crate::model::sample::Pileup;
 use crate::model::{AlleleFreq, Contamination, StrandBias};
 
-#[derive(Clone, Debug)]
+#[derive(new, Clone, Debug)]
 pub struct SNV {
     refbase: u8,
     altbase: u8,
 }
 
-#[derive(new, Clone, Debug)]
+#[derive(new, Clone, Debug, Getters)]
+#[get = "pub"]
 pub struct Data {
     pileups: Vec<Pileup>,
     snv: Option<SNV>,
+}
+
+impl Data {
+    pub fn into_pileups(self) -> Vec<Pileup> {
+        self.pileups
+    }
 }
 
 #[derive(Debug)]
@@ -154,12 +161,11 @@ impl GenericPosterior {
             }
         };
 
-        match vaf_tree_node.kind {
-
+        match vaf_tree_node.kind() {
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
                 let push_base_event = |allele_freq, base_events: &mut VecMap<likelihood::Event>| {
                     base_events.insert(
-                        sample,
+                        *sample,
                         likelihood::Event {
                             allele_freq: allele_freq,
                             strand_bias: strand_bias,
@@ -167,7 +173,7 @@ impl GenericPosterior {
                     );
                 };
 
-                match vaf_tree_node.vafs() {
+                match vafs {
                     grammar::VAFSpectrum::Set(vafs) => {
                         if vafs.len() == 1 {
                             push_base_event(vafs.iter().next().unwrap().clone(), base_events);
@@ -187,7 +193,7 @@ impl GenericPosterior {
                         }
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
-                        let n_obs = data.pileups[sample].len();
+                        let n_obs = data.pileups[*sample].len();
                         let p = LogProb::ln_simpsons_integrate_exp(
                             |_, vaf| {
                                 let mut base_events = base_events.clone();
@@ -197,23 +203,33 @@ impl GenericPosterior {
                             },
                             *vafs.observable_min(n_obs),
                             *vafs.observable_max(n_obs),
-                            sample_grid_points[sample],
+                            sample_grid_points[*sample],
                         );
                         p
                     }
                 }
             }
-            grammar::vaftree::NodeKind::Variant { positive, refbase, altbase } => {
-                if let SNV { _refbase, _altbase } = data.snv {
-                    let contains = refbase.contains(_refbase) && _altbase.contains(altbase);
-                    if contains != positive {
+            grammar::vaftree::NodeKind::Variant {
+                positive,
+                refbase: given_refbase,
+                altbase: given_altbase,
+            } => {
+                if let Some(SNV { refbase, altbase }) = data.snv {
+                    let contains =
+                        given_refbase.contains(refbase) && given_altbase.contains(altbase);
+                    if (*positive && !contains) || (!*positive && contains) {
                         // abort computation, branch does not allow this variant
-                        return LogProb::ln_zero()
+                        LogProb::ln_zero()
+                    } else {
+                        // skip this node
+                        subdensity(base_events)
                     }
+                } else {
+                    // skip this node
+                    subdensity(base_events)
                 }
-                // skip this node
-                subdensity(base_events)
             }
+        }
     }
 }
 
@@ -228,7 +244,7 @@ impl Posterior for GenericPosterior {
         data: &Self::Data,
         joint_prob: &mut F,
     ) -> LogProb {
-        let grid_points = self.grid_points(data.pileups);
+        let grid_points = self.grid_points(&data.pileups);
         let vaf_tree = &event.vafs;
         LogProb::ln_sum_exp(
             &vaf_tree

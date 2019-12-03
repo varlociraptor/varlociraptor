@@ -1,0 +1,26 @@
+# The variant here might be somatic in the normal, but occurs at low VAF in addition with low base quality and only on two forward reads.
+# Varlociraptor decides that this is coincidence and rather attributes it to the tumor. It remains to be investigated whether a prior would change
+# its opinion
+expected:
+  posteriors:
+    - PROB_FFPE_ARTIFACT <= 1.0
+
+# necessary bam files
+samples:
+  tumor:
+    path: 'tumor.bam'
+    properties: '{"insert_size":{"mean":188.0,"sd":48.033087310066676},"max_del_cigar_len":10,"max_ins_cigar_len":9,"frac_max_softclip":0.7920792079207921}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+# reference sequence
+reference:
+  name: 'chr1'
+  seq: 'GATCTACCATCACTTGCCTGGAGCGGGGCGGGCCCCCAGGGACATCACCAAGCCTGAGCCAGCTGGGAGGGCCTGCCTGCCTCGAGTCCCACCTCTCTCCCGCAGAACGGCGACTACAACAAGCCGATCCCCGCCCAGTACTTGGAGCACCTGAACCACGTGGTGAGCAGCGCGCCCAGCCTGCGCGACCCTTCGCAGCCGCAGCAGTGGGTGAGCAGCCAAGTCCTGCTGTGCAAGAGGTGCAACCACCACCAGACCACCAAGATCAAGCAGCTGGCCGCCTTCGCTCCCCGCGAGGAGGTGAGGCCGGGTTGGGAGGGCAGGGGTCCTGGCTGGGGCCAGGGATGCTTAGAGCAGCCGGGGGACAGGCACGTGCAGGGTGCTGACTCTGGTCCTCTGGCCCCTGCTCTGCTAGACAGCGGCTTTTCTGTTCTGAGTGCCCAAAGGGGCCCCCTCATCCTTGCCACTGCCAGCACATTCCAGGATGTGTTAGTTCTTCTGACCCCGTTGGAGCTGAGCTGCTTCTCCCCATGTCTTACAGTCACTGCTATCGGGGTTCCAAGCCTAGGAACACCGTGGAAACCCCAGCACCTGCCAGTCCAG'
+
+options: '{"Call":{"kind":{"Variants":{"mode":{"Generic":{"scenario":"scenarios/H021-M8LTP4.yaml","bams":["tumor=dedup/H021-M8LTP4-M1-D1.bam","normal=dedup/H021-M8LTP4-N1-D1.bam"],"alignment_properties":[]}},"reference":"/vol/tiny/ref/autoref/Homo_sapiens/UCSC/hg38/BWAIndex/genome.fa","candidates":"candidate-calls/H021-M8LTP4.freebayes.bcf","output":null,"protocol_strandedness":"Opposite", "spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"omit_snvs":false,"omit_indels":false,"max_indel_len":1000,"indel_window":64,"max_depth":200,"testcase_locus":"chr1:9597055","testcase_prefix":"testcase"}}}}'

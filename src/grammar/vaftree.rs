@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::errors;
 use crate::errors::Result;
-use crate::grammar::{formula::NormalizedFormula, Scenario, VAFSpectrum, formula::IUPAC};
+use crate::grammar::{formula::NormalizedFormula, formula::IUPAC, Scenario, VAFSpectrum};
 use crate::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -24,7 +24,7 @@ impl VAFTree {
             };
 
             Box::new(Node {
-                kind: NodeKind::VAFSpectrum {
+                kind: NodeKind::Sample {
                     sample,
                     vafs: VAFSpectrum::singleton(AlleleFreq(0.0)),
                 },
@@ -40,8 +40,15 @@ impl VAFTree {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NodeKind {
-    Variant { refbase: IUPAC, altbase: IUPAC, positive: bool },
-    Sample { sample: usize, vafs: VAFSpectrum },
+    Variant {
+        refbase: IUPAC,
+        altbase: IUPAC,
+        positive: bool,
+    },
+    Sample {
+        sample: usize,
+        vafs: VAFSpectrum,
+    },
 }
 
 #[derive(new, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Getters)]
@@ -88,7 +95,10 @@ impl VAFTree {
                             name: sample.to_owned(),
                         }
                     })?;
-                    Ok(vec![Box::new(Node::new(NodeKind::VAFSpectrum { sample, vafs: vafs.clone() }))])
+                    Ok(vec![Box::new(Node::new(NodeKind::Sample {
+                        sample,
+                        vafs: vafs.clone(),
+                    }))])
                 }
                 NormalizedFormula::Disjunction { operands } => {
                     let mut subtrees = Vec::new();
@@ -119,9 +129,15 @@ impl VAFTree {
                     }
                     Ok(roots)
                 }
-                &NormalizedFormula::Variant { positive, refbase, altbase } => {
-                    Ok(vec![Box::new(Node::new(NodeKind::Variant { positive, refbase, altbase }))])
-                }
+                &NormalizedFormula::Variant {
+                    positive,
+                    refbase,
+                    altbase,
+                } => Ok(vec![Box::new(Node::new(NodeKind::Variant {
+                    positive,
+                    refbase,
+                    altbase,
+                }))]),
             }
         }
 
@@ -134,7 +150,7 @@ impl VAFTree {
             if let NodeKind::Sample { sample, .. } = node.kind {
                 seen.insert(sample);
             }
-            
+
             if node.is_leaf() {
                 // leaf, add missing samples
                 for (name, sample) in scenario.samples() {
@@ -145,7 +161,12 @@ impl VAFTree {
                         node.children = sample
                             .contig_universe(contig)?
                             .iter()
-                            .map(|vafs| Box::new(Node::new(NodeKind::Sample { sample: idx, vafs: vafs.clone() })))
+                            .map(|vafs| {
+                                Box::new(Node::new(NodeKind::Sample {
+                                    sample: idx,
+                                    vafs: vafs.clone(),
+                                }))
+                            })
                             .collect();
                         add_missing_samples(node, seen, scenario, contig)?;
                         break;
