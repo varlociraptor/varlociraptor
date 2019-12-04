@@ -24,6 +24,8 @@ extern crate snafu;
 extern crate strum_macros;
 #[macro_use]
 extern crate derive_builder;
+#[macro_use]
+extern crate shrinkwraprs;
 
 pub mod calling;
 pub mod cli;

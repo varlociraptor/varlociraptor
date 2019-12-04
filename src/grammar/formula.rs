@@ -14,16 +14,55 @@ use crate::errors::Result;
 use crate::grammar::Scenario;
 use crate::model::AlleleFreq;
 
+#[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct IUPAC(u8);
+
+impl IUPAC {
+    pub fn contains(&self, base: u8) -> bool {
+        if base == **self {
+            return true;
+        }
+        match **self {
+            b'R' if base == b'A' || base == b'G' => true,
+            b'Y' if base == b'C' || base == b'T' => true,
+            b'S' if base == b'G' || base == b'C' => true,
+            b'W' if base == b'A' || base == b'T' => true,
+            b'K' if base == b'G' || base == b'T' => true,
+            b'M' if base == b'A' || base == b'C' => true,
+            b'B' if base == b'C' || base == b'G' || base == b'T' => true,
+            b'D' if base == b'A' || base == b'G' || base == b'T' => true,
+            b'H' if base == b'A' || base == b'C' || base == b'T' => true,
+            b'V' if base == b'A' || base == b'C' || base == b'G' => true,
+            b'N' => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Parser)]
 #[grammar = "grammar/formula.pest"]
 pub struct FormulaParser;
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
 pub enum Formula {
-    Conjunction { operands: Vec<Box<Formula>> },
-    Disjunction { operands: Vec<Box<Formula>> },
-    Negation { operand: Box<Formula> },
-    Atom { sample: String, vafs: VAFSpectrum },
+    Conjunction {
+        operands: Vec<Box<Formula>>,
+    },
+    Disjunction {
+        operands: Vec<Box<Formula>>,
+    },
+    Negation {
+        operand: Box<Formula>,
+    },
+    Atom {
+        sample: String,
+        vafs: VAFSpectrum,
+    },
+    Variant {
+        positive: bool,
+        refbase: IUPAC,
+        altbase: IUPAC,
+    },
 }
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
@@ -37,6 +76,11 @@ pub enum NormalizedFormula {
     Atom {
         sample: String,
         vafs: VAFSpectrum,
+    },
+    Variant {
+        positive: bool,
+        refbase: IUPAC,
+        altbase: IUPAC,
     },
 }
 
@@ -57,6 +101,15 @@ impl Formula {
                     .collect::<Result<Vec<Box<Formula>>>>()?,
             },
             Formula::Negation { operand } => operand.as_ref().clone(),
+            &Formula::Variant {
+                positive,
+                refbase,
+                altbase,
+            } => Formula::Variant {
+                positive: !positive,
+                refbase,
+                altbase,
+            },
             Formula::Atom { sample, vafs } => {
                 let universe = scenario
                     .samples()
@@ -166,6 +219,15 @@ impl Formula {
                     .into_iter()
                     .map(|o| Ok(Box::new(o.normalize(scenario, contig)?)))
                     .collect::<Result<Vec<Box<NormalizedFormula>>>>()?,
+            },
+            &Formula::Variant {
+                positive,
+                refbase,
+                altbase,
+            } => NormalizedFormula::Variant {
+                positive,
+                refbase,
+                altbase,
             },
         })
     }
@@ -489,6 +551,16 @@ where
     E: de::Error,
 {
     Ok(match pair.as_rule() {
+        Rule::variant => {
+            let mut inner = pair.into_inner();
+            let refbase = inner.next().unwrap().as_str().as_bytes()[0];
+            let altbase = inner.next().unwrap().as_str().as_bytes()[0];
+            Formula::Variant {
+                refbase: IUPAC(refbase),
+                altbase: IUPAC(altbase),
+                positive: true,
+            }
+        }
         Rule::sample_vaf => {
             let mut inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
@@ -547,5 +619,6 @@ where
         Rule::EOI => unreachable!(),
         Rule::WHITESPACE => unreachable!(),
         Rule::COMMENT => unreachable!(),
+        Rule::iupac => unreachable!(),
     })
 }

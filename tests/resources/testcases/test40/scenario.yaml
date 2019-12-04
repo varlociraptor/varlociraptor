@@ -1,0 +1,11 @@
+samples:
+  tumor:
+    resolution: 100
+    universe: "[0.0,1.0]"
+
+events:
+  # In reality, it should be C>T, but this test case is T>C.
+  # Also here we artificially set the max AF to 0.1, in reality, this would rather be 0.05.
+  ffpe_artifact: "(T>C | G>A) & tumor:]0.0,0.1["
+  present: "((T>C | G>A) & tumor:]0.1,1.0]) | (!(T>C | G>A) & tumor:]0.0,1.0[)"
+
