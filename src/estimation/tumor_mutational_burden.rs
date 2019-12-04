@@ -64,9 +64,11 @@ pub fn estimate(
 
         let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
         let vcfpos = rec.pos() + 1;
+        // obtain VAF estimates (do it here already to work around a segfault in htslib)
+        let vafs = rec.format(b"AF").float()?[tumor_id].to_owned();
 
         if !is_valid_variant(&mut rec)? {
-            debug!(
+            info!(
                 "Skipping variant {}:{} because it is not coding.",
                 contig, vcfpos
             );
@@ -74,6 +76,7 @@ pub fn estimate(
         }
 
         let alt_allele_count = (rec.allele_count() - 1) as usize;
+
 
         // collect allele probabilities for given events
         let mut allele_probs = vec![LogProb::ln_zero(); alt_allele_count];
@@ -93,9 +96,6 @@ pub fn estimate(
                 continue 'records;
             }
         }
-
-        // obtain VAF estimates
-        let vafs = rec.format(b"AF").float()?[tumor_id];
 
         // push into TMB function
         for i in 0..alt_allele_count {
