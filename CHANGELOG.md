@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.5.0] - 2019-12-04
+- Introduce SNV selectors in the event formula language.
+- Work around a segmentation fault in Htslib when estimating tmb.
+
 ## [1.4.4] - 2019-12-03
 - Modify observation format such that encoding cannot lead to corner cases where BCF interprets a value as a vector end marker.
 - Fix test case generation
