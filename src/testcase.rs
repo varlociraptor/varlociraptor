@@ -32,8 +32,7 @@ struct TestcaseTemplate {
     samples: HashMap<String, Sample>,
     candidate: String,
     scenario: Option<String>,
-    ref_name: String,
-    ref_seq: String,
+    ref_path: String,
     mode: Mode,
     purity: Option<f64>,
 }
@@ -303,13 +302,17 @@ impl Testcase {
         let mut ref_seq = Vec::new();
         self.reference_reader.read(&mut ref_seq)?;
 
+        // write reference
+        let ref_filename = "ref.fa";
+        let mut ref_writer = fasta::Writer::to_file(self.prefix.join(ref_filename))?;
+        ref_writer.write(ref_name, None, &ref_seq)?;
+
         let mut desc = File::create(self.prefix.join("testcase.yaml"))?;
         desc.write_all(
             TestcaseTemplate {
                 samples,
                 candidate: candidate_filename.to_str().unwrap().to_owned(),
-                ref_seq: String::from_utf8(ref_seq)?.to_owned(),
-                ref_name: ref_name.to_owned(),
+                ref_path: ref_filename.to_owned(),
                 scenario: scenario,
                 mode: self.mode,
                 purity: self.purity,

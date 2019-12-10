@@ -1,8 +1,10 @@
 pub mod version0;
 pub mod version1;
+pub mod version2;
 
 pub use version0::TestcaseVersion0;
 pub use version1::TestcaseVersion1;
+pub use version2::TestcaseVersion2;
 
 use std::error::Error;
 
@@ -38,6 +40,10 @@ pub fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>, Box<dy
             inner: yaml,
             path: path.as_ref().to_owned(),
         }),
+        Yaml::String(version) if version == "2" => Box::new(TestcaseVersion2 {
+            inner: yaml,
+            path: path.as_ref().to_owned(),
+        }),
         _ => panic!("unsupported testcase version"),
     })
 }
@@ -47,9 +53,20 @@ pub trait Testcase {
 
     fn path(&self) -> &PathBuf;
 
-    fn preprocess_options(&self, sample_name: &str) -> String;
+    fn preprocess_options(&self, sample_name: &str) -> String {
+        self.yaml()["samples"][sample_name]["options"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
 
-    fn mode(&self) -> Mode;
+    fn mode(&self) -> Mode {
+        match self.yaml()["mode"].as_str().unwrap() {
+            "Generic" => Mode::Generic,
+            "TumorNormal" => Mode::TumorNormal,
+            _ => panic!("unsupported mode"),
+        }
+    }
 
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
@@ -61,14 +78,6 @@ pub trait Testcase {
 
     fn candidates(&self) -> PathBuf {
         self.path().join(self.yaml()["candidate"].as_str().unwrap())
-    }
-
-    fn reference_name(&self) -> &str {
-        self.yaml()["reference"]["name"].as_str().unwrap()
-    }
-
-    fn reference_seq(&self) -> &str {
-        self.yaml()["reference"]["seq"].as_str().unwrap()
     }
 
     fn samples(&self) -> Vec<String> {
@@ -118,7 +127,7 @@ pub trait Testcase {
     }
 
     fn run(&self) -> Result<(), Box<dyn Error>> {
-        let temp_ref = self.reference(self.reference_name(), self.reference_seq())?;
+        let temp_ref = self.reference()?;
 
         let temp_preprocess = tempfile::tempdir()?;
 
@@ -147,7 +156,7 @@ pub trait Testcase {
 
                     // replace options
                     *bam = test_bam;
-                    *reference = temp_ref.path().to_owned();
+                    *reference = PathBuf::from((*temp_ref).as_ref());
                     *candidates = Some(self.candidates());
                     *output = Some(self.sample_preprocessed_path(sample_name, &temp_preprocess));
                     *alignment_properties = Some(props.path().to_owned());
@@ -209,98 +218,6 @@ pub trait Testcase {
                 Ok(run(options)?)
             }
         }
-
-        // let options = Varlociraptor::Call {
-        //     kind: CallKind::Variants {
-
-        //     }
-        // }
-
-        // match &mut options {
-        //     Varlociraptor::Call { ref mut kind } => match kind {
-        //         CallKind::Variants {
-        //             ref mut mode,
-        //             ref mut reference,
-        //             ref mut candidates,
-        //             ref mut output,
-        //             ref mut testcase_locus,
-        //             ref mut testcase_prefix,
-        //             ..
-        //         } => {
-        //             *reference = temp_ref.path().to_owned();
-        //             *candidates = Some(self.path.join(self.yaml()["candidate"].as_str().unwrap()));
-        //             *output = Some(self.output());
-        //             *testcase_prefix = None;
-        //             *testcase_locus = None;
-
-        //             match mode {
-        //                 VariantCallMode::Generic {
-        //                     ref mut scenario,
-        //                     ref mut bams,
-        //                     ref mut alignment_properties,
-        //                 } => {
-        //                     *scenario = self.path.join(self.yaml()["scenario"].as_str().unwrap());
-        //                     bams.clear();
-        //                     alignment_properties.clear();
-        //                     let mut temp_props = Vec::new();
-        //                     for (sample_name, sample) in
-        //                         self.yaml()["samples"].as_hash().unwrap().iter()
-        //                     {
-        //                         let sample_name = sample_name.as_str().unwrap();
-        //                         let bam = self.path.join(sample["path"].as_str().unwrap());
-        //                         bam::index::build(&bam, None, bam::index::Type::BAI, 1).unwrap();
-        //                         bams.push(format!("{}={}", sample_name, bam.to_str().unwrap()));
-        //                         let props = Self::alignment_properties(
-        //                             sample["properties"].as_str().unwrap(),
-        //                         )?;
-        //                         alignment_properties.push(format!(
-        //                             "{}={}",
-        //                             sample_name,
-        //                             props.path().to_str().unwrap()
-        //                         ));
-        //                         temp_props.push(props);
-        //                     }
-        //                     run(options)
-        //                 }
-        //                 VariantCallMode::TumorNormal {
-        //                     ref mut tumor,
-        //                     ref mut normal,
-        //                     ref mut tumor_alignment_properties,
-        //                     ref mut normal_alignment_properties,
-        //                     ..
-        //                 } => {
-        //                     *tumor = self
-        //                         .path
-        //                         .join(self.yaml()["samples"]["tumor"]["path"].as_str().unwrap());
-        //                     *normal = self
-        //                         .path
-        //                         .join(self.yaml()["samples"]["normal"]["path"].as_str().unwrap());
-
-        //                     let temp_tumor_props = Self::alignment_properties(
-        //                         self.yaml()["samples"]["tumor"]["properties"]
-        //                             .as_str()
-        //                             .unwrap(),
-        //                     )?;
-        //                     let temp_normal_props = Self::alignment_properties(
-        //                         self.yaml()["samples"]["normal"]["properties"]
-        //                             .as_str()
-        //                             .unwrap(),
-        //                     )?;
-        //                     *tumor_alignment_properties = Some(temp_tumor_props.path().to_owned());
-        //                     *normal_alignment_properties =
-        //                         Some(temp_normal_props.path().to_owned());
-
-        //                     bam::index::build(tumor, None, bam::index::Type::BAI, 1).unwrap();
-        //                     bam::index::build(normal, None, bam::index::Type::BAI, 1).unwrap();
-
-        //                     run(options)
-        //                 }
-        //             }
-        //         }
-        //         _ => panic!("unsupported subcommand"),
-        //     },
-        //     _ => panic!("unsupported subcommand"),
-        // }
     }
 
     fn check(&self) {
@@ -354,18 +271,25 @@ pub trait Testcase {
         }
     }
 
-    fn reference(&self, ref_name: &str, ref_seq: &str) -> Result<NamedTempFile, Box<dyn Error>> {
+    fn reference(&self) -> Result<Box<dyn AsRef<Path>>, Box<dyn Error>> {
+        let ref_name = self.yaml()["reference"]["name"].as_str().unwrap();
+        let ref_seq = self.yaml()["reference"]["seq"].as_str().unwrap();
+
         let mut tmp_ref = tempfile::Builder::new().suffix(".fasta").tempfile()?;
         {
             let mut writer = fasta::Writer::new(&mut tmp_ref);
             writer.write(ref_name, None, ref_seq.as_bytes())?;
         }
+        self.index_reference(&tmp_ref);
+
+        Ok(Box::new(tmp_ref))
+    }
+
+    fn index_reference(&self, path: &dyn AsRef<Path>) {
         Command::new("samtools")
-            .args(&["faidx", tmp_ref.path().to_str().unwrap()])
+            .args(&["faidx", path.as_ref().to_str().unwrap()])
             .status()
             .expect("failed to create fasta index");
-
-        Ok(tmp_ref)
     }
 
     fn alignment_properties(&self, properties: &str) -> Result<NamedTempFile, Box<dyn Error>> {

@@ -126,7 +126,23 @@ impl AbstractReadEvidence for SNVEvidence {
                 let read_base = record.seq()[qpos as usize];
                 let base_qual = record.qual()[qpos as usize];
                 let prob_alt = prob_read_base(read_base, base, base_qual);
-                let prob_ref = prob_read_base(read_base, ref_seq[start as usize], base_qual);
+
+                // METHOD: instead of considering the actual REF base, we assume that REF is whatever
+                // base the read has at this position (if not the ALT base). This way, we avoid biased
+                // allele frequencies at sites with multiple alternative alleles.
+                // Note that this is an approximation. The real solution would be to have multiple allele
+                // frequency variables in the likelihood function, but that would be computationally
+                // more demanding (leading to a combinatorial explosion).
+                // However, the approximation is pretty accurate, because it will only matter for true
+                // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
+                // because they are too rare.
+                let non_alt_base = if read_base != base {
+                    read_base
+                } else {
+                    ref_seq[start as usize]
+                };
+
+                let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
                 Ok(Some((prob_ref, prob_alt)))
             } else {
                 // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
@@ -169,8 +185,24 @@ impl AbstractReadEvidence for MNVEvidence {
                 if let Some(qpos) = cigar.read_pos(pos, false, false)? {
                     let read_base = record.seq()[qpos as usize];
                     let base_qual = record.qual()[qpos as usize];
+
+                    // METHOD: instead of considering the actual REF base, we assume that REF is whatever
+                    // base the read has at this position (if not the ALT base). This way, we avoid biased
+                    // allele frequencies at sites with multiple alternative alleles.
+                    // Note that this is an approximation. The real solution would be to have multiple allele
+                    // frequency variables in the likelihood function, but that would be computationally
+                    // more demanding (leading to a combinatorial explosion).
+                    // However, the approximation is pretty accurate, because it will only matter for true
+                    // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
+                    // because they are too rare.
+                    let non_alt_base = if read_base != *base {
+                        read_base
+                    } else {
+                        ref_seq[pos as usize]
+                    };
+
                     prob_alt += prob_read_base(read_base, *base, base_qual);
-                    prob_ref += prob_read_base(read_base, ref_seq[pos as usize], base_qual);
+                    prob_ref += prob_read_base(read_base, non_alt_base, base_qual);
                 } else {
                     // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
                     // or reference skipped (Cigar op 'N'), and the library should not choke on those reads

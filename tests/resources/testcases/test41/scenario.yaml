@@ -1,0 +1,8 @@
+samples:
+  tumor:
+    resolution: 100
+    universe: "[0.0,1.0]"
+
+events:
+  present: "tumor:]0.0,1.0]"
+

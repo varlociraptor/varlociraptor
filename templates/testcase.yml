@@ -29,8 +29,8 @@ purity: {{ purity.unwrap() }}
 
 # reference sequence
 reference:
-  name: '{{ ref_name }}'
-  seq: '{{ ref_seq }}'
+  path: '{{ ref_path }}'
 
-version: "1"
 mode: {{ mode }}
+
+version: '2'
