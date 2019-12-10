@@ -77,7 +77,6 @@ pub fn estimate(
 
         let alt_allele_count = (rec.allele_count() - 1) as usize;
 
-
         // collect allele probabilities for given events
         let mut allele_probs = vec![LogProb::ln_zero(); alt_allele_count];
         for e in somatic_tumor_events {

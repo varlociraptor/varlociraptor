@@ -1,10 +1,8 @@
 use std::path::PathBuf;
-use std::str;
 
 use yaml_rust::Yaml;
 
 use crate::common::Testcase;
-use varlociraptor::testcase::Mode;
 
 #[derive(Debug)]
 pub struct TestcaseVersion1 {
@@ -19,20 +17,5 @@ impl Testcase for TestcaseVersion1 {
 
     fn path(&self) -> &PathBuf {
         &self.path
-    }
-
-    fn mode(&self) -> Mode {
-        match self.yaml()["mode"].as_str().unwrap() {
-            "Generic" => Mode::Generic,
-            "TumorNormal" => Mode::TumorNormal,
-            _ => panic!("unsupported mode"),
-        }
-    }
-
-    fn preprocess_options(&self, sample_name: &str) -> String {
-        self.yaml()["samples"][sample_name]["options"]
-            .as_str()
-            .unwrap()
-            .to_owned()
     }
 }
