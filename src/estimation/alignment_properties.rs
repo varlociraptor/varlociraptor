@@ -91,8 +91,9 @@ impl AlignmentProperties {
         while i <= 10000 {
             if skipped >= 100000 {
                 eprint!(
-                    "\nWARNING: Stopping alignment property estimation after skipping 100000\n\
-                       records and inspecting {} records.\n",
+                    "\nWARNING: Stopping alignment property estimation after skipping 100.000\n\
+                       records and inspecting {} records. You should have another look\n\
+                       at your reads.\n",
                     i
                 );
 
