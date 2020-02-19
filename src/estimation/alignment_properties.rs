@@ -89,7 +89,7 @@ impl AlignmentProperties {
         let mut n_soft_clip = 0;
         let mut n_not_useable = 0;
         while i <= 10000 {
-            if skipped > 100000 {
+            if skipped >= 100000 {
                 eprint!(
                     "\nWARNING: Stopping alignment property estimation after skipping 100000\n\
                        records and inspecting {} records.\n",
