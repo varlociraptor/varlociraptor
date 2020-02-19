@@ -90,8 +90,11 @@ impl AlignmentProperties {
         let mut n_not_useable = 0;
         while i <= 10000 {
             if skipped > 100000 {
-                eprint!("\nWARNING: Stopping alignment property estimation after skipping 100000\n\
-                       records and inspecting {} records.\n",i);
+                eprint!(
+                    "\nWARNING: Stopping alignment property estimation after skipping 100000\n\
+                       records and inspecting {} records.\n",
+                    i
+                );
 
                 break;
             }
@@ -104,7 +107,8 @@ impl AlignmentProperties {
             if record.mapq() == 0
                 || record.is_duplicate()
                 || record.is_quality_check_failed()
-                || record.is_unmapped() {
+                || record.is_unmapped()
+            {
                 skipped += 1;
                 continue;
             }
@@ -118,7 +122,8 @@ impl AlignmentProperties {
             if !record.is_paired()
                 || !record.is_first_in_template()
                 || !(record.tid() == record.mtid())
-                || record.is_mate_unmapped() {
+                || record.is_mate_unmapped()
+            {
                 skipped += 1;
                 continue;
             }
@@ -137,7 +142,8 @@ impl AlignmentProperties {
         }
 
         if tlens.len() == 0 {
-            eprint!("\nFound no records to use for estimating the insert size. Will assume\n\
+            eprint!(
+                "\nFound no records to use for estimating the insert size. Will assume\n\
                     single end sequencing data and calculate deletion probabilities without\n\
                     considering the insert size.\n\
                     \n\
@@ -157,7 +163,10 @@ impl AlignmentProperties {
                        - failed some quality check according to the 512 SAM flag\n\
                        - mate unmapped\n\
                        - unmapped\n",
-                    nu = n_not_useable, sc = n_soft_clip, nr = skipped);
+                nu = n_not_useable,
+                sc = n_soft_clip,
+                nr = skipped
+            );
             properties.insert_size.mean = std::f64::NAN;
             properties.insert_size.sd = std::f64::NAN;
             Ok(properties)
@@ -249,7 +258,9 @@ mod tests {
 
     #[test]
     fn test_estimate_all_reads_have_short_clips() {
-        let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.reads_with_soft_clips.bam").unwrap();
+        let mut bam =
+            bam::Reader::from_path("tests/resources/tumor-first30000.reads_with_soft_clips.bam")
+                .unwrap();
 
         let props = AlignmentProperties::estimate(&mut bam).unwrap();
         println!("{:?}", props);
@@ -264,7 +275,10 @@ mod tests {
     #[test]
     fn test_estimate_all_reads_single_end() {
         // this file contains only single-ended reads (artificially made single-ended with awk)
-        let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam").unwrap();
+        let mut bam = bam::Reader::from_path(
+            "tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam",
+        )
+        .unwrap();
 
         let props = AlignmentProperties::estimate(&mut bam).unwrap();
         println!("{:?}", props);
