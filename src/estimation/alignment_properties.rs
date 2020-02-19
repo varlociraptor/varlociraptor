@@ -148,8 +148,9 @@ impl AlignmentProperties {
                     considering the insert size.\n\
                     \n\
                     If your data should be paired end, please consider manually providing\n\
-                    --alignment-properties, e.g. computed with `samtools stats`. Also, maybe\n\
-                    the following counts indicate why no records were usable:\n\n\
+                    --alignment-properties, e.g. computed with `samtools stats`. Also,\n\
+                    the following counts of unusable records might indicate a source of\n\
+                    this problem:\n\n\
                     - I, D, S or H CIGAR operation: {nu}\n\
                     - S CIGAR (soft clip, e.g. due to UMIs or adapters): {sc}\n\
                     \n\
@@ -162,7 +163,7 @@ impl AlignmentProperties {
                        - mate mapped to different template (e.g. different chromosome)\n\
                        - failed some quality check according to the 512 SAM flag\n\
                        - mate unmapped\n\
-                       - unmapped\n",
+                       - record unmapped\n",
                 nu = n_not_useable,
                 sc = n_soft_clip,
                 nr = skipped
