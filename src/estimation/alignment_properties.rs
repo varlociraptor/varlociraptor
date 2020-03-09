@@ -20,7 +20,7 @@ use crate::model::Variant;
 
 #[derive(Clone, Debug, Copy, Deserialize, Serialize)]
 pub struct AlignmentProperties {
-    insert_size: InsertSize,
+    insert_size: Option<InsertSize>,
     pub(crate) max_del_cigar_len: u32,
     pub(crate) max_ins_cigar_len: u32,
     pub(crate) frac_max_softclip: f64,
@@ -28,7 +28,7 @@ pub struct AlignmentProperties {
 
 impl AlignmentProperties {
     /// Constructs a dummy instance where all bases are feasible.
-    pub fn default(insert_size: InsertSize) -> Self {
+    pub fn default(insert_size: Option<InsertSize>) -> Self {
         AlignmentProperties {
             insert_size,
             max_del_cigar_len: 30,
@@ -75,7 +75,7 @@ impl AlignmentProperties {
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
     pub fn estimate<R: bam::Read>(bam: &mut R) -> Result<Self, Box<dyn Error>> {
         let mut properties = AlignmentProperties {
-            insert_size: InsertSize::default(),
+            insert_size: None,
             max_del_cigar_len: 0,
             max_ins_cigar_len: 0,
             frac_max_softclip: 0.0,
@@ -90,7 +90,7 @@ impl AlignmentProperties {
         let mut n_not_useable = 0;
         while i <= 10000 {
             if skipped >= 100000 {
-                eprint!(
+                warn!(
                     "\nWARNING: Stopping alignment property estimation after skipping 100.000\n\
                        records and inspecting {} records. You should have another look\n\
                        at your reads.\n",
@@ -143,7 +143,7 @@ impl AlignmentProperties {
         }
 
         if tlens.len() == 0 {
-            eprint!(
+            warn!(
                 "\nFound no records to use for estimating the insert size. Will assume\n\
                     single end sequencing data and calculate deletion probabilities without\n\
                     considering the insert size.\n\
@@ -169,8 +169,7 @@ impl AlignmentProperties {
                 sc = n_soft_clip,
                 nr = skipped
             );
-            properties.insert_size.mean = std::f64::NAN;
-            properties.insert_size.sd = std::f64::NAN;
+            properties.insert_size = None;
             Ok(properties)
         } else {
             let upper = tlens.percentile(95);
@@ -179,8 +178,13 @@ impl AlignmentProperties {
                 .into_iter()
                 .filter(|l| *l <= upper && *l >= lower)
                 .collect_vec();
-            properties.insert_size.mean = valid.iter().sum::<f64>() / valid.len() as f64;
-            properties.insert_size.sd = valid.iter().std_dev();
+
+            properties.insert_size = Some(
+                    InsertSize {
+                        mean: valid.iter().sum::<f64>() / valid.len() as f64,
+                        sd: valid.iter().std_dev()
+                    }
+                );
             Ok(properties)
         }
     }
@@ -197,7 +201,11 @@ impl AlignmentProperties {
     }
 
     pub fn insert_size(&self) -> &InsertSize {
-        &self.insert_size
+        match &self.insert_size {
+            Some(insert_size)  => insert_size,
+            None => panic!("This is a bug.\n
+                            AlignmentProperties has insert_size set to `None`, but you are trying to use it without checking for None.")
+        }
     }
 }
 
@@ -251,8 +259,8 @@ mod tests {
         let props = AlignmentProperties::estimate(&mut bam).unwrap();
         println!("{:?}", props);
 
-        assert_relative_eq!(props.insert_size.mean, 311.9736111111111);
-        assert_relative_eq!(props.insert_size.sd, 11.9001225301502);
+        assert_relative_eq!(props.insert_size().mean, 311.9736111111111);
+        assert_relative_eq!(props.insert_size().sd, 11.9001225301502);
         assert_eq!(props.max_del_cigar_len, 30);
         assert_eq!(props.max_ins_cigar_len, 12);
         assert_eq!(props.frac_max_softclip, 0.63);
@@ -267,8 +275,7 @@ mod tests {
         let props = AlignmentProperties::estimate(&mut bam).unwrap();
         println!("{:?}", props);
 
-        assert!(props.insert_size.mean.is_nan());
-        assert!(props.insert_size.sd.is_nan());
+        assert!(props.insert_size.is_none());
         assert_eq!(props.max_del_cigar_len, 2);
         assert_eq!(props.max_ins_cigar_len, 4);
         assert_eq!(props.frac_max_softclip, 0.63);
@@ -285,8 +292,7 @@ mod tests {
         let props = AlignmentProperties::estimate(&mut bam).unwrap();
         println!("{:?}", props);
 
-        assert!(props.insert_size.mean.is_nan());
-        assert!(props.insert_size.sd.is_nan());
+        assert!(props.insert_size.is_none());
         assert_eq!(props.max_del_cigar_len, 0);
         assert_eq!(props.max_ins_cigar_len, 0);
         assert_eq!(props.frac_max_softclip, 0.03);
