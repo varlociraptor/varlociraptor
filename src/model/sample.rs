@@ -603,10 +603,14 @@ mod tests {
         SampleBuilder::default()
             .alignments(
                 bam::IndexedReader::from_path(&"tests/indels.bam").unwrap(),
-                AlignmentProperties::default(InsertSize {
-                    mean: isize_mean,
-                    sd: 20.0,
-                }),
+                AlignmentProperties::default(
+                    Some(
+                        InsertSize {
+                            mean: isize_mean,
+                            sd: 20.0,
+                        }
+                    )
+                ),
             )
             .error_probs(
                 constants::PROB_ILLUMINA_INS,

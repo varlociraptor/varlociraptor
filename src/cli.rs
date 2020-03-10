@@ -488,6 +488,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                         .max_depth(max_depth)
                         .protocol_strandedness(protocol_strandedness)
                         .alignments(bam_reader, alignment_properties)
+                        .use_fragment_evidence(!alignment_properties.insert_size().mean.is_nan())
                         .build()?;
 
                     let mut processor =
