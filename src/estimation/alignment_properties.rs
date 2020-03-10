@@ -92,8 +92,8 @@ impl AlignmentProperties {
             if skipped >= 100000 {
                 warn!(
                     "\nWARNING: Stopping alignment property estimation after skipping 100.000\n\
-                       records and inspecting {} records. You should have another look\n\
-                       at your reads.\n",
+                     records and inspecting {} records. You should have another look\n\
+                     at your reads.\n",
                     i
                 );
 
@@ -145,26 +145,26 @@ impl AlignmentProperties {
         if tlens.len() == 0 {
             warn!(
                 "\nFound no records to use for estimating the insert size. Will assume\n\
-                    single end sequencing data and calculate deletion probabilities without\n\
-                    considering the insert size.\n\
-                    \n\
-                    If your data should be paired end, please consider manually providing\n\
-                    --alignment-properties, e.g. computed with `samtools stats`. Also,\n\
-                    the following counts of unusable records might indicate a source of\n\
-                    this problem:\n\n\
-                    - I, D, S or H CIGAR operation: {nu}\n\
-                    - S CIGAR (soft clip, e.g. due to UMIs or adapters): {sc}\n\
-                    \n\
-                    In addition, {nr} records were skipped in the estimation for one\n\
-                    of the following reasons:\n\
-                       - not paired\n\
-                       - not the first segment with regard to the template sequence\n\
-                       - mapping quality of 0\n\
-                       - marked as a duplicate\n\
-                       - mate mapped to different template (e.g. different chromosome)\n\
-                       - failed some quality check according to the 512 SAM flag\n\
-                       - mate unmapped\n\
-                       - record unmapped\n",
+                 single end sequencing data and calculate deletion probabilities without\n\
+                 considering the insert size.\n\
+                 \n\
+                 If your data should be paired end, please consider manually providing\n\
+                 --alignment-properties, e.g. computed with `samtools stats`. Also,\n\
+                 the following counts of unusable records might indicate a source of\n\
+                 this problem:\n\n\
+                 - I, D, S or H CIGAR operation: {nu}\n\
+                 - S CIGAR (soft clip, e.g. due to UMIs or adapters): {sc}\n\
+                 \n\
+                 In addition, {nr} records were skipped in the estimation for one\n\
+                 of the following reasons:\n\
+                 - not paired\n\
+                 - not the first segment with regard to the template sequence\n\
+                 - mapping quality of 0\n\
+                 - marked as a duplicate\n\
+                 - mate mapped to different template (e.g. different chromosome)\n\
+                 - failed some quality check according to the 512 SAM flag\n\
+                 - mate unmapped\n\
+                 - record unmapped\n",
                 nu = n_not_useable,
                 sc = n_soft_clip,
                 nr = skipped
@@ -179,12 +179,10 @@ impl AlignmentProperties {
                 .filter(|l| *l <= upper && *l >= lower)
                 .collect_vec();
 
-            properties.insert_size = Some(
-                    InsertSize {
-                        mean: valid.iter().sum::<f64>() / valid.len() as f64,
-                        sd: valid.iter().std_dev()
-                    }
-                );
+            properties.insert_size = Some(InsertSize {
+                mean: valid.iter().sum::<f64>() / valid.len() as f64,
+                sd: valid.iter().std_dev(),
+            });
             Ok(properties)
         }
     }
