@@ -35,7 +35,11 @@ jobs:
           toolchain: stable
           override: true
           components: clippy
-      
+
+      - name: Install system dependencies
+        run: |
+            sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools
+
       - name: Lint with clippy
         uses: actions-rs/clippy-check@v1
         with:
@@ -56,10 +60,14 @@ jobs:
           toolchain: stable
           override: true
 
+      - name: Install system dependencies
+        run: |
+            sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools
+
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
-          args: '-- --test-threads 1'
+          args: '-- --test-threads 1 --features gslv2'
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1.0.2
