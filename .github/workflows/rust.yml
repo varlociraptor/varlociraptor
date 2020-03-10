@@ -24,6 +24,8 @@ jobs:
         run: cargo fmt -- --check
      
   Linting:
+    needs:
+      - Formatting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
