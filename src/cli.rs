@@ -410,6 +410,7 @@ pub enum FilterMethod {
     )]
     PosteriorOdds {
         #[structopt(
+            long,
             possible_values = { use strum::IntoEnumIterator; &KassRaftery::iter().map(|v| v.into()).collect_vec() },
             help = "Kass-Raftery score to filter against."
         )]
