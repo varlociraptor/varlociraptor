@@ -45,7 +45,6 @@ jobs:
   Testing:
     needs:
       - Formatting
-      - Linting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
