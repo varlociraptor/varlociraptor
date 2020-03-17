@@ -916,7 +916,7 @@ mod tests {
             Cigar::HardClip(7),
         ]);
         seq = b"ACATA";
-        let qual = [50, 20, 20, 20, 20, 20];
+        let qual = [50, 20, 20, 20, 20];
         let mut record3 = bam::Record::new();
         record3.set(qname, Some(&cigar), seq, &qual);
         record3.set_pos(4);
