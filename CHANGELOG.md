@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.6.2] - 2020-03-17
+- Fix odds filtering arguments.
+- Improved error messages.
+- Improved insert size estimation.
+- Use htslib 1.10.
+- Work around htslib bug that misinterprets negative SVLENs: SVLEN is now always positive.
+
 ## [1.5.0] - 2019-12-04
 - Introduce SNV selectors in the event formula language.
 - Work around a segmentation fault in Htslib when estimating tmb.
