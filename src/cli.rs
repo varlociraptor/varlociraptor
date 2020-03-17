@@ -9,7 +9,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
@@ -476,7 +476,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     let alignment_properties =
                         est_or_load_alignment_properites(&alignment_properties, &bam)?;
 
-                    let bam_reader = bam::IndexedReader::from_path(bam)?;
+                    let bam_reader = bam::IndexedReader::from_path(bam).context("Unable to read BAM/CRAM file.")?;
 
                     let sample = SampleBuilder::default()
                         .error_probs(
@@ -499,7 +499,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .max_indel_len(max_indel_len)
                             .omit_snvs(omit_snvs)
                             .omit_indels(omit_indels)
-                            .reference(fasta::IndexedReader::from_file(&reference)?)?
+                            .reference(fasta::IndexedReader::from_file(&reference).context("Unable to read genome reference.")?)?
                             .inbcf(candidates)?
                             .outbcf(output, &opt_clone)?
                             .build()
