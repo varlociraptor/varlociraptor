@@ -243,9 +243,7 @@ pub fn collect_variants(
                         (alt_allele.len() as i32 - ref_allele.len() as i32).abs() as u32;
                     // TODO fix position if variant is like this: cttt -> ct
 
-                    if omit_indels {
-                        None
-                    } else if !is_valid_len(indel_len) {
+                    if omit_indels || !is_valid_len(indel_len) {
                         None
                     } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
                         Some(model::Variant::Deletion(
@@ -648,7 +646,7 @@ impl MiniLogProb {
     pub fn new(prob: LogProb) -> Self {
         let half = f16::from_f64(*prob);
         let proj = half.to_f64();
-        if *prob < -10.0 && proj.floor() == prob.floor() {
+        if *prob < -10.0 && proj.floor() as i64 == prob.floor() as i64 {
             MiniLogProb::F16(half)
         } else {
             MiniLogProb::F32(*prob as f32)
