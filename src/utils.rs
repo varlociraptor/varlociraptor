@@ -215,6 +215,7 @@ pub fn collect_variants(
                     }
                 } else if alt_allele == b"<DEL>" {
                     if let Some(ref svlens) = svlens {
+                        dbg!(svlens);
                         if let Some(svlen) = svlens[i] {
                             Some(model::Variant::Deletion(svlen))
                         } else {
