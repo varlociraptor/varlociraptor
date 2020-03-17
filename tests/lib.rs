@@ -143,3 +143,8 @@ fn test_fdr_control4() {
     control_fdr("test_fdr_ev_4", "SOMATIC_TUMOR", 0.05);
     assert_call_number("test_fdr_ev_4", 0);
 }
+
+#[test]
+fn test_fdr_control5() {
+    control_fdr("test_fdr_control_out_of_bounds", "PRESENT", 0.05);
+}
