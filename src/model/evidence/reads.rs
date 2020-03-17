@@ -4,13 +4,13 @@
 // except according to those terms.
 
 use std::cmp;
-use std::error::Error;
 use std::fmt::Debug;
 
 use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::strand::Strand;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
+use anyhow::Result;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::Variant;
@@ -34,7 +34,7 @@ pub trait AbstractReadEvidence {
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>>;
+    ) -> Result<Option<(LogProb, LogProb)>>;
 
     /// Calculate mapping and mismapping probability of given record.
     fn prob_mapping_mismapping(&self, record: &bam::Record) -> (LogProb, LogProb) {
@@ -74,7 +74,7 @@ impl AbstractReadEvidence for NoneEvidence {
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>> {
+    ) -> Result<Option<(LogProb, LogProb)>> {
         // TODO: Should we make this check against potential indel alt alleles, as well? Would need to collect respective observations / reads, then.
         if let &Variant::None = variant {
             if let Some(qpos) = cigar.read_pos(start, false, false)? {
@@ -120,7 +120,7 @@ impl AbstractReadEvidence for SNVEvidence {
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>> {
+    ) -> Result<Option<(LogProb, LogProb)>> {
         if let &Variant::SNV(base) = variant {
             if let Some(qpos) = cigar.read_pos(start, false, false)? {
                 let read_base = record.seq()[qpos as usize];
@@ -177,7 +177,7 @@ impl AbstractReadEvidence for MNVEvidence {
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>> {
+    ) -> Result<Option<(LogProb, LogProb)>> {
         if let &Variant::MNV(ref bases) = variant {
             let mut prob_ref = LogProb::ln_one();
             let mut prob_alt = LogProb::ln_one();
@@ -288,7 +288,7 @@ impl AbstractReadEvidence for IndelEvidence {
         start: u32,
         variant: &Variant,
         ref_seq: &[u8],
-    ) -> Result<Option<(LogProb, LogProb)>, Box<dyn Error>> {
+    ) -> Result<Option<(LogProb, LogProb)>> {
         let read_seq = record.seq();
         let read_qual = record.qual();
 

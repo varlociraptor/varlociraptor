@@ -7,7 +7,6 @@ pub mod calling;
 pub mod preprocessing;
 
 use std::collections::HashMap;
-use std::error::Error;
 use std::str;
 use std::u8;
 
@@ -17,6 +16,7 @@ use itertools::join;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
+use anyhow::Result;
 
 use crate::calling::variants::preprocessing::write_observations;
 use crate::model;
@@ -44,7 +44,7 @@ impl Call {
     pub fn write_preprocessed_record(
         &self,
         bcf_writer: &mut bcf::Writer,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
         for variant in self.variants.iter() {
             let mut record = bcf_writer.empty_record();
@@ -73,7 +73,7 @@ impl Call {
         Ok(())
     }
 
-    pub fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<(), Box<dyn Error>> {
+    pub fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
         for (first_grouper, group) in self
             .variants
@@ -249,7 +249,7 @@ pub struct Variant {
 
 impl VariantBuilder {
     /// Build the variant from a single-allele bcf record.
-    pub fn record(&mut self, record: &mut bcf::Record) -> Result<&mut Self, Box<dyn Error>> {
+    pub fn record(&mut self, record: &mut bcf::Record) -> Result<&mut Self> {
         let alleles = record.alleles();
         Ok(self
             .ref_allele(alleles[0].to_owned())

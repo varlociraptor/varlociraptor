@@ -4,13 +4,13 @@
 // except according to those terms.
 
 use std::collections::BTreeMap;
-use std::error::Error;
 
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rusty_machine::learning::lin_reg::LinRegressor;
 use rusty_machine::learning::SupModel;
 use rusty_machine::linalg::{Matrix, Vector};
+use anyhow::Result;
 
 use crate::model::AlleleFreq;
 
@@ -29,7 +29,7 @@ impl Estimate {
 
 pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(
     allele_frequencies: F,
-) -> Result<Estimate, Box<dyn Error>> {
+) -> Result<Estimate> {
     let mut observations = BTreeMap::new();
     for f in allele_frequencies {
         // count occurrences of 1 / f

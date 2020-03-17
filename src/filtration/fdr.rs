@@ -8,13 +8,13 @@
 //! Johns Hopkin's University, Dept. of Biostatistics Working Papers. Working Paper 115.
 //! Basically, the expected FDR is calculated directly from the posterior error probabilities.
 
-use std::error::Error;
 use std::path::Path;
 
 use bio::stats::{bayesian, LogProb};
 use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
+use anyhow::Result;
 
 use crate::model;
 use crate::utils;
@@ -38,7 +38,7 @@ pub fn control_fdr<E: Event, R, W>(
     events: &[E],
     vartype: &model::VariantType,
     alpha: LogProb,
-) -> Result<(), Box<dyn Error>>
+) -> Result<()>
 where
     R: AsRef<Path>,
     W: AsRef<Path>,

@@ -6,8 +6,6 @@ pub use version0::TestcaseVersion0;
 pub use version1::TestcaseVersion1;
 pub use version2::TestcaseVersion2;
 
-use std::error::Error;
-
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -22,11 +20,12 @@ use rust_htslib::{bam, bcf};
 use serde_json;
 use tempfile::{self, NamedTempFile};
 use yaml_rust::{Yaml, YamlLoader};
+use anyhow::Result;
 
 use varlociraptor::cli::{run, CallKind, PreprocessKind, VariantCallMode, Varlociraptor};
 use varlociraptor::testcase::Mode;
 
-pub fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>, Box<dyn Error>> {
+pub fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>> {
     let mut reader = File::open(path.as_ref().join("testcase.yaml"))?;
     let mut content2 = String::new();
     reader.read_to_string(&mut content2)?;
@@ -126,7 +125,7 @@ pub trait Testcase {
         self.yaml()["purity"].as_f64()
     }
 
-    fn run(&self) -> Result<(), Box<dyn Error>> {
+    fn run(&self) -> Result<()> {
         let temp_ref = self.reference()?;
 
         let temp_preprocess = tempfile::tempdir()?;
@@ -271,7 +270,7 @@ pub trait Testcase {
         }
     }
 
-    fn reference(&self) -> Result<Box<dyn AsRef<Path>>, Box<dyn Error>> {
+    fn reference(&self) -> Result<Box<dyn AsRef<Path>>> {
         let ref_name = self.yaml()["reference"]["name"].as_str().unwrap();
         let ref_seq = self.yaml()["reference"]["seq"].as_str().unwrap();
 
@@ -292,7 +291,7 @@ pub trait Testcase {
             .expect("failed to create fasta index");
     }
 
-    fn alignment_properties(&self, properties: &str) -> Result<NamedTempFile, Box<dyn Error>> {
+    fn alignment_properties(&self, properties: &str) -> Result<NamedTempFile> {
         let mut tmp_props = tempfile::Builder::new().suffix(".json").tempfile()?;
         tmp_props.as_file_mut().write_all(properties.as_bytes())?;
 

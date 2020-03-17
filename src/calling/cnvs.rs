@@ -4,7 +4,6 @@
 // except according to those terms.
 
 use std::collections::{BTreeMap, HashMap};
-use std::error::Error;
 use std::iter;
 use std::mem;
 use std::path::Path;
@@ -20,6 +19,7 @@ use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::Read;
+use anyhow::Result;
 
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
@@ -60,7 +60,7 @@ impl CallerBuilder {
         mut self,
         in_path: Option<P>,
         out_path: Option<P>,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self> {
         self = self.bcf_reader(if let Some(path) = in_path {
             bcf::Reader::from_path(path)?
         } else {
@@ -151,7 +151,7 @@ impl CallerBuilder {
 }
 
 impl Caller {
-    pub fn call(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn call(&mut self) -> Result<()> {
         // obtain records
 
         let calls = {
@@ -305,7 +305,7 @@ impl<'a> CNVCall<'a> {
         record: &mut bcf::Record,
         depth_norm_factor: f64,
         contig_len: u32,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<()> {
         record.set_rid(Some(rid));
         record.set_pos(self.pos as i32);
         record.set_alleles(&[b"N", b"<CNV>"])?;
@@ -580,7 +580,7 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn new(record: &mut bcf::Record) -> Result<Option<Self>, Box<dyn Error>> {
+    pub fn new(record: &mut bcf::Record) -> Result<Option<Self>> {
         let pos = record.pos();
         let prob_germline_het = record.info(b"PROB_GERMLINE_HET").float()?;
         if let Some(_prob_germline_het) = prob_germline_het {

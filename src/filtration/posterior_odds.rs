@@ -7,8 +7,8 @@ use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
 use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
-use std::error::Error;
 use std::path::Path;
+use anyhow::Result;
 
 use crate::utils;
 use crate::utils::{get_event_tags, is_phred_scaled};
@@ -21,7 +21,7 @@ pub fn filter_by_odds<E, R, W>(
     outbcf: Option<W>,
     events: &[E],
     min_evidence: KassRaftery,
-) -> Result<(), Box<dyn Error>>
+) -> Result<()>
 where
     E: Event,
     R: AsRef<Path>,

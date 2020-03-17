@@ -5,12 +5,12 @@ use std::ops::{Deref, DerefMut};
 
 use serde_yaml;
 use vec_map::VecMap;
+use anyhow::Result;
 
 pub mod formula;
 pub mod vaftree;
 
 use crate::errors;
-use crate::errors::Result;
 pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub use crate::grammar::vaftree::VAFTree;
 

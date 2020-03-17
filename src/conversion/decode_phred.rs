@@ -1,13 +1,12 @@
-use std::error::Error;
-
 use crate::utils::get_event_tags;
 use bio::stats::{PHREDProb, Prob};
 use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
+use anyhow::Result;
 
 /// Decode PHRED scaled values to probabilities.
-pub fn decode_phred() -> Result<(), Box<dyn Error>> {
+pub fn decode_phred() -> Result<()> {
     let mut inbcf = bcf::Reader::from_stdin()?;
 
     let tags = get_event_tags(&inbcf)
