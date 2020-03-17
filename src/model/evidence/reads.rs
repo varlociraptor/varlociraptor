@@ -348,7 +348,7 @@ impl AbstractReadEvidence for IndelEvidence {
                     // It occurs if the read comes from ref allele and is mapped within start
                     // and end of deletion. Usually, such reads strongly support the ref allele.
                     let read_enclosed_by_variant =
-                        record.pos() >= varstart as i32 && cigar.end_pos() <= varend as i32;
+                        record.pos() >= varstart as i64 && cigar.end_pos() <= varend as i64;
                     (read_offset, read_end, breakpoint, read_enclosed_by_variant)
                 }
             }

@@ -46,7 +46,7 @@ impl Call {
         for variant in self.variants.iter() {
             let mut record = bcf_writer.empty_record();
             record.set_rid(Some(rid));
-            record.set_pos(self.pos as i32);
+            record.set_pos(self.pos as i64);
             // set ID if present
             if let Some(ref id) = self.id {
                 record.set_id(id)?;
@@ -81,7 +81,7 @@ impl Call {
             let ref_allele = &first_grouper.0.ref_allele;
             let mut record = bcf_writer.empty_record();
             record.set_rid(Some(rid));
-            record.set_pos(self.pos as i32);
+            record.set_pos(self.pos as i64);
             // set ID if present
             if let Some(ref id) = self.id {
                 record.set_id(id)?;
