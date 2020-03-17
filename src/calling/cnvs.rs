@@ -379,6 +379,7 @@ pub struct HMM {
 }
 
 impl HMM {
+    #[allow(clippy::float_cmp)]
     fn new(depth_norm_factor: f64, min_bayes_factor: f64, purity: f64) -> Self {
         let n_allele_freqs = 10;
         let mut states = Vec::new();
