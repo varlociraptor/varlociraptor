@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 use std::str;
 
+use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
-use anyhow::Result;
 
 use crate::errors;
 use crate::model::AlleleFreq;

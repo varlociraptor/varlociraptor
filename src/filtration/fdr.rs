@@ -10,11 +10,11 @@
 
 use std::path::Path;
 
+use anyhow::Result;
 use bio::stats::{bayesian, LogProb};
 use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
-use anyhow::Result;
 
 use crate::model;
 use crate::utils;

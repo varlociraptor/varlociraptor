@@ -7,11 +7,11 @@ use std::cmp;
 use std::f64;
 use std::ops::Range;
 
+use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rgsl::randist::gaussian::ugaussian_P;
 use rust_htslib::bam;
-use anyhow::Result;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence;
@@ -55,10 +55,7 @@ pub fn n_fragment_positions(
 ///
 /// * `left` - left read of the pair
 /// * `right` - right read of the pair
-pub fn estimate_insert_size(
-    left: &bam::Record,
-    right: &bam::Record,
-) -> Result<u32> {
+pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u32> {
     let left_cigar = left.cigar_cached().unwrap();
     let right_cigar = right.cigar_cached().unwrap();
 

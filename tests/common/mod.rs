@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str;
 
+use anyhow::Result;
 use bio::io::fasta;
 use eval::Expr;
 use itertools::Itertools;
@@ -20,7 +21,6 @@ use rust_htslib::{bam, bcf};
 use serde_json;
 use tempfile::{self, NamedTempFile};
 use yaml_rust::{Yaml, YamlLoader};
-use anyhow::Result;
 
 use varlociraptor::cli::{run, CallKind, PreprocessKind, VariantCallMode, Varlociraptor};
 use varlociraptor::testcase::Mode;

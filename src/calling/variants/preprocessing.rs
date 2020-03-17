@@ -7,6 +7,7 @@ use std::fmt::Debug;
 use std::fs;
 use std::path::Path;
 
+use anyhow::Result;
 use bincode;
 use bio::io::fasta;
 use bio::stats::LogProb;
@@ -16,7 +17,6 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 use serde_json;
-use anyhow::Result;
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
@@ -172,7 +172,8 @@ impl ObservationProcessor {
                 }
             })
             .variants(Vec::new())
-            .build().unwrap();
+            .build()
+            .unwrap();
 
         for variant in variants.into_iter() {
             if let Some(variant) = variant {
@@ -188,7 +189,8 @@ impl ObservationProcessor {
                     VariantBuilder::default()
                         .variant(&variant, start, chrom_seq)
                         .observations(Some(pileup))
-                        .build().unwrap(),
+                        .build()
+                        .unwrap(),
                 );
             }
         }
@@ -200,9 +202,7 @@ impl ObservationProcessor {
 pub static OBSERVATION_FORMAT_VERSION: &'static str = "2";
 
 /// Read observations from BCF record.
-pub fn read_observations<'a>(
-    record: &'a mut bcf::Record,
-) -> Result<Vec<Observation>> {
+pub fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observation>> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug,
@@ -259,10 +259,7 @@ pub fn read_observations<'a>(
     Ok(obs)
 }
 
-pub fn write_observations(
-    observations: &[Observation],
-    record: &mut bcf::Record,
-) -> Result<()> {
+pub fn write_observations(observations: &[Observation], record: &mut bcf::Record) -> Result<()> {
     let vec = || Vec::with_capacity(observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();
@@ -287,11 +284,7 @@ pub fn write_observations(
         reverse_strand.push(obs.reverse_strand);
     }
 
-    fn push_values<T>(
-        record: &mut bcf::Record,
-        tag: &[u8],
-        values: &T,
-    ) -> Result<()>
+    fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
     where
         T: serde::Serialize + Debug,
     {
@@ -340,9 +333,7 @@ pub fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"REVERSE_STRAND");
 }
 
-pub fn read_preprocess_options<P: AsRef<Path>>(
-    bcfpath: P,
-) -> Result<cli::Varlociraptor> {
+pub fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {
     let reader = bcf::Reader::from_path(&bcfpath)?;
     for rec in reader.header().header_records() {
         match rec {

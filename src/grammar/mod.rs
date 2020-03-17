@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ops::{Deref, DerefMut};
 
+use anyhow::Result;
 use serde_yaml;
 use vec_map::VecMap;
-use anyhow::Result;
 
 pub mod formula;
 pub mod vaftree;

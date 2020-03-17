@@ -9,12 +9,12 @@ use std::io;
 use std::str::FromStr;
 use std::u32;
 
+use anyhow::Result;
 use csv;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
 use statrs::statistics::{OrderStatistics, Statistics};
-use anyhow::Result;
 
 use crate::model::Variant;
 
@@ -217,9 +217,7 @@ pub struct InsertSize {
 
 impl InsertSize {
     /// Obtain insert size from samtools stats output.
-    pub fn from_samtools_stats<R: io::Read>(
-        samtools_stats: &mut R,
-    ) -> Result<InsertSize> {
+    pub fn from_samtools_stats<R: io::Read>(samtools_stats: &mut R) -> Result<InsertSize> {
         let mut rdr = csv::ReaderBuilder::new()
             .delimiter(b'\t')
             .comment(Some(b'#'))

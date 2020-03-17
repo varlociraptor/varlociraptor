@@ -9,6 +9,7 @@ use std::f64;
 use std::path::Path;
 use std::str;
 
+use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use bio_types::strand::Strand;
 use derive_builder::Builder;
@@ -17,7 +18,6 @@ use rand::distributions::Distribution;
 use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
-use anyhow::Result;
 
 use crate::estimation::alignment_properties;
 use crate::model::evidence;
@@ -465,18 +465,17 @@ impl Sample {
         variant: &Variant,
         chrom_seq: &[u8],
     ) -> Result<Option<Observation>> {
-        let prob_read = |record: &bam::Record,
-                         cigar: &CigarStringView|
-         -> Result<(LogProb, LogProb)> {
-            // Calculate read evidence.
-            // We also calculate it in case of no overlap. Otherwise, there would be a bias due to
-            // non-overlapping fragments having higher likelihoods.
-            Ok(self
-                .indel_read_evidence
-                .borrow_mut()
-                .prob(record, cigar, start, variant, chrom_seq)?
-                .unwrap())
-        };
+        let prob_read =
+            |record: &bam::Record, cigar: &CigarStringView| -> Result<(LogProb, LogProb)> {
+                // Calculate read evidence.
+                // We also calculate it in case of no overlap. Otherwise, there would be a bias due to
+                // non-overlapping fragments having higher likelihoods.
+                Ok(self
+                    .indel_read_evidence
+                    .borrow_mut()
+                    .prob(record, cigar, start, variant, chrom_seq)?
+                    .unwrap())
+            };
 
         let left_cigar = left_record.cigar_cached().unwrap();
         let right_cigar = right_record.cigar_cached().unwrap();

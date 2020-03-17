@@ -5,10 +5,10 @@
 
 use std::f64;
 
+use anyhow::Result;
 use rgsl::randist::poisson::poisson_pdf;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
-use anyhow::Result;
 
 use bio::stats::LogProb;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;

@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::str;
 
+use anyhow::Result;
 use bio::stats::{bayesian, LogProb};
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
-use anyhow::Result;
 
 use crate::calling::variants::preprocessing::{
     read_observations, remove_observation_header_entries, OBSERVATION_FORMAT_VERSION,
@@ -293,7 +293,8 @@ where
                     }
                 })
                 .variants(Vec::new())
-                .build().unwrap();
+                .build()
+                .unwrap();
 
             let mut variant_builder = VariantBuilder::default();
             variant_builder.record(first_record)?;

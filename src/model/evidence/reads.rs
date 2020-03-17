@@ -6,11 +6,11 @@
 use std::cmp;
 use std::fmt::Debug;
 
+use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::strand::Strand;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
-use anyhow::Result;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::Variant;

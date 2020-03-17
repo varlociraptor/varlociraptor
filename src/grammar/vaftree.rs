@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use itertools::Itertools;
 use anyhow::Result;
+use itertools::Itertools;
 
 use crate::errors;
 use crate::grammar::{formula::NormalizedFormula, formula::IUPAC, Scenario, VAFSpectrum};

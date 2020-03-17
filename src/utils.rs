@@ -10,6 +10,7 @@ use std::hash::Hash;
 use std::ops::Range;
 use std::str;
 
+use anyhow::Result;
 use bio::io::fasta;
 use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb};
 use counter::Counter;
@@ -19,7 +20,6 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf, bcf::record::Numeric};
-use anyhow::Result;
 
 use crate::errors;
 use crate::model;

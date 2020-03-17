@@ -1,9 +1,9 @@
 use crate::utils::get_event_tags;
+use anyhow::Result;
 use bio::stats::{PHREDProb, Prob};
 use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
-use anyhow::Result;
 
 /// Decode PHRED scaled values to probabilities.
 pub fn decode_phred() -> Result<()> {

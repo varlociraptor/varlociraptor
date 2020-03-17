@@ -3,12 +3,12 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
 use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 use std::path::Path;
-use anyhow::Result;
 
 use crate::utils;
 use crate::utils::{get_event_tags, is_phred_scaled};

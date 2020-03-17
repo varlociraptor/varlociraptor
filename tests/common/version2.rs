@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use yaml_rust::Yaml;
 use anyhow::Result;
+use yaml_rust::Yaml;
 
 use crate::common::Testcase;
 

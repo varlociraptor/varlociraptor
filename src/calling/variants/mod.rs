@@ -10,13 +10,13 @@ use std::collections::HashMap;
 use std::str;
 use std::u8;
 
+use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use derive_builder::Builder;
 use itertools::join;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
-use anyhow::Result;
 
 use crate::calling::variants::preprocessing::write_observations;
 use crate::model;
@@ -41,10 +41,7 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn write_preprocessed_record(
-        &self,
-        bcf_writer: &mut bcf::Writer,
-    ) -> Result<()> {
+    pub fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
         for variant in self.variants.iter() {
             let mut record = bcf_writer.empty_record();

@@ -6,6 +6,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str;
 
+use anyhow::Result;
 use askama::Template;
 use bio::io::fasta;
 use derive_builder::Builder;
@@ -13,7 +14,6 @@ use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
 use serde_json;
-use anyhow::Result;
 
 use crate::cli;
 use crate::errors;

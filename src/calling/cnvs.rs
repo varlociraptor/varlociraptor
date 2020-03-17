@@ -8,6 +8,7 @@ use std::iter;
 use std::mem;
 use std::path::Path;
 
+use anyhow::Result;
 use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb, Prob};
 use derive_builder::Builder;
 use itertools::join;
@@ -19,7 +20,6 @@ use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bcf;
 use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::Read;
-use anyhow::Result;
 
 use crate::model::modes::tumor::TumorNormalPairView;
 use crate::model::AlleleFreq;
@@ -56,11 +56,7 @@ pub struct Caller {
 }
 
 impl CallerBuilder {
-    pub fn bcfs<P: AsRef<Path>>(
-        mut self,
-        in_path: Option<P>,
-        out_path: Option<P>,
-    ) -> Result<Self> {
+    pub fn bcfs<P: AsRef<Path>>(mut self, in_path: Option<P>, out_path: Option<P>) -> Result<Self> {
         self = self.bcf_reader(if let Some(path) = in_path {
             bcf::Reader::from_path(path)?
         } else {

@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use anyhow::Result;
 use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
@@ -18,7 +19,6 @@ use rust_htslib::{bam, bcf};
 use serde_yaml;
 use structopt;
 use structopt::StructOpt;
-use anyhow::Result;
 
 use crate::calling;
 use crate::conversion;
@@ -490,7 +490,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         .protocol_strandedness(protocol_strandedness)
                         .alignments(bam_reader, alignment_properties)
                         .use_fragment_evidence(!alignment_properties.insert_size().mean.is_nan())
-                        .build().unwrap();
+                        .build()
+                        .unwrap();
 
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
@@ -501,7 +502,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .reference(fasta::IndexedReader::from_file(&reference)?)?
                             .inbcf(candidates)?
                             .outbcf(output, &opt_clone)?
-                            .build().unwrap();
+                            .build()
+                            .unwrap();
 
                     processor.process()?
                 }
@@ -583,7 +585,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .prior(FlatPrior::new())
                             .contaminations(contaminations.build())
                             .resolutions(resolutions.build())
-                            .build().unwrap();
+                            .build()
+                            .unwrap();
 
                         // setup caller
                         let mut caller = calling::variants::CallerBuilder::default()
@@ -592,7 +595,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .scenario(scenario)
                             .model(model)
                             .outbcf(output.as_ref())?
-                            .build().unwrap();
+                            .build()
+                            .unwrap();
 
                         // call
                         caller.call()?;
@@ -630,7 +634,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     let mut testcase = testcase_builder
                                         .scenario(Some(scenario.to_owned()))
                                         .mode(testcase::Mode::Generic)
-                                        .build().unwrap();
+                                        .build()
+                                        .unwrap();
                                     info!("Writing testcase.");
                                     testcase.write()?;
                                     return Ok(());
@@ -677,7 +682,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .scenario(None)
                                     .mode(testcase::Mode::TumorNormal)
                                     .purity(Some(purity))
-                                    .build().unwrap();
+                                    .build()
+                                    .unwrap();
 
                                 testcase.write()?;
                                 return Ok(());
@@ -737,7 +743,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         .min_bayes_factor(min_bayes_factor)
                         .purity(purity)
                         .max_dist(max_dist)
-                        .build().unwrap();
+                        .build()
+                        .unwrap();
                     caller.call()?;
                 }
             }

@@ -4,11 +4,11 @@ use std::collections::{BTreeSet, VecDeque};
 use std::fmt;
 use std::ops;
 
+use anyhow::Result;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use serde::de;
 use serde::Deserialize;
-use anyhow::Result;
 
 use crate::errors;
 use crate::grammar::Scenario;
