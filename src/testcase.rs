@@ -256,7 +256,7 @@ impl Testcase {
             for res in bam_reader.records() {
                 let mut rec = res?;
                 // update mapping position to interval
-                rec.set_pos(rec.pos() - ref_start as i32);
+                rec.set_pos(rec.pos() - ref_start as i64);
                 bam_writer.write(&rec)?;
             }
             samples.insert(
@@ -277,7 +277,7 @@ impl Testcase {
             bcf::Format::BCF,
         )?;
         let (_, mut candidate_record) = candidate;
-        candidate_record.set_pos((candidate_record.pos() - ref_start) as i32);
+        candidate_record.set_pos((candidate_record.pos() - ref_start) as i64);
         if let Ok(Some(end)) = candidate_record
             .info(b"END")
             .integer()

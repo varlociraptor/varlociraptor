@@ -46,7 +46,7 @@ impl Call {
         for variant in self.variants.iter() {
             let mut record = bcf_writer.empty_record();
             record.set_rid(Some(rid));
-            record.set_pos(self.pos as i32);
+            record.set_pos(self.pos as i64);
             // set ID if present
             if let Some(ref id) = self.id {
                 record.set_id(id)?;
@@ -81,7 +81,7 @@ impl Call {
             let ref_allele = &first_grouper.0.ref_allele;
             let mut record = bcf_writer.empty_record();
             record.set_rid(Some(rid));
-            record.set_pos(self.pos as i32);
+            record.set_pos(self.pos as i64);
             // set ID if present
             if let Some(ref id) = self.id {
                 record.set_id(id)?;
@@ -251,7 +251,8 @@ impl VariantBuilder {
         Ok(self
             .ref_allele(alleles[0].to_owned())
             .alt_allele(alleles[1].to_owned())
-            .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0])))
+            // TODO remove abs once https://github.com/samtools/bcftools/issues/874 is finally properly fixed
+            .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0].abs())))
     }
 
     pub fn variant(
@@ -263,7 +264,8 @@ impl VariantBuilder {
         match variant {
             model::Variant::Deletion(l) => {
                 let l = l.clone();
-                let svlen = -(l as i32);
+                // TODO make negative again once https://github.com/samtools/bcftools/issues/874 is finally properly fixed
+                let svlen = l as i32;
                 if l <= 50 {
                     self.ref_allele(chrom_seq[start..start + 1 + l as usize].to_ascii_uppercase())
                         .alt_allele(chrom_seq[start..start + 1].to_ascii_uppercase())

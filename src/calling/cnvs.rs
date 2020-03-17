@@ -303,7 +303,7 @@ impl<'a> CNVCall<'a> {
         contig_len: u32,
     ) -> Result<()> {
         record.set_rid(Some(rid));
-        record.set_pos(self.pos as i32);
+        record.set_pos(self.pos as i64);
         record.set_alleles(&[b"N", b"<CNV>"])?;
         record.push_info_integer(b"END", &[self.end as i32])?;
         record.push_info_integer(b"SVLEN", &[self.len() as i32])?;
