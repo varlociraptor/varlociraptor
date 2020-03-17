@@ -14,7 +14,6 @@ bio = "0.30"
 bio-types = "0.5"
 log = "0.4"
 rust-htslib = "0.27"
-#rust-htslib = { path = "../rust-htslib" }
 GSL = "1"
 itertools = "0.8"
 itertools-num = "0.1"
