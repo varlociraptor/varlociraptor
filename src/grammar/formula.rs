@@ -4,13 +4,13 @@ use std::collections::{BTreeSet, VecDeque};
 use std::fmt;
 use std::ops;
 
+use anyhow::Result;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use serde::de;
 use serde::Deserialize;
 
 use crate::errors;
-use crate::errors::Result;
 use crate::grammar::Scenario;
 use crate::model::AlleleFreq;
 

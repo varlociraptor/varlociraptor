@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
+use anyhow::Result;
 use itertools::Itertools;
 
 use crate::errors;
-use crate::errors::Result;
 use crate::grammar::{formula::NormalizedFormula, formula::IUPAC, Scenario, VAFSpectrum};
 use crate::model::AlleleFreq;
 

@@ -4,13 +4,13 @@
 // except according to those terms.
 
 use std::cmp;
-use std::error::Error;
 use std::fmt::Display;
 use std::fs;
 use std::hash::Hash;
 use std::ops::Range;
 use std::str;
 
+use anyhow::Result;
 use bio::io::fasta;
 use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb};
 use counter::Counter;
@@ -79,7 +79,7 @@ pub fn collect_variants(
     omit_snvs: bool,
     omit_indels: bool,
     indel_len_range: Option<Range<u32>>,
-) -> Result<Vec<Option<model::Variant>>, Box<dyn Error>> {
+) -> Result<Vec<Option<model::Variant>>> {
     let pos = record.pos();
     let svlens = match record.info(b"SVLEN").integer() {
         Ok(Some(svlens)) => Some(
@@ -243,9 +243,7 @@ pub fn collect_variants(
                         (alt_allele.len() as i32 - ref_allele.len() as i32).abs() as u32;
                     // TODO fix position if variant is like this: cttt -> ct
 
-                    if omit_indels {
-                        None
-                    } else if !is_valid_len(indel_len) {
+                    if omit_indels || !is_valid_len(indel_len) {
                         None
                     } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
                         Some(model::Variant::Deletion(
@@ -283,7 +281,7 @@ impl ReferenceBuffer {
     }
 
     /// Load given chromosome and return it as a slice. This is O(1) if chromosome was loaded before.
-    pub fn seq(&mut self, chrom: &[u8]) -> Result<&[u8], Box<dyn Error>> {
+    pub fn seq(&mut self, chrom: &[u8]) -> Result<&[u8]> {
         if let Some(ref last_chrom) = self.chrom {
             if last_chrom == &chrom {
                 return Ok(&self.sequence);
@@ -311,7 +309,7 @@ pub fn tags_prob_sum(
     record: &mut bcf::Record,
     tags: &[String],
     vartype: Option<&model::VariantType>,
-) -> Result<Vec<Option<LogProb>>, Box<dyn Error>> {
+) -> Result<Vec<Option<LogProb>>> {
     let variants = (utils::collect_variants(record, false, false, None))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
@@ -364,7 +362,7 @@ pub fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: &model::VariantType,
-) -> Result<Vec<NotNan<f64>>, Box<dyn Error>>
+) -> Result<Vec<NotNan<f64>>>
 where
     E: Event,
 {
@@ -404,7 +402,7 @@ pub fn filter_by_threshold<E: Event>(
     out: &mut bcf::Writer,
     events: &[E],
     vartype: &model::VariantType,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     let filter = |record: &mut bcf::Record| {
         let probs = utils::tags_prob_sum(record, &tags, Some(vartype))?;
@@ -431,9 +429,9 @@ pub fn filter_calls<F, I, II>(
     calls: &mut bcf::Reader,
     out: &mut bcf::Writer,
     filter: F,
-) -> Result<(), Box<dyn Error>>
+) -> Result<()>
 where
-    F: Fn(&mut bcf::Record) -> Result<II, Box<dyn Error>>,
+    F: Fn(&mut bcf::Record) -> Result<II>,
     I: Iterator<Item = bool>,
     II: IntoIterator<Item = bool, IntoIter = I>,
 {
@@ -482,7 +480,7 @@ impl Overlap {
         start: u32,
         variant: &model::Variant,
         consider_clips: bool,
-    ) -> Result<Overlap, Box<dyn Error>> {
+    ) -> Result<Overlap> {
         let mut pos = record.pos() as u32;
         let mut end_pos = cigar.end_pos() as u32;
 
@@ -648,7 +646,7 @@ impl MiniLogProb {
     pub fn new(prob: LogProb) -> Self {
         let half = f16::from_f64(*prob);
         let proj = half.to_f64();
-        if *prob < -10.0 && proj.floor() == prob.floor() {
+        if *prob < -10.0 && proj.floor() as i64 == prob.floor() as i64 {
             MiniLogProb::F16(half)
         } else {
             MiniLogProb::F32(*prob as f32)

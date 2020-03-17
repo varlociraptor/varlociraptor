@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ops::{Deref, DerefMut};
 
+use anyhow::Result;
 use serde_yaml;
 use vec_map::VecMap;
 
@@ -10,7 +11,6 @@ pub mod formula;
 pub mod vaftree;
 
 use crate::errors;
-use crate::errors::Result;
 pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub use crate::grammar::vaftree::VAFTree;
 

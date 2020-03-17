@@ -5,11 +5,11 @@
 
 use std::cell::{RefCell, RefMut};
 use std::collections::BTreeMap;
-use std::error::Error;
 use std::f64;
 use std::path::Path;
 use std::str;
 
+use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use bio_types::strand::Strand;
 use derive_builder::Builder;
@@ -95,7 +95,7 @@ impl SubsampleCandidates {
 
 pub fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
-) -> Result<alignment_properties::AlignmentProperties, Box<dyn Error>> {
+) -> Result<alignment_properties::AlignmentProperties> {
     let mut bam = bam::Reader::from_path(path)?;
     Ok(alignment_properties::AlignmentProperties::estimate(
         &mut bam,
@@ -186,7 +186,7 @@ impl Sample {
         variant: &Variant,
         chrom: &[u8],
         chrom_seq: &[u8],
-    ) -> Result<Pileup, Box<dyn Error>> {
+    ) -> Result<Pileup> {
         let centerpoint = variant.centerpoint(start);
 
         for vartype in &self.omit_repeat_regions {
@@ -398,7 +398,7 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
-    ) -> Result<Option<Observation>, Box<dyn Error>> {
+    ) -> Result<Option<Observation>> {
         let mut evidence: RefMut<dyn evidence::reads::AbstractReadEvidence> = match variant {
             &Variant::Deletion(_) | &Variant::Insertion(_) => self.indel_read_evidence.borrow_mut(),
             &Variant::SNV(_) => self.snv_read_evidence.borrow_mut(),
@@ -464,19 +464,18 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
-    ) -> Result<Option<Observation>, Box<dyn Error>> {
-        let prob_read = |record: &bam::Record,
-                         cigar: &CigarStringView|
-         -> Result<(LogProb, LogProb), Box<dyn Error>> {
-            // Calculate read evidence.
-            // We also calculate it in case of no overlap. Otherwise, there would be a bias due to
-            // non-overlapping fragments having higher likelihoods.
-            Ok(self
-                .indel_read_evidence
-                .borrow_mut()
-                .prob(record, cigar, start, variant, chrom_seq)?
-                .unwrap())
-        };
+    ) -> Result<Option<Observation>> {
+        let prob_read =
+            |record: &bam::Record, cigar: &CigarStringView| -> Result<(LogProb, LogProb)> {
+                // Calculate read evidence.
+                // We also calculate it in case of no overlap. Otherwise, there would be a bias due to
+                // non-overlapping fragments having higher likelihoods.
+                Ok(self
+                    .indel_read_evidence
+                    .borrow_mut()
+                    .prob(record, cigar, start, variant, chrom_seq)?
+                    .unwrap())
+            };
 
         let left_cigar = left_record.cigar_cached().unwrap();
         let right_cigar = right_record.cigar_cached().unwrap();

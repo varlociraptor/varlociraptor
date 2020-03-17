@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
-use std::error::Error;
 use std::str;
 
+use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
@@ -13,7 +13,7 @@ use crate::{Event, SimpleEvent};
 
 /// Consider only variants in coding regions.
 /// We rely on the ANN field for this.
-fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool, Box<dyn Error>> {
+fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool> {
     for ann in rec
         .info(b"ANN")
         .string()?
@@ -46,7 +46,7 @@ pub fn estimate(
     somatic_tumor_events: &[String],
     tumor_name: &str,
     coding_genome_size: u64,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     let mut bcf = bcf::Reader::from_stdin()?;
     let header = bcf.header().to_owned();
 

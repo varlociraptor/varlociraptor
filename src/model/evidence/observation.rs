@@ -5,6 +5,7 @@
 
 use std::f64;
 
+use anyhow::Result;
 use rgsl::randist::poisson::poisson_pdf;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;

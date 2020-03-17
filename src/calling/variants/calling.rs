@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::path::Path;
 use std::str;
 
+use anyhow::Result;
 use bio::stats::{bayesian, LogProb};
 use derive_builder::Builder;
 use itertools::Itertools;
@@ -45,7 +45,7 @@ where
     Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
-    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<dyn Error>> {
+    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
         let mut header = bcf::Header::from_template(
             self.observations
                 .as_ref()
@@ -144,7 +144,7 @@ where
         self.samplenames.len()
     }
 
-    pub fn call(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn call(&mut self) -> Result<()> {
         for obs_reader in self.observations.iter() {
             let mut valid = false;
             for record in obs_reader.header().header_records() {
@@ -267,7 +267,7 @@ where
         &mut self,
         records: &mut grammar::SampleInfo<bcf::Record>,
         event_universe: &[Po::Event],
-    ) -> Result<Option<Call>, Box<dyn Error>> {
+    ) -> Result<Option<Call>> {
         let (mut call, mut variant_builder, snv) = {
             let first_record = records
                 .first_mut()
@@ -293,7 +293,8 @@ where
                     }
                 })
                 .variants(Vec::new())
-                .build()?;
+                .build()
+                .unwrap();
 
             let mut variant_builder = VariantBuilder::default();
             variant_builder.record(first_record)?;
@@ -385,7 +386,7 @@ where
             Some(Vec::new())
         });
 
-        call.variants.push(variant_builder.build()?);
+        call.variants.push(variant_builder.build().unwrap());
 
         Ok(Some(call))
     }

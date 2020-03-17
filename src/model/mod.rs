@@ -203,6 +203,7 @@ impl ContinuousAlleleFreqs {
     }
 
     /// create a left-exclusive allele frequency range
+    #[allow(clippy::float_cmp)]
     pub fn left_exclusive(range: Range<f64>) -> Self {
         if range.start == range.end {
             panic!("ContinuousAlleleFreqs::left_exclusive({}..{}) does not make sense with identical start and end point.", range.start, range.end);
@@ -216,7 +217,9 @@ impl ContinuousAlleleFreqs {
     }
 
     /// create a right-exclusive allele frequency range
+    #[allow(clippy::float_cmp)]
     pub fn right_exclusive(range: Range<f64>) -> Self {
+        // below float comparison has to be exact
         if range.start == range.end {
             panic!("ContinuousAlleleFreqs::right_exclusive({}..{}) does not make sense with identical start and end point.", range.start, range.end);
         }

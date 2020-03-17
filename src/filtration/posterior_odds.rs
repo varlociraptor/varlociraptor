@@ -3,11 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
 use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
-use std::error::Error;
 use std::path::Path;
 
 use crate::utils;
@@ -21,7 +21,7 @@ pub fn filter_by_odds<E, R, W>(
     outbcf: Option<W>,
     events: &[E],
     min_evidence: KassRaftery,
-) -> Result<(), Box<dyn Error>>
+) -> Result<()>
 where
     E: Event,
     R: AsRef<Path>,

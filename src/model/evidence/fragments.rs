@@ -4,10 +4,10 @@
 // except according to those terms.
 
 use std::cmp;
-use std::error::Error;
 use std::f64;
 use std::ops::Range;
 
+use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rgsl::randist::gaussian::ugaussian_P;
@@ -55,14 +55,11 @@ pub fn n_fragment_positions(
 ///
 /// * `left` - left read of the pair
 /// * `right` - right read of the pair
-pub fn estimate_insert_size(
-    left: &bam::Record,
-    right: &bam::Record,
-) -> Result<u32, Box<dyn Error>> {
+pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u32> {
     let left_cigar = left.cigar_cached().unwrap();
     let right_cigar = right.cigar_cached().unwrap();
 
-    let aln = |rec: &bam::Record, cigar| -> Result<(u32, u32), Box<dyn Error>> {
+    let aln = |rec: &bam::Record, cigar| -> Result<(u32, u32)> {
         Ok((
             (rec.pos() as u32).saturating_sub(evidence::Clips::leading(cigar).both()),
             cigar.end_pos() as u32 + evidence::Clips::trailing(cigar).both(),
@@ -143,7 +140,7 @@ impl IndelEvidence {
         insert_size: u32,
         variant: &Variant,
         alignment_properties: &AlignmentProperties,
-    ) -> Result<(LogProb, LogProb), Box<dyn Error>> {
+    ) -> Result<(LogProb, LogProb)> {
         let shift = match variant {
             &Variant::Deletion(_) => variant.len() as f64,
             &Variant::Insertion(_) => {

@@ -5,11 +5,11 @@
 
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
-use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use anyhow::{Context, Result};
 use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
@@ -441,7 +441,7 @@ impl Default for Varlociraptor {
     }
 }
 
-pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
+pub fn run(opt: Varlociraptor) -> Result<()> {
     let opt_clone = opt.clone();
     match opt {
         Varlociraptor::Preprocess { kind } => {
@@ -476,7 +476,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                     let alignment_properties =
                         est_or_load_alignment_properites(&alignment_properties, &bam)?;
 
-                    let bam_reader = bam::IndexedReader::from_path(bam)?;
+                    let bam_reader = bam::IndexedReader::from_path(bam)
+                        .context("Unable to read BAM/CRAM file.")?;
 
                     let sample = SampleBuilder::default()
                         .error_probs(
@@ -490,7 +491,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                         .protocol_strandedness(protocol_strandedness)
                         .alignments(bam_reader, alignment_properties)
                         .use_fragment_evidence(!alignment_properties.insert_size().mean.is_nan())
-                        .build()?;
+                        .build()
+                        .unwrap();
 
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
@@ -498,10 +500,14 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             .max_indel_len(max_indel_len)
                             .omit_snvs(omit_snvs)
                             .omit_indels(omit_indels)
-                            .reference(fasta::IndexedReader::from_file(&reference)?)?
+                            .reference(
+                                fasta::IndexedReader::from_file(&reference)
+                                    .context("Unable to read genome reference.")?,
+                            )?
                             .inbcf(candidates)?
                             .outbcf(output, &opt_clone)?
-                            .build()?;
+                            .build()
+                            .unwrap();
 
                     processor.process()?
                 }
@@ -533,7 +539,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 
                     let call_generic = |scenario: grammar::Scenario,
                                         observations: PathMap|
-                     -> Result<(), Box<dyn Error>> {
+                     -> Result<()> {
                         let mut contaminations = scenario.sample_info();
                         let mut resolutions = scenario.sample_info();
                         let mut sample_names = scenario.sample_info();
@@ -583,7 +589,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             .prior(FlatPrior::new())
                             .contaminations(contaminations.build())
                             .resolutions(resolutions.build())
-                            .build()?;
+                            .build()
+                            .unwrap();
 
                         // setup caller
                         let mut caller = calling::variants::CallerBuilder::default()
@@ -592,7 +599,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                             .scenario(scenario)
                             .model(model)
                             .outbcf(output.as_ref())?
-                            .build()?;
+                            .build()
+                            .unwrap();
 
                         // call
                         caller.call()?;
@@ -630,7 +638,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                     let mut testcase = testcase_builder
                                         .scenario(Some(scenario.to_owned()))
                                         .mode(testcase::Mode::Generic)
-                                        .build()?;
+                                        .build()
+                                        .unwrap();
                                     info!("Writing testcase.");
                                     testcase.write()?;
                                     return Ok(());
@@ -677,7 +686,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                                     .scenario(None)
                                     .mode(testcase::Mode::TumorNormal)
                                     .purity(Some(purity))
-                                    .build()?;
+                                    .build()
+                                    .unwrap();
 
                                 testcase.write()?;
                                 return Ok(());
@@ -737,7 +747,8 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
                         .min_bayes_factor(min_bayes_factor)
                         .purity(purity)
                         .max_dist(max_dist)
-                        .build()?;
+                        .build()
+                        .unwrap();
                     caller.call()?;
                 }
             }
@@ -809,7 +820,7 @@ pub fn run(opt: Varlociraptor) -> Result<(), Box<dyn Error>> {
 pub fn est_or_load_alignment_properites(
     alignment_properties_file: &Option<impl AsRef<Path>>,
     bam_file: impl AsRef<Path>,
-) -> Result<AlignmentProperties, Box<dyn Error>> {
+) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,

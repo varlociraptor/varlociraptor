@@ -7,10 +7,10 @@ pub mod calling;
 pub mod preprocessing;
 
 use std::collections::HashMap;
-use std::error::Error;
 use std::str;
 use std::u8;
 
+use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use derive_builder::Builder;
 use itertools::join;
@@ -41,10 +41,7 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn write_preprocessed_record(
-        &self,
-        bcf_writer: &mut bcf::Writer,
-    ) -> Result<(), Box<dyn Error>> {
+    pub fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
         for variant in self.variants.iter() {
             let mut record = bcf_writer.empty_record();
@@ -73,7 +70,7 @@ impl Call {
         Ok(())
     }
 
-    pub fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<(), Box<dyn Error>> {
+    pub fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
         for (first_grouper, group) in self
             .variants
@@ -249,7 +246,7 @@ pub struct Variant {
 
 impl VariantBuilder {
     /// Build the variant from a single-allele bcf record.
-    pub fn record(&mut self, record: &mut bcf::Record) -> Result<&mut Self, Box<dyn Error>> {
+    pub fn record(&mut self, record: &mut bcf::Record) -> Result<&mut Self> {
         let alleles = record.alleles();
         Ok(self
             .ref_allele(alleles[0].to_owned())

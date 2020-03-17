@@ -1,12 +1,12 @@
 use std::cmp;
 use std::collections::HashMap;
-use std::error::Error;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str;
 
+use anyhow::Result;
 use askama::Template;
 use bio::io::fasta;
 use derive_builder::Builder;
@@ -76,15 +76,15 @@ pub struct Testcase {
 }
 
 impl TestcaseBuilder {
-    pub fn reference(self, path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+    pub fn reference(self, path: impl AsRef<Path>) -> Result<Self> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
     }
 
-    pub fn candidates(self, path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+    pub fn candidates(self, path: impl AsRef<Path>) -> Result<Self> {
         Ok(self.candidate_reader(bcf::Reader::from_path(path)?))
     }
 
-    pub fn locus(self, locus: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn locus(self, locus: &str) -> Result<Self> {
         if locus == "all" {
             Ok(self.chrom_name(None).pos(None).idx(0))
         } else if let Some(captures) = TESTCASE_RE.captures(locus) {
@@ -114,7 +114,7 @@ impl TestcaseBuilder {
         name: &str,
         bam: impl AsRef<Path>,
         options: &cli::Varlociraptor,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self> {
         if self.bams.is_none() {
             self = self.bams(HashMap::new());
         }
@@ -138,7 +138,7 @@ impl TestcaseBuilder {
 }
 
 impl Testcase {
-    fn variants(&mut self) -> Result<Vec<bcf::Record>, Box<dyn Error>> {
+    fn variants(&mut self) -> Result<Vec<bcf::Record>> {
         // get variant
         let rid = if let Some(name) = self.chrom_name.as_ref() {
             Some(self.candidate_reader.header().name2rid(name)?)
@@ -168,7 +168,7 @@ impl Testcase {
         }
     }
 
-    pub fn write(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn write(&mut self) -> Result<()> {
         fs::create_dir_all(&self.prefix)?;
 
         let candidate_filename = Path::new("candidates.vcf");

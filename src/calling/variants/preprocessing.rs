@@ -3,11 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::error::Error;
 use std::fmt::Debug;
 use std::fs;
 use std::path::Path;
 
+use anyhow::Result;
 use bincode;
 use bio::io::fasta;
 use bio::stats::LogProb;
@@ -42,11 +42,11 @@ pub struct ObservationProcessor {
 }
 
 impl ObservationProcessorBuilder {
-    pub fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self, Box<dyn Error>> {
+    pub fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self> {
         Ok(self.reference_buffer(utils::ReferenceBuffer::new(reader)))
     }
 
-    pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self, Box<dyn Error>> {
+    pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
         Ok(self.bcf_reader(if let Some(path) = path {
             bcf::Reader::from_path(path)?
         } else {
@@ -58,7 +58,7 @@ impl ObservationProcessorBuilder {
         self,
         path: Option<P>,
         options: &cli::Varlociraptor,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Result<Self> {
         let mut header = bcf::Header::new();
 
         // register SVLEN
@@ -126,7 +126,7 @@ impl ObservationProcessorBuilder {
 }
 
 impl ObservationProcessor {
-    pub fn process(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn process(&mut self) -> Result<()> {
         let mut i = 0;
         loop {
             let mut record = self.bcf_reader.empty_record();
@@ -146,7 +146,7 @@ impl ObservationProcessor {
         }
     }
 
-    fn process_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>, Box<dyn Error>> {
+    fn process_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>> {
         let start = record.pos();
         let chrom = chrom(&self.bcf_reader, &record);
         let variants = utils::collect_variants(
@@ -172,7 +172,8 @@ impl ObservationProcessor {
                 }
             })
             .variants(Vec::new())
-            .build()?;
+            .build()
+            .unwrap();
 
         for variant in variants.into_iter() {
             if let Some(variant) = variant {
@@ -188,7 +189,8 @@ impl ObservationProcessor {
                     VariantBuilder::default()
                         .variant(&variant, start, chrom_seq)
                         .observations(Some(pileup))
-                        .build()?,
+                        .build()
+                        .unwrap(),
                 );
             }
         }
@@ -200,10 +202,8 @@ impl ObservationProcessor {
 pub static OBSERVATION_FORMAT_VERSION: &'static str = "2";
 
 /// Read observations from BCF record.
-pub fn read_observations<'a>(
-    record: &'a mut bcf::Record,
-) -> Result<Vec<Observation>, Box<dyn Error>> {
-    fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T, Box<dyn Error>>
+pub fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observation>> {
+    fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug,
     {
@@ -259,10 +259,7 @@ pub fn read_observations<'a>(
     Ok(obs)
 }
 
-pub fn write_observations(
-    observations: &[Observation],
-    record: &mut bcf::Record,
-) -> Result<(), Box<dyn Error>> {
+pub fn write_observations(observations: &[Observation], record: &mut bcf::Record) -> Result<()> {
     let vec = || Vec::with_capacity(observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();
@@ -287,11 +284,7 @@ pub fn write_observations(
         reverse_strand.push(obs.reverse_strand);
     }
 
-    fn push_values<T>(
-        record: &mut bcf::Record,
-        tag: &[u8],
-        values: &T,
-    ) -> Result<(), Box<dyn Error>>
+    fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
     where
         T: serde::Serialize + Debug,
     {
@@ -340,9 +333,7 @@ pub fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"REVERSE_STRAND");
 }
 
-pub fn read_preprocess_options<P: AsRef<Path>>(
-    bcfpath: P,
-) -> Result<cli::Varlociraptor, Box<dyn Error>> {
+pub fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {
     let reader = bcf::Reader::from_path(&bcfpath)?;
     for rec in reader.header().header_records() {
         match rec {

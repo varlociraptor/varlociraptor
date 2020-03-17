@@ -1,6 +1,6 @@
-use std::error::Error;
 use std::path::{Path, PathBuf};
 
+use anyhow::Result;
 use yaml_rust::Yaml;
 
 use crate::common::Testcase;
@@ -20,7 +20,7 @@ impl Testcase for TestcaseVersion2 {
         &self.path
     }
 
-    fn reference(&self) -> Result<Box<dyn AsRef<Path>>, Box<dyn Error>> {
+    fn reference(&self) -> Result<Box<dyn AsRef<Path>>> {
         let reference_path = self.path.join(self.reference_path());
         self.index_reference(&reference_path);
 

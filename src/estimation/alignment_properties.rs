@@ -4,12 +4,12 @@
 // except according to those terms.
 
 use std::cmp;
-use std::error::Error;
 use std::f64;
 use std::io;
 use std::str::FromStr;
 use std::u32;
 
+use anyhow::Result;
 use csv;
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -73,7 +73,7 @@ impl AlignmentProperties {
 
     /// Estimate `AlignmentProperties` from first 10000 fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
-    pub fn estimate<R: bam::Read>(bam: &mut R) -> Result<Self, Box<dyn Error>> {
+    pub fn estimate<R: bam::Read>(bam: &mut R) -> Result<Self> {
         let mut properties = AlignmentProperties {
             insert_size: None,
             max_del_cigar_len: 0,
@@ -217,9 +217,7 @@ pub struct InsertSize {
 
 impl InsertSize {
     /// Obtain insert size from samtools stats output.
-    pub fn from_samtools_stats<R: io::Read>(
-        samtools_stats: &mut R,
-    ) -> Result<InsertSize, Box<dyn Error>> {
+    pub fn from_samtools_stats<R: io::Read>(samtools_stats: &mut R) -> Result<InsertSize> {
         let mut rdr = csv::ReaderBuilder::new()
             .delimiter(b'\t')
             .comment(Some(b'#'))

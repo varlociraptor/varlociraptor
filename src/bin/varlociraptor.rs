@@ -3,12 +3,12 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::error::Error;
+use anyhow::Result;
 
 use structopt::StructOpt;
 use varlociraptor::cli::{run, Varlociraptor};
 
-pub fn main() -> Result<(), Box<dyn Error>> {
+pub fn main() -> Result<()> {
     let opt = Varlociraptor::from_args();
 
     // setup logger
