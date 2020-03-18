@@ -3,12 +3,14 @@ import matplotlib.gridspec as gridspec
 import seaborn as sns
 import numpy as np
 import math
-
+from scipy.integrate import quad
+import matplotlib
 
 HETEROZYGOSITY = 0.001
 PLOIDY = 2
 EFFMUT = 350000
 GENOME_N = 3.5e9
+EPS = 0.0001
 
 
 def prior_normal(f):
@@ -41,22 +43,24 @@ plt.ylabel("density")
 plt.savefig("tumor-normal-prior.svg", bbox_inches="tight")
 
 
-fig = plt.figure(figsize=(10, 3), constrained_layout=True)
-spec = gridspec.GridSpec(ncols=3, nrows=1, figure=fig)
+plt.figure(constrained_layout=True)
 
-for i, f_normal in enumerate([0.0, 0.5, 1.0]):
-    x = np.linspace(0.0, 1.0, 100)
+x = np.linspace(0.0001, 1.0, 100)
 
-    fig.add_subplot(spec[0, i])
+norm = matplotlib.colors.Normalize(vmin=1, vmax=1000000)
+cmap = matplotlib.cm.get_cmap("viridis")
 
-    for effmut in range(1, 1_000_000, 10000):
-        y = [1.0 / prior(f, f_normal, effmut) for f in x]
+for effmut in range(1, 1_000_000, 10000):
+    prob = lambda f: prior(f, 0.0, effmut)
+
+    y = [quad(prob, f, 1.0)[0] for f in x]
+    y = 1.0 / np.array(y)
+    #y = [1.0 / prior(f, f_normal, effmut) for f in x]
     
-        plt.semilogy(x, y, "-", color="grey")
+    plt.semilogy(x, y, "-", color=cmap(norm(effmut)))
 
 sns.despine()
-plt.legend()
-plt.xlabel("tumor allele freq")
-plt.ylabel("bases until mutation")
+plt.xlabel("minimum tumor allele freq")
+plt.ylabel("bases until somatic mutation")
 
 plt.savefig("tumor-normal-prior-bases-until.svg", bbox_inches="tight")
