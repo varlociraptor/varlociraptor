@@ -263,7 +263,7 @@ impl VariantBuilder {
         match variant {
             model::Variant::Deletion(l) => {
                 let l = l.clone();
-                let svlen = -l as i32;
+                let svlen = -(l as i32);
                 if l <= 50 {
                     self.ref_allele(chrom_seq[start..start + 1 + l as usize].to_ascii_uppercase())
                         .alt_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
