@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.6.4] - 2020-03-18
+- Report negative SVLEN for deletions again. The htslib bug is actually fixed already. However, it is mandatory to rerun varlociraptor preprocess to avoid it downstream.
+
+## [1.6.3] - 2020-03-17
+- Cleanup of debug messages.
+
 ## [1.6.2] - 2020-03-17
 - Fix odds filtering arguments.
 - Improved error messages.
