@@ -27,6 +27,7 @@ extern crate derive_builder;
 #[macro_use]
 extern crate shrinkwraprs;
 
+pub mod variants;
 pub mod calling;
 pub mod cli;
 pub mod constants;

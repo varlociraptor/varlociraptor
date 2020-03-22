@@ -50,7 +50,7 @@ petgraph = "0.4"
 derive-new = "0.5"
 pest = "2"
 pest_derive = "2"
-getset = "0.0.8"
+getset = "0.1.0"
 half = { version = "1.4", features = ["serde"] }
 bincode = "1.2"
 bv = "0.11"
