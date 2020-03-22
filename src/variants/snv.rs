@@ -1,10 +1,10 @@
-use rust_htslib::bam;
-use bio::stats::LogProb;
 use anyhow::Result;
+use bio::stats::LogProb;
+use rust_htslib::bam;
 
-use crate::variants::{Variant, AlleleProb, ReadEvidence};
-use crate::utils::{Overlap, GenomicLocus};
 use crate::model::evidence::reads::prob_read_base;
+use crate::utils::{GenomicLocus, Overlap};
+use crate::variants::{AlleleProb, ReadEvidence, Variant};
 
 pub struct SNV {
     locus: GenomicLocus,
@@ -26,7 +26,11 @@ impl Variant for SNV {
 
 impl ReadEvidence for SNV {
     fn prob_alleles(&self, read: &mut bam::Record) -> Result<Option<AlleleProb>> {
-        if let Some(qpos) = read.cigar_cached().unwrap().read_pos(self.locus.pos(), false, false)? {
+        if let Some(qpos) = read
+            .cigar_cached()
+            .unwrap()
+            .read_pos(self.locus.pos(), false, false)?
+        {
             let read_base = read.seq()[qpos as usize];
             let base_qual = read.qual()[qpos as usize];
             let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);

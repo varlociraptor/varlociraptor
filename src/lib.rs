@@ -27,7 +27,6 @@ extern crate derive_builder;
 #[macro_use]
 extern crate shrinkwraprs;
 
-pub mod variants;
 pub mod calling;
 pub mod cli;
 pub mod constants;
@@ -39,6 +38,7 @@ pub mod grammar;
 pub mod model;
 pub mod testcase;
 pub mod utils;
+pub mod variants;
 
 pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
 pub use crate::model::likelihood;

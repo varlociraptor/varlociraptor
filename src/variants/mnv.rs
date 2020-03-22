@@ -1,10 +1,10 @@
-use rust_htslib::bam;
-use bio::stats::LogProb;
 use anyhow::Result;
+use bio::stats::LogProb;
+use rust_htslib::bam;
 
-use crate::variants::{Variant, AlleleProb, ReadEvidence};
-use crate::utils::{Overlap, GenomicLocus};
 use crate::model::evidence::reads::prob_read_base;
+use crate::utils::{GenomicLocus, Overlap};
+use crate::variants::{AlleleProb, ReadEvidence, Variant};
 
 pub struct MNV {
     locus: GenomicLocus,
@@ -34,7 +34,12 @@ impl ReadEvidence for MNV {
     fn prob_alleles(&self, read: &mut bam::Record) -> Result<Option<AlleleProb>> {
         let mut prob_ref = LogProb::ln_one();
         let mut prob_alt = LogProb::ln_one();
-        for ((alt_base, ref_base), pos) in self.alt_bases.iter().zip(self.ref_bases.iter()).zip(self.locus.pos()..self.locus.pos() + self.len()) {
+        for ((alt_base, ref_base), pos) in self
+            .alt_bases
+            .iter()
+            .zip(self.ref_bases.iter())
+            .zip(self.locus.pos()..self.locus.pos() + self.len())
+        {
             if let Some(qpos) = read.cigar_cached().unwrap().read_pos(pos, false, false)? {
                 let read_base = read.seq()[qpos as usize];
                 let base_qual = read.qual()[qpos as usize];
