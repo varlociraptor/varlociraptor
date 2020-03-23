@@ -38,3 +38,19 @@ pub trait ReadPairEvidence {
     /// Calculate probability to sample a read length like the given one from the alt allele.
     fn prob_sample_alt(&self, left: &mut bam::Record, right: &mut bam::Record) -> LogProb;
 }
+
+
+pub trait EvidenceFetcher {
+    fn fetch(buffer: &mut bam::buffer::RecordBuffer) -> Result<()>;
+}
+
+pub struct SingleReadEvidenceFetcher<V: Variant> {
+    reads: Vec<bam::Record>,
+    variant: V
+}
+
+impl EvidenceFetcher for SingleReadEvidenceFetcher {
+    fn fetch(buffer: &mut bam::buffer::RecordBuffer) -> Result<()> {
+        buffer.fetch(chrom: &[u8], start: u32, end: u32)
+    }
+}
