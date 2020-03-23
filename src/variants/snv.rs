@@ -1,19 +1,32 @@
 use anyhow::Result;
 use bio::stats::LogProb;
-use rust_htslib::bam;
 
 use crate::model::evidence::reads::prob_read_base;
 use crate::utils::{GenomicLocus, Overlap};
-use crate::variants::{AlleleProb, ReadEvidence, Variant};
+use crate::variants::{AlleleProb, Variant, SingleLocus, SingleEndEvidence};
+use crate::estimation::alignment_properties::AlignmentProperties;
 
 pub struct SNV {
-    locus: GenomicLocus,
+    locus: SingleLocus,
     ref_base: u8,
     alt_base: u8,
 }
 
-impl Variant for SNV {
-    fn overlap(&self, read: &mut bam::Record) -> Overlap {
+impl SNV {
+    pub fn new(locus: GenomicLocus, ref_base: u8, alt_base: u8) -> Self {
+        SNV {
+            locus: SingleLocus::new(locus, 1),
+            ref_base, 
+            alt_base,
+        }
+    }
+}
+
+impl<'a> Variant<'a> for SNV {
+    type Evidence = SingleEndEvidence<'a>;
+    type Loci = SingleLocus;
+
+    fn overlap(&self, read: &SingleEndEvidence) -> Overlap {
         let read_start = read.pos() as u32;
         let read_end = read.cigar_cached().unwrap().end_pos() as u32;
         if read_start <= self.locus.pos() && read_end > self.locus.pos() {
@@ -22,10 +35,12 @@ impl Variant for SNV {
             Overlap::None
         }
     }
-}
 
-impl ReadEvidence for SNV {
-    fn prob_alleles(&self, read: &mut bam::Record) -> Result<Option<AlleleProb>> {
+    fn loci(&self) -> &SingleLocus {
+        &self.locus
+    }
+
+    fn prob_alleles(&self, read: &SingleEndEvidence) -> Result<Option<AlleleProb>> {
         if let Some(qpos) = read
             .cigar_cached()
             .unwrap()
@@ -60,7 +75,7 @@ impl ReadEvidence for SNV {
         }
     }
 
-    fn prob_sample_alt(&self, read: &mut bam::Record) -> LogProb {
+    fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

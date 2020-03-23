@@ -26,6 +26,8 @@ extern crate strum_macros;
 extern crate derive_builder;
 #[macro_use]
 extern crate shrinkwraprs;
+#[macro_use]
+extern crate derefable;
 
 pub mod calling;
 pub mod cli;

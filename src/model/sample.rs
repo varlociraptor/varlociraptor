@@ -26,6 +26,23 @@ use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::{Variant, VariantType};
 use crate::utils::{is_repeat_variant, Overlap};
 
+pub struct RecordBuffer {
+    inner: bam::RecordBuffer,
+    window: u32
+}
+
+impl RecordBuffer {
+    pub fn fetch_surrounding(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<()> {
+        self.inner.fetch(chrom, start.saturating_sub(self.window), end.saturating_sub(self.window))?;
+
+        Ok(())
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item=&bam::Record> {
+        self.inner.iter().filter(|record| is_valid_record(record))
+    }
+}
+
 /// Strand combination for read pairs as given by the sequencing protocol.
 #[derive(
     Display, Debug, Clone, Copy, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr,

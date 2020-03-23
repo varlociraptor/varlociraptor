@@ -3,42 +3,56 @@ use bio::stats::LogProb;
 use rust_htslib::bam;
 
 use crate::model::evidence::reads::prob_read_base;
-use crate::utils::{GenomicLocus, Overlap};
-use crate::variants::{AlleleProb, ReadEvidence, Variant};
+use crate::utils::{Overlap, GenomicLocus};
+use crate::variants::{AlleleProb, Variant, SingleEndEvidence, SingleLocus};
+use crate::estimation::alignment_properties::AlignmentProperties;
 
 pub struct MNV {
-    locus: GenomicLocus,
+    locus: SingleLocus,
     ref_bases: Vec<u8>,
     alt_bases: Vec<u8>,
 }
 
 impl MNV {
-    pub fn len(&self) -> u32 {
-        self.ref_bases.len() as u32
+    pub fn new(locus: GenomicLocus, ref_bases: Vec<u8>, alt_bases: Vec<u8>) -> Self {
+        MNV {
+            locus: SingleLocus::new(locus, alt_bases.len() as u32),
+            ref_bases,
+            alt_bases,
+        }
+    }
+
+    pub fn locus(&self) -> &SingleLocus {
+        self.loci()
     }
 }
 
-impl Variant for MNV {
-    fn overlap(&self, read: &mut bam::Record) -> Overlap {
+impl<'a> Variant<'a> for MNV {
+    type Evidence = SingleEndEvidence<'a>;
+    type Loci = SingleLocus;
+
+    fn overlap(&self, read: &SingleEndEvidence) -> Overlap {
         let read_start = read.pos() as u32;
         let read_end = read.cigar_cached().unwrap().end_pos() as u32;
-        if read_start <= self.locus.pos() && read_end > self.locus.pos() + self.len() {
-            Overlap::Enclosing(self.len())
+        if read_start <= self.locus.pos() && read_end > self.locus.pos() + self.locus().len() {
+            Overlap::Enclosing(self.locus().len())
         } else {
             Overlap::None
         }
     }
-}
 
-impl ReadEvidence for MNV {
-    fn prob_alleles(&self, read: &mut bam::Record) -> Result<Option<AlleleProb>> {
+    fn loci(&self) -> &SingleLocus {
+        &self.locus
+    }
+
+    fn prob_alleles(&self, read: &SingleEndEvidence) -> Result<Option<AlleleProb>> {
         let mut prob_ref = LogProb::ln_one();
         let mut prob_alt = LogProb::ln_one();
         for ((alt_base, ref_base), pos) in self
             .alt_bases
             .iter()
             .zip(self.ref_bases.iter())
-            .zip(self.locus.pos()..self.locus.pos() + self.len())
+            .zip(self.locus.pos()..self.locus.pos() + self.locus().len())
         {
             if let Some(qpos) = read.cigar_cached().unwrap().read_pos(pos, false, false)? {
                 let read_base = read.seq()[qpos as usize];
@@ -71,7 +85,7 @@ impl ReadEvidence for MNV {
         Ok(Some(AlleleProb::new(prob_ref, prob_alt)))
     }
 
-    fn prob_sample_alt(&self, read: &mut bam::Record) -> LogProb {
+    fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
     }
 }

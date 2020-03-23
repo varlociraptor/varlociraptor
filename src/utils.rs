@@ -28,7 +28,7 @@ use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-3;
 
-#[derive(new, Getters, CopyGetters)]
+#[derive(new, Getters, CopyGetters, Debug)]
 pub struct GenomicLocus {
     #[getset(get = "pub")]
     chrom: Vec<u8>,
