@@ -1,6 +1,5 @@
 use anyhow::Result;
 use bio::stats::LogProb;
-use rust_htslib::bam;
 
 use crate::model::evidence::reads::prob_read_base;
 use crate::utils::{Overlap, GenomicLocus};
