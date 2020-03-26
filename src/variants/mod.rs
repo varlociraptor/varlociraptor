@@ -79,6 +79,7 @@ where
         max_depth: usize,
     ) -> Result<Vec<Observation>> {
         let locus = self.loci();
+        // TODO smaller window, constrained by read length only!
         buffer.fetch(locus)?;
 
         let candidates: Vec<_> = buffer
@@ -144,6 +145,7 @@ where
         // in slightly different probabilities each time.
         let mut candidate_records = BTreeMap::new();
 
+        // TODO centerpoint locus for deletions (in trait impl)
         let mut fetches = buffer.build_fetches();
         for locus in self.loci().iter() {
             fetches.push(locus);
