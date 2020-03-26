@@ -1,10 +1,11 @@
 use anyhow::Result;
 use bio::stats::LogProb;
+use bio_types::genome::AbstractInterval;
 
-use crate::model::evidence::reads::prob_read_base;
-use crate::utils::{Overlap, GenomicLocus};
-use crate::variants::{AlleleProb, Variant, SingleEndEvidence, SingleLocus};
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::model::evidence::reads::prob_read_base;
+use crate::utils::{GenomicLocus, Overlap};
+use crate::variants::{AlleleProb, SingleEndEvidence, SingleLocus, Variant};
 
 pub struct MNV {
     locus: SingleLocus,
@@ -30,14 +31,11 @@ impl<'a> Variant<'a> for MNV {
     type Evidence = SingleEndEvidence<'a>;
     type Loci = SingleLocus;
 
-    fn overlap(&self, read: &SingleEndEvidence) -> Overlap {
+    fn is_valid_evidence(&self, read: &SingleEndEvidence) -> bool {
         let read_start = read.pos() as u32;
         let read_end = read.cigar_cached().unwrap().end_pos() as u32;
-        if read_start <= self.locus.pos() && read_end > self.locus.pos() + self.locus().len() {
-            Overlap::Enclosing(self.locus().len())
-        } else {
-            Overlap::None
-        }
+
+        read_start <= self.locus.range().start && read_end > self.locus.range().end
     }
 
     fn loci(&self) -> &SingleLocus {

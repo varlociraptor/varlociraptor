@@ -7,17 +7,17 @@ use std::f64;
 use std::ops::Deref;
 
 use anyhow::Result;
+use bio::stats::{LogProb, Prob};
 use rgsl::randist::poisson::poisson_pdf;
+use rust_htslib::bam;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
-use rust_htslib::bam;
-use bio::stats::LogProb;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
 
-use crate::model::sample;
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::model::sample;
 use crate::variants::Variant;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
@@ -146,23 +146,69 @@ impl Serialize for Observation {
 }
 
 /// Something that can be converted into observations.
-pub trait Observable<'a, E>
+pub trait Observable<'a, E>: Variant<'a, Evidence=E>
 where
-    E: Evidence<'a>
+    E: Evidence<'a>,
 {
-    fn extract_observations(&self, buffer: &'a mut sample::RecordBuffer, alignment_properties: &AlignmentProperties, max_depth: usize) -> Result<Vec<Observation>>;
+    fn extract_observations(
+        &self,
+        buffer: &'a mut sample::RecordBuffer,
+        alignment_properties: &mut AlignmentProperties,
+        max_depth: usize,
+    ) -> Result<Vec<Observation>>;
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
     /// correctly.
     fn prob_mapping(&self, evidence: &E) -> LogProb;
-    
+
     /// Calculate strand information.
     fn strand(&self, evidence: &E) -> Strand;
+
+    fn evidence_to_observations(
+        &self,
+        candidates: &[E],
+        alignment_properties: &mut AlignmentProperties,
+        max_depth: usize,
+    ) -> Result<Vec<Observation>> {
+        let mut subsample = sample::SubsampleCandidates::new(max_depth, candidates.len());
+
+        candidates
+            .iter()
+            .filter_map(|evidence| {
+                if subsample.keep() {
+                    match self.prob_alleles(evidence) {
+                        Ok(Some(prob_alleles)) => {
+                            let strand = self.strand(evidence);
+
+                            Some(Ok(ObservationBuilder::default()
+                                .prob_mapping_mismapping(self.prob_mapping(evidence))
+                                .prob_alt(prob_alleles.alt_allele())
+                                .prob_ref(prob_alleles.ref_allele())
+                                .prob_sample_alt(
+                                    self.prob_sample_alt(evidence, alignment_properties),
+                                )
+                                .prob_missed_allele(prob_alleles.missed_allele())
+                                .prob_overlap(LogProb::ln_zero()) // no double overlap possible
+                                .prob_any_strand(LogProb::from(Prob(0.5)))
+                                .forward_strand(strand.forward())
+                                .reverse_strand(strand.reverse())
+                                .build()
+                                .unwrap()))
+                        }
+                        Ok(None) => None,
+                        Err(e) => Some(Err(e)),
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect::<Result<Vec<Observation>>>()
+    }
 }
 
-// pub trait ObservationExtractor<'a, V> 
+// pub trait ObservationExtractor<'a, V>
 // where
-//     V: Variant 
+//     V: Variant
 // {
 //     fn extract_observations(&self, variant: V, buffer: &'a mut sample::RecordBuffer, alignment_properties: &AlignmentProperties, max_depth: usize) -> Result<Vec<Observation>>;
 // }
@@ -178,7 +224,7 @@ pub trait Evidence<'a> {}
 
 #[derive(new)]
 pub struct SingleEndEvidence<'a> {
-    inner: &'a bam::Record
+    inner: &'a bam::Record,
 }
 
 impl<'a> Deref for SingleEndEvidence<'a> {
@@ -191,7 +237,10 @@ impl<'a> Deref for SingleEndEvidence<'a> {
 
 pub enum PairedEndEvidence<'a> {
     SingleEnd(&'a bam::Record),
-    PairedEnd{ left: &'a bam::Record, right: &'a bam::Record }
+    PairedEnd {
+        left: &'a bam::Record,
+        right: &'a bam::Record,
+    },
 }
 
 impl<'a> Evidence<'a> for SingleEndEvidence<'a> {}

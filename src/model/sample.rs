@@ -11,7 +11,7 @@ use std::str;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use bio_types::strand::Strand;
+use bio_types::{strand::Strand, genome, genome::AbstractInterval};
 use derive_builder::Builder;
 use rand::distributions;
 use rand::distributions::Distribution;
@@ -26,20 +26,53 @@ use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::{Variant, VariantType};
 use crate::utils::{is_repeat_variant, Overlap};
 
+#[derive(Getters)]
 pub struct RecordBuffer {
     inner: bam::RecordBuffer,
-    window: u32
+    #[getset(get = "pub")]
+    window: u64,
 }
 
 impl RecordBuffer {
-    pub fn fetch_surrounding(&mut self, chrom: &[u8], start: u32, end: u32) -> Result<()> {
-        self.inner.fetch(chrom, start.saturating_sub(self.window), end.saturating_sub(self.window))?;
+    pub fn fetch(&mut self, interval: &genome::Interval) -> Result<()> {
+        self.inner.fetch(
+            interval.contig().as_bytes(),
+            interval.range().start.saturating_sub(self.window),
+            interval.range().end + self.window,
+        )?;
 
         Ok(())
     }
 
-    pub fn iter(&self) -> impl Iterator<Item=&bam::Record> {
+    pub fn build_fetches(&self) -> Fetches {
+        Fetches { fetches: Vec::new(), window: self.window }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &bam::Record> {
         self.inner.iter().filter(|record| is_valid_record(record))
+    }
+}
+
+#[derive(Default, Derefable)]
+pub struct Fetches {
+    #[deref]
+    fetches: Vec<genome::Interval>,
+    window: u64
+}
+
+impl Fetches {
+    pub fn push(&mut self, interval: &genome::Interval) {
+        if let Some(last) = self.fetches.last_mut() {
+            if last.contig() == interval.contig() {
+                if interval.range().start.saturating_sub(self.window) <= last.range().end + self.window {
+                    // merge the two intervals
+                    last.range_mut().end = interval.range().end;
+                    return;
+                }
+            }
+        }
+
+        self.fetches.push(interval.to_owned());
     }
 }
 
@@ -144,7 +177,7 @@ pub struct Sample {
     #[builder(default = "Vec::new()")]
     omit_repeat_regions: Vec<VariantType>,
     #[builder(private)]
-    buffer_window: u32,
+    buffer_window: u64,
     protocol_strandedness: ProtocolStrandedness,
 }
 
@@ -159,7 +192,7 @@ impl SampleBuilder {
         alignment_properties: alignment_properties::AlignmentProperties,
     ) -> Self {
         let pileup_window = (alignment_properties.insert_size().mean
-            + alignment_properties.insert_size().sd * 6.0) as u32;
+            + alignment_properties.insert_size().sd * 6.0) as u64;
         self.alignment_properties(alignment_properties)
             .record_buffer(bam::RecordBuffer::new(bam, true))
             .buffer_window(pileup_window)

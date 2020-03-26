@@ -1,10 +1,10 @@
 use anyhow::Result;
 use bio::stats::LogProb;
+use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
-use crate::model::evidence::reads::prob_read_base;
-use crate::utils::{GenomicLocus, Overlap};
-use crate::variants::{AlleleProb, Variant, SingleLocus, SingleEndEvidence};
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::model::evidence::reads::prob_read_base;
+use crate::variants::{AlleleProb, SingleEndEvidence, SingleLocus, Variant, Loci};
 
 pub struct SNV {
     locus: SingleLocus,
@@ -13,10 +13,10 @@ pub struct SNV {
 }
 
 impl SNV {
-    pub fn new(locus: GenomicLocus, ref_base: u8, alt_base: u8) -> Self {
+    pub fn new(locus: genome::Locus, ref_base: u8, alt_base: u8) -> Self {
         SNV {
-            locus: SingleLocus::new(locus, 1),
-            ref_base, 
+            locus: SingleLocus::new(genome::Interval::new(locus.contig().to_owned(), locus.pos()..locus.pos() + 1)),
+            ref_base,
             alt_base,
         }
     }
@@ -26,14 +26,11 @@ impl<'a> Variant<'a> for SNV {
     type Evidence = SingleEndEvidence<'a>;
     type Loci = SingleLocus;
 
-    fn overlap(&self, read: &SingleEndEvidence) -> Overlap {
-        let read_start = read.pos() as u32;
-        let read_end = read.cigar_cached().unwrap().end_pos() as u32;
-        if read_start <= self.locus.pos() && read_end > self.locus.pos() {
-            Overlap::Enclosing(1)
-        } else {
-            Overlap::None
-        }
+    fn is_valid_evidence(&self, evidence: &SingleEndEvidence) -> bool {
+        let read_start = evidence.pos() as u64;
+        let read_end = evidence.cigar_cached().unwrap().end_pos() as u64;
+
+        read_start <= self.locus.range().start && read_end >= self.locus.range().end
     }
 
     fn loci(&self) -> &SingleLocus {
@@ -44,7 +41,8 @@ impl<'a> Variant<'a> for SNV {
         if let Some(qpos) = read
             .cigar_cached()
             .unwrap()
-            .read_pos(self.locus.pos(), false, false)?
+            // TODO expect u64 in read_pos
+            .read_pos(self.locus.range().start as u32, false, false)?
         {
             let read_base = read.seq()[qpos as usize];
             let base_qual = read.qual()[qpos as usize];

@@ -58,7 +58,7 @@ pub struct Testcase {
     #[builder(private)]
     chrom_name: Option<Vec<u8>>,
     #[builder(private)]
-    pos: Option<u32>,
+    pos: Option<u64>,
     #[builder(private)]
     idx: usize,
     #[builder(private)]
@@ -94,7 +94,7 @@ impl TestcaseBuilder {
                 .as_str()
                 .as_bytes()
                 .to_owned();
-            let mut pos: u32 = captures.name("pos").unwrap().as_str().parse()?;
+            let mut pos: u64 = captures.name("pos").unwrap().as_str().parse()?;
             pos -= 1;
             let idx = if let Some(m) = captures.name("idx") {
                 let idx: usize = m.as_str().parse()?;
@@ -151,7 +151,7 @@ impl Testcase {
             let rec = res?;
             if let Some(rec_rid) = rec.rid() {
                 if let Some(rid) = rid {
-                    if rec_rid == rid && rec.pos() == self.pos.unwrap() {
+                    if rec_rid == rid && rec.pos() as u64 == self.pos.unwrap() {
                         found.push(rec);
                         break;
                     }
@@ -191,7 +191,7 @@ impl Testcase {
                                     .unwrap()
                                     .to_owned(),
                             );
-                            self.pos = Some(record.pos());
+                            self.pos = Some(record.pos() as u64);
                         }
 
                         candidate = Some((variant, record));
@@ -211,13 +211,13 @@ impl Testcase {
         let pos = self.pos.unwrap();
 
         let (start, end) = match candidate {
-            (Variant::Deletion(l), _) => (pos.saturating_sub(1000), pos + l + 1000),
+            (Variant::Deletion(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
             (Variant::Insertion(ref seq), _) => {
-                (pos.saturating_sub(1000), pos + seq.len() as u32 + 1000)
+                (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
             (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
             (Variant::MNV(ref bases), _) => {
-                (pos.saturating_sub(100), pos + bases.len() as u32 + 100)
+                (pos.saturating_sub(100), pos + bases.len() as u64 + 100)
             }
             (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
         };
@@ -232,9 +232,9 @@ impl Testcase {
             bam_reader.fetch(tid, start, end)?;
             for res in bam_reader.records() {
                 let rec = res?;
-                let seq_len = rec.seq().len() as u32;
-                ref_start = cmp::min((rec.pos() as u32).saturating_sub(seq_len), ref_start);
-                ref_end = cmp::max(rec.cigar().end_pos() as u32 + seq_len, ref_end);
+                let seq_len = rec.seq().len() as u64;
+                ref_start = cmp::min((rec.pos() as u64).saturating_sub(seq_len), ref_start);
+                ref_end = cmp::max(rec.cigar().end_pos() as u64 + seq_len, ref_end);
             }
         }
 
@@ -277,7 +277,7 @@ impl Testcase {
             bcf::Format::BCF,
         )?;
         let (_, mut candidate_record) = candidate;
-        candidate_record.set_pos((candidate_record.pos() - ref_start) as i64);
+        candidate_record.set_pos(candidate_record.pos() - ref_start as i64);
         if let Ok(Some(end)) = candidate_record
             .info(b"END")
             .integer()
