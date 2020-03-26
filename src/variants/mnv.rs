@@ -1,10 +1,9 @@
 use anyhow::Result;
 use bio::stats::LogProb;
-use bio_types::genome::AbstractInterval;
+use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::reads::prob_read_base;
-use crate::utils::{GenomicLocus, Overlap};
 use crate::variants::{AlleleProb, SingleEndEvidence, SingleLocus, Variant};
 
 pub struct MNV {
@@ -14,9 +13,9 @@ pub struct MNV {
 }
 
 impl MNV {
-    pub fn new(locus: GenomicLocus, ref_bases: Vec<u8>, alt_bases: Vec<u8>) -> Self {
+    pub fn new<L: genome::AbstractLocus>(locus: L, ref_bases: Vec<u8>, alt_bases: Vec<u8>) -> Self {
         MNV {
-            locus: SingleLocus::new(locus, alt_bases.len() as u32),
+            locus: SingleLocus(genome::Interval::new(locus.contig().to_owned(), locus.pos()..locus.pos() + alt_bases.len() as u64)),
             ref_bases,
             alt_bases,
         }
@@ -32,8 +31,8 @@ impl<'a> Variant<'a> for MNV {
     type Loci = SingleLocus;
 
     fn is_valid_evidence(&self, read: &SingleEndEvidence) -> bool {
-        let read_start = read.pos() as u32;
-        let read_end = read.cigar_cached().unwrap().end_pos() as u32;
+        let read_start = read.pos() as u64;
+        let read_end = read.cigar_cached().unwrap().end_pos() as u64;
 
         read_start <= self.locus.range().start && read_end > self.locus.range().end
     }
@@ -49,9 +48,10 @@ impl<'a> Variant<'a> for MNV {
             .alt_bases
             .iter()
             .zip(self.ref_bases.iter())
-            .zip(self.locus.pos()..self.locus.pos() + self.locus().len())
+            .zip(self.locus.range())
         {
-            if let Some(qpos) = read.cigar_cached().unwrap().read_pos(pos, false, false)? {
+            // TODO remove cast once read_pos uses u64
+            if let Some(qpos) = read.cigar_cached().unwrap().read_pos(pos as u32, false, false)? {
                 let read_base = read.seq()[qpos as usize];
                 let base_qual = read.qual()[qpos as usize];
 
