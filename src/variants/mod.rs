@@ -1,18 +1,16 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::stats::{LogProb, PHREDProb};
 use rust_htslib::bam;
-use bio_types::{genome, genome::AbstractInterval};
+use bio_types::genome;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::observation::{
-    Evidence, Observable, Observation, ObservationBuilder, PairedEndEvidence, SingleEndEvidence,
+    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence,
     Strand, StrandBuilder,
 };
-use crate::model::evidence;
 use crate::model::sample;
-use crate::utils::Overlap;
 
 pub mod mnv;
 pub mod snv;
@@ -25,6 +23,11 @@ pub struct AlleleProb {
 }
 
 impl AlleleProb {
+    /// METHOD: This is an estimate of the allele likelihood at the true location in case
+    /// the read is mismapped. The value has to be approximately in the range of prob_alt
+    /// and prob_ref. Otherwise it could cause numerical problems, by dominating the
+    /// likelihood such that subtle differences in allele frequencies become numercically
+    /// invisible in the resulting likelihood.
     pub fn missed_allele(&self) -> LogProb {
         self.ref_allele.ln_add_exp(self.alt_allele) - LogProb(2.0_f64.ln())
     }
@@ -134,6 +137,20 @@ where
             .unwrap()
     }
 
+    /// TODO move this into the prob_allele implementation
+    /// Here we calculate the product of insert size based and alignment based probabilities.
+    /// This has the benefit that the calculation automatically checks for consistence between
+    /// insert size and overlapping alignmnments.
+    /// This sports the following desirable behavior:
+    ///
+    /// * If there is no clear evidence from either the insert size or the alignment, the factors
+    ///   simply scale because the probabilities of the corresponding type of evidence will be equal.
+    /// * If reads and fragments agree, 1 stays 1 and 0 stays 0.
+    /// * If reads and fragments disagree (the promising part!), the other type of evidence will
+    ///   scale potential false positive probabilities down.
+    /// * Since there is only one observation per fragment, there is no double counting when
+    ///   estimating allele frequencies. Before, we had one observation for an overlapping read
+    ///   and potentially another observation for the corresponding fragment.
     fn extract_observations(
         &self,
         buffer: &'a mut sample::RecordBuffer,
@@ -145,8 +162,8 @@ where
         // in slightly different probabilities each time.
         let mut candidate_records = BTreeMap::new();
 
-        // TODO centerpoint locus for deletions (in trait impl)
-        let mut fetches = buffer.build_fetches();
+        // TODO centerpoint locus for deletions (in trait impl of self.loci())
+        let mut fetches = buffer.build_fetches(true);
         for locus in self.loci().iter() {
             fetches.push(locus);
         }

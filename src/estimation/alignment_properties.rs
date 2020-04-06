@@ -24,6 +24,7 @@ pub struct AlignmentProperties {
     pub(crate) max_del_cigar_len: u32,
     pub(crate) max_ins_cigar_len: u32,
     pub(crate) frac_max_softclip: f64,
+    pub(crate) max_read_len: u32,
 }
 
 impl AlignmentProperties {
@@ -34,6 +35,7 @@ impl AlignmentProperties {
             max_del_cigar_len: 30,
             max_ins_cigar_len: 30,
             frac_max_softclip: 1.0,
+            max_read_len: 0,
         }
     }
 
@@ -83,6 +85,7 @@ impl AlignmentProperties {
 
         let mut record = bam::Record::new();
         let mut tlens = Vec::new();
+        let mut max_read_len = 0;
         let mut max_mapq = 0;
         let mut i = 0;
         let mut skipped = 0;
@@ -115,6 +118,7 @@ impl AlignmentProperties {
             }
 
             max_mapq = cmp::max(max_mapq, record.mapq());
+            max_read_len = cmp::max(max_read_len, record.seq().len());
 
             let (is_regular, has_soft_clip) = properties.update_max_cigar_ops_len(&record);
 
