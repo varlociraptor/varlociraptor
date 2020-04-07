@@ -3,11 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cell::{RefCell, RefMut};
-use std::collections::BTreeMap;
+use std::cell::RefCell;
 use std::f64;
 use std::path::Path;
 use std::str;
+use std::hash::Hash;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
@@ -237,7 +237,7 @@ impl Sample {
         variant: &V,
     ) -> Result<Pileup>
     where 
-        E: observation::Evidence<'a>,
+        E: observation::Evidence<'a> + Eq + Hash,
         L: variants::Loci,
         V: Variant<'a, Loci=L, Evidence=E> + Observable<'a, E>,
     {

@@ -81,6 +81,7 @@ impl AlignmentProperties {
             max_del_cigar_len: 0,
             max_ins_cigar_len: 0,
             frac_max_softclip: 0.0,
+            max_read_len: 0,
         };
 
         let mut record = bam::Record::new();

@@ -4,7 +4,7 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::reads::prob_read_base;
-use crate::variants::{AlleleProb, SingleEndEvidence, SingleLocus, Variant, Loci};
+use crate::variants::{AlleleProb, SingleEndEvidence, SingleLocus, Variant, Overlap};
 
 pub struct SNV {
     locus: SingleLocus,
@@ -26,11 +26,12 @@ impl<'a> Variant<'a> for SNV {
     type Evidence = SingleEndEvidence<'a>;
     type Loci = SingleLocus;
 
-    fn is_valid_evidence(&self, evidence: &SingleEndEvidence) -> bool {
-        let read_start = evidence.pos() as u64;
-        let read_end = evidence.cigar_cached().unwrap().end_pos() as u64;
-
-        read_start <= self.locus.range().start && read_end >= self.locus.range().end
+    fn is_valid_evidence(&self, evidence: &SingleEndEvidence) -> Option<Vec<usize>> {
+        if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
+            Some(vec![0])
+        } else {
+            None
+        }
     }
 
     fn loci(&self) -> &SingleLocus {

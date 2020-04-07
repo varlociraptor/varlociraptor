@@ -5,6 +5,8 @@
 
 use std::f64;
 use std::ops::Deref;
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
@@ -15,6 +17,7 @@ use serde::Serialize;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
+use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::sample;
@@ -148,7 +151,7 @@ impl Serialize for Observation {
 /// Something that can be converted into observations.
 pub trait Observable<'a, E>: Variant<'a, Evidence=E>
 where
-    E: Evidence<'a>,
+    E: Evidence<'a> + Eq + Hash,
 {
     fn extract_observations(
         &self,
@@ -164,54 +167,31 @@ where
     /// Calculate strand information.
     fn strand(&self, evidence: &E) -> Strand;
 
-    fn evidence_to_observations(
-        &self,
-        candidates: &[E],
-        alignment_properties: &mut AlignmentProperties,
-        max_depth: usize,
-    ) -> Result<Vec<Observation>> {
-        let mut subsample = sample::SubsampleCandidates::new(max_depth, candidates.len());
+    /// Calculate an observation from the given evidence.
+    fn evidence_to_observation(&self, evidence: &E, alignment_properties: &AlignmentProperties) -> Result<Option<Observation>> {
+        Ok(match self.prob_alleles(evidence)? {
+            Some(prob_alleles) => {
+                let strand = self.strand(evidence);
 
-        candidates
-            .iter()
-            .filter_map(|evidence| {
-                if subsample.keep() {
-                    match self.prob_alleles(evidence) {
-                        Ok(Some(prob_alleles)) => {
-                            let strand = self.strand(evidence);
-
-                            Some(Ok(ObservationBuilder::default()
-                                .prob_mapping_mismapping(self.prob_mapping(evidence))
-                                .prob_alt(prob_alleles.alt_allele())
-                                .prob_ref(prob_alleles.ref_allele())
-                                .prob_sample_alt(
-                                    self.prob_sample_alt(evidence, alignment_properties),
-                                )
-                                .prob_missed_allele(prob_alleles.missed_allele())
-                                .prob_overlap(LogProb::ln_zero()) // no double overlap possible
-                                .prob_any_strand(LogProb::from(Prob(0.5)))
-                                .forward_strand(strand.forward())
-                                .reverse_strand(strand.reverse())
-                                .build()
-                                .unwrap()))
-                        }
-                        Ok(None) => None,
-                        Err(e) => Some(Err(e)),
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect::<Result<Vec<Observation>>>()
+                Some(ObservationBuilder::default()
+                    .prob_mapping_mismapping(self.prob_mapping(evidence))
+                    .prob_alt(prob_alleles.alt_allele())
+                    .prob_ref(prob_alleles.ref_allele())
+                    .prob_sample_alt(
+                        self.prob_sample_alt(evidence, alignment_properties),
+                    )
+                    .prob_missed_allele(prob_alleles.missed_allele())
+                    .prob_overlap(LogProb::ln_zero()) // no double overlap possible
+                    .prob_any_strand(LogProb::from(Prob(0.5)))
+                    .forward_strand(strand.forward())
+                    .reverse_strand(strand.reverse())
+                    .build()
+                    .unwrap())
+            }
+            None => None,
+        })
     }
 }
-
-// pub trait ObservationExtractor<'a, V>
-// where
-//     V: Variant
-// {
-//     fn extract_observations(&self, variant: V, buffer: &'a mut sample::RecordBuffer, alignment_properties: &AlignmentProperties, max_depth: usize) -> Result<Vec<Observation>>;
-// }
 
 #[derive(Builder, Default, CopyGetters)]
 #[getset(get_copy = "pub")]
@@ -222,7 +202,7 @@ pub struct Strand {
 
 pub trait Evidence<'a> {}
 
-#[derive(new)]
+#[derive(new, Clone, Copy, Eq)]
 pub struct SingleEndEvidence<'a> {
     inner: &'a bam::Record,
 }
@@ -235,6 +215,21 @@ impl<'a> Deref for SingleEndEvidence<'a> {
     }
 }
 
+impl<'a> Evidence<'a> for SingleEndEvidence<'a> {}
+
+impl<'a> PartialEq for SingleEndEvidence<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.qname() == other.qname()
+    }
+}
+
+impl<'a> Hash for SingleEndEvidence<'a> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.qname().hash(state);
+    }
+}
+
+#[derive(Clone, Copy, Eq)]
 pub enum PairedEndEvidence<'a> {
     SingleEnd(&'a bam::Record),
     PairedEnd {
@@ -243,6 +238,24 @@ pub enum PairedEndEvidence<'a> {
     },
 }
 
-impl<'a> Evidence<'a> for SingleEndEvidence<'a> {}
-
 impl<'a> Evidence<'a> for PairedEndEvidence<'a> {}
+
+impl<'a> PartialEq for PairedEndEvidence<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (PairedEndEvidence::SingleEnd(a), PairedEndEvidence::SingleEnd(b)) => a.qname() == b.qname(),
+            (PairedEndEvidence::PairedEnd { left: a, .. }, PairedEndEvidence::PairedEnd { left: b, .. }) => a.qname() == b.qname(),
+            _ => false,
+        }
+    }
+}
+
+
+impl<'a> Hash for PairedEndEvidence<'a> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            PairedEndEvidence::SingleEnd(a) => a.qname().hash(state),
+            PairedEndEvidence::PairedEnd { left: a, .. } => a.qname().hash(state),
+        }
+    }
+}

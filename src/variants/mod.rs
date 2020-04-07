@@ -1,9 +1,10 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use rust_htslib::bam;
-use bio_types::genome;
+use bio_types::genome::{self, AbstractInterval};
+use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::observation::{
@@ -14,6 +15,7 @@ use crate::model::sample;
 
 pub mod mnv;
 pub mod snv;
+pub mod deletion;
 
 #[derive(Debug, CopyGetters, new)]
 #[getset(get_copy = "pub")]
@@ -39,7 +41,11 @@ pub trait Variant<'a> {
 
     /// Determine whether the evidence is suitable to assessing probabilities 
     /// (i.e. overlaps the variant in the right way).
-    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> bool;
+    /// 
+    /// # Returns
+    /// 
+    /// The index of the loci for which this evidence is valid, `None` if invalid.
+    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>>;
 
     /// Return variant loci.
     fn loci(&self) -> &Self::Loci;
@@ -82,14 +88,13 @@ where
         max_depth: usize,
     ) -> Result<Vec<Observation>> {
         let locus = self.loci();
-        // TODO smaller window, constrained by read length only!
-        buffer.fetch(locus)?;
+        buffer.fetch(locus, false)?;
 
         let candidates: Vec<_> = buffer
             .iter()
             .filter_map(|record| {
                 let evidence = SingleEndEvidence::new(record);
-                if self.is_valid_evidence(&evidence) {
+                if self.is_valid_evidence(&evidence).is_some() {
                     Some(evidence)
                 } else {
                     None
@@ -97,7 +102,18 @@ where
             })
             .collect();
 
-        self.evidence_to_observations(&candidates, alignment_properties, max_depth)
+        let subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
+
+        let mut observations = Vec::new();
+        for evidence in candidates {
+            if subsampler.keep() {
+                if let Some(obs) = self.evidence_to_observation(&evidence, alignment_properties)? {
+                    observations.push(obs);
+                }
+            }
+        }
+
+        Ok(observations)
     }
 }
 
@@ -168,7 +184,7 @@ where
             fetches.push(locus);
         }
         for interval in fetches.iter() {
-            buffer.fetch(interval)?;
+            buffer.fetch(interval, true)?;
 
             for record in buffer.iter() {
                 // METHOD: First, we check whether the record contains an indel in the cigar.
@@ -207,32 +223,52 @@ where
             }
         }
 
-        let candidates: Vec<_> = candidate_records.values().filter_map(|candidate| {
+        let mut candidates = VecMap::new();
+        let push_evidence = |evidence, idx| {
+            for i in idx {
+                let entry = candidates.entry(i).or_insert_with(|| Vec::new());
+                entry.push(evidence);
+            }
+        };
+
+        for candidate in candidate_records.values() {
             if let Some(right) = candidate.right {
                 if candidate.left.mapq() == 0 || right.mapq() == 0 {
                     // Ignore pairs with ambiguous alignments.
                     // The statistical model does not consider them anyway.
-                    return None;
+                    continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd { left: candidate.left, right: right };
-                if self.is_valid_evidence(&evidence) {
-                    Some(evidence)
-                } else {
-                    None
+                if let Some(idx) = self.is_valid_evidence(&evidence) {
+                    push_evidence(evidence, idx);
                 }
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = PairedEndEvidence::SingleEnd(candidate.left);
-                if self.is_valid_evidence(&evidence) {
-                    Some(evidence)
-                } else {
-                    None
+                if let Some(idx) = self.is_valid_evidence(&evidence) {
+                    push_evidence(evidence, idx);
                 }
             }
-        }).collect();
+        }
 
-        self.evidence_to_observations(&candidates, alignment_properties, max_depth)
+        // METHOD: if all loci exceed the maximum depth, we subsample the evidence.
+        // We cannot decide this per locus, because we risk adding more biases if loci have different alt allele sampling biases.
+        let subsample = candidates.values().map(|locus_candidates| locus_candidates.len()).all(|l| l > max_depth);
+        let candidates: HashSet<_> = candidates.values().flatten().collect();
+
+        let subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
+
+        let mut observations = Vec::new();
+        for evidence in candidates {
+            if !subsample || subsampler.keep() {
+                if let Some(obs) = self.evidence_to_observation(evidence, alignment_properties)? {
+                    observations.push(obs);
+                }
+            }
+        }
+
+        Ok(observations)
     }
 }
 
@@ -241,9 +277,35 @@ pub trait Loci {}
 #[derive(Debug, Derefable, new)]
 pub struct SingleLocus(#[deref] genome::Interval);
 
+impl SingleLocus {
+    pub fn overlap(&self, record: &bam::Record, consider_clips: bool) -> Overlap {
+        let mut pos = record.pos() as u64;
+        let cigar = record.cigar_cached().unwrap();
+        let mut end_pos = record.cigar_cached().unwrap().end_pos() as u64;
+
+        if consider_clips {
+            // consider soft clips for overlap detection
+            pos = pos.saturating_sub(cigar.leading_softclips() as u64);
+            end_pos = end_pos + cigar.trailing_softclips() as u64;
+        }
+
+        if pos <= self.range().start {
+            if end_pos > self.range().end {
+                return Overlap::Enclosing;
+            } else if end_pos > self.range().start {
+                return Overlap::Left;
+            }
+        } else if end_pos > self.range().end && pos < self.range().end {
+            return Overlap::Right;
+        }
+
+        Overlap::None
+    }
+}
+
 impl Loci for SingleLocus {}
 
-#[derive(Default, Debug, Derefable)]
+#[derive(new, Default, Debug, Derefable)]
 pub struct MultiLocus {
     #[deref]
     loci: Vec<SingleLocus>,
@@ -263,4 +325,14 @@ impl<'a> Candidate<'a> {
             right: None,
         }
     }
+}
+
+
+/// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
+#[derive(Debug)]
+pub enum Overlap {
+    Enclosing,
+    Left,
+    Right,
+    None,
 }
