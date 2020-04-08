@@ -15,6 +15,7 @@ use crate::model::sample;
 pub mod deletion;
 pub mod mnv;
 pub mod snv;
+pub mod fragment_enclosable;
 
 #[derive(Debug, CopyGetters, new)]
 #[getset(get_copy = "pub")]
@@ -275,6 +276,7 @@ where
         Ok(observations)
     }
 }
+
 
 pub trait Loci {}
 
