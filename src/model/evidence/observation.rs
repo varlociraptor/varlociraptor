@@ -3,10 +3,10 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::f64;
-use std::ops::Deref;
 use std::collections::HashSet;
+use std::f64;
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
@@ -149,7 +149,7 @@ impl Serialize for Observation {
 }
 
 /// Something that can be converted into observations.
-pub trait Observable<'a, E>: Variant<'a, Evidence=E>
+pub trait Observable<'a, E>: Variant<'a, Evidence = E>
 where
     E: Evidence<'a> + Eq + Hash,
 {
@@ -168,25 +168,29 @@ where
     fn strand(&self, evidence: &E) -> Strand;
 
     /// Calculate an observation from the given evidence.
-    fn evidence_to_observation(&self, evidence: &E, alignment_properties: &AlignmentProperties) -> Result<Option<Observation>> {
+    fn evidence_to_observation(
+        &self,
+        evidence: &E,
+        alignment_properties: &AlignmentProperties,
+    ) -> Result<Option<Observation>> {
         Ok(match self.prob_alleles(evidence)? {
             Some(prob_alleles) => {
                 let strand = self.strand(evidence);
 
-                Some(ObservationBuilder::default()
-                    .prob_mapping_mismapping(self.prob_mapping(evidence))
-                    .prob_alt(prob_alleles.alt_allele())
-                    .prob_ref(prob_alleles.ref_allele())
-                    .prob_sample_alt(
-                        self.prob_sample_alt(evidence, alignment_properties),
-                    )
-                    .prob_missed_allele(prob_alleles.missed_allele())
-                    .prob_overlap(LogProb::ln_zero()) // no double overlap possible
-                    .prob_any_strand(LogProb::from(Prob(0.5)))
-                    .forward_strand(strand.forward())
-                    .reverse_strand(strand.reverse())
-                    .build()
-                    .unwrap())
+                Some(
+                    ObservationBuilder::default()
+                        .prob_mapping_mismapping(self.prob_mapping(evidence))
+                        .prob_alt(prob_alleles.alt_allele())
+                        .prob_ref(prob_alleles.ref_allele())
+                        .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
+                        .prob_missed_allele(prob_alleles.missed_allele())
+                        .prob_overlap(LogProb::ln_zero()) // no double overlap possible
+                        .prob_any_strand(LogProb::from(Prob(0.5)))
+                        .forward_strand(strand.forward())
+                        .reverse_strand(strand.reverse())
+                        .build()
+                        .unwrap(),
+                )
             }
             None => None,
         })
@@ -243,13 +247,17 @@ impl<'a> Evidence<'a> for PairedEndEvidence<'a> {}
 impl<'a> PartialEq for PairedEndEvidence<'a> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (PairedEndEvidence::SingleEnd(a), PairedEndEvidence::SingleEnd(b)) => a.qname() == b.qname(),
-            (PairedEndEvidence::PairedEnd { left: a, .. }, PairedEndEvidence::PairedEnd { left: b, .. }) => a.qname() == b.qname(),
+            (PairedEndEvidence::SingleEnd(a), PairedEndEvidence::SingleEnd(b)) => {
+                a.qname() == b.qname()
+            }
+            (
+                PairedEndEvidence::PairedEnd { left: a, .. },
+                PairedEndEvidence::PairedEnd { left: b, .. },
+            ) => a.qname() == b.qname(),
             _ => false,
         }
     }
 }
-
 
 impl<'a> Hash for PairedEndEvidence<'a> {
     fn hash<H: Hasher>(&self, state: &mut H) {

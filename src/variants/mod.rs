@@ -2,20 +2,19 @@ use std::collections::{BTreeMap, HashSet};
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
-use rust_htslib::bam;
 use bio_types::genome::{self, AbstractInterval};
+use rust_htslib::bam;
 use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::observation::{
-    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence,
-    Strand, StrandBuilder,
+    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand, StrandBuilder,
 };
 use crate::model::sample;
 
+pub mod deletion;
 pub mod mnv;
 pub mod snv;
-pub mod deletion;
 
 #[derive(Debug, CopyGetters, new)]
 #[getset(get_copy = "pub")]
@@ -39,11 +38,11 @@ pub trait Variant<'a> {
     type Evidence: Evidence<'a>;
     type Loci: Loci;
 
-    /// Determine whether the evidence is suitable to assessing probabilities 
+    /// Determine whether the evidence is suitable to assessing probabilities
     /// (i.e. overlaps the variant in the right way).
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The index of the loci for which this evidence is valid, `None` if invalid.
     fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>>;
 
@@ -211,8 +210,7 @@ where
                 } else if let Some(candidate) = candidate_records.get_mut(record.qname()) {
                     // this is either the last alignment or one in the middle
                     if (candidate.left.is_first_in_template() && record.is_first_in_template())
-                        && (candidate.left.is_last_in_template()
-                            && record.is_last_in_template())
+                        && (candidate.left.is_last_in_template() && record.is_last_in_template())
                     {
                         // ignore another partial alignment right of the first
                         continue;
@@ -238,7 +236,10 @@ where
                     // The statistical model does not consider them anyway.
                     continue;
                 }
-                let evidence = PairedEndEvidence::PairedEnd { left: candidate.left, right: right };
+                let evidence = PairedEndEvidence::PairedEnd {
+                    left: candidate.left,
+                    right: right,
+                };
                 if let Some(idx) = self.is_valid_evidence(&evidence) {
                     push_evidence(evidence, idx);
                 }
@@ -254,7 +255,10 @@ where
 
         // METHOD: if all loci exceed the maximum depth, we subsample the evidence.
         // We cannot decide this per locus, because we risk adding more biases if loci have different alt allele sampling biases.
-        let subsample = candidates.values().map(|locus_candidates| locus_candidates.len()).all(|l| l > max_depth);
+        let subsample = candidates
+            .values()
+            .map(|locus_candidates| locus_candidates.len())
+            .all(|l| l > max_depth);
         let candidates: HashSet<_> = candidates.values().flatten().collect();
 
         let subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
@@ -327,7 +331,6 @@ impl<'a> Candidate<'a> {
     }
 }
 
-
 /// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
 #[derive(Debug)]
 pub enum Overlap {
@@ -335,4 +338,13 @@ pub enum Overlap {
     Left,
     Right,
     None,
+}
+
+impl Overlap {
+    pub fn is_none(&self) -> bool {
+        if let Overlap::None = self {
+            true
+        }
+        false
+    }
 }

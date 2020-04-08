@@ -5,9 +5,9 @@
 
 use std::cell::RefCell;
 use std::f64;
+use std::hash::Hash;
 use std::path::Path;
 use std::str;
-use std::hash::Hash;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
@@ -20,9 +20,9 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
 use crate::model::evidence;
-use crate::model::evidence::{Observation, observation::Observable, observation};
+use crate::model::evidence::{observation, observation::Observable, Observation};
 use crate::model::VariantType;
-use crate::variants::{Variant, self};
+use crate::variants::{self, Variant};
 
 #[derive(new, Getters, Debug)]
 pub struct RecordBuffer {
@@ -35,13 +35,20 @@ pub struct RecordBuffer {
 
 impl RecordBuffer {
     pub fn window(&self, read_pair_mode: bool) -> u64 {
-        if read_pair_mode { self.read_pair_window } else {self.single_read_window}
+        if read_pair_mode {
+            self.read_pair_window
+        } else {
+            self.single_read_window
+        }
     }
 
     pub fn fetch(&mut self, interval: &genome::Interval, read_pair_mode: bool) -> Result<()> {
         self.inner.fetch(
             interval.contig().as_bytes(),
-            interval.range().start.saturating_sub(self.window(read_pair_mode)),
+            interval
+                .range()
+                .start
+                .saturating_sub(self.window(read_pair_mode)),
             interval.range().end + self.window(read_pair_mode),
         )?;
 
@@ -49,7 +56,10 @@ impl RecordBuffer {
     }
 
     pub fn build_fetches(&self, read_pair_mode: bool) -> Fetches {
-        Fetches { fetches: Vec::new(), window: self.window(read_pair_mode) }
+        Fetches {
+            fetches: Vec::new(),
+            window: self.window(read_pair_mode),
+        }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &bam::Record> {
@@ -61,14 +71,16 @@ impl RecordBuffer {
 pub struct Fetches {
     #[deref]
     fetches: Vec<genome::Interval>,
-    window: u64
+    window: u64,
 }
 
 impl Fetches {
     pub fn push(&mut self, interval: &genome::Interval) {
         if let Some(last) = self.fetches.last_mut() {
             if last.contig() == interval.contig() {
-                if interval.range().start.saturating_sub(self.window) <= last.range().end + self.window {
+                if interval.range().start.saturating_sub(self.window)
+                    <= last.range().end + self.window
+                {
                     // merge the two intervals
                     last.range_mut().end = interval.range().end;
                     return;
@@ -197,7 +209,11 @@ impl SampleBuilder {
             + alignment_properties.insert_size().sd * 6.0) as u64;
         let single_read_window = alignment_properties.max_read_len as u64;
         self.alignment_properties(alignment_properties)
-            .record_buffer(RecordBuffer::new(bam::RecordBuffer::new(bam, true), single_read_window, read_pair_window))
+            .record_buffer(RecordBuffer::new(
+                bam::RecordBuffer::new(bam, true),
+                single_read_window,
+                read_pair_window,
+            ))
     }
 
     /// Register error probabilities and window to check around indels.
@@ -232,14 +248,11 @@ fn is_valid_record(record: &bam::Record) -> bool {
 
 impl Sample {
     /// Extract observations for the given variant.
-    pub fn extract_observations<'a, V, E, L>(
-        &'a mut self,
-        variant: &V,
-    ) -> Result<Pileup>
-    where 
+    pub fn extract_observations<'a, V, E, L>(&'a mut self, variant: &V) -> Result<Pileup>
+    where
         E: observation::Evidence<'a> + Eq + Hash,
         L: variants::Loci,
-        V: Variant<'a, Loci=L, Evidence=E> + Observable<'a, E>,
+        V: Variant<'a, Loci = L, Evidence = E> + Observable<'a, E>,
     {
         variant.extract_observations(
             &mut self.record_buffer,

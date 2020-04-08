@@ -4,7 +4,7 @@ use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::reads::prob_read_base;
-use crate::variants::{AlleleProb, SingleEndEvidence, SingleLocus, Variant, Overlap};
+use crate::variants::{AlleleProb, Overlap, SingleEndEvidence, SingleLocus, Variant};
 
 pub struct MNV {
     locus: SingleLocus,
@@ -15,7 +15,10 @@ pub struct MNV {
 impl MNV {
     pub fn new<L: genome::AbstractLocus>(locus: L, ref_bases: Vec<u8>, alt_bases: Vec<u8>) -> Self {
         MNV {
-            locus: SingleLocus(genome::Interval::new(locus.contig().to_owned(), locus.pos()..locus.pos() + alt_bases.len() as u64)),
+            locus: SingleLocus(genome::Interval::new(
+                locus.contig().to_owned(),
+                locus.pos()..locus.pos() + alt_bases.len() as u64,
+            )),
             ref_bases,
             alt_bases,
         }
@@ -52,7 +55,11 @@ impl<'a> Variant<'a> for MNV {
             .zip(self.locus.range())
         {
             // TODO remove cast once read_pos uses u64
-            if let Some(qpos) = read.cigar_cached().unwrap().read_pos(pos as u32, false, false)? {
+            if let Some(qpos) = read
+                .cigar_cached()
+                .unwrap()
+                .read_pos(pos as u32, false, false)?
+            {
                 let read_base = read.seq()[qpos as usize];
                 let base_qual = read.qual()[qpos as usize];
 
