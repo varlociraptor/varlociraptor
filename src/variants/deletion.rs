@@ -4,10 +4,12 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 use rgsl::randist::gaussian::ugaussian_P;
+use bio::stats::pairhmm;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant, FragmentEnclosable};
+use crate::variants::realignable::{pairhmm::RefBaseEmission, pairhmm::default_ref_base_emission};
 
 pub struct Deletion {
     locus: genome::Interval,
@@ -35,8 +37,10 @@ impl Deletion {
             fetch_loci,
         }
     }
+}
 
-    pub fn len(&self) -> u64 {
+impl<'a> FragmentEnclosable<'a> for Deletion {
+    fn len(&self) -> u64 {
         self.locus.range().end - self.locus.range().start
     }
 }
@@ -87,5 +91,40 @@ impl<'a> Variant<'a> for Deletion {
                 self.prob_sample_alt_single(read.seq().len() as u64, alignment_properties)
             }
         }
+    }
+}
+
+
+/// Emission parameters for PairHMM over deletion allele.
+#[derive(Debug)]
+pub struct DeletionEmissionParams<'a> {
+    ref_seq: &'a [u8],
+    ref_offset: usize,
+    ref_end: usize,
+    del_start: usize,
+    del_len: usize,
+    read_emission: &'a ReadEmission<'a>,
+}
+
+impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
+    #[inline]
+    fn ref_base(&self, i: usize) -> u8 {
+        let i_ = i + self.ref_offset;
+        if i_ <= self.del_start {
+            self.ref_seq[i_]
+        } else {
+            self.ref_seq[i_ + self.del_len]
+        }
+    }
+
+    default_ref_base_emission!();
+}
+
+impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
+    default_emission!();
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.ref_end - self.ref_offset
     }
 }

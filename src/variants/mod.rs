@@ -16,6 +16,10 @@ pub mod deletion;
 pub mod mnv;
 pub mod snv;
 pub mod fragment_enclosable;
+pub mod realignable;
+
+pub use fragment_enclosable::FragmentEnclosable;
+pub use realignable::Realignable;
 
 #[derive(Debug, CopyGetters, new)]
 #[getset(get_copy = "pub")]

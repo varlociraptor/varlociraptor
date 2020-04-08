@@ -2,14 +2,12 @@ use std::cmp;
 use std::ops::Range;
 
 use itertools::Itertools;
-use anyhow::Result;
 use bio::stats::LogProb;
-use bio_types::genome::{self, AbstractInterval};
 use rgsl::randist::gaussian::ugaussian_P;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::variants::Variant;
 
 
 pub trait FragmentEnclosable<'a>: Variant<'a> {
