@@ -16,6 +16,28 @@ use crate::variants::realignable::edit_distance::EditDistanceHit;
 /// Width of band around alignment with optimal edit distance.
 pub const EDIT_BAND: usize = 2;
 
+lazy_static! {
+    static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
+}
+
+
+/// Calculate probability of read_base given ref_base.
+pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
+    let prob_miscall = prob_read_base_miscall(base_qual);
+
+    if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
+        prob_miscall.ln_one_minus_exp()
+    } else {
+        // TODO replace the second term with technology specific confusion matrix
+        prob_miscall + *PROB_CONFUSION
+    }
+}
+
+/// unpack miscall probability of read_base.
+pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
+    LogProb::from(PHREDProb::from((base_qual) as f64))
+}
+
 pub trait RefBaseEmission: Debug {
     fn ref_base(&self, i: usize) -> u8;
 
@@ -31,10 +53,10 @@ pub trait RefBaseEmission: Debug {
 
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
         self.set_ref_end(cmp::min(
-            self.ref_offset() + hit.end + EDIT_BAND,
+            self.ref_offset() + hit.end() + EDIT_BAND,
             self.ref_end(),
         ));
-        self.set_ref_offset(self.ref_offset() + hit.start.saturating_sub(EDIT_BAND));
+        self.set_ref_offset(self.ref_offset() + hit.start().saturating_sub(EDIT_BAND));
     }
 }
 
@@ -114,10 +136,11 @@ impl pairhmm::StartEndGapParameters for IndelGapParams {
     }
 }
 
+#[macro_export]
 macro_rules! default_emission {
-    () => (
+    () => {
         #[inline]
-        fn prob_emit_xy(&self, i: usize, j: usize) -> pairhmm::XYEmission {
+        fn prob_emit_xy(&self, i: usize, j: usize) -> bio::stats::pairhmm::XYEmission {
             let r = self.ref_base(i);
             self.read_emission.prob_match_mismatch(j, r)
         }
@@ -134,12 +157,13 @@ macro_rules! default_emission {
 
         #[inline]
         fn len_y(&self) -> usize {
-            self.read_emission.read_end - self.read_emission.read_offset
+            self.read_emission.read_end() - self.read_emission.read_offset()
         }
-    )
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Getters)]
+#[getset(get = "pub")]
 pub struct ReadEmission<'a> {
     read_seq: &'a bam::record::Seq<'a>,
     any_miscall: Vec<LogProb>,
@@ -200,52 +224,6 @@ impl<'a> ReadEmission<'a> {
     pub fn certainty_est(&self) -> LogProb {
         self.no_miscall.iter().sum()
     }
-}
-
-pub trait RefBaseEmission: Debug {
-    fn ref_base(&self, i: usize) -> u8;
-
-    fn ref_offset(&self) -> usize;
-
-    fn ref_end(&self) -> usize;
-
-    fn set_ref_offset(&mut self, value: usize);
-
-    fn set_ref_end(&mut self, value: usize);
-
-    fn read_emission(&self) -> &ReadEmission;
-
-    fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
-        self.set_ref_end(cmp::min(
-            self.ref_offset() + hit.end + EDIT_BAND,
-            self.ref_end(),
-        ));
-        self.set_ref_offset(self.ref_offset() + hit.start.saturating_sub(EDIT_BAND));
-    }
-}
-
-macro_rules! default_ref_base_emission {
-    () => (
-        fn ref_offset(&self) -> usize {
-            self.ref_offset
-        }
-
-        fn ref_end(&self) -> usize {
-            self.ref_end
-        }
-
-        fn set_ref_offset(&mut self, value: usize) {
-            self.ref_offset = value;
-        }
-
-        fn set_ref_end(&mut self, value: usize) {
-            self.ref_end = value;
-        }
-
-        fn read_emission(&self) -> &ReadEmission {
-            self.read_emission
-        }
-    )
 }
 
 /// Emission parameters for PairHMM over reference allele.

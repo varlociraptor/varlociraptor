@@ -4,20 +4,23 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 use rgsl::randist::gaussian::ugaussian_P;
-use bio::stats::pairhmm;
+use bio::stats::pairhmm::{EmissionParameters, XYEmission};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant, FragmentEnclosable};
-use crate::variants::realignable::{pairhmm::RefBaseEmission, pairhmm::default_ref_base_emission};
+use crate::variants::realignable::pairhmm::{RefBaseEmission, ReadEmission};
+use crate::variants::realignable::Realigner;
+use crate::{default_emission, default_ref_base_emission};
 
 pub struct Deletion {
     locus: genome::Interval,
     fetch_loci: MultiLocus,
+    realigner: Realigner,
 }
 
 impl Deletion {
-    pub fn new(locus: genome::Interval) -> Self {
+    pub fn new(locus: genome::Interval, realigner: Realigner) -> Self {
         let start = locus.range().start;
         let end = locus.range().end;
         let centerpoint = start + ((end - start) as f64 / 2.0).round() as u64;
@@ -35,6 +38,7 @@ impl Deletion {
         Deletion {
             locus: locus,
             fetch_loci,
+            realigner,
         }
     }
 }
@@ -74,8 +78,8 @@ impl<'a> Variant<'a> for Deletion {
     }
 
     /// Calculate probability for alt and reference allele.
-    fn prob_alleles(&self, evidence: &Self::Evidence) -> Result<Option<AlleleProb>> {
-
+    fn prob_alleles(&self, evidence: &Self::Evidence, gap_params: &realignable::pairhmm::IndelGapParams) -> Result<Option<AlleleProb>> {
+        Realigner::new()
     }
 
     fn prob_sample_alt(
@@ -120,7 +124,7 @@ impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
     default_ref_base_emission!();
 }
 
-impl<'a> pairhmm::EmissionParameters for DeletionEmissionParams<'a> {
+impl<'a> EmissionParameters for DeletionEmissionParams<'a> {
     default_emission!();
 
     #[inline]

@@ -11,6 +11,7 @@ use bio::stats::pairhmm;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::Variant;
+use crate::variants::realignable::pairhmm::{EDIT_BAND, RefBaseEmission};
 
 
 pub struct EditDistanceCalculation {
@@ -78,7 +79,8 @@ impl EditDistanceCalculation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CopyGetters)]
+#[getset(get_copy="pub")]
 pub struct EditDistanceHit {
     start: usize,
     end: usize,

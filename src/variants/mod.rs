@@ -19,7 +19,6 @@ pub mod fragment_enclosable;
 pub mod realignable;
 
 pub use fragment_enclosable::FragmentEnclosable;
-pub use realignable::Realignable;
 
 #[derive(Debug, CopyGetters, new)]
 #[getset(get_copy = "pub")]
@@ -55,7 +54,7 @@ pub trait Variant<'a> {
     fn loci(&self) -> &Self::Loci;
 
     /// Calculate probability for alt and reference allele.
-    fn prob_alleles(&self, evidence: &Self::Evidence) -> Result<Option<AlleleProb>>;
+    fn prob_alleles(&self, evidence: &Self::Evidence, gap_params: &realignable::pairhmm::IndelGapParams) -> Result<Option<AlleleProb>>;
 
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(
@@ -350,7 +349,8 @@ impl Overlap {
     pub fn is_none(&self) -> bool {
         if let Overlap::None = self {
             true
+        } else {
+            false
         }
-        false
     }
 }
