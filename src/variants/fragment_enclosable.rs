@@ -150,6 +150,16 @@ pub trait FragmentEnclosable<'a>: Variant<'a> {
         }
     }
 
+    fn is_within_sd(
+        &self,
+        insert_size: u64,
+        shift: f64,
+        alignment_properties: &AlignmentProperties,
+    ) -> bool {
+        let m = alignment_properties.insert_size().mean + shift;
+        (insert_size as f64 - m).abs() <= alignment_properties.insert_size().sd
+    }
+
     fn len(&self) -> u64;
 }
 

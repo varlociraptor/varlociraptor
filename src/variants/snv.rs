@@ -41,7 +41,7 @@ impl<'a> Variant<'a> for SNV {
         &self.locus
     }
 
-    fn prob_alleles(&self, read: &SingleEndEvidence, _: &realignable::pairhmm::IndelGapParams) -> Result<Option<AlleleProb>> {
+    fn prob_alleles(&self, read: &SingleEndEvidence, _: &AlignmentProperties) -> Result<Option<AlleleProb>> {
         if let Some(qpos) = read
             .cigar_cached()
             .unwrap()

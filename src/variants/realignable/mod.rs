@@ -1,10 +1,11 @@
 use std::cmp;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use rust_htslib::bam;
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb, Prob, pairhmm::PairHMM, self};
-use bio_types::genome::AbstractInterval;
+use bio_types::genome::{AbstractInterval, self};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::{AlleleProb, SingleLocus};
@@ -15,20 +16,32 @@ pub mod edit_distance;
 pub mod pairhmm;
 
 
-pub struct Realigner<'a> {
-    pairhmm: PairHMM,
-    gap_params: &'a pairhmm::IndelGapParams,
-    max_window: u64,
-    ref_seq: &'a [u8],
+pub trait Realignable<'a> {
+    type EmissionParams: 'a + stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
+
+    fn alt_emission_params(&self, read_emission_params: &'a ReadEmission, ref_seq: Arc<Vec<u8>>, ref_window: usize) -> Self::EmissionParams;
 }
 
-impl<'a> Realigner<'a> {
+
+#[derive(Debug)]
+pub struct Realigner
+{
+    pairhmm: PairHMM,
+    gap_params: pairhmm::IndelGapParams,
+    max_window: u64,
+    ref_seq: Arc<Vec<u8>>,
+}
+
+impl Realigner {
     /// Create a new instance.
     pub fn new(
-        ref_seq: &'a [u8],
-        gap_params: &'a pairhmm::IndelGapParams,
+        ref_seq: Arc<Vec<u8>>,
+        gap_params: pairhmm::IndelGapParams,
         max_window: u64,
-    ) -> Self {
+    ) -> Self 
+    where
+        
+    {
         Realigner {
             gap_params,
             pairhmm: PairHMM::new(),
@@ -37,9 +50,9 @@ impl<'a> Realigner<'a> {
         }
     }
 
-    pub fn prob_alleles<E>(&self, record: &bam::Record, locus: &SingleLocus, mut allele_params: E) -> Result<Option<AlleleProb>> 
+    pub fn prob_alleles<'a, V>(&self, record: &'a bam::Record, locus: &genome::Interval, variant: &V) -> Result<AlleleProb> 
     where
-        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission
+        V: Realignable<'a>,
     {
         let read_seq = record.seq();
         let read_qual = record.qual();
@@ -110,13 +123,13 @@ impl<'a> Realigner<'a> {
             // If there is no overlap, normalization below would anyway lead to 0.5 vs 0.5,
             // multiplied with certainty estimate. Hence, we can skip the entire HMM calculation!
             let p = LogProb::from(Prob(0.5));
-            return Ok(Some(AlleleProb::new(p, p)));
+            return Ok(AlleleProb::new(p, p));
         }
 
         // ref allele
         let mut prob_ref = self.prob_allele(
             ReferenceEmissionParams {
-                ref_seq: self.ref_seq,
+                ref_seq: self.ref_seq.as_ref(),
                 ref_offset: breakpoint.saturating_sub(ref_window),
                 ref_end: cmp::min(breakpoint + ref_window, self.ref_seq.len()),
                 read_emission: &read_emission,
@@ -125,7 +138,7 @@ impl<'a> Realigner<'a> {
         );
 
         let mut prob_alt = self.prob_allele(
-            allele_params,
+            variant.alt_emission_params(&read_emission, Arc::clone(&self.ref_seq), ref_window),
             &edit_dist,
         );
 
@@ -156,15 +169,18 @@ impl<'a> Realigner<'a> {
             prob_alt = prob_ref;
         }
 
-        Ok(Some(AlleleProb::new(prob_ref, prob_alt)))
+        Ok(AlleleProb::new(prob_ref, prob_alt))
     }
 
     /// Calculate probability of a certain allele.
-    fn prob_allele<E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission>(
+    fn prob_allele<E>(
         &mut self,
         mut allele_params: E,
         edit_dist: &edit_distance::EditDistanceCalculation,
-    ) -> LogProb {
+    ) -> LogProb 
+    where
+        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission
+    {
         let hit = edit_dist.calc_best_hit(&allele_params);
         if hit.dist() == 0 {
             // METHOD: In case of a perfect match, we just take the base quality product.
@@ -177,10 +193,17 @@ impl<'a> Realigner<'a> {
 
             // METHOD: Further, we run the HMM on a band around the best edit distance.
             self.pairhmm.prob_related(
-                self.gap_params,
+                &self.gap_params,
                 &allele_params,
                 Some(hit.dist_upper_bound()),
             )
         }
     }
+}
+
+pub trait AltAlleleEmissionBuilder
+{
+    type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
+
+    fn build<'a>(&self, read_emission_params: &'a ReadEmission, ref_seq: &'a [u8]) -> Self::EmissionParams;
 }

@@ -54,7 +54,7 @@ pub trait Variant<'a> {
     fn loci(&self) -> &Self::Loci;
 
     /// Calculate probability for alt and reference allele.
-    fn prob_alleles(&self, evidence: &Self::Evidence, gap_params: &realignable::pairhmm::IndelGapParams) -> Result<Option<AlleleProb>>;
+    fn prob_alleles(&self, evidence: &Self::Evidence, alignment_properties: &AlignmentProperties) -> Result<Option<AlleleProb>>;
 
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(
