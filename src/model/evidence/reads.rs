@@ -31,7 +31,7 @@ pub trait AbstractReadEvidence {
         &mut self,
         record: &bam::Record,
         cigar: &CigarStringView,
-        start: u32,
+        start: u64,
         variant: &Variant,
         ref_seq: &[u8],
     ) -> Result<Option<(LogProb, LogProb)>>;
@@ -71,7 +71,7 @@ impl AbstractReadEvidence for NoneEvidence {
         &mut self,
         record: &bam::Record,
         cigar: &CigarStringView,
-        start: u32,
+        start: u64,
         variant: &Variant,
         ref_seq: &[u8],
     ) -> Result<Option<(LogProb, LogProb)>> {
@@ -117,7 +117,7 @@ impl AbstractReadEvidence for SNVEvidence {
         &mut self,
         record: &bam::Record,
         cigar: &CigarStringView,
-        start: u32,
+        start: u64,
         variant: &Variant,
         ref_seq: &[u8],
     ) -> Result<Option<(LogProb, LogProb)>> {
@@ -174,7 +174,7 @@ impl AbstractReadEvidence for MNVEvidence {
         &mut self,
         record: &bam::Record,
         cigar: &CigarStringView,
-        start: u32,
+        start: u64,
         variant: &Variant,
         ref_seq: &[u8],
     ) -> Result<Option<(LogProb, LogProb)>> {
@@ -285,7 +285,7 @@ impl AbstractReadEvidence for IndelEvidence {
         &mut self,
         record: &bam::Record,
         cigar: &CigarStringView,
-        start: u32,
+        start: u64,
         variant: &Variant,
         ref_seq: &[u8],
     ) -> Result<Option<(LogProb, LogProb)>> {

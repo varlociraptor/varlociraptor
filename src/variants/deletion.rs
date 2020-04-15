@@ -1,19 +1,16 @@
 use std::cmp;
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use anyhow::Result;
-use bio::stats::pairhmm::{EmissionParameters, XYEmission};
+use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
-use rgsl::randist::gaussian::ugaussian_P;
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::fragments::estimate_insert_size;
-use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::realignable::pairhmm::{IndelGapParams, ReadEmission, RefBaseEmission};
-use crate::variants::realignable::{AltAlleleEmissionBuilder, Realignable, Realigner};
+use crate::variants::realignable::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::variants::realignable::{Realignable, Realigner};
 use crate::variants::{
     AlleleProb, FragmentEnclosable, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
 };

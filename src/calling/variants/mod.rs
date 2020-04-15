@@ -33,7 +33,7 @@ pub use crate::calling::variants::preprocessing::{
 #[derive(Default, Clone, Debug, Builder)]
 pub struct Call {
     chrom: Vec<u8>,
-    pos: u32,
+    pos: u64,
     #[builder(default = "None")]
     id: Option<Vec<u8>>,
     #[builder(default = "Vec::new()")]

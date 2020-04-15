@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::collections::HashSet;
 use std::f64;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
@@ -17,7 +16,6 @@ use serde::Serialize;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
-use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::sample;
@@ -173,7 +171,7 @@ where
         evidence: &E,
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<Observation>> {
-        Ok(match self.prob_alleles(evidence)? {
+        Ok(match self.prob_alleles(evidence, alignment_properties)? {
             Some(prob_alleles) => {
                 let strand = self.strand(evidence);
 

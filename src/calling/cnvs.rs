@@ -50,7 +50,7 @@ pub struct Caller {
     bcf_writer: bcf::Writer,
     min_bayes_factor: f64,
     purity: f64,
-    max_dist: u32,
+    max_dist: u64,
     #[builder(private)]
     contig_lens: HashMap<Vec<u8>, u32>,
 }
@@ -280,14 +280,14 @@ impl Caller {
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Region {
     rid: u32,
-    start: u32,
+    start: u64,
 }
 
 pub struct CNVCall<'a> {
-    prev_pos: Option<u32>,
-    next_pos: Option<u32>,
-    pos: u32,
-    end: u32,
+    prev_pos: Option<u64>,
+    next_pos: Option<u64>,
+    pos: u64,
+    end: u64,
     cnv: CNV,
     prob_no_cnv: LogProb,
     calls: Vec<&'a Call>,
@@ -300,7 +300,7 @@ impl<'a> CNVCall<'a> {
         rid: u32,
         record: &mut bcf::Record,
         depth_norm_factor: f64,
-        contig_len: u32,
+        contig_len: u64,
     ) -> Result<()> {
         record.set_rid(Some(rid));
         record.set_pos(self.pos as i64);
@@ -570,10 +570,10 @@ pub struct Call {
     allele_freq_normal: AlleleFreq,
     depth_tumor: u32,
     depth_normal: u32,
-    start: u32,
+    start: u64,
     rid: u32,
-    prev_start: Option<u32>,
-    next_start: Option<u32>,
+    prev_start: Option<u64>,
+    next_start: Option<u64>,
 }
 
 impl Call {
@@ -603,7 +603,7 @@ impl Call {
                         depth_tumor: *depths.tumor(),
                         depth_normal: *depths.normal(),
                         prob_germline_het: prob_germline_het,
-                        start: record.pos(),
+                        start: record.pos() as u64,
                         rid: record.rid().unwrap(),
                         prev_start: None,
                         next_start: None,

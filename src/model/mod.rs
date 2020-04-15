@@ -326,9 +326,9 @@ impl Deref for ContinuousAlleleFreqs {
 #[derive(Debug, Clone, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr)]
 pub enum VariantType {
     #[strum(serialize = "INS")]
-    Insertion(Option<Range<u32>>),
+    Insertion(Option<Range<u64>>),
     #[strum(serialize = "DEL")]
-    Deletion(Option<Range<u32>>),
+    Deletion(Option<Range<u64>>),
     #[strum(serialize = "SNV")]
     SNV,
     #[strum(serialize = "MNV")]
@@ -351,7 +351,7 @@ impl From<&str> for VariantType {
 
 #[derive(Clone, Debug)]
 pub enum Variant {
-    Deletion(u32),
+    Deletion(u64),
     Insertion(Vec<u8>),
     SNV(u8),
     MNV(Vec<u8>),
@@ -359,40 +359,6 @@ pub enum Variant {
 }
 
 impl Variant {
-    pub fn has_fragment_evidence(&self) -> bool {
-        match self {
-            &Variant::Deletion(_) => true,
-            &Variant::Insertion(_) => true,
-            &Variant::SNV(_) => false,
-            &Variant::MNV(_) => false,
-            &Variant::None => false,
-        }
-    }
-
-    pub fn is_single_base(&self) -> bool {
-        match self {
-            &Variant::SNV(_) | &Variant::None => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_snv(&self) -> bool {
-        match self {
-            &Variant::SNV(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_indel(&self) -> bool {
-        match self {
-            &Variant::Deletion(_) => true,
-            &Variant::Insertion(_) => true,
-            &Variant::SNV(_) => false,
-            &Variant::MNV(_) => false,
-            &Variant::None => false,
-        }
-    }
-
     pub fn is_type(&self, vartype: &VariantType) -> bool {
         match (self, vartype) {
             (&Variant::Deletion(l), &VariantType::Deletion(Some(ref range))) => {
@@ -410,30 +376,21 @@ impl Variant {
         }
     }
 
-    pub fn end(&self, start: u32) -> u32 {
+    pub fn end(&self, start: u64) -> u64 {
         match self {
             &Variant::Deletion(length) => start + length,
             &Variant::Insertion(_) => start + 1, // end of insertion is the next regular base
             &Variant::SNV(_) | &Variant::None => start,
-            &Variant::MNV(ref alt) => start + alt.len() as u32,
+            &Variant::MNV(ref alt) => start + alt.len() as u64,
         }
     }
 
-    pub fn centerpoint(&self, start: u32) -> u32 {
-        match self {
-            &Variant::Deletion(length) => start + length / 2,
-            &Variant::Insertion(_) => start, // end of insertion is the next regular base
-            &Variant::SNV(_) | &Variant::None => start,
-            &Variant::MNV(ref alt) => start + alt.len() as u32 / 2,
-        }
-    }
-
-    pub fn len(&self) -> u32 {
+    pub fn len(&self) -> u64 {
         match self {
             &Variant::Deletion(l) => l,
-            &Variant::Insertion(ref s) => s.len() as u32,
+            &Variant::Insertion(ref s) => s.len() as u64,
             &Variant::SNV(_) => 1,
-            &Variant::MNV(ref alt) => alt.len() as u32,
+            &Variant::MNV(ref alt) => alt.len() as u64,
             &Variant::None => 1,
         }
     }

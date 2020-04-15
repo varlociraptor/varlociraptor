@@ -4,7 +4,7 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::reads::prob_read_base;
-use crate::variants::{realignable, AlleleProb, Overlap, SingleEndEvidence, SingleLocus, Variant};
+use crate::variants::{AlleleProb, Overlap, SingleEndEvidence, SingleLocus, Variant};
 
 pub struct SNV {
     locus: SingleLocus,

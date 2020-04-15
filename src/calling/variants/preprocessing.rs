@@ -162,7 +162,7 @@ impl ObservationProcessor {
 
         let mut call = CallBuilder::default()
             .chrom(chrom.to_owned())
-            .pos(start)
+            .pos(start as u64)
             .id({
                 let id = record.id();
                 if id == b"." {

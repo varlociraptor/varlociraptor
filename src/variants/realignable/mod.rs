@@ -3,14 +3,13 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use anyhow::Result;
-use bio::stats::{self, pairhmm::PairHMM, LogProb, PHREDProb, Prob};
+use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 
-use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::realignable::edit_distance::EditDistanceCalculation;
 use crate::variants::realignable::pairhmm::{ReadEmission, ReferenceEmissionParams};
-use crate::variants::{AlleleProb, SingleLocus};
+use crate::variants::AlleleProb;
 
 pub mod edit_distance;
 pub mod pairhmm;
