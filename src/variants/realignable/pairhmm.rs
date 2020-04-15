@@ -2,12 +2,12 @@ use std::cmp;
 use std::fmt::Debug;
 
 use anyhow::Result;
+use bio::pattern_matching::myers::Myers;
+use bio::stats::pairhmm;
 use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::strand::Strand;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
-use bio::pattern_matching::myers::Myers;
-use bio::stats::pairhmm;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::Variant;
@@ -19,7 +19,6 @@ pub const EDIT_BAND: usize = 2;
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
 }
-
 
 /// Calculate probability of read_base given ref_base.
 pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {

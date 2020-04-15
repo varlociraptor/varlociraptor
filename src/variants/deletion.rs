@@ -1,21 +1,23 @@
 use std::cmp;
-use std::sync::Arc;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use anyhow::Result;
+use bio::stats::pairhmm::{EmissionParameters, XYEmission};
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 use rgsl::randist::gaussian::ugaussian_P;
-use bio::stats::pairhmm::{EmissionParameters, XYEmission};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant, FragmentEnclosable};
-use crate::variants::realignable::pairhmm::{RefBaseEmission, ReadEmission, IndelGapParams};
-use crate::variants::realignable::{Realigner, AltAlleleEmissionBuilder, Realignable};
-use crate::{default_emission, default_ref_base_emission};
 use crate::model::evidence::fragments::estimate_insert_size;
+use crate::utils::NUMERICAL_EPSILON;
+use crate::variants::realignable::pairhmm::{IndelGapParams, ReadEmission, RefBaseEmission};
+use crate::variants::realignable::{AltAlleleEmissionBuilder, Realignable, Realigner};
+use crate::variants::{
+    AlleleProb, FragmentEnclosable, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
+};
+use crate::{default_emission, default_ref_base_emission};
 
 pub struct Deletion {
     locus: genome::Interval,
@@ -47,7 +49,12 @@ impl Deletion {
         }
     }
 
-    pub fn prob_alleles_isize(&self, left_record: &bam::Record, right_record: &bam::Record, alignment_properties: &AlignmentProperties) -> Result<AlleleProb> {
+    pub fn prob_alleles_isize(
+        &self,
+        left_record: &bam::Record,
+        right_record: &bam::Record,
+        alignment_properties: &AlignmentProperties,
+    ) -> Result<AlleleProb> {
         let insert_size = estimate_insert_size(left_record, right_record)?;
 
         let p_ref = self.isize_pmf(insert_size, 0.0, alignment_properties);
@@ -77,7 +84,12 @@ impl<'a> FragmentEnclosable<'a> for Deletion {
 impl<'a> Realignable<'a> for Deletion {
     type EmissionParams = DeletionEmissionParams<'a>;
 
-    fn alt_emission_params(&self, read_emission_params: &'a ReadEmission, ref_seq: Arc<Vec<u8>>, ref_window: usize) -> DeletionEmissionParams<'a> {
+    fn alt_emission_params(
+        &self,
+        read_emission_params: &'a ReadEmission,
+        ref_seq: Arc<Vec<u8>>,
+        ref_window: usize,
+    ) -> DeletionEmissionParams<'a> {
         let start = self.locus.range().start as usize;
         let end = self.locus.range().end as usize;
         DeletionEmissionParams {
@@ -99,7 +111,7 @@ impl<'a> Variant<'a> for Deletion {
         let mut locus_idx = Vec::new();
         for (i, locus) in self.loci().iter().enumerate() {
             if match evidence {
-                PairedEndEvidence::SingleEnd(read) => { !locus.overlap(read, true).is_none() }
+                PairedEndEvidence::SingleEnd(read) => !locus.overlap(read, true).is_none(),
                 PairedEndEvidence::PairedEnd { left, right } => {
                     !locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none()
                 }
@@ -120,21 +132,28 @@ impl<'a> Variant<'a> for Deletion {
     }
 
     /// Calculate probability for alt and reference allele.
-    fn prob_alleles(&self, evidence: &Self::Evidence, alignment_properties: &AlignmentProperties) -> Result<Option<AlleleProb>> {
-
+    fn prob_alleles(
+        &self,
+        evidence: &Self::Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Result<Option<AlleleProb>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => {
-                Ok(Some(self.realigner.prob_alleles(record, &self.locus, self)?))
-            },
+            PairedEndEvidence::SingleEnd(record) => Ok(Some(self.realigner.prob_alleles(
+                record,
+                &self.locus,
+                self,
+            )?)),
             PairedEndEvidence::PairedEnd { left, right } => {
                 let prob_left = self.realigner.prob_alleles(left, &self.locus, self)?;
                 let prob_right = self.realigner.prob_alleles(right, &self.locus, self)?;
                 let prob_isize = self.prob_alleles_isize(left, right, alignment_properties)?;
-                
-                Ok(Some(AlleleProb::new(prob_left.ref_allele() + prob_right.ref_allele() + prob_isize.ref_allele(), prob_left.alt_allele() + prob_right.alt_allele() + prob_isize.alt_allele())))
-            },
+
+                Ok(Some(AlleleProb::new(
+                    prob_left.ref_allele() + prob_right.ref_allele() + prob_isize.ref_allele(),
+                    prob_left.alt_allele() + prob_right.alt_allele() + prob_isize.alt_allele(),
+                )))
+            }
         }
-        
     }
 
     fn prob_sample_alt(
@@ -143,16 +162,17 @@ impl<'a> Variant<'a> for Deletion {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {
-            PairedEndEvidence::PairedEnd { left, right } => {
-                self.prob_sample_alt_paired(left.seq().len() as u64, right.seq().len() as u64, alignment_properties)
-            },
-            PairedEndEvidence::SingleEnd( read ) => {
+            PairedEndEvidence::PairedEnd { left, right } => self.prob_sample_alt_paired(
+                left.seq().len() as u64,
+                right.seq().len() as u64,
+                alignment_properties,
+            ),
+            PairedEndEvidence::SingleEnd(read) => {
                 self.prob_sample_alt_single(read.seq().len() as u64, alignment_properties)
             }
         }
     }
 }
-
 
 /// Emission parameters for PairHMM over deletion allele.
 #[derive(Debug)]

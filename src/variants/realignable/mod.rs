@@ -2,30 +2,32 @@ use std::cmp;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use rust_htslib::bam;
 use anyhow::Result;
-use bio::stats::{LogProb, PHREDProb, Prob, pairhmm::PairHMM, self};
-use bio_types::genome::{AbstractInterval, self};
+use bio::stats::{self, pairhmm::PairHMM, LogProb, PHREDProb, Prob};
+use bio_types::genome::{self, AbstractInterval};
+use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::{AlleleProb, SingleLocus};
 use crate::variants::realignable::edit_distance::EditDistanceCalculation;
 use crate::variants::realignable::pairhmm::{ReadEmission, ReferenceEmissionParams};
+use crate::variants::{AlleleProb, SingleLocus};
 
 pub mod edit_distance;
 pub mod pairhmm;
 
-
 pub trait Realignable<'a> {
     type EmissionParams: 'a + stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
 
-    fn alt_emission_params(&self, read_emission_params: &'a ReadEmission, ref_seq: Arc<Vec<u8>>, ref_window: usize) -> Self::EmissionParams;
+    fn alt_emission_params(
+        &self,
+        read_emission_params: &'a ReadEmission,
+        ref_seq: Arc<Vec<u8>>,
+        ref_window: usize,
+    ) -> Self::EmissionParams;
 }
 
-
 #[derive(Debug)]
-pub struct Realigner
-{
+pub struct Realigner {
     pairhmm: PairHMM,
     gap_params: pairhmm::IndelGapParams,
     max_window: u64,
@@ -38,10 +40,8 @@ impl Realigner {
         ref_seq: Arc<Vec<u8>>,
         gap_params: pairhmm::IndelGapParams,
         max_window: u64,
-    ) -> Self 
-    where
-        
-    {
+    ) -> Self
+where {
         Realigner {
             gap_params,
             pairhmm: PairHMM::new(),
@@ -50,7 +50,12 @@ impl Realigner {
         }
     }
 
-    pub fn prob_alleles<'a, V>(&self, record: &'a bam::Record, locus: &genome::Interval, variant: &V) -> Result<AlleleProb> 
+    pub fn prob_alleles<'a, V>(
+        &self,
+        record: &'a bam::Record,
+        locus: &genome::Interval,
+        variant: &V,
+    ) -> Result<AlleleProb>
     where
         V: Realignable<'a>,
     {
@@ -177,9 +182,9 @@ impl Realigner {
         &mut self,
         mut allele_params: E,
         edit_dist: &edit_distance::EditDistanceCalculation,
-    ) -> LogProb 
+    ) -> LogProb
     where
-        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission
+        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
     {
         let hit = edit_dist.calc_best_hit(&allele_params);
         if hit.dist() == 0 {
@@ -201,9 +206,12 @@ impl Realigner {
     }
 }
 
-pub trait AltAlleleEmissionBuilder
-{
+pub trait AltAlleleEmissionBuilder {
     type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
 
-    fn build<'a>(&self, read_emission_params: &'a ReadEmission, ref_seq: &'a [u8]) -> Self::EmissionParams;
+    fn build<'a>(
+        &self,
+        read_emission_params: &'a ReadEmission,
+        ref_seq: &'a [u8],
+    ) -> Self::EmissionParams;
 }

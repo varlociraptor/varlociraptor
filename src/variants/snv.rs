@@ -4,7 +4,7 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::reads::prob_read_base;
-use crate::variants::{AlleleProb, Overlap, SingleEndEvidence, SingleLocus, Variant, realignable};
+use crate::variants::{realignable, AlleleProb, Overlap, SingleEndEvidence, SingleLocus, Variant};
 
 pub struct SNV {
     locus: SingleLocus,
@@ -41,7 +41,11 @@ impl<'a> Variant<'a> for SNV {
         &self.locus
     }
 
-    fn prob_alleles(&self, read: &SingleEndEvidence, _: &AlignmentProperties) -> Result<Option<AlleleProb>> {
+    fn prob_alleles(
+        &self,
+        read: &SingleEndEvidence,
+        _: &AlignmentProperties,
+    ) -> Result<Option<AlleleProb>> {
         if let Some(qpos) = read
             .cigar_cached()
             .unwrap()

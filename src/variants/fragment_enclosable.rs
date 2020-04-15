@@ -1,14 +1,13 @@
 use std::cmp;
 use std::ops::Range;
 
-use itertools::Itertools;
 use bio::stats::LogProb;
+use itertools::Itertools;
 use rgsl::randist::gaussian::ugaussian_P;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::Variant;
-
 
 pub trait FragmentEnclosable<'a>: Variant<'a> {
     /// Get range of insert sizes with probability above zero.
@@ -115,7 +114,16 @@ pub trait FragmentEnclosable<'a>: Variant<'a> {
 
         let delta_ref = self.len();
         let delta_alt = 0;
-        self.expected_prob_sample_alt(left_read_len, right_read_len, left_feasible, right_feasible, delta_ref, delta_alt, true, alignment_properties)
+        self.expected_prob_sample_alt(
+            left_read_len,
+            right_read_len,
+            left_feasible,
+            right_feasible,
+            delta_ref,
+            delta_alt,
+            true,
+            alignment_properties,
+        )
     }
 
     /// Probability to sample read from alt allele given the average feasible positions observed

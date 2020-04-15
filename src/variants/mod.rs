@@ -13,10 +13,10 @@ use crate::model::evidence::observation::{
 use crate::model::sample;
 
 pub mod deletion;
-pub mod mnv;
-pub mod snv;
 pub mod fragment_enclosable;
+pub mod mnv;
 pub mod realignable;
+pub mod snv;
 
 pub use fragment_enclosable::FragmentEnclosable;
 
@@ -54,7 +54,11 @@ pub trait Variant<'a> {
     fn loci(&self) -> &Self::Loci;
 
     /// Calculate probability for alt and reference allele.
-    fn prob_alleles(&self, evidence: &Self::Evidence, alignment_properties: &AlignmentProperties) -> Result<Option<AlleleProb>>;
+    fn prob_alleles(
+        &self,
+        evidence: &Self::Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Result<Option<AlleleProb>>;
 
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(
@@ -279,7 +283,6 @@ where
         Ok(observations)
     }
 }
-
 
 pub trait Loci {}
 

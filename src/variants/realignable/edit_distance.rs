@@ -2,17 +2,16 @@ use std::cmp;
 use std::fmt::Debug;
 
 use anyhow::Result;
+use bio::pattern_matching::myers::Myers;
+use bio::stats::pairhmm;
 use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::strand::Strand;
 use rust_htslib::bam;
 use rust_htslib::bam::record::CigarStringView;
-use bio::pattern_matching::myers::Myers;
-use bio::stats::pairhmm;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::Variant;
-use crate::variants::realignable::pairhmm::{EDIT_BAND, RefBaseEmission};
-
+use crate::variants::realignable::pairhmm::{RefBaseEmission, EDIT_BAND};
 
 pub struct EditDistanceCalculation {
     myers: Myers<u128>,
@@ -80,7 +79,7 @@ impl EditDistanceCalculation {
 }
 
 #[derive(Debug, Clone, CopyGetters)]
-#[getset(get_copy="pub")]
+#[getset(get_copy = "pub")]
 pub struct EditDistanceHit {
     start: usize,
     end: usize,
