@@ -38,7 +38,7 @@ pub struct ObservationProcessor {
     bcf_writer: bcf::Writer,
     omit_snvs: bool,
     omit_indels: bool,
-    max_indel_len: u32,
+    max_indel_len: u64,
 }
 
 impl ObservationProcessorBuilder {

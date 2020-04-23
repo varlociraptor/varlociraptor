@@ -12,8 +12,9 @@ use crate::model::evidence::fragments::estimate_insert_size;
 use crate::variants::realignable::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::realignable::{Realignable, Realigner};
 use crate::variants::{
-    AlleleProb, FragmentEnclosable, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
+    AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
 };
+use crate::variants::sampling_bias::{SamplingBias, FragmentSamplingBias, ReadSamplingBias};
 use crate::{default_emission, default_ref_base_emission};
 
 pub struct Deletion {
@@ -46,6 +47,10 @@ impl Deletion {
         }
     }
 
+    pub fn centerpoint(&self) -> u64 {
+        self.fetch_loci[1].range().start
+    }
+
     pub fn prob_alleles_isize(
         &self,
         left_record: &bam::Record,
@@ -72,17 +77,20 @@ impl Deletion {
     }
 }
 
-impl<'a> FragmentEnclosable<'a> for Deletion {
+impl<'a> SamplingBias<'a> for Deletion {
     fn len(&self) -> u64 {
         self.locus.range().end - self.locus.range().start
     }
 }
 
-impl<'a> Realignable<'a> for Deletion {
+impl<'a> FragmentSamplingBias<'a> for Deletion { }
+impl<'a> ReadSamplingBias<'a> for Deletion { }
+
+impl<'a, 'b> Realignable<'a, 'b> for Deletion {
     type EmissionParams = DeletionEmissionParams<'a>;
 
     fn alt_emission_params(
-        &self,
+        &'b self,
         read_emission_params: &'a ReadEmission,
         ref_seq: Arc<Vec<u8>>,
         ref_window: usize,
@@ -110,7 +118,10 @@ impl<'a> Variant<'a> for Deletion {
             if match evidence {
                 PairedEndEvidence::SingleEnd(read) => !locus.overlap(read, true).is_none(),
                 PairedEndEvidence::PairedEnd { left, right } => {
-                    !locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none()
+                    // METHOD: valid if one read overlaps and the fragment encloses the centerpoint.
+                    let right_cigar = right.cigar_cached().unwrap();
+                    (!locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none()) &&
+                    (left.pos() as u64) < self.centerpoint() && right_cigar.end_pos() as u64 > self.centerpoint()
                 }
             } {
                 locus_idx.push(i);
@@ -128,7 +139,6 @@ impl<'a> Variant<'a> for Deletion {
         &self.fetch_loci
     }
 
-    /// Calculate probability for alt and reference allele.
     fn prob_alleles(
         &self,
         evidence: &Self::Evidence,
@@ -141,6 +151,20 @@ impl<'a> Variant<'a> for Deletion {
                 self,
             )?)),
             PairedEndEvidence::PairedEnd { left, right } => {
+                // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
+                // Here we calculate the product of insert size based and alignment based probabilities.
+                // This has the benefit that the calculation automatically checks for consistence between
+                // insert size and overlapping alignmnments.
+                // This sports the following desirable behavior:
+                //
+                // * If there is no clear evidence from either the insert size or the alignment, the factors
+                //   simply scale because the probabilities of the corresponding type of evidence will be equal.
+                // * If reads and fragments agree, 1 stays 1 and 0 stays 0.
+                // * If reads and fragments disagree (the promising part!), the other type of evidence will
+                //   scale potential false positive probabilities down.
+                // * Since there is only one observation per fragment, there is no double counting when
+                //   estimating allele frequencies. Before, we had one observation for an overlapping read
+                //   and potentially another observation for the corresponding fragment.
                 let prob_left = self.realigner.prob_alleles(left, &self.locus, self)?;
                 let prob_right = self.realigner.prob_alleles(right, &self.locus, self)?;
                 let prob_isize = self.prob_alleles_isize(left, right, alignment_properties)?;
@@ -159,13 +183,13 @@ impl<'a> Variant<'a> for Deletion {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {
-            PairedEndEvidence::PairedEnd { left, right } => self.prob_sample_alt_paired(
+            PairedEndEvidence::PairedEnd { left, right } => self.prob_sample_alt_fragment(
                 left.seq().len() as u64,
                 right.seq().len() as u64,
                 alignment_properties,
             ),
             PairedEndEvidence::SingleEnd(read) => {
-                self.prob_sample_alt_single(read.seq().len() as u64, alignment_properties)
+                self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }
         }
     }

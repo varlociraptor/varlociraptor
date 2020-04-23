@@ -13,12 +13,11 @@ use crate::model::evidence::observation::{
 use crate::model::sample;
 
 pub mod deletion;
-pub mod fragment_enclosable;
+pub mod insertion;
+pub mod sampling_bias;
 pub mod mnv;
 pub mod realignable;
 pub mod snv;
-
-pub use fragment_enclosable::FragmentEnclosable;
 
 #[derive(Debug, CopyGetters, new)]
 #[getset(get_copy = "pub")]

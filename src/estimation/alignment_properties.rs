@@ -195,7 +195,7 @@ impl AlignmentProperties {
     /// Number of bases that are feasible for overlapping the variant.
     pub fn feasible_bases(&self, read_len: u32, variant: &Variant) -> u32 {
         match variant {
-            &Variant::Deletion(l) if l <= self.max_del_cigar_len => read_len,
+            &Variant::Deletion(l) if l <= self.max_del_cigar_len as u64 => read_len,
             &Variant::Insertion(ref seq) if seq.len() as u32 <= self.max_ins_cigar_len => read_len,
             &Variant::SNV(_) => return read_len,
             &Variant::None => return read_len,

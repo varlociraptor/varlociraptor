@@ -272,7 +272,7 @@ where
             let first_record = records
                 .first_mut()
                 .expect("bug: there must be at least one record");
-            let start = first_record.pos();
+            let start = first_record.pos() as u64;
             let chrom = chrom(
                 &self
                     .observations

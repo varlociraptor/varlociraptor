@@ -14,11 +14,11 @@ use crate::variants::AlleleProb;
 pub mod edit_distance;
 pub mod pairhmm;
 
-pub trait Realignable<'a> {
+pub trait Realignable<'a, 'b> {
     type EmissionParams: 'a + stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
 
     fn alt_emission_params(
-        &self,
+        &'b self,
         read_emission_params: &'a ReadEmission,
         ref_seq: Arc<Vec<u8>>,
         ref_window: usize,
@@ -49,14 +49,14 @@ where {
         }
     }
 
-    pub fn prob_alleles<'a, V>(
+    pub fn prob_alleles<'a, 'b, V>(
         &self,
         record: &'a bam::Record,
         locus: &genome::Interval,
-        variant: &V,
+        variant: &'b V,
     ) -> Result<AlleleProb>
     where
-        V: Realignable<'a>,
+        V: Realignable<'a, 'b>,
     {
         let read_seq = record.seq();
         let read_qual = record.qual();
