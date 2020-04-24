@@ -1,5 +1,5 @@
-use rust_htslib::bam;
 use anyhow::Result;
+use rust_htslib::bam;
 
 use crate::model::evidence;
 

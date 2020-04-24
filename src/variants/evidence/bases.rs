@@ -1,4 +1,3 @@
-
 use bio::stats::{LogProb, PHREDProb, Prob};
 
 lazy_static! {

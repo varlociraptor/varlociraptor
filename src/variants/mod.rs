@@ -13,18 +13,18 @@ use crate::model::evidence::observation::{
 use crate::model::sample;
 
 pub mod deletion;
+pub mod evidence;
 pub mod insertion;
 pub mod mnv;
-pub mod evidence;
+pub mod none;
 pub mod sampling_bias;
 pub mod snv;
-pub mod none;
 
-pub use none::None;
-pub use mnv::MNV;
-pub use snv::SNV;
 pub use deletion::Deletion;
 pub use insertion::Insertion;
+pub use mnv::MNV;
+pub use none::None;
+pub use snv::SNV;
 
 #[derive(Debug, CopyGetters, new)]
 #[getset(get_copy = "pub")]

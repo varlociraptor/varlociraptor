@@ -86,7 +86,6 @@ impl<'a> Variant<'a> for SNV {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 

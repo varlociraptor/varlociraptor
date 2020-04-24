@@ -72,7 +72,6 @@ impl<'a> Variant<'a> for None {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
