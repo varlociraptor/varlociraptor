@@ -255,7 +255,7 @@ pub fn collect_variants(
                         None
                     } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
                         Some(model::Variant::Deletion(
-                            (ref_allele.len() - alt_allele.len()) as u64
+                            (ref_allele.len() - alt_allele.len()) as u64,
                         ))
                     } else if is_valid_insertion_alleles(ref_allele, alt_allele) {
                         Some(model::Variant::Insertion(

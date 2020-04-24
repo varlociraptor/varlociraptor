@@ -724,32 +724,31 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             call_generic(scenario, observations)?;
                         }
                     }
-                }
-                // CallKind::CNVs {
-                //     calls,
-                //     output,
-                //     min_bayes_factor,
-                //     threads,
-                //     purity,
-                //     max_dist,
-                // } => {
-                //     rayon::ThreadPoolBuilder::new()
-                //         .num_threads(threads)
-                //         .build_global()?;
+                } // CallKind::CNVs {
+                  //     calls,
+                  //     output,
+                  //     min_bayes_factor,
+                  //     threads,
+                  //     purity,
+                  //     max_dist,
+                  // } => {
+                  //     rayon::ThreadPoolBuilder::new()
+                  //         .num_threads(threads)
+                  //         .build_global()?;
 
-                //     if min_bayes_factor <= 1.0 {
-                //         Err(errors::Error::InvalidMinBayesFactor)?
-                //     }
+                  //     if min_bayes_factor <= 1.0 {
+                  //         Err(errors::Error::InvalidMinBayesFactor)?
+                  //     }
 
-                //     let mut caller = calling::cnvs::CallerBuilder::default()
-                //         .bcfs(calls.as_ref(), output.as_ref())?
-                //         .min_bayes_factor(min_bayes_factor)
-                //         .purity(purity)
-                //         .max_dist(max_dist)
-                //         .build()
-                //         .unwrap();
-                //     caller.call()?;
-                // }
+                  //     let mut caller = calling::cnvs::CallerBuilder::default()
+                  //         .bcfs(calls.as_ref(), output.as_ref())?
+                  //         .min_bayes_factor(min_bayes_factor)
+                  //         .purity(purity)
+                  //         .max_dist(max_dist)
+                  //         .build()
+                  //         .unwrap();
+                  //     caller.call()?;
+                  // }
             }
         }
         Varlociraptor::FilterCalls { method } => match method {

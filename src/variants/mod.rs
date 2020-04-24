@@ -14,9 +14,9 @@ use crate::model::sample;
 
 pub mod deletion;
 pub mod insertion;
-pub mod sampling_bias;
 pub mod mnv;
 pub mod realignable;
+pub mod sampling_bias;
 pub mod snv;
 
 #[derive(Debug, CopyGetters, new)]

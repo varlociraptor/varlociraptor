@@ -11,10 +11,8 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::model::evidence::fragments::estimate_insert_size;
 use crate::variants::realignable::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::realignable::{Realignable, Realigner};
-use crate::variants::{
-    AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
-};
-use crate::variants::sampling_bias::{SamplingBias, FragmentSamplingBias, ReadSamplingBias};
+use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
+use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};
 
 pub struct Deletion {
@@ -83,21 +81,21 @@ impl<'a> SamplingBias<'a> for Deletion {
     }
 }
 
-impl<'a> FragmentSamplingBias<'a> for Deletion { }
-impl<'a> ReadSamplingBias<'a> for Deletion { }
+impl<'a> FragmentSamplingBias<'a> for Deletion {}
+impl<'a> ReadSamplingBias<'a> for Deletion {}
 
-impl<'a, 'b> Realignable<'a, 'b> for Deletion {
-    type EmissionParams = DeletionEmissionParams<'a>;
+impl<'a: 'c, 'b: 'c, 'c> Realignable<'a, 'b, 'c> for Deletion {
+    type EmissionParams = DeletionEmissionParams<'c>;
 
     fn alt_emission_params(
         &'b self,
         read_emission_params: &'a ReadEmission,
         ref_seq: Arc<Vec<u8>>,
         ref_window: usize,
-    ) -> DeletionEmissionParams<'a> {
+    ) -> DeletionEmissionParams<'c> {
         let start = self.locus.range().start as usize;
         let end = self.locus.range().end as usize;
-        DeletionEmissionParams {
+        DeletionEmissionParams::<'c> {
             del_start: start,
             del_len: end - start,
             ref_offset: start.saturating_sub(ref_window),
@@ -120,8 +118,9 @@ impl<'a> Variant<'a> for Deletion {
                 PairedEndEvidence::PairedEnd { left, right } => {
                     // METHOD: valid if one read overlaps and the fragment encloses the centerpoint.
                     let right_cigar = right.cigar_cached().unwrap();
-                    (!locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none()) &&
-                    (left.pos() as u64) < self.centerpoint() && right_cigar.end_pos() as u64 > self.centerpoint()
+                    (!locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none())
+                        && (left.pos() as u64) < self.centerpoint()
+                        && right_cigar.end_pos() as u64 > self.centerpoint()
                 }
             } {
                 locus_idx.push(i);
