@@ -8,9 +8,9 @@ use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::model::evidence::fragments::estimate_insert_size;
-use crate::variants::realignable::pairhmm::{ReadEmission, RefBaseEmission};
-use crate::variants::realignable::{Realignable, Realigner};
+use crate::variants::evidence::insert_size::estimate_insert_size;
+use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};

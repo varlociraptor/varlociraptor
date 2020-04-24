@@ -3,7 +3,7 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::model::evidence::reads::prob_read_base;
+use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::{AlleleProb, Overlap, SingleEndEvidence, SingleLocus, Variant};
 
 pub struct MNV {
@@ -19,8 +19,8 @@ impl MNV {
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + alt_bases.len() as u64,
             )),
-            ref_bases,
-            alt_bases,
+            ref_bases: ref_bases.to_ascii_uppercase(),
+            alt_bases: alt_bases.to_ascii_uppercase(),
         }
     }
 

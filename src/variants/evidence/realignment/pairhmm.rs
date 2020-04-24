@@ -5,7 +5,7 @@ use bio::stats::pairhmm;
 use bio::stats::{LogProb, PHREDProb, Prob};
 use rust_htslib::bam;
 
-use crate::variants::realignable::edit_distance::EditDistanceHit;
+use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
 /// Width of band around alignment with optimal edit distance.
 pub const EDIT_BAND: usize = 2;

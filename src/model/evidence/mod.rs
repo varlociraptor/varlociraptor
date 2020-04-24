@@ -6,9 +6,7 @@
 use rust_htslib::bam;
 use rust_htslib::bam::record::{Cigar, CigarStringView};
 
-pub mod fragments;
 pub mod observation;
-pub mod reads;
 
 pub use self::observation::Observation;
 

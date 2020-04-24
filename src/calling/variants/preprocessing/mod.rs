@@ -178,6 +178,7 @@ impl ObservationProcessor {
         for variant in variants.into_iter() {
             if let Some(variant) = variant {
                 let chrom_seq = self.reference_buffer.seq(&chrom)?;
+
                 let pileup = self
                     .sample
                     .extract_observations(start, &variant, chrom, chrom_seq)?;

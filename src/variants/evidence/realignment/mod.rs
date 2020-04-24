@@ -7,8 +7,8 @@ use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 
-use crate::variants::realignable::edit_distance::EditDistanceCalculation;
-use crate::variants::realignable::pairhmm::{ReadEmission, ReferenceEmissionParams};
+use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
+use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
 use crate::variants::AlleleProb;
 
 pub mod edit_distance;

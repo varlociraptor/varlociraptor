@@ -178,16 +178,6 @@ pub struct Sample {
     use_fragment_evidence: bool,
     #[builder(private)]
     alignment_properties: alignment_properties::AlignmentProperties,
-    #[builder(private)]
-    pub(crate) indel_read_evidence: RefCell<evidence::reads::IndelEvidence>,
-    #[builder(private)]
-    pub(crate) indel_fragment_evidence: RefCell<evidence::fragments::IndelEvidence>,
-    #[builder(private)]
-    pub(crate) snv_read_evidence: RefCell<evidence::reads::SNVEvidence>,
-    #[builder(private)]
-    pub(crate) mnv_read_evidence: RefCell<evidence::reads::MNVEvidence>,
-    #[builder(private)]
-    pub(crate) none_read_evidence: RefCell<evidence::reads::NoneEvidence>,
     #[builder(default = "200")]
     max_depth: usize,
     #[builder(default = "Vec::new()")]
@@ -214,28 +204,6 @@ impl SampleBuilder {
                 single_read_window,
                 read_pair_window,
             ))
-    }
-
-    /// Register error probabilities and window to check around indels.
-    pub fn error_probs(
-        self,
-        prob_insertion_artifact: Prob,
-        prob_deletion_artifact: Prob,
-        prob_insertion_extend_artifact: Prob,
-        prob_deletion_extend_artifact: Prob,
-        indel_haplotype_window: u32,
-    ) -> Self {
-        self.indel_read_evidence(RefCell::new(evidence::reads::IndelEvidence::new(
-            LogProb::from(prob_insertion_artifact),
-            LogProb::from(prob_deletion_artifact),
-            LogProb::from(prob_insertion_extend_artifact),
-            LogProb::from(prob_deletion_extend_artifact),
-            indel_haplotype_window,
-        )))
-        .snv_read_evidence(RefCell::new(evidence::reads::SNVEvidence::new()))
-        .mnv_read_evidence(RefCell::new(evidence::reads::MNVEvidence::new()))
-        .indel_fragment_evidence(RefCell::new(evidence::fragments::IndelEvidence::new()))
-        .none_read_evidence(RefCell::new(evidence::reads::NoneEvidence::new()))
     }
 }
 

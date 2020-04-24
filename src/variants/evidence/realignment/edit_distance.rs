@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use bio::pattern_matching::myers::Myers;
 use bio::stats::pairhmm;
 
-use crate::variants::realignable::pairhmm::{RefBaseEmission, EDIT_BAND};
+use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
 pub struct EditDistanceCalculation {
     myers: Myers<u128>,

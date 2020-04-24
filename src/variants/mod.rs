@@ -15,9 +15,16 @@ use crate::model::sample;
 pub mod deletion;
 pub mod insertion;
 pub mod mnv;
-pub mod realignable;
+pub mod evidence;
 pub mod sampling_bias;
 pub mod snv;
+pub mod none;
+
+pub use none::None;
+pub use mnv::MNV;
+pub use snv::SNV;
+pub use deletion::Deletion;
+pub use insertion::Insertion;
 
 #[derive(Debug, CopyGetters, new)]
 #[getset(get_copy = "pub")]
