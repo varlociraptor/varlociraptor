@@ -6,6 +6,7 @@
 use std::fmt::Debug;
 use std::fs;
 use std::path::Path;
+use std::str;
 
 use anyhow::Result;
 use bincode;
@@ -17,21 +18,26 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 use serde_json;
+use bio_types::genome;
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
 use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::sample::Sample;
+use crate::model;
 use crate::utils;
 use crate::utils::MiniLogProb;
+use crate::reference;
+use crate::variants;
+use crate::variants::evidence::realignment;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
 pub struct ObservationProcessor {
     sample: Sample,
     #[builder(private)]
-    reference_buffer: utils::ReferenceBuffer,
+    reference_buffer: reference::Buffer,
     #[builder(private)]
     bcf_reader: bcf::Reader,
     #[builder(private)]
@@ -39,11 +45,13 @@ pub struct ObservationProcessor {
     omit_snvs: bool,
     omit_indels: bool,
     max_indel_len: u64,
+    gap_params: realignment::pairhmm::GapParams,
+    realignment_window: u64,
 }
 
 impl ObservationProcessorBuilder {
     pub fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self> {
-        Ok(self.reference_buffer(utils::ReferenceBuffer::new(reader)))
+        Ok(self.reference_buffer(reference::Buffer::new(reader)))
     }
 
     pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
@@ -147,7 +155,7 @@ impl ObservationProcessor {
     }
 
     fn process_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>> {
-        let start = record.pos();
+        let start = record.pos() as u64;
         let chrom = chrom(&self.bcf_reader, &record);
         let variants = utils::collect_variants(
             record,
@@ -156,7 +164,7 @@ impl ObservationProcessor {
             Some(0..self.max_indel_len + 1),
         )?;
 
-        if variants.is_empty() || variants.iter().all(|v| v.is_none()) {
+        if variants.is_empty() {
             return Ok(None);
         }
 
@@ -176,27 +184,50 @@ impl ObservationProcessor {
             .unwrap();
 
         for variant in variants.into_iter() {
-            if let Some(variant) = variant {
-                let chrom_seq = self.reference_buffer.seq(&chrom)?;
 
-                let pileup = self
-                    .sample
-                    .extract_observations(start, &variant, chrom, chrom_seq)?;
+            let pileup = self.extract_observations(start, chrom, &variant)?;
 
-                let start = start as usize;
+            let start = start as usize;
 
-                // add variant information
-                call.variants.push(
-                    VariantBuilder::default()
-                        .variant(&variant, start, chrom_seq)
-                        .observations(Some(pileup))
-                        .build()
-                        .unwrap(),
-                );
-            }
+            // add variant information
+            call.variants.push(
+                VariantBuilder::default()
+                    .variant(&variant, start, chrom_seq)
+                    .observations(Some(pileup))
+                    .build()
+                    .unwrap(),
+            );
         }
 
         Ok(Some(call))
+    }
+
+    fn extract_observations(&mut self, start: u64, chrom: &[u8], variant: &model::Variant) -> Result<Vec<Observation>> {
+        let chrom_seq = self.reference_buffer.seq(&chrom)?;
+        let chrom = str::from_utf8(chrom).unwrap().to_owned();
+        let locus = || genome::Locus::new(chrom, start);
+        let interval = || genome::Interval::new(chrom, start..start + l);
+        let start = start as usize;
+
+        let realigner = || realignment::Realigner::new(chrom_seq, self.gap_params, self.realignment_window);
+
+        match variant {
+            model::Variant::SNV(alt) => {
+                self.sample.extract_observations(&variants::SNV::new(locus(), chrom_seq[start], *alt))
+            },
+            model::Variant::MNV(alt) => {
+                self.sample.extract_observations(&variants::MNV::new(locus(), chrom_seq[start..start + alt.len()].to_owned(), alt.to_owned()))
+            },
+            model::Variant::None => {
+                self.sample.extract_observations(&variants::None::new(locus(), chrom_seq[start]))
+            },
+            model::Variant::Deletion(l) => {
+                self.sample.extract_observations(&variants::Deletion::new(interval(), realigner()))
+            },
+            model::Variant::Insertion(seq) => {
+                self.sample.extract_observations(&variants::Insertion::new(locus(), seq.to_owned(), realigner()))
+            }
+        }
     }
 }
 

@@ -80,14 +80,14 @@ macro_rules! default_ref_base_emission {
 
 /// Gap parameters for PairHMM.
 #[derive(Debug, Clone)]
-pub struct IndelGapParams {
+pub struct GapParams {
     pub prob_insertion_artifact: LogProb,
     pub prob_deletion_artifact: LogProb,
     pub prob_insertion_extend_artifact: LogProb,
     pub prob_deletion_extend_artifact: LogProb,
 }
 
-impl pairhmm::GapParameters for IndelGapParams {
+impl pairhmm::GapParameters for GapParams {
     #[inline]
     fn prob_gap_x(&self) -> LogProb {
         self.prob_insertion_artifact
@@ -109,7 +109,7 @@ impl pairhmm::GapParameters for IndelGapParams {
     }
 }
 
-impl pairhmm::StartEndGapParameters for IndelGapParams {
+impl pairhmm::StartEndGapParameters for GapParams {
     /// Semiglobal alignment: return true.
     #[inline]
     fn free_start_gap_x(&self) -> bool {

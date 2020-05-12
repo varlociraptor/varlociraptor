@@ -25,7 +25,7 @@ pub trait Realignable<'a, 'b, 'c> {
     ) -> Self::EmissionParams;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Realigner {
     pairhmm: PairHMM,
     gap_params: pairhmm::IndelGapParams,
