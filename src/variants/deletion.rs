@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::cmp;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -85,18 +86,18 @@ impl<'a> SamplingBias<'a> for Deletion {
 impl<'a> FragmentSamplingBias<'a> for Deletion {}
 impl<'a> ReadSamplingBias<'a> for Deletion {}
 
-impl<'a: 'c, 'b: 'c, 'c> Realignable<'a, 'b, 'c> for Deletion {
-    type EmissionParams = DeletionEmissionParams<'c>;
+impl<'a> Realignable<'a> for Deletion {
+    type EmissionParams = DeletionEmissionParams<'a>;
 
     fn alt_emission_params(
-        &'b self,
-        read_emission_params: &'a ReadEmission,
+        &self,
+        read_emission_params: Rc<ReadEmission<'a>>,
         ref_seq: Arc<Vec<u8>>,
         ref_window: usize,
-    ) -> DeletionEmissionParams<'c> {
+    ) -> DeletionEmissionParams<'a> {
         let start = self.locus.range().start as usize;
         let end = self.locus.range().end as usize;
-        DeletionEmissionParams::<'c> {
+        DeletionEmissionParams {
             del_start: start,
             del_len: end - start,
             ref_offset: start.saturating_sub(ref_window),
@@ -209,7 +210,7 @@ pub struct DeletionEmissionParams<'a> {
     ref_end: usize,
     del_start: usize,
     del_len: usize,
-    read_emission: &'a ReadEmission<'a>,
+    read_emission: Rc<ReadEmission<'a>>,
 }
 
 impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {

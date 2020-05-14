@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::cmp;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -16,7 +17,7 @@ use crate::{default_emission, default_ref_base_emission};
 
 pub struct Insertion {
     locus: MultiLocus,
-    ins_seq: Vec<u8>,
+    ins_seq: Rc<Vec<u8>>,
     realigner: RefCell<Realigner>,
 }
 
@@ -27,7 +28,7 @@ impl Insertion {
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
             ))]),
-            ins_seq,
+            ins_seq: Rc::new(ins_seq),
             realigner: RefCell::new(realigner),
         }
     }
@@ -37,26 +38,26 @@ impl Insertion {
     }
 }
 
-impl<'a: 'c, 'b: 'c, 'c> Realignable<'a, 'b, 'c> for Insertion {
-    type EmissionParams = InsertionEmissionParams<'c>;
+impl<'a> Realignable<'a> for Insertion {
+    type EmissionParams = InsertionEmissionParams<'a>;
 
     fn alt_emission_params(
-        &'b self,
-        read_emission_params: &'a ReadEmission,
+        &self,
+        read_emission_params: Rc<ReadEmission<'a>>,
         ref_seq: Arc<Vec<u8>>,
         ref_window: usize,
-    ) -> InsertionEmissionParams<'c> {
+    ) -> InsertionEmissionParams<'a> {
         let l = self.ins_seq.len() as usize;
         let start = self.locus().range().start as usize;
         let ref_seq_len = ref_seq.len();
-        InsertionEmissionParams::<'c> {
+        InsertionEmissionParams {
             ref_seq: ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + l + ref_window, ref_seq_len),
             ins_start: start,
             ins_len: l,
             ins_end: start + l,
-            ins_seq: &self.ins_seq,
+            ins_seq: Rc::clone(&self.ins_seq),
             read_emission: read_emission_params,
         }
     }
@@ -156,8 +157,8 @@ pub struct InsertionEmissionParams<'a> {
     ins_start: usize,
     ins_end: usize,
     ins_len: usize,
-    ins_seq: &'a [u8],
-    read_emission: &'a ReadEmission<'a>,
+    ins_seq: Rc<Vec<u8>>,
+    read_emission: Rc<ReadEmission<'a>>,
 }
 
 impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {

@@ -1,5 +1,6 @@
 use std::cmp;
 use std::fmt::Debug;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -14,12 +15,12 @@ use crate::variants::AlleleProb;
 pub mod edit_distance;
 pub mod pairhmm;
 
-pub trait Realignable<'a, 'b, 'c> {
-    type EmissionParams: 'c + stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
+pub trait Realignable<'a> {
+    type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
 
     fn alt_emission_params(
-        &'b self,
-        read_emission_params: &'a ReadEmission,
+        &self,
+        read_emission_params: Rc<ReadEmission<'a>>,
         ref_seq: Arc<Vec<u8>>,
         ref_window: usize,
     ) -> Self::EmissionParams;
@@ -45,16 +46,16 @@ where {
         }
     }
 
-    pub fn prob_alleles<'a, 'b, 'c, V>(
+    pub fn prob_alleles<'a, V>(
         &mut self,
         record: &'a bam::Record,
         locus: &genome::Interval,
-        variant: &'b V,
+        variant: &V,
     ) -> Result<AlleleProb>
     where
-        V: Realignable<'a, 'b, 'c>,
+        V: Realignable<'a>,
     {
-        let read_seq = record.seq();
+        let read_seq: bam::record::Seq<'a> = record.seq();
         let read_qual = record.qual();
         let cigar = record.cigar_cached().unwrap();
         let locus_start = locus.range().start;
@@ -116,7 +117,12 @@ where {
         let ref_window = (self.max_window as f64 * 1.5) as usize;
 
         // read emission
-        let read_emission = ReadEmission::new(&read_seq, read_qual, read_offset, read_end);
+        let read_emission = Rc::new(ReadEmission::new(
+            read_seq,
+            read_qual,
+            read_offset,
+            read_end,
+        ));
         let edit_dist = EditDistanceCalculation::new((read_offset..read_end).map(|i| read_seq[i]));
 
         if !overlap {
@@ -129,16 +135,20 @@ where {
         // ref allele
         let mut prob_ref = self.prob_allele(
             ReferenceEmissionParams {
-                ref_seq: self.ref_seq.as_ref(),
+                ref_seq: Arc::clone(&self.ref_seq),
                 ref_offset: breakpoint.saturating_sub(ref_window),
                 ref_end: cmp::min(breakpoint + ref_window, self.ref_seq.len()),
-                read_emission: &read_emission,
+                read_emission: Rc::clone(&read_emission),
             },
             &edit_dist,
         );
 
         let mut prob_alt = self.prob_allele(
-            variant.alt_emission_params(&read_emission, Arc::clone(&self.ref_seq), ref_window),
+            variant.alt_emission_params(
+                Rc::clone(&read_emission),
+                Arc::clone(&self.ref_seq),
+                ref_window,
+            ),
             &edit_dist,
         );
 

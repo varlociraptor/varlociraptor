@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet};
 
 use anyhow::Result;
@@ -96,14 +97,14 @@ where
 
     fn extract_observations(
         &self,
-        buffer: &'a mut sample::RecordBuffer,
+        buffer: &'a sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
     ) -> Result<Vec<Observation>> {
         let locus = self.loci();
         buffer.fetch(locus, false)?;
 
-        let candidates: Vec<_> = buffer
+        let candidates: Vec<SingleEndEvidence<'a>> = buffer
             .iter()
             .filter_map(|record| {
                 let evidence = SingleEndEvidence::new(record);
@@ -182,7 +183,7 @@ where
     ///   and potentially another observation for the corresponding fragment.
     fn extract_observations(
         &self,
-        buffer: &'a mut sample::RecordBuffer,
+        buffer: &'a sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
     ) -> Result<Vec<Observation>> {

@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::cell::RefCell;
 use std::f64;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
@@ -153,7 +154,7 @@ where
 {
     fn extract_observations(
         &self,
-        buffer: &'a mut sample::RecordBuffer,
+        buffer: &'a sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
     ) -> Result<Vec<Observation>>;

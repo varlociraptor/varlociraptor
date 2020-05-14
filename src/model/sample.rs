@@ -26,7 +26,7 @@ use crate::variants::{self, Variant};
 
 #[derive(new, Getters, Debug)]
 pub struct RecordBuffer {
-    inner: bam::RecordBuffer,
+    inner: RefCell<bam::RecordBuffer>,
     #[getset(get = "pub")]
     single_read_window: u64,
     #[getset(get = "pub")]
@@ -42,8 +42,8 @@ impl RecordBuffer {
         }
     }
 
-    pub fn fetch(&mut self, interval: &genome::Interval, read_pair_mode: bool) -> Result<()> {
-        self.inner.fetch(
+    pub fn fetch(&self, interval: &genome::Interval, read_pair_mode: bool) -> Result<()> {
+        self.inner.borrow_mut().fetch(
             interval.contig().as_bytes(),
             interval
                 .range()
@@ -62,8 +62,11 @@ impl RecordBuffer {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &bam::Record> {
-        self.inner.iter().filter(|record| is_valid_record(record))
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a bam::Record> {
+        self.inner
+            .borrow()
+            .iter()
+            .filter(|record| is_valid_record(record))
     }
 }
 
@@ -200,7 +203,7 @@ impl SampleBuilder {
         let single_read_window = alignment_properties.max_read_len as u64;
         self.alignment_properties(alignment_properties)
             .record_buffer(RecordBuffer::new(
-                bam::RecordBuffer::new(bam, true),
+                RefCell::new(bam::RecordBuffer::new(bam, true)),
                 single_read_window,
                 read_pair_window,
             ))
@@ -223,7 +226,7 @@ impl Sample {
         V: Variant<'a, Loci = L, Evidence = E> + Observable<'a, E>,
     {
         variant.extract_observations(
-            &mut self.record_buffer,
+            &self.record_buffer,
             &mut self.alignment_properties,
             self.max_depth,
         )

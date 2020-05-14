@@ -1,5 +1,7 @@
 use std::cmp;
 use std::fmt::Debug;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, PHREDProb, Prob};
@@ -73,7 +75,7 @@ macro_rules! default_ref_base_emission {
         }
 
         fn read_emission(&self) -> &ReadEmission {
-            self.read_emission
+            &self.read_emission
         }
     )
 }
@@ -158,7 +160,7 @@ macro_rules! default_emission {
 #[derive(Debug, Getters)]
 #[getset(get = "pub")]
 pub struct ReadEmission<'a> {
-    read_seq: &'a bam::record::Seq<'a>,
+    read_seq: bam::record::Seq<'a>,
     any_miscall: Vec<LogProb>,
     no_miscall: Vec<LogProb>,
     read_offset: usize,
@@ -167,7 +169,7 @@ pub struct ReadEmission<'a> {
 
 impl<'a> ReadEmission<'a> {
     pub fn new(
-        read_seq: &'a bam::record::Seq<'a>,
+        read_seq: bam::record::Seq<'a>,
         qual: &[u8],
         read_offset: usize,
         read_end: usize,
@@ -222,10 +224,10 @@ impl<'a> ReadEmission<'a> {
 /// Emission parameters for PairHMM over reference allele.
 #[derive(Debug)]
 pub struct ReferenceEmissionParams<'a> {
-    ref_seq: &'a [u8],
+    ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
-    read_emission: &'a ReadEmission<'a>,
+    read_emission: Rc<ReadEmission<'a>>,
 }
 
 impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
