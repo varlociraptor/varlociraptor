@@ -97,7 +97,7 @@ where
 
     fn extract_observations(
         &self,
-        buffer: &'a sample::RecordBuffer,
+        buffer: &'a mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
     ) -> Result<Vec<Observation>> {
@@ -183,7 +183,7 @@ where
     ///   and potentially another observation for the corresponding fragment.
     fn extract_observations(
         &self,
-        buffer: &'a sample::RecordBuffer,
+        buffer: &'a mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
     ) -> Result<Vec<Observation>> {

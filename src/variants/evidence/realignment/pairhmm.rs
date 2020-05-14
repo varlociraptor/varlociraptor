@@ -224,10 +224,10 @@ impl<'a> ReadEmission<'a> {
 /// Emission parameters for PairHMM over reference allele.
 #[derive(Debug)]
 pub struct ReferenceEmissionParams<'a> {
-    ref_seq: Arc<Vec<u8>>,
-    ref_offset: usize,
-    ref_end: usize,
-    read_emission: Rc<ReadEmission<'a>>,
+    pub ref_seq: Arc<Vec<u8>>,
+    pub ref_offset: usize,
+    pub ref_end: usize,
+    pub read_emission: Rc<ReadEmission<'a>>,
 }
 
 impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
