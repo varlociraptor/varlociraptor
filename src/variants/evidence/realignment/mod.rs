@@ -46,7 +46,7 @@ where {
     }
 
     pub fn prob_alleles<'a, 'b, 'c, V>(
-        &self,
+        &mut self,
         record: &'a bam::Record,
         locus: &genome::Interval,
         variant: &'b V,

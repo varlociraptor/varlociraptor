@@ -30,6 +30,7 @@ use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::model::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
 use crate::model::{Contamination, VariantType};
 use crate::testcase;
+use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -192,20 +193,13 @@ pub enum PreprocessKind {
         #[structopt(long = "omit-indels", help = "Don't call Indels.")]
         omit_indels: bool,
         #[structopt(
-            long = "max-indel-len",
-            default_value = "1000",
-            help = "Omit longer indels when calling."
-        )]
-        max_indel_len: u32,
-        #[structopt(
             long = "indel-window",
             default_value = "64",
-            help = "Number of bases to consider left and right of indel breakpoint when \
-                    calculating read support. This number should not be too large in order to \
-                    avoid biases caused by other close variants. Currently implemented maximum \
+            help = "Number of bases to consider left and right of breakpoint when \
+                    calculating read support. Currently implemented maximum \
                     value is 64."
         )]
-        indel_window: u32,
+        realignment_window: u64,
         #[structopt(
             long = "max-depth",
             default_value = "200",
@@ -458,8 +452,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     protocol_strandedness,
                     omit_snvs,
                     omit_indels,
-                    max_indel_len,
-                    indel_window,
+                    realignment_window,
                     max_depth,
                 } => {
                     // TODO: handle testcases
@@ -468,7 +461,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     let spurious_del_rate = Prob::checked(spurious_del_rate)?;
                     let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
                     let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
-                    if indel_window > (128 / 2) {
+                    if realignment_window > (128 / 2) {
                         Err(structopt::clap::Error::with_description( "Command-line option --indel-window requires a value <= 64 with the current implementation.", structopt::clap::ErrorKind::ValueValidation))?;
                     };
 
@@ -478,14 +471,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     let bam_reader = bam::IndexedReader::from_path(bam)
                         .context("Unable to read BAM/CRAM file.")?;
 
+                    let gap_params = GapParams {
+                        prob_insertion_artifact: LogProb::from(spurious_ins_rate),
+                        prob_deletion_artifact: LogProb::from(spurious_del_rate),
+                        prob_insertion_extend_artifact: LogProb::from(spurious_insext_rate),
+                        prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
+                    };
+
                     let sample = SampleBuilder::default()
-                        .error_probs(
-                            spurious_ins_rate,
-                            spurious_del_rate,
-                            spurious_insext_rate,
-                            spurious_delext_rate,
-                            indel_window as u32,
-                        )
                         .max_depth(max_depth)
                         .protocol_strandedness(protocol_strandedness)
                         .alignments(bam_reader, alignment_properties)
@@ -495,8 +488,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
+                            .realignment_window(realignment_window)
+                            .gap_params(gap_params)
                             .sample(sample)
-                            .max_indel_len(max_indel_len)
                             .omit_snvs(omit_snvs)
                             .omit_indels(omit_indels)
                             .reference(

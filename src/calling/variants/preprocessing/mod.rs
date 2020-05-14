@@ -7,6 +7,7 @@ use std::fmt::Debug;
 use std::fs;
 use std::path::Path;
 use std::str;
+use std::sync::Arc;
 
 use anyhow::Result;
 use bincode;
@@ -44,7 +45,6 @@ pub struct ObservationProcessor {
     bcf_writer: bcf::Writer,
     omit_snvs: bool,
     omit_indels: bool,
-    max_indel_len: u64,
     gap_params: realignment::pairhmm::GapParams,
     realignment_window: u64,
 }
@@ -156,13 +156,8 @@ impl ObservationProcessor {
 
     fn process_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>> {
         let start = record.pos() as u64;
-        let chrom = chrom(&self.bcf_reader, &record);
-        let variants = utils::collect_variants(
-            record,
-            self.omit_snvs,
-            self.omit_indels,
-            Some(0..self.max_indel_len + 1),
-        )?;
+        let chrom = chrom(&self.bcf_reader, &record).to_owned();
+        let variants = utils::collect_variants(record, self.omit_snvs, self.omit_indels, None)?;
 
         if variants.is_empty() {
             return Ok(None);
@@ -184,14 +179,16 @@ impl ObservationProcessor {
             .unwrap();
 
         for variant in variants.into_iter() {
-            let pileup = self.extract_observations(start, chrom, &variant)?;
+            let chrom_seq = self.reference_buffer.seq(&chrom)?;
+            let pileup =
+                self.extract_observations(start, &chrom, Arc::clone(&chrom_seq), &variant)?;
 
             let start = start as usize;
 
             // add variant information
             call.variants.push(
                 VariantBuilder::default()
-                    .variant(&variant, start, chrom_seq)
+                    .variant(&variant, start, chrom_seq.as_ref())
                     .observations(Some(pileup))
                     .build()
                     .unwrap(),
@@ -205,16 +202,18 @@ impl ObservationProcessor {
         &mut self,
         start: u64,
         chrom: &[u8],
+        chrom_seq: Arc<Vec<u8>>,
         variant: &model::Variant,
     ) -> Result<Vec<Observation>> {
-        let chrom_seq = self.reference_buffer.seq(&chrom)?;
         let chrom = str::from_utf8(chrom).unwrap().to_owned();
-        let locus = || genome::Locus::new(chrom, start);
-        let interval = |len| genome::Interval::new(chrom, start..start + len);
+        let locus = || genome::Locus::new(chrom.clone(), start);
+        let interval = |len: u64| genome::Interval::new(chrom.clone(), start..start + len);
         let start = start as usize;
+        let realignment_window = self.realignment_window;
+        let gap_params = self.gap_params.clone();
 
         let realigner =
-            || realignment::Realigner::new(chrom_seq, self.gap_params, self.realignment_window);
+            || realignment::Realigner::new(Arc::clone(&chrom_seq), gap_params, realignment_window);
 
         match variant {
             model::Variant::SNV(alt) => self.sample.extract_observations(&variants::SNV::new(
@@ -232,7 +231,7 @@ impl ObservationProcessor {
                 .extract_observations(&variants::None::new(locus(), chrom_seq[start])),
             model::Variant::Deletion(l) => self
                 .sample
-                .extract_observations(&variants::Deletion::new(interval(l), realigner())),
+                .extract_observations(&variants::Deletion::new(interval(*l), realigner())),
             model::Variant::Insertion(seq) => self.sample.extract_observations(
                 &variants::Insertion::new(locus(), seq.to_owned(), realigner()),
             ),

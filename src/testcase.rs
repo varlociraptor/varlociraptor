@@ -179,28 +179,26 @@ impl Testcase {
         for mut record in self.variants()? {
             let variants = utils::collect_variants(&mut record, false, false, None)?;
             for variant in variants {
-                if let Some(variant) = variant {
-                    if i == self.idx {
-                        // if no chromosome was specified, we infer the locus from the matching
-                        // variant
-                        if self.chrom_name.is_none() {
-                            self.chrom_name = Some(
-                                self.candidate_reader
-                                    .header()
-                                    .rid2name(record.rid().unwrap())
-                                    .unwrap()
-                                    .to_owned(),
-                            );
-                            self.pos = Some(record.pos() as u64);
-                        }
-
-                        candidate = Some((variant, record));
-
-                        break;
+                if i == self.idx {
+                    // if no chromosome was specified, we infer the locus from the matching
+                    // variant
+                    if self.chrom_name.is_none() {
+                        self.chrom_name = Some(
+                            self.candidate_reader
+                                .header()
+                                .rid2name(record.rid().unwrap())
+                                .unwrap()
+                                .to_owned(),
+                        );
+                        self.pos = Some(record.pos() as u64);
                     }
+
+                    candidate = Some((variant, record));
+
+                    break;
                 }
-                i += 1;
             }
+            i += 1;
         }
         if candidate.is_none() {
             return Err(errors::Error::InvalidIndex)?;

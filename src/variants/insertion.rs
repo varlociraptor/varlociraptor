@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::cmp;
 use std::sync::Arc;
 
@@ -16,7 +17,7 @@ use crate::{default_emission, default_ref_base_emission};
 pub struct Insertion {
     locus: MultiLocus,
     ins_seq: Vec<u8>,
-    realigner: Realigner,
+    realigner: RefCell<Realigner>,
 }
 
 impl Insertion {
@@ -27,7 +28,7 @@ impl Insertion {
                 locus.pos()..locus.pos() + 1,
             ))]),
             ins_seq,
-            realigner,
+            realigner: RefCell::new(realigner),
         }
     }
 
@@ -47,10 +48,11 @@ impl<'a: 'c, 'b: 'c, 'c> Realignable<'a, 'b, 'c> for Insertion {
     ) -> InsertionEmissionParams<'c> {
         let l = self.ins_seq.len() as usize;
         let start = self.locus().range().start as usize;
+        let ref_seq_len = ref_seq.len();
         InsertionEmissionParams::<'c> {
             ref_seq: ref_seq,
             ref_offset: start.saturating_sub(ref_window),
-            ref_end: cmp::min(start + l + ref_window, ref_seq.len()),
+            ref_end: cmp::min(start + l + ref_window, ref_seq_len),
             ins_start: start,
             ins_len: l,
             ins_end: start + l,
@@ -98,14 +100,20 @@ impl<'a> Variant<'a> for Insertion {
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleProb>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => Ok(Some(self.realigner.prob_alleles(
-                record,
-                self.locus(),
-                self,
-            )?)),
+            PairedEndEvidence::SingleEnd(record) => Ok(Some(
+                self.realigner
+                    .borrow_mut()
+                    .prob_alleles(record, self.locus(), self)?,
+            )),
             PairedEndEvidence::PairedEnd { left, right } => {
-                let prob_left = self.realigner.prob_alleles(left, self.locus(), self)?;
-                let prob_right = self.realigner.prob_alleles(right, self.locus(), self)?;
+                let prob_left =
+                    self.realigner
+                        .borrow_mut()
+                        .prob_alleles(left, self.locus(), self)?;
+                let prob_right =
+                    self.realigner
+                        .borrow_mut()
+                        .prob_alleles(right, self.locus(), self)?;
 
                 Ok(Some(AlleleProb::new(
                     prob_left.ref_allele() + prob_right.ref_allele(),

@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::cmp;
 use std::sync::Arc;
 
@@ -18,7 +19,7 @@ use crate::{default_emission, default_ref_base_emission};
 pub struct Deletion {
     locus: genome::Interval,
     fetch_loci: MultiLocus,
-    realigner: Realigner,
+    realigner: RefCell<Realigner>,
 }
 
 impl Deletion {
@@ -41,7 +42,7 @@ impl Deletion {
         Deletion {
             locus: locus,
             fetch_loci,
-            realigner,
+            realigner: RefCell::new(realigner),
         }
     }
 
@@ -144,11 +145,11 @@ impl<'a> Variant<'a> for Deletion {
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleProb>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => Ok(Some(self.realigner.prob_alleles(
-                record,
-                &self.locus,
-                self,
-            )?)),
+            PairedEndEvidence::SingleEnd(record) => Ok(Some(
+                self.realigner
+                    .borrow_mut()
+                    .prob_alleles(record, &self.locus, self)?,
+            )),
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
                 // Here we calculate the product of insert size based and alignment based probabilities.
@@ -164,8 +165,14 @@ impl<'a> Variant<'a> for Deletion {
                 // * Since there is only one observation per fragment, there is no double counting when
                 //   estimating allele frequencies. Before, we had one observation for an overlapping read
                 //   and potentially another observation for the corresponding fragment.
-                let prob_left = self.realigner.prob_alleles(left, &self.locus, self)?;
-                let prob_right = self.realigner.prob_alleles(right, &self.locus, self)?;
+                let prob_left =
+                    self.realigner
+                        .borrow_mut()
+                        .prob_alleles(left, &self.locus, self)?;
+                let prob_right =
+                    self.realigner
+                        .borrow_mut()
+                        .prob_alleles(right, &self.locus, self)?;
                 let prob_isize = self.prob_alleles_isize(left, right, alignment_properties)?;
 
                 Ok(Some(AlleleProb::new(

@@ -37,7 +37,10 @@ impl Buffer {
         }
 
         self.reader.fetch_all(str::from_utf8(chrom)?)?;
-        self.reader.read(&mut self.sequence)?;
+        self.reader
+            .read(Arc::get_mut(&mut self.sequence).expect(
+                "bug: reference on sequence buffer still alive while trying to refill it",
+            ))?;
 
         self.chrom = Some(chrom.to_owned());
 

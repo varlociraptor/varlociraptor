@@ -115,7 +115,7 @@ where
             })
             .collect();
 
-        let subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
+        let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
         let mut observations = Vec::new();
         for evidence in candidates {
@@ -236,7 +236,7 @@ where
         }
 
         let mut candidates = VecMap::new();
-        let push_evidence = |evidence, idx| {
+        let mut push_evidence = |evidence, idx| {
             for i in idx {
                 let entry = candidates.entry(i).or_insert_with(|| Vec::new());
                 entry.push(evidence);
@@ -275,7 +275,7 @@ where
             .all(|l| l > max_depth);
         let candidates: HashSet<_> = candidates.values().flatten().collect();
 
-        let subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
+        let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
         let mut observations = Vec::new();
         for evidence in candidates {
