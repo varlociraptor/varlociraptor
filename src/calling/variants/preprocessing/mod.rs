@@ -12,23 +12,23 @@ use anyhow::Result;
 use bincode;
 use bio::io::fasta;
 use bio::stats::LogProb;
+use bio_types::genome;
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
 use serde_json;
-use bio_types::genome;
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
+use crate::model;
 use crate::model::evidence::{observation::ObservationBuilder, Observation};
 use crate::model::sample::Sample;
-use crate::model;
+use crate::reference;
 use crate::utils;
 use crate::utils::MiniLogProb;
-use crate::reference;
 use crate::variants;
 use crate::variants::evidence::realignment;
 
@@ -184,7 +184,6 @@ impl ObservationProcessor {
             .unwrap();
 
         for variant in variants.into_iter() {
-
             let pileup = self.extract_observations(start, chrom, &variant)?;
 
             let start = start as usize;
@@ -202,31 +201,41 @@ impl ObservationProcessor {
         Ok(Some(call))
     }
 
-    fn extract_observations(&mut self, start: u64, chrom: &[u8], variant: &model::Variant) -> Result<Vec<Observation>> {
+    fn extract_observations(
+        &mut self,
+        start: u64,
+        chrom: &[u8],
+        variant: &model::Variant,
+    ) -> Result<Vec<Observation>> {
         let chrom_seq = self.reference_buffer.seq(&chrom)?;
         let chrom = str::from_utf8(chrom).unwrap().to_owned();
         let locus = || genome::Locus::new(chrom, start);
         let interval = |len| genome::Interval::new(chrom, start..start + len);
         let start = start as usize;
 
-        let realigner = || realignment::Realigner::new(chrom_seq, self.gap_params, self.realignment_window);
+        let realigner =
+            || realignment::Realigner::new(chrom_seq, self.gap_params, self.realignment_window);
 
         match variant {
-            model::Variant::SNV(alt) => {
-                self.sample.extract_observations(&variants::SNV::new(locus(), chrom_seq[start], *alt))
-            },
-            model::Variant::MNV(alt) => {
-                self.sample.extract_observations(&variants::MNV::new(locus(), chrom_seq[start..start + alt.len()].to_owned(), alt.to_owned()))
-            },
-            model::Variant::None => {
-                self.sample.extract_observations(&variants::None::new(locus(), chrom_seq[start]))
-            },
-            model::Variant::Deletion(l) => {
-                self.sample.extract_observations(&variants::Deletion::new(interval(l), realigner()))
-            },
-            model::Variant::Insertion(seq) => {
-                self.sample.extract_observations(&variants::Insertion::new(locus(), seq.to_owned(), realigner()))
-            }
+            model::Variant::SNV(alt) => self.sample.extract_observations(&variants::SNV::new(
+                locus(),
+                chrom_seq[start],
+                *alt,
+            )),
+            model::Variant::MNV(alt) => self.sample.extract_observations(&variants::MNV::new(
+                locus(),
+                chrom_seq[start..start + alt.len()].to_owned(),
+                alt.to_owned(),
+            )),
+            model::Variant::None => self
+                .sample
+                .extract_observations(&variants::None::new(locus(), chrom_seq[start])),
+            model::Variant::Deletion(l) => self
+                .sample
+                .extract_observations(&variants::Deletion::new(interval(l), realigner())),
+            model::Variant::Insertion(seq) => self.sample.extract_observations(
+                &variants::Insertion::new(locus(), seq.to_owned(), realigner()),
+            ),
         }
     }
 }

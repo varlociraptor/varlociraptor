@@ -159,12 +159,12 @@ pub fn collect_variants(
                     // don't support insertions without exact sequence
                     let len = alt_allele.len() - ref_allele.len();
 
-                    if is_valid_insertion_alleles(ref_allele, alt_allele) && is_valid_len(len as u64) {
-                        variants.push(
-                            model::Variant::Insertion(
-                                alt_allele[ref_allele.len()..].to_owned(),
-                            )
-                        );
+                    if is_valid_insertion_alleles(ref_allele, alt_allele)
+                        && is_valid_len(len as u64)
+                    {
+                        variants.push(model::Variant::Insertion(
+                            alt_allele[ref_allele.len()..].to_owned(),
+                        ));
                     }
                 }
             } else if svtype == b"DEL" {
@@ -203,10 +203,7 @@ pub fn collect_variants(
         let alleles = record.alleles();
         let ref_allele = alleles[0];
 
-        for (i, alt_allele) in alleles
-            .iter()
-            .skip(1)
-            .enumerate() {
+        for (i, alt_allele) in alleles.iter().skip(1).enumerate() {
             if alt_allele == b"<*>" {
                 // dummy non-ref allele, signifying potential homozygous reference site
                 if !omit_snvs {
@@ -231,8 +228,7 @@ pub fn collect_variants(
                 // MNV
                 variants.push(model::Variant::MNV(alt_allele.to_vec()));
             } else {
-                let indel_len =
-                    (alt_allele.len() as i64 - ref_allele.len() as i64).abs() as u64;
+                let indel_len = (alt_allele.len() as i64 - ref_allele.len() as i64).abs() as u64;
                 // TODO fix position if variant is like this: cttt -> ct
 
                 if omit_indels || !is_valid_len(indel_len) {
@@ -276,9 +272,7 @@ pub fn tags_prob_sum(
             for (i, (variant, tag_prob)) in
                 variants.iter().zip(tags_probs_in.into_iter()).enumerate()
             {
-                if (vartype.is_some() && !variant.is_type(vartype.unwrap()))
-                    || tag_prob.is_nan()
-                {
+                if (vartype.is_some() && !variant.is_type(vartype.unwrap())) || tag_prob.is_nan() {
                     continue;
                 }
                 tags_probs_out[i].push(LogProb::from(PHREDProb(*tag_prob as f64)));

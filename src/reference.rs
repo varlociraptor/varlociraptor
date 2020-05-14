@@ -5,7 +5,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use bio::io::fasta;
 
-
 /// A lazy buffer for reference sequences.
 pub struct Buffer {
     pub(crate) reader: fasta::IndexedReader<fs::File>,

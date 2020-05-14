@@ -10,7 +10,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::{AlleleProb, PairedEndEvidence, MultiLocus, SingleLocus, Variant};
+use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};
 
 pub struct Insertion {
