@@ -63,9 +63,7 @@ impl RecordBuffer {
     }
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a bam::Record> {
-        self.inner
-            .iter()
-            .filter(|record| is_valid_record(record))
+        self.inner.iter().filter(|record| is_valid_record(record))
     }
 }
 
