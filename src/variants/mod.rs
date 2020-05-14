@@ -198,6 +198,8 @@ where
             fetches.push(locus);
         }
         for interval in fetches.iter() {
+            // TODO how can we fetch multiple times without invalidating our records from before?
+            // Put records in Rc sounds like the goto solution...
             buffer.fetch(interval, true)?;
 
             for record in buffer.iter() {
