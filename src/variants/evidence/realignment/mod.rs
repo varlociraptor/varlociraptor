@@ -28,7 +28,7 @@ pub trait Realignable<'a, 'b, 'c> {
 #[derive(Debug, Clone)]
 pub struct Realigner {
     pairhmm: PairHMM,
-    gap_params: pairhmm::IndelGapParams,
+    gap_params: pairhmm::GapParams,
     max_window: u64,
     ref_seq: Arc<Vec<u8>>,
 }
@@ -37,7 +37,7 @@ impl Realigner {
     /// Create a new instance.
     pub fn new(
         ref_seq: Arc<Vec<u8>>,
-        gap_params: pairhmm::IndelGapParams,
+        gap_params: pairhmm::GapParams,
         max_window: u64,
     ) -> Self
 where {

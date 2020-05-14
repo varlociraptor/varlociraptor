@@ -206,7 +206,7 @@ impl ObservationProcessor {
         let chrom_seq = self.reference_buffer.seq(&chrom)?;
         let chrom = str::from_utf8(chrom).unwrap().to_owned();
         let locus = || genome::Locus::new(chrom, start);
-        let interval = || genome::Interval::new(chrom, start..start + l);
+        let interval = |len| genome::Interval::new(chrom, start..start + len);
         let start = start as usize;
 
         let realigner = || realignment::Realigner::new(chrom_seq, self.gap_params, self.realignment_window);
@@ -222,7 +222,7 @@ impl ObservationProcessor {
                 self.sample.extract_observations(&variants::None::new(locus(), chrom_seq[start]))
             },
             model::Variant::Deletion(l) => {
-                self.sample.extract_observations(&variants::Deletion::new(interval(), realigner()))
+                self.sample.extract_observations(&variants::Deletion::new(interval(l), realigner()))
             },
             model::Variant::Insertion(seq) => {
                 self.sample.extract_observations(&variants::Insertion::new(locus(), seq.to_owned(), realigner()))
