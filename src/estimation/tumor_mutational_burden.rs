@@ -70,7 +70,7 @@ pub enum PlotMode {
     Curve,
     #[strum(serialize = "hist")]
     Histogram,
-    #[strum(serialize = "stratified-curve")]
+    #[strum(serialize = "stratified")]
     StratifiedCurve,
 }
 
