@@ -550,7 +550,7 @@ impl pairhmm::StartEndGapParameters for IndelGapParams {
 }
 
 macro_rules! default_emission {
-    () => (
+    () => {
         #[inline]
         fn prob_emit_xy(&self, i: usize, j: usize) -> pairhmm::XYEmission {
             let r = self.ref_base(i);
@@ -571,7 +571,7 @@ macro_rules! default_emission {
         fn len_y(&self) -> usize {
             self.read_emission.read_end - self.read_emission.read_offset
         }
-    )
+    };
 }
 
 #[derive(Debug)]
@@ -660,7 +660,7 @@ pub trait RefBaseEmission: Debug {
 }
 
 macro_rules! default_ref_base_emission {
-    () => (
+    () => {
         fn ref_offset(&self) -> usize {
             self.ref_offset
         }
@@ -680,7 +680,7 @@ macro_rules! default_ref_base_emission {
         fn read_emission(&self) -> &ReadEmission {
             self.read_emission
         }
-    )
+    };
 }
 
 /// Emission parameters for PairHMM over reference allele.
