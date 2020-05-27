@@ -247,6 +247,12 @@ pub enum EstimateKind {
             help = "Size (in bases) of the covered coding genome."
         )]
         coding_genome_size: f64,
+        #[structopt(
+            long = "plot-mode",
+            possible_values = { use strum::IntoEnumIterator; &estimation::tumor_mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec() },
+            help = "How to plot (as curve, as histogram, as curve stratified by variant type)."
+        )]
+        mode: estimation::tumor_mutational_burden::PlotMode,
     },
 }
 
@@ -807,10 +813,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 somatic_tumor_events,
                 tumor_sample,
                 coding_genome_size,
+                mode,
             } => estimation::tumor_mutational_burden::estimate(
                 &somatic_tumor_events,
                 &tumor_sample,
                 coding_genome_size as u64,
+                mode,
             )?,
         },
     }
