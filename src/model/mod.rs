@@ -323,7 +323,9 @@ impl Deref for ContinuousAlleleFreqs {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr, EnumVariantNames,
+)]
 pub enum VariantType {
     #[strum(serialize = "INS")]
     Insertion(Option<Range<u32>>),

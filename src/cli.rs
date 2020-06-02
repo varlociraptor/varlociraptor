@@ -184,7 +184,7 @@ pub enum PreprocessKind {
         #[structopt(
             long = "strandedness",
             default_value = "opposite",
-            possible_values = { use strum::IntoEnumIterator; &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec() },
+            possible_values = { use strum::VariantNames; ProtocolStrandedness::VARIANTS },
             help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
         )]
         protocol_strandedness: ProtocolStrandedness,
@@ -249,7 +249,7 @@ pub enum EstimateKind {
         coding_genome_size: f64,
         #[structopt(
             long = "plot-mode",
-            possible_values = { use strum::IntoEnumIterator; &estimation::tumor_mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec() },
+            possible_values = { use strum::VariantNames; estimation::tumor_mutational_burden::PlotMode::VARIANTS },
             help = "How to plot (as curve, as histogram, as curve stratified by variant type)."
         )]
         mode: estimation::tumor_mutational_burden::PlotMode,
@@ -394,7 +394,7 @@ pub enum FilterMethod {
         calls: PathBuf,
         #[structopt(
             long = "var",
-            possible_values = { use strum::IntoEnumIterator; &VariantType::iter().map(|v| v.into()).collect_vec() },
+            possible_values = { use strum::VariantNames; VariantType::VARIANTS },
             help = "Variant type to consider."
         )]
         vartype: VariantType,
@@ -417,7 +417,7 @@ pub enum FilterMethod {
     PosteriorOdds {
         #[structopt(
             long,
-            possible_values = { use strum::IntoEnumIterator; &KassRaftery::iter().map(|v| v.into()).collect_vec() },
+            possible_values = { use strum::VariantNames; &KassRaftery::VARIANTS },
             help = "Kass-Raftery score to filter against."
         )]
         odds: KassRaftery,

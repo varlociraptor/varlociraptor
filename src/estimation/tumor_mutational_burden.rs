@@ -63,7 +63,16 @@ struct Record {
 }
 
 #[derive(
-    Display, Debug, Clone, Copy, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr,
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    EnumString,
+    EnumIter,
+    IntoStaticStr,
+    EnumVariantNames,
 )]
 pub enum PlotMode {
     #[strum(serialize = "curve")]

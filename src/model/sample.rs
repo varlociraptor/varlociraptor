@@ -28,7 +28,16 @@ use crate::utils::{is_repeat_variant, Overlap};
 
 /// Strand combination for read pairs as given by the sequencing protocol.
 #[derive(
-    Display, Debug, Clone, Copy, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr,
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    EnumString,
+    EnumIter,
+    IntoStaticStr,
+    EnumVariantNames,
 )]
 pub enum ProtocolStrandedness {
     #[strum(serialize = "opposite")]
