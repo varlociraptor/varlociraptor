@@ -74,13 +74,10 @@ struct Record {
     IntoStaticStr,
     EnumVariantNames,
 )]
+#[strum(serialize_all = "kebab_case")]
 pub enum PlotMode {
-    #[strum(serialize = "curve")]
+    Hist,
     Curve,
-    #[strum(serialize = "hist")]
-    Histogram,
-    #[strum(serialize = "stratified")]
-    StratifiedCurve,
 }
 
 /// Estimate tumor mutational burden based on Varlociraptor calls from STDIN and print result to STDOUT.
@@ -181,40 +178,7 @@ pub fn estimate(
     let min_vafs = linspace(0.0, 1.0, 100).map(|vaf| AlleleFreq(vaf));
 
     match mode {
-        PlotMode::Curve => {
-            let mut plot_data = Vec::new();
-            let mut max_tmb = 0.0;
-            let mut cutpoint_tmb = 0.0;
-            // calculate TMB function (expected number of somatic variants per minimum allele frequency)
-            for (i, min_vaf) in min_vafs.enumerate() {
-                let probs = tmb
-                    .range(min_vaf..)
-                    .map(|(_, records)| records)
-                    .flatten()
-                    .map(|record| record.prob)
-                    .collect_vec();
-                let tmb = calc_tmb(&probs);
-
-                if i == 0 {
-                    max_tmb = tmb;
-                }
-                if i == 10 {
-                    cutpoint_tmb = tmb;
-                }
-                plot_data.push(TMB {
-                    min_vaf: *min_vaf,
-                    tmb,
-                });
-            }
-
-            print_plot(
-                json!(plot_data),
-                include_str!("../../templates/plots/vaf_curve.json"),
-                cutpoint_tmb,
-                max_tmb,
-            )
-        }
-        PlotMode::Histogram => {
+        PlotMode::Hist => {
             let mut plot_data = Vec::new();
             // perform binning for histogram
             for center_vaf in linspace(0.05, 0.95, 19) {
@@ -247,7 +211,7 @@ pub fn estimate(
                 max_tmb,
             )
         }
-        PlotMode::StratifiedCurve => {
+        PlotMode::Curve => {
             let mut plot_data = Vec::new();
             let mut max_tmbs = Vec::new();
             let mut cutpoint_tmbs = Vec::new();

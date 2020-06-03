@@ -20,6 +20,7 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf, bcf::record::Numeric};
+use strum::IntoEnumIterator;
 
 use crate::errors;
 use crate::model;
@@ -27,6 +28,10 @@ use crate::utils;
 use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-3;
+
+pub fn enum_variants<E: IntoEnumIterator + Display>() -> Vec<String> {
+    E::iter().map(|v| format!("{}", v)).collect_vec()
+}
 
 /// Select values with given indices from a slice and return them as an iterator.
 pub fn select<'a, T: Clone>(idx: &'a [usize], values: &'a [T]) -> impl Iterator<Item = T> + 'a {

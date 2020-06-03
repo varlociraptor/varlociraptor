@@ -6,10 +6,12 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::ops::{Deref, Range};
+use std::str;
 
 use bio::stats::LogProb;
 use itertools::Itertools;
 use ordered_float::NotNan;
+use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::grammar;
@@ -324,7 +326,15 @@ impl Deref for ContinuousAlleleFreqs {
 }
 
 #[derive(
-    Debug, Clone, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr, EnumVariantNames,
+    Display,
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    EnumString,
+    EnumIter,
+    IntoStaticStr,
+    EnumVariantNames,
 )]
 pub enum VariantType {
     #[strum(serialize = "INS")]
@@ -337,6 +347,19 @@ pub enum VariantType {
     MNV,
     #[strum(serialize = "REF")]
     None, // site with no suggested alternative allele
+}
+
+impl VariantType {
+    // TODO remove once EnumVariantNames respects serialize=,
+    // see https://github.com/Peternator7/strum/issues/93
+    pub fn variants() -> Vec<String> {
+        VariantType::iter()
+            .map(|v| -> String {
+                let s: &str = v.into();
+                s.to_owned()
+            })
+            .collect_vec()
+    }
 }
 
 impl From<&str> for VariantType {
