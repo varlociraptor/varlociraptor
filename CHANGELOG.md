@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.7.2] - 2020-06-03
+- Fixed possible values in CLI.
+
 ## [1.7.1] - 2020-06-02
 - Fixed compiler issue when building varlociraptor with certain rust versions.
 - Use latest rust-bio release.
