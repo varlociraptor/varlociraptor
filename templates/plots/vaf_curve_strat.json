@@ -9,7 +9,7 @@
         "encoding": {
           "x": {"field": "min_vaf", "type": "quantitative", "axis": { "title": "", "labels": false, "ticks": false }},
           "y": {"field": "tmb", "type": "quantitative", "axis": { "title": "" }, "stack": true, "scale": {"domain": [200, 420], "nice": false}},
-          "color": {"field": "vartype", "type": "nominal"}
+          "color": {"field": "vartype", "type": "nominal", "scale": { "scheme": "tableau20"}}
         }
       },
       {
@@ -18,7 +18,7 @@
         "encoding": {
           "x": {"field": "min_vaf", "type": "quantitative", "axis": { "title": "minimum VAF" }},
           "y": {"field": "tmb", "type": "quantitative", "axis": { "title": "mutations/Mb" }, "stack": true, "scale": {"domain": [0, 199.9], "nice": false}},
-          "color": {"field": "vartype", "type": "nominal"}
+          "color": {"field": "vartype", "type": "nominal", "scale": { "scheme": "tableau20"}}
         }
       }
     ],
