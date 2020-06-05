@@ -196,6 +196,7 @@ pub fn estimate(
                     if i == 0 {
                         max_tmbs.push(tmb);
                     }
+                    // cutpoint beyond 15%
                     if i == 2 {
                         cutpoint_tmbs.push(tmb);
                     }
@@ -207,13 +208,6 @@ pub fn estimate(
                 }
             }
 
-            // set cutpoint beyond 10%
-            //let cutpoint_tmb = plot_data[2].tmb;
-            // let max_tmb = *plot_data
-            //     .iter()
-            //     .map(|record| NotNan::new(record.tmb).unwrap())
-            //     .max()
-            //     .unwrap();
             let max_tmb: f64 = max_tmbs.iter().sum();
             let cutpoint_tmb: f64 = cutpoint_tmbs.iter().sum();
 
