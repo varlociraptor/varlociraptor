@@ -203,7 +203,7 @@ pub fn estimate(
                     plot_data.push(TMBBin {
                         vaf: center_vaf,
                         tmb,
-                        vartype: vartype
+                        vartype: vartype,
                     });
                 }
             }
