@@ -55,6 +55,7 @@ struct TMBStrat {
 struct TMBBin {
     vaf: f64,
     tmb: f64,
+    vartype: Vartype,
 }
 
 struct Record {
@@ -181,28 +182,34 @@ pub fn estimate(
         PlotMode::Hist => {
             let mut plot_data = Vec::new();
             // perform binning for histogram
-            for center_vaf in linspace(0.05, 0.95, 19) {
-                let probs = tmb
+            let mut max_tmbs = Vec::new();
+            let mut cutpoint_tmbs = Vec::new();
+            for (i, center_vaf) in linspace(0.05, 0.95, 19).enumerate() {
+                let groups = tmb
                     .range(AlleleFreq(center_vaf - 0.05)..AlleleFreq(center_vaf + 0.05))
                     .map(|(_, records)| records)
                     .flatten()
-                    .map(|record| record.prob)
-                    .collect_vec();
-                let tmb = calc_tmb(&probs);
-
-                plot_data.push(TMBBin {
-                    vaf: center_vaf,
-                    tmb,
-                })
+                    .map(|record| (record.vartype, record.prob))
+                    .into_group_map();
+                for (vartype, probs) in groups {
+                    let tmb = calc_tmb(&probs);
+                    if i == 0 {
+                        max_tmbs.push(tmb);
+                    }
+                    // cutpoint beyond 15%
+                    if i == 2 {
+                        cutpoint_tmbs.push(tmb);
+                    }
+                    plot_data.push(TMBBin {
+                        vaf: center_vaf,
+                        tmb,
+                        vartype: vartype,
+                    });
+                }
             }
 
-            // set cutpoint beyond 10%
-            let cutpoint_tmb = plot_data[2].tmb;
-            let max_tmb = *plot_data
-                .iter()
-                .map(|record| NotNan::new(record.tmb).unwrap())
-                .max()
-                .unwrap();
+            let max_tmb: f64 = max_tmbs.iter().sum();
+            let cutpoint_tmb: f64 = cutpoint_tmbs.iter().sum();
 
             print_plot(
                 json!(plot_data),
