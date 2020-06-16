@@ -270,7 +270,8 @@ impl Sample {
                     // First, we check whether the record contains an indel in the cigar.
                     // We store the maximum indel size to update the global estimates, in case
                     // it is larger in this region.
-                    self.alignment_properties.update_max_cigar_ops_len(record, false);
+                    self.alignment_properties
+                        .update_max_cigar_ops_len(record, false);
 
                     // We look at the whole fragment at once.
 
