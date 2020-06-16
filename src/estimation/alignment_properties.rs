@@ -39,7 +39,7 @@ impl AlignmentProperties {
 
     /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
     /// was found in the cigar string.
-    pub fn update_max_cigar_ops_len(&mut self, record: &bam::Record) -> (bool, bool) {
+    pub fn update_max_cigar_ops_len(&mut self, record: &bam::Record, allow_hardclips: bool) -> (bool, bool) {
         let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
 
         let mut is_regular = true;
@@ -61,7 +61,7 @@ impl AlignmentProperties {
                     self.max_ins_cigar_len = cmp::max(l, self.max_ins_cigar_len);
                     is_regular = false;
                 }
-                &Cigar::HardClip(_) => {
+                &Cigar::HardClip(_) if !allow_hardclips => {
                     is_regular = false;
                 }
                 _ => continue,
@@ -73,7 +73,7 @@ impl AlignmentProperties {
 
     /// Estimate `AlignmentProperties` from first 10000 fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
-    pub fn estimate<R: bam::Read>(bam: &mut R) -> Result<Self> {
+    pub fn estimate<R: bam::Read>(bam: &mut R, allow_hardclips: bool) -> Result<Self> {
         let mut properties = AlignmentProperties {
             insert_size: None,
             max_del_cigar_len: 0,
@@ -116,7 +116,7 @@ impl AlignmentProperties {
 
             max_mapq = cmp::max(max_mapq, record.mapq());
 
-            let (is_regular, has_soft_clip) = properties.update_max_cigar_ops_len(&record);
+            let (is_regular, has_soft_clip) = properties.update_max_cigar_ops_len(&record, allow_hardclips);
 
             // Records to skip after updating max_cigar_ops_len, BUT without incrementing the
             // counter (to keep looking for 10000 useful records for the estimation)
@@ -145,26 +145,26 @@ impl AlignmentProperties {
         if tlens.len() == 0 {
             warn!(
                 "\nFound no records to use for estimating the insert size. Will assume\n\
-                 single end sequencing data and calculate deletion probabilities without\n\
-                 considering the insert size.\n\
-                 \n\
-                 If your data should be paired end, please consider manually providing\n\
-                 --alignment-properties, e.g. computed with `samtools stats`. Also,\n\
-                 the following counts of unusable records might indicate a source of\n\
-                 this problem:\n\n\
-                 - I, D, S or H CIGAR operation: {nu}\n\
-                 - S CIGAR (soft clip, e.g. due to UMIs or adapters): {sc}\n\
-                 \n\
-                 In addition, {nr} records were skipped in the estimation for one\n\
-                 of the following reasons:\n\
-                 - not paired\n\
-                 - not the first segment with regard to the template sequence\n\
-                 - mapping quality of 0\n\
-                 - marked as a duplicate\n\
-                 - mate mapped to different template (e.g. different chromosome)\n\
-                 - failed some quality check according to the 512 SAM flag\n\
-                 - mate unmapped\n\
-                 - record unmapped\n",
+                single end sequencing data and calculate deletion probabilities without\n\
+                considering the insert size.\n\
+                \n\
+                If your data should be paired end, please consider manually providing\n\
+                --alignment-properties, e.g. computed with `samtools stats`. Also,\n\
+                the following counts of unusable records might indicate a source of\n\
+                this problem:\n\n\
+                - I, D, S or H CIGAR operation: {nu}\n\
+                - S CIGAR (soft clip, e.g. due to UMIs or adapters): {sc}\n\
+                \n\
+                In addition, {nr} records were skipped in the estimation for one\n\
+                of the following reasons:\n\
+                - not paired\n\
+                - not the first segment with regard to the template sequence\n\
+                - mapping quality of 0\n\
+                - marked as a duplicate\n\
+                - mate mapped to different template (e.g. different chromosome)\n\
+                - failed some quality check according to the 512 SAM flag\n\
+                - mate unmapped\n\
+                - record unmapped\n",
                 nu = n_not_useable,
                 sc = n_soft_clip,
                 nr = skipped

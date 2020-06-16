@@ -104,10 +104,12 @@ impl SubsampleCandidates {
 
 pub fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
+    omit_insert_size: bool
 ) -> Result<alignment_properties::AlignmentProperties> {
     let mut bam = bam::Reader::from_path(path)?;
     Ok(alignment_properties::AlignmentProperties::estimate(
         &mut bam,
+        omit_insert_size,
     )?)
 }
 
@@ -195,6 +197,7 @@ impl Sample {
         variant: &Variant,
         chrom: &[u8],
         chrom_seq: &[u8],
+        omit_insert_size: bool,
     ) -> Result<Pileup> {
         let centerpoint = variant.centerpoint(start);
 
@@ -364,6 +367,7 @@ impl Sample {
                         start,
                         variant,
                         chrom_seq,
+                        omit_insert_size,
                     )? {
                         observations.push(obs);
                     }
@@ -473,6 +477,7 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
+        omit_insert_size: bool,
     ) -> Result<Option<Observation>> {
         let prob_read =
             |record: &bam::Record, cigar: &CigarStringView| -> Result<(LogProb, LogProb)> {

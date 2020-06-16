@@ -216,6 +216,12 @@ pub enum PreprocessKind {
                     number, downsampling is performed."
         )]
         max_depth: usize,
+        #[structopt(
+            long = "omit-insert-size",
+            help = "Do not consider insert size when calculating support for a variant. Use this flag when \
+                    processing amplicon data, where indels do not impact the observed insert size"
+        )]
+        omit_insert_size: bool,
     },
 }
 
@@ -470,6 +476,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     max_indel_len,
                     indel_window,
                     max_depth,
+                    omit_insert_size,
                 } => {
                     // TODO: handle testcases
 
@@ -481,8 +488,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         Err(structopt::clap::Error::with_description( "Command-line option --indel-window requires a value <= 64 with the current implementation.", structopt::clap::ErrorKind::ValueValidation))?;
                     };
 
+                    // If we omit the insert size information for calculating the evidence, we can savely allow hardclips here.
+                    let allow_hardclips = omit_insert_size;
                     let alignment_properties =
-                        est_or_load_alignment_properites(&alignment_properties, &bam)?;
+                        est_or_load_alignment_properites(&alignment_properties, &bam, allow_hardclips)?;
 
                     let bam_reader = bam::IndexedReader::from_path(bam)
                         .context("Unable to read BAM/CRAM file.")?;
@@ -498,7 +507,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         .max_depth(max_depth)
                         .protocol_strandedness(protocol_strandedness)
                         .alignments(bam_reader, alignment_properties)
-                        .use_fragment_evidence(!alignment_properties.insert_size().mean.is_nan())
+                        .use_fragment_evidence(!omit_insert_size)
                         .build()
                         .unwrap();
 
@@ -830,12 +839,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 pub fn est_or_load_alignment_properites(
     alignment_properties_file: &Option<impl AsRef<Path>>,
     bam_file: impl AsRef<Path>,
+    omit_insert_size: bool,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(bam_file)
+        estimate_alignment_properties(bam_file, omit_insert_size)
     }
 }
