@@ -257,7 +257,7 @@ mod tests {
     fn test_estimate() {
         let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
 
-        let props = AlignmentProperties::estimate(&mut bam).unwrap();
+        let props = AlignmentProperties::estimate(&mut bam, false).unwrap();
         println!("{:?}", props);
 
         assert_relative_eq!(props.insert_size().mean, 311.9736111111111);
@@ -273,7 +273,7 @@ mod tests {
             bam::Reader::from_path("tests/resources/tumor-first30000.reads_with_soft_clips.bam")
                 .unwrap();
 
-        let props = AlignmentProperties::estimate(&mut bam).unwrap();
+        let props = AlignmentProperties::estimate(&mut bam, false).unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
@@ -290,7 +290,7 @@ mod tests {
         )
         .unwrap();
 
-        let props = AlignmentProperties::estimate(&mut bam).unwrap();
+        let props = AlignmentProperties::estimate(&mut bam, false).unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());

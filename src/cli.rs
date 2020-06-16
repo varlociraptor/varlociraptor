@@ -32,7 +32,6 @@ use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::model::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
 use crate::model::{Contamination, VariantType};
 use crate::testcase;
-use crate::utils::enum_variants;
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]

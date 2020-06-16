@@ -6,7 +6,6 @@ use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use itertools::Itertools;
 use itertools_num::linspace;
-use ordered_float::NotNan;
 use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
 

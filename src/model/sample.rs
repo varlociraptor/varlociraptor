@@ -197,7 +197,6 @@ impl Sample {
         variant: &Variant,
         chrom: &[u8],
         chrom_seq: &[u8],
-        omit_insert_size: bool,
     ) -> Result<Pileup> {
         let centerpoint = variant.centerpoint(start);
 
@@ -271,7 +270,7 @@ impl Sample {
                     // First, we check whether the record contains an indel in the cigar.
                     // We store the maximum indel size to update the global estimates, in case
                     // it is larger in this region.
-                    self.alignment_properties.update_max_cigar_ops_len(record);
+                    self.alignment_properties.update_max_cigar_ops_len(record, false);
 
                     // We look at the whole fragment at once.
 
@@ -367,7 +366,6 @@ impl Sample {
                         start,
                         variant,
                         chrom_seq,
-                        omit_insert_size,
                     )? {
                         observations.push(obs);
                     }
@@ -477,7 +475,6 @@ impl Sample {
         start: u32,
         variant: &Variant,
         chrom_seq: &[u8],
-        omit_insert_size: bool,
     ) -> Result<Option<Observation>> {
         let prob_read =
             |record: &bam::Record, cigar: &CigarStringView| -> Result<(LogProb, LogProb)> {
