@@ -104,7 +104,7 @@ impl SubsampleCandidates {
 
 pub fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
-    omit_insert_size: bool
+    omit_insert_size: bool,
 ) -> Result<alignment_properties::AlignmentProperties> {
     let mut bam = bam::Reader::from_path(path)?;
     Ok(alignment_properties::AlignmentProperties::estimate(

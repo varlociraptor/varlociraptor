@@ -490,8 +490,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     // If we omit the insert size information for calculating the evidence, we can savely allow hardclips here.
                     let allow_hardclips = omit_insert_size;
-                    let alignment_properties =
-                        est_or_load_alignment_properites(&alignment_properties, &bam, allow_hardclips)?;
+                    let alignment_properties = est_or_load_alignment_properites(
+                        &alignment_properties,
+                        &bam,
+                        allow_hardclips,
+                    )?;
 
                     let bam_reader = bam::IndexedReader::from_path(bam)
                         .context("Unable to read BAM/CRAM file.")?;

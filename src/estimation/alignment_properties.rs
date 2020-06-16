@@ -39,7 +39,11 @@ impl AlignmentProperties {
 
     /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
     /// was found in the cigar string.
-    pub fn update_max_cigar_ops_len(&mut self, record: &bam::Record, allow_hardclips: bool) -> (bool, bool) {
+    pub fn update_max_cigar_ops_len(
+        &mut self,
+        record: &bam::Record,
+        allow_hardclips: bool,
+    ) -> (bool, bool) {
         let norm = |j| NotNan::new(j as f64 / record.seq().len() as f64).unwrap();
 
         let mut is_regular = true;
@@ -116,7 +120,8 @@ impl AlignmentProperties {
 
             max_mapq = cmp::max(max_mapq, record.mapq());
 
-            let (is_regular, has_soft_clip) = properties.update_max_cigar_ops_len(&record, allow_hardclips);
+            let (is_regular, has_soft_clip) =
+                properties.update_max_cigar_ops_len(&record, allow_hardclips);
 
             // Records to skip after updating max_cigar_ops_len, BUT without incrementing the
             // counter (to keep looking for 10000 useful records for the estimation)
