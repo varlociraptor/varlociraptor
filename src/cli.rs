@@ -220,6 +220,7 @@ pub enum PreprocessKind {
             help = "Do not consider insert size when calculating support for a variant. Use this flag when \
                     processing amplicon data, where indels do not impact the observed insert size"
         )]
+        #[serde(default)]
         omit_insert_size: bool,
     },
 }
