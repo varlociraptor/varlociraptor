@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.7.3] - 2020-06-17
+- Polished TMB plots.
+- Allow to omit insert size evidence. This is important for amplicon data, where indels do not impact insert size.
+
 ## [1.7.2] - 2020-06-03
 - Fixed possible values in CLI.
 
