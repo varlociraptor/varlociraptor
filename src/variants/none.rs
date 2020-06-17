@@ -23,8 +23,8 @@ impl None {
     }
 }
 
-impl<'a> Variant<'a> for None {
-    type Evidence = SingleEndEvidence<'a>;
+impl Variant for None {
+    type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
     fn is_valid_evidence(&self, evidence: &SingleEndEvidence) -> Option<Vec<usize>> {

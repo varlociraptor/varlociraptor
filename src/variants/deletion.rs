@@ -77,14 +77,14 @@ impl Deletion {
     }
 }
 
-impl<'a> SamplingBias<'a> for Deletion {
+impl SamplingBias for Deletion {
     fn len(&self) -> u64 {
         self.locus.range().end - self.locus.range().start
     }
 }
 
-impl<'a> FragmentSamplingBias<'a> for Deletion {}
-impl<'a> ReadSamplingBias<'a> for Deletion {}
+impl FragmentSamplingBias for Deletion {}
+impl ReadSamplingBias for Deletion {}
 
 impl<'a> Realignable<'a> for Deletion {
     type EmissionParams = DeletionEmissionParams<'a>;
@@ -108,8 +108,8 @@ impl<'a> Realignable<'a> for Deletion {
     }
 }
 
-impl<'a> Variant<'a> for Deletion {
-    type Evidence = PairedEndEvidence<'a>;
+impl Variant for Deletion {
+    type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
     fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {

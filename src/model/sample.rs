@@ -3,11 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cell::RefCell;
 use std::f64;
 use std::hash::Hash;
 use std::path::Path;
 use std::str;
+use std::rc::Rc;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
@@ -62,8 +62,8 @@ impl RecordBuffer {
         }
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a bam::Record> {
-        self.inner.iter().filter(|record| is_valid_record(record))
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = Rc<bam::Record>> + 'a {
+        self.inner.iter().filter(|record| is_valid_record(record.as_ref())).map(|record| Rc::clone(record))
     }
 }
 
@@ -227,11 +227,11 @@ fn is_valid_record(record: &bam::Record) -> bool {
 
 impl Sample {
     /// Extract observations for the given variant.
-    pub fn extract_observations<'a, V, E, L>(&'a mut self, variant: &V) -> Result<Pileup>
+    pub fn extract_observations<V, E, L>(&mut self, variant: &V) -> Result<Pileup>
     where
-        E: observation::Evidence<'a> + Eq + Hash,
+        E: observation::Evidence + Eq + Hash,
         L: variants::Loci,
-        V: Variant<'a, Loci = L, Evidence = E> + Observable<'a, E>,
+        V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
         variant.extract_observations(
             &mut self.record_buffer,
@@ -266,51 +266,9 @@ mod tests {
                     sd: 20.0,
                 })),
             )
-            .error_probs(
-                constants::PROB_ILLUMINA_INS,
-                constants::PROB_ILLUMINA_DEL,
-                Prob(0.0),
-                Prob(0.0),
-                100,
-            )
             .max_depth(200)
             .build()
             .unwrap()
-    }
-
-    #[test]
-    #[ignore]
-    fn test_read_observation_indel() {
-        let variant = model::Variant::Insertion(b"GCATCCTGCG".to_vec());
-        // insertion starts at 546 and has length 10
-        let varpos = 546;
-
-        let sample = setup_sample(150.0);
-        let mut bam = bam::Reader::from_path(&"tests/indels.bam").unwrap();
-        let records = bam.records().collect_vec();
-
-        let ref_seq = ref_seq();
-
-        let true_alt_probs = [-0.09, -0.02, -73.09, -16.95, -73.09];
-
-        for (record, true_alt_prob) in records.into_iter().zip(true_alt_probs.iter()) {
-            let mut record = record.unwrap();
-            record.cache_cigar();
-            let cigar = record.cigar_cached().unwrap();
-            if let Some(obs) = sample
-                .read_observation(&record, cigar, varpos, &variant, &ref_seq)
-                .unwrap()
-            {
-                println!("{:?}", obs);
-                assert_relative_eq!(*obs.prob_alt, *true_alt_prob, epsilon = 0.01);
-                assert_relative_eq!(
-                    *obs.prob_mapping,
-                    *(LogProb::from(PHREDProb(60.0)).ln_one_minus_exp())
-                );
-            } else {
-                panic!("read_observation() test for indels failed; it returned 'None'.")
-            }
-        }
     }
 
     fn ref_seq() -> Vec<u8> {
@@ -319,39 +277,5 @@ mod tests {
         fa.read(&mut chr17).unwrap();
 
         chr17.seq().to_owned()
-    }
-
-    // TODO re-enable once framework has stabilized
-    #[test]
-    #[ignore]
-    fn test_prob_read_indel() {
-        let _ = env_logger::init();
-
-        let mut bam = bam::Reader::from_path(&"tests/indels+clips.bam").unwrap();
-        let records = bam.records().map(|rec| rec.unwrap()).collect_vec();
-        let ref_seq = ref_seq();
-        let sample = setup_sample(312.0);
-
-        // truth
-        let probs_alt = [-0.09, -16.95, -73.09, -0.022, -0.011, -0.03];
-        let probs_ref = [-150.50, -163.03, -0.01, -67.75, -67.74, -67.76];
-
-        // variant (obtained via bcftools)
-        let start = 546;
-        let variant = model::Variant::Insertion(b"GCATCCTGCG".to_vec());
-        for (i, mut rec) in records.into_iter().enumerate() {
-            rec.cache_cigar();
-            println!("{}", str::from_utf8(rec.qname()).unwrap());
-            let (prob_ref, prob_alt) = sample
-                .indel_read_evidence
-                .borrow_mut()
-                .prob(&rec, rec.cigar_cached().unwrap(), start, &variant, &ref_seq)
-                .unwrap()
-                .unwrap();
-            println!("Pr(ref)={} Pr(alt)={}", *prob_ref, *prob_alt);
-            println!("{:?}", rec.cigar_cached());
-            assert_relative_eq!(*prob_ref, probs_ref[i], epsilon = 0.1);
-            assert_relative_eq!(*prob_alt, probs_alt[i], epsilon = 0.1);
-        }
     }
 }

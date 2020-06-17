@@ -45,8 +45,8 @@ impl AlleleProb {
     }
 }
 
-pub trait Variant<'a> {
-    type Evidence: Evidence<'a>;
+pub trait Variant {
+    type Evidence: Evidence;
     type Loci: Loci;
 
     /// Determine whether the evidence is suitable to assessing probabilities
@@ -75,17 +75,17 @@ pub trait Variant<'a> {
     ) -> LogProb;
 }
 
-impl<'a, V> Observable<'a, SingleEndEvidence<'a>> for V
+impl<V> Observable<SingleEndEvidence> for V
 where
-    V: Variant<'a, Evidence = SingleEndEvidence<'a>, Loci = SingleLocus>,
+    V: Variant<Evidence = SingleEndEvidence, Loci = SingleLocus>,
 {
-    fn prob_mapping(&self, evidence: &SingleEndEvidence<'a>) -> LogProb {
+    fn prob_mapping(&self, evidence: &SingleEndEvidence) -> LogProb {
         let prob_mismapping = LogProb::from(PHREDProb(evidence.mapq() as f64));
         let prob_mapping = prob_mismapping.ln_one_minus_exp();
         prob_mapping
     }
 
-    fn strand(&self, evidence: &SingleEndEvidence<'a>) -> Strand {
+    fn strand(&self, evidence: &SingleEndEvidence) -> Strand {
         let reverse = evidence.flags() & 0x10 != 0;
 
         StrandBuilder::default()
@@ -97,14 +97,14 @@ where
 
     fn extract_observations(
         &self,
-        buffer: &'a mut sample::RecordBuffer,
+        buffer: &mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
     ) -> Result<Vec<Observation>> {
         let locus = self.loci();
         buffer.fetch(locus, false)?;
 
-        let candidates: Vec<SingleEndEvidence<'a>> = buffer
+        let candidates: Vec<_> = buffer
             .iter()
             .filter_map(|record| {
                 let evidence = SingleEndEvidence::new(record);
@@ -131,11 +131,11 @@ where
     }
 }
 
-impl<'a, V> Observable<'a, PairedEndEvidence<'a>> for V
+impl<V> Observable<PairedEndEvidence> for V
 where
-    V: Variant<'a, Evidence = PairedEndEvidence<'a>, Loci = MultiLocus>,
+    V: Variant<Evidence = PairedEndEvidence, Loci = MultiLocus>,
 {
-    fn prob_mapping(&self, evidence: &PairedEndEvidence<'a>) -> LogProb {
+    fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
         match evidence {
             PairedEndEvidence::SingleEnd(record) => prob(record),
@@ -143,7 +143,7 @@ where
         }
     }
 
-    fn strand(&self, evidence: &PairedEndEvidence<'a>) -> Strand {
+    fn strand(&self, evidence: &PairedEndEvidence) -> Strand {
         let is_reverse = |record: &bam::Record| record.flags() & 0x10 != 0;
 
         let (forward, reverse) = match evidence {
@@ -183,7 +183,7 @@ where
     ///   and potentially another observation for the corresponding fragment.
     fn extract_observations(
         &self,
-        buffer: &'a mut sample::RecordBuffer,
+        buffer: &mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
     ) -> Result<Vec<Observation>> {
@@ -206,7 +206,7 @@ where
                 // METHOD: First, we check whether the record contains an indel in the cigar.
                 // We store the maximum indel size to update the global estimates, in case
                 // it is larger in this region.
-                alignment_properties.update_max_cigar_ops_len(record);
+                alignment_properties.update_max_cigar_ops_len(record, false);
 
                 // We look at the whole fragment at once.
 
@@ -334,13 +334,13 @@ pub struct MultiLocus {
 
 impl Loci for MultiLocus {}
 
-struct Candidate<'a> {
-    left: &'a bam::Record,
-    right: Option<&'a bam::Record>,
+struct Candidate {
+    left: &bam::Record,
+    right: Option<&bam::Record>,
 }
 
-impl<'a> Candidate<'a> {
-    fn new(record: &'a bam::Record) -> Self {
+impl Candidate {
+    fn new(record: &bam::Record) -> Self {
         Candidate {
             left: record,
             right: None,

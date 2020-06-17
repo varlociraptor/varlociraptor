@@ -29,8 +29,8 @@ impl MNV {
     }
 }
 
-impl<'a> Variant<'a> for MNV {
-    type Evidence = SingleEndEvidence<'a>;
+impl Variant for MNV {
+    type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
     fn is_valid_evidence(&self, evidence: &SingleEndEvidence) -> Option<Vec<usize>> {

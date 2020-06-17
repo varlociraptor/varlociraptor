@@ -63,16 +63,16 @@ impl<'a> Realignable<'a> for Insertion {
     }
 }
 
-impl<'a> SamplingBias<'a> for Insertion {
+impl SamplingBias for Insertion {
     fn len(&self) -> u64 {
         self.ins_seq.len() as u64
     }
 }
 
-impl<'a> ReadSamplingBias<'a> for Insertion {}
+impl ReadSamplingBias for Insertion {}
 
-impl<'a> Variant<'a> for Insertion {
-    type Evidence = PairedEndEvidence<'a>;
+impl Variant for Insertion {
+    type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
     fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {

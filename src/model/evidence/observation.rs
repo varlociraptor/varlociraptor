@@ -3,10 +3,10 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cell::RefCell;
 use std::f64;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
+use std::rc::Rc;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
@@ -148,13 +148,13 @@ impl Serialize for Observation {
 }
 
 /// Something that can be converted into observations.
-pub trait Observable<'a, E>: Variant<'a, Evidence = E>
+pub trait Observable<E>: Variant<Evidence = E>
 where
-    E: Evidence<'a> + Eq + Hash,
+    E: Evidence + Eq + Hash,
 {
     fn extract_observations(
         &self,
-        buffer: &'a mut sample::RecordBuffer,
+        buffer: &mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
     ) -> Result<Vec<Observation>>;
@@ -203,47 +203,47 @@ pub struct Strand {
     reverse: bool,
 }
 
-pub trait Evidence<'a> {}
+pub trait Evidence {}
 
 #[derive(new, Clone, Copy, Eq)]
-pub struct SingleEndEvidence<'a> {
-    inner: &'a bam::Record,
+pub struct SingleEndEvidence {
+    inner: Rc<bam::Record>,
 }
 
-impl<'a> Deref for SingleEndEvidence<'a> {
+impl Deref for SingleEndEvidence {
     type Target = bam::Record;
 
     fn deref(&self) -> &bam::Record {
-        self.inner
+        self.inner.as_ref()
     }
 }
 
-impl<'a> Evidence<'a> for SingleEndEvidence<'a> {}
+impl Evidence for SingleEndEvidence {}
 
-impl<'a> PartialEq for SingleEndEvidence<'a> {
+impl PartialEq for SingleEndEvidence {
     fn eq(&self, other: &Self) -> bool {
         self.qname() == other.qname()
     }
 }
 
-impl<'a> Hash for SingleEndEvidence<'a> {
+impl Hash for SingleEndEvidence {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.qname().hash(state);
     }
 }
 
 #[derive(Clone, Copy, Eq)]
-pub enum PairedEndEvidence<'a> {
-    SingleEnd(&'a bam::Record),
+pub enum PairedEndEvidence {
+    SingleEnd(Rc<bam::Record>),
     PairedEnd {
-        left: &'a bam::Record,
-        right: &'a bam::Record,
+        left: Rc<bam::Record>,
+        right: Rc<bam::Record>,
     },
 }
 
-impl<'a> Evidence<'a> for PairedEndEvidence<'a> {}
+impl Evidence for PairedEndEvidence {}
 
-impl<'a> PartialEq for PairedEndEvidence<'a> {
+impl PartialEq for PairedEndEvidence {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (PairedEndEvidence::SingleEnd(a), PairedEndEvidence::SingleEnd(b)) => {
@@ -258,7 +258,7 @@ impl<'a> PartialEq for PairedEndEvidence<'a> {
     }
 }
 
-impl<'a> Hash for PairedEndEvidence<'a> {
+impl Hash for PairedEndEvidence {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             PairedEndEvidence::SingleEnd(a) => a.qname().hash(state),

@@ -7,7 +7,7 @@ pub mod reads;
 pub use fragments::FragmentSamplingBias;
 pub use reads::ReadSamplingBias;
 
-pub trait SamplingBias<'a>: Variant<'a> {
+pub trait SamplingBias: Variant {
     /// Number of bases that are feasible for overlapping the variant.
     fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
         if self.len() < alignment_properties.max_del_cigar_len as u64 {

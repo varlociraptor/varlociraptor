@@ -10,7 +10,7 @@ use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::sampling_bias::SamplingBias;
 use crate::variants::Variant;
 
-pub trait FragmentSamplingBias<'a>: Variant<'a> + SamplingBias<'a> {
+pub trait FragmentSamplingBias: Variant + SamplingBias {
     /// Get range of insert sizes with probability above zero.
     /// We use 6 SDs around the mean.
     fn isize_pmf_range(&self, alignment_properties: &AlignmentProperties) -> Range<u64> {
