@@ -18,6 +18,7 @@ use rust_htslib::{bam, bcf};
 use serde_yaml;
 use structopt;
 use structopt::StructOpt;
+use strum::IntoEnumIterator;
 
 use crate::calling;
 use crate::conversion;
@@ -184,7 +185,7 @@ pub enum PreprocessKind {
         #[structopt(
             long = "strandedness",
             default_value = "opposite",
-            possible_values = { use strum::IntoEnumIterator; &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec() },
+            possible_values = { &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec() },
             help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
         )]
         protocol_strandedness: ProtocolStrandedness,
@@ -207,6 +208,13 @@ pub enum PreprocessKind {
                     number, downsampling is performed."
         )]
         max_depth: usize,
+        #[structopt(
+            long = "omit-insert-size",
+            help = "Do not consider insert size when calculating support for a variant. Use this flag when \
+                    processing amplicon data, where indels do not impact the observed insert size"
+        )]
+        #[serde(default)]
+        omit_insert_size: bool,
     },
 }
 
@@ -240,6 +248,12 @@ pub enum EstimateKind {
             help = "Size (in bases) of the covered coding genome."
         )]
         coding_genome_size: f64,
+        #[structopt(
+            long = "plot-mode",
+            possible_values = { &estimation::tumor_mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec() },
+            help = "How to plot (as stratified curve or as histogram)."
+        )]
+        mode: estimation::tumor_mutational_burden::PlotMode,
     },
 }
 
@@ -381,7 +395,7 @@ pub enum FilterMethod {
         calls: PathBuf,
         #[structopt(
             long = "var",
-            possible_values = { use strum::IntoEnumIterator; &VariantType::iter().map(|v| v.into()).collect_vec() },
+            possible_values = { &VariantType::iter().map(|v| v.into()).collect_vec() },
             help = "Variant type to consider."
         )]
         vartype: VariantType,
@@ -404,7 +418,7 @@ pub enum FilterMethod {
     PosteriorOdds {
         #[structopt(
             long,
-            possible_values = { use strum::IntoEnumIterator; &KassRaftery::iter().map(|v| v.into()).collect_vec() },
+            possible_values = {&KassRaftery::iter().map(|v| v.into()).collect_vec()},
             help = "Kass-Raftery score to filter against."
         )]
         odds: KassRaftery,
@@ -454,6 +468,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_indels,
                     realignment_window,
                     max_depth,
+                    omit_insert_size,
                 } => {
                     // TODO: handle testcases
 
@@ -465,8 +480,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         Err(structopt::clap::Error::with_description( "Command-line option --indel-window requires a value <= 64 with the current implementation.", structopt::clap::ErrorKind::ValueValidation))?;
                     };
 
-                    let alignment_properties =
-                        est_or_load_alignment_properites(&alignment_properties, &bam)?;
+                    // If we omit the insert size information for calculating the evidence, we can savely allow hardclips here.
+                    let allow_hardclips = omit_insert_size;
+                    let alignment_properties = est_or_load_alignment_properites(
+                        &alignment_properties,
+                        &bam,
+                        allow_hardclips,
+                    )?;
 
                     let bam_reader = bam::IndexedReader::from_path(bam)
                         .context("Unable to read BAM/CRAM file.")?;
@@ -482,7 +502,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         .max_depth(max_depth)
                         .protocol_strandedness(protocol_strandedness)
                         .alignments(bam_reader, alignment_properties)
-                        .use_fragment_evidence(!alignment_properties.insert_size().mean.is_nan())
+                        .use_fragment_evidence(!omit_insert_size)
                         .build()
                         .unwrap();
 
@@ -799,10 +819,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 somatic_tumor_events,
                 tumor_sample,
                 coding_genome_size,
+                mode,
             } => estimation::tumor_mutational_burden::estimate(
                 &somatic_tumor_events,
                 &tumor_sample,
                 coding_genome_size as u64,
+                mode,
             )?,
         },
     }
@@ -812,12 +834,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 pub fn est_or_load_alignment_properites(
     alignment_properties_file: &Option<impl AsRef<Path>>,
     bam_file: impl AsRef<Path>,
+    omit_insert_size: bool,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(bam_file)
+        estimate_alignment_properties(bam_file, omit_insert_size)
     }
 }

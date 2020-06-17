@@ -1,9 +1,11 @@
 use std::collections::BTreeMap;
 use std::str;
+use std::str::FromStr;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use itertools::Itertools;
+use itertools_num::linspace;
 use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
 
@@ -41,11 +43,49 @@ struct TMB {
     tmb: f64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct TMBStrat {
+    min_vaf: f64,
+    tmb: f64,
+    vartype: Vartype,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct TMBBin {
+    vaf: f64,
+    tmb: f64,
+    vartype: Vartype,
+}
+
+struct Record {
+    prob: LogProb,
+    vartype: Vartype,
+}
+
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    EnumString,
+    EnumIter,
+    IntoStaticStr,
+    EnumVariantNames,
+)]
+#[strum(serialize_all = "kebab_case")]
+pub enum PlotMode {
+    Hist,
+    Curve,
+}
+
 /// Estimate tumor mutational burden based on Varlociraptor calls from STDIN and print result to STDOUT.
 pub fn estimate(
     somatic_tumor_events: &[String],
     tumor_name: &str,
     coding_genome_size: u64,
+    mode: PlotMode,
 ) -> Result<()> {
     let mut bcf = bcf::Reader::from_stdin()?;
     let header = bcf.header().to_owned();
@@ -95,12 +135,16 @@ pub fn estimate(
                 continue 'records;
             }
         }
+        let vartypes = vartypes(&rec);
 
         // push into TMB function
         for i in 0..alt_allele_count {
             let vaf = AlleleFreq(vafs[i] as f64);
-            let vaf_probs = tmb.entry(vaf).or_insert_with(|| Vec::new());
-            vaf_probs.push(allele_probs[i]);
+            let entry = tmb.entry(vaf).or_insert_with(|| Vec::new());
+            entry.push(Record {
+                prob: allele_probs[i],
+                vartype: vartypes[i].clone(),
+            });
         }
     }
 
@@ -108,32 +152,202 @@ pub fn estimate(
         return Err(errors::Error::NoRecordsFound)?;
     }
 
-    let mut plot_data = Vec::new();
-    // calculate TMB function (expected number of somatic variants per minimum allele frequency)
-    for min_vaf in tmb.keys() {
-        let probs = tmb
-            .range(min_vaf..)
-            .map(|(_, probs)| probs)
-            .flatten()
-            .cloned()
-            .collect_vec();
-        let count = LogProb::ln_sum_exp(&probs).exp();
+    let calc_tmb = |probs: &[LogProb]| -> f64 {
+        let count = LogProb::ln_sum_exp(probs).exp();
         // Expected number of variants with VAF>=min_vaf per megabase.
-        let tmb = (count / coding_genome_size as f64) * 1000000.0;
-        plot_data.push(TMB {
-            min_vaf: **min_vaf,
-            tmb,
-        });
-    }
+        (count / coding_genome_size as f64) * 1000000.0
+    };
 
-    let mut blueprint = serde_json::from_str(include_str!("../../templates/plots/tmb.json"))?;
-    if let Value::Object(ref mut blueprint) = blueprint {
-        blueprint["data"]["values"] = json!(plot_data);
-        // print to STDOUT
-        println!("{}", serde_json::to_string_pretty(blueprint)?);
-    } else {
-        unreachable!();
-    }
+    let print_plot =
+        |data: serde_json::Value, blueprint: &str, cutpoint_tmb: f64, max_tmb: f64| -> Result<()> {
+            let mut blueprint = serde_json::from_str(blueprint)?;
+            if let Value::Object(ref mut blueprint) = blueprint {
+                blueprint["data"]["values"] = data;
+                blueprint["vconcat"][0]["encoding"]["y"]["scale"]["domain"] =
+                    json!([cutpoint_tmb, max_tmb]);
+                blueprint["vconcat"][1]["encoding"]["y"]["scale"]["domain"] =
+                    json!([0.0, cutpoint_tmb]);
+                // print to STDOUT
+                println!("{}", serde_json::to_string_pretty(blueprint)?);
+                Ok(())
+            } else {
+                unreachable!();
+            }
+        };
 
-    Ok(())
+    let min_vafs = linspace(0.0, 1.0, 100).map(|vaf| AlleleFreq(vaf));
+
+    match mode {
+        PlotMode::Hist => {
+            let mut plot_data = Vec::new();
+            // perform binning for histogram
+            let mut max_tmbs = Vec::new();
+            let mut cutpoint_tmbs = Vec::new();
+            for (i, center_vaf) in linspace(0.05, 0.95, 19).enumerate() {
+                let groups = tmb
+                    .range(AlleleFreq(center_vaf - 0.05)..AlleleFreq(center_vaf + 0.05))
+                    .map(|(_, records)| records)
+                    .flatten()
+                    .map(|record| (record.vartype, record.prob))
+                    .into_group_map();
+                for (vartype, probs) in groups {
+                    let tmb = calc_tmb(&probs);
+                    if i == 0 {
+                        max_tmbs.push(tmb);
+                    }
+                    // cutpoint beyond 15%
+                    if i == 2 {
+                        cutpoint_tmbs.push(tmb);
+                    }
+                    plot_data.push(TMBBin {
+                        vaf: center_vaf,
+                        tmb,
+                        vartype: vartype,
+                    });
+                }
+            }
+
+            let max_tmb: f64 = max_tmbs.iter().sum();
+            let cutpoint_tmb: f64 = cutpoint_tmbs.iter().sum();
+
+            print_plot(
+                json!(plot_data),
+                include_str!("../../templates/plots/vaf_hist.json"),
+                cutpoint_tmb,
+                max_tmb,
+            )
+        }
+        PlotMode::Curve => {
+            let mut plot_data = Vec::new();
+            let mut max_tmbs = Vec::new();
+            let mut cutpoint_tmbs = Vec::new();
+            // calculate TMB function (expected number of somatic variants per minimum allele frequency)
+            for (i, min_vaf) in min_vafs.enumerate() {
+                let groups = tmb
+                    .range(min_vaf..)
+                    .map(|(_, records)| records)
+                    .flatten()
+                    .map(|record| (record.vartype, record.prob))
+                    .into_group_map();
+
+                for (vartype, probs) in groups {
+                    let tmb = calc_tmb(&probs);
+                    if i == 0 {
+                        max_tmbs.push(tmb);
+                    }
+                    if i == 10 {
+                        cutpoint_tmbs.push(tmb);
+                    }
+                    plot_data.push(TMBStrat {
+                        min_vaf: *min_vaf,
+                        tmb,
+                        vartype: vartype,
+                    });
+                }
+            }
+
+            let max_tmb: f64 = max_tmbs.iter().sum();
+            let cutpoint_tmb: f64 = cutpoint_tmbs.iter().sum();
+
+            print_plot(
+                json!(plot_data),
+                include_str!("../../templates/plots/vaf_curve_strat.json"),
+                cutpoint_tmb,
+                max_tmb,
+            )
+        }
+    }
+}
+
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    EnumString,
+    EnumIter,
+    IntoStaticStr,
+    PartialEq,
+    Hash,
+    Eq,
+)]
+pub enum Vartype {
+    DEL,
+    INS,
+    INV,
+    DUP,
+    BND,
+    MNV,
+    Complex,
+    #[strum(serialize = "A>C")]
+    #[serde(rename = "A>C")]
+    AC,
+    #[strum(serialize = "A>G")]
+    #[serde(rename = "A>G")]
+    AG,
+    #[strum(serialize = "A>T")]
+    #[serde(rename = "A>T")]
+    AT,
+    #[strum(serialize = "C>A")]
+    #[serde(rename = "C>A")]
+    CA,
+    #[strum(serialize = "C>G")]
+    #[serde(rename = "C>G")]
+    CG,
+    #[strum(serialize = "C>T")]
+    #[serde(rename = "C>T")]
+    CT,
+    #[strum(serialize = "G>A")]
+    #[serde(rename = "G>A")]
+    GA,
+    #[strum(serialize = "G>C")]
+    #[serde(rename = "G>C")]
+    GC,
+    #[strum(serialize = "G>T")]
+    #[serde(rename = "G>T")]
+    GT,
+    #[strum(serialize = "T>A")]
+    #[serde(rename = "T>A")]
+    TA,
+    #[strum(serialize = "T>C")]
+    #[serde(rename = "T>C")]
+    TC,
+    #[strum(serialize = "T>G")]
+    #[serde(rename = "T>G")]
+    TG,
+}
+
+pub fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
+    let ref_allele = record.alleles()[0];
+    record.alleles()[1..]
+        .iter()
+        .map(|alt_allele| {
+            if alt_allele == b"<DEL>" {
+                Vartype::DEL
+            } else if alt_allele == b"<INV>" {
+                Vartype::INV
+            } else if alt_allele == b"<DUP>" {
+                Vartype::DUP
+            } else if alt_allele == b"<BND>" {
+                Vartype::BND
+            } else if ref_allele.len() == 1 && alt_allele.len() == 1 {
+                Vartype::from_str(&format!(
+                    "{}>{}",
+                    str::from_utf8(ref_allele).unwrap(),
+                    str::from_utf8(alt_allele).unwrap()
+                ))
+                .unwrap()
+            } else if ref_allele.len() > 1 && alt_allele.len() == 1 {
+                Vartype::DEL
+            } else if ref_allele.len() == 1 && alt_allele.len() > 1 {
+                Vartype::INS
+            } else if ref_allele.len() == alt_allele.len() && ref_allele.len() > 1 {
+                Vartype::MNV
+            } else {
+                Vartype::Complex
+            }
+        })
+        .collect_vec()
 }

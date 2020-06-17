@@ -2,6 +2,20 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.7.3] - 2020-06-17
+- Polished TMB plots.
+- Allow to omit insert size evidence. This is important for amplicon data, where indels do not impact insert size.
+
+## [1.7.2] - 2020-06-03
+- Fixed possible values in CLI.
+
+## [1.7.1] - 2020-06-02
+- Fixed compiler issue when building varlociraptor with certain rust versions.
+- Use latest rust-bio release.
+
+## [1.7.0] - 2020-05-27
+- Improved TMB estimation plots, now offering three modes (hist, curve, and stratified), as well as being able to better see multiple scales.
+
 ## [1.6.4] - 2020-03-18
 - Report negative SVLEN for deletions again. The htslib bug is actually fixed already. However, it is mandatory to rerun varlociraptor preprocess to avoid it downstream.
 

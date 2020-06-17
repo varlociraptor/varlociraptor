@@ -92,6 +92,7 @@ impl Testcase for TestcaseVersion0 {
                         bam: PathBuf::from("dummy"),
                         candidates: None,
                         output: None,
+                        omit_insert_size: false,
                     },
                 };
 

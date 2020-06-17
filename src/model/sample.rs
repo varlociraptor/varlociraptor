@@ -94,7 +94,16 @@ impl Fetches {
 
 /// Strand combination for read pairs as given by the sequencing protocol.
 #[derive(
-    Display, Debug, Clone, Copy, Serialize, Deserialize, EnumString, EnumIter, IntoStaticStr,
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    EnumString,
+    EnumIter,
+    IntoStaticStr,
+    EnumVariantNames,
 )]
 pub enum ProtocolStrandedness {
     #[strum(serialize = "opposite")]
@@ -161,10 +170,12 @@ impl SubsampleCandidates {
 
 pub fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
+    omit_insert_size: bool,
 ) -> Result<alignment_properties::AlignmentProperties> {
     let mut bam = bam::Reader::from_path(path)?;
     Ok(alignment_properties::AlignmentProperties::estimate(
         &mut bam,
+        omit_insert_size,
     )?)
 }
 

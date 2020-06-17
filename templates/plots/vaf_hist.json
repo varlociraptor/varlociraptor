@@ -1,0 +1,31 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+  "description": "Tumor mutational burden.",
+  "data": { "values": [] },
+  "vconcat": [
+    {
+      "mark": { "type": "bar", "clip": true },
+      "height": 87,
+      "encoding": {
+        "x": {"field": "vaf", "type": "ordinal", "axis": { "title": "", "labels": false, "ticks": false }},
+        "y": {"field": "tmb", "type": "quantitative", "axis": { "title": "" }, "scale": {"domain": [200, 420], "nice": false}},
+        "color": {"field": "vartype", "type": "nominal", "scale": { "scheme": "tableau20"}}
+      }
+    },
+    {
+      "mark": { "type": "bar", "clip": true },
+      "height": 143,
+      "encoding": {
+        "x": {"field": "vaf", "type": "ordinal", "axis": { "title": "VAF", "format": ".2" }},
+        "y": {"field": "tmb", "type": "quantitative", "axis": { "title": "mutations/Mb" }, "scale": {"domain": [0, 199.9], "nice": false}},
+        "color": {"field": "vartype", "type": "nominal", "scale": { "scheme": "tableau20"}}
+      }
+    }
+  ],
+  "config": {
+    "concat": {
+      "spacing": 5
+    }
+  }
+}
+  

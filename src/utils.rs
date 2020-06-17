@@ -20,6 +20,7 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf, bcf::record::Numeric};
+use strum::IntoEnumIterator;
 
 use crate::errors;
 use crate::model;
@@ -34,6 +35,10 @@ pub struct GenomicLocus {
     chrom: Vec<u8>,
     #[getset(get_copy = "pub")]
     pos: u32,
+}
+
+pub fn enum_variants<E: IntoEnumIterator + Display>() -> Vec<String> {
+    E::iter().map(|v| format!("{}", v)).collect_vec()
 }
 
 /// Select values with given indices from a slice and return them as an iterator.
