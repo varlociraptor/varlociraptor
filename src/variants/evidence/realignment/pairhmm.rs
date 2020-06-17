@@ -57,7 +57,7 @@ pub trait RefBaseEmission: Debug {
 
 #[macro_export]
 macro_rules! default_ref_base_emission {
-    () => (
+    () => {
         fn ref_offset(&self) -> usize {
             self.ref_offset
         }
@@ -77,7 +77,7 @@ macro_rules! default_ref_base_emission {
         fn read_emission(&self) -> &ReadEmission {
             &self.read_emission
         }
-    )
+    };
 }
 
 /// Gap parameters for PairHMM.
@@ -154,7 +154,7 @@ macro_rules! default_emission {
         fn len_y(&self) -> usize {
             self.read_emission.read_end() - self.read_emission.read_offset()
         }
-    }
+    };
 }
 
 #[derive(Debug, Getters)]

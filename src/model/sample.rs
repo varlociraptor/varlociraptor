@@ -6,8 +6,8 @@
 use std::f64;
 use std::hash::Hash;
 use std::path::Path;
-use std::str;
 use std::rc::Rc;
+use std::str;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
@@ -63,7 +63,10 @@ impl RecordBuffer {
     }
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = Rc<bam::Record>> + 'a {
-        self.inner.iter().filter(|record| is_valid_record(record.as_ref())).map(|record| Rc::clone(record))
+        self.inner
+            .iter()
+            .filter(|record| is_valid_record(record.as_ref()))
+            .map(|record| Rc::clone(record))
     }
 }
 
