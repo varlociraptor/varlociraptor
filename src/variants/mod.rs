@@ -1,5 +1,5 @@
-use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet};
+use std::rc::Rc;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
@@ -206,7 +206,7 @@ where
                 // METHOD: First, we check whether the record contains an indel in the cigar.
                 // We store the maximum indel size to update the global estimates, in case
                 // it is larger in this region.
-                alignment_properties.update_max_cigar_ops_len(record, false);
+                alignment_properties.update_max_cigar_ops_len(record.as_ref(), false);
 
                 // We look at the whole fragment at once.
 
@@ -239,23 +239,23 @@ where
         }
 
         let mut candidates = VecMap::new();
-        let mut push_evidence = |evidence, idx| {
+        let mut push_evidence = |evidence: PairedEndEvidence, idx| {
             for i in idx {
                 let entry = candidates.entry(i).or_insert_with(|| Vec::new());
-                entry.push(evidence);
+                entry.push(evidence.clone());
             }
         };
 
         for candidate in candidate_records.values() {
-            if let Some(right) = candidate.right {
+            if let Some(ref right) = candidate.right {
                 if candidate.left.mapq() == 0 || right.mapq() == 0 {
                     // Ignore pairs with ambiguous alignments.
                     // The statistical model does not consider them anyway.
                     continue;
                 }
                 let evidence = PairedEndEvidence::PairedEnd {
-                    left: candidate.left,
-                    right: right,
+                    left: Rc::clone(&candidate.left),
+                    right: Rc::clone(right),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence) {
                     push_evidence(evidence, idx);
@@ -263,7 +263,7 @@ where
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
-                let evidence = PairedEndEvidence::SingleEnd(candidate.left);
+                let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
                 if let Some(idx) = self.is_valid_evidence(&evidence) {
                     push_evidence(evidence, idx);
                 }
@@ -335,12 +335,12 @@ pub struct MultiLocus {
 impl Loci for MultiLocus {}
 
 struct Candidate {
-    left: &bam::Record,
-    right: Option<&bam::Record>,
+    left: Rc<bam::Record>,
+    right: Option<Rc<bam::Record>>,
 }
 
 impl Candidate {
-    fn new(record: &bam::Record) -> Self {
+    fn new(record: Rc<bam::Record>) -> Self {
         Candidate {
             left: record,
             right: None,

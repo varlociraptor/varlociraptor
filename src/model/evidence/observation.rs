@@ -205,7 +205,7 @@ pub struct Strand {
 
 pub trait Evidence {}
 
-#[derive(new, Clone, Copy, Eq)]
+#[derive(new, Clone, Eq)]
 pub struct SingleEndEvidence {
     inner: Rc<bam::Record>,
 }
@@ -232,7 +232,7 @@ impl Hash for SingleEndEvidence {
     }
 }
 
-#[derive(Clone, Copy, Eq)]
+#[derive(Clone, Eq)]
 pub enum PairedEndEvidence {
     SingleEnd(Rc<bam::Record>),
     PairedEnd {

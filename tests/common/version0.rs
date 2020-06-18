@@ -42,6 +42,17 @@ impl Testcase for TestcaseVersion0 {
         }
     }
 
+    fn sample_alignment_properties(&self, sample_name: &str) -> String {
+        let mut props: serde_json::Value =
+            serde_json::from_str(self.sample(sample_name)["properties"].as_str().unwrap()).unwrap();
+        props.as_object_mut().unwrap().insert(
+            "max_read_len".to_owned(),
+            serde_json::Value::Number(serde_json::Number::from(100)),
+        );
+
+        props.to_string()
+    }
+
     fn purity(&self) -> Option<f64> {
         match self.options() {
             cli::Varlociraptor::Call {
@@ -68,7 +79,6 @@ impl Testcase for TestcaseVersion0 {
                         spurious_insext_rate,
                         spurious_delext_rate,
                         protocol_strandedness,
-                        max_indel_len,
                         indel_window,
                         max_depth,
                         ..
@@ -82,8 +92,7 @@ impl Testcase for TestcaseVersion0 {
                         spurious_insext_rate,
                         spurious_delext_rate,
                         protocol_strandedness,
-                        max_indel_len,
-                        indel_window,
+                        realignment_window: indel_window as u64,
                         max_depth,
                         omit_snvs: false,
                         omit_indels: false,
