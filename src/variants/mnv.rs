@@ -4,7 +4,7 @@ use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::{AlleleProb, Overlap, SingleEndEvidence, SingleLocus, Variant};
+use crate::variants::{AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant};
 
 pub struct MNV {
     locus: SingleLocus,
@@ -45,11 +45,11 @@ impl Variant for MNV {
         &self.locus
     }
 
-    fn prob_alleles(
+    fn allele_support(
         &self,
         read: &SingleEndEvidence,
         _: &AlignmentProperties,
-    ) -> Result<Option<AlleleProb>> {
+    ) -> Result<Option<AlleleSupport>> {
         let mut prob_ref = LogProb::ln_one();
         let mut prob_alt = LogProb::ln_one();
         for ((alt_base, ref_base), pos) in self
@@ -91,7 +91,7 @@ impl Variant for MNV {
                 return Ok(None);
             }
         }
-        Ok(Some(AlleleProb::new(prob_ref, prob_alt)))
+        Ok(Some(AlleleSupportBuilder::default().register_record(read).prob_ref_allele(prob_ref).prob_alt_allele(prob_alt).build().unwrap()))
     }
 
     fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {

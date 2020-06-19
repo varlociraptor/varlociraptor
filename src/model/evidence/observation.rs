@@ -163,30 +163,25 @@ where
     /// correctly.
     fn prob_mapping(&self, evidence: &E) -> LogProb;
 
-    /// Calculate strand information.
-    fn strand(&self, evidence: &E) -> Strand;
-
     /// Calculate an observation from the given evidence.
     fn evidence_to_observation(
         &self,
         evidence: &E,
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<Observation>> {
-        Ok(match self.prob_alleles(evidence, alignment_properties)? {
-            Some(prob_alleles) => {
-                let strand = self.strand(evidence);
-
+        Ok(match self.allele_support(evidence, alignment_properties)? {
+            Some(allele_support) => {
                 Some(
                     ObservationBuilder::default()
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
-                        .prob_alt(prob_alleles.alt_allele())
-                        .prob_ref(prob_alleles.ref_allele())
+                        .prob_alt(allele_support.prob_alt_allele())
+                        .prob_ref(allele_support.prob_ref_allele())
                         .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
-                        .prob_missed_allele(prob_alleles.missed_allele())
+                        .prob_missed_allele(allele_support.prob_missed_allele())
                         .prob_overlap(LogProb::ln_zero()) // no double overlap possible
                         .prob_any_strand(LogProb::from(Prob(0.5)))
-                        .forward_strand(strand.forward())
-                        .reverse_strand(strand.reverse())
+                        .forward_strand(allele_support.forward_strand())
+                        .reverse_strand(allele_support.reverse_strand())
                         .build()
                         .unwrap(),
                 )
@@ -205,7 +200,7 @@ pub struct Strand {
 
 pub trait Evidence {}
 
-#[derive(new, Clone, Eq)]
+#[derive(new, Clone, Eq, Debug)]
 pub struct SingleEndEvidence {
     inner: Rc<bam::Record>,
 }
@@ -232,7 +227,7 @@ impl Hash for SingleEndEvidence {
     }
 }
 
-#[derive(Clone, Eq)]
+#[derive(Clone, Eq, Debug)]
 pub enum PairedEndEvidence {
     SingleEnd(Rc<bam::Record>),
     PairedEnd {

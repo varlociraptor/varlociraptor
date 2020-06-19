@@ -10,7 +10,7 @@ use rust_htslib::bam;
 
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
-use crate::variants::AlleleProb;
+use crate::variants::{AlleleSupport, AlleleSupportBuilder};
 
 pub mod edit_distance;
 pub mod pairhmm;
@@ -46,12 +46,12 @@ where {
         }
     }
 
-    pub fn prob_alleles<'a, V>(
+    pub fn allele_support<'a, V>(
         &mut self,
         record: &'a bam::Record,
         locus: &genome::Interval,
         variant: &V,
-    ) -> Result<AlleleProb>
+    ) -> Result<AlleleSupport>
     where
         V: Realignable<'a>,
     {
@@ -128,8 +128,7 @@ where {
         if !overlap {
             // If there is no overlap, normalization below would anyway lead to 0.5 vs 0.5,
             // multiplied with certainty estimate. Hence, we can skip the entire HMM calculation!
-            let p = LogProb::from(Prob(0.5));
-            return Ok(AlleleProb::new(p, p));
+            return Ok(AlleleSupportBuilder::default().build().unwrap());
         }
 
         // ref allele
@@ -179,7 +178,17 @@ where {
             prob_alt = prob_ref;
         }
 
-        Ok(AlleleProb::new(prob_ref, prob_alt))
+        let mut builder = AlleleSupportBuilder::default();
+
+        builder.prob_ref_allele(prob_ref).prob_alt_allele(prob_alt);
+
+        if prob_ref != prob_alt {
+            // METHOD: if record is not informative, we don't want to 
+            // retain its information (e.g. strand).
+            builder.register_record(record);
+        }
+
+        Ok(builder.build().unwrap())
     }
 
     /// Calculate probability of a certain allele.

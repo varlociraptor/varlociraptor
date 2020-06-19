@@ -12,7 +12,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::variants::{AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};
 
 pub struct Insertion {
@@ -95,31 +95,32 @@ impl Variant for Insertion {
     }
 
     /// Calculate probability for alt and reference allele.
-    fn prob_alleles(
+    fn allele_support(
         &self,
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
-    ) -> Result<Option<AlleleProb>> {
+    ) -> Result<Option<AlleleSupport>> {
         match evidence {
             PairedEndEvidence::SingleEnd(record) => Ok(Some(
                 self.realigner
                     .borrow_mut()
-                    .prob_alleles(record, self.locus(), self)?,
+                    .allele_support(record, self.locus(), self)?,
             )),
             PairedEndEvidence::PairedEnd { left, right } => {
-                let prob_left =
+                let left_support =
                     self.realigner
                         .borrow_mut()
-                        .prob_alleles(left, self.locus(), self)?;
-                let prob_right =
+                        .allele_support(left, self.locus(), self)?;
+                let right_support =
                     self.realigner
                         .borrow_mut()
-                        .prob_alleles(right, self.locus(), self)?;
+                        .allele_support(right, self.locus(), self)?;
+                    
+                let mut support = left_support;
 
-                Ok(Some(AlleleProb::new(
-                    prob_left.ref_allele() + prob_right.ref_allele(),
-                    prob_left.alt_allele() + prob_right.alt_allele(),
-                )))
+                support.merge(&right_support);
+
+                Ok(Some(support))
             }
         }
     }

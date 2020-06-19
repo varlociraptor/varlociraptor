@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use anyhow::Result;
@@ -12,6 +12,7 @@ use crate::model::evidence::observation::{
     Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand, StrandBuilder,
 };
 use crate::model::sample;
+use crate::utils::is_reverse_strand;
 
 pub mod deletion;
 pub mod evidence;
@@ -27,21 +28,48 @@ pub use mnv::MNV;
 pub use none::None;
 pub use snv::SNV;
 
-#[derive(Debug, CopyGetters, new)]
+
+#[derive(Debug, CopyGetters, Builder)]
 #[getset(get_copy = "pub")]
-pub struct AlleleProb {
-    ref_allele: LogProb,
-    alt_allele: LogProb,
+pub struct AlleleSupport {
+    #[builder(default = LogProb(0.5f64.ln()))]
+    prob_ref_allele: LogProb,
+    #[builder(default = LogProb(0.5f64.ln()))]
+    prob_alt_allele: LogProb,
+    #[builder(default)]
+    forward_strand: bool,
+    #[builder(default)]
+    reverse_strand: bool,
 }
 
-impl AlleleProb {
+impl AlleleSupport {
     /// METHOD: This is an estimate of the allele likelihood at the true location in case
     /// the read is mismapped. The value has to be approximately in the range of prob_alt
     /// and prob_ref. Otherwise it could cause numerical problems, by dominating the
     /// likelihood such that subtle differences in allele frequencies become numercically
     /// invisible in the resulting likelihood.
-    pub fn missed_allele(&self) -> LogProb {
-        self.ref_allele.ln_add_exp(self.alt_allele) - LogProb(2.0_f64.ln())
+    pub fn prob_missed_allele(&self) -> LogProb {
+        self.prob_ref_allele.ln_add_exp(self.prob_alt_allele) - LogProb(2.0_f64.ln())
+    }
+
+    pub fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
+        self.prob_ref_allele += other.prob_ref_allele;
+        self.prob_alt_allele += other.prob_alt_allele;
+        self.forward_strand |= other.forward_strand;
+        self.reverse_strand |= other.reverse_strand;
+
+        self
+    }
+}
+
+impl AlleleSupportBuilder {
+    pub fn register_record(&mut self, record: &bam::Record) -> &mut Self {
+        let reverse_strand = is_reverse_strand(record);
+
+        self.forward_strand = Some(self.forward_strand.unwrap_or(false) || !reverse_strand);
+        self.reverse_strand = Some(self.reverse_strand.unwrap_or(false) || reverse_strand);
+
+        self
     }
 }
 
@@ -61,11 +89,11 @@ pub trait Variant {
     fn loci(&self) -> &Self::Loci;
 
     /// Calculate probability for alt and reference allele.
-    fn prob_alleles(
+    fn allele_support(
         &self,
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
-    ) -> Result<Option<AlleleProb>>;
+    ) -> Result<Option<AlleleSupport>>;
 
     /// Calculate probability to sample a record length like the given one from the alt allele.
     fn prob_sample_alt(
@@ -83,16 +111,6 @@ where
         let prob_mismapping = LogProb::from(PHREDProb(evidence.mapq() as f64));
         let prob_mapping = prob_mismapping.ln_one_minus_exp();
         prob_mapping
-    }
-
-    fn strand(&self, evidence: &SingleEndEvidence) -> Strand {
-        let reverse = evidence.flags() & 0x10 != 0;
-
-        StrandBuilder::default()
-            .reverse(reverse)
-            .forward(!reverse)
-            .build()
-            .unwrap()
     }
 
     fn extract_observations(
@@ -143,44 +161,6 @@ where
         }
     }
 
-    fn strand(&self, evidence: &PairedEndEvidence) -> Strand {
-        let is_reverse = |record: &bam::Record| record.flags() & 0x10 != 0;
-
-        let (forward, reverse) = match evidence {
-            PairedEndEvidence::SingleEnd(record) => {
-                let reverse = is_reverse(record);
-                (!reverse, reverse)
-            }
-            PairedEndEvidence::PairedEnd { left, right } => {
-                let left_reverse = is_reverse(left);
-                let right_reverse = is_reverse(right);
-
-                let reverse = left_reverse || right_reverse;
-                (!reverse, reverse)
-            }
-        };
-
-        StrandBuilder::default()
-            .reverse(reverse)
-            .forward(forward)
-            .build()
-            .unwrap()
-    }
-
-    /// TODO move this into the prob_allele implementation
-    /// Here we calculate the product of insert size based and alignment based probabilities.
-    /// This has the benefit that the calculation automatically checks for consistence between
-    /// insert size and overlapping alignmnments.
-    /// This sports the following desirable behavior:
-    ///
-    /// * If there is no clear evidence from either the insert size or the alignment, the factors
-    ///   simply scale because the probabilities of the corresponding type of evidence will be equal.
-    /// * If reads and fragments agree, 1 stays 1 and 0 stays 0.
-    /// * If reads and fragments disagree (the promising part!), the other type of evidence will
-    ///   scale potential false positive probabilities down.
-    /// * Since there is only one observation per fragment, there is no double counting when
-    ///   estimating allele frequencies. Before, we had one observation for an overlapping read
-    ///   and potentially another observation for the corresponding fragment.
     fn extract_observations(
         &self,
         buffer: &mut sample::RecordBuffer,
@@ -192,14 +172,12 @@ where
         // in slightly different probabilities each time.
         let mut candidate_records = BTreeMap::new();
 
-        // TODO centerpoint locus for deletions (in trait impl of self.loci())
         let mut fetches = buffer.build_fetches(true);
         for locus in self.loci().iter() {
             fetches.push(locus);
         }
         for interval in fetches.iter() {
-            // TODO how can we fetch multiple times without invalidating our records from before?
-            // Put records in Rc sounds like the goto solution...
+            // Fetch intervals cannot overlap. This is ensured by the way they are built.
             buffer.fetch(interval, true)?;
 
             for record in buffer.iter() {
@@ -229,7 +207,7 @@ where
                     if (candidate.left.is_first_in_template() && record.is_first_in_template())
                         && (candidate.left.is_last_in_template() && record.is_last_in_template())
                     {
-                        // ignore another partial alignment right of the first
+                        // Ignore another partial alignment right of the first.
                         continue;
                     }
                     // replace right record (we seek for the rightmost (partial) alignment)
@@ -237,6 +215,8 @@ where
                 }
             }
         }
+
+        dbg!(candidate_records.len());
 
         let mut candidates = VecMap::new();
         let mut push_evidence = |evidence: PairedEndEvidence, idx| {
@@ -258,6 +238,7 @@ where
                     right: Rc::clone(right),
                 };
                 if let Some(idx) = self.is_valid_evidence(&evidence) {
+                    dbg!(&evidence);
                     push_evidence(evidence, idx);
                 }
             } else {
@@ -276,18 +257,17 @@ where
             .values()
             .map(|locus_candidates| locus_candidates.len())
             .all(|l| l > max_depth);
-        let candidates: HashSet<_> = candidates.values().flatten().collect();
-
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
         let mut observations = Vec::new();
-        for evidence in candidates {
+        for evidence in candidates.values().flatten() {
             if !subsample || subsampler.keep() {
                 if let Some(obs) = self.evidence_to_observation(evidence, alignment_properties)? {
                     observations.push(obs);
                 }
             }
         }
+        dbg!(&observations);
 
         Ok(observations)
     }
@@ -334,6 +314,7 @@ pub struct MultiLocus {
 
 impl Loci for MultiLocus {}
 
+#[derive(Debug)]
 struct Candidate {
     left: Rc<bam::Record>,
     right: Option<Rc<bam::Record>>,

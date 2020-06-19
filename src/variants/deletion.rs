@@ -14,8 +14,9 @@ use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
-use crate::variants::{AlleleProb, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::variants::{AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};
+use crate::utils::is_reverse_strand;
 
 pub struct Deletion {
     locus: genome::Interval,
@@ -51,12 +52,12 @@ impl Deletion {
         self.fetch_loci[1].range().start
     }
 
-    pub fn prob_alleles_isize(
+    pub fn allele_support_isize(
         &self,
         left_record: &bam::Record,
         right_record: &bam::Record,
         alignment_properties: &AlignmentProperties,
-    ) -> Result<AlleleProb> {
+    ) -> Result<AlleleSupport> {
         let insert_size = estimate_insert_size(left_record, right_record)?;
 
         let p_ref = self.isize_pmf(insert_size, 0.0, alignment_properties);
@@ -70,9 +71,9 @@ impl Deletion {
             // METHOD: We cannot consider insert size as a reliable estimate here, because it is
             // outside of the numerical resolution for one of the alleles, and not within a
             // standard deviation away from the mean for the other allele.
-            Ok(AlleleProb::new(LogProb::ln_one(), LogProb::ln_one()))
+            Ok(AlleleSupportBuilder::default().prob_ref_allele(LogProb::ln_one()).prob_alt_allele(LogProb::ln_one()).build().unwrap())
         } else {
-            Ok(AlleleProb::new(p_ref, p_alt))
+            Ok(AlleleSupportBuilder::default().prob_ref_allele(p_ref).prob_alt_allele(p_alt).build().unwrap())
         }
     }
 }
@@ -140,17 +141,17 @@ impl Variant for Deletion {
         &self.fetch_loci
     }
 
-    fn prob_alleles(
+    fn allele_support(
         &self,
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
-    ) -> Result<Option<AlleleProb>> {
+    ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => Ok(Some(
-                self.realigner
+            PairedEndEvidence::SingleEnd(record) => {
+                Ok(Some(self.realigner
                     .borrow_mut()
-                    .prob_alleles(record, &self.locus, self)?,
-            )),
+                    .allele_support(record, &self.locus, self)?))
+            },
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
                 // Here we calculate the product of insert size based and alignment based probabilities.
@@ -166,20 +167,20 @@ impl Variant for Deletion {
                 // * Since there is only one observation per fragment, there is no double counting when
                 //   estimating allele frequencies. Before, we had one observation for an overlapping read
                 //   and potentially another observation for the corresponding fragment.
-                let prob_left =
+                let left_support =
                     self.realigner
                         .borrow_mut()
-                        .prob_alleles(left, &self.locus, self)?;
-                let prob_right =
+                        .allele_support(left, &self.locus, self)?;
+                let right_support =
                     self.realigner
                         .borrow_mut()
-                        .prob_alleles(right, &self.locus, self)?;
-                let prob_isize = self.prob_alleles_isize(left, right, alignment_properties)?;
+                        .allele_support(right, &self.locus, self)?;
+                let isize_support = self.allele_support_isize(left, right, alignment_properties)?;
 
-                Ok(Some(AlleleProb::new(
-                    prob_left.ref_allele() + prob_right.ref_allele() + prob_isize.ref_allele(),
-                    prob_left.alt_allele() + prob_right.alt_allele() + prob_isize.alt_allele(),
-                )))
+                let mut support = left_support;
+                support.merge(&right_support).merge(&isize_support);
+
+                Ok(Some(support))
             }
         }
     }

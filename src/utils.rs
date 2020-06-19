@@ -29,6 +29,10 @@ use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-3;
 
+pub fn is_reverse_strand(record: &bam::Record) -> bool {
+    record.flags() & 0x10 != 0
+}
+
 #[derive(new, Getters, CopyGetters, Debug)]
 pub struct GenomicLocus {
     #[getset(get = "pub")]
