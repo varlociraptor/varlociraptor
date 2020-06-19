@@ -10,13 +10,15 @@ use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::utils::is_reverse_strand;
 use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
-use crate::variants::{AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::variants::{
+    AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
+};
 use crate::{default_emission, default_ref_base_emission};
-use crate::utils::is_reverse_strand;
 
 pub struct Deletion {
     locus: genome::Interval,
@@ -71,9 +73,17 @@ impl Deletion {
             // METHOD: We cannot consider insert size as a reliable estimate here, because it is
             // outside of the numerical resolution for one of the alleles, and not within a
             // standard deviation away from the mean for the other allele.
-            Ok(AlleleSupportBuilder::default().prob_ref_allele(LogProb::ln_one()).prob_alt_allele(LogProb::ln_one()).build().unwrap())
+            Ok(AlleleSupportBuilder::default()
+                .prob_ref_allele(LogProb::ln_one())
+                .prob_alt_allele(LogProb::ln_one())
+                .build()
+                .unwrap())
         } else {
-            Ok(AlleleSupportBuilder::default().prob_ref_allele(p_ref).prob_alt_allele(p_alt).build().unwrap())
+            Ok(AlleleSupportBuilder::default()
+                .prob_ref_allele(p_ref)
+                .prob_alt_allele(p_alt)
+                .build()
+                .unwrap())
         }
     }
 }
@@ -147,11 +157,11 @@ impl Variant for Deletion {
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => {
-                Ok(Some(self.realigner
+            PairedEndEvidence::SingleEnd(record) => Ok(Some(
+                self.realigner
                     .borrow_mut()
-                    .allele_support(record, &self.locus, self)?))
-            },
+                    .allele_support(record, &self.locus, self)?,
+            )),
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
                 // Here we calculate the product of insert size based and alignment based probabilities.

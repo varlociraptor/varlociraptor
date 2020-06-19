@@ -28,7 +28,6 @@ pub use mnv::MNV;
 pub use none::None;
 pub use snv::SNV;
 
-
 #[derive(Debug, CopyGetters, Builder)]
 #[getset(get_copy = "pub")]
 pub struct AlleleSupport {

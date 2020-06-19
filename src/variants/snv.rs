@@ -3,9 +3,11 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::{AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant};
 use crate::utils::is_reverse_strand;
+use crate::variants::evidence::bases::prob_read_base;
+use crate::variants::{
+    AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
+};
 
 pub struct SNV {
     locus: SingleLocus,
@@ -73,8 +75,15 @@ impl Variant for SNV {
             };
 
             let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
-            
-            Ok(Some(AlleleSupportBuilder::default().prob_ref_allele(prob_ref).prob_alt_allele(prob_alt).register_record(read).build().unwrap()))
+
+            Ok(Some(
+                AlleleSupportBuilder::default()
+                    .prob_ref_allele(prob_ref)
+                    .prob_alt_allele(prob_alt)
+                    .register_record(read)
+                    .build()
+                    .unwrap(),
+            ))
         } else {
             // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
             // or reference skipped (Cigar op 'N'), and the library should not choke on those reads

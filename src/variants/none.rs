@@ -4,7 +4,9 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::bases::prob_read_base_miscall;
-use crate::variants::{AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant};
+use crate::variants::{
+    AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
+};
 
 pub struct None {
     locus: SingleLocus,
@@ -54,14 +56,21 @@ impl Variant for None {
             let base_qual = read.qual()[qpos as usize];
             let prob_miscall = prob_read_base_miscall(base_qual);
 
-
             let mut allele_support_builder = AlleleSupportBuilder::default();
             allele_support_builder.register_record(read);
 
             Ok(Some(if read_base == self.ref_base {
-                allele_support_builder.prob_ref_allele(prob_miscall.ln_one_minus_exp()).prob_alt_allele(prob_miscall).build().unwrap()
+                allele_support_builder
+                    .prob_ref_allele(prob_miscall.ln_one_minus_exp())
+                    .prob_alt_allele(prob_miscall)
+                    .build()
+                    .unwrap()
             } else {
-                allele_support_builder.prob_ref_allele(prob_miscall).prob_alt_allele(prob_miscall.ln_one_minus_exp()).build().unwrap()
+                allele_support_builder
+                    .prob_ref_allele(prob_miscall)
+                    .prob_alt_allele(prob_miscall.ln_one_minus_exp())
+                    .build()
+                    .unwrap()
             }))
         } else {
             // a read that spans a potential Ref site might have the respective position deleted (Cigar op 'D')

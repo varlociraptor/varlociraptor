@@ -12,7 +12,9 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::{AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::variants::{
+    AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
+};
 use crate::{default_emission, default_ref_base_emission};
 
 pub struct Insertion {
@@ -115,7 +117,7 @@ impl Variant for Insertion {
                     self.realigner
                         .borrow_mut()
                         .allele_support(right, self.locus(), self)?;
-                    
+
                 let mut support = left_support;
 
                 support.merge(&right_support);

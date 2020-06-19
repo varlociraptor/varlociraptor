@@ -183,7 +183,7 @@ where {
         builder.prob_ref_allele(prob_ref).prob_alt_allele(prob_alt);
 
         if prob_ref != prob_alt {
-            // METHOD: if record is not informative, we don't want to 
+            // METHOD: if record is not informative, we don't want to
             // retain its information (e.g. strand).
             builder.register_record(record);
         }
