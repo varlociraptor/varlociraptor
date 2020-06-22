@@ -1,3 +1,5 @@
+use std::str;
+
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
@@ -33,6 +35,7 @@ impl Variant for SNV {
     type Loci = SingleLocus;
 
     fn is_valid_evidence(&self, evidence: &SingleEndEvidence) -> Option<Vec<usize>> {
+        dbg!((str::from_utf8(evidence.qname()).unwrap(), self.locus.overlap(evidence, false)));
         if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
             Some(vec![0])
         } else {

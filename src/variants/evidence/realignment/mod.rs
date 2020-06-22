@@ -2,6 +2,7 @@ use std::cmp;
 use std::fmt::Debug;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::str;
 
 use anyhow::Result;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
@@ -182,6 +183,7 @@ where {
             // has the same effect, without rendering the entire pileup likelihood zero.
             prob_ref = LogProb::from(Prob(0.5));
             prob_alt = prob_ref;
+            debug!("Record {} neither supports reference nor alternative allele during realignment.", str::from_utf8(record.qname()).unwrap());
         }
 
         let mut builder = AlleleSupportBuilder::default();
@@ -189,10 +191,10 @@ where {
         builder.prob_ref_allele(prob_ref).prob_alt_allele(prob_alt);
 
         if prob_ref != prob_alt {
-            // METHOD: if record is not informative, we don't want to
-            // retain its information (e.g. strand).
             builder.register_record(record);
         } else {
+            // METHOD: if record is not informative, we don't want to
+            // retain its information (e.g. strand).
             builder.no_strand_info();
         }
 

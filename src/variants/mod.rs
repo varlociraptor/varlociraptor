@@ -130,6 +130,8 @@ where
                 }
             })
             .collect();
+        
+        dbg!(candidates.len());
 
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
@@ -289,12 +291,12 @@ impl SingleLocus {
         }
 
         if pos <= self.range().start {
-            if end_pos > self.range().end {
+            if end_pos >= self.range().end {
                 return Overlap::Enclosing;
             } else if end_pos > self.range().start {
                 return Overlap::Left;
             }
-        } else if end_pos > self.range().end && pos < self.range().end {
+        } else if end_pos >= self.range().end && pos < self.range().end {
             return Overlap::Right;
         }
 

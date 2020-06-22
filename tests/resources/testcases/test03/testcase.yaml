@@ -3,8 +3,8 @@
 
 expected:
   allelefreqs:
-  - tumor >= 0.46 && tumor <= 0.54
-  - normal <= 0.5 && normal >= 0.36
+  - tumor >= 0.45 && tumor <= 0.55
+  - normal <= 0.5 && normal >= 0.45
   posteriors:
   - PROB_GERMLINE_HET <= 1.7
 
