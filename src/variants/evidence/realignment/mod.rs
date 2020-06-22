@@ -1,8 +1,8 @@
 use std::cmp;
 use std::fmt::Debug;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::str;
+use std::sync::Arc;
 
 use anyhow::Result;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
@@ -183,7 +183,10 @@ where {
             // has the same effect, without rendering the entire pileup likelihood zero.
             prob_ref = LogProb::from(Prob(0.5));
             prob_alt = prob_ref;
-            debug!("Record {} neither supports reference nor alternative allele during realignment.", str::from_utf8(record.qname()).unwrap());
+            debug!(
+                "Record {} neither supports reference nor alternative allele during realignment.",
+                str::from_utf8(record.qname()).unwrap()
+            );
         }
 
         let mut builder = AlleleSupportBuilder::default();

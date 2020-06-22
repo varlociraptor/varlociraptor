@@ -151,7 +151,10 @@ impl Variant for Deletion {
                 // Importantly, enclosed reads have to be allowed as well. Otherwise, we bias against reference
                 // reads, since they are more unlikely to overlap a breakend and span the centerpoint at the same time,
                 // in particular for large deletions.
-                if encloses_centerpoint && (!self.locus.overlap(left, true).is_none() || !self.locus.overlap(right, true).is_none()) {
+                if encloses_centerpoint
+                    && (!self.locus.overlap(left, true).is_none()
+                        || !self.locus.overlap(right, true).is_none())
+                {
                     Some(vec![0])
                 } else {
                     None

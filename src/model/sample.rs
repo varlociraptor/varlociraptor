@@ -43,12 +43,6 @@ impl RecordBuffer {
     }
 
     pub fn fetch(&mut self, interval: &genome::Interval, read_pair_mode: bool) -> Result<()> {
-        dbg!("interval");
-        dbg!(interval
-            .range()
-            .start
-            .saturating_sub(self.window(read_pair_mode)));
-        dbg!(interval.range().end + self.window(read_pair_mode));
         self.inner.fetch(
             interval.contig().as_bytes(),
             interval
