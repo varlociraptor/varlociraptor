@@ -1,5 +1,10 @@
+// Copyright 2020 Johannes Köster.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::Variant;
+use crate::variants::types::Variant;
 
 pub mod fragments;
 pub mod reads;

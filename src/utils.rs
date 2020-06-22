@@ -5,13 +5,11 @@
 
 use std::cmp;
 use std::fmt::Display;
-use std::fs;
 use std::hash::Hash;
 use std::ops::Range;
 use std::str;
 
 use anyhow::Result;
-use bio::io::fasta;
 use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb};
 use counter::Counter;
 use half::f16;
@@ -23,8 +21,8 @@ use rust_htslib::{bam, bcf, bcf::record::Numeric};
 use strum::IntoEnumIterator;
 
 use crate::errors;
-use crate::model;
 use crate::utils;
+use crate::variants::model;
 use crate::Event;
 
 pub const NUMERICAL_EPSILON: f64 = 1e-3;
@@ -493,7 +491,7 @@ impl MiniLogProb {
 mod tests {
     use super::*;
 
-    use crate::model::VariantType;
+    use crate::variants::model::VariantType;
     use crate::ComplementEvent;
     use crate::SimpleEvent;
     use bio::stats::{LogProb, Prob};

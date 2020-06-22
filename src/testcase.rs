@@ -17,9 +17,9 @@ use serde_json;
 
 use crate::cli;
 use crate::errors;
-use crate::model::sample;
-use crate::model::Variant;
 use crate::utils;
+use crate::variants::model::Variant;
+use crate::variants::sample;
 
 lazy_static! {
     static ref TESTCASE_RE: Regex =

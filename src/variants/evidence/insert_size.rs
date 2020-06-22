@@ -1,7 +1,10 @@
+// Copyright 2020 Johannes Köster.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use anyhow::Result;
 use rust_htslib::bam;
-
-use crate::model::evidence;
 
 /// Estimate the insert size from read pair projected on reference sequence including clips.
 /// Note that this is is not the insert size of the real fragment but rather the insert size of
@@ -15,10 +18,12 @@ pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u
     let left_cigar = left.cigar_cached().unwrap();
     let right_cigar = right.cigar_cached().unwrap();
 
-    let aln = |rec: &bam::Record, cigar| -> Result<(u64, u64)> {
+    let aln = |rec: &bam::Record, cigar: &bam::record::CigarStringView| -> Result<(u64, u64)> {
         Ok((
-            (rec.pos() as u64).saturating_sub(evidence::Clips::leading(cigar).both() as u64),
-            cigar.end_pos() as u64 + evidence::Clips::trailing(cigar).both() as u64,
+            (rec.pos() as u64)
+                .saturating_sub((cigar.leading_softclips() + cigar.leading_hardclips()) as u64),
+            cigar.end_pos() as u64
+                + (cigar.trailing_softclips() + cigar.trailing_hardclips()) as u64,
         ))
     };
 

@@ -1,3 +1,8 @@
+// Copyright 2020 Johannes Köster.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::cmp;
 use std::fmt::Debug;
 use std::rc::Rc;
@@ -11,7 +16,7 @@ use rust_htslib::bam;
 
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
-use crate::variants::{AlleleSupport, AlleleSupportBuilder};
+use crate::variants::types::{AlleleSupport, AlleleSupportBuilder};
 
 pub mod edit_distance;
 pub mod pairhmm;

@@ -37,16 +37,15 @@ pub mod errors;
 pub mod estimation;
 pub mod filtration;
 pub mod grammar;
-pub mod model;
 pub mod reference;
 pub mod testcase;
 pub mod utils;
 pub mod variants;
 
 pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
-pub use crate::model::likelihood;
-pub use crate::model::modes;
-pub use crate::model::sample::Sample;
+pub use crate::variants::model::likelihood;
+pub use crate::variants::model::modes;
+pub use crate::variants::sample::Sample;
 
 /// Event to call.
 pub trait Event {

@@ -1,4 +1,8 @@
-use std::cmp;
+// Copyright 2020 Johannes Köster.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
 use std::ops::Range;
 
 use bio::stats::LogProb;
@@ -8,7 +12,7 @@ use rgsl::randist::gaussian::ugaussian_P;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::sampling_bias::SamplingBias;
-use crate::variants::Variant;
+use crate::variants::types::Variant;
 
 pub trait FragmentSamplingBias: Variant + SamplingBias {
     /// Get range of insert sizes with probability above zero.

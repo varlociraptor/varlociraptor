@@ -16,9 +16,9 @@ use itertools::Itertools;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
-use crate::model;
 use crate::utils;
 use crate::utils::is_phred_scaled;
+use crate::variants::model;
 use crate::Event;
 
 /// Print thresholds to control FDR of given calls at multiple levels.

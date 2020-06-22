@@ -12,7 +12,7 @@ use rusty_machine::learning::lin_reg::LinRegressor;
 use rusty_machine::learning::SupModel;
 use rusty_machine::linalg::{Matrix, Vector};
 
-use crate::model::AlleleFreq;
+use crate::variants::model::AlleleFreq;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Estimate {
@@ -67,7 +67,7 @@ pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::AlleleFreq;
+    use crate::variants::model::AlleleFreq;
     use itertools_num::linspace;
 
     #[test]

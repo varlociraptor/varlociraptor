@@ -24,14 +24,14 @@ use serde_json;
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
-use crate::model;
-use crate::model::evidence::{observation::ObservationBuilder, Observation};
-use crate::model::sample::Sample;
 use crate::reference;
 use crate::utils;
 use crate::utils::MiniLogProb;
 use crate::variants;
+use crate::variants::evidence::observation::{Observation, ObservationBuilder};
 use crate::variants::evidence::realignment;
+use crate::variants::model;
+use crate::variants::sample::Sample;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -216,25 +216,30 @@ impl ObservationProcessor {
             || realignment::Realigner::new(Arc::clone(&chrom_seq), gap_params, realignment_window);
 
         match variant {
-            model::Variant::SNV(alt) => self.sample.extract_observations(&variants::SNV::new(
-                locus(),
-                chrom_seq[start],
-                *alt,
-            )),
-            model::Variant::MNV(alt) => self.sample.extract_observations(&variants::MNV::new(
-                locus(),
-                chrom_seq[start..start + alt.len()].to_owned(),
-                alt.to_owned(),
-            )),
+            model::Variant::SNV(alt) => self
+                .sample
+                .extract_observations(&variants::types::SNV::new(locus(), chrom_seq[start], *alt)),
+            model::Variant::MNV(alt) => {
+                self.sample.extract_observations(&variants::types::MNV::new(
+                    locus(),
+                    chrom_seq[start..start + alt.len()].to_owned(),
+                    alt.to_owned(),
+                ))
+            }
             model::Variant::None => self
                 .sample
-                .extract_observations(&variants::None::new(locus(), chrom_seq[start])),
+                .extract_observations(&variants::types::None::new(locus(), chrom_seq[start])),
             model::Variant::Deletion(l) => self
                 .sample
-                .extract_observations(&variants::Deletion::new(interval(*l), realigner())),
-            model::Variant::Insertion(seq) => self.sample.extract_observations(
-                &variants::Insertion::new(locus(), seq.to_owned(), realigner()),
-            ),
+                .extract_observations(&variants::types::Deletion::new(interval(*l), realigner())),
+            model::Variant::Insertion(seq) => {
+                self.sample
+                    .extract_observations(&variants::types::Insertion::new(
+                        locus(),
+                        seq.to_owned(),
+                        realigner(),
+                    ))
+            }
         }
     }
 }

@@ -5,7 +5,7 @@ use itertools::Itertools;
 
 use crate::errors;
 use crate::grammar::{formula::NormalizedFormula, formula::IUPAC, Scenario, VAFSpectrum};
-use crate::model::AlleleFreq;
+use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct VAFTree {

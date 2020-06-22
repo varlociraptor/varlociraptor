@@ -16,7 +16,7 @@ use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
 use statrs::statistics::{OrderStatistics, Statistics};
 
-use crate::model::Variant;
+use crate::variants::model::Variant;
 
 #[derive(Clone, Debug, Copy, Deserialize, Serialize)]
 pub struct AlignmentProperties {

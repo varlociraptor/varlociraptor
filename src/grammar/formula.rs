@@ -12,7 +12,7 @@ use serde::Deserialize;
 
 use crate::errors;
 use crate::grammar::Scenario;
-use crate::model::AlleleFreq;
+use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IUPAC(u8);

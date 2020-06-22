@@ -121,8 +121,8 @@ pub mod cli {
     use serde::{Deserialize, Serialize};
     use structopt::StructOpt;
 
-    use varlociraptor::model::sample::ProtocolStrandedness;
-    use varlociraptor::model::VariantType;
+    use varlociraptor::variants::model::VariantType;
+    use varlociraptor::variants::sample::ProtocolStrandedness;
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
     #[structopt(

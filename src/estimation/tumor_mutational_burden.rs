@@ -10,7 +10,7 @@ use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
 
 use crate::errors;
-use crate::model::AlleleFreq;
+use crate::variants::model::AlleleFreq;
 use crate::{Event, SimpleEvent};
 
 /// Consider only variants in coding regions.

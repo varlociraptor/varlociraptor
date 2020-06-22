@@ -19,11 +19,11 @@ use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
-use crate::model;
-use crate::model::evidence::observation::expected_depth;
-use crate::model::evidence::Observation;
-use crate::model::{AlleleFreq, StrandBias};
 use crate::utils;
+use crate::variants::evidence::observation::expected_depth;
+use crate::variants::evidence::observation::Observation;
+use crate::variants::model;
+use crate::variants::model::{AlleleFreq, StrandBias};
 
 pub use crate::calling::variants::calling::{Caller, CallerBuilder};
 pub use crate::calling::variants::preprocessing::{

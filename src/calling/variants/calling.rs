@@ -16,8 +16,8 @@ use crate::calling::variants::{
 };
 use crate::errors;
 use crate::grammar;
-use crate::model;
-use crate::model::{AlleleFreq, StrandBias};
+use crate::variants::model;
+use crate::variants::model::{AlleleFreq, StrandBias};
 
 pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
 

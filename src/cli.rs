@@ -27,11 +27,11 @@ use crate::estimation;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
-use crate::model::modes::generic::{FlatPrior, GenericModelBuilder};
-use crate::model::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
-use crate::model::{Contamination, VariantType};
 use crate::testcase;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
+use crate::variants::model::modes::generic::{FlatPrior, GenericModelBuilder};
+use crate::variants::model::{Contamination, VariantType};
+use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -185,7 +185,7 @@ pub enum PreprocessKind {
         #[structopt(
             long = "strandedness",
             default_value = "opposite",
-            possible_values = { &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec() },
+            possible_values = &ProtocolStrandedness::iter().map(|v| v.into()).collect_vec(),
             help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
         )]
         protocol_strandedness: ProtocolStrandedness,
@@ -250,7 +250,7 @@ pub enum EstimateKind {
         coding_genome_size: f64,
         #[structopt(
             long = "plot-mode",
-            possible_values = { &estimation::tumor_mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec() },
+            possible_values = &estimation::tumor_mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec(),
             help = "How to plot (as stratified curve or as histogram)."
         )]
         mode: estimation::tumor_mutational_burden::PlotMode,
@@ -395,7 +395,7 @@ pub enum FilterMethod {
         calls: PathBuf,
         #[structopt(
             long = "var",
-            possible_values = { &VariantType::iter().map(|v| v.into()).collect_vec() },
+            possible_values = &VariantType::iter().map(|v| v.into()).collect_vec(),
             help = "Variant type to consider."
         )]
         vartype: VariantType,
@@ -418,7 +418,7 @@ pub enum FilterMethod {
     PosteriorOdds {
         #[structopt(
             long,
-            possible_values = {&KassRaftery::iter().map(|v| v.into()).collect_vec()},
+            possible_values = &KassRaftery::iter().map(|v| v.into()).collect_vec(),
             help = "Kass-Raftery score to filter against."
         )]
         odds: KassRaftery,
