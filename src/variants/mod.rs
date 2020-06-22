@@ -215,6 +215,8 @@ where
             }
         }
 
+        dbg!(candidate_records.len());
+
         let mut candidates = Vec::new();
         let mut locus_depth = VecMap::new();
         let mut push_evidence = |evidence: PairedEndEvidence, idx| {
@@ -248,6 +250,7 @@ where
                 }
             }
         }
+        dbg!(candidates.len());
 
         // METHOD: if all loci exceed the maximum depth, we subsample the evidence.
         // We cannot decide this per locus, because we risk adding more biases if loci have different alt allele sampling biases.
@@ -292,6 +295,8 @@ impl SingleLocus {
             }
         } else if end_pos >= self.range().end && pos < self.range().end {
             return Overlap::Right;
+        } else if pos >= self.range().start && end_pos <= self.range().end {
+            return Overlap::Enclosed;
         }
 
         Overlap::None
@@ -329,6 +334,7 @@ pub enum Overlap {
     Enclosing,
     Left,
     Right,
+    Enclosed,
     None,
 }
 

@@ -22,7 +22,7 @@ use crate::variants::{
 use crate::{default_emission, default_ref_base_emission};
 
 pub struct Deletion {
-    locus: genome::Interval,
+    locus: SingleLocus,
     fetch_loci: MultiLocus,
     realigner: RefCell<Realigner>,
 }
@@ -45,7 +45,7 @@ impl Deletion {
         ]);
 
         Deletion {
-            locus: locus,
+            locus: SingleLocus(locus),
             fetch_loci,
             realigner: RefCell::new(realigner),
         }
@@ -135,43 +135,28 @@ impl Variant for Deletion {
     type Loci = MultiLocus;
 
     fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
-        let mut locus_idx = Vec::new();
-
         match evidence {
             PairedEndEvidence::SingleEnd(read) => {
-                if !self.loci()[0].overlap(read, true).is_none() {
-                    locus_idx.push(0);
-                }
-                if !self.loci()[2].overlap(read, true).is_none() {
-                    locus_idx.push(2);
+                if !self.locus.overlap(read, true).is_none() {
+                    Some(vec![0])
+                } else {
+                    None
                 }
             }
             PairedEndEvidence::PairedEnd { left, right } => {
                 let right_cigar = right.cigar_cached().unwrap();
                 let encloses_centerpoint = (left.pos() as u64) < self.centerpoint()
                     && right_cigar.end_pos() as u64 > self.centerpoint();
-                // METHOD: only keep fragments that enclose the centerpoint
-
-                if !encloses_centerpoint {
-                    return None;
-                }
-
-                let is_overlap = |locus: &SingleLocus| {
-                    !locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none()
-                };
-                if is_overlap(&self.loci()[0]) {
-                    locus_idx.push(0);
-                }
-                if is_overlap(&self.loci()[2]) {
-                    locus_idx.push(2);
+                // METHOD: only keep fragments that enclose the centerpoint and have at least one overlapping read.
+                // Importantly, enclosed reads have to be allowed as well. Otherwise, we bias against reference
+                // reads, since they are more unlikely to overlap a breakend and span the centerpoint at the same time,
+                // in particular for large deletions.
+                if encloses_centerpoint && (!self.locus.overlap(left, true).is_none() || !self.locus.overlap(right, true).is_none()) {
+                    Some(vec![0])
+                } else {
+                    None
                 }
             }
-        }
-
-        if locus_idx.is_empty() {
-            None
-        } else {
-            Some(locus_idx)
         }
     }
 
