@@ -130,8 +130,6 @@ where
                 }
             })
             .collect();
-        
-        dbg!(candidates.len());
 
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
@@ -217,8 +215,6 @@ where
             }
         }
 
-        dbg!(candidate_records.len());
-
         let mut candidates = Vec::new();
         let mut locus_depth = VecMap::new();
         let mut push_evidence = |evidence: PairedEndEvidence, idx| {
@@ -240,7 +236,6 @@ where
                     left: Rc::clone(&candidate.left),
                     right: Rc::clone(right),
                 };
-                dbg!(&evidence);
                 if let Some(idx) = self.is_valid_evidence(&evidence) {
                     push_evidence(evidence, idx);
                 }
@@ -248,7 +243,6 @@ where
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
-                dbg!(&evidence);
                 if let Some(idx) = self.is_valid_evidence(&evidence) {
                     push_evidence(evidence, idx);
                 }
