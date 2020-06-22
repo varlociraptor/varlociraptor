@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, HashSet};
 use std::rc::Rc;
 
 use anyhow::Result;
@@ -31,13 +31,9 @@ pub use snv::SNV;
 #[derive(Debug, CopyGetters, Builder)]
 #[getset(get_copy = "pub")]
 pub struct AlleleSupport {
-    #[builder(default = LogProb(0.5f64.ln()))]
     prob_ref_allele: LogProb,
-    #[builder(default = LogProb(0.5f64.ln()))]
     prob_alt_allele: LogProb,
-    #[builder(default)]
     forward_strand: bool,
-    #[builder(default)]
     reverse_strand: bool,
 }
 
@@ -65,10 +61,12 @@ impl AlleleSupportBuilder {
     pub fn register_record(&mut self, record: &bam::Record) -> &mut Self {
         let reverse_strand = is_reverse_strand(record);
 
-        self.forward_strand = Some(self.forward_strand.unwrap_or(false) || !reverse_strand);
-        self.reverse_strand = Some(self.reverse_strand.unwrap_or(false) || reverse_strand);
+        self.forward_strand(!reverse_strand)
+            .reverse_strand(reverse_strand)
+    }
 
-        self
+    pub fn no_strand_info(&mut self) -> &mut Self {
+        self.forward_strand(false).reverse_strand(false)
     }
 }
 
@@ -155,8 +153,10 @@ where
     fn prob_mapping(&self, evidence: &PairedEndEvidence) -> LogProb {
         let prob = |record: &bam::Record| LogProb::from(PHREDProb(record.mapq() as f64));
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => prob(record),
-            PairedEndEvidence::PairedEnd { left, right } => prob(left) + prob(right),
+            PairedEndEvidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                (prob(left) + prob(right)).ln_one_minus_exp()
+            }
         }
     }
 
@@ -217,11 +217,13 @@ where
 
         dbg!(candidate_records.len());
 
-        let mut candidates = VecMap::new();
+        let mut candidates = Vec::new();
+        let mut locus_depth = VecMap::new();
         let mut push_evidence = |evidence: PairedEndEvidence, idx| {
+            candidates.push(evidence);
             for i in idx {
-                let entry = candidates.entry(i).or_insert_with(|| Vec::new());
-                entry.push(evidence.clone());
+                let count = locus_depth.entry(i).or_insert(0);
+                *count += 1;
             }
         };
 
@@ -236,14 +238,15 @@ where
                     left: Rc::clone(&candidate.left),
                     right: Rc::clone(right),
                 };
+                dbg!(&evidence);
                 if let Some(idx) = self.is_valid_evidence(&evidence) {
-                    dbg!(&evidence);
                     push_evidence(evidence, idx);
                 }
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
+                dbg!(&evidence);
                 if let Some(idx) = self.is_valid_evidence(&evidence) {
                     push_evidence(evidence, idx);
                 }
@@ -252,21 +255,17 @@ where
 
         // METHOD: if all loci exceed the maximum depth, we subsample the evidence.
         // We cannot decide this per locus, because we risk adding more biases if loci have different alt allele sampling biases.
-        let subsample = candidates
-            .values()
-            .map(|locus_candidates| locus_candidates.len())
-            .all(|l| l > max_depth);
+        let subsample = locus_depth.values().all(|depth| *depth > max_depth);
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
         let mut observations = Vec::new();
-        for evidence in candidates.values().flatten() {
+        for evidence in &candidates {
             if !subsample || subsampler.keep() {
                 if let Some(obs) = self.evidence_to_observation(evidence, alignment_properties)? {
                     observations.push(obs);
                 }
             }
         }
-        dbg!(&observations);
 
         Ok(observations)
     }

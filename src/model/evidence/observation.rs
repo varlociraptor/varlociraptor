@@ -170,7 +170,12 @@ where
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<Observation>> {
         Ok(match self.allele_support(evidence, alignment_properties)? {
-            Some(allele_support) => {
+            // METHOD: only consider allele support if it comes either from forward or reverse strand.
+            // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
+            // any information (e.g. no overlap).
+            Some(allele_support)
+                if allele_support.forward_strand() || allele_support.reverse_strand() =>
+            {
                 Some(
                     ObservationBuilder::default()
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
@@ -186,7 +191,7 @@ where
                         .unwrap(),
                 )
             }
-            None => None,
+            _ => None,
         })
     }
 }

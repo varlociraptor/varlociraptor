@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::cmp;
 use std::rc::Rc;
+use std::str;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -54,6 +55,14 @@ impl Deletion {
         self.fetch_loci[1].range().start
     }
 
+    pub fn start(&self) -> u64 {
+        self.fetch_loci[0].range().start
+    }
+
+    pub fn end(&self) -> u64 {
+        self.fetch_loci[2].range().end
+    }
+
     pub fn allele_support_isize(
         &self,
         left_record: &bam::Record,
@@ -76,12 +85,14 @@ impl Deletion {
             Ok(AlleleSupportBuilder::default()
                 .prob_ref_allele(LogProb::ln_one())
                 .prob_alt_allele(LogProb::ln_one())
+                .no_strand_info()
                 .build()
                 .unwrap())
         } else {
             Ok(AlleleSupportBuilder::default()
                 .prob_ref_allele(p_ref)
                 .prob_alt_allele(p_alt)
+                .no_strand_info()
                 .build()
                 .unwrap())
         }
@@ -125,20 +136,38 @@ impl Variant for Deletion {
 
     fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
         let mut locus_idx = Vec::new();
-        for (i, locus) in self.loci().iter().enumerate() {
-            if match evidence {
-                PairedEndEvidence::SingleEnd(read) => !locus.overlap(read, true).is_none(),
-                PairedEndEvidence::PairedEnd { left, right } => {
-                    // METHOD: valid if one read overlaps and the fragment encloses the centerpoint.
-                    let right_cigar = right.cigar_cached().unwrap();
-                    (!locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none())
-                        && (left.pos() as u64) < self.centerpoint()
-                        && right_cigar.end_pos() as u64 > self.centerpoint()
+
+        match evidence {
+            PairedEndEvidence::SingleEnd(read) => {
+                if !self.loci()[0].overlap(read, true).is_none() {
+                    locus_idx.push(0);
                 }
-            } {
-                locus_idx.push(i);
+                if !self.loci()[2].overlap(read, true).is_none() {
+                    locus_idx.push(2);
+                }
+            }
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let right_cigar = right.cigar_cached().unwrap();
+                let encloses_centerpoint = (left.pos() as u64) < self.centerpoint()
+                    && right_cigar.end_pos() as u64 > self.centerpoint();
+                // METHOD: only keep fragments that enclose the centerpoint
+
+                if !encloses_centerpoint {
+                    return None;
+                }
+
+                let is_overlap = |locus: &SingleLocus| {
+                    !locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none()
+                };
+                if is_overlap(&self.loci()[0]) {
+                    locus_idx.push(0);
+                }
+                if is_overlap(&self.loci()[2]) {
+                    locus_idx.push(2);
+                }
             }
         }
+
         if locus_idx.is_empty() {
             None
         } else {

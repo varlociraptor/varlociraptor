@@ -100,7 +100,7 @@ impl Variant for Insertion {
     fn allele_support(
         &self,
         evidence: &Self::Evidence,
-        alignment_properties: &AlignmentProperties,
+        _alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
             PairedEndEvidence::SingleEnd(record) => Ok(Some(

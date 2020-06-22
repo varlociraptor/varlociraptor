@@ -128,7 +128,13 @@ where {
         if !overlap {
             // If there is no overlap, normalization below would anyway lead to 0.5 vs 0.5,
             // multiplied with certainty estimate. Hence, we can skip the entire HMM calculation!
-            return Ok(AlleleSupportBuilder::default().build().unwrap());
+            let p = LogProb(0.5f64.ln());
+            return Ok(AlleleSupportBuilder::default()
+                .prob_ref_allele(p)
+                .prob_alt_allele(p)
+                .no_strand_info()
+                .build()
+                .unwrap());
         }
 
         // ref allele
@@ -186,6 +192,8 @@ where {
             // METHOD: if record is not informative, we don't want to
             // retain its information (e.g. strand).
             builder.register_record(record);
+        } else {
+            builder.no_strand_info();
         }
 
         Ok(builder.build().unwrap())
