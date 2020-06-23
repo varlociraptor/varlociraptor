@@ -3,6 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-pub(crate) mod alignment_properties;
-pub(crate) mod effective_mutation_rate;
-pub(crate) mod tumor_mutational_burden;
+pub mod alignment_properties;
+pub mod effective_mutation_rate;
+pub mod tumor_mutational_burden;

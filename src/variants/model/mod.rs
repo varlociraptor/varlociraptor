@@ -182,115 +182,8 @@ impl ContinuousAlleleFreqs {
         }
     }
 
-    /// create a left- and right-inclusive allele frequency range
-    pub(crate) fn inclusive(range: Range<f64>) -> Self {
-        ContinuousAlleleFreqs {
-            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
-            left_exclusive: false,
-            right_exclusive: false,
-            zero_offset: NotNan::from(1.0),
-        }
-    }
-
-    /// create a left- and right-exclusive allele frequency range
-    pub(crate) fn exclusive(range: Range<f64>) -> Self {
-        ContinuousAlleleFreqs {
-            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
-            left_exclusive: true,
-            right_exclusive: true,
-            zero_offset: NotNan::from(1.0),
-        }
-    }
-
-    /// create a left-exclusive allele frequency range
-    #[allow(clippy::float_cmp)]
-    pub(crate) fn left_exclusive(range: Range<f64>) -> Self {
-        if range.start == range.end {
-            panic!("ContinuousAlleleFreqs::left_exclusive({}..{}) does not make sense with identical start and end point.", range.start, range.end);
-        }
-        ContinuousAlleleFreqs {
-            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
-            left_exclusive: true,
-            right_exclusive: false,
-            zero_offset: NotNan::from(1.0),
-        }
-    }
-
-    /// create a right-exclusive allele frequency range
-    #[allow(clippy::float_cmp)]
-    pub(crate) fn right_exclusive(range: Range<f64>) -> Self {
-        // below float comparison has to be exact
-        if range.start == range.end {
-            panic!("ContinuousAlleleFreqs::right_exclusive({}..{}) does not make sense with identical start and end point.", range.start, range.end);
-        }
-        ContinuousAlleleFreqs {
-            inner: AlleleFreq(range.start)..AlleleFreq(range.end),
-            left_exclusive: false,
-            right_exclusive: true,
-            zero_offset: NotNan::from(1.0),
-        }
-    }
-
-    pub(crate) fn min_observations(mut self, min_observations: usize) -> Self {
-        self.zero_offset = NotNan::from(min_observations as f64);
-
-        self
-    }
-
     pub(crate) fn is_singleton(&self) -> bool {
         self.start == self.end
-    }
-
-    pub(crate) fn observable_min(&self, n_obs: usize) -> AlleleFreq {
-        if n_obs < 10 {
-            self.start
-        } else {
-            let obs_count = Self::expected_observation_count(self.start, n_obs);
-            let adjust_allelefreq = |obs_count: f64| AlleleFreq(obs_count.ceil() / n_obs as f64);
-
-            if self.left_exclusive && obs_count % 1.0 == 0.0 {
-                // We are left exclusive and need to find a supremum from the right.
-                let offsets = if *self.start == 0.0 {
-                    // The lower bound is zero, hence we apply first any given zero offset if
-                    // possible.
-                    vec![*self.zero_offset, 1.0, 0.0]
-                } else {
-                    vec![1.0, 0.0]
-                };
-
-                let adjusted_end = self.observable_max(n_obs);
-
-                for offset in offsets {
-                    let adjusted_obs_count = obs_count + offset;
-                    let adjusted_start = adjust_allelefreq(adjusted_obs_count);
-                    if *adjusted_start <= 1.0 && adjusted_start <= adjusted_end {
-                        return adjusted_start;
-                    }
-                }
-            }
-
-            adjust_allelefreq(obs_count)
-        }
-    }
-
-    pub(crate) fn observable_max(&self, n_obs: usize) -> AlleleFreq {
-        assert!(
-            *self.end != 0.0,
-            "bug: observable_max may not be called if end=0.0."
-        );
-        if n_obs < 10 {
-            self.end
-        } else {
-            let mut obs_count = Self::expected_observation_count(self.end, n_obs);
-            if self.right_exclusive && obs_count % 1.0 == 0.0 {
-                obs_count -= 1.0;
-            }
-            AlleleFreq(obs_count.floor() / n_obs as f64)
-        }
-    }
-
-    fn expected_observation_count(freq: AlleleFreq, n_obs: usize) -> f64 {
-        n_obs as f64 * *freq
     }
 }
 
@@ -347,19 +240,6 @@ pub enum VariantType {
     None, // site with no suggested alternative allele
 }
 
-impl VariantType {
-    // TODO remove once EnumVariantNames respects serialize=,
-    // see https://github.com/Peternator7/strum/issues/93
-    pub(crate) fn variants() -> Vec<String> {
-        VariantType::iter()
-            .map(|v| -> String {
-                let s: &str = v.into();
-                s.to_owned()
-            })
-            .collect_vec()
-    }
-}
-
 impl From<&str> for VariantType {
     fn from(string: &str) -> VariantType {
         match string {
@@ -396,15 +276,6 @@ impl Variant {
             (&Variant::MNV(_), &VariantType::MNV) => true,
             (&Variant::None, &VariantType::None) => true,
             _ => false,
-        }
-    }
-
-    pub(crate) fn end(&self, start: u64) -> u64 {
-        match self {
-            &Variant::Deletion(length) => start + length,
-            &Variant::Insertion(_) => start + 1, // end of insertion is the next regular base
-            &Variant::SNV(_) | &Variant::None => start,
-            &Variant::MNV(ref alt) => start + alt.len() as u64,
         }
     }
 

@@ -33,7 +33,7 @@ pub(crate) mod calling;
 pub mod cli;
 pub(crate) mod conversion;
 pub(crate) mod errors;
-pub(crate) mod estimation;
+pub mod estimation;
 pub mod filtration;
 pub(crate) mod grammar;
 pub(crate) mod reference;

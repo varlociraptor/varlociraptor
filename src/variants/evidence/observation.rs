@@ -78,58 +78,6 @@ impl Observation {
     pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
-
-    pub(crate) fn bayes_factor_ref(&self) -> BayesFactor {
-        BayesFactor::new(self.prob_ref, self.prob_alt)
-    }
-
-    #[inline]
-    pub(crate) fn prob_alt_forward(&self) -> LogProb {
-        if self.forward_strand {
-            self.prob_alt
-        } else {
-            LogProb::ln_zero()
-        }
-    }
-
-    #[inline]
-    pub(crate) fn prob_alt_reverse(&self) -> LogProb {
-        if self.reverse_strand {
-            self.prob_alt
-        } else {
-            LogProb::ln_zero()
-        }
-    }
-
-    #[inline]
-    pub(crate) fn prob_ref_forward(&self) -> LogProb {
-        if self.forward_strand {
-            self.prob_ref
-        } else {
-            LogProb::ln_zero()
-        }
-    }
-
-    #[inline]
-    pub(crate) fn prob_ref_reverse(&self) -> LogProb {
-        if self.reverse_strand {
-            self.prob_ref
-        } else {
-            LogProb::ln_zero()
-        }
-    }
-}
-
-pub(crate) fn poisson_pmf(count: u32, mu: f64) -> LogProb {
-    if mu == 0.0 {
-        if count == 0 {
-            LogProb::ln_one()
-        } else {
-            LogProb::ln_zero()
-        }
-    } else {
-        LogProb(poisson_pdf(count, mu).ln())
-    }
 }
 
 impl Serialize for Observation {
