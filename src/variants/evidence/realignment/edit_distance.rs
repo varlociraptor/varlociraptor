@@ -4,6 +4,7 @@
 // except according to those terms.
 
 use std::cmp;
+use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use bio::pattern_matching::myers::Myers;
@@ -48,12 +49,16 @@ impl EditDistanceCalculation {
         let mut best_dist = u8::max_value();
         let mut positions = Vec::new();
         for (pos, dist) in self.myers.find_all_end(ref_seq, u8::max_value()) {
-            if dist < best_dist {
-                positions.clear();
-                positions.push(pos);
-                best_dist = dist;
-            } else if dist == best_dist {
-                positions.push(pos);
+            match dist.cmp(&best_dist) {
+                Ordering::Less => {
+                    positions.clear();
+                    positions.push(pos);
+                    best_dist = dist;
+                }
+                Ordering::Equal => {
+                    positions.push(pos);
+                }
+                Ordering::Greater => (),
             }
         }
         let ambiguous = positions.len() > 1;
