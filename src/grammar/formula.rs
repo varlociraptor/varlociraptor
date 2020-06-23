@@ -46,10 +46,10 @@ pub(crate) struct FormulaParser;
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
 pub(crate) enum Formula {
     Conjunction {
-        operands: Vec<Box<Formula>>,
+        operands: Vec<Formula>,
     },
     Disjunction {
-        operands: Vec<Box<Formula>>,
+        operands: Vec<Formula>,
     },
     Negation {
         operand: Box<Formula>,
@@ -68,10 +68,10 @@ pub(crate) enum Formula {
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
 pub(crate) enum NormalizedFormula {
     Conjunction {
-        operands: Vec<Box<NormalizedFormula>>,
+        operands: Vec<NormalizedFormula>,
     },
     Disjunction {
-        operands: Vec<Box<NormalizedFormula>>,
+        operands: Vec<NormalizedFormula>,
     },
     Atom {
         sample: String,
@@ -91,14 +91,14 @@ impl Formula {
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Ok(Box::new(o.negate(scenario, contig)?)))
-                    .collect::<Result<Vec<Box<Formula>>>>()?,
+                    .map(|o| Ok(o.negate(scenario, contig)?))
+                    .collect::<Result<Vec<Formula>>>()?,
             },
             Formula::Disjunction { operands } => Formula::Conjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Ok(Box::new(o.negate(scenario, contig)?)))
-                    .collect::<Result<Vec<Box<Formula>>>>()?,
+                    .map(|o| Ok(o.negate(scenario, contig)?))
+                    .collect::<Result<Vec<Formula>>>()?,
             },
             Formula::Negation { operand } => operand.as_ref().clone(),
             &Formula::Variant {
@@ -151,7 +151,7 @@ impl Formula {
                             match uvafs {
                                 VAFSpectrum::Set(uvafs) => {
                                     let set: BTreeSet<_> = uvafs
-                                        .into_iter()
+                                        .iter()
                                         .filter(|uvaf| !range.contains(**uvaf))
                                         .cloned()
                                         .collect();
@@ -187,11 +187,9 @@ impl Formula {
                 Formula::Disjunction {
                     operands: disjunction
                         .into_iter()
-                        .map(|vafs| {
-                            Box::new(Formula::Atom {
-                                sample: sample.clone(),
-                                vafs,
-                            })
+                        .map(|vafs| Formula::Atom {
+                            sample: sample.clone(),
+                            vafs,
                         })
                         .collect(),
                 }
@@ -210,15 +208,15 @@ impl Formula {
             },
             Formula::Conjunction { operands } => NormalizedFormula::Conjunction {
                 operands: operands
-                    .into_iter()
-                    .map(|o| Ok(Box::new(o.normalize(scenario, contig)?)))
-                    .collect::<Result<Vec<Box<NormalizedFormula>>>>()?,
+                    .iter()
+                    .map(|o| Ok(o.normalize(scenario, contig)?))
+                    .collect::<Result<Vec<NormalizedFormula>>>()?,
             },
             Formula::Disjunction { operands } => NormalizedFormula::Disjunction {
                 operands: operands
-                    .into_iter()
-                    .map(|o| Ok(Box::new(o.normalize(scenario, contig)?)))
-                    .collect::<Result<Vec<Box<NormalizedFormula>>>>()?,
+                    .iter()
+                    .map(|o| Ok(o.normalize(scenario, contig)?))
+                    .collect::<Result<Vec<NormalizedFormula>>>()?,
             },
             &Formula::Variant {
                 positive,
@@ -382,7 +380,7 @@ impl Ord for VAFRange {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.start.cmp(&other.start) {
             Ordering::Equal => self.end.cmp(&other.end),
-            ord @ _ => ord,
+            ord => ord,
         }
     }
 }
@@ -561,24 +559,24 @@ where
             let mut operands = Vec::new();
             loop {
                 if let Some(operand) = inner.next() {
-                    operands.push(Box::new(parse_formula(operand)?));
+                    operands.push(parse_formula(operand)?);
                 } else {
                     break;
                 }
             }
-            Formula::Conjunction { operands: operands }
+            Formula::Conjunction { operands }
         }
         Rule::disjunction => {
             let mut inner = pair.into_inner();
             let mut operands = Vec::new();
             loop {
                 if let Some(operand) = inner.next() {
-                    operands.push(Box::new(parse_formula(operand)?));
+                    operands.push(parse_formula(operand)?);
                 } else {
                     break;
                 }
             }
-            Formula::Disjunction { operands: operands }
+            Formula::Disjunction { operands }
         }
         Rule::negation => {
             let mut inner = pair.into_inner();

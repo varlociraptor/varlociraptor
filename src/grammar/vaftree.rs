@@ -117,7 +117,7 @@ impl VAFTree {
                     // sort disjunctions to the end
                     let operands = operands
                         .iter()
-                        .sorted_by_key(|o| match o.as_ref() {
+                        .sorted_by_key(|o| match o {
                             NormalizedFormula::Disjunction { .. } => 1,
                             _ => 0,
                         })
