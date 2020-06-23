@@ -15,8 +15,6 @@ use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use rust_htslib::{bam, bcf};
-use serde_yaml;
-use structopt;
 use structopt::StructOpt;
 use strum::IntoEnumIterator;
 
@@ -477,7 +475,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
                     let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
                     if realignment_window > (128 / 2) {
-                        Err(structopt::clap::Error::with_description( "Command-line option --indel-window requires a value <= 64 with the current implementation.", structopt::clap::ErrorKind::ValueValidation))?;
+                        return Err(
+                            structopt::clap::Error::with_description(
+                                "Command-line option --indel-window requires a value <= 64 with the current implementation.", 
+                                structopt::clap::ErrorKind::ValueValidation
+                            ).into()
+                        );
                     };
 
                     // If we omit the insert size information for calculating the evidence, we can savely allow hardclips here.
@@ -543,8 +546,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .locus(&testcase_locus)?,
                             )
                         } else {
-                            Err(errors::Error::MissingPrefix)?;
-                            None
+                            return Err(errors::Error::MissingPrefix.into());
                         }
                     } else {
                         None
@@ -649,7 +651,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     }
 
                                     let mut testcase = testcase_builder
-                                        .scenario(Some(scenario.to_owned()))
+                                        .scenario(Some(scenario))
                                         .mode(testcase::Mode::Generic)
                                         .build()
                                         .unwrap();
@@ -666,7 +668,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                                 call_generic(scenario, sample_observations)?;
                             } else {
-                                Err(errors::Error::InvalidObservationsSpec)?
+                                return Err(errors::Error::InvalidObservationsSpec.into())
                             }
                         }
                         VariantCallMode::TumorNormal {
@@ -731,9 +733,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             )?;
 
                             let mut observations = PathMap::default();
-                            observations.insert("tumor".to_owned(), tumor_observations.to_owned());
+                            observations.insert("tumor".to_owned(), tumor_observations);
                             observations
-                                .insert("normal".to_owned(), normal_observations.to_owned());
+                                .insert("normal".to_owned(), normal_observations);
 
                             call_generic(scenario, observations)?;
                         }
@@ -777,7 +779,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 let events = events
                     .into_iter()
                     .map(|event| SimpleEvent {
-                        name: event.to_owned(),
+                        name: event,
                     })
                     .collect_vec();
                 let vartype = match (vartype, minlen, maxlen) {
@@ -787,7 +789,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     (VariantType::Deletion(None), Some(minlen), Some(maxlen)) => {
                         VariantType::Deletion(Some(minlen..maxlen))
                     }
-                    (vartype @ _, _, _) => vartype.clone(),
+                    (vartype, _, _) => vartype,
                 };
 
                 filtration::fdr::control_fdr::<_, &PathBuf, &str>(
@@ -800,7 +802,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {
                 let events = events
-                    .into_iter()
+                    .iter()
                     .map(|event| SimpleEvent {
                         name: event.to_owned(),
                     })

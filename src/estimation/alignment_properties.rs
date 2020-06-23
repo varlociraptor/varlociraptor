@@ -35,23 +35,23 @@ impl AlignmentProperties {
         let mut is_regular = true;
         let mut has_soft_clip = false;
         for c in record.cigar().iter() {
-            match c {
-                &Cigar::SoftClip(l) => {
+            match *c {
+                Cigar::SoftClip(l) => {
                     let s = norm(l);
                     self.frac_max_softclip =
                         *cmp::max(s, NotNan::new(self.frac_max_softclip).unwrap());
                     is_regular = false;
                     has_soft_clip = true;
                 }
-                &Cigar::Del(l) => {
+                Cigar::Del(l) => {
                     self.max_del_cigar_len = cmp::max(l, self.max_del_cigar_len);
                     is_regular = false;
                 }
-                &Cigar::Ins(l) => {
+                Cigar::Ins(l) => {
                     self.max_ins_cigar_len = cmp::max(l, self.max_ins_cigar_len);
                     is_regular = false;
                 }
-                &Cigar::HardClip(_) if !allow_hardclips => {
+                Cigar::HardClip(_) if !allow_hardclips => {
                     is_regular = false;
                 }
                 _ => continue,
@@ -116,7 +116,7 @@ impl AlignmentProperties {
             // counter (to keep looking for 10000 useful records for the estimation)
             if !record.is_paired()
                 || !record.is_first_in_template()
-                || !(record.tid() == record.mtid())
+                || record.tid() != record.mtid()
                 || record.is_mate_unmapped()
             {
                 skipped += 1;
@@ -136,7 +136,7 @@ impl AlignmentProperties {
             i += 1;
         }
 
-        if tlens.len() == 0 {
+        if tlens.is_empty() {
             warn!(
                 "\nFound no records to use for estimating the insert size. Will assume\n\
                 single end sequencing data and calculate deletion probabilities without\n\

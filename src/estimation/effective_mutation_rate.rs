@@ -58,7 +58,7 @@ pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Re
     lin_mod.train(&freqs, &counts)?;
 
     Ok(Estimate {
-        observations: observations,
+        observations,
         intercept: lin_mod.parameters().unwrap()[0],
         slope: lin_mod.parameters().unwrap()[1],
     })
@@ -73,7 +73,7 @@ mod tests {
     #[test]
     fn test_estimate() {
         // example from Williams et al. Nature Genetics 2016.
-        let freqs = linspace(0.12, 0.25, 2539).map(|af| AlleleFreq(af));
+        let freqs = linspace(0.12, 0.25, 2539).map(AlleleFreq);
         let estimate = estimate(freqs).unwrap();
         assert_relative_eq!(estimate.effective_mutation_rate(), 596.16, epsilon = 0.01);
     }

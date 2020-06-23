@@ -11,7 +11,7 @@ pub(crate) fn decode_phred() -> Result<()> {
 
     let tags = get_event_tags(&inbcf)
         .iter()
-        .filter(|(_tag, desc)| desc.ends_with("(PHRED)") || !desc.ends_with(")"))
+        .filter(|(_tag, desc)| desc.ends_with("(PHRED)") || !desc.ends_with(')'))
         .cloned()
         .collect_vec();
 
@@ -19,7 +19,7 @@ pub(crate) fn decode_phred() -> Result<()> {
     let mut header = bcf::Header::from_template(inbcf.header());
     for (id, description) in &tags {
         header.remove_info(&id.clone().into_bytes());
-        let description = if !description.ends_with(")") {
+        let description = if !description.ends_with(')') {
             format!("{} (linear)", &description)
         } else {
             description.replace("(PHRED)", "(linear)")

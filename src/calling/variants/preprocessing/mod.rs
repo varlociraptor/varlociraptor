@@ -10,7 +10,6 @@ use std::str;
 use std::sync::Arc;
 
 use anyhow::Result;
-use bincode;
 use bio::io::fasta;
 use bio::stats::LogProb;
 use bio_types::genome;
@@ -19,7 +18,6 @@ use byteorder::{ByteOrder, LittleEndian};
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
-use serde_json;
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
@@ -244,10 +242,10 @@ impl ObservationProcessor {
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &'static str = "2";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "2";
 
 /// Read observations from BCF record.
-pub(crate) fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observation>> {
+pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observation>> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug,
@@ -384,16 +382,13 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {
     let reader = bcf::Reader::from_path(&bcfpath)?;
     for rec in reader.header().header_records() {
-        match rec {
-            bcf::header::HeaderRecord::Generic { ref key, ref value } => {
-                if key == "varlociraptor_preprocess_args" {
-                    return Ok(serde_json::from_str(value)?);
-                }
+        if let bcf::header::HeaderRecord::Generic { ref key, ref value } = rec {
+            if key == "varlociraptor_preprocess_args" {
+                return Ok(serde_json::from_str(value)?);
             }
-            _ => (),
         }
     }
     Err(errors::Error::InvalidObservations {
         path: bcfpath.as_ref().to_owned(),
-    })?
+    }.into())
 }

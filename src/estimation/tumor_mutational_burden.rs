@@ -93,7 +93,7 @@ pub(crate) fn estimate(
     let tumor_id = bcf
         .header()
         .sample_id(tumor_name.as_bytes())
-        .expect(&format!("Sample {} not found", tumor_name));
+        .unwrap_or_else(|| panic!("Sample {} not found", tumor_name)); // TODO throw a proper error
 
     let mut tmb = BTreeMap::new();
     'records: loop {
@@ -140,16 +140,16 @@ pub(crate) fn estimate(
         // push into TMB function
         for i in 0..alt_allele_count {
             let vaf = AlleleFreq(vafs[i] as f64);
-            let entry = tmb.entry(vaf).or_insert_with(|| Vec::new());
+            let entry = tmb.entry(vaf).or_insert_with(Vec::new);
             entry.push(Record {
                 prob: allele_probs[i],
-                vartype: vartypes[i].clone(),
+                vartype: vartypes[i],
             });
         }
     }
 
     if tmb.is_empty() {
-        return Err(errors::Error::NoRecordsFound)?;
+        return Err(errors::Error::NoRecordsFound.into());
     }
 
     let calc_tmb = |probs: &[LogProb]| -> f64 {
@@ -175,7 +175,7 @@ pub(crate) fn estimate(
             }
         };
 
-    let min_vafs = linspace(0.0, 1.0, 100).map(|vaf| AlleleFreq(vaf));
+    let min_vafs = linspace(0.0, 1.0, 100).map(AlleleFreq);
 
     match mode {
         PlotMode::Hist => {
@@ -202,7 +202,7 @@ pub(crate) fn estimate(
                     plot_data.push(TMBBin {
                         vaf: center_vaf,
                         tmb,
-                        vartype: vartype,
+                        vartype,
                     });
                 }
             }
@@ -241,7 +241,7 @@ pub(crate) fn estimate(
                     plot_data.push(TMBStrat {
                         min_vaf: *min_vaf,
                         tmb,
-                        vartype: vartype,
+                        vartype,
                     });
                 }
             }

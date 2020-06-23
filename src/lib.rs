@@ -3,6 +3,8 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![warn(clippy::all)]
+
 #[macro_use]
 extern crate log;
 #[macro_use]
