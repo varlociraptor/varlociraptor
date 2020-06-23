@@ -9,7 +9,7 @@
 // use priors::{Model, InfiniteSitesNeutralVariationModel, PairModel};
 
 /*
-pub struct NormalNormalModel {
+pub(crate) struct NormalNormalModel {
     inner: InfiniteSitesNeutralVariationModel,
     ploidy: u32,
     allele_freqs: DiscreteAlleleFreqs
@@ -17,7 +17,7 @@ pub struct NormalNormalModel {
 
 
 impl NormalNormalModel {
-    pub fn new(ploidy: u32, heterozygosity: Prob) -> Self {
+    pub(crate) fn new(ploidy: u32, heterozygosity: Prob) -> Self {
         NormalNormalModel {
             inner: InfiniteSitesNeutralVariationModel::new(2, ploidy, heterozygosity),
             ploidy: ploidy,

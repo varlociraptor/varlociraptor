@@ -9,9 +9,9 @@ use varlociraptor::cli::{PreprocessKind, Varlociraptor};
 use varlociraptor::testcase::Mode;
 
 #[derive(Debug)]
-pub struct TestcaseVersion0 {
-    pub inner: Vec<Yaml>,
-    pub path: PathBuf,
+pub(crate) struct TestcaseVersion0 {
+    pub(crate) inner: Vec<Yaml>,
+    pub(crate) path: PathBuf,
 }
 
 impl TestcaseVersion0 {
@@ -42,6 +42,17 @@ impl Testcase for TestcaseVersion0 {
         }
     }
 
+    fn sample_alignment_properties(&self, sample_name: &str) -> String {
+        let mut props: serde_json::Value =
+            serde_json::from_str(self.sample(sample_name)["properties"].as_str().unwrap()).unwrap();
+        props.as_object_mut().unwrap().insert(
+            "max_read_len".to_owned(),
+            serde_json::Value::Number(serde_json::Number::from(100)),
+        );
+
+        props.to_string()
+    }
+
     fn purity(&self) -> Option<f64> {
         match self.options() {
             cli::Varlociraptor::Call {
@@ -68,7 +79,6 @@ impl Testcase for TestcaseVersion0 {
                         spurious_insext_rate,
                         spurious_delext_rate,
                         protocol_strandedness,
-                        max_indel_len,
                         indel_window,
                         max_depth,
                         ..
@@ -82,8 +92,7 @@ impl Testcase for TestcaseVersion0 {
                         spurious_insext_rate,
                         spurious_delext_rate,
                         protocol_strandedness,
-                        max_indel_len,
-                        indel_window,
+                        realignment_window: indel_window as u64,
                         max_depth,
                         omit_snvs: false,
                         omit_indels: false,
@@ -104,7 +113,7 @@ impl Testcase for TestcaseVersion0 {
 }
 
 // old cli
-pub mod cli {
+pub(crate) mod cli {
     use std::path::PathBuf;
 
     use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -112,8 +121,8 @@ pub mod cli {
     use serde::{Deserialize, Serialize};
     use structopt::StructOpt;
 
-    use varlociraptor::model::sample::ProtocolStrandedness;
-    use varlociraptor::model::VariantType;
+    use varlociraptor::variants::model::VariantType;
+    use varlociraptor::variants::sample::ProtocolStrandedness;
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
     #[structopt(
@@ -121,7 +130,7 @@ pub mod cli {
         about = "A caller for SNVs and indels in tumor-normal pairs.",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
-    pub enum Varlociraptor {
+    pub(crate) enum Varlociraptor {
         #[structopt(
             name = "call",
             about = "Call variants.",
@@ -163,7 +172,7 @@ pub mod cli {
     }
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-    pub enum EstimateKind {
+    pub(crate) enum EstimateKind {
         #[structopt(
             name = "tmb",
             about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated \
@@ -196,7 +205,7 @@ pub mod cli {
     }
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-    pub enum CallKind {
+    pub(crate) enum CallKind {
         #[structopt(
             name = "variants",
             about = "Call variants.",
@@ -337,7 +346,7 @@ pub mod cli {
     }
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-    pub enum VariantCallMode {
+    pub(crate) enum VariantCallMode {
         #[structopt(
             name = "tumor-normal",
             about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants.",
@@ -393,7 +402,7 @@ pub mod cli {
     }
 
     #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
-    pub enum FilterMethod {
+    pub(crate) enum FilterMethod {
         #[structopt(
             name = "control-fdr",
             about = "Filter variant calls by controlling FDR. Filtered calls are printed to STDOUT.",

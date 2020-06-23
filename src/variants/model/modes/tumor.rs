@@ -4,9 +4,9 @@
 // except according to those terms.
 
 #[derive(Debug, Clone)]
-pub struct TumorNormalPair<T> {
-    pub tumor: T,
-    pub normal: T,
+pub(crate) struct TumorNormalPair<T> {
+    pub(crate) tumor: T,
+    pub(crate) normal: T,
 }
 
 impl<T> Into<Vec<T>> for TumorNormalPair<T> {
@@ -15,7 +15,7 @@ impl<T> Into<Vec<T>> for TumorNormalPair<T> {
     }
 }
 
-pub trait TumorNormalPairView<T> {
+pub(crate) trait TumorNormalPairView<T> {
     fn tumor(&self) -> &T;
 
     fn normal(&self) -> &T;

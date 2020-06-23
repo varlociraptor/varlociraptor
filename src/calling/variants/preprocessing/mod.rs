@@ -6,47 +6,53 @@
 use std::fmt::Debug;
 use std::fs;
 use std::path::Path;
+use std::str;
+use std::sync::Arc;
 
 use anyhow::Result;
-use bincode;
 use bio::io::fasta;
 use bio::stats::LogProb;
+use bio_types::genome;
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
-use serde_json;
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
-use crate::model::evidence::{observation::ObservationBuilder, Observation};
-use crate::model::sample::Sample;
+use crate::reference;
 use crate::utils;
 use crate::utils::MiniLogProb;
+use crate::variants;
+use crate::variants::evidence::observation::{Observation, ObservationBuilder};
+use crate::variants::evidence::realignment;
+use crate::variants::model;
+use crate::variants::sample::Sample;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct ObservationProcessor {
+pub(crate) struct ObservationProcessor {
     sample: Sample,
     #[builder(private)]
-    reference_buffer: utils::ReferenceBuffer,
+    reference_buffer: reference::Buffer,
     #[builder(private)]
     bcf_reader: bcf::Reader,
     #[builder(private)]
     bcf_writer: bcf::Writer,
     omit_snvs: bool,
     omit_indels: bool,
-    max_indel_len: u32,
+    gap_params: realignment::pairhmm::GapParams,
+    realignment_window: u64,
 }
 
 impl ObservationProcessorBuilder {
-    pub fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self> {
-        Ok(self.reference_buffer(utils::ReferenceBuffer::new(reader)))
+    pub(crate) fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self> {
+        Ok(self.reference_buffer(reference::Buffer::new(reader)))
     }
 
-    pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
+    pub(crate) fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
         Ok(self.bcf_reader(if let Some(path) = path {
             bcf::Reader::from_path(path)?
         } else {
@@ -54,7 +60,7 @@ impl ObservationProcessorBuilder {
         }))
     }
 
-    pub fn outbcf<P: AsRef<Path>>(
+    pub(crate) fn outbcf<P: AsRef<Path>>(
         self,
         path: Option<P>,
         options: &cli::Varlociraptor,
@@ -126,7 +132,7 @@ impl ObservationProcessorBuilder {
 }
 
 impl ObservationProcessor {
-    pub fn process(&mut self) -> Result<()> {
+    pub(crate) fn process(&mut self) -> Result<()> {
         let mut i = 0;
         loop {
             let mut record = self.bcf_reader.empty_record();
@@ -147,22 +153,17 @@ impl ObservationProcessor {
     }
 
     fn process_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>> {
-        let start = record.pos();
-        let chrom = chrom(&self.bcf_reader, &record);
-        let variants = utils::collect_variants(
-            record,
-            self.omit_snvs,
-            self.omit_indels,
-            Some(0..self.max_indel_len + 1),
-        )?;
+        let start = record.pos() as u64;
+        let chrom = chrom(&self.bcf_reader, &record).to_owned();
+        let variants = utils::collect_variants(record, self.omit_snvs, self.omit_indels, None)?;
 
-        if variants.is_empty() || variants.iter().all(|v| v.is_none()) {
+        if variants.is_empty() {
             return Ok(None);
         }
 
         let mut call = CallBuilder::default()
             .chrom(chrom.to_owned())
-            .pos(start)
+            .pos(start as u64)
             .id({
                 let id = record.id();
                 if id == b"." {
@@ -176,33 +177,75 @@ impl ObservationProcessor {
             .unwrap();
 
         for variant in variants.into_iter() {
-            if let Some(variant) = variant {
-                let chrom_seq = self.reference_buffer.seq(&chrom)?;
-                let pileup = self
-                    .sample
-                    .extract_observations(start, &variant, chrom, chrom_seq)?;
+            let chrom_seq = self.reference_buffer.seq(&chrom)?;
+            let pileup =
+                self.extract_observations(start, &chrom, Arc::clone(&chrom_seq), &variant)?;
 
-                let start = start as usize;
+            let start = start as usize;
 
-                // add variant information
-                call.variants.push(
-                    VariantBuilder::default()
-                        .variant(&variant, start, chrom_seq)
-                        .observations(Some(pileup))
-                        .build()
-                        .unwrap(),
-                );
-            }
+            // add variant information
+            call.variants.push(
+                VariantBuilder::default()
+                    .variant(&variant, start, chrom_seq.as_ref())
+                    .observations(Some(pileup))
+                    .build()
+                    .unwrap(),
+            );
         }
 
         Ok(Some(call))
     }
+
+    fn extract_observations(
+        &mut self,
+        start: u64,
+        chrom: &[u8],
+        chrom_seq: Arc<Vec<u8>>,
+        variant: &model::Variant,
+    ) -> Result<Vec<Observation>> {
+        let chrom = str::from_utf8(chrom).unwrap().to_owned();
+        let locus = || genome::Locus::new(chrom.clone(), start);
+        let interval = |len: u64| genome::Interval::new(chrom.clone(), start..start + len);
+        let start = start as usize;
+        let realignment_window = self.realignment_window;
+        let gap_params = self.gap_params.clone();
+
+        let realigner =
+            || realignment::Realigner::new(Arc::clone(&chrom_seq), gap_params, realignment_window);
+
+        match variant {
+            model::Variant::SNV(alt) => self
+                .sample
+                .extract_observations(&variants::types::SNV::new(locus(), chrom_seq[start], *alt)),
+            model::Variant::MNV(alt) => {
+                self.sample.extract_observations(&variants::types::MNV::new(
+                    locus(),
+                    chrom_seq[start..start + alt.len()].to_owned(),
+                    alt.to_owned(),
+                ))
+            }
+            model::Variant::None => self
+                .sample
+                .extract_observations(&variants::types::None::new(locus(), chrom_seq[start])),
+            model::Variant::Deletion(l) => self
+                .sample
+                .extract_observations(&variants::types::Deletion::new(interval(*l), realigner())),
+            model::Variant::Insertion(seq) => {
+                self.sample
+                    .extract_observations(&variants::types::Insertion::new(
+                        locus(),
+                        seq.to_owned(),
+                        realigner(),
+                    ))
+            }
+        }
+    }
 }
 
-pub static OBSERVATION_FORMAT_VERSION: &'static str = "2";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "2";
 
 /// Read observations from BCF record.
-pub fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observation>> {
+pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observation>> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug,
@@ -259,7 +302,10 @@ pub fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observat
     Ok(obs)
 }
 
-pub fn write_observations(observations: &[Observation], record: &mut bcf::Record) -> Result<()> {
+pub(crate) fn write_observations(
+    observations: &[Observation],
+    record: &mut bcf::Record,
+) -> Result<()> {
     let vec = || Vec::with_capacity(observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();
@@ -321,7 +367,7 @@ pub fn write_observations(observations: &[Observation], record: &mut bcf::Record
     Ok(())
 }
 
-pub fn remove_observation_header_entries(header: &mut bcf::Header) {
+pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PROB_MAPPING");
     header.remove_info(b"PROB_REF");
     header.remove_info(b"PROB_ALT");
@@ -333,19 +379,17 @@ pub fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"REVERSE_STRAND");
 }
 
-pub fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {
+pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {
     let reader = bcf::Reader::from_path(&bcfpath)?;
     for rec in reader.header().header_records() {
-        match rec {
-            bcf::header::HeaderRecord::Generic { ref key, ref value } => {
-                if key == "varlociraptor_preprocess_args" {
-                    return Ok(serde_json::from_str(value)?);
-                }
+        if let bcf::header::HeaderRecord::Generic { ref key, ref value } = rec {
+            if key == "varlociraptor_preprocess_args" {
+                return Ok(serde_json::from_str(value)?);
             }
-            _ => (),
         }
     }
     Err(errors::Error::InvalidObservations {
         path: bcfpath.as_ref().to_owned(),
-    })?
+    }
+    .into())
 }

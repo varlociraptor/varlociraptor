@@ -13,13 +13,12 @@ use derive_builder::Builder;
 use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
-use serde_json;
 
 use crate::cli;
 use crate::errors;
-use crate::model::sample;
-use crate::model::Variant;
 use crate::utils;
+use crate::variants::model::Variant;
+use crate::variants::sample;
 
 lazy_static! {
     static ref TESTCASE_RE: Regex =
@@ -58,7 +57,7 @@ pub struct Testcase {
     #[builder(private)]
     chrom_name: Option<Vec<u8>>,
     #[builder(private)]
-    pos: Option<u32>,
+    pos: Option<u64>,
     #[builder(private)]
     idx: usize,
     #[builder(private)]
@@ -76,15 +75,15 @@ pub struct Testcase {
 }
 
 impl TestcaseBuilder {
-    pub fn reference(self, path: impl AsRef<Path>) -> Result<Self> {
+    pub(crate) fn reference(self, path: impl AsRef<Path>) -> Result<Self> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
     }
 
-    pub fn candidates(self, path: impl AsRef<Path>) -> Result<Self> {
+    pub(crate) fn candidates(self, path: impl AsRef<Path>) -> Result<Self> {
         Ok(self.candidate_reader(bcf::Reader::from_path(path)?))
     }
 
-    pub fn locus(self, locus: &str) -> Result<Self> {
+    pub(crate) fn locus(self, locus: &str) -> Result<Self> {
         if locus == "all" {
             Ok(self.chrom_name(None).pos(None).idx(0))
         } else if let Some(captures) = TESTCASE_RE.captures(locus) {
@@ -94,7 +93,7 @@ impl TestcaseBuilder {
                 .as_str()
                 .as_bytes()
                 .to_owned();
-            let mut pos: u32 = captures.name("pos").unwrap().as_str().parse()?;
+            let mut pos: u64 = captures.name("pos").unwrap().as_str().parse()?;
             pos -= 1;
             let idx = if let Some(m) = captures.name("idx") {
                 let idx: usize = m.as_str().parse()?;
@@ -105,11 +104,11 @@ impl TestcaseBuilder {
 
             Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)).idx(idx))
         } else {
-            Err(errors::Error::InvalidLocus)?
+            Err(errors::Error::InvalidLocus.into())
         }
     }
 
-    pub fn register_sample(
+    pub(crate) fn register_sample(
         mut self,
         name: &str,
         bam: impl AsRef<Path>,
@@ -151,7 +150,7 @@ impl Testcase {
             let rec = res?;
             if let Some(rec_rid) = rec.rid() {
                 if let Some(rid) = rid {
-                    if rec_rid == rid && rec.pos() == self.pos.unwrap() {
+                    if rec_rid == rid && rec.pos() as u64 == self.pos.unwrap() {
                         found.push(rec);
                         break;
                     }
@@ -161,49 +160,45 @@ impl Testcase {
                 }
             }
         }
-        if found.len() == 0 {
-            Err(errors::Error::NoCandidateFound)?
+        if found.is_empty() {
+            Err(errors::Error::NoCandidateFound.into())
         } else {
             Ok(found)
         }
     }
 
-    pub fn write(&mut self) -> Result<()> {
+    pub(crate) fn write(&mut self) -> Result<()> {
         fs::create_dir_all(&self.prefix)?;
 
         let candidate_filename = Path::new("candidates.vcf");
 
         // get and write candidate
-        let mut i = 0;
         let mut candidate = None;
-        for mut record in self.variants()? {
+        for (i, mut record) in (self.variants()?).into_iter().enumerate() {
             let variants = utils::collect_variants(&mut record, false, false, None)?;
             for variant in variants {
-                if let Some(variant) = variant {
-                    if i == self.idx {
-                        // if no chromosome was specified, we infer the locus from the matching
-                        // variant
-                        if self.chrom_name.is_none() {
-                            self.chrom_name = Some(
-                                self.candidate_reader
-                                    .header()
-                                    .rid2name(record.rid().unwrap())
-                                    .unwrap()
-                                    .to_owned(),
-                            );
-                            self.pos = Some(record.pos());
-                        }
-
-                        candidate = Some((variant, record));
-
-                        break;
+                if i == self.idx {
+                    // if no chromosome was specified, we infer the locus from the matching
+                    // variant
+                    if self.chrom_name.is_none() {
+                        self.chrom_name = Some(
+                            self.candidate_reader
+                                .header()
+                                .rid2name(record.rid().unwrap())
+                                .unwrap()
+                                .to_owned(),
+                        );
+                        self.pos = Some(record.pos() as u64);
                     }
+
+                    candidate = Some((variant, record));
+
+                    break;
                 }
-                i += 1;
             }
         }
         if candidate.is_none() {
-            return Err(errors::Error::InvalidIndex)?;
+            return Err(errors::Error::InvalidIndex.into());
         }
         let candidate = candidate.unwrap();
 
@@ -211,13 +206,13 @@ impl Testcase {
         let pos = self.pos.unwrap();
 
         let (start, end) = match candidate {
-            (Variant::Deletion(l), _) => (pos.saturating_sub(1000), pos + l + 1000),
+            (Variant::Deletion(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
             (Variant::Insertion(ref seq), _) => {
-                (pos.saturating_sub(1000), pos + seq.len() as u32 + 1000)
+                (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
             (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
             (Variant::MNV(ref bases), _) => {
-                (pos.saturating_sub(100), pos + bases.len() as u32 + 100)
+                (pos.saturating_sub(100), pos + bases.len() as u64 + 100)
             }
             (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
         };
@@ -232,9 +227,9 @@ impl Testcase {
             bam_reader.fetch(tid, start, end)?;
             for res in bam_reader.records() {
                 let rec = res?;
-                let seq_len = rec.seq().len() as u32;
-                ref_start = cmp::min((rec.pos() as u32).saturating_sub(seq_len), ref_start);
-                ref_end = cmp::max(rec.cigar().end_pos() as u32 + seq_len, ref_end);
+                let seq_len = rec.seq().len() as u64;
+                ref_start = cmp::min((rec.pos() as u64).saturating_sub(seq_len), ref_start);
+                ref_end = cmp::max(rec.cigar().end_pos() as u64 + seq_len, ref_end);
             }
         }
 
@@ -277,7 +272,7 @@ impl Testcase {
             bcf::Format::BCF,
         )?;
         let (_, mut candidate_record) = candidate;
-        candidate_record.set_pos((candidate_record.pos() - ref_start) as i64);
+        candidate_record.set_pos(candidate_record.pos() - ref_start as i64);
         if let Ok(Some(end)) = candidate_record
             .info(b"END")
             .integer()
@@ -313,7 +308,7 @@ impl Testcase {
                 samples,
                 candidate: candidate_filename.to_str().unwrap().to_owned(),
                 ref_path: ref_filename.to_owned(),
-                scenario: scenario,
+                scenario,
                 mode: self.mode,
                 purity: self.purity,
             }

@@ -16,14 +16,14 @@ use crate::calling::variants::{
 };
 use crate::errors;
 use crate::grammar;
-use crate::model;
-use crate::model::{AlleleFreq, StrandBias};
+use crate::variants::model;
+use crate::variants::model::{AlleleFreq, StrandBias};
 
-pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
+pub(crate) type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct Caller<L, Pr, Po, ModelPayload>
+pub(crate) struct Caller<L, Pr, Po, ModelPayload>
 where
     L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
@@ -45,7 +45,7 @@ where
     Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
-    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
+    pub(crate) fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
         let mut header = bcf::Header::from_template(
             self.observations
                 .as_ref()
@@ -140,24 +140,24 @@ where
     >,
     ModelPayload: Default,
 {
-    pub fn n_samples(&self) -> usize {
+    pub(crate) fn n_samples(&self) -> usize {
         self.samplenames.len()
     }
 
-    pub fn call(&mut self) -> Result<()> {
+    pub(crate) fn call(&mut self) -> Result<()> {
         for obs_reader in self.observations.iter() {
             let mut valid = false;
             for record in obs_reader.header().header_records() {
                 if let bcf::HeaderRecord::Generic { key, value } = record {
-                    if key == "varlociraptor_observation_format_version" {
-                        if value == OBSERVATION_FORMAT_VERSION {
-                            valid = true;
-                        }
+                    if key == "varlociraptor_observation_format_version"
+                        && value == OBSERVATION_FORMAT_VERSION
+                    {
+                        valid = true;
                     }
                 }
             }
             if !valid {
-                return Err(errors::Error::InvalidObservationFormat)?;
+                return Err(errors::Error::InvalidObservationFormat.into());
             }
         }
 
@@ -175,7 +175,7 @@ where
                 return Ok(());
             } else if !eof.iter().all(|v| !v) {
                 // only some are EOF, this is an error
-                return Err(errors::Error::InconsistentObservations)?;
+                return Err(errors::Error::InconsistentObservations.into());
             }
 
             i += 1;
@@ -190,7 +190,7 @@ where
                     || record.pos() != current_pos
                     || record.alleles() != current_alleles
                 {
-                    return Err(errors::Error::InconsistentObservations)?;
+                    return Err(errors::Error::InconsistentObservations.into());
                 }
             }
 
@@ -272,7 +272,7 @@ where
             let first_record = records
                 .first_mut()
                 .expect("bug: there must be at least one record");
-            let start = first_record.pos();
+            let start = first_record.pos() as u64;
             let chrom = chrom(
                 &self
                     .observations
@@ -359,7 +359,7 @@ where
             Some(
                 data.into_pileups()
                     .into_iter()
-                    .zip(map_estimates.into_iter())
+                    .zip(map_estimates.iter())
                     .map(|(pileup, estimate)| {
                         let mut sample_builder = SampleInfoBuilder::default();
                         sample_builder.observations(pileup);

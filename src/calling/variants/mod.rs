@@ -3,8 +3,8 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-pub mod calling;
-pub mod preprocessing;
+pub(crate) mod calling;
+pub(crate) mod preprocessing;
 
 use std::collections::HashMap;
 use std::str;
@@ -19,21 +19,18 @@ use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
-use crate::model;
-use crate::model::evidence::observation::expected_depth;
-use crate::model::evidence::Observation;
-use crate::model::{AlleleFreq, StrandBias};
 use crate::utils;
+use crate::variants::evidence::observation::expected_depth;
+use crate::variants::evidence::observation::Observation;
+use crate::variants::model;
+use crate::variants::model::{AlleleFreq, StrandBias};
 
-pub use crate::calling::variants::calling::{Caller, CallerBuilder};
-pub use crate::calling::variants::preprocessing::{
-    ObservationProcessor, ObservationProcessorBuilder,
-};
+pub(crate) use crate::calling::variants::calling::CallerBuilder;
 
 #[derive(Default, Clone, Debug, Builder)]
-pub struct Call {
+pub(crate) struct Call {
     chrom: Vec<u8>,
-    pos: u32,
+    pos: u64,
     #[builder(default = "None")]
     id: Option<Vec<u8>>,
     #[builder(default = "Vec::new()")]
@@ -41,7 +38,7 @@ pub struct Call {
 }
 
 impl Call {
-    pub fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
+    pub(crate) fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
         for variant in self.variants.iter() {
             let mut record = bcf_writer.empty_record();
@@ -70,7 +67,7 @@ impl Call {
         Ok(())
     }
 
-    pub fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
+    pub(crate) fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
         for (first_grouper, group) in self
             .variants
@@ -107,7 +104,7 @@ impl Call {
                 {
                     event_probs
                         .entry(event)
-                        .or_insert_with(|| Vec::new())
+                        .or_insert_with(Vec::new)
                         .push(*prob);
                 }
 
@@ -128,15 +125,15 @@ impl Call {
 
                     allelefreq_estimates
                         .entry(i)
-                        .or_insert_with(|| Vec::new())
+                        .or_insert_with(Vec::new)
                         .push(*sample_info.allelefreq_estimate as f32);
 
                     obs_counts
                         .entry(i)
-                        .or_insert_with(|| Vec::new())
+                        .or_insert_with(Vec::new)
                         .push(expected_depth(&sample_info.observations) as i32);
 
-                    observations.entry(i).or_insert_with(|| Vec::new()).push({
+                    observations.entry(i).or_insert_with(Vec::new).push({
                         utils::generalized_cigar(
                             sample_info.observations.iter().map(|obs| {
                                 let score = utils::evidence_kass_raftery_to_letter(
@@ -229,7 +226,7 @@ impl Call {
 }
 
 #[derive(Default, Clone, Debug, Builder)]
-pub struct Variant {
+pub(crate) struct Variant {
     #[builder(private)]
     ref_allele: Vec<u8>,
     #[builder(private)]
@@ -246,7 +243,7 @@ pub struct Variant {
 
 impl VariantBuilder {
     /// Build the variant from a single-allele bcf record.
-    pub fn record(&mut self, record: &mut bcf::Record) -> Result<&mut Self> {
+    pub(crate) fn record(&mut self, record: &mut bcf::Record) -> Result<&mut Self> {
         let alleles = record.alleles();
         Ok(self
             .ref_allele(alleles[0].to_owned())
@@ -254,7 +251,7 @@ impl VariantBuilder {
             .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0])))
     }
 
-    pub fn variant(
+    pub(crate) fn variant(
         &mut self,
         variant: &model::Variant,
         start: usize,
@@ -262,7 +259,7 @@ impl VariantBuilder {
     ) -> &mut Self {
         match variant {
             model::Variant::Deletion(l) => {
-                let l = l.clone();
+                let l = *l;
                 let svlen = -(l as i32);
                 if l <= 50 {
                     self.ref_allele(chrom_seq[start..start + 1 + l as usize].to_ascii_uppercase())
@@ -298,7 +295,7 @@ impl VariantBuilder {
 }
 
 #[derive(Default, Clone, Debug, Builder)]
-pub struct SampleInfo {
+pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     #[builder(default = "Vec::new()")]
     observations: Vec<Observation>,
@@ -307,7 +304,7 @@ pub struct SampleInfo {
 
 /// Wrapper for comparing alleles for compatibility in BCF files.
 /// PartialEq::eq() returns true for all alleles that can occur in the same BCF record.
-pub struct BCFGrouper<'a>(pub &'a Variant);
+pub(crate) struct BCFGrouper<'a>(pub(crate) &'a Variant);
 
 impl<'a> PartialEq for BCFGrouper<'a> {
     fn eq(&self, _other: &BCFGrouper) -> bool {
@@ -327,6 +324,6 @@ fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
     inbcf.header().rid2name(record.rid().unwrap()).unwrap()
 }
 
-pub fn event_tag_name(event: &str) -> String {
+pub(crate) fn event_tag_name(event: &str) -> String {
     format!("PROB_{}", event.to_ascii_uppercase())
 }

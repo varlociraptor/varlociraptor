@@ -7,18 +7,18 @@ use std::collections::BTreeMap;
 
 use bio::stats::{bayesian::model::Likelihood, LogProb, Prob};
 
-use crate::model::evidence::Observation;
-use crate::model::sample::Pileup;
-use crate::model::{AlleleFreq, StrandBias};
 use crate::utils::NUMERICAL_EPSILON;
+use crate::variants::evidence::observation::Observation;
+use crate::variants::model::{AlleleFreq, StrandBias};
+use crate::variants::sample::Pileup;
 
-pub type ContaminatedSampleCache = BTreeMap<ContaminatedSampleEvent, LogProb>;
-pub type SingleSampleCache = BTreeMap<Event, LogProb>;
+pub(crate) type ContaminatedSampleCache = BTreeMap<ContaminatedSampleEvent, LogProb>;
+pub(crate) type SingleSampleCache = BTreeMap<Event, LogProb>;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub struct Event {
-    pub allele_freq: AlleleFreq,
-    pub strand_bias: StrandBias,
+pub(crate) struct Event {
+    pub(crate) allele_freq: AlleleFreq,
+    pub(crate) strand_bias: StrandBias,
 }
 
 fn prob_sample_alt(observation: &Observation, allele_freq: LogProb) -> LogProb {
@@ -33,7 +33,7 @@ fn prob_sample_alt(observation: &Observation, allele_freq: LogProb) -> LogProb {
     }
 }
 
-pub trait ContaminatedSamplePairView<T> {
+pub(crate) trait ContaminatedSamplePairView<T> {
     fn primary(&self) -> &T;
     fn secondary(&self) -> &T;
 }
@@ -49,14 +49,14 @@ impl<T> ContaminatedSamplePairView<T> for Vec<T> {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub struct ContaminatedSampleEvent {
-    pub primary: Event,
-    pub secondary: Event,
+pub(crate) struct ContaminatedSampleEvent {
+    pub(crate) primary: Event,
+    pub(crate) secondary: Event,
 }
 
 /// Variant calling model, taking purity and allele frequencies into account.
 #[derive(Clone, Copy, Debug)]
-pub struct ContaminatedSampleLikelihoodModel {
+pub(crate) struct ContaminatedSampleLikelihoodModel {
     /// Purity of the case sample.
     purity: LogProb,
     impurity: LogProb,
@@ -70,11 +70,11 @@ impl Default for ContaminatedSampleLikelihoodModel {
 
 impl ContaminatedSampleLikelihoodModel {
     /// Create new model.
-    pub fn new(purity: f64) -> Self {
+    pub(crate) fn new(purity: f64) -> Self {
         assert!(purity > 0.0 && purity <= 1.0);
         let purity = LogProb(purity.ln());
         ContaminatedSampleLikelihoodModel {
-            purity: purity,
+            purity,
             impurity: purity.ln_one_minus_exp(),
         }
     }
@@ -149,11 +149,11 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
 
 /// Likelihood model for single sample.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct SampleLikelihoodModel {}
+pub(crate) struct SampleLikelihoodModel {}
 
 impl SampleLikelihoodModel {
     /// Create new model.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         SampleLikelihoodModel {}
     }
 
@@ -253,9 +253,9 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::likelihood;
-    use crate::model::tests::observation;
-    use crate::model::StrandBias;
+    use crate::variants::model::likelihood;
+    use crate::variants::model::tests::observation;
+    use crate::variants::model::StrandBias;
     use bio::stats::LogProb;
     use itertools_num::linspace;
 
@@ -443,6 +443,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_likelihood_pileup() {
         let model = ContaminatedSampleLikelihoodModel::new(1.0);
         let mut observations = Vec::new();

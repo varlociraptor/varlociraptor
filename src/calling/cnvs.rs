@@ -28,11 +28,11 @@ use crate::utils;
 const MIN_DEPTH: u32 = 10;
 const MAX_GAIN: i32 = 21;
 
-pub fn depth_pmf(observed_depth: u32, true_depth: f64) -> LogProb {
+pub(crate) fn depth_pmf(observed_depth: u32, true_depth: f64) -> LogProb {
     LogProb(poisson_pdf(observed_depth, true_depth).ln())
 }
 
-pub fn allele_freq_pdf(
+pub(crate) fn allele_freq_pdf(
     observed_allele_freq: AlleleFreq,
     true_allele_freq: AlleleFreq,
     depth: u32,
@@ -43,20 +43,20 @@ pub fn allele_freq_pdf(
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct Caller {
+pub(crate) struct Caller {
     #[builder(private)]
     bcf_reader: bcf::Reader,
     #[builder(private)]
     bcf_writer: bcf::Writer,
     min_bayes_factor: f64,
     purity: f64,
-    max_dist: u32,
+    max_dist: u64,
     #[builder(private)]
     contig_lens: HashMap<Vec<u8>, u32>,
 }
 
 impl CallerBuilder {
-    pub fn bcfs<P: AsRef<Path>>(mut self, in_path: Option<P>, out_path: Option<P>) -> Result<Self> {
+    pub(crate) fn bcfs<P: AsRef<Path>>(mut self, in_path: Option<P>, out_path: Option<P>) -> Result<Self> {
         self = self.bcf_reader(if let Some(path) = in_path {
             bcf::Reader::from_path(path)?
         } else {
@@ -147,7 +147,7 @@ impl CallerBuilder {
 }
 
 impl Caller {
-    pub fn call(&mut self) -> Result<()> {
+    pub(crate) fn call(&mut self) -> Result<()> {
         // obtain records
 
         let calls = {
@@ -278,16 +278,16 @@ impl Caller {
 }
 
 #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
-pub struct Region {
+pub(crate) struct Region {
     rid: u32,
-    start: u32,
+    start: u64,
 }
 
-pub struct CNVCall<'a> {
-    prev_pos: Option<u32>,
-    next_pos: Option<u32>,
-    pos: u32,
-    end: u32,
+pub(crate) struct CNVCall<'a> {
+    prev_pos: Option<u64>,
+    next_pos: Option<u64>,
+    pos: u64,
+    end: u64,
     cnv: CNV,
     prob_no_cnv: LogProb,
     calls: Vec<&'a Call>,
@@ -295,12 +295,12 @@ pub struct CNVCall<'a> {
 }
 
 impl<'a> CNVCall<'a> {
-    pub fn write(
+    pub(crate) fn write(
         &self,
         rid: u32,
         record: &mut bcf::Record,
         depth_norm_factor: f64,
-        contig_len: u32,
+        contig_len: u64,
     ) -> Result<()> {
         record.set_rid(Some(rid));
         record.set_pos(self.pos as i64);
@@ -365,12 +365,12 @@ impl<'a> CNVCall<'a> {
         Ok(())
     }
 
-    pub fn len(&self) -> u32 {
+    pub(crate) fn len(&self) -> u32 {
         self.end - self.pos + 1
     }
 }
 
-pub struct HMM {
+pub(crate) struct HMM {
     states: Vec<CNV>,
     state_by_gain: HashMap<i32, Vec<hmm::State>>,
     depth_norm_factor: f64,
@@ -423,7 +423,7 @@ impl HMM {
         }
     }
 
-    pub fn prob_no_cnv(&self, observations: &[&Call]) -> LogProb {
+    pub(crate) fn prob_no_cnv(&self, observations: &[&Call]) -> LogProb {
         let likelihood_no_cnv = likelihood(
             self,
             iter::repeat(self.state_by_gain.get(&0).unwrap()[0]),
@@ -448,11 +448,11 @@ impl HMM {
         LogProb::ln_sum_exp(&likelihoods)
     }
 
-    pub fn null_state(&self) -> hmm::State {
+    pub(crate) fn null_state(&self) -> hmm::State {
         self.state_by_gain.get(&0).unwrap()[0]
     }
 
-    pub fn bayes_factors(&self, state: hmm::State, observations: &[&Call]) -> Vec<BayesFactor> {
+    pub(crate) fn bayes_factors(&self, state: hmm::State, observations: &[&Call]) -> Vec<BayesFactor> {
         let null_state = self.null_state();
         observations
             .into_iter()
@@ -522,7 +522,7 @@ impl hmm::Model<Call> for HMM {
     }
 }
 
-pub fn likelihood<'a, O: 'a>(
+pub(crate) fn likelihood<'a, O: 'a>(
     hmm: &dyn hmm::Model<O>,
     states: impl IntoIterator<Item = hmm::State>,
     observations: impl Iterator<Item = &'a O>,
@@ -535,7 +535,7 @@ pub fn likelihood<'a, O: 'a>(
     p
 }
 
-pub fn marginal<'a, O: 'a>(
+pub(crate) fn marginal<'a, O: 'a>(
     hmm: &dyn hmm::Model<O>,
     observations: impl IntoIterator<Item = &'a O>,
 ) -> LogProb {
@@ -564,20 +564,20 @@ pub fn marginal<'a, O: 'a>(
 }
 
 #[derive(Debug)]
-pub struct Call {
+pub(crate) struct Call {
     prob_germline_het: LogProb,
     allele_freq_tumor: AlleleFreq,
     allele_freq_normal: AlleleFreq,
     depth_tumor: u32,
     depth_normal: u32,
-    start: u32,
+    start: u64,
     rid: u32,
-    prev_start: Option<u32>,
-    next_start: Option<u32>,
+    prev_start: Option<u64>,
+    next_start: Option<u64>,
 }
 
 impl Call {
-    pub fn new(record: &mut bcf::Record) -> Result<Option<Self>> {
+    pub(crate) fn new(record: &mut bcf::Record) -> Result<Option<Self>> {
         let pos = record.pos();
         let prob_germline_het = record.info(b"PROB_GERMLINE_HET").float()?;
         if let Some(_prob_germline_het) = prob_germline_het {
@@ -603,7 +603,7 @@ impl Call {
                         depth_tumor: *depths.tumor(),
                         depth_normal: *depths.normal(),
                         prob_germline_het: prob_germline_het,
-                        start: record.pos(),
+                        start: record.pos() as u64,
                         rid: record.rid().unwrap(),
                         prev_start: None,
                         next_start: None,
@@ -615,28 +615,28 @@ impl Call {
         Ok(None)
     }
 
-    pub fn prob_allele_freq_tumor(&self, true_allele_freq: AlleleFreq) -> LogProb {
+    pub(crate) fn prob_allele_freq_tumor(&self, true_allele_freq: AlleleFreq) -> LogProb {
         allele_freq_pdf(self.allele_freq_tumor, true_allele_freq, self.depth_tumor)
     }
 
-    pub fn prob_allele_freq_normal_het(&self) -> LogProb {
+    pub(crate) fn prob_allele_freq_normal_het(&self) -> LogProb {
         allele_freq_pdf(self.allele_freq_normal, AlleleFreq(0.5), self.depth_normal)
     }
 
-    pub fn prob_depth_tumor(&self, true_depth: f64) -> LogProb {
+    pub(crate) fn prob_depth_tumor(&self, true_depth: f64) -> LogProb {
         depth_pmf(self.depth_tumor, true_depth)
     }
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
-pub struct CNV {
+pub(crate) struct CNV {
     gain: i32,
     allele_freq: AlleleFreq,
     purity: f64,
 }
 
 impl CNV {
-    pub fn expected_allele_freq_alt_affected(&self) -> Option<AlleleFreq> {
+    pub(crate) fn expected_allele_freq_alt_affected(&self) -> Option<AlleleFreq> {
         if self.gain > -2 {
             Some(AlleleFreq(
                 *self.allele_freq * (1.0 + self.gain as f64) / (2.0 + self.gain as f64)
@@ -651,12 +651,12 @@ impl CNV {
         }
     }
 
-    pub fn expected_allele_freq_ref_affected(&self) -> Option<AlleleFreq> {
+    pub(crate) fn expected_allele_freq_ref_affected(&self) -> Option<AlleleFreq> {
         self.expected_allele_freq_alt_affected()
             .map(|af| AlleleFreq(1.0) - af)
     }
 
-    pub fn expected_depth_factor(&self) -> f64 {
+    pub(crate) fn expected_depth_factor(&self) -> f64 {
         self.purity * (*self.allele_freq * (2.0 + self.gain as f64) / 2.0 + 1.0 - *self.allele_freq)
             + (1.0 - self.purity)
     }

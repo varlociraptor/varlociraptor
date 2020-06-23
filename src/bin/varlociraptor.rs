@@ -8,7 +8,7 @@ use anyhow::Result;
 use structopt::StructOpt;
 use varlociraptor::cli::{run, Varlociraptor};
 
-pub fn main() -> Result<()> {
+pub(crate) fn main() -> Result<()> {
     let opt = Varlociraptor::from_args();
 
     // setup logger

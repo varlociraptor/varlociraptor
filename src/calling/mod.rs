@@ -1,2 +1,2 @@
-pub mod cnvs;
-pub mod variants;
+//pub(crate) mod cnvs;
+pub(crate) mod variants;

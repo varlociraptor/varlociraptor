@@ -12,13 +12,13 @@ use rusty_machine::learning::lin_reg::LinRegressor;
 use rusty_machine::learning::SupModel;
 use rusty_machine::linalg::{Matrix, Vector};
 
-use crate::model::AlleleFreq;
+use crate::variants::model::AlleleFreq;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Estimate {
-    pub observations: Vec<(f64, u64)>,
-    pub intercept: f64,
-    pub slope: f64,
+    observations: Vec<(f64, u64)>,
+    intercept: f64,
+    slope: f64,
 }
 
 impl Estimate {
@@ -58,7 +58,7 @@ pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Re
     lin_mod.train(&freqs, &counts)?;
 
     Ok(Estimate {
-        observations: observations,
+        observations,
         intercept: lin_mod.parameters().unwrap()[0],
         slope: lin_mod.parameters().unwrap()[1],
     })
@@ -67,13 +67,13 @@ pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::AlleleFreq;
+    use crate::variants::model::AlleleFreq;
     use itertools_num::linspace;
 
     #[test]
     fn test_estimate() {
         // example from Williams et al. Nature Genetics 2016.
-        let freqs = linspace(0.12, 0.25, 2539).map(|af| AlleleFreq(af));
+        let freqs = linspace(0.12, 0.25, 2539).map(AlleleFreq);
         let estimate = estimate(freqs).unwrap();
         assert_relative_eq!(estimate.effective_mutation_rate(), 596.16, epsilon = 0.01);
     }

@@ -7,32 +7,32 @@ use itertools::Itertools;
 use vec_map::VecMap;
 
 use crate::grammar;
-use crate::model;
-use crate::model::likelihood;
-use crate::model::sample::Pileup;
-use crate::model::{AlleleFreq, Contamination, StrandBias};
+use crate::variants::model;
+use crate::variants::model::likelihood;
+use crate::variants::model::{AlleleFreq, Contamination, StrandBias};
+use crate::variants::sample::Pileup;
 
 #[derive(new, Clone, Debug)]
-pub struct SNV {
+pub(crate) struct SNV {
     refbase: u8,
     altbase: u8,
 }
 
 #[derive(new, Clone, Debug, Getters)]
 #[get = "pub"]
-pub struct Data {
+pub(crate) struct Data {
     pileups: Vec<Pileup>,
     snv: Option<SNV>,
 }
 
 impl Data {
-    pub fn into_pileups(self) -> Vec<Pileup> {
+    pub(crate) fn into_pileups(self) -> Vec<Pileup> {
         self.pileups
     }
 }
 
 #[derive(Debug)]
-pub enum CacheEntry {
+pub(crate) enum CacheEntry {
     ContaminatedSample(likelihood::ContaminatedSampleCache),
     SingleSample(likelihood::SingleSampleCache),
 }
@@ -47,10 +47,10 @@ impl CacheEntry {
     }
 }
 
-pub type Cache = VecMap<CacheEntry>;
+pub(crate) type Cache = VecMap<CacheEntry>;
 
 #[derive(Default, Debug, Clone, Builder)]
-pub struct GenericModelBuilder<P>
+pub(crate) struct GenericModelBuilder<P>
 where
     P: Prior<Event = Vec<likelihood::Event>>,
 {
@@ -63,13 +63,13 @@ impl<P> GenericModelBuilder<P>
 where
     P: Prior<Event = Vec<likelihood::Event>>,
 {
-    pub fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
+    pub(crate) fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
         self.resolutions = Some(resolutions);
 
         self
     }
 
-    pub fn contaminations(
+    pub(crate) fn contaminations(
         mut self,
         contaminations: grammar::SampleInfo<Option<Contamination>>,
     ) -> Self {
@@ -78,13 +78,15 @@ where
         self
     }
 
-    pub fn prior(mut self, prior: P) -> Self {
+    pub(crate) fn prior(mut self, prior: P) -> Self {
         self.prior = prior;
 
         self
     }
 
-    pub fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
+    pub(crate) fn build(
+        self,
+    ) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
         let posterior = GenericPosterior::new(
             self.resolutions
                 .expect("GenericModelBuilder: need to call resolutions() before build()"),
@@ -98,7 +100,7 @@ where
 }
 
 #[derive(new, Clone, Debug, Default)]
-pub struct GenericPosterior {
+pub(crate) struct GenericPosterior {
     resolutions: grammar::SampleInfo<usize>,
 }
 
@@ -130,34 +132,32 @@ impl GenericPosterior {
         let mut subdensity = |base_events: &mut VecMap<likelihood::Event>| {
             if vaf_tree_node.is_leaf() {
                 joint_prob(&base_events.values().cloned().collect(), data)
+            } else if vaf_tree_node.is_branching() {
+                LogProb::ln_sum_exp(
+                    &vaf_tree_node
+                        .children()
+                        .iter()
+                        .map(|child| {
+                            self.density(
+                                child,
+                                &mut base_events.clone(),
+                                sample_grid_points,
+                                data,
+                                strand_bias,
+                                joint_prob,
+                            )
+                        })
+                        .collect_vec(),
+                )
             } else {
-                if vaf_tree_node.is_branching() {
-                    LogProb::ln_sum_exp(
-                        &vaf_tree_node
-                            .children()
-                            .iter()
-                            .map(|child| {
-                                self.density(
-                                    child,
-                                    &mut base_events.clone(),
-                                    sample_grid_points,
-                                    data,
-                                    strand_bias,
-                                    joint_prob,
-                                )
-                            })
-                            .collect_vec(),
-                    )
-                } else {
-                    self.density(
-                        &vaf_tree_node.children()[0],
-                        base_events,
-                        sample_grid_points,
-                        data,
-                        strand_bias,
-                        joint_prob,
-                    )
-                }
+                self.density(
+                    &vaf_tree_node.children()[0],
+                    base_events,
+                    sample_grid_points,
+                    data,
+                    strand_bias,
+                    joint_prob,
+                )
             }
         };
 
@@ -167,8 +167,8 @@ impl GenericPosterior {
                     base_events.insert(
                         *sample,
                         likelihood::Event {
-                            allele_freq: allele_freq,
-                            strand_bias: strand_bias,
+                            allele_freq,
+                            strand_bias,
                         },
                     );
                 };
@@ -176,9 +176,8 @@ impl GenericPosterior {
                 match vafs {
                     grammar::VAFSpectrum::Set(vafs) => {
                         if vafs.len() == 1 {
-                            push_base_event(vafs.iter().next().unwrap().clone(), base_events);
-                            let p = subdensity(base_events);
-                            p
+                            push_base_event(*vafs.iter().next().unwrap(), base_events);
+                            subdensity(base_events)
                         } else {
                             LogProb::ln_sum_exp(
                                 &vafs
@@ -194,18 +193,16 @@ impl GenericPosterior {
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
                         let n_obs = data.pileups[*sample].len();
-                        let p = LogProb::ln_simpsons_integrate_exp(
+                        LogProb::ln_simpsons_integrate_exp(
                             |_, vaf| {
                                 let mut base_events = base_events.clone();
                                 push_base_event(AlleleFreq(vaf), &mut base_events);
-                                let p = subdensity(&mut base_events);
-                                p
+                                subdensity(&mut base_events)
                             },
                             *vafs.observable_min(n_obs),
                             *vafs.observable_max(n_obs),
                             sample_grid_points[*sample],
-                        );
-                        p
+                        )
                     }
                 }
             }
@@ -275,12 +272,12 @@ enum SampleModel {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct GenericLikelihood {
+pub(crate) struct GenericLikelihood {
     inner: grammar::SampleInfo<SampleModel>,
 }
 
 impl GenericLikelihood {
-    pub fn new(contaminations: grammar::SampleInfo<Option<Contamination>>) -> Self {
+    pub(crate) fn new(contaminations: grammar::SampleInfo<Option<Contamination>>) -> Self {
         let inner = contaminations.map(|contamination| {
             if let Some(contamination) = contamination {
                 SampleModel::Contaminated {
@@ -311,8 +308,8 @@ impl Likelihood<Cache> for GenericLikelihood {
             .zip(data.pileups.iter())
             .zip(self.inner.iter())
         {
-            p += match inner {
-                &SampleModel::Contaminated {
+            p += match *inner {
+                SampleModel::Contaminated {
                     ref likelihood_model,
                     by,
                 } => {
@@ -331,7 +328,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                         unreachable!();
                     }
                 }
-                &SampleModel::Normal(ref likelihood_model) => {
+                SampleModel::Normal(ref likelihood_model) => {
                     if let CacheEntry::SingleSample(ref mut cache) = cache
                         .entry(sample)
                         .or_insert_with(|| CacheEntry::new(false))
@@ -349,12 +346,12 @@ impl Likelihood<Cache> for GenericLikelihood {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct FlatPrior {
+pub(crate) struct FlatPrior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
 }
 
 impl FlatPrior {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         FlatPrior { universe: None }
     }
 }

@@ -16,7 +16,7 @@ use crate::Event;
 
 /// Filter calls by posterior odds against the given events.
 /// If odds against the events is at least the given `KassRaftery` score, remove allele.
-pub fn filter_by_odds<E, R, W>(
+pub(crate) fn filter_by_odds<E, R, W>(
     inbcf: Option<R>,
     outbcf: Option<W>,
     events: &[E],

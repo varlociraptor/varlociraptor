@@ -3,6 +3,8 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+#![warn(clippy::all)]
+
 #[macro_use]
 extern crate log;
 #[macro_use]
@@ -26,23 +28,20 @@ extern crate strum_macros;
 extern crate derive_builder;
 #[macro_use]
 extern crate shrinkwraprs;
+#[macro_use]
+extern crate derefable;
 
-pub mod calling;
+pub(crate) mod calling;
 pub mod cli;
-pub mod constants;
-pub mod conversion;
-pub mod errors;
+pub(crate) mod conversion;
+pub(crate) mod errors;
 pub mod estimation;
 pub mod filtration;
-pub mod grammar;
-pub mod model;
+pub(crate) mod grammar;
+pub(crate) mod reference;
 pub mod testcase;
-pub mod utils;
-
-pub use crate::estimation::alignment_properties::{AlignmentProperties, InsertSize};
-pub use crate::model::likelihood;
-pub use crate::model::modes;
-pub use crate::model::sample::Sample;
+pub(crate) mod utils;
+pub mod variants;
 
 /// Event to call.
 pub trait Event {
@@ -64,9 +63,9 @@ pub trait Event {
 }
 
 /// Complement of other given events (i.e. 1 - Pr(other events)).
-pub struct ComplementEvent {
+pub(crate) struct ComplementEvent {
     /// event name
-    pub name: String,
+    pub(crate) name: String,
 }
 
 impl Event for ComplementEvent {

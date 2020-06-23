@@ -3,14 +3,14 @@ use std::f64;
 use bio::stats::{LogProb, Prob};
 
 /// The classical population genetic model used for variant calling in e.g. GATK and Samtools.
-pub struct InfiniteSitesNeutralVariationModel {
+pub(crate) struct InfiniteSitesNeutralVariationModel {
     heterozygosity: LogProb,
     zero_prob: LogProb,
     max_m: u32,
 }
 
 impl InfiniteSitesNeutralVariationModel {
-    pub fn new(n_samples: u32, ploidy: u32, heterozygosity: Prob) -> Self {
+    pub(crate) fn new(n_samples: u32, ploidy: u32, heterozygosity: Prob) -> Self {
         let heterozygosity = LogProb::from(heterozygosity);
 
         let zero_prob = {
@@ -26,7 +26,7 @@ impl InfiniteSitesNeutralVariationModel {
     }
 
     /// Prior probability for m alternative alleles.
-    pub fn prior_prob(&self, m: u32) -> LogProb {
+    pub(crate) fn prior_prob(&self, m: u32) -> LogProb {
         if m == 0 {
             self.zero_prob
         } else {

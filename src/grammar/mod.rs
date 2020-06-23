@@ -4,41 +4,31 @@ use std::convert::TryFrom;
 use std::ops::{Deref, DerefMut};
 
 use anyhow::Result;
-use serde_yaml;
 use vec_map::VecMap;
 
-pub mod formula;
-pub mod vaftree;
+pub(crate) mod formula;
+pub(crate) mod vaftree;
 
 use crate::errors;
-pub use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
-pub use crate::grammar::vaftree::VAFTree;
+pub(crate) use crate::grammar::formula::{Formula, VAFSpectrum, VAFUniverse};
+pub(crate) use crate::grammar::vaftree::VAFTree;
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
 #[derive(Clone, Debug)]
-pub struct SampleInfo<T> {
+pub(crate) struct SampleInfo<T> {
     inner: Vec<T>,
 }
 
 impl<T> SampleInfo<T> {
     /// Map to other value type.
-    pub fn map<U, F: Fn(&T) -> U>(&self, f: F) -> SampleInfo<U> {
+    pub(crate) fn map<U, F: Fn(&T) -> U>(&self, f: F) -> SampleInfo<U> {
         SampleInfo {
             inner: self.inner.iter().map(f).collect(),
         }
     }
 
-    /// Map to other value type or fail at first error.
-    pub fn try_map<U, E, F: Fn(&T) -> Result<U, E>>(&self, f: F) -> Result<SampleInfo<U>, E> {
-        let mut inner = Vec::with_capacity(self.inner.len());
-        for res in self.inner.iter().map(f) {
-            inner.push(res?);
-        }
-        Ok(SampleInfo { inner: inner })
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.inner.iter_mut()
     }
 }
@@ -67,14 +57,14 @@ impl<T> DerefMut for SampleInfo<T> {
 
 /// Builder for `SampleInfo`.
 #[derive(new, Debug)]
-pub struct SampleInfoBuilder<T> {
+pub(crate) struct SampleInfoBuilder<T> {
     #[new(default)]
     inner: VecMap<T>,
     sample_idx: HashMap<String, usize>,
 }
 
 impl<T> SampleInfoBuilder<T> {
-    pub fn push(mut self, sample_name: &str, value: T) -> Self {
+    pub(crate) fn push(mut self, sample_name: &str, value: T) -> Self {
         let idx = *self
             .sample_idx
             .get(sample_name)
@@ -84,7 +74,7 @@ impl<T> SampleInfoBuilder<T> {
         self
     }
 
-    pub fn build(self) -> SampleInfo<T> {
+    pub(crate) fn build(self) -> SampleInfo<T> {
         SampleInfo {
             inner: self.inner.into_iter().map(|(_, v)| v).collect(),
         }
@@ -93,7 +83,7 @@ impl<T> SampleInfoBuilder<T> {
 
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
-pub struct Scenario {
+pub(crate) struct Scenario {
     // map of events
     events: BTreeMap<String, Formula>,
     // map of samples
@@ -103,7 +93,7 @@ pub struct Scenario {
 }
 
 impl Scenario {
-    pub fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
+    pub(crate) fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
         if self.sample_idx.borrow().is_none() {
             self.sample_idx.borrow_mut().get_or_insert(
                 self.samples()
@@ -116,7 +106,7 @@ impl Scenario {
         SampleInfoBuilder::new(self.sample_idx.borrow().as_ref().unwrap().clone())
     }
 
-    pub fn idx(&self, sample: &str) -> Option<usize> {
+    pub(crate) fn idx(&self, sample: &str) -> Option<usize> {
         if self.sample_idx.borrow().is_none() {
             self.sample_idx.borrow_mut().get_or_insert(
                 self.samples()
@@ -131,10 +121,10 @@ impl Scenario {
             .as_ref()
             .unwrap()
             .get(sample)
-            .map(|idx| *idx)
+            .copied()
     }
 
-    pub fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {
+    pub(crate) fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {
         self.events()
             .iter()
             .map(|(name, formula)| {
@@ -156,9 +146,7 @@ impl<'a> TryFrom<&'a str> for Scenario {
 
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
-pub struct Sample {
-    /// optional group name
-    group: Option<String>,
+pub(crate) struct Sample {
     /// optional contamination
     contamination: Option<Contamination>,
     /// grid point resolution for integration over continuous allele frequency ranges
@@ -168,7 +156,7 @@ pub struct Sample {
 }
 
 impl Sample {
-    pub fn contig_universe(&self, contig: &str) -> Result<&VAFUniverse> {
+    pub(crate) fn contig_universe(&self, contig: &str) -> Result<&VAFUniverse> {
         Ok(match self.universe {
             UniverseDefinition::Simple(ref universe) => universe,
             UniverseDefinition::Map(ref map) => match map.get(contig) {
@@ -185,7 +173,7 @@ impl Sample {
 
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
-pub struct Contamination {
+pub(crate) struct Contamination {
     /// name of contaminating sample
     by: String,
     /// fraction of contamination
@@ -194,7 +182,7 @@ pub struct Contamination {
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-pub enum UniverseDefinition {
+pub(crate) enum UniverseDefinition {
     Map(BTreeMap<String, VAFUniverse>),
     Simple(VAFUniverse),
 }

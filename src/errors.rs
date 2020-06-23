@@ -1,10 +1,8 @@
 use std::path::PathBuf;
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
 #[derive(Snafu, Debug, PartialEq)]
-#[snafu(visibility = "pub")]
-pub enum Error {
+#[snafu(visibility = "pub(crate)")]
+pub(crate) enum Error {
     #[snafu(display("formula refers to unknown sample {}", name))]
     InvalidSampleName { name: String },
     #[snafu(display("event {} does not define VAF range for all samples", event_name))]

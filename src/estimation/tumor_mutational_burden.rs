@@ -10,7 +10,7 @@ use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
 
 use crate::errors;
-use crate::model::AlleleFreq;
+use crate::variants::model::AlleleFreq;
 use crate::{Event, SimpleEvent};
 
 /// Consider only variants in coding regions.
@@ -81,7 +81,7 @@ pub enum PlotMode {
 }
 
 /// Estimate tumor mutational burden based on Varlociraptor calls from STDIN and print result to STDOUT.
-pub fn estimate(
+pub(crate) fn estimate(
     somatic_tumor_events: &[String],
     tumor_name: &str,
     coding_genome_size: u64,
@@ -93,7 +93,7 @@ pub fn estimate(
     let tumor_id = bcf
         .header()
         .sample_id(tumor_name.as_bytes())
-        .expect(&format!("Sample {} not found", tumor_name));
+        .unwrap_or_else(|| panic!("Sample {} not found", tumor_name)); // TODO throw a proper error
 
     let mut tmb = BTreeMap::new();
     'records: loop {
@@ -140,16 +140,16 @@ pub fn estimate(
         // push into TMB function
         for i in 0..alt_allele_count {
             let vaf = AlleleFreq(vafs[i] as f64);
-            let entry = tmb.entry(vaf).or_insert_with(|| Vec::new());
+            let entry = tmb.entry(vaf).or_insert_with(Vec::new);
             entry.push(Record {
                 prob: allele_probs[i],
-                vartype: vartypes[i].clone(),
+                vartype: vartypes[i],
             });
         }
     }
 
     if tmb.is_empty() {
-        return Err(errors::Error::NoRecordsFound)?;
+        return Err(errors::Error::NoRecordsFound.into());
     }
 
     let calc_tmb = |probs: &[LogProb]| -> f64 {
@@ -175,7 +175,7 @@ pub fn estimate(
             }
         };
 
-    let min_vafs = linspace(0.0, 1.0, 100).map(|vaf| AlleleFreq(vaf));
+    let min_vafs = linspace(0.0, 1.0, 100).map(AlleleFreq);
 
     match mode {
         PlotMode::Hist => {
@@ -202,7 +202,7 @@ pub fn estimate(
                     plot_data.push(TMBBin {
                         vaf: center_vaf,
                         tmb,
-                        vartype: vartype,
+                        vartype,
                     });
                 }
             }
@@ -241,7 +241,7 @@ pub fn estimate(
                     plot_data.push(TMBStrat {
                         min_vaf: *min_vaf,
                         tmb,
-                        vartype: vartype,
+                        vartype,
                     });
                 }
             }
@@ -273,7 +273,7 @@ pub fn estimate(
     Hash,
     Eq,
 )]
-pub enum Vartype {
+pub(crate) enum Vartype {
     DEL,
     INS,
     INV,
@@ -319,7 +319,7 @@ pub enum Vartype {
     TG,
 }
 
-pub fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
+pub(crate) fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
     let ref_allele = record.alleles()[0];
     record.alleles()[1..]
         .iter()

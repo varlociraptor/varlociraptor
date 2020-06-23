@@ -3,15 +3,12 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cmp;
 use std::fmt::Display;
-use std::fs;
 use std::hash::Hash;
 use std::ops::Range;
 use std::str;
 
 use anyhow::Result;
-use bio::io::fasta;
 use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb};
 use counter::Counter;
 use half::f16;
@@ -20,25 +17,27 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf, bcf::record::Numeric};
-use strum::IntoEnumIterator;
 
 use crate::errors;
-use crate::model;
 use crate::utils;
+use crate::variants::model;
 use crate::Event;
 
-pub const NUMERICAL_EPSILON: f64 = 1e-3;
+pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
-pub fn enum_variants<E: IntoEnumIterator + Display>() -> Vec<String> {
-    E::iter().map(|v| format!("{}", v)).collect_vec()
+pub(crate) fn is_reverse_strand(record: &bam::Record) -> bool {
+    record.flags() & 0x10 != 0
 }
 
-/// Select values with given indices from a slice and return them as an iterator.
-pub fn select<'a, T: Clone>(idx: &'a [usize], values: &'a [T]) -> impl Iterator<Item = T> + 'a {
-    idx.iter().map(move |i| values[*i].clone())
+#[derive(new, Getters, CopyGetters, Debug)]
+pub(crate) struct GenomicLocus {
+    #[getset(get = "pub")]
+    chrom: Vec<u8>,
+    #[getset(get_copy = "pub")]
+    pos: u32,
 }
 
-pub fn generalized_cigar<T: Hash + Eq + Clone + Display>(
+pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
     items: impl Iterator<Item = T>,
     keep_order: bool,
 ) -> String {
@@ -68,7 +67,7 @@ pub fn generalized_cigar<T: Hash + Eq + Clone + Display>(
     }
 }
 
-pub fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
+pub(crate) fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
     match evidence {
         KassRaftery::Barely => 'B',
         KassRaftery::None => 'N',
@@ -79,20 +78,20 @@ pub fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
 }
 
 /// Collect variants from a given ´bcf::Record`.
-pub fn collect_variants(
+pub(crate) fn collect_variants(
     record: &mut bcf::Record,
     omit_snvs: bool,
     omit_indels: bool,
-    indel_len_range: Option<Range<u32>>,
-) -> Result<Vec<Option<model::Variant>>> {
-    let pos = record.pos();
+    indel_len_range: Option<Range<u64>>,
+) -> Result<Vec<model::Variant>> {
+    let pos = record.pos() as u64;
     let svlens = match record.info(b"SVLEN").integer() {
         Ok(Some(svlens)) => Some(
             svlens
-                .into_iter()
+                .iter()
                 .map(|l| {
                     if !l.is_missing() {
-                        Some(l.abs() as u32)
+                        Some(l.abs() as u64)
                     } else {
                         None
                     }
@@ -103,7 +102,7 @@ pub fn collect_variants(
     };
     let end = match record.info(b"END").integer() {
         Ok(Some(end)) => {
-            let end = end[0] as u32 - 1;
+            let end = end[0] as u64 - 1;
             Some(end)
         }
         _ => None,
@@ -137,169 +136,116 @@ pub fn collect_variants(
                 && &ref_allele[..alt_allele.len()] == alt_allele)
     };
 
-    let variants = if let Some(svtype) = svtype {
-        vec![if omit_indels {
-            None
-        } else if svtype == b"INS" {
-            // get sequence
-            let alleles = record.alleles();
-            if alleles.len() > 2 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
-                })?;
-            }
-            let ref_allele = alleles[0];
-            let alt_allele = alleles[1];
+    let mut variants = Vec::new();
 
-            if alt_allele == b"<INS>" {
-                // don't support insertions without exact sequence
-                None
-            } else {
-                let len = alt_allele.len() - ref_allele.len();
+    if let Some(svtype) = svtype {
+        if !omit_indels {
+            if svtype == b"INS" {
+                // get sequence
+                let alleles = record.alleles();
+                if alleles.len() > 2 {
+                    return Err(errors::Error::InvalidBCFRecord {
+                        msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
+                    }
+                    .into());
+                }
+                let ref_allele = alleles[0];
+                let alt_allele = alleles[1];
 
-                if is_valid_insertion_alleles(ref_allele, alt_allele) && is_valid_len(len as u32) {
-                    Some(model::Variant::Insertion(
-                        alt_allele[ref_allele.len()..].to_owned(),
-                    ))
-                } else {
-                    None
+                if alt_allele != b"<INS>" {
+                    // don't support insertions without exact sequence
+                    let len = alt_allele.len() - ref_allele.len();
+
+                    if is_valid_insertion_alleles(ref_allele, alt_allele)
+                        && is_valid_len(len as u64)
+                    {
+                        variants.push(model::Variant::Insertion(
+                            alt_allele[ref_allele.len()..].to_owned(),
+                        ));
+                    }
+                }
+            } else if svtype == b"DEL" {
+                let svlen = match (svlens, end) {
+                    (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
+                    (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
+                    _ => {
+                        return Err(errors::Error::MissingBCFTag {
+                            name: "SVLEN or END".to_owned(),
+                        }
+                        .into());
+                    }
+                };
+                if svlen == 0 {
+                    return Err(errors::Error::InvalidBCFRecord {
+                        msg: "Absolute value of SVLEN or END - POS must be greater than zero."
+                            .to_owned(),
+                    }
+                    .into());
+                }
+                let alleles = record.alleles();
+                if alleles.len() > 2 {
+                    return Err(errors::Error::InvalidBCFRecord {
+                        msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
+                    }
+                    .into());
+                }
+                let ref_allele = alleles[0];
+                let alt_allele = alleles[1];
+
+                if (alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele))
+                    && is_valid_len(svlen)
+                {
+                    variants.push(model::Variant::Deletion(svlen));
                 }
             }
-        } else if svtype == b"DEL" {
-            let svlen = match (svlens, end) {
-                (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
-                (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
-                _ => {
-                    return Err(errors::Error::MissingBCFTag {
-                        name: "SVLEN or END".to_owned(),
-                    })?;
-                }
-            };
-            if svlen == 0 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "Absolute value of SVLEN or END - POS must be greater than zero."
-                        .to_owned(),
-                })?;
-            }
-            let alleles = record.alleles();
-            if alleles.len() > 2 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
-                })?;
-            }
-            let ref_allele = alleles[0];
-            let alt_allele = alleles[1];
-
-            if alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele) {
-                if is_valid_len(svlen) {
-                    Some(model::Variant::Deletion(svlen))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        }]
+        }
     } else {
         let alleles = record.alleles();
         let ref_allele = alleles[0];
 
-        alleles
-            .iter()
-            .skip(1)
-            .enumerate()
-            .map(|(i, alt_allele)| {
-                if alt_allele == b"<*>" {
-                    // dummy non-ref allele, signifying potential homozygous reference site
-                    if omit_snvs {
-                        None
-                    } else {
-                        Some(model::Variant::None)
-                    }
-                } else if alt_allele == b"<DEL>" {
-                    if let Some(ref svlens) = svlens {
-                        if let Some(svlen) = svlens[i] {
-                            Some(model::Variant::Deletion(svlen))
-                        } else {
-                            // TODO fail with an error in this case
-                            None
-                        }
-                    } else {
-                        // TODO fail with an error in this case
-                        None
-                    }
-                } else if alt_allele[0] == b'<' {
-                    // skip any other special alleles
-                    None
-                } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
-                    // SNV
-                    if omit_snvs {
-                        None
-                    } else {
-                        Some(model::Variant::SNV(alt_allele[0]))
-                    }
-                } else if alt_allele.len() == ref_allele.len() {
-                    // MNV
-                    Some(model::Variant::MNV(alt_allele.to_vec()))
-                } else {
-                    let indel_len =
-                        (alt_allele.len() as i32 - ref_allele.len() as i32).abs() as u32;
-                    // TODO fix position if variant is like this: cttt -> ct
-
-                    if omit_indels || !is_valid_len(indel_len) {
-                        None
-                    } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
-                        Some(model::Variant::Deletion(
-                            (ref_allele.len() - alt_allele.len()) as u32,
-                        ))
-                    } else if is_valid_insertion_alleles(ref_allele, alt_allele) {
-                        Some(model::Variant::Insertion(
-                            alt_allele[ref_allele.len()..].to_owned(),
-                        ))
-                    } else {
-                        None
-                    }
+        for (i, alt_allele) in alleles.iter().skip(1).enumerate() {
+            if alt_allele == b"<*>" {
+                // dummy non-ref allele, signifying potential homozygous reference site
+                if !omit_snvs {
+                    variants.push(model::Variant::None)
                 }
-            })
-            .collect_vec()
-    };
+            } else if alt_allele == b"<DEL>" {
+                if let Some(ref svlens) = svlens {
+                    if let Some(svlen) = svlens[i] {
+                        variants.push(model::Variant::Deletion(svlen));
+                    }
+                    // TODO fail with an error in else case
+                }
+            } else if alt_allele[0] == b'<' {
+                // skip any other special alleles
+            } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
+                // SNV
+                if !omit_snvs {
+                    variants.push(model::Variant::SNV(alt_allele[0]));
+                }
+            } else if alt_allele.len() == ref_allele.len() {
+                // MNV
+                variants.push(model::Variant::MNV(alt_allele.to_vec()));
+            } else {
+                let indel_len = (alt_allele.len() as i64 - ref_allele.len() as i64).abs() as u64;
+                // TODO fix position if variant is like this: cttt -> ct
 
-    Ok(variants)
-}
-
-/// A lazy buffer for reference sequences.
-pub struct ReferenceBuffer {
-    pub(crate) reader: fasta::IndexedReader<fs::File>,
-    chrom: Option<Vec<u8>>,
-    sequence: Vec<u8>,
-}
-
-impl ReferenceBuffer {
-    pub fn new(fasta: fasta::IndexedReader<fs::File>) -> Self {
-        ReferenceBuffer {
-            reader: fasta,
-            chrom: None,
-            sequence: Vec::new(),
-        }
-    }
-
-    /// Load given chromosome and return it as a slice. This is O(1) if chromosome was loaded before.
-    pub fn seq(&mut self, chrom: &[u8]) -> Result<&[u8]> {
-        if let Some(ref last_chrom) = self.chrom {
-            if last_chrom == &chrom {
-                return Ok(&self.sequence);
+                if omit_indels || !is_valid_len(indel_len) {
+                    // skip
+                } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
+                    variants.push(model::Variant::Deletion(
+                        (ref_allele.len() - alt_allele.len()) as u64,
+                    ));
+                } else if is_valid_insertion_alleles(ref_allele, alt_allele) {
+                    variants.push(model::Variant::Insertion(
+                        alt_allele[ref_allele.len()..].to_owned(),
+                    ));
+                }
             }
         }
-        self.reader.fetch_all(str::from_utf8(chrom)?)?;
-        self.reader.read(&mut self.sequence)?;
-
-        //try!(self.reader.read_all(try!(str::from_utf8(chrom)), &mut self.sequence));
-        self.chrom = Some(chrom.to_owned());
-
-        Ok(&self.sequence)
     }
+
+    Ok(variants)
 }
 
 /// Sum up in log space the probabilities of the given tags for all variants of
@@ -310,7 +256,7 @@ impl ReferenceBuffer {
 /// * `record` - BCF record
 /// * `tags` - tags of the set of events to sum up for a particular site and variant
 /// * `vartype` - the variant type to consider
-pub fn tags_prob_sum(
+pub(crate) fn tags_prob_sum(
     record: &mut bcf::Record,
     tags: &[String],
     vartype: Option<&model::VariantType>,
@@ -321,17 +267,11 @@ pub fn tags_prob_sum(
     for tag in tags {
         if let Some(tags_probs_in) = (record.info(tag.as_bytes()).float())? {
             //tag present
-            for (i, (variant, tag_prob)) in
-                variants.iter().zip(tags_probs_in.into_iter()).enumerate()
-            {
-                if let Some(ref variant) = *variant {
-                    if (vartype.is_some() && !variant.is_type(vartype.unwrap()))
-                        || tag_prob.is_nan()
-                    {
-                        continue;
-                    }
-                    tags_probs_out[i].push(LogProb::from(PHREDProb(*tag_prob as f64)));
+            for (i, (variant, tag_prob)) in variants.iter().zip(tags_probs_in.iter()).enumerate() {
+                if (vartype.is_some() && !variant.is_type(vartype.unwrap())) || tag_prob.is_nan() {
+                    continue;
                 }
+                tags_probs_out[i].push(LogProb::from(PHREDProb(*tag_prob as f64)));
             }
         }
     }
@@ -348,7 +288,7 @@ pub fn tags_prob_sum(
         .collect_vec())
 }
 
-pub fn events_to_tags<E>(events: &[E]) -> Vec<String>
+pub(crate) fn events_to_tags<E>(events: &[E]) -> Vec<String>
 where
     E: Event,
 {
@@ -363,7 +303,7 @@ where
 /// * `calls` - BCF reader with varlociraptor calls
 /// * `events` - the set of events to sum up for a particular site
 /// * `vartype` - the variant type to consider
-pub fn collect_prob_dist<E>(
+pub(crate) fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: &model::VariantType,
@@ -401,7 +341,7 @@ where
 /// * `calls` - BCF writer for the filtered varlociraptor calls
 /// * `events` - the set of Events to filter on
 /// * `vartype` - the variant type to consider
-pub fn filter_by_threshold<E: Event>(
+pub(crate) fn filter_by_threshold<E: Event>(
     calls: &mut bcf::Reader,
     threshold: Option<LogProb>,
     out: &mut bcf::Writer,
@@ -430,7 +370,7 @@ pub fn filter_by_threshold<E: Event>(
 /// * `out` - output BCF
 /// * `filter` - function to filter by. Has to return a bool for every alternative allele.
 ///   True means to keep the allele.
-pub fn filter_calls<F, I, II>(
+pub(crate) fn filter_calls<F, I, II>(
     calls: &mut bcf::Reader,
     out: &mut bcf::Writer,
     filter: F,
@@ -463,151 +403,16 @@ where
     }
 }
 
-/// Return the greater of two given probabilities.
-pub fn max_prob(prob_a: LogProb, prob_b: LogProb) -> LogProb {
-    LogProb(*cmp::max(NotNan::from(prob_a), NotNan::from(prob_b)))
-}
-
-/// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
-#[derive(Debug)]
-pub enum Overlap {
-    Enclosing(u32),
-    Left(u32),
-    Right(u32),
-    Some(u32),
-    None,
-}
-
-impl Overlap {
-    pub fn new(
-        record: &bam::Record,
-        cigar: &bam::record::CigarStringView,
-        start: u32,
-        variant: &model::Variant,
-        consider_clips: bool,
-    ) -> Result<Overlap> {
-        let mut pos = record.pos() as u32;
-        let mut end_pos = cigar.end_pos() as u32;
-
-        if consider_clips {
-            // consider soft clips for overlap detection
-            pos = pos.saturating_sub(model::evidence::Clips::leading(&cigar).soft());
-            end_pos = end_pos + model::evidence::Clips::trailing(&cigar).soft();
-        }
-
-        let overlap = match variant {
-            &model::Variant::SNV(_) | &model::Variant::None => {
-                if pos <= start && end_pos > start {
-                    Overlap::Enclosing(1)
-                } else {
-                    Overlap::None
-                }
-            }
-            &model::Variant::MNV(_) => {
-                if pos <= start && end_pos > variant.end(start) {
-                    Overlap::Enclosing(variant.len())
-                } else {
-                    Overlap::None
-                }
-            }
-            &model::Variant::Deletion(l) => {
-                let end = start + l;
-                let enclosing = pos < start && end_pos > end;
-                if enclosing {
-                    Overlap::Enclosing(l)
-                } else {
-                    if end_pos <= end && end_pos > start {
-                        Overlap::Right(end_pos - start)
-                    } else if pos >= start && pos < end {
-                        Overlap::Left(end - pos)
-                    } else {
-                        Overlap::None
-                    }
-                }
-            }
-            &model::Variant::Insertion(ref seq) => {
-                let l = seq.len() as u32;
-
-                let center_pos = (end_pos - pos) / 2 + pos;
-                if pos < start && end_pos > start {
-                    // TODO this does currently not reliably detect the side of the overlap.
-                    // There can be cases where start is left of the center but clips are at the
-                    // right side of the read. Also due to repeat structure, it is not possible to
-                    // use relation of pos/end_pos with and without clips.
-                    // Hence, we simply use this as a way to sample in a fair way.
-                    // Since we might pick up fragments that overlap the insertion at the right
-                    // side (with softclips), we disable insert size based probability computation
-                    // for insertions. Instead, we rely exclusively on HMMs for insertions.
-                    // The advantage is that this allows to consider far more fragments, in
-                    // particular for the larger the insertions
-                    // (e.g. exceeding insert size distribution).
-                    if start > center_pos {
-                        // right of alignment center
-                        let overlap = end_pos - start;
-                        if overlap > l {
-                            // we overlap more than insertion len, hence we enclose it
-                            Overlap::Enclosing(l)
-                        } else {
-                            // less overlap, hence it can be only partial
-                            Overlap::Some(overlap)
-                        }
-                    } else {
-                        // left of alignment center
-                        let overlap = start - pos;
-                        if overlap > l {
-                            // we overlap more than insertion len, hence we enclose it
-                            Overlap::Enclosing(l)
-                        } else {
-                            // less overlap, hence it can be only partial
-                            Overlap::Some(overlap)
-                        }
-                    }
-                } else {
-                    Overlap::None
-                }
-            }
-        };
-
-        Ok(overlap)
-    }
-
-    pub fn is_enclosing(&self) -> bool {
-        if let &Overlap::Enclosing(_) = self {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn is_none(&self) -> bool {
-        if let &Overlap::None = self {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn len(&self) -> u32 {
-        match self {
-            &Overlap::Enclosing(l) => l,
-            &Overlap::Left(l) => l,
-            &Overlap::Right(l) => l,
-            &Overlap::Some(l) => l,
-            &Overlap::None => 0,
-        }
-    }
-}
-
 /// Returns true if all PROB_{event}s are PHRED scaled
-pub fn is_phred_scaled(inbcf: &bcf::Reader) -> bool {
+pub(crate) fn is_phred_scaled(inbcf: &bcf::Reader) -> bool {
     get_event_tags(inbcf)
         .iter()
         // check for missing closing parenthesis for backward compatibility
-        .all(|(_, d)| d.ends_with("(PHRED)") || !d.ends_with(")"))
+        .all(|(_, d)| d.ends_with("(PHRED)") || !d.ends_with(')'))
 }
 
 /// Returns (ID, Description) for each PROB_{event} INFO tag
-pub fn get_event_tags(inbcf: &bcf::Reader) -> Vec<(String, String)> {
+pub(crate) fn get_event_tags(inbcf: &bcf::Reader) -> Vec<(String, String)> {
     inbcf
         .header()
         .header_records()
@@ -626,20 +431,8 @@ pub fn get_event_tags(inbcf: &bcf::Reader) -> Vec<(String, String)> {
         .collect_vec()
 }
 
-/// Returns true if given variant is located in a repeat region.
-pub fn is_repeat_variant(start: u32, variant: &model::Variant, chrom_seq: &[u8]) -> bool {
-    let end = variant.end(start) as usize;
-    for nuc in &chrom_seq[start as usize..end] {
-        if (*nuc as char).is_lowercase() {
-            return true;
-        }
-    }
-
-    false
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum MiniLogProb {
+pub(crate) enum MiniLogProb {
     F16(f16),
     F32(f32),
 }
@@ -648,7 +441,7 @@ impl MiniLogProb {
     /// Convert LogProb into a minimal representation for storage.
     /// If integer part is less than -1 and can be represented in f16,
     /// we use f16. Else, we use f32.
-    pub fn new(prob: LogProb) -> Self {
+    pub(crate) fn new(prob: LogProb) -> Self {
         let half = f16::from_f64(*prob);
         let proj = half.to_f64();
         if *prob < -10.0 && proj.floor() as i64 == prob.floor() as i64 {
@@ -658,7 +451,7 @@ impl MiniLogProb {
         }
     }
 
-    pub fn to_logprob(&self) -> LogProb {
+    pub(crate) fn to_logprob(&self) -> LogProb {
         LogProb(match self {
             MiniLogProb::F16(p) => p.to_f64(),
             MiniLogProb::F32(p) => *p as f64,
@@ -670,7 +463,7 @@ impl MiniLogProb {
 mod tests {
     use super::*;
 
-    use crate::model::VariantType;
+    use crate::variants::model::VariantType;
     use crate::ComplementEvent;
     use crate::SimpleEvent;
     use bio::stats::{LogProb, Prob};

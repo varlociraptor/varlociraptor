@@ -5,31 +5,31 @@ use itertools::Itertools;
 
 use crate::errors;
 use crate::grammar::{formula::NormalizedFormula, formula::IUPAC, Scenario, VAFSpectrum};
-use crate::model::AlleleFreq;
+use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct VAFTree {
-    inner: Vec<Box<Node>>,
+pub(crate) struct VAFTree {
+    inner: Vec<Node>,
 }
 
 impl VAFTree {
-    pub fn absent(n_samples: usize) -> Self {
+    pub(crate) fn absent(n_samples: usize) -> Self {
         assert!(n_samples > 0, "bug: n_samples must be > 0");
 
-        fn absent(sample: usize, n_samples: usize) -> Box<Node> {
+        fn absent(sample: usize, n_samples: usize) -> Node {
             let children = if sample == n_samples - 1 {
                 Vec::new()
             } else {
                 vec![absent(sample + 1, n_samples)]
             };
 
-            Box::new(Node {
+            Node {
                 kind: NodeKind::Sample {
                     sample,
                     vafs: VAFSpectrum::singleton(AlleleFreq(0.0)),
                 },
                 children,
-            })
+            }
         }
 
         VAFTree {
@@ -39,7 +39,7 @@ impl VAFTree {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum NodeKind {
+pub(crate) enum NodeKind {
     Variant {
         refbase: IUPAC,
         altbase: IUPAC,
@@ -53,14 +53,14 @@ pub enum NodeKind {
 
 #[derive(new, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Getters)]
 #[get = "pub"]
-pub struct Node {
+pub(crate) struct Node {
     kind: NodeKind,
     #[new(default)]
-    children: Vec<Box<Node>>,
+    children: Vec<Node>,
 }
 
 impl Node {
-    pub fn leafs<'a>(&'a mut self) -> Vec<&'a mut Node> {
+    pub(crate) fn leafs<'a>(&'a mut self) -> Vec<&'a mut Node> {
         fn collect_leafs<'a>(node: &'a mut Node, leafs: &mut Vec<&'a mut Node>) {
             if node.children.is_empty() {
                 leafs.push(node);
@@ -76,18 +76,22 @@ impl Node {
         leafs
     }
 
-    pub fn is_leaf(&self) -> bool {
+    pub(crate) fn is_leaf(&self) -> bool {
         self.children.is_empty()
     }
 
-    pub fn is_branching(&self) -> bool {
+    pub(crate) fn is_branching(&self) -> bool {
         self.children.len() > 1
     }
 }
 
 impl VAFTree {
-    pub fn new(formula: &NormalizedFormula, scenario: &Scenario, contig: &str) -> Result<Self> {
-        fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Box<Node>>> {
+    pub(crate) fn new(
+        formula: &NormalizedFormula,
+        scenario: &Scenario,
+        contig: &str,
+    ) -> Result<Self> {
+        fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Node>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
                     let sample = scenario.idx(sample.as_str()).ok_or_else(|| {
@@ -95,10 +99,10 @@ impl VAFTree {
                             name: sample.to_owned(),
                         }
                     })?;
-                    Ok(vec![Box::new(Node::new(NodeKind::Sample {
+                    Ok(vec![Node::new(NodeKind::Sample {
                         sample,
                         vafs: vafs.clone(),
-                    }))])
+                    })])
                 }
                 NormalizedFormula::Disjunction { operands } => {
                     let mut subtrees = Vec::new();
@@ -113,7 +117,7 @@ impl VAFTree {
                     // sort disjunctions to the end
                     let operands = operands
                         .iter()
-                        .sorted_by_key(|o| match o.as_ref() {
+                        .sorted_by_key(|o| match o {
                             NormalizedFormula::Disjunction { .. } => 1,
                             _ => 0,
                         })
@@ -133,11 +137,11 @@ impl VAFTree {
                     positive,
                     refbase,
                     altbase,
-                } => Ok(vec![Box::new(Node::new(NodeKind::Variant {
+                } => Ok(vec![Node::new(NodeKind::Variant {
                     positive,
                     refbase,
                     altbase,
-                }))]),
+                })]),
             }
         }
 
@@ -162,10 +166,10 @@ impl VAFTree {
                             .contig_universe(contig)?
                             .iter()
                             .map(|vafs| {
-                                Box::new(Node::new(NodeKind::Sample {
+                                Node::new(NodeKind::Sample {
                                     sample: idx,
                                     vafs: vafs.clone(),
-                                }))
+                                })
                             })
                             .collect();
                         add_missing_samples(node, seen, scenario, contig)?;
@@ -175,10 +179,10 @@ impl VAFTree {
             } else {
                 if node.is_branching() {
                     for child in &mut node.children[1..] {
-                        add_missing_samples(child.as_mut(), &mut seen.clone(), scenario, contig)?;
+                        add_missing_samples(child, &mut seen.clone(), scenario, contig)?;
                     }
                 }
-                add_missing_samples(node.children[0].as_mut(), seen, scenario, contig)?;
+                add_missing_samples(&mut node.children[0], seen, scenario, contig)?;
             }
 
             Ok(())
@@ -193,7 +197,7 @@ impl VAFTree {
         Ok(VAFTree { inner })
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Node> {
-        self.inner.iter().map(|node| node.as_ref())
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Node> {
+        self.inner.iter().map(|node| node)
     }
 }
