@@ -9,27 +9,27 @@ use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct VAFTree {
-    inner: Vec<Box<Node>>,
+    inner: Vec<Node>,
 }
 
 impl VAFTree {
     pub(crate) fn absent(n_samples: usize) -> Self {
         assert!(n_samples > 0, "bug: n_samples must be > 0");
 
-        fn absent(sample: usize, n_samples: usize) -> Box<Node> {
+        fn absent(sample: usize, n_samples: usize) -> Node {
             let children = if sample == n_samples - 1 {
                 Vec::new()
             } else {
                 vec![absent(sample + 1, n_samples)]
             };
 
-            Box::new(Node {
+            Node {
                 kind: NodeKind::Sample {
                     sample,
                     vafs: VAFSpectrum::singleton(AlleleFreq(0.0)),
                 },
                 children,
-            })
+            }
         }
 
         VAFTree {
@@ -56,7 +56,7 @@ pub(crate) enum NodeKind {
 pub(crate) struct Node {
     kind: NodeKind,
     #[new(default)]
-    children: Vec<Box<Node>>,
+    children: Vec<Node>,
 }
 
 impl Node {
@@ -91,7 +91,7 @@ impl VAFTree {
         scenario: &Scenario,
         contig: &str,
     ) -> Result<Self> {
-        fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Box<Node>>> {
+        fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Node>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
                     let sample = scenario.idx(sample.as_str()).ok_or_else(|| {
@@ -99,10 +99,10 @@ impl VAFTree {
                             name: sample.to_owned(),
                         }
                     })?;
-                    Ok(vec![Box::new(Node::new(NodeKind::Sample {
+                    Ok(vec![Node::new(NodeKind::Sample {
                         sample,
                         vafs: vafs.clone(),
-                    }))])
+                    })])
                 }
                 NormalizedFormula::Disjunction { operands } => {
                     let mut subtrees = Vec::new();
@@ -137,11 +137,11 @@ impl VAFTree {
                     positive,
                     refbase,
                     altbase,
-                } => Ok(vec![Box::new(Node::new(NodeKind::Variant {
+                } => Ok(vec![Node::new(NodeKind::Variant {
                     positive,
                     refbase,
                     altbase,
-                }))]),
+                })]),
             }
         }
 
@@ -166,10 +166,10 @@ impl VAFTree {
                             .contig_universe(contig)?
                             .iter()
                             .map(|vafs| {
-                                Box::new(Node::new(NodeKind::Sample {
+                                Node::new(NodeKind::Sample {
                                     sample: idx,
                                     vafs: vafs.clone(),
-                                }))
+                                })
                             })
                             .collect();
                         add_missing_samples(node, seen, scenario, contig)?;
@@ -179,10 +179,10 @@ impl VAFTree {
             } else {
                 if node.is_branching() {
                     for child in &mut node.children[1..] {
-                        add_missing_samples(child.as_mut(), &mut seen.clone(), scenario, contig)?;
+                        add_missing_samples(child, &mut seen.clone(), scenario, contig)?;
                     }
                 }
-                add_missing_samples(node.children[0].as_mut(), seen, scenario, contig)?;
+                add_missing_samples(&mut node.children[0], seen, scenario, contig)?;
             }
 
             Ok(())
@@ -197,7 +197,7 @@ impl VAFTree {
         Ok(VAFTree { inner })
     }
 
-    pub(crate) fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Node> {
-        self.inner.iter().map(|node| node.as_ref())
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Node> {
+        self.inner.iter().map(|node| node)
     }
 }

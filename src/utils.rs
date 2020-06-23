@@ -88,7 +88,7 @@ pub(crate) fn collect_variants(
     let svlens = match record.info(b"SVLEN").integer() {
         Ok(Some(svlens)) => Some(
             svlens
-                .into_iter()
+                .iter()
                 .map(|l| {
                     if !l.is_missing() {
                         Some(l.abs() as u64)
@@ -146,7 +146,8 @@ pub(crate) fn collect_variants(
                 if alleles.len() > 2 {
                     return Err(errors::Error::InvalidBCFRecord {
                         msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
-                    })?;
+                    }
+                    .into());
                 }
                 let ref_allele = alleles[0];
                 let alt_allele = alleles[1];
@@ -170,28 +171,31 @@ pub(crate) fn collect_variants(
                     _ => {
                         return Err(errors::Error::MissingBCFTag {
                             name: "SVLEN or END".to_owned(),
-                        })?;
+                        }
+                        .into());
                     }
                 };
                 if svlen == 0 {
                     return Err(errors::Error::InvalidBCFRecord {
                         msg: "Absolute value of SVLEN or END - POS must be greater than zero."
                             .to_owned(),
-                    })?;
+                    }
+                    .into());
                 }
                 let alleles = record.alleles();
                 if alleles.len() > 2 {
                     return Err(errors::Error::InvalidBCFRecord {
                         msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
-                    })?;
+                    }
+                    .into());
                 }
                 let ref_allele = alleles[0];
                 let alt_allele = alleles[1];
 
-                if alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele) {
-                    if is_valid_len(svlen) {
-                        variants.push(model::Variant::Deletion(svlen));
-                    }
+                if (alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele))
+                    && is_valid_len(svlen)
+                {
+                    variants.push(model::Variant::Deletion(svlen));
                 }
             }
         }
@@ -214,7 +218,6 @@ pub(crate) fn collect_variants(
                 }
             } else if alt_allele[0] == b'<' {
                 // skip any other special alleles
-                ()
             } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 // SNV
                 if !omit_snvs {
@@ -229,7 +232,6 @@ pub(crate) fn collect_variants(
 
                 if omit_indels || !is_valid_len(indel_len) {
                     // skip
-                    ()
                 } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
                     variants.push(model::Variant::Deletion(
                         (ref_allele.len() - alt_allele.len()) as u64,
@@ -265,9 +267,7 @@ pub(crate) fn tags_prob_sum(
     for tag in tags {
         if let Some(tags_probs_in) = (record.info(tag.as_bytes()).float())? {
             //tag present
-            for (i, (variant, tag_prob)) in
-                variants.iter().zip(tags_probs_in.into_iter()).enumerate()
-            {
+            for (i, (variant, tag_prob)) in variants.iter().zip(tags_probs_in.iter()).enumerate() {
                 if (vartype.is_some() && !variant.is_type(vartype.unwrap())) || tag_prob.is_nan() {
                     continue;
                 }
@@ -408,7 +408,7 @@ pub(crate) fn is_phred_scaled(inbcf: &bcf::Reader) -> bool {
     get_event_tags(inbcf)
         .iter()
         // check for missing closing parenthesis for backward compatibility
-        .all(|(_, d)| d.ends_with("(PHRED)") || !d.ends_with(")"))
+        .all(|(_, d)| d.ends_with("(PHRED)") || !d.ends_with(')'))
 }
 
 /// Returns (ID, Description) for each PROB_{event} INFO tag

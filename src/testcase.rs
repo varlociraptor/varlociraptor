@@ -13,7 +13,6 @@ use derive_builder::Builder;
 use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
-use serde_json;
 
 use crate::cli;
 use crate::errors;
@@ -105,7 +104,7 @@ impl TestcaseBuilder {
 
             Ok(self.chrom_name(Some(chrom_name)).pos(Some(pos)).idx(idx))
         } else {
-            Err(errors::Error::InvalidLocus)?
+            Err(errors::Error::InvalidLocus.into())
         }
     }
 
@@ -161,8 +160,8 @@ impl Testcase {
                 }
             }
         }
-        if found.len() == 0 {
-            Err(errors::Error::NoCandidateFound)?
+        if found.is_empty() {
+            Err(errors::Error::NoCandidateFound.into())
         } else {
             Ok(found)
         }
@@ -174,9 +173,8 @@ impl Testcase {
         let candidate_filename = Path::new("candidates.vcf");
 
         // get and write candidate
-        let mut i = 0;
         let mut candidate = None;
-        for mut record in self.variants()? {
+        for (i, mut record) in (self.variants()?).into_iter().enumerate() {
             let variants = utils::collect_variants(&mut record, false, false, None)?;
             for variant in variants {
                 if i == self.idx {
@@ -198,10 +196,9 @@ impl Testcase {
                     break;
                 }
             }
-            i += 1;
         }
         if candidate.is_none() {
-            return Err(errors::Error::InvalidIndex)?;
+            return Err(errors::Error::InvalidIndex.into());
         }
         let candidate = candidate.unwrap();
 
@@ -311,7 +308,7 @@ impl Testcase {
                 samples,
                 candidate: candidate_filename.to_str().unwrap().to_owned(),
                 ref_path: ref_filename.to_owned(),
-                scenario: scenario,
+                scenario,
                 mode: self.mode,
                 purity: self.purity,
             }

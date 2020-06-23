@@ -4,7 +4,6 @@ use std::convert::TryFrom;
 use std::ops::{Deref, DerefMut};
 
 use anyhow::Result;
-use serde_yaml;
 use vec_map::VecMap;
 
 pub(crate) mod formula;
@@ -122,7 +121,7 @@ impl Scenario {
             .as_ref()
             .unwrap()
             .get(sample)
-            .map(|idx| *idx)
+            .copied()
     }
 
     pub(crate) fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {

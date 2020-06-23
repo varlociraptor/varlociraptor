@@ -555,26 +555,18 @@ where
             }
         }
         Rule::conjunction => {
-            let mut inner = pair.into_inner();
+            let inner = pair.into_inner();
             let mut operands = Vec::new();
-            loop {
-                if let Some(operand) = inner.next() {
-                    operands.push(parse_formula(operand)?);
-                } else {
-                    break;
-                }
+            for operand in inner {
+                operands.push(parse_formula(operand)?);
             }
             Formula::Conjunction { operands }
         }
         Rule::disjunction => {
-            let mut inner = pair.into_inner();
+            let inner = pair.into_inner();
             let mut operands = Vec::new();
-            loop {
-                if let Some(operand) = inner.next() {
-                    operands.push(parse_formula(operand)?);
-                } else {
-                    break;
-                }
+            for operand in inner {
+                operands.push(parse_formula(operand)?);
             }
             Formula::Disjunction { operands }
         }
