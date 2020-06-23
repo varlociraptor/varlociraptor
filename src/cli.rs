@@ -668,7 +668,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                                 call_generic(scenario, sample_observations)?;
                             } else {
-                                return Err(errors::Error::InvalidObservationsSpec.into())
+                                return Err(errors::Error::InvalidObservationsSpec.into());
                             }
                         }
                         VariantCallMode::TumorNormal {
@@ -734,8 +734,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                             let mut observations = PathMap::default();
                             observations.insert("tumor".to_owned(), tumor_observations);
-                            observations
-                                .insert("normal".to_owned(), normal_observations);
+                            observations.insert("normal".to_owned(), normal_observations);
 
                             call_generic(scenario, observations)?;
                         }
@@ -778,9 +777,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             } => {
                 let events = events
                     .into_iter()
-                    .map(|event| SimpleEvent {
-                        name: event,
-                    })
+                    .map(|event| SimpleEvent { name: event })
                     .collect_vec();
                 let vartype = match (vartype, minlen, maxlen) {
                     (VariantType::Insertion(None), Some(minlen), Some(maxlen)) => {

@@ -149,7 +149,9 @@ where
             let mut valid = false;
             for record in obs_reader.header().header_records() {
                 if let bcf::HeaderRecord::Generic { key, value } = record {
-                    if key == "varlociraptor_observation_format_version" && value == OBSERVATION_FORMAT_VERSION {
+                    if key == "varlociraptor_observation_format_version"
+                        && value == OBSERVATION_FORMAT_VERSION
+                    {
                         valid = true;
                     }
                 }

@@ -390,5 +390,6 @@ pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli:
     }
     Err(errors::Error::InvalidObservations {
         path: bcfpath.as_ref().to_owned(),
-    }.into())
+    }
+    .into())
 }
