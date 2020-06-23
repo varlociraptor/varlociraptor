@@ -230,7 +230,11 @@ mod tests {
 
     use bio::stats::LogProb;
 
-    pub(crate) fn observation(prob_mapping: LogProb, prob_alt: LogProb, prob_ref: LogProb) -> Observation {
+    pub(crate) fn observation(
+        prob_mapping: LogProb,
+        prob_alt: LogProb,
+        prob_ref: LogProb,
+    ) -> Observation {
         ObservationBuilder::default()
             .prob_mapping_mismapping(prob_mapping)
             .prob_alt(prob_alt)

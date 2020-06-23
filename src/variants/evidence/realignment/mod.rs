@@ -42,7 +42,11 @@ pub(crate) struct Realigner {
 
 impl Realigner {
     /// Create a new instance.
-    pub(crate) fn new(ref_seq: Arc<Vec<u8>>, gap_params: pairhmm::GapParams, max_window: u64) -> Self
+    pub(crate) fn new(
+        ref_seq: Arc<Vec<u8>>,
+        gap_params: pairhmm::GapParams,
+        max_window: u64,
+    ) -> Self
 where {
         Realigner {
             gap_params,

@@ -86,7 +86,11 @@ impl Node {
 }
 
 impl VAFTree {
-    pub(crate) fn new(formula: &NormalizedFormula, scenario: &Scenario, contig: &str) -> Result<Self> {
+    pub(crate) fn new(
+        formula: &NormalizedFormula,
+        scenario: &Scenario,
+        contig: &str,
+    ) -> Result<Self> {
         fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Box<Node>>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {

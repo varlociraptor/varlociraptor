@@ -41,7 +41,6 @@ pub mod testcase;
 pub(crate) mod utils;
 pub mod variants;
 
-
 /// Event to call.
 pub trait Event {
     fn name(&self) -> &str;

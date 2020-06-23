@@ -20,7 +20,11 @@ pub(crate) struct MNV {
 }
 
 impl MNV {
-    pub(crate) fn new<L: genome::AbstractLocus>(locus: L, ref_bases: Vec<u8>, alt_bases: Vec<u8>) -> Self {
+    pub(crate) fn new<L: genome::AbstractLocus>(
+        locus: L,
+        ref_bases: Vec<u8>,
+        alt_bases: Vec<u8>,
+    ) -> Self {
         MNV {
             locus: SingleLocus(genome::Interval::new(
                 locus.contig().to_owned(),

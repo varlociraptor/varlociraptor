@@ -40,7 +40,11 @@ impl RecordBuffer {
         }
     }
 
-    pub(crate) fn fetch(&mut self, interval: &genome::Interval, read_pair_mode: bool) -> Result<()> {
+    pub(crate) fn fetch(
+        &mut self,
+        interval: &genome::Interval,
+        read_pair_mode: bool,
+    ) -> Result<()> {
         self.inner.fetch(
             interval.contig().as_bytes(),
             interval

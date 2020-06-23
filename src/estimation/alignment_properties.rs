@@ -23,7 +23,6 @@ pub(crate) struct AlignmentProperties {
 }
 
 impl AlignmentProperties {
-
     /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
     /// was found in the cigar string.
     pub(crate) fn update_max_cigar_ops_len(

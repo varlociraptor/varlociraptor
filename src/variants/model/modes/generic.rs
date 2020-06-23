@@ -84,7 +84,9 @@ where
         self
     }
 
-    pub(crate) fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
+    pub(crate) fn build(
+        self,
+    ) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
         let posterior = GenericPosterior::new(
             self.resolutions
                 .expect("GenericModelBuilder: need to call resolutions() before build()"),

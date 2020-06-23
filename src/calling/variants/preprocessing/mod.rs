@@ -304,7 +304,10 @@ pub(crate) fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<O
     Ok(obs)
 }
 
-pub(crate) fn write_observations(observations: &[Observation], record: &mut bcf::Record) -> Result<()> {
+pub(crate) fn write_observations(
+    observations: &[Observation],
+    record: &mut bcf::Record,
+) -> Result<()> {
     let vec = || Vec::with_capacity(observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();
