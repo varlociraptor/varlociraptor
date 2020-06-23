@@ -58,14 +58,6 @@ impl Deletion {
         self.fetch_loci[1].range().start
     }
 
-    pub(crate) fn start(&self) -> u64 {
-        self.fetch_loci[0].range().start
-    }
-
-    pub(crate) fn end(&self) -> u64 {
-        self.fetch_loci[2].range().end
-    }
-
     pub(crate) fn allele_support_isize(
         &self,
         left_record: &bam::Record,

@@ -3,14 +3,12 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::f64;
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::rc::Rc;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use rgsl::randist::poisson::poisson_pdf;
 use rust_htslib::bam;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
@@ -142,13 +140,6 @@ where
             _ => None,
         })
     }
-}
-
-#[derive(Builder, Default, CopyGetters)]
-#[getset(get_copy = "pub")]
-pub(crate) struct Strand {
-    forward: bool,
-    reverse: bool,
 }
 
 pub(crate) trait Evidence {}

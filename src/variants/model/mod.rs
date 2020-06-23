@@ -8,10 +8,7 @@ use std::fmt::Debug;
 use std::ops::{Deref, Range};
 use std::str;
 
-use bio::stats::LogProb;
-use itertools::Itertools;
 use ordered_float::NotNan;
-use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::grammar;
@@ -61,22 +58,6 @@ impl StrandBias {
             true
         }
     }
-
-    pub(crate) fn forward_rate(&self) -> LogProb {
-        match self {
-            StrandBias::None => LogProb(0.5_f64.ln()),
-            StrandBias::Forward => LogProb::ln_one(),
-            StrandBias::Reverse => LogProb::ln_zero(),
-        }
-    }
-
-    pub(crate) fn reverse_rate(&self) -> LogProb {
-        match self {
-            StrandBias::None => LogProb(0.5_f64.ln()),
-            StrandBias::Forward => LogProb::ln_zero(),
-            StrandBias::Reverse => LogProb::ln_one(),
-        }
-    }
 }
 
 #[allow(non_snake_case)]
@@ -101,53 +82,6 @@ impl AlleleFreqs for ContinuousAlleleFreqs {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct DiscreteAlleleFreqs {
     inner: Vec<AlleleFreq>,
-}
-
-impl DiscreteAlleleFreqs {
-    /// Create spectrum of discrete allele frequencies with given values.
-    pub(crate) fn new(spectrum: Vec<AlleleFreq>) -> Self {
-        DiscreteAlleleFreqs { inner: spectrum }
-    }
-
-    /// Return spectrum of all feasible allele frequencies for a given ploidy and maximum
-    /// number of amplification.
-    ///
-    /// In principle, a ploidy of, e.g., 2 allows allele frequencies 0, 0.5, 1.0. However,
-    /// if a locus is amplified e.g. 1 time, allele frequencies can be effectively
-    /// 0, 0.25, 0.5, 0.75, 1.0, because all reads are projected to the original location in the
-    /// reference genome, and it is unclear whether the first, the second, or both loci contain
-    /// the variant.
-    ///
-    /// # Arguments
-    /// * ploidy - the assumed overall ploidy
-    /// * max_amplification - the maximum amplification factor (1 means no amplification, 2 means
-    ///   at most one duplicate, ...).
-    fn _feasible(ploidy: u32, max_amplification: u32) -> Self {
-        let n = ploidy * max_amplification;
-        DiscreteAlleleFreqs {
-            inner: (0..n + 1)
-                .map(|m| AlleleFreq(m as f64 / n as f64))
-                .collect_vec(),
-        }
-    }
-
-    /// Return spectrum of possible allele frequencies given a ploidy.
-    pub(crate) fn feasible(ploidy: u32) -> Self {
-        Self::_feasible(ploidy, 1)
-    }
-
-    /// Return all frequencies except 0.0.
-    pub(crate) fn not_absent(&self) -> Self {
-        DiscreteAlleleFreqs {
-            inner: self.inner[1..].to_owned(),
-        }
-    }
-
-    pub(crate) fn absent() -> Self {
-        DiscreteAlleleFreqs {
-            inner: vec![AlleleFreq(0.0)],
-        }
-    }
 }
 
 impl Deref for DiscreteAlleleFreqs {

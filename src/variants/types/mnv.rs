@@ -30,10 +30,6 @@ impl MNV {
             alt_bases: alt_bases.to_ascii_uppercase(),
         }
     }
-
-    pub(crate) fn locus(&self) -> &SingleLocus {
-        self.loci()
-    }
 }
 
 impl Variant for MNV {
