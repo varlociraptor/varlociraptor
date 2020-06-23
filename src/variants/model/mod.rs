@@ -131,7 +131,7 @@ impl Ord for ContinuousAlleleFreqs {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.inner.start.cmp(&other.start) {
             Ordering::Equal => self.inner.end.cmp(&other.end),
-            ord @ _ => ord,
+            ord => ord,
         }
     }
 }
@@ -214,12 +214,12 @@ impl Variant {
     }
 
     pub(crate) fn len(&self) -> u64 {
-        match self {
-            &Variant::Deletion(l) => l,
-            &Variant::Insertion(ref s) => s.len() as u64,
-            &Variant::SNV(_) => 1,
-            &Variant::MNV(ref alt) => alt.len() as u64,
-            &Variant::None => 1,
+        match *self {
+            Variant::Deletion(l) => l,
+            Variant::Insertion(ref s) => s.len() as u64,
+            Variant::SNV(_) => 1,
+            Variant::MNV(ref alt) => alt.len() as u64,
+            Variant::None => 1,
         }
     }
 }

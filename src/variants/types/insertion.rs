@@ -56,7 +56,7 @@ impl<'a> Realignable<'a> for Insertion {
         let start = self.locus().range().start as usize;
         let ref_seq_len = ref_seq.len();
         InsertionEmissionParams {
-            ref_seq: ref_seq,
+            ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + l + ref_window, ref_seq_len),
             ins_start: start,

@@ -82,14 +82,13 @@ pub(crate) struct Fetches {
 impl Fetches {
     pub(crate) fn push(&mut self, interval: &genome::Interval) {
         if let Some(last) = self.fetches.last_mut() {
-            if last.contig() == interval.contig() {
-                if interval.range().start.saturating_sub(self.window)
+            if last.contig() == interval.contig()
+                && interval.range().start.saturating_sub(self.window)
                     <= last.range().end + self.window
-                {
-                    // merge the two intervals
-                    last.range_mut().end = interval.range().end;
-                    return;
-                }
+            {
+                // merge the two intervals
+                last.range_mut().end = interval.range().end;
+                return;
             }
         }
 

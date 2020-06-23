@@ -109,8 +109,7 @@ where
 {
     fn prob_mapping(&self, evidence: &SingleEndEvidence) -> LogProb {
         let prob_mismapping = LogProb::from(PHREDProb(evidence.mapq() as f64));
-        let prob_mapping = prob_mismapping.ln_one_minus_exp();
-        prob_mapping
+        prob_mismapping.ln_one_minus_exp()
     }
 
     fn extract_observations(
@@ -284,7 +283,7 @@ impl SingleLocus {
         if consider_clips {
             // consider soft clips for overlap detection
             pos = pos.saturating_sub(cigar.leading_softclips() as u64);
-            end_pos = end_pos + cigar.trailing_softclips() as u64;
+            end_pos += cigar.trailing_softclips() as u64;
         }
 
         if pos <= self.range().start {

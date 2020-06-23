@@ -37,6 +37,7 @@ pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn expected_prob_sample_alt(
         &self,
         left_read_len: u64,

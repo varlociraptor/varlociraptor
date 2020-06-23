@@ -74,7 +74,7 @@ impl ContaminatedSampleLikelihoodModel {
         assert!(purity > 0.0 && purity <= 1.0);
         let purity = LogProb(purity.ln());
         ContaminatedSampleLikelihoodModel {
-            purity: purity,
+            purity,
             impurity: purity.ln_one_minus_exp(),
         }
     }
@@ -443,6 +443,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_likelihood_pileup() {
         let model = ContaminatedSampleLikelihoodModel::new(1.0);
         let mut observations = Vec::new();

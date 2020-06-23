@@ -132,34 +132,32 @@ impl GenericPosterior {
         let mut subdensity = |base_events: &mut VecMap<likelihood::Event>| {
             if vaf_tree_node.is_leaf() {
                 joint_prob(&base_events.values().cloned().collect(), data)
+            } else if vaf_tree_node.is_branching() {
+                LogProb::ln_sum_exp(
+                    &vaf_tree_node
+                        .children()
+                        .iter()
+                        .map(|child| {
+                            self.density(
+                                child,
+                                &mut base_events.clone(),
+                                sample_grid_points,
+                                data,
+                                strand_bias,
+                                joint_prob,
+                            )
+                        })
+                        .collect_vec(),
+                )
             } else {
-                if vaf_tree_node.is_branching() {
-                    LogProb::ln_sum_exp(
-                        &vaf_tree_node
-                            .children()
-                            .iter()
-                            .map(|child| {
-                                self.density(
-                                    child,
-                                    &mut base_events.clone(),
-                                    sample_grid_points,
-                                    data,
-                                    strand_bias,
-                                    joint_prob,
-                                )
-                            })
-                            .collect_vec(),
-                    )
-                } else {
-                    self.density(
-                        &vaf_tree_node.children()[0],
-                        base_events,
-                        sample_grid_points,
-                        data,
-                        strand_bias,
-                        joint_prob,
-                    )
-                }
+                self.density(
+                    &vaf_tree_node.children()[0],
+                    base_events,
+                    sample_grid_points,
+                    data,
+                    strand_bias,
+                    joint_prob,
+                )
             }
         };
 
@@ -169,8 +167,8 @@ impl GenericPosterior {
                     base_events.insert(
                         *sample,
                         likelihood::Event {
-                            allele_freq: allele_freq,
-                            strand_bias: strand_bias,
+                            allele_freq,
+                            strand_bias,
                         },
                     );
                 };
@@ -178,9 +176,8 @@ impl GenericPosterior {
                 match vafs {
                     grammar::VAFSpectrum::Set(vafs) => {
                         if vafs.len() == 1 {
-                            push_base_event(vafs.iter().next().unwrap().clone(), base_events);
-                            let p = subdensity(base_events);
-                            p
+                            push_base_event(*vafs.iter().next().unwrap(), base_events);
+                            subdensity(base_events)
                         } else {
                             LogProb::ln_sum_exp(
                                 &vafs
@@ -196,18 +193,16 @@ impl GenericPosterior {
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
                         let n_obs = data.pileups[*sample].len();
-                        let p = LogProb::ln_simpsons_integrate_exp(
+                        LogProb::ln_simpsons_integrate_exp(
                             |_, vaf| {
                                 let mut base_events = base_events.clone();
                                 push_base_event(AlleleFreq(vaf), &mut base_events);
-                                let p = subdensity(&mut base_events);
-                                p
+                                subdensity(&mut base_events)
                             },
                             *vafs.observable_min(n_obs),
                             *vafs.observable_max(n_obs),
                             sample_grid_points[*sample],
-                        );
-                        p
+                        )
                     }
                 }
             }
@@ -313,8 +308,8 @@ impl Likelihood<Cache> for GenericLikelihood {
             .zip(data.pileups.iter())
             .zip(self.inner.iter())
         {
-            p += match inner {
-                &SampleModel::Contaminated {
+            p += match *inner {
+                SampleModel::Contaminated {
                     ref likelihood_model,
                     by,
                 } => {
@@ -333,7 +328,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                         unreachable!();
                     }
                 }
-                &SampleModel::Normal(ref likelihood_model) => {
+                SampleModel::Normal(ref likelihood_model) => {
                     if let CacheEntry::SingleSample(ref mut cache) = cache
                         .entry(sample)
                         .or_insert_with(|| CacheEntry::new(false))
