@@ -16,32 +16,32 @@ use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::grammar;
 
-pub mod likelihood;
-pub mod modes;
+pub(crate) mod likelihood;
+pub(crate) mod modes;
 
 #[derive(Debug, Clone)]
-pub struct Contamination {
-    pub by: usize,
-    pub fraction: f64,
+pub(crate) struct Contamination {
+    pub(crate) by: usize,
+    pub(crate) fraction: f64,
 }
 
 #[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
-pub struct Event {
-    pub name: String,
-    pub vafs: grammar::VAFTree,
-    pub strand_bias: StrandBias,
+pub(crate) struct Event {
+    pub(crate) name: String,
+    pub(crate) vafs: grammar::VAFTree,
+    pub(crate) strand_bias: StrandBias,
 }
 
 impl Event {
-    pub fn is_artifact(&self) -> bool {
+    pub(crate) fn is_artifact(&self) -> bool {
         self.strand_bias != StrandBias::None
     }
 }
 
-pub type AlleleFreq = NotNan<f64>;
+pub(crate) type AlleleFreq = NotNan<f64>;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord)]
-pub enum StrandBias {
+pub(crate) enum StrandBias {
     None,
     Forward,
     Reverse,
@@ -54,7 +54,7 @@ impl Default for StrandBias {
 }
 
 impl StrandBias {
-    pub fn is_some(&self) -> bool {
+    pub(crate) fn is_some(&self) -> bool {
         if let StrandBias::None = self {
             false
         } else {
@@ -62,7 +62,7 @@ impl StrandBias {
         }
     }
 
-    pub fn forward_rate(&self) -> LogProb {
+    pub(crate) fn forward_rate(&self) -> LogProb {
         match self {
             StrandBias::None => LogProb(0.5_f64.ln()),
             StrandBias::Forward => LogProb::ln_one(),
@@ -70,7 +70,7 @@ impl StrandBias {
         }
     }
 
-    pub fn reverse_rate(&self) -> LogProb {
+    pub(crate) fn reverse_rate(&self) -> LogProb {
         match self {
             StrandBias::None => LogProb(0.5_f64.ln()),
             StrandBias::Forward => LogProb::ln_zero(),
@@ -80,11 +80,11 @@ impl StrandBias {
 }
 
 #[allow(non_snake_case)]
-pub fn AlleleFreq(af: f64) -> AlleleFreq {
+pub(crate) fn AlleleFreq(af: f64) -> AlleleFreq {
     NotNan::new(af).unwrap()
 }
 
-pub trait AlleleFreqs: Debug {
+pub(crate) trait AlleleFreqs: Debug {
     fn is_absent(&self) -> bool;
 }
 impl AlleleFreqs for DiscreteAlleleFreqs {
@@ -99,13 +99,13 @@ impl AlleleFreqs for ContinuousAlleleFreqs {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct DiscreteAlleleFreqs {
+pub(crate) struct DiscreteAlleleFreqs {
     inner: Vec<AlleleFreq>,
 }
 
 impl DiscreteAlleleFreqs {
     /// Create spectrum of discrete allele frequencies with given values.
-    pub fn new(spectrum: Vec<AlleleFreq>) -> Self {
+    pub(crate) fn new(spectrum: Vec<AlleleFreq>) -> Self {
         DiscreteAlleleFreqs { inner: spectrum }
     }
 
@@ -132,18 +132,18 @@ impl DiscreteAlleleFreqs {
     }
 
     /// Return spectrum of possible allele frequencies given a ploidy.
-    pub fn feasible(ploidy: u32) -> Self {
+    pub(crate) fn feasible(ploidy: u32) -> Self {
         Self::_feasible(ploidy, 1)
     }
 
     /// Return all frequencies except 0.0.
-    pub fn not_absent(&self) -> Self {
+    pub(crate) fn not_absent(&self) -> Self {
         DiscreteAlleleFreqs {
             inner: self.inner[1..].to_owned(),
         }
     }
 
-    pub fn absent() -> Self {
+    pub(crate) fn absent() -> Self {
         DiscreteAlleleFreqs {
             inner: vec![AlleleFreq(0.0)],
         }
@@ -160,20 +160,20 @@ impl Deref for DiscreteAlleleFreqs {
 
 /// An allele frequency range
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ContinuousAlleleFreqs {
+pub(crate) struct ContinuousAlleleFreqs {
     inner: Range<AlleleFreq>,
-    pub left_exclusive: bool,
-    pub right_exclusive: bool,
+    pub(crate) left_exclusive: bool,
+    pub(crate) right_exclusive: bool,
     /// offset to add when calculating the smallest observable value for a left-exclusive 0.0 bound
     zero_offset: NotNan<f64>,
 }
 
 impl ContinuousAlleleFreqs {
-    pub fn absent() -> Self {
+    pub(crate) fn absent() -> Self {
         Self::singleton(0.0)
     }
 
-    pub fn singleton(value: f64) -> Self {
+    pub(crate) fn singleton(value: f64) -> Self {
         ContinuousAlleleFreqs {
             inner: AlleleFreq(value)..AlleleFreq(value),
             left_exclusive: false,
@@ -183,7 +183,7 @@ impl ContinuousAlleleFreqs {
     }
 
     /// create a left- and right-inclusive allele frequency range
-    pub fn inclusive(range: Range<f64>) -> Self {
+    pub(crate) fn inclusive(range: Range<f64>) -> Self {
         ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: false,
@@ -193,7 +193,7 @@ impl ContinuousAlleleFreqs {
     }
 
     /// create a left- and right-exclusive allele frequency range
-    pub fn exclusive(range: Range<f64>) -> Self {
+    pub(crate) fn exclusive(range: Range<f64>) -> Self {
         ContinuousAlleleFreqs {
             inner: AlleleFreq(range.start)..AlleleFreq(range.end),
             left_exclusive: true,
@@ -204,7 +204,7 @@ impl ContinuousAlleleFreqs {
 
     /// create a left-exclusive allele frequency range
     #[allow(clippy::float_cmp)]
-    pub fn left_exclusive(range: Range<f64>) -> Self {
+    pub(crate) fn left_exclusive(range: Range<f64>) -> Self {
         if range.start == range.end {
             panic!("ContinuousAlleleFreqs::left_exclusive({}..{}) does not make sense with identical start and end point.", range.start, range.end);
         }
@@ -218,7 +218,7 @@ impl ContinuousAlleleFreqs {
 
     /// create a right-exclusive allele frequency range
     #[allow(clippy::float_cmp)]
-    pub fn right_exclusive(range: Range<f64>) -> Self {
+    pub(crate) fn right_exclusive(range: Range<f64>) -> Self {
         // below float comparison has to be exact
         if range.start == range.end {
             panic!("ContinuousAlleleFreqs::right_exclusive({}..{}) does not make sense with identical start and end point.", range.start, range.end);
@@ -231,17 +231,17 @@ impl ContinuousAlleleFreqs {
         }
     }
 
-    pub fn min_observations(mut self, min_observations: usize) -> Self {
+    pub(crate) fn min_observations(mut self, min_observations: usize) -> Self {
         self.zero_offset = NotNan::from(min_observations as f64);
 
         self
     }
 
-    pub fn is_singleton(&self) -> bool {
+    pub(crate) fn is_singleton(&self) -> bool {
         self.start == self.end
     }
 
-    pub fn observable_min(&self, n_obs: usize) -> AlleleFreq {
+    pub(crate) fn observable_min(&self, n_obs: usize) -> AlleleFreq {
         if n_obs < 10 {
             self.start
         } else {
@@ -273,7 +273,7 @@ impl ContinuousAlleleFreqs {
         }
     }
 
-    pub fn observable_max(&self, n_obs: usize) -> AlleleFreq {
+    pub(crate) fn observable_max(&self, n_obs: usize) -> AlleleFreq {
         assert!(
             *self.end != 0.0,
             "bug: observable_max may not be called if end=0.0."
@@ -350,7 +350,7 @@ pub enum VariantType {
 impl VariantType {
     // TODO remove once EnumVariantNames respects serialize=,
     // see https://github.com/Peternator7/strum/issues/93
-    pub fn variants() -> Vec<String> {
+    pub(crate) fn variants() -> Vec<String> {
         VariantType::iter()
             .map(|v| -> String {
                 let s: &str = v.into();
@@ -373,7 +373,7 @@ impl From<&str> for VariantType {
 }
 
 #[derive(Clone, Debug)]
-pub enum Variant {
+pub(crate) enum Variant {
     Deletion(u64),
     Insertion(Vec<u8>),
     SNV(u8),
@@ -382,7 +382,7 @@ pub enum Variant {
 }
 
 impl Variant {
-    pub fn is_type(&self, vartype: &VariantType) -> bool {
+    pub(crate) fn is_type(&self, vartype: &VariantType) -> bool {
         match (self, vartype) {
             (&Variant::Deletion(l), &VariantType::Deletion(Some(ref range))) => {
                 l >= range.start && l < range.end
@@ -399,7 +399,7 @@ impl Variant {
         }
     }
 
-    pub fn end(&self, start: u64) -> u64 {
+    pub(crate) fn end(&self, start: u64) -> u64 {
         match self {
             &Variant::Deletion(length) => start + length,
             &Variant::Insertion(_) => start + 1, // end of insertion is the next regular base
@@ -408,7 +408,7 @@ impl Variant {
         }
     }
 
-    pub fn len(&self) -> u64 {
+    pub(crate) fn len(&self) -> u64 {
         match self {
             &Variant::Deletion(l) => l,
             &Variant::Insertion(ref s) => s.len() as u64,
@@ -421,17 +421,16 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils;
     use crate::variants::evidence::observation::{Observation, ObservationBuilder};
 
     use bio::stats::LogProb;
 
-    pub fn observation(prob_mapping: LogProb, prob_alt: LogProb, prob_ref: LogProb) -> Observation {
+    pub(crate) fn observation(prob_mapping: LogProb, prob_alt: LogProb, prob_ref: LogProb) -> Observation {
         ObservationBuilder::default()
             .prob_mapping_mismapping(prob_mapping)
             .prob_alt(prob_alt)
             .prob_ref(prob_ref)
-            .prob_missed_allele(utils::max_prob(prob_ref, prob_alt))
+            .prob_missed_allele(prob_ref.ln_add_exp(prob_alt) - LogProb(2.0_f64.ln()))
             .prob_sample_alt(LogProb::ln_one())
             .prob_overlap(LogProb::ln_one())
             .prob_any_strand(LogProb::ln_one())

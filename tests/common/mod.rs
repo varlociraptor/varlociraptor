@@ -1,12 +1,12 @@
-pub mod version0;
-pub mod version1;
-pub mod version2;
-pub mod version3;
+pub(crate) mod version0;
+pub(crate) mod version1;
+pub(crate) mod version2;
+pub(crate) mod version3;
 
-pub use version0::TestcaseVersion0;
-pub use version1::TestcaseVersion1;
-pub use version2::TestcaseVersion2;
-pub use version3::TestcaseVersion3;
+pub(crate) use version0::TestcaseVersion0;
+pub(crate) use version1::TestcaseVersion1;
+pub(crate) use version2::TestcaseVersion2;
+pub(crate) use version3::TestcaseVersion3;
 
 use std::fs::File;
 use std::io::{Read, Write};
@@ -27,7 +27,7 @@ use yaml_rust::{Yaml, YamlLoader};
 use varlociraptor::cli::{run, CallKind, PreprocessKind, VariantCallMode, Varlociraptor};
 use varlociraptor::testcase::Mode;
 
-pub fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>> {
+pub(crate) fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>> {
     let mut reader = File::open(path.as_ref().join("testcase.yaml"))?;
     let mut content2 = String::new();
     reader.read_to_string(&mut content2)?;
@@ -53,7 +53,7 @@ pub fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>> {
     })
 }
 
-pub trait Testcase {
+pub(crate) trait Testcase {
     fn inner(&self) -> &[Yaml];
 
     fn path(&self) -> &PathBuf;

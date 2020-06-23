@@ -14,7 +14,7 @@ use rust_htslib::bam;
 ///
 /// * `left` - left read of the pair
 /// * `right` - right read of the pair
-pub fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u64> {
+pub(crate) fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> Result<u64> {
     let left_cigar = left.cigar_cached().unwrap();
     let right_cigar = right.cigar_cached().unwrap();
 

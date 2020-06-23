@@ -6,7 +6,7 @@ use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
 /// Decode PHRED scaled values to probabilities.
-pub fn decode_phred() -> Result<()> {
+pub(crate) fn decode_phred() -> Result<()> {
     let mut inbcf = bcf::Reader::from_stdin()?;
 
     let tags = get_event_tags(&inbcf)

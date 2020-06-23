@@ -13,13 +13,13 @@ use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
 
-pub struct None {
+pub(crate) struct None {
     locus: SingleLocus,
     ref_base: u8,
 }
 
 impl None {
-    pub fn new(locus: genome::Locus, ref_base: u8) -> Self {
+    pub(crate) fn new(locus: genome::Locus, ref_base: u8) -> Self {
         None {
             locus: SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),

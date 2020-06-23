@@ -76,15 +76,15 @@ pub struct Testcase {
 }
 
 impl TestcaseBuilder {
-    pub fn reference(self, path: impl AsRef<Path>) -> Result<Self> {
+    pub(crate) fn reference(self, path: impl AsRef<Path>) -> Result<Self> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
     }
 
-    pub fn candidates(self, path: impl AsRef<Path>) -> Result<Self> {
+    pub(crate) fn candidates(self, path: impl AsRef<Path>) -> Result<Self> {
         Ok(self.candidate_reader(bcf::Reader::from_path(path)?))
     }
 
-    pub fn locus(self, locus: &str) -> Result<Self> {
+    pub(crate) fn locus(self, locus: &str) -> Result<Self> {
         if locus == "all" {
             Ok(self.chrom_name(None).pos(None).idx(0))
         } else if let Some(captures) = TESTCASE_RE.captures(locus) {
@@ -109,7 +109,7 @@ impl TestcaseBuilder {
         }
     }
 
-    pub fn register_sample(
+    pub(crate) fn register_sample(
         mut self,
         name: &str,
         bam: impl AsRef<Path>,
@@ -168,7 +168,7 @@ impl Testcase {
         }
     }
 
-    pub fn write(&mut self) -> Result<()> {
+    pub(crate) fn write(&mut self) -> Result<()> {
         fs::create_dir_all(&self.prefix)?;
 
         let candidate_filename = Path::new("candidates.vcf");

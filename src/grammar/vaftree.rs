@@ -8,12 +8,12 @@ use crate::grammar::{formula::NormalizedFormula, formula::IUPAC, Scenario, VAFSp
 use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct VAFTree {
+pub(crate) struct VAFTree {
     inner: Vec<Box<Node>>,
 }
 
 impl VAFTree {
-    pub fn absent(n_samples: usize) -> Self {
+    pub(crate) fn absent(n_samples: usize) -> Self {
         assert!(n_samples > 0, "bug: n_samples must be > 0");
 
         fn absent(sample: usize, n_samples: usize) -> Box<Node> {
@@ -39,7 +39,7 @@ impl VAFTree {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum NodeKind {
+pub(crate) enum NodeKind {
     Variant {
         refbase: IUPAC,
         altbase: IUPAC,
@@ -53,14 +53,14 @@ pub enum NodeKind {
 
 #[derive(new, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Getters)]
 #[get = "pub"]
-pub struct Node {
+pub(crate) struct Node {
     kind: NodeKind,
     #[new(default)]
     children: Vec<Box<Node>>,
 }
 
 impl Node {
-    pub fn leafs<'a>(&'a mut self) -> Vec<&'a mut Node> {
+    pub(crate) fn leafs<'a>(&'a mut self) -> Vec<&'a mut Node> {
         fn collect_leafs<'a>(node: &'a mut Node, leafs: &mut Vec<&'a mut Node>) {
             if node.children.is_empty() {
                 leafs.push(node);
@@ -76,17 +76,17 @@ impl Node {
         leafs
     }
 
-    pub fn is_leaf(&self) -> bool {
+    pub(crate) fn is_leaf(&self) -> bool {
         self.children.is_empty()
     }
 
-    pub fn is_branching(&self) -> bool {
+    pub(crate) fn is_branching(&self) -> bool {
         self.children.len() > 1
     }
 }
 
 impl VAFTree {
-    pub fn new(formula: &NormalizedFormula, scenario: &Scenario, contig: &str) -> Result<Self> {
+    pub(crate) fn new(formula: &NormalizedFormula, scenario: &Scenario, contig: &str) -> Result<Self> {
         fn from(formula: &NormalizedFormula, scenario: &Scenario) -> Result<Vec<Box<Node>>> {
             match formula {
                 NormalizedFormula::Atom { sample, vafs } => {
@@ -193,7 +193,7 @@ impl VAFTree {
         Ok(VAFTree { inner })
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Node> {
+    pub(crate) fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Node> {
         self.inner.iter().map(|node| node.as_ref())
     }
 }

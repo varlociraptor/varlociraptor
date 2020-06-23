@@ -16,7 +16,7 @@ use super::PairModel;
 /// TODO: * use the general level of heterozygosity through the InfiniteSitesNeutralEvolutionModel as
 ///         a prior? "The prior probability for a germline allele frequency theta_g (e.g. 0.0, 0.5 or 1.0 for the diploid case) in the bulk background can be calculated with an `InfiniteSitesNeutralVariationModel`. This is valid since clonal variants come from the last common ancestor and analogously to tumor evolution in the Williams model, we can assume neutral mutations (no genetic drift, no selection) and thus no change of allele frequencies in cell divisions that do not introduce new mutations. The `InfiniteSitesNeutralVariationModel` requires the ploidy and the level of heterozygosity."
 ///       * use the somatic mutation rate per effective cell division? ("The somatic mutation rate per effective cell division in the bulk is the quotient mu/beta, with mu being the somatic mutation rate and beta being the fraction of effective cell divisions (i.e. where both daugther cells survive and form a lineage). Alone, these parameters are not easily obtained. However, assuming mostly neutral mutations, mu/beta can be estimated from SNV calls with a low frequency in the bulk sample, analogous to the tumour sample in Williams et al. (2016). It is the slope of the linear model `y = mu/beta * (x -  1 / fmax)`, with `x` being the reciprocal of the observed allele frequencies and y being the number of observed mutations corresponding to each frequency (see: Williams MJ, Werner B, Barnes CP, Graham TA, Sottoriva A. Identification of neutral tumor evolution across cancer types. Nat Genet. 2016;48: 238–244. doi:10.1038/ng.3489). Based on the Williams model, the tail probability of a somatic allele frequency F > f can be expressed as `Pr(F > f) = M(f) / n = mu/beta (1 / f - 1 / fmax) / n`, with `n` being the size of the genome and `fmax` the expected allele frequency of clonal variants at the beginning of tumor history, overall somatic history in our case. From this, we can obtain the cumulative distribution function as `Pr(F <= f) = 1 - Pr(F > f)`. Consequently, the density becomes the first derivative, i.e. `Pr(F = f) = - M(f)' / n = mu/beta * 1/n * 1/f²` for `f>=fmin`, with `fmin = sqrt(mu/beta * 1/n)`."
-pub struct SingleCellBulkModel {
+pub(crate) struct SingleCellBulkModel {
     allele_freqs_single: DiscreteAlleleFreqs,
     allele_freqs_bulk: ContinuousAlleleFreqs,
     n_bulk_min: usize,
@@ -104,7 +104,7 @@ impl SingleCellBulkModel {
     /// * `ploidy` - the ploidy in the single cell sample (e.g. 2 for diploid)
     /// * `n_bulk_min` - minimum number of discrete frequencies n_bulk_min+1 to evaluate over interval [0,1] for bulk sample; if coverage is above this, actual read counts are used to test all possible discrete allele frequencies
     /// * `n_bulk_max` - maximum number of discrete frequencies n_bulk_min+1 to evaluate over interval [0,1] for bulk sample; if coverage is below this, actual read counts are used to test all possible discrete allele frequencies
-    pub fn new(ploidy: u32, n_bulk_min: usize, n_bulk_max: usize) -> Self {
+    pub(crate) fn new(ploidy: u32, n_bulk_min: usize, n_bulk_max: usize) -> Self {
         // TODO replace with DiscreteAlleleFreqs::feasible()
         let allele_freqs = (0..ploidy + 1)
             .map(|m| AlleleFreq(m as f64 / ploidy as f64))

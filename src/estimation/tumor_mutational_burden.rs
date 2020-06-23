@@ -81,7 +81,7 @@ pub enum PlotMode {
 }
 
 /// Estimate tumor mutational burden based on Varlociraptor calls from STDIN and print result to STDOUT.
-pub fn estimate(
+pub(crate) fn estimate(
     somatic_tumor_events: &[String],
     tumor_name: &str,
     coding_genome_size: u64,
@@ -273,7 +273,7 @@ pub fn estimate(
     Hash,
     Eq,
 )]
-pub enum Vartype {
+pub(crate) enum Vartype {
     DEL,
     INS,
     INV,
@@ -319,7 +319,7 @@ pub enum Vartype {
     TG,
 }
 
-pub fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
+pub(crate) fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
     let ref_allele = record.alleles()[0];
     record.alleles()[1..]
         .iter()

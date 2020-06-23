@@ -35,7 +35,7 @@ use crate::variants::sample::Sample;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct ObservationProcessor {
+pub(crate) struct ObservationProcessor {
     sample: Sample,
     #[builder(private)]
     reference_buffer: reference::Buffer,
@@ -50,11 +50,11 @@ pub struct ObservationProcessor {
 }
 
 impl ObservationProcessorBuilder {
-    pub fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self> {
+    pub(crate) fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self> {
         Ok(self.reference_buffer(reference::Buffer::new(reader)))
     }
 
-    pub fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
+    pub(crate) fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
         Ok(self.bcf_reader(if let Some(path) = path {
             bcf::Reader::from_path(path)?
         } else {
@@ -62,7 +62,7 @@ impl ObservationProcessorBuilder {
         }))
     }
 
-    pub fn outbcf<P: AsRef<Path>>(
+    pub(crate) fn outbcf<P: AsRef<Path>>(
         self,
         path: Option<P>,
         options: &cli::Varlociraptor,
@@ -134,7 +134,7 @@ impl ObservationProcessorBuilder {
 }
 
 impl ObservationProcessor {
-    pub fn process(&mut self) -> Result<()> {
+    pub(crate) fn process(&mut self) -> Result<()> {
         let mut i = 0;
         loop {
             let mut record = self.bcf_reader.empty_record();
@@ -244,10 +244,10 @@ impl ObservationProcessor {
     }
 }
 
-pub static OBSERVATION_FORMAT_VERSION: &'static str = "2";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &'static str = "2";
 
 /// Read observations from BCF record.
-pub fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observation>> {
+pub(crate) fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observation>> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug,
@@ -304,7 +304,7 @@ pub fn read_observations<'a>(record: &'a mut bcf::Record) -> Result<Vec<Observat
     Ok(obs)
 }
 
-pub fn write_observations(observations: &[Observation], record: &mut bcf::Record) -> Result<()> {
+pub(crate) fn write_observations(observations: &[Observation], record: &mut bcf::Record) -> Result<()> {
     let vec = || Vec::with_capacity(observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();
@@ -366,7 +366,7 @@ pub fn write_observations(observations: &[Observation], record: &mut bcf::Record
     Ok(())
 }
 
-pub fn remove_observation_header_entries(header: &mut bcf::Header) {
+pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PROB_MAPPING");
     header.remove_info(b"PROB_REF");
     header.remove_info(b"PROB_ALT");
@@ -378,7 +378,7 @@ pub fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"REVERSE_STRAND");
 }
 
-pub fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {
+pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {
     let reader = bcf::Reader::from_path(&bcfpath)?;
     for rec in reader.header().header_records() {
         match rec {

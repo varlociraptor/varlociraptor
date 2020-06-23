@@ -427,7 +427,7 @@ pub enum FilterMethod {
     },
 }
 
-pub type PathMap = HashMap<String, PathBuf>;
+pub(crate) type PathMap = HashMap<String, PathBuf>;
 
 fn parse_key_values(values: &[String]) -> Option<PathMap> {
     let mut map = HashMap::new();
@@ -831,7 +831,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
     Ok(())
 }
 
-pub fn est_or_load_alignment_properites(
+pub(crate) fn est_or_load_alignment_properites(
     alignment_properties_file: &Option<impl AsRef<Path>>,
     bam_file: impl AsRef<Path>,
     omit_insert_size: bool,

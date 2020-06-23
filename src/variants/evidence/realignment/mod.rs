@@ -18,10 +18,10 @@ use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculati
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
 use crate::variants::types::{AlleleSupport, AlleleSupportBuilder};
 
-pub mod edit_distance;
-pub mod pairhmm;
+pub(crate) mod edit_distance;
+pub(crate) mod pairhmm;
 
-pub trait Realignable<'a> {
+pub(crate) trait Realignable<'a> {
     type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
 
     fn alt_emission_params(
@@ -33,7 +33,7 @@ pub trait Realignable<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Realigner {
+pub(crate) struct Realigner {
     pairhmm: PairHMM,
     gap_params: pairhmm::GapParams,
     max_window: u64,
@@ -42,7 +42,7 @@ pub struct Realigner {
 
 impl Realigner {
     /// Create a new instance.
-    pub fn new(ref_seq: Arc<Vec<u8>>, gap_params: pairhmm::GapParams, max_window: u64) -> Self
+    pub(crate) fn new(ref_seq: Arc<Vec<u8>>, gap_params: pairhmm::GapParams, max_window: u64) -> Self
 where {
         Realigner {
             gap_params,
@@ -52,7 +52,7 @@ where {
         }
     }
 
-    pub fn allele_support<'a, V>(
+    pub(crate) fn allele_support<'a, V>(
         &mut self,
         record: &'a bam::Record,
         locus: &genome::Interval,
@@ -238,7 +238,7 @@ where {
     }
 }
 
-pub trait AltAlleleEmissionBuilder {
+pub(crate) trait AltAlleleEmissionBuilder {
     type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
 
     fn build<'a>(

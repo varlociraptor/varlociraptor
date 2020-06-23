@@ -6,9 +6,9 @@ use yaml_rust::Yaml;
 use crate::common::Testcase;
 
 #[derive(Debug)]
-pub struct TestcaseVersion3 {
-    pub inner: Vec<Yaml>,
-    pub path: PathBuf,
+pub(crate) struct TestcaseVersion3 {
+    pub(crate) inner: Vec<Yaml>,
+    pub(crate) path: PathBuf,
 }
 
 impl Testcase for TestcaseVersion3 {

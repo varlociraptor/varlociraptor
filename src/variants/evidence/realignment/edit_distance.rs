@@ -11,13 +11,13 @@ use bio::stats::pairhmm;
 
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
-pub struct EditDistanceCalculation {
+pub(crate) struct EditDistanceCalculation {
     myers: Myers<u128>,
     read_seq_len: usize,
 }
 
 impl EditDistanceCalculation {
-    pub fn max_pattern_len() -> usize {
+    pub(crate) fn max_pattern_len() -> usize {
         128
     }
 
@@ -25,7 +25,7 @@ impl EditDistanceCalculation {
     ///
     /// # Arguments
     /// * `read_seq` - read sequence in window (may not exceed 128 bases).
-    pub fn new<P>(read_seq: P) -> Self
+    pub(crate) fn new<P>(read_seq: P) -> Self
     where
         P: Iterator<Item = u8> + DoubleEndedIterator + ExactSizeIterator,
     {
@@ -38,7 +38,7 @@ impl EditDistanceCalculation {
 
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
     /// We use the best edit distance and add 5.
-    pub fn calc_best_hit<E: pairhmm::EmissionParameters + RefBaseEmission>(
+    pub(crate) fn calc_best_hit<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &self,
         emission_params: &E,
     ) -> EditDistanceHit {
@@ -78,7 +78,7 @@ impl EditDistanceCalculation {
 
 #[derive(Debug, Clone, CopyGetters)]
 #[getset(get_copy = "pub")]
-pub struct EditDistanceHit {
+pub(crate) struct EditDistanceHit {
     start: usize,
     end: usize,
     dist: u8,
@@ -86,7 +86,7 @@ pub struct EditDistanceHit {
 }
 
 impl EditDistanceHit {
-    pub fn dist_upper_bound(&self) -> usize {
+    pub(crate) fn dist_upper_bound(&self) -> usize {
         self.dist as usize + EDIT_BAND
     }
 }

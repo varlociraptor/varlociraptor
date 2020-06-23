@@ -9,7 +9,7 @@ use super::TrioModel;
 use crate::model::{Variant, ContinuousAlleleFreqs, DiscreteAlleleFreqs, AlleleFreq};
 
 
-pub struct TumorNormalRelapseModel {
+pub(crate) struct TumorNormalRelapseModel {
     primary_model: TumorNormalModel,
     relapse_model: TumorNormalModel
 }
@@ -26,7 +26,7 @@ impl TumorNormalRelapseModel {
     /// * `insertion_factor` - ratio of insertions compared to SNV mutation rate
     /// * `genome_size` - the size of the genome
     /// * `heterozygosity` - expected heterozygosity in the corresponding normal
-    pub fn new(
+    pub(crate) fn new(
         ploidy: u32,
         effective_mutation_rate: f64,
         deletion_factor: f64,

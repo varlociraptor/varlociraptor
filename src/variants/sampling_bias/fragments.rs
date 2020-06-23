@@ -14,7 +14,7 @@ use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::sampling_bias::SamplingBias;
 use crate::variants::types::Variant;
 
-pub trait FragmentSamplingBias: Variant + SamplingBias {
+pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
     /// Get range of insert sizes with probability above zero.
     /// We use 6 SDs around the mean.
     fn isize_pmf_range(&self, alignment_properties: &AlignmentProperties) -> Range<u64> {
@@ -143,7 +143,7 @@ pub trait FragmentSamplingBias: Variant + SamplingBias {
 }
 
 /// as shown in http://www.milefoot.com/math/stat/pdfc-normaldisc.htm
-pub fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
+pub(crate) fn isize_pmf(value: f64, mean: f64, sd: f64) -> LogProb {
     LogProb((ugaussian_P((value + 0.5 - mean) / sd) - ugaussian_P((value - 0.5 - mean) / sd)).ln())
 }
 

@@ -10,7 +10,7 @@ lazy_static! {
 }
 
 /// Calculate probability of read_base given ref_base.
-pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
+pub(crate) fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
     let prob_miscall = prob_read_base_miscall(base_qual);
 
     if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
@@ -22,6 +22,6 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 }
 
 /// unpack miscall probability of read_base.
-pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
+pub(crate) fn prob_read_base_miscall(base_qual: u8) -> LogProb {
     LogProb::from(PHREDProb::from((base_qual) as f64))
 }

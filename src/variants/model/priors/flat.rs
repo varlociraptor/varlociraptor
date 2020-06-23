@@ -9,12 +9,12 @@ use crate::model::{AlleleFreq, ContinuousAlleleFreqs, DiscreteAlleleFreqs, PairP
 
 use super::PairModel;
 
-pub struct FlatNormalNormalModel {
+pub(crate) struct FlatNormalNormalModel {
     allele_freqs: DiscreteAlleleFreqs,
 }
 
 impl FlatNormalNormalModel {
-    pub fn new(ploidy: u32) -> Self {
+    pub(crate) fn new(ploidy: u32) -> Self {
         FlatNormalNormalModel {
             allele_freqs: DiscreteAlleleFreqs::feasible(ploidy),
         }
@@ -104,14 +104,14 @@ impl PairModel<DiscreteAlleleFreqs, DiscreteAlleleFreqs> for FlatNormalNormalMod
     }
 }
 
-pub struct FlatTumorNormalModel {
+pub(crate) struct FlatTumorNormalModel {
     allele_freqs_tumor: ContinuousAlleleFreqs,
     allele_freqs_normal_germline: DiscreteAlleleFreqs,
     allele_freqs_normal_somatic: ContinuousAlleleFreqs,
 }
 
 impl FlatTumorNormalModel {
-    pub fn new(ploidy: u32) -> Self {
+    pub(crate) fn new(ploidy: u32) -> Self {
         let allele_freqs_normal_germline = DiscreteAlleleFreqs::feasible(ploidy);
         let allele_freqs_normal_somatic =
             ContinuousAlleleFreqs::exclusive(0.0..*allele_freqs_normal_germline[1]);

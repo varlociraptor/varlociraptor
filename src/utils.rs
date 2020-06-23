@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cmp;
 use std::fmt::Display;
 use std::hash::Hash;
 use std::ops::Range;
@@ -18,37 +17,27 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf, bcf::record::Numeric};
-use strum::IntoEnumIterator;
 
 use crate::errors;
 use crate::utils;
 use crate::variants::model;
 use crate::Event;
 
-pub const NUMERICAL_EPSILON: f64 = 1e-3;
+pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
-pub fn is_reverse_strand(record: &bam::Record) -> bool {
+pub(crate) fn is_reverse_strand(record: &bam::Record) -> bool {
     record.flags() & 0x10 != 0
 }
 
 #[derive(new, Getters, CopyGetters, Debug)]
-pub struct GenomicLocus {
+pub(crate) struct GenomicLocus {
     #[getset(get = "pub")]
     chrom: Vec<u8>,
     #[getset(get_copy = "pub")]
     pos: u32,
 }
 
-pub fn enum_variants<E: IntoEnumIterator + Display>() -> Vec<String> {
-    E::iter().map(|v| format!("{}", v)).collect_vec()
-}
-
-/// Select values with given indices from a slice and return them as an iterator.
-pub fn select<'a, T: Clone>(idx: &'a [usize], values: &'a [T]) -> impl Iterator<Item = T> + 'a {
-    idx.iter().map(move |i| values[*i].clone())
-}
-
-pub fn generalized_cigar<T: Hash + Eq + Clone + Display>(
+pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
     items: impl Iterator<Item = T>,
     keep_order: bool,
 ) -> String {
@@ -78,7 +67,7 @@ pub fn generalized_cigar<T: Hash + Eq + Clone + Display>(
     }
 }
 
-pub fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
+pub(crate) fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
     match evidence {
         KassRaftery::Barely => 'B',
         KassRaftery::None => 'N',
@@ -89,7 +78,7 @@ pub fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
 }
 
 /// Collect variants from a given ´bcf::Record`.
-pub fn collect_variants(
+pub(crate) fn collect_variants(
     record: &mut bcf::Record,
     omit_snvs: bool,
     omit_indels: bool,
@@ -265,7 +254,7 @@ pub fn collect_variants(
 /// * `record` - BCF record
 /// * `tags` - tags of the set of events to sum up for a particular site and variant
 /// * `vartype` - the variant type to consider
-pub fn tags_prob_sum(
+pub(crate) fn tags_prob_sum(
     record: &mut bcf::Record,
     tags: &[String],
     vartype: Option<&model::VariantType>,
@@ -299,7 +288,7 @@ pub fn tags_prob_sum(
         .collect_vec())
 }
 
-pub fn events_to_tags<E>(events: &[E]) -> Vec<String>
+pub(crate) fn events_to_tags<E>(events: &[E]) -> Vec<String>
 where
     E: Event,
 {
@@ -314,7 +303,7 @@ where
 /// * `calls` - BCF reader with varlociraptor calls
 /// * `events` - the set of events to sum up for a particular site
 /// * `vartype` - the variant type to consider
-pub fn collect_prob_dist<E>(
+pub(crate) fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
     vartype: &model::VariantType,
@@ -352,7 +341,7 @@ where
 /// * `calls` - BCF writer for the filtered varlociraptor calls
 /// * `events` - the set of Events to filter on
 /// * `vartype` - the variant type to consider
-pub fn filter_by_threshold<E: Event>(
+pub(crate) fn filter_by_threshold<E: Event>(
     calls: &mut bcf::Reader,
     threshold: Option<LogProb>,
     out: &mut bcf::Writer,
@@ -381,7 +370,7 @@ pub fn filter_by_threshold<E: Event>(
 /// * `out` - output BCF
 /// * `filter` - function to filter by. Has to return a bool for every alternative allele.
 ///   True means to keep the allele.
-pub fn filter_calls<F, I, II>(
+pub(crate) fn filter_calls<F, I, II>(
     calls: &mut bcf::Reader,
     out: &mut bcf::Writer,
     filter: F,
@@ -414,13 +403,8 @@ where
     }
 }
 
-/// Return the greater of two given probabilities.
-pub fn max_prob(prob_a: LogProb, prob_b: LogProb) -> LogProb {
-    LogProb(*cmp::max(NotNan::from(prob_a), NotNan::from(prob_b)))
-}
-
 /// Returns true if all PROB_{event}s are PHRED scaled
-pub fn is_phred_scaled(inbcf: &bcf::Reader) -> bool {
+pub(crate) fn is_phred_scaled(inbcf: &bcf::Reader) -> bool {
     get_event_tags(inbcf)
         .iter()
         // check for missing closing parenthesis for backward compatibility
@@ -428,7 +412,7 @@ pub fn is_phred_scaled(inbcf: &bcf::Reader) -> bool {
 }
 
 /// Returns (ID, Description) for each PROB_{event} INFO tag
-pub fn get_event_tags(inbcf: &bcf::Reader) -> Vec<(String, String)> {
+pub(crate) fn get_event_tags(inbcf: &bcf::Reader) -> Vec<(String, String)> {
     inbcf
         .header()
         .header_records()
@@ -447,20 +431,8 @@ pub fn get_event_tags(inbcf: &bcf::Reader) -> Vec<(String, String)> {
         .collect_vec()
 }
 
-/// Returns true if given variant is located in a repeat region.
-pub fn is_repeat_variant(start: u64, variant: &model::Variant, chrom_seq: &[u8]) -> bool {
-    let end = variant.end(start) as usize;
-    for nuc in &chrom_seq[start as usize..end] {
-        if (*nuc as char).is_lowercase() {
-            return true;
-        }
-    }
-
-    false
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub enum MiniLogProb {
+pub(crate) enum MiniLogProb {
     F16(f16),
     F32(f32),
 }
@@ -469,7 +441,7 @@ impl MiniLogProb {
     /// Convert LogProb into a minimal representation for storage.
     /// If integer part is less than -1 and can be represented in f16,
     /// we use f16. Else, we use f32.
-    pub fn new(prob: LogProb) -> Self {
+    pub(crate) fn new(prob: LogProb) -> Self {
         let half = f16::from_f64(*prob);
         let proj = half.to_f64();
         if *prob < -10.0 && proj.floor() as i64 == prob.floor() as i64 {
@@ -479,7 +451,7 @@ impl MiniLogProb {
         }
     }
 
-    pub fn to_logprob(&self) -> LogProb {
+    pub(crate) fn to_logprob(&self) -> LogProb {
         LogProb(match self {
             MiniLogProb::F16(p) => p.to_f64(),
             MiniLogProb::F32(p) => *p as f64,

@@ -20,14 +20,14 @@ use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};
 
-pub struct Insertion {
+pub(crate) struct Insertion {
     locus: MultiLocus,
     ins_seq: Rc<Vec<u8>>,
     realigner: RefCell<Realigner>,
 }
 
 impl Insertion {
-    pub fn new(locus: genome::Locus, ins_seq: Vec<u8>, realigner: Realigner) -> Self {
+    pub(crate) fn new(locus: genome::Locus, ins_seq: Vec<u8>, realigner: Realigner) -> Self {
         Insertion {
             locus: MultiLocus::new(vec![SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
@@ -38,7 +38,7 @@ impl Insertion {
         }
     }
 
-    pub fn locus(&self) -> &SingleLocus {
+    pub(crate) fn locus(&self) -> &SingleLocus {
         &self.locus[0]
     }
 }
@@ -156,7 +156,7 @@ impl Variant for Insertion {
 
 /// Emission parameters for PairHMM over insertion allele.
 #[derive(Debug)]
-pub struct InsertionEmissionParams<'a> {
+pub(crate) struct InsertionEmissionParams<'a> {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,

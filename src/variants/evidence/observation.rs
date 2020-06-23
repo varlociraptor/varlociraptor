@@ -23,7 +23,7 @@ use crate::variants::sample;
 use crate::variants::types::Variant;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
-pub fn expected_depth(obs: &[Observation]) -> u32 {
+pub(crate) fn expected_depth(obs: &[Observation]) -> u32 {
     LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec())
         .exp()
         .round() as u32
@@ -31,60 +31,60 @@ pub fn expected_depth(obs: &[Observation]) -> u32 {
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default)]
-pub struct Observation {
+pub(crate) struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     #[builder(private)]
-    pub prob_mapping: LogProb,
+    pub(crate) prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
     #[builder(private)]
-    pub prob_mismapping: LogProb,
+    pub(crate) prob_mismapping: LogProb,
     /// Probability that the read/read-pair comes from the alternative allele.
-    pub prob_alt: LogProb,
+    pub(crate) prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
-    pub prob_ref: LogProb,
+    pub(crate) prob_ref: LogProb,
     /// Probability that the read/read-pair comes from an unknown allele at an unknown true
     /// locus (in case it is mismapped). This should usually be set as the product of the maxima
     /// of prob_ref and prob_alt per read.
-    pub prob_missed_allele: LogProb,
+    pub(crate) prob_missed_allele: LogProb,
     /// Probability to sample the alt allele
-    pub prob_sample_alt: LogProb,
+    pub(crate) prob_sample_alt: LogProb,
     /// Probability to overlap with both strands
     #[builder(private)]
-    pub prob_double_overlap: LogProb,
+    pub(crate) prob_double_overlap: LogProb,
     /// Probability to overlap with one strand only (1-prob_double_overlap)
     #[builder(private)]
-    pub prob_single_overlap: LogProb,
+    pub(crate) prob_single_overlap: LogProb,
     /// Probability to observe any overlapping strand combination (when not associated with alt allele)
-    pub prob_any_strand: LogProb,
+    pub(crate) prob_any_strand: LogProb,
     /// Observation relies on forward strand evidence
-    pub forward_strand: bool,
+    pub(crate) forward_strand: bool,
     /// Observation relies on reverse strand evidence
-    pub reverse_strand: bool,
+    pub(crate) reverse_strand: bool,
 }
 
 impl ObservationBuilder {
-    pub fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
+    pub(crate) fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self.prob_mapping(prob_mapping)
             .prob_mismapping(prob_mapping.ln_one_minus_exp())
     }
 
-    pub fn prob_overlap(&mut self, prob_double_overlap: LogProb) -> &mut Self {
+    pub(crate) fn prob_overlap(&mut self, prob_double_overlap: LogProb) -> &mut Self {
         self.prob_double_overlap(prob_double_overlap)
             .prob_single_overlap(prob_double_overlap.ln_one_minus_exp())
     }
 }
 
 impl Observation {
-    pub fn bayes_factor_alt(&self) -> BayesFactor {
+    pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
 
-    pub fn bayes_factor_ref(&self) -> BayesFactor {
+    pub(crate) fn bayes_factor_ref(&self) -> BayesFactor {
         BayesFactor::new(self.prob_ref, self.prob_alt)
     }
 
     #[inline]
-    pub fn prob_alt_forward(&self) -> LogProb {
+    pub(crate) fn prob_alt_forward(&self) -> LogProb {
         if self.forward_strand {
             self.prob_alt
         } else {
@@ -93,7 +93,7 @@ impl Observation {
     }
 
     #[inline]
-    pub fn prob_alt_reverse(&self) -> LogProb {
+    pub(crate) fn prob_alt_reverse(&self) -> LogProb {
         if self.reverse_strand {
             self.prob_alt
         } else {
@@ -102,7 +102,7 @@ impl Observation {
     }
 
     #[inline]
-    pub fn prob_ref_forward(&self) -> LogProb {
+    pub(crate) fn prob_ref_forward(&self) -> LogProb {
         if self.forward_strand {
             self.prob_ref
         } else {
@@ -111,7 +111,7 @@ impl Observation {
     }
 
     #[inline]
-    pub fn prob_ref_reverse(&self) -> LogProb {
+    pub(crate) fn prob_ref_reverse(&self) -> LogProb {
         if self.reverse_strand {
             self.prob_ref
         } else {
@@ -120,7 +120,7 @@ impl Observation {
     }
 }
 
-pub fn poisson_pmf(count: u32, mu: f64) -> LogProb {
+pub(crate) fn poisson_pmf(count: u32, mu: f64) -> LogProb {
     if mu == 0.0 {
         if count == 0 {
             LogProb::ln_one()
@@ -148,7 +148,7 @@ impl Serialize for Observation {
 }
 
 /// Something that can be converted into observations.
-pub trait Observable<E>: Variant<Evidence = E>
+pub(crate) trait Observable<E>: Variant<Evidence = E>
 where
     E: Evidence + Eq + Hash,
 {
@@ -198,15 +198,15 @@ where
 
 #[derive(Builder, Default, CopyGetters)]
 #[getset(get_copy = "pub")]
-pub struct Strand {
+pub(crate) struct Strand {
     forward: bool,
     reverse: bool,
 }
 
-pub trait Evidence {}
+pub(crate) trait Evidence {}
 
 #[derive(new, Clone, Eq, Debug)]
-pub struct SingleEndEvidence {
+pub(crate) struct SingleEndEvidence {
     inner: Rc<bam::Record>,
 }
 
@@ -233,7 +233,7 @@ impl Hash for SingleEndEvidence {
 }
 
 #[derive(Clone, Eq, Debug)]
-pub enum PairedEndEvidence {
+pub(crate) enum PairedEndEvidence {
     SingleEnd(Rc<bam::Record>),
     PairedEnd {
         left: Rc<bam::Record>,

@@ -15,14 +15,14 @@ use rust_htslib::bam;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
 /// Width of band around alignment with optimal edit distance.
-pub const EDIT_BAND: usize = 2;
+pub(crate) const EDIT_BAND: usize = 2;
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
 }
 
 /// Calculate probability of read_base given ref_base.
-pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
+pub(crate) fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
     let prob_miscall = prob_read_base_miscall(base_qual);
 
     if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
@@ -34,11 +34,11 @@ pub fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
 }
 
 /// unpack miscall probability of read_base.
-pub fn prob_read_base_miscall(base_qual: u8) -> LogProb {
+pub(crate) fn prob_read_base_miscall(base_qual: u8) -> LogProb {
     LogProb::from(PHREDProb::from((base_qual) as f64))
 }
 
-pub trait RefBaseEmission: Debug {
+pub(crate) trait RefBaseEmission: Debug {
     fn ref_base(&self, i: usize) -> u8;
 
     fn ref_offset(&self) -> usize;
@@ -87,11 +87,11 @@ macro_rules! default_ref_base_emission {
 
 /// Gap parameters for PairHMM.
 #[derive(Debug, Clone)]
-pub struct GapParams {
-    pub prob_insertion_artifact: LogProb,
-    pub prob_deletion_artifact: LogProb,
-    pub prob_insertion_extend_artifact: LogProb,
-    pub prob_deletion_extend_artifact: LogProb,
+pub(crate) struct GapParams {
+    pub(crate) prob_insertion_artifact: LogProb,
+    pub(crate) prob_deletion_artifact: LogProb,
+    pub(crate) prob_insertion_extend_artifact: LogProb,
+    pub(crate) prob_deletion_extend_artifact: LogProb,
 }
 
 impl pairhmm::GapParameters for GapParams {
@@ -164,7 +164,7 @@ macro_rules! default_emission {
 
 #[derive(Debug, Getters)]
 #[getset(get = "pub")]
-pub struct ReadEmission<'a> {
+pub(crate) struct ReadEmission<'a> {
     read_seq: bam::record::Seq<'a>,
     any_miscall: Vec<LogProb>,
     no_miscall: Vec<LogProb>,
@@ -173,7 +173,7 @@ pub struct ReadEmission<'a> {
 }
 
 impl<'a> ReadEmission<'a> {
-    pub fn new(
+    pub(crate) fn new(
         read_seq: bam::record::Seq<'a>,
         qual: &[u8],
         read_offset: usize,
@@ -200,7 +200,7 @@ impl<'a> ReadEmission<'a> {
     }
 
     /// Calculate probability of read_base given ref_base.
-    pub fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> pairhmm::XYEmission {
+    pub(crate) fn prob_match_mismatch(&self, j: usize, ref_base: u8) -> pairhmm::XYEmission {
         let read_base = self.read_seq[self.project_j(j)];
 
         if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
@@ -211,7 +211,7 @@ impl<'a> ReadEmission<'a> {
         }
     }
 
-    pub fn prob_insertion(&self, j: usize) -> LogProb {
+    pub(crate) fn prob_insertion(&self, j: usize) -> LogProb {
         self.any_miscall[j]
     }
 
@@ -221,18 +221,18 @@ impl<'a> ReadEmission<'a> {
     }
 
     /// Calculate probability that none of the bases is miscalled.
-    pub fn certainty_est(&self) -> LogProb {
+    pub(crate) fn certainty_est(&self) -> LogProb {
         self.no_miscall.iter().sum()
     }
 }
 
 /// Emission parameters for PairHMM over reference allele.
 #[derive(Debug)]
-pub struct ReferenceEmissionParams<'a> {
-    pub ref_seq: Arc<Vec<u8>>,
-    pub ref_offset: usize,
-    pub ref_end: usize,
-    pub read_emission: Rc<ReadEmission<'a>>,
+pub(crate) struct ReferenceEmissionParams<'a> {
+    pub(crate) ref_seq: Arc<Vec<u8>>,
+    pub(crate) ref_offset: usize,
+    pub(crate) ref_end: usize,
+    pub(crate) read_emission: Rc<ReadEmission<'a>>,
 }
 
 impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {

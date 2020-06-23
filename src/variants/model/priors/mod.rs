@@ -1,28 +1,28 @@
 // TODO deprecated. Migrate into model::modes::*.
 
 
-pub mod infinite_sites_neutral_variation;
-pub mod single_cell_bulk;
-pub mod tumor_normal;
+pub(crate) mod infinite_sites_neutral_variation;
+pub(crate) mod single_cell_bulk;
+pub(crate) mod tumor_normal;
 // TODO disable Tumor-Normal-Relapse model until i
-//pub mod tumor_normal_relapse;
-pub mod flat;
-pub mod normal;
+//pub(crate) mod tumor_normal_relapse;
+pub(crate) mod flat;
+pub(crate) mod normal;
 
 use bio::stats::LogProb;
 
 use crate::model::{AlleleFreq, AlleleFreqs, Variant};
 
-pub use self::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel;
-pub use self::single_cell_bulk::SingleCellBulkModel;
-pub use self::tumor_normal::TumorNormalModel;
-//pub use priors::tumor_normal_relapse::TumorNormalRelapseModel;
-pub use crate::model::PairPileup;
-pub use self::flat::FlatNormalNormalModel;
-pub use self::flat::FlatTumorNormalModel;
+pub(crate) use self::infinite_sites_neutral_variation::InfiniteSitesNeutralVariationModel;
+pub(crate) use self::single_cell_bulk::SingleCellBulkModel;
+pub(crate) use self::tumor_normal::TumorNormalModel;
+//pub(crate) use priors::tumor_normal_relapse::TumorNormalRelapseModel;
+pub(crate) use crate::model::PairPileup;
+pub(crate) use self::flat::FlatNormalNormalModel;
+pub(crate) use self::flat::FlatTumorNormalModel;
 
 /// A prior model of the allele frequency spectrum.
-pub trait Model<A: AlleleFreqs> {
+pub(crate) trait Model<A: AlleleFreqs> {
     /// Calculate prior probability of given allele frequency.
     fn prior_prob(&self, af: AlleleFreq, variant: &Variant) -> LogProb;
 
@@ -44,7 +44,7 @@ pub trait Model<A: AlleleFreqs> {
 }
 
 /// A prior model for sample pairs.
-pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
+pub(crate) trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
     /// Calculate prior probability of given combination of allele frequencies.
     fn prior_prob(&self, af1: AlleleFreq, af2: AlleleFreq, variant: &Variant) -> LogProb;
 
@@ -62,7 +62,7 @@ pub trait PairModel<A: AlleleFreqs, B: AlleleFreqs> {
 }
 
 /// A prior model for trios.
-pub trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
+pub(crate) trait TrioModel<A: AlleleFreqs, B: AlleleFreqs, C: AlleleFreqs> {
     /// Calculate prior probability of given combination of allele frequencies.
     fn prior_prob(
         &self,
@@ -137,7 +137,7 @@ mod tests {
     use crate::model::AlleleFreq;
     use crate::model::Variant;
 
-    pub fn create_obs_vector(n_obs_ref: usize, n_obs_alt: usize) -> Vec<Observation> {
+    pub(crate) fn create_obs_vector(n_obs_ref: usize, n_obs_alt: usize) -> Vec<Observation> {
         let obs_ref_abs = observation(LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_one());
         let obs_alt_abs = observation(LogProb::ln_one(), LogProb::ln_one(), LogProb::ln_zero());
 

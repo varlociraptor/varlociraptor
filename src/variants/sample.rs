@@ -23,7 +23,7 @@ use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 
 #[derive(new, Getters, Debug)]
-pub struct RecordBuffer {
+pub(crate) struct RecordBuffer {
     inner: bam::RecordBuffer,
     #[getset(get = "pub")]
     single_read_window: u64,
@@ -32,7 +32,7 @@ pub struct RecordBuffer {
 }
 
 impl RecordBuffer {
-    pub fn window(&self, read_pair_mode: bool) -> u64 {
+    pub(crate) fn window(&self, read_pair_mode: bool) -> u64 {
         if read_pair_mode {
             self.read_pair_window
         } else {
@@ -40,7 +40,7 @@ impl RecordBuffer {
         }
     }
 
-    pub fn fetch(&mut self, interval: &genome::Interval, read_pair_mode: bool) -> Result<()> {
+    pub(crate) fn fetch(&mut self, interval: &genome::Interval, read_pair_mode: bool) -> Result<()> {
         self.inner.fetch(
             interval.contig().as_bytes(),
             interval
@@ -53,14 +53,14 @@ impl RecordBuffer {
         Ok(())
     }
 
-    pub fn build_fetches(&self, read_pair_mode: bool) -> Fetches {
+    pub(crate) fn build_fetches(&self, read_pair_mode: bool) -> Fetches {
         Fetches {
             fetches: Vec::new(),
             window: self.window(read_pair_mode),
         }
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = Rc<bam::Record>> + 'a {
+    pub(crate) fn iter<'a>(&'a self) -> impl Iterator<Item = Rc<bam::Record>> + 'a {
         self.inner
             .iter()
             .filter(|record| is_valid_record(record.as_ref()))
@@ -69,14 +69,14 @@ impl RecordBuffer {
 }
 
 #[derive(Default, Derefable)]
-pub struct Fetches {
+pub(crate) struct Fetches {
     #[deref]
     fetches: Vec<genome::Interval>,
     window: u64,
 }
 
 impl Fetches {
-    pub fn push(&mut self, interval: &genome::Interval) {
+    pub(crate) fn push(&mut self, interval: &genome::Interval) {
         if let Some(last) = self.fetches.last_mut() {
             if last.contig() == interval.contig() {
                 if interval.range().start.saturating_sub(self.window)
@@ -119,9 +119,9 @@ impl Default for ProtocolStrandedness {
     }
 }
 
-pub type Pileup = Vec<Observation>;
+pub(crate) type Pileup = Vec<Observation>;
 
-pub enum SubsampleCandidates {
+pub(crate) enum SubsampleCandidates {
     Necessary {
         rng: StdRng,
         prob: f64,
@@ -131,7 +131,7 @@ pub enum SubsampleCandidates {
 }
 
 impl SubsampleCandidates {
-    pub fn new(max_depth: usize, depth: usize) -> Self {
+    pub(crate) fn new(max_depth: usize, depth: usize) -> Self {
         if depth > max_depth {
             SubsampleCandidates::Necessary {
                 rng: StdRng::seed_from_u64(48074578),
@@ -143,7 +143,7 @@ impl SubsampleCandidates {
         }
     }
 
-    pub fn keep(&mut self) -> bool {
+    pub(crate) fn keep(&mut self) -> bool {
         match self {
             SubsampleCandidates::Necessary {
                 rng,
@@ -155,7 +155,7 @@ impl SubsampleCandidates {
     }
 }
 
-pub fn estimate_alignment_properties<P: AsRef<Path>>(
+pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
     omit_insert_size: bool,
 ) -> Result<alignment_properties::AlignmentProperties> {
@@ -169,7 +169,7 @@ pub fn estimate_alignment_properties<P: AsRef<Path>>(
 /// A sequenced sample, e.g., a tumor or a normal sample.
 #[derive(Builder, Debug)]
 #[builder(pattern = "owned")]
-pub struct Sample {
+pub(crate) struct Sample {
     #[builder(private)]
     record_buffer: RecordBuffer,
     #[builder(default = "true")]
@@ -188,7 +188,7 @@ impl SampleBuilder {
     ///
     /// # Arguments
     /// * `bam` - BAM file with the aligned and deduplicated sequence reads.
-    pub fn alignments(
+    pub(crate) fn alignments(
         self,
         bam: bam::IndexedReader,
         alignment_properties: alignment_properties::AlignmentProperties,
@@ -214,7 +214,7 @@ fn is_valid_record(record: &bam::Record) -> bool {
 
 impl Sample {
     /// Extract observations for the given variant.
-    pub fn extract_observations<V, E, L>(&mut self, variant: &V) -> Result<Pileup>
+    pub(crate) fn extract_observations<V, E, L>(&mut self, variant: &V) -> Result<Pileup>
     where
         E: observation::Evidence + Eq + Hash,
         L: variants::types::Loci,

@@ -15,10 +15,10 @@ use crate::grammar::Scenario;
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct IUPAC(u8);
+pub(crate) struct IUPAC(u8);
 
 impl IUPAC {
-    pub fn contains(&self, base: u8) -> bool {
+    pub(crate) fn contains(&self, base: u8) -> bool {
         if base == **self {
             return true;
         }
@@ -41,10 +41,10 @@ impl IUPAC {
 
 #[derive(Parser)]
 #[grammar = "grammar/formula.pest"]
-pub struct FormulaParser;
+pub(crate) struct FormulaParser;
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
-pub enum Formula {
+pub(crate) enum Formula {
     Conjunction {
         operands: Vec<Box<Formula>>,
     },
@@ -66,7 +66,7 @@ pub enum Formula {
 }
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
-pub enum NormalizedFormula {
+pub(crate) enum NormalizedFormula {
     Conjunction {
         operands: Vec<Box<NormalizedFormula>>,
     },
@@ -86,7 +86,7 @@ pub enum NormalizedFormula {
 
 impl Formula {
     /// Negate formula.
-    pub fn negate(&self, scenario: &Scenario, contig: &str) -> Result<Formula> {
+    pub(crate) fn negate(&self, scenario: &Scenario, contig: &str) -> Result<Formula> {
         Ok(match self {
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
@@ -199,7 +199,7 @@ impl Formula {
         })
     }
 
-    pub fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
+    pub(crate) fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
         Ok(match self {
             Formula::Negation { operand } => operand
                 .negate(scenario, contig)?
@@ -234,19 +234,19 @@ impl Formula {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum VAFSpectrum {
+pub(crate) enum VAFSpectrum {
     Set(BTreeSet<AlleleFreq>),
     Range(VAFRange),
 }
 
 impl VAFSpectrum {
-    pub fn singleton(vaf: AlleleFreq) -> Self {
+    pub(crate) fn singleton(vaf: AlleleFreq) -> Self {
         let mut set = BTreeSet::new();
         set.insert(vaf);
         VAFSpectrum::Set(set)
     }
 
-    pub fn contains(&self, vaf: AlleleFreq) -> bool {
+    pub(crate) fn contains(&self, vaf: AlleleFreq) -> bool {
         match self {
             VAFSpectrum::Set(ref set) => set.contains(&vaf),
             VAFSpectrum::Range(ref range) => range.contains(vaf),
@@ -255,13 +255,13 @@ impl VAFSpectrum {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct VAFRange {
+pub(crate) struct VAFRange {
     inner: ops::Range<AlleleFreq>,
     left_exclusive: bool,
     right_exclusive: bool,
 }
 
-pub enum VAFRangeOverlap {
+pub(crate) enum VAFRangeOverlap {
     Contained,
     Contains,
     End,
@@ -270,7 +270,7 @@ pub enum VAFRangeOverlap {
 }
 
 impl VAFRange {
-    pub fn contains(&self, vaf: AlleleFreq) -> bool {
+    pub(crate) fn contains(&self, vaf: AlleleFreq) -> bool {
         match (self.left_exclusive, self.right_exclusive) {
             (true, true) => self.start < vaf && self.end > vaf,
             (true, false) => self.start < vaf && self.end >= vaf,
@@ -279,7 +279,7 @@ impl VAFRange {
         }
     }
 
-    pub fn split_at(&self, vaf: AlleleFreq) -> (VAFRange, VAFRange) {
+    pub(crate) fn split_at(&self, vaf: AlleleFreq) -> (VAFRange, VAFRange) {
         assert!(
             self.contains(vaf),
             "bug: split_at is only defined if given VAF is contained in range"
@@ -297,7 +297,7 @@ impl VAFRange {
         (left, right)
     }
 
-    pub fn overlap(&self, vafs: &VAFRange) -> VAFRangeOverlap {
+    pub(crate) fn overlap(&self, vafs: &VAFRange) -> VAFRangeOverlap {
         let range = self;
         let other_range = vafs;
         let start_is_right_of_start = match (self.left_exclusive, self.right_exclusive) {
@@ -324,7 +324,7 @@ impl VAFRange {
         }
     }
 
-    pub fn observable_min(&self, n_obs: usize) -> AlleleFreq {
+    pub(crate) fn observable_min(&self, n_obs: usize) -> AlleleFreq {
         if n_obs < 10 {
             self.start
         } else {
@@ -349,7 +349,7 @@ impl VAFRange {
         }
     }
 
-    pub fn observable_max(&self, n_obs: usize) -> AlleleFreq {
+    pub(crate) fn observable_max(&self, n_obs: usize) -> AlleleFreq {
         assert!(
             *self.end != 0.0,
             "bug: observable_max may not be called if end=0.0."
@@ -394,31 +394,10 @@ impl PartialOrd for VAFRange {
 }
 
 #[derive(Debug, Clone)]
-pub struct VAFUniverse(BTreeSet<VAFSpectrum>);
+pub(crate) struct VAFUniverse(BTreeSet<VAFSpectrum>);
 
 impl VAFUniverse {
-    pub fn as_formula<T: Clone>(&self, sample: &str) -> NormalizedFormula {
-        if self.len() == 1 {
-            NormalizedFormula::Atom {
-                sample: sample.to_owned(),
-                vafs: self.iter().next().unwrap().clone(),
-            }
-        } else {
-            NormalizedFormula::Disjunction {
-                operands: self
-                    .iter()
-                    .map(|vafs| {
-                        Box::new(NormalizedFormula::Atom {
-                            sample: sample.to_owned(),
-                            vafs: vafs.clone(),
-                        })
-                    })
-                    .collect(),
-            }
-        }
-    }
-
-    pub fn contains(&self, vaf: AlleleFreq) -> bool {
+    pub(crate) fn contains(&self, vaf: AlleleFreq) -> bool {
         for atom in &**self {
             if atom.contains(vaf) {
                 return true;

@@ -3,7 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-pub mod bases;
-pub mod insert_size;
-pub mod observation;
-pub mod realignment;
+pub(crate) mod bases;
+pub(crate) mod insert_size;
+pub(crate) mod observation;
+pub(crate) mod realignment;

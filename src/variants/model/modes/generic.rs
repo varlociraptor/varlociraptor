@@ -13,26 +13,26 @@ use crate::variants::model::{AlleleFreq, Contamination, StrandBias};
 use crate::variants::sample::Pileup;
 
 #[derive(new, Clone, Debug)]
-pub struct SNV {
+pub(crate) struct SNV {
     refbase: u8,
     altbase: u8,
 }
 
 #[derive(new, Clone, Debug, Getters)]
 #[get = "pub"]
-pub struct Data {
+pub(crate) struct Data {
     pileups: Vec<Pileup>,
     snv: Option<SNV>,
 }
 
 impl Data {
-    pub fn into_pileups(self) -> Vec<Pileup> {
+    pub(crate) fn into_pileups(self) -> Vec<Pileup> {
         self.pileups
     }
 }
 
 #[derive(Debug)]
-pub enum CacheEntry {
+pub(crate) enum CacheEntry {
     ContaminatedSample(likelihood::ContaminatedSampleCache),
     SingleSample(likelihood::SingleSampleCache),
 }
@@ -47,10 +47,10 @@ impl CacheEntry {
     }
 }
 
-pub type Cache = VecMap<CacheEntry>;
+pub(crate) type Cache = VecMap<CacheEntry>;
 
 #[derive(Default, Debug, Clone, Builder)]
-pub struct GenericModelBuilder<P>
+pub(crate) struct GenericModelBuilder<P>
 where
     P: Prior<Event = Vec<likelihood::Event>>,
 {
@@ -63,13 +63,13 @@ impl<P> GenericModelBuilder<P>
 where
     P: Prior<Event = Vec<likelihood::Event>>,
 {
-    pub fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
+    pub(crate) fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
         self.resolutions = Some(resolutions);
 
         self
     }
 
-    pub fn contaminations(
+    pub(crate) fn contaminations(
         mut self,
         contaminations: grammar::SampleInfo<Option<Contamination>>,
     ) -> Self {
@@ -78,13 +78,13 @@ where
         self
     }
 
-    pub fn prior(mut self, prior: P) -> Self {
+    pub(crate) fn prior(mut self, prior: P) -> Self {
         self.prior = prior;
 
         self
     }
 
-    pub fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
+    pub(crate) fn build(self) -> Result<Model<GenericLikelihood, P, GenericPosterior, Cache>, String> {
         let posterior = GenericPosterior::new(
             self.resolutions
                 .expect("GenericModelBuilder: need to call resolutions() before build()"),
@@ -98,7 +98,7 @@ where
 }
 
 #[derive(new, Clone, Debug, Default)]
-pub struct GenericPosterior {
+pub(crate) struct GenericPosterior {
     resolutions: grammar::SampleInfo<usize>,
 }
 
@@ -275,12 +275,12 @@ enum SampleModel {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct GenericLikelihood {
+pub(crate) struct GenericLikelihood {
     inner: grammar::SampleInfo<SampleModel>,
 }
 
 impl GenericLikelihood {
-    pub fn new(contaminations: grammar::SampleInfo<Option<Contamination>>) -> Self {
+    pub(crate) fn new(contaminations: grammar::SampleInfo<Option<Contamination>>) -> Self {
         let inner = contaminations.map(|contamination| {
             if let Some(contamination) = contamination {
                 SampleModel::Contaminated {
@@ -349,12 +349,12 @@ impl Likelihood<Cache> for GenericLikelihood {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct FlatPrior {
+pub(crate) struct FlatPrior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
 }
 
 impl FlatPrior {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         FlatPrior { universe: None }
     }
 }

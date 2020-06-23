@@ -34,15 +34,15 @@ use super::PairModel;
 ///
 /// For the final prior, we consider a given tumor purity and calculate the combined prior
 /// for all possible allele frequency combinations satisfying `af = purity * af_tumor + (1-purity) * af_normal`.
-pub struct TumorNormalModel {
-    pub normal_model: InfiniteSitesNeutralVariationModel,
+pub(crate) struct TumorNormalModel {
+    pub(crate) normal_model: InfiniteSitesNeutralVariationModel,
     effective_mutation_rate: f64,
     deletion_factor: f64,
     insertion_factor: f64,
     genome_size: u64,
-    pub allele_freqs_tumor: ContinuousAlleleFreqs,
-    pub allele_freqs_normal: DiscreteAlleleFreqs,
-    pub grid_points: usize,
+    pub(crate) allele_freqs_tumor: ContinuousAlleleFreqs,
+    pub(crate) allele_freqs_normal: DiscreteAlleleFreqs,
+    pub(crate) grid_points: usize,
     af_min: AlleleFreq,
     ploidy: u32,
 }
@@ -58,7 +58,7 @@ impl TumorNormalModel {
     /// * `insertion_factor` - ratio of insertions compared to SNV mutation rate
     /// * `genome_size` - the size of the genome
     /// * `heterozygosity` - expected heterozygosity in the corresponding normal
-    pub fn new(
+    pub(crate) fn new(
         ploidy: u32,
         effective_mutation_rate: f64,
         deletion_factor: f64,
@@ -85,7 +85,7 @@ impl TumorNormalModel {
         }
     }
 
-    pub fn somatic_prior_prob(&self, af_somatic: AlleleFreq, variant: &Variant) -> LogProb {
+    pub(crate) fn somatic_prior_prob(&self, af_somatic: AlleleFreq, variant: &Variant) -> LogProb {
         // af_somatic can become negative, meaning that at some point a variant from normal was lost
         // in one cell (LOH!!). Again, the frequency corresponds to time in tumor evolution since the model
         // assumes that all frequencies stay constant. Hence, we can simply take the absolute value
@@ -113,7 +113,7 @@ impl TumorNormalModel {
         )
     }
 
-    pub fn normal_prior_prob(&self, af_normal: AlleleFreq, _: &Variant) -> LogProb {
+    pub(crate) fn normal_prior_prob(&self, af_normal: AlleleFreq, _: &Variant) -> LogProb {
         let m = *af_normal * self.ploidy as f64;
         if relative_eq!(m % 1.0, 0.0) {
             // if m is discrete

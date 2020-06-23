@@ -19,21 +19,21 @@ use crate::variants::evidence::observation::{
 };
 use crate::variants::sample;
 
-pub mod deletion;
-pub mod insertion;
-pub mod mnv;
-pub mod none;
-pub mod snv;
+pub(crate) mod deletion;
+pub(crate) mod insertion;
+pub(crate) mod mnv;
+pub(crate) mod none;
+pub(crate) mod snv;
 
-pub use deletion::Deletion;
-pub use insertion::Insertion;
-pub use mnv::MNV;
-pub use none::None;
-pub use snv::SNV;
+pub(crate) use deletion::Deletion;
+pub(crate) use insertion::Insertion;
+pub(crate) use mnv::MNV;
+pub(crate) use none::None;
+pub(crate) use snv::SNV;
 
 #[derive(Debug, CopyGetters, Builder)]
 #[getset(get_copy = "pub")]
-pub struct AlleleSupport {
+pub(crate) struct AlleleSupport {
     prob_ref_allele: LogProb,
     prob_alt_allele: LogProb,
     forward_strand: bool,
@@ -46,11 +46,11 @@ impl AlleleSupport {
     /// and prob_ref. Otherwise it could cause numerical problems, by dominating the
     /// likelihood such that subtle differences in allele frequencies become numercically
     /// invisible in the resulting likelihood.
-    pub fn prob_missed_allele(&self) -> LogProb {
+    pub(crate) fn prob_missed_allele(&self) -> LogProb {
         self.prob_ref_allele.ln_add_exp(self.prob_alt_allele) - LogProb(2.0_f64.ln())
     }
 
-    pub fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
+    pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
         self.forward_strand |= other.forward_strand;
@@ -61,19 +61,19 @@ impl AlleleSupport {
 }
 
 impl AlleleSupportBuilder {
-    pub fn register_record(&mut self, record: &bam::Record) -> &mut Self {
+    pub(crate) fn register_record(&mut self, record: &bam::Record) -> &mut Self {
         let reverse_strand = is_reverse_strand(record);
 
         self.forward_strand(!reverse_strand)
             .reverse_strand(reverse_strand)
     }
 
-    pub fn no_strand_info(&mut self) -> &mut Self {
+    pub(crate) fn no_strand_info(&mut self) -> &mut Self {
         self.forward_strand(false).reverse_strand(false)
     }
 }
 
-pub trait Variant {
+pub(crate) trait Variant {
     type Evidence: Evidence;
     type Loci: Loci;
 
@@ -270,13 +270,13 @@ where
     }
 }
 
-pub trait Loci {}
+pub(crate) trait Loci {}
 
 #[derive(Debug, Derefable, new)]
-pub struct SingleLocus(#[deref] genome::Interval);
+pub(crate) struct SingleLocus(#[deref] genome::Interval);
 
 impl SingleLocus {
-    pub fn overlap(&self, record: &bam::Record, consider_clips: bool) -> Overlap {
+    pub(crate) fn overlap(&self, record: &bam::Record, consider_clips: bool) -> Overlap {
         let mut pos = record.pos() as u64;
         let cigar = record.cigar_cached().unwrap();
         let mut end_pos = record.cigar_cached().unwrap().end_pos() as u64;
@@ -306,7 +306,7 @@ impl SingleLocus {
 impl Loci for SingleLocus {}
 
 #[derive(new, Default, Debug, Derefable)]
-pub struct MultiLocus {
+pub(crate) struct MultiLocus {
     #[deref]
     loci: Vec<SingleLocus>,
 }
@@ -330,7 +330,7 @@ impl Candidate {
 
 /// Describes whether read overlaps a variant in a valid or invalid (too large overlap) way.
 #[derive(Debug)]
-pub enum Overlap {
+pub(crate) enum Overlap {
     Enclosing,
     Left,
     Right,
@@ -339,7 +339,7 @@ pub enum Overlap {
 }
 
 impl Overlap {
-    pub fn is_none(&self) -> bool {
+    pub(crate) fn is_none(&self) -> bool {
         if let Overlap::None = self {
             true
         } else {

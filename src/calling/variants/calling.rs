@@ -19,11 +19,11 @@ use crate::grammar;
 use crate::variants::model;
 use crate::variants::model::{AlleleFreq, StrandBias};
 
-pub type AlleleFreqCombination = Vec<model::likelihood::Event>;
+pub(crate) type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub struct Caller<L, Pr, Po, ModelPayload>
+pub(crate) struct Caller<L, Pr, Po, ModelPayload>
 where
     L: bayesian::model::Likelihood<ModelPayload>,
     Pr: bayesian::model::Prior,
@@ -45,7 +45,7 @@ where
     Po: bayesian::model::Posterior<Event = model::Event>,
     ModelPayload: Default,
 {
-    pub fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
+    pub(crate) fn outbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
         let mut header = bcf::Header::from_template(
             self.observations
                 .as_ref()
@@ -140,11 +140,11 @@ where
     >,
     ModelPayload: Default,
 {
-    pub fn n_samples(&self) -> usize {
+    pub(crate) fn n_samples(&self) -> usize {
         self.samplenames.len()
     }
 
-    pub fn call(&mut self) -> Result<()> {
+    pub(crate) fn call(&mut self) -> Result<()> {
         for obs_reader in self.observations.iter() {
             let mut valid = false;
             for record in obs_reader.header().header_records() {

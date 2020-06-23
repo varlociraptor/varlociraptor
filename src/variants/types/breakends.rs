@@ -11,7 +11,7 @@ use bio_types::genome;
 /// 
 /// * `t[p[`: p=pos, t=ref_allele+seq, revcomp=false, side=RightOfPos
 /// * `t]p]`: p=pos, t=ref_allele+seq, revcomp=true, side=
-pub struct Breakend {
+pub(crate) struct Breakend {
     pos: genome::Position,
     mate_pos: genome::Position,
     ref_allele: u8,
@@ -21,7 +21,7 @@ pub struct Breakend {
     revcomp: bool,
 }
 
-pub enum Side {
+pub(crate) enum Side {
     LeftOfPos,
     RightOfPos,
 }

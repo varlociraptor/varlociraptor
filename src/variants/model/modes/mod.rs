@@ -3,11 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-pub mod generic;
-pub mod tumor;
+pub(crate) mod generic;
+pub(crate) mod tumor;
 
 use crate::grammar;
 
-pub trait UniverseDrivenPrior {
+pub(crate) trait UniverseDrivenPrior {
     fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>);
 }

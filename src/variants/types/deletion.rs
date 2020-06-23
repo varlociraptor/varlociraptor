@@ -24,14 +24,14 @@ use crate::variants::types::{
 };
 use crate::{default_emission, default_ref_base_emission};
 
-pub struct Deletion {
+pub(crate) struct Deletion {
     locus: SingleLocus,
     fetch_loci: MultiLocus,
     realigner: RefCell<Realigner>,
 }
 
 impl Deletion {
-    pub fn new(locus: genome::Interval, realigner: Realigner) -> Self {
+    pub(crate) fn new(locus: genome::Interval, realigner: Realigner) -> Self {
         let start = locus.range().start;
         let end = locus.range().end;
         let len = end - start;
@@ -54,19 +54,19 @@ impl Deletion {
         }
     }
 
-    pub fn centerpoint(&self) -> u64 {
+    pub(crate) fn centerpoint(&self) -> u64 {
         self.fetch_loci[1].range().start
     }
 
-    pub fn start(&self) -> u64 {
+    pub(crate) fn start(&self) -> u64 {
         self.fetch_loci[0].range().start
     }
 
-    pub fn end(&self) -> u64 {
+    pub(crate) fn end(&self) -> u64 {
         self.fetch_loci[2].range().end
     }
 
-    pub fn allele_support_isize(
+    pub(crate) fn allele_support_isize(
         &self,
         left_record: &bam::Record,
         right_record: &bam::Record,
@@ -235,7 +235,7 @@ impl Variant for Deletion {
 
 /// Emission parameters for PairHMM over deletion allele.
 #[derive(Debug)]
-pub struct DeletionEmissionParams<'a> {
+pub(crate) struct DeletionEmissionParams<'a> {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
