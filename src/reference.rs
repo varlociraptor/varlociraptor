@@ -1,6 +1,7 @@
 use std::fs;
 use std::str;
 use std::sync::Arc;
+use std::collections::VecDeque;
 
 use anyhow::Result;
 use bio::io::fasta;
@@ -9,7 +10,7 @@ use bio::io::fasta;
 pub(crate) struct Buffer {
     pub(crate) reader: fasta::IndexedReader<fs::File>,
     chrom: Option<Vec<u8>>,
-    sequence: Arc<Vec<u8>>,
+    sequences: VecDeque<Vec<u8>>,
 }
 
 impl Buffer {

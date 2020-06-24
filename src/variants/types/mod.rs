@@ -24,6 +24,7 @@ pub(crate) mod insertion;
 pub(crate) mod mnv;
 pub(crate) mod none;
 pub(crate) mod snv;
+pub(crate) mod breakends;
 
 pub(crate) use deletion::Deletion;
 pub(crate) use insertion::Insertion;
@@ -306,7 +307,7 @@ impl Loci for SingleLocus {}
 
 #[derive(new, Default, Debug, Derefable)]
 pub(crate) struct MultiLocus {
-    #[deref]
+    #[deref(mutable)]
     loci: Vec<SingleLocus>,
 }
 
