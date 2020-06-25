@@ -23,6 +23,7 @@ use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
 };
 use crate::{default_emission, default_ref_base_emission};
+use crate::reference;
 
 pub(crate) struct Deletion {
     locus: SingleLocus,
@@ -109,19 +110,21 @@ impl<'a> Realignable<'a> for Deletion {
     fn alt_emission_params(
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
-        ref_seq: Arc<Vec<u8>>,
+        ref_buffer: Arc<reference::Buffer>,
         ref_window: usize,
-    ) -> DeletionEmissionParams<'a> {
+    ) -> Result<DeletionEmissionParams<'a>> {
         let start = self.locus.range().start as usize;
         let end = self.locus.range().end as usize;
-        DeletionEmissionParams {
+        let ref_seq = ref_buffer.seq(self.locus.contig())?;
+
+        Ok(DeletionEmissionParams {
             del_start: start,
             del_len: end - start,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
             ref_seq,
             read_emission: read_emission_params,
-        }
+        })
     }
 }
 

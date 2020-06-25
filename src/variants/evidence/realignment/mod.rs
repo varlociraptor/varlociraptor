@@ -4,7 +4,6 @@
 // except according to those terms.
 
 use std::cmp;
-use std::fmt::Debug;
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
@@ -17,6 +16,7 @@ use rust_htslib::bam;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
 use crate::variants::types::{AlleleSupport, AlleleSupportBuilder};
+use crate::reference;
 
 pub(crate) mod edit_distance;
 pub(crate) mod pairhmm;
@@ -27,32 +27,31 @@ pub(crate) trait Realignable<'a> {
     fn alt_emission_params(
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
-        ref_seq: Arc<Vec<u8>>,
+        ref_buffer: Arc<reference::Buffer>,
         ref_window: usize,
-    ) -> Self::EmissionParams;
+    ) -> Result<Self::EmissionParams>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct Realigner {
     pairhmm: PairHMM,
     gap_params: pairhmm::GapParams,
     max_window: u64,
-    ref_seq: Arc<Vec<u8>>,
+    ref_buffer: Arc<reference::Buffer>,
 }
 
 impl Realigner {
     /// Create a new instance.
     pub(crate) fn new(
-        ref_seq: Arc<Vec<u8>>,
+        ref_buffer: Arc<reference::Buffer>,
         gap_params: pairhmm::GapParams,
         max_window: u64,
-    ) -> Self
-where {
+    ) -> Self {
         Realigner {
             gap_params,
             pairhmm: PairHMM::new(),
             max_window,
-            ref_seq,
+            ref_buffer,
         }
     }
 
@@ -125,6 +124,7 @@ where {
         // the window on the reference should be a bit larger to allow some flexibility with close
         // indels. But it should not be so large that the read can align outside of the breakpoint.
         let ref_window = (self.max_window as f64 * 1.5) as usize;
+        let ref_seq = self.ref_buffer.seq(locus.contig())?;
 
         // read emission
         let read_emission = Rc::new(ReadEmission::new(
@@ -150,9 +150,9 @@ where {
         // ref allele
         let mut prob_ref = self.prob_allele(
             ReferenceEmissionParams {
-                ref_seq: Arc::clone(&self.ref_seq),
+                ref_seq: Arc::clone(&ref_seq),
                 ref_offset: breakpoint.saturating_sub(ref_window),
-                ref_end: cmp::min(breakpoint + ref_window, self.ref_seq.len()),
+                ref_end: cmp::min(breakpoint + ref_window, ref_seq.len()),
                 read_emission: Rc::clone(&read_emission),
             },
             &edit_dist,
@@ -161,9 +161,9 @@ where {
         let mut prob_alt = self.prob_allele(
             variant.alt_emission_params(
                 Rc::clone(&read_emission),
-                Arc::clone(&self.ref_seq),
+                Arc::clone(&self.ref_buffer),
                 ref_window,
-            ),
+            )?,
             &edit_dist,
         );
 

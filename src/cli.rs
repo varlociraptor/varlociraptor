@@ -511,15 +511,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
-                            .realignment_window(realignment_window)
-                            .gap_params(gap_params)
                             .sample(sample)
                             .omit_snvs(omit_snvs)
                             .omit_indels(omit_indels)
                             .reference(
                                 fasta::IndexedReader::from_file(&reference)
                                     .context("Unable to read genome reference.")?,
-                            )?
+                            )
+                            .realignment(gap_params, realignment_window)
                             .inbcf(candidates)?
                             .outbcf(output, &opt_clone)?
                             .build()

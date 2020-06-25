@@ -36,20 +36,26 @@ use crate::variants::sample::Sample;
 pub(crate) struct ObservationProcessor {
     sample: Sample,
     #[builder(private)]
-    reference_buffer: reference::Buffer,
+    reference_buffer: Arc<reference::Buffer>,
+    #[builder(private)]
+    realigner: realignment::Realigner,
     #[builder(private)]
     bcf_reader: bcf::Reader,
     #[builder(private)]
     bcf_writer: bcf::Writer,
     omit_snvs: bool,
     omit_indels: bool,
-    gap_params: realignment::pairhmm::GapParams,
-    realignment_window: u64,
 }
 
 impl ObservationProcessorBuilder {
-    pub(crate) fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Result<Self> {
-        Ok(self.reference_buffer(reference::Buffer::new(reader)))
+    pub(crate) fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Self {
+        self.reference_buffer(Arc::new(reference::Buffer::new(reader, 3)))
+    }
+
+    pub(crate) fn realignment(self, gap_params: realignment::pairhmm::GapParams, window: u64) -> Self {
+        let ref_buffer = Arc::clone(self.reference_buffer.as_ref().expect("You need to set reference before setting realignment parameters"));
+
+        self.realigner(realignment::Realigner::new(ref_buffer, gap_params, window))
     }
 
     pub(crate) fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
@@ -78,8 +84,6 @@ impl ObservationProcessorBuilder {
             .reference_buffer
             .as_ref()
             .expect(".reference() has to be called before .outbcf()")
-            .reader
-            .index
             .sequences()
         {
             header.push_record(
@@ -154,7 +158,7 @@ impl ObservationProcessor {
 
     fn process_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>> {
         let start = record.pos() as u64;
-        let chrom = chrom(&self.bcf_reader, &record).to_owned();
+        let chrom = String::from_utf8(chrom(&self.bcf_reader, &record).to_owned()).unwrap();
         let variants = utils::collect_variants(record, self.omit_snvs, self.omit_indels, None)?;
 
         if variants.is_empty() {
@@ -162,7 +166,7 @@ impl ObservationProcessor {
         }
 
         let mut call = CallBuilder::default()
-            .chrom(chrom.to_owned())
+            .chrom(chrom.as_bytes().to_owned())
             .pos(start as u64)
             .id({
                 let id = record.id();
@@ -179,7 +183,7 @@ impl ObservationProcessor {
         for variant in variants.into_iter() {
             let chrom_seq = self.reference_buffer.seq(&chrom)?;
             let pileup =
-                self.extract_observations(start, &chrom, Arc::clone(&chrom_seq), &variant)?;
+                self.extract_observations(start, &chrom, &variant)?;
 
             let start = start as usize;
 
@@ -199,43 +203,36 @@ impl ObservationProcessor {
     fn extract_observations(
         &mut self,
         start: u64,
-        chrom: &[u8],
-        chrom_seq: Arc<Vec<u8>>,
+        chrom: &str,
         variant: &model::Variant,
     ) -> Result<Vec<Observation>> {
-        let chrom = str::from_utf8(chrom).unwrap().to_owned();
-        let locus = || genome::Locus::new(chrom.clone(), start);
-        let interval = |len: u64| genome::Interval::new(chrom.clone(), start..start + len);
+        let locus = || genome::Locus::new(chrom.to_owned(), start);
+        let interval = |len: u64| genome::Interval::new(chrom.to_owned(), start..start + len);
         let start = start as usize;
-        let realignment_window = self.realignment_window;
-        let gap_params = self.gap_params.clone();
-
-        let realigner =
-            || realignment::Realigner::new(Arc::clone(&chrom_seq), gap_params, realignment_window);
 
         match variant {
             model::Variant::SNV(alt) => self
                 .sample
-                .extract_observations(&variants::types::SNV::new(locus(), chrom_seq[start], *alt)),
+                .extract_observations(&variants::types::SNV::new(locus(), self.reference_buffer.seq(chrom)?[start], *alt)),
             model::Variant::MNV(alt) => {
                 self.sample.extract_observations(&variants::types::MNV::new(
                     locus(),
-                    chrom_seq[start..start + alt.len()].to_owned(),
+                    self.reference_buffer.seq(chrom)?[start..start + alt.len()].to_owned(),
                     alt.to_owned(),
                 ))
             }
             model::Variant::None => self
                 .sample
-                .extract_observations(&variants::types::None::new(locus(), chrom_seq[start])),
+                .extract_observations(&variants::types::None::new(locus(), self.reference_buffer.seq(chrom)?[start])),
             model::Variant::Deletion(l) => self
                 .sample
-                .extract_observations(&variants::types::Deletion::new(interval(*l), realigner())),
+                .extract_observations(&variants::types::Deletion::new(interval(*l), self.realigner.clone())),
             model::Variant::Insertion(seq) => {
                 self.sample
                     .extract_observations(&variants::types::Insertion::new(
                         locus(),
                         seq.to_owned(),
-                        realigner(),
+                        self.realigner.clone(),
                     ))
             }
         }
