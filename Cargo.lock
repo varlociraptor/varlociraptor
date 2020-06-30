@@ -954,6 +954,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lp-modeler"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e0ff0816544a5354b13646d82b5b5d500a0026992a3c3e17e720402cad738c4"
+dependencies = [
+ "uuid",
+]
+
+[[package]]
 name = "lzma-sys"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2149,6 +2158,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1ca13c08c41c9c3e04224ed9ff80461d97e121589ff27c753a16cb10830ae0f"
 
 [[package]]
+name = "uuid"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90dbc611eb48397705a6b0f6e917da23ae517e4d127123d2cf7674206627d32a"
+dependencies = [
+ "rand 0.6.5",
+]
+
+[[package]]
 name = "varlociraptor"
 version = "1.7.3-alpha.0"
 dependencies = [
@@ -2180,6 +2198,7 @@ dependencies = [
  "itertools-num",
  "lazy_static 1.4.0",
  "log 0.4.8",
+ "lp-modeler",
  "ndarray",
  "ordered-float",
  "pest",
