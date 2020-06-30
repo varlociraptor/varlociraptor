@@ -175,7 +175,7 @@ impl Variant for Deletion {
             PairedEndEvidence::SingleEnd(record) => Ok(Some(
                 self.realigner
                     .borrow_mut()
-                    .allele_support(record, &self.locus, self)?,
+                    .allele_support(record, [&self.locus], self)?,
             )),
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
@@ -195,11 +195,11 @@ impl Variant for Deletion {
                 let left_support =
                     self.realigner
                         .borrow_mut()
-                        .allele_support(left, &self.locus, self)?;
+                        .allele_support(left, &[self.locus], self)?;
                 let right_support =
                     self.realigner
                         .borrow_mut()
-                        .allele_support(right, &self.locus, self)?;
+                        .allele_support(right, &[self.locus], self)?;
                 let isize_support = self.allele_support_isize(left, right, alignment_properties)?;
 
                 let mut support = left_support;
