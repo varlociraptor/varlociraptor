@@ -36,17 +36,18 @@ pub(crate) struct BreakendGroup<'a> {
 
 impl<'a> BreakendGroup<'a> {
     pub(crate) fn push(&'a mut self, locus: genome::Locus, ref_allele: &[u8], spec: &[u8]) -> Result<()> {
-        self.loci.push(
-            SingleLocus::new(
-                genome::Interval::new(
-                    locus.contig().to_owned(),
-                    locus.pos()..locus.pos() + ref_allele.len() as u64
-                )
-            )
-        );
+        
+        
 
         if let Some(breakend) = Breakend::new(locus, ref_allele, spec, self)? {
-            self.breakends.push(breakend);
+            let locus = genome::Interval::new(
+                locus.contig().to_owned(),
+                locus.pos()..locus.pos() + ref_allele.len() as u64
+            );
+
+            self.breakends.insert(locus.clone(), breakend);
+
+            self.loci.push(SingleLocus::new(locus));
         }
 
         Ok(())

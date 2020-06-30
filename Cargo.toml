@@ -11,8 +11,8 @@ edition = "2018"
 
 [dependencies]
 bio = "0.31"
-bio-types = "0.6"
-rust-htslib = { git = "https://github.com/rust-bio/rust-htslib.git", branch = "master"}
+bio-types = { git = "https://github.com/rust-bio/rust-bio-types.git", branch = "master" }
+rust-htslib = { git = "https://github.com/rust-bio/rust-htslib.git", branch = "master" }
 log = "0.4"
 GSL = "1"
 itertools = "0.8"
