@@ -16,7 +16,7 @@ use rust_htslib::bam;
 
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
-use crate::variants::types::{AlleleSupport, AlleleSupportBuilder};
+use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, SingleLocus};
 use crate::reference;
 
 pub(crate) mod edit_distance;
@@ -166,12 +166,12 @@ impl Realigner {
     where
         V: Realignable<'a>,
         L: IntoIterator,
-        L::Item: Deref<Target=genome::Interval>,
+        L::Item: AsRef<SingleLocus>,
     {
         // Obtain candidate regions from matching loci.
         let candidate_regions: Result<Vec<_>> = loci.into_iter().filter_map(|locus| {
-            if locus.deref().contig() == record.contig() {
-                Some(self.candidate_region(record, locus.deref()))
+            if locus.as_ref().contig() == record.contig() {
+                Some(self.candidate_region(record, locus.as_ref()))
             } else {
                 None
             }

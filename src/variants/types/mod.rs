@@ -24,7 +24,7 @@ pub(crate) mod insertion;
 pub(crate) mod mnv;
 pub(crate) mod none;
 pub(crate) mod snv;
-pub(crate) mod breakends;
+//pub(crate) mod breakends;
 
 pub(crate) use deletion::Deletion;
 pub(crate) use insertion::Insertion;
@@ -274,6 +274,12 @@ pub(crate) trait Loci {}
 
 #[derive(Debug, Derefable, new)]
 pub(crate) struct SingleLocus(#[deref] genome::Interval);
+
+impl AsRef<SingleLocus> for SingleLocus {
+    fn as_ref(&self) -> &SingleLocus {
+        self
+    }
+}
 
 impl SingleLocus {
     pub(crate) fn overlap(&self, record: &bam::Record, consider_clips: bool) -> Overlap {

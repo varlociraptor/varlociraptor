@@ -113,17 +113,17 @@ impl Variant for Insertion {
             PairedEndEvidence::SingleEnd(record) => Ok(Some(
                 self.realigner
                     .borrow_mut()
-                    .allele_support(record, self.locus(), self)?,
+                    .allele_support(record, self.locus.iter(), self)?,
             )),
             PairedEndEvidence::PairedEnd { left, right } => {
                 let left_support =
                     self.realigner
                         .borrow_mut()
-                        .allele_support(left, self.locus(), self)?;
+                        .allele_support(left, self.locus.iter(), self)?;
                 let right_support =
                     self.realigner
                         .borrow_mut()
-                        .allele_support(right, self.locus(), self)?;
+                        .allele_support(right, self.locus.iter(), self)?;
 
                 let mut support = left_support;
 
