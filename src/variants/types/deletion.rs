@@ -15,6 +15,7 @@ use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::reference;
 use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
@@ -23,7 +24,6 @@ use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
 };
 use crate::{default_emission, default_ref_base_emission};
-use crate::reference;
 
 pub(crate) struct Deletion {
     locus: SingleLocus,

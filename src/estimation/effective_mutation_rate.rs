@@ -27,7 +27,9 @@ impl Estimate {
     }
 }
 
-pub(crate) fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Result<Estimate> {
+pub(crate) fn estimate<F: IntoIterator<Item = AlleleFreq>>(
+    allele_frequencies: F,
+) -> Result<Estimate> {
     let mut observations = BTreeMap::new();
     for f in allele_frequencies {
         // count occurrences of 1 / f

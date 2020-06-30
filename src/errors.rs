@@ -56,5 +56,5 @@ pub(crate) enum Error {
     #[snafu(display("invalid observations: varlociraptor cannot read given observations; either the file has not been preprocessed with varlociraptor or with a too old version"))]
     InvalidObservationFormat,
     #[snafu(display("invalid BND record: ALT {} does not follow BND spec", spec))]
-    InvalidBNDRecord { spec: String }
+    InvalidBNDRecord { spec: String },
 }

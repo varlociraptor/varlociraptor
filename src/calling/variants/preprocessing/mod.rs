@@ -52,8 +52,16 @@ impl ObservationProcessorBuilder {
         self.reference_buffer(Arc::new(reference::Buffer::new(reader, 3)))
     }
 
-    pub(crate) fn realignment(self, gap_params: realignment::pairhmm::GapParams, window: u64) -> Self {
-        let ref_buffer = Arc::clone(self.reference_buffer.as_ref().expect("You need to set reference before setting realignment parameters"));
+    pub(crate) fn realignment(
+        self,
+        gap_params: realignment::pairhmm::GapParams,
+        window: u64,
+    ) -> Self {
+        let ref_buffer = Arc::clone(
+            self.reference_buffer
+                .as_ref()
+                .expect("You need to set reference before setting realignment parameters"),
+        );
 
         self.realigner(realignment::Realigner::new(ref_buffer, gap_params, window))
     }
@@ -182,8 +190,7 @@ impl ObservationProcessor {
 
         for variant in variants.into_iter() {
             let chrom_seq = self.reference_buffer.seq(&chrom)?;
-            let pileup =
-                self.extract_observations(start, &chrom, &variant)?;
+            let pileup = self.extract_observations(start, &chrom, &variant)?;
 
             let start = start as usize;
 
@@ -211,9 +218,9 @@ impl ObservationProcessor {
         let start = start as usize;
 
         match variant {
-            model::Variant::SNV(alt) => self
-                .sample
-                .extract_observations(&variants::types::SNV::new(locus(), self.reference_buffer.seq(chrom)?[start], *alt)),
+            model::Variant::SNV(alt) => self.sample.extract_observations(
+                &variants::types::SNV::new(locus(), self.reference_buffer.seq(chrom)?[start], *alt),
+            ),
             model::Variant::MNV(alt) => {
                 self.sample.extract_observations(&variants::types::MNV::new(
                     locus(),
@@ -223,10 +230,17 @@ impl ObservationProcessor {
             }
             model::Variant::None => self
                 .sample
-                .extract_observations(&variants::types::None::new(locus(), self.reference_buffer.seq(chrom)?[start])),
-            model::Variant::Deletion(l) => self
-                .sample
-                .extract_observations(&variants::types::Deletion::new(interval(*l), self.realigner.clone())),
+                .extract_observations(&variants::types::None::new(
+                    locus(),
+                    self.reference_buffer.seq(chrom)?[start],
+                )),
+            model::Variant::Deletion(l) => {
+                self.sample
+                    .extract_observations(&variants::types::Deletion::new(
+                        interval(*l),
+                        self.realigner.clone(),
+                    ))
+            }
             model::Variant::Insertion(seq) => {
                 self.sample
                     .extract_observations(&variants::types::Insertion::new(

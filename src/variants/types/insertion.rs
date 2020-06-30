@@ -14,12 +14,12 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::reference;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};
-use crate::reference;
 
 pub(crate) struct Insertion {
     locus: MultiLocus,

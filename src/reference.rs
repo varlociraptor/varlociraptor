@@ -3,9 +3,9 @@ use std::str;
 use std::sync::Arc;
 use std::sync::RwLock;
 
-use lru_time_cache::LruCache;
 use anyhow::Result;
 use bio::io::fasta;
+use lru_time_cache::LruCache;
 
 /// A lazy buffer for reference sequences.
 pub(crate) struct Buffer {
@@ -35,10 +35,15 @@ impl Buffer {
                 reader.read(Arc::get_mut(&mut sequence).unwrap())?;
             }
 
-            self.sequences.write().unwrap().insert(chrom.to_owned(), Arc::clone(&sequence));
+            self.sequences
+                .write()
+                .unwrap()
+                .insert(chrom.to_owned(), Arc::clone(&sequence));
             Ok(sequence)
         } else {
-            Ok(Arc::clone(self.sequences.write().unwrap().get(chrom).unwrap()))
+            Ok(Arc::clone(
+                self.sequences.write().unwrap().get(chrom).unwrap(),
+            ))
         }
     }
 }

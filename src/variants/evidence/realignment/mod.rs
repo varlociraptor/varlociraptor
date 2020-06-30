@@ -4,20 +4,20 @@
 // except according to those terms.
 
 use std::cmp;
+use std::ops::{Deref, Range};
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
-use std::ops::{Range, Deref};
 
 use anyhow::Result;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 
+use crate::reference;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
 use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, SingleLocus};
-use crate::reference;
 
 pub(crate) mod edit_distance;
 pub(crate) mod pairhmm;
@@ -62,7 +62,11 @@ impl Realigner {
         }
     }
 
-    fn candidate_region(&self, record: &bam::Record, locus: &genome::Interval) -> Result<CandidateRegion> {
+    fn candidate_region(
+        &self,
+        record: &bam::Record,
+        locus: &genome::Interval,
+    ) -> Result<CandidateRegion> {
         let cigar = record.cigar_cached().unwrap();
 
         let locus_start = locus.range().start;
@@ -71,84 +75,87 @@ impl Realigner {
         let ref_seq = self.ref_buffer.seq(locus.contig())?;
 
         let ref_interval = |breakpoint: usize| {
-            breakpoint.saturating_sub(self.ref_window())..cmp::min(breakpoint + self.ref_window(), ref_seq.len())
+            breakpoint.saturating_sub(self.ref_window())
+                ..cmp::min(breakpoint + self.ref_window(), ref_seq.len())
         };
 
-        Ok(match (
-            cigar.read_pos(locus_start as u32, true, true)?,
-            cigar.read_pos(locus_end as u32, true, true)?,
-        ) {
-            // read encloses variant
-            (Some(qstart), Some(qend)) => {
-                let qstart = qstart as usize;
-                // exclusive end of variant
-                let qend = qend as usize;
-                // ensure that distance between qstart and qend does not make the window too
-                // large
-                let max_window = (self.max_window as usize).saturating_sub((qend - qstart) / 2);
-                let mut read_offset = qstart.saturating_sub(max_window);
-                let mut read_end = cmp::min(qend + max_window as usize, record.seq_len());
+        Ok(
+            match (
+                cigar.read_pos(locus_start as u32, true, true)?,
+                cigar.read_pos(locus_end as u32, true, true)?,
+            ) {
+                // read encloses variant
+                (Some(qstart), Some(qend)) => {
+                    let qstart = qstart as usize;
+                    // exclusive end of variant
+                    let qend = qend as usize;
+                    // ensure that distance between qstart and qend does not make the window too
+                    // large
+                    let max_window = (self.max_window as usize).saturating_sub((qend - qstart) / 2);
+                    let mut read_offset = qstart.saturating_sub(max_window);
+                    let mut read_end = cmp::min(qend + max_window as usize, record.seq_len());
 
-                // correct for reads that enclose the entire variant while that exceeds the maximum pattern len
-                let exceed = (read_end - read_offset)
-                    .saturating_sub(EditDistanceCalculation::max_pattern_len());
-                if exceed > 0 {
-                    read_offset += exceed / 2;
-                    read_end -= (exceed as f64 / 2.0).ceil() as usize;
+                    // correct for reads that enclose the entire variant while that exceeds the maximum pattern len
+                    let exceed = (read_end - read_offset)
+                        .saturating_sub(EditDistanceCalculation::max_pattern_len());
+                    if exceed > 0 {
+                        read_offset += exceed / 2;
+                        read_end -= (exceed as f64 / 2.0).ceil() as usize;
+                    }
+
+                    CandidateRegion {
+                        overlap: true,
+                        read_interval: read_offset..read_end,
+                        ref_interval: ref_interval(locus_start as usize),
+                    }
                 }
 
-                CandidateRegion {
-                    overlap: true,
-                    read_interval: read_offset..read_end,
-                    ref_interval: ref_interval(locus_start as usize)
+                // read overlaps from right
+                (Some(qstart), None) => {
+                    let qstart = qstart as usize;
+                    let read_offset = qstart.saturating_sub(self.max_window as usize);
+                    let read_end = cmp::min(qstart + self.max_window as usize, record.seq_len());
+
+                    CandidateRegion {
+                        overlap: true,
+                        read_interval: read_offset..read_end,
+                        ref_interval: ref_interval(locus_start as usize),
+                    }
                 }
-            }
 
-            // read overlaps from right
-            (Some(qstart), None) => {
-                let qstart = qstart as usize;
-                let read_offset = qstart.saturating_sub(self.max_window as usize);
-                let read_end = cmp::min(qstart + self.max_window as usize, record.seq_len());
-                
-                CandidateRegion {
-                    overlap: true,
-                    read_interval: read_offset..read_end,
-                    ref_interval: ref_interval(locus_start as usize)
+                // read overlaps from left
+                (None, Some(qend)) => {
+                    let qend = qend as usize;
+                    let read_offset = qend.saturating_sub(self.max_window as usize);
+                    let read_end = cmp::min(qend + self.max_window as usize, record.seq_len());
+
+                    CandidateRegion {
+                        overlap: true,
+                        read_interval: read_offset..read_end,
+                        ref_interval: ref_interval(locus_end as usize),
+                    }
                 }
-            }
 
-            // read overlaps from left
-            (None, Some(qend)) => {
-                let qend = qend as usize;
-                let read_offset = qend.saturating_sub(self.max_window as usize);
-                let read_end = cmp::min(qend + self.max_window as usize, record.seq_len());
+                // no overlap
+                (None, None) => {
+                    let m = record.seq_len() / 2;
+                    let read_offset = m.saturating_sub(self.max_window as usize);
+                    let read_end = cmp::min(m + self.max_window as usize - 1, record.seq_len());
+                    let breakpoint = record.pos() as usize + m;
+                    // The following should only happen with deletions.
+                    // It occurs if the read comes from ref allele and is mapped within start
+                    // and end of deletion. Usually, such reads strongly support the ref allele.
+                    let read_enclosed_by_variant =
+                        record.pos() >= locus_start as i64 && cigar.end_pos() <= locus_end as i64;
 
-                CandidateRegion {
-                    overlap: true,
-                    read_interval: read_offset..read_end,
-                    ref_interval: ref_interval(locus_end as usize)
+                    CandidateRegion {
+                        overlap: read_enclosed_by_variant,
+                        read_interval: read_offset..read_end,
+                        ref_interval: ref_interval(breakpoint),
+                    }
                 }
-            }
-
-            // no overlap
-            (None, None) => {
-                let m = record.seq_len() / 2;
-                let read_offset = m.saturating_sub(self.max_window as usize);
-                let read_end = cmp::min(m + self.max_window as usize - 1, record.seq_len());
-                let breakpoint = record.pos() as usize + m;
-                // The following should only happen with deletions.
-                // It occurs if the read comes from ref allele and is mapped within start
-                // and end of deletion. Usually, such reads strongly support the ref allele.
-                let read_enclosed_by_variant =
-                    record.pos() >= locus_start as i64 && cigar.end_pos() <= locus_end as i64;
-
-                CandidateRegion {
-                    overlap: read_enclosed_by_variant,
-                    read_interval: read_offset..read_end,
-                    ref_interval: ref_interval(breakpoint),
-                }
-            }
-        })
+            },
+        )
     }
 
     fn ref_window(&self) -> usize {
@@ -169,13 +176,16 @@ impl Realigner {
         L::Item: AsRef<SingleLocus>,
     {
         // Obtain candidate regions from matching loci.
-        let candidate_regions: Result<Vec<_>> = loci.into_iter().filter_map(|locus| {
-            if locus.as_ref().contig() == record.contig() {
-                Some(self.candidate_region(record, locus.as_ref()))
-            } else {
-                None
-            }
-        }).collect();
+        let candidate_regions: Result<Vec<_>> = loci
+            .into_iter()
+            .filter_map(|locus| {
+                if locus.as_ref().contig() == record.contig() {
+                    Some(self.candidate_region(record, locus.as_ref()))
+                } else {
+                    None
+                }
+            })
+            .collect();
         let candidate_regions = candidate_regions?;
 
         // Check if anything overlaps.
@@ -194,7 +204,10 @@ impl Realigner {
         // Merge overlapping reference regions of all read-overlapping candidate regions.
         // Regions are sorted by reference position, hence we can merge from left to right.
         let mut merged_regions = Vec::new();
-        for region in candidate_regions.into_iter().filter(|region| region.overlap) {
+        for region in candidate_regions
+            .into_iter()
+            .filter(|region| region.overlap)
+        {
             if merged_regions.is_empty() {
                 merged_regions.push(region);
             } else {
@@ -202,7 +215,9 @@ impl Realigner {
                 if region.ref_interval.start <= last.ref_interval.end {
                     // They overlap, hence merge.
                     last.ref_interval = last.ref_interval.start..region.ref_interval.end;
-                    last.read_interval = cmp::min(last.read_interval.start, region.read_interval.start)..cmp::max(last.read_interval.end, region.read_interval.end)
+                    last.read_interval =
+                        cmp::min(last.read_interval.start, region.read_interval.start)
+                            ..cmp::max(last.read_interval.end, region.read_interval.end)
                 } else {
                     // No overlap, hence push.
                     merged_regions.push(region);
@@ -219,7 +234,6 @@ impl Realigner {
         let read_qual = record.qual();
 
         for region in merged_regions {
-
             // read emission
             let read_emission = Rc::new(ReadEmission::new(
                 read_seq,
@@ -227,8 +241,8 @@ impl Realigner {
                 region.read_interval.start,
                 region.read_interval.end,
             ));
-            let edit_dist = EditDistanceCalculation::new((region.read_interval).map(|i| read_seq[i]));
-            
+            let edit_dist =
+                EditDistanceCalculation::new((region.read_interval).map(|i| read_seq[i]));
 
             // ref allele
             let mut prob_ref = self.prob_allele(
@@ -288,7 +302,9 @@ impl Realigner {
 
         let mut builder = AlleleSupportBuilder::default();
 
-        builder.prob_ref_allele(prob_ref_all).prob_alt_allele(prob_alt_all);
+        builder
+            .prob_ref_allele(prob_ref_all)
+            .prob_alt_allele(prob_alt_all);
 
         if prob_ref_all != prob_alt_all {
             builder.register_record(record);
@@ -339,5 +355,3 @@ pub(crate) trait AltAlleleEmissionBuilder {
         ref_seq: &'a [u8],
     ) -> Self::EmissionParams;
 }
-
-
