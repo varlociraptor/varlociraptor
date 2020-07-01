@@ -3,41 +3,19 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashMap;
 use std::ops::RangeInclusive;
-use std::iter;
-use std::mem;
 use std::path::Path;
 
 use anyhow::Result;
-use bio::stats::{bayesian::bayes_factors::BayesFactor, hmm, hmm::Model, LogProb, PHREDProb, Prob};
+use bio::stats::{LogProb, PHREDProb, Prob};
 use derive_builder::Builder;
-use itertools::join;
-use itertools::Itertools;
-use itertools_num::linspace;
-use rayon::prelude::*;
 use rust_htslib::bcf;
 use rust_htslib::bcf::record::Numeric;
-use rust_htslib::bcf::{Read, HeaderView};
+use rust_htslib::bcf::Read;
 
-use crate::model::modes::tumor::TumorNormalPairView;
-use crate::model::AlleleFreq;
-use crate::utils;
 use lp_modeler::dsl::*;
 use lp_modeler::solvers::{CbcSolver, SolverTrait};
-use std::cmp::Ordering;
-
-impl Ord for RangeInclusive<u64> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.start().cmp(&other.start() ) {
-            Ordering::Less => Ordering::Less,
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Equal => {
-                self.end().cmp(&other.end() )
-            },
-        }
-    }
-}
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -48,24 +26,23 @@ pub(crate) struct Caller {
     bcf_writer: bcf::Writer,
     #[builder(private)]
     contig_lens: HashMap<u32, u32>,
-    #[builder(private)]
     alpha: Prob
 }
 
 impl CallerBuilder {
 
     /// Add alpha value for false discovery rate control of loss-of-heterozygosity calls
-    pub(crate) fn alpha(&self, alpha: f64) -> Result<Self> {
-        self.alpha = Prob::checked(alpha);
-        self.alpha
+    pub(crate) fn add_and_check_alpha(&self, alpha: f64) -> Result<Self> {
+        if let correct_alpha= Prob::checked(alpha)? {
+            self.alpha = Some(correct_alpha);
+            Ok(*self)
+        } else {
+            panic!("Incorrect alpha specified: {}. Must be 0 <= alpha <= 1].", alpha);
+        }
     }
 
-    pub(crate) fn bcfs<P: AsRef<Path>>(mut self, in_path: Option<P>, out_path: Option<P>) -> Result<Self> {
-        self = self.bcf_reader(if let Some(path) = in_path {
-            bcf::Reader::from_path(path)?
-        } else {
-            bcf::Reader::from_stdin()?
-        });
+    pub(crate) fn bcfs<P: AsRef<Path>>(mut self, in_path: P, out_path: Option<P>) -> Result<Self> {
+        self = self.bcf_reader( bcf::IndexedReader::from_path( in_path )? );
 
         let bcf_reader = self.bcf_reader.as_ref().unwrap();
 
@@ -85,7 +62,7 @@ impl CallerBuilder {
             if let bcf::header::HeaderRecord::Contig { values, .. } = rec {
                 let name = values.get("ID").unwrap();
                 let len = values.get("length").unwrap();
-                contig_lens.insert(HeaderView::name2id(name), len.parse()?);
+                contig_lens.insert(bcf_reader.header().name2rid( name.as_bytes() )?, len.parse()?);
                 header.push_record(format!("##contig=<ID={},length={}>", name, len).as_bytes());
             }
         }
@@ -106,25 +83,23 @@ impl Caller {
         for (contig_id, contig_length) in self.contig_lens {
 
             // Problem Data
-            let intervals = ContigLOHProbs::new(&mut self, &contig_id).create_all_intervals();
+            let intervals = ContigLOHProbs::new(&mut self, &contig_id)?.create_all_intervals();
+            let n_intervals = contig_length * (contig_length + 1) / 2;
 
             // Define problem and objective sense
             let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
 
             // Define Variables
-            let interval_loh_indicator: BtreeMap<RangeInclusive<u64>, LpInteger> =
+            let interval_loh_indicator: HashMap<RangeInclusive<u64>, LpInteger> =
                 intervals.iter()
                     .map(| (&range, &val)| {
                         let key = range;
-                        let loh_indicator = LpInteger::new(&format!("{}", key))
-                            .lower_bound(Some(0))
-                            .upper_bound(Some(1));
+                        let loh_indicator = LpInteger::new(&format!("{:?}", key))
+                            .lower_bound(0.0)
+                            .upper_bound(1.0);
                         (key, loh_indicator)
                     } )
                     .collect();
-
-            // Define problem variables
-            let ref n_intervals = LpInteger::new("number of intervals");
 
             // Define Objective Function
             let obj_vec: Vec<LpExpression> = {
@@ -138,33 +113,27 @@ impl Caller {
             // Constraint: no overlapping intervals
             for ( current_interval, _) in intervals {
                 problem += sum(
-                    &Vec::from(interval_loh_indicator.keys()),
+                    interval_loh_indicator.keys().collect(),
                     | &interval | {
                         if current_interval.contains(interval.start()) | current_interval.contains(interval.end()) {
-                            interval_loh_indicator.get(interval)?
+                            interval_loh_indicator.get(interval).unwrap()
                         } else {
                             0
                         }
                     }
-                ).le(
-                    if interval_loh_indicator.get(current_interval)? == 1 {
-                        0
-                    } else {
-                        contig_length - ( current_interval.end() - current_interval.start() + 1)
-                    }
-                );
+                ).le( 1 - interval_loh_indicator.get(&current_interval).unwrap() * n_intervals );
             }
 
             // Constraint: control false discovery rate at alpha
             problem += sum(
-                    &Vec::from(interval_loh_indicator.keys()),
+                    interval_loh_indicator.keys().collect(),
                     | &interval | {
-                        interval_loh_indicator.get(interval)? * Prob::from( intervals.get(interval)?.ln_one_minus_exp() )
+                        interval_loh_indicator.get(interval).unwrap() * Prob::from( intervals.get(interval).unwrap().ln_one_minus_exp() )
                     }
                 ).le(sum(
-                    &Vec::from(interval_loh_indicator.keys()),
+                    interval_loh_indicator.keys().collect(),
                      | &interval | {
-                         interval_loh_indicator.get(interval)?
+                         interval_loh_indicator.get(interval).unwrap()
                      }
                 ) * self.alpha
             );
@@ -192,30 +161,48 @@ pub(crate) fn info_phred_to_log_prob(
     record: &mut bcf::Record,
     info_field_name: &[u8]
 ) -> LogProb {
-    let prob = record.info(info_field_name).float()?;
-    if let Some(_prob) = prob {
-        if !_prob[0].is_missing() && !_prob[0].is_nan() {
-            let log_prob = LogProb::from(PHREDProb(_prob[0] as f64));
-            assert!(
-                * log_prob.is_valid(),
-                "invalid PHRED probability '{}': {}, at pos: {}",
+    if let Ok(prob) = record.info(info_field_name).float() {
+        if let Some(_prob) = prob {
+            if !_prob[0].is_missing() && !_prob[0].is_nan() {
+                let log_prob = LogProb::from(PHREDProb(_prob[0] as f64));
+                assert!(
+                    log_prob.is_valid(),
+                    "invalid PHRED probability '{:?}': {}, at pos: {:?}",
+                    info_field_name,
+                    _prob[0],
+                    record.pos()
+                );
+                log_prob
+            } else {
+                panic!(
+                    "PHRED probability '{:?}' at pos '{:?}' is missing or NaN",
+                    info_field_name,
+                    record.pos()
+                )
+            }
+        } else {
+            panic!(
+                "Expected PHRED probability value in field '{:?}' at pos '{:?}', got None.",
                 info_field_name,
-                _prob[0],
                 record.pos()
-            );
+            )
         }
-        log_prob
+    } else {
+        panic!(
+            "error unpacking PHRED probability INFO field '{:?}' at pos '{:?}",
+            info_field_name,
+            record.pos()
+        )
     }
 }
 
 pub(crate) struct Interval {
     range: RangeInclusive<u64>,
-    is_loh: Bool,
     posterior_prob_loh: LogProb,
 }
 
 
-#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
 pub(crate) struct ContigLOHProbs {
     contig_id: u32,
     length: u64,
@@ -226,69 +213,54 @@ impl ContigLOHProbs {
     pub(crate) fn new(
         caller: &mut Caller,
         contig_id: &u32
-    ) -> ContigLOHProbs {
+    ) -> Result<ContigLOHProbs> {
         let mut record = caller.bcf_reader.empty_record();
-        let contig_length = caller.contig_lens.get(contig_id)?;
-        let mut cum_log_prob_loh = Vec::with_capacity(contig_length as usize + 1 );
-        caller.bcf_reader.fetch(*contig_id, 0, contig_length - 1);
-        cum_log_prob_loh.push(LogProb::ln_one() );
-        if caller.bcf_reader.read(&mut record) {
-        }
-        while caller.bcf_reader.read(&mut record) {
-            cum_log_prob_loh.push(cum_log_prob_loh.last() + log_prob_loh_given_germ_het );
-        }
-        ContigLOHProbs {
-            contig_id: *contig_id,
-            length: contig_length as u64,
-            cum_log_prob_loh: cum_log_prob_loh,
+        if let Some(contig_length) = caller.contig_lens.get(contig_id) {
+            let mut cum_log_prob_loh = Vec::with_capacity(*contig_length as usize + 1);
+            caller.bcf_reader.fetch(*contig_id, 0, (contig_length - 1).into());
+            cum_log_prob_loh.push(LogProb::ln_one());
+            while caller.bcf_reader.read(&mut record)? {
+                cum_log_prob_loh.push(cum_log_prob_loh.last().unwrap() + log_prob_loh_given_germ_het(&mut record));
+            }
+            Ok(
+                ContigLOHProbs {
+                    contig_id: *contig_id,
+                    length: *contig_length as u64,
+                    cum_log_prob_loh: cum_log_prob_loh,
+                }
+            )
+        } else {
+            panic!(
+                "This should not have happened: cannot find contig_id '{}'.",
+                contig_id
+            )
         }
     }
 
     pub(crate) fn create_all_intervals(
         &self
-    ) -> BTreeMap<RangeInclusive<u64>, LogProb> {
-        let mut intervals= BTreeMap::new();
+    ) -> HashMap<RangeInclusive<u64>, LogProb> {
+        let mut intervals= HashMap::new();
         for start in 1..=self.length {
             for end in start..=self.length {
                 intervals.insert(
                     start..=end,
-                    self.cum_log_prob_loh[end] - self.cum_log_prob_loh[start - 1]
-                )
+                    self.cum_log_prob_loh[ end as usize ] - self.cum_log_prob_loh[ (start - 1) as usize ]
+                );
             }
         }
         intervals
     }
-
-    fn log_probs_loh_given_germ_het(
-        record: &mut bcf::Record,
-    ) -> LogProb {
-        let log_prob_loh = info_phred_to_log_prob(record, b"PROB_LOH");
-        let log_prob_no_loh = info_phred_to_log_prob(record, b"PROB_NO_LOH");
-        let log_prob_germline_het = log_prob_loh.ln_add_exp(log_prob_no_loh);
-        let log_prob_loh_given_germ_het = log_prob_not_germline_het.ln_add_exp(log_prob_loh + log_prob_germline_het);
-        log_prob_loh_given_germ_het
-    }
 }
 
-
-impl<'a> LOHRegion<'a> {
-    pub(crate) fn write(
-        &self,
-        record: &mut bcf::Record,
-    ) -> Result<()> {
-        record.set_rid(Some(self.contig_id));
-        record.set_pos(self.pos as i64);
-        record.set_alleles(&[b"N", b"<LOH>"])?;
-        record.push_info_integer(b"LOH_END", &[self.end as i32])?;
-        record.push_info_integer(b"LOH_LEN", &[self.len() as i32])?;
-        record.push_info_integer(b"N_LOCI", &[self.calls as i32])?;
-
-        Ok(())
-    }
-
-    pub(crate) fn len(&self) -> u32 {
-        (self.end - self.start + 1) as u32
-    }
+fn log_prob_loh_given_germ_het(
+    record: &mut bcf::Record,
+) -> LogProb {
+    let log_prob_loh = info_phred_to_log_prob(record, b"PROB_LOH");
+    let log_prob_no_loh = info_phred_to_log_prob(record, b"PROB_NO_LOH");
+    let log_prob_germline_het = log_prob_loh.ln_add_exp(log_prob_no_loh);
+    let log_prob_loh_given_germ_het = log_prob_germline_het.ln_one_minus_exp().ln_add_exp(log_prob_loh + log_prob_germline_het);
+    log_prob_loh_given_germ_het
 }
 
 // //#[cfg(test)]
