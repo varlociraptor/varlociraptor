@@ -49,13 +49,18 @@ pub(crate) struct Caller {
     #[builder(private)]
     contig_lens: HashMap<u32, u32>,
     #[builder(private)]
-    alpha: f64
+    alpha: Prob
 }
 
 impl CallerBuilder {
-    pub(crate) fn bcfs<P: AsRef<Path>>(mut self, in_path: Option<P>, out_path: Option<P>, alpha: f64) -> Result<Self> {
-        self.alpha = alpha;
 
+    /// Add alpha value for false discovery rate control of loss-of-heterozygosity calls
+    pub(crate) fn alpha(&self, alpha: f64) -> Result<Self> {
+        self.alpha = Prob::checked(alpha);
+        self.alpha
+    }
+
+    pub(crate) fn bcfs<P: AsRef<Path>>(mut self, in_path: Option<P>, out_path: Option<P>) -> Result<Self> {
         self = self.bcf_reader(if let Some(path) = in_path {
             bcf::Reader::from_path(path)?
         } else {

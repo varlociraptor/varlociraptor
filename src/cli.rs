@@ -306,7 +306,14 @@ pub enum CallKind {
             help = "BCF file to write results to (if omitted, write to STDOUT)."
         )]
         output: Option<PathBuf>,
-    },
+        #[structopt(
+            long,
+            short = "a",
+            default_value = "0.05",
+            help = "False discovery rate to control loss-of-heterozygosity regions for."
+        )]
+        alpha: f64,
+        },
     // #[structopt(
     //     name = "cnvs",
     //     about = "Call CNVs in tumor-normal sample pairs. This is experimental (do not use it yet).",
@@ -760,7 +767,20 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             call_generic(scenario, observations)?;
                         }
                     }
-                } // CallKind::CNVs {
+                },
+                CallKind::LOH {
+                    calls,
+                    output,
+                    alpha,
+                } => {
+                    let mut caller = calling::loh::CallerBuilder::default()
+                        .bcfs(calls.as_ref(), output.as_ref())?
+                        .alpha(alpha)?
+                        .build()
+                        .unwrap();
+                    caller.call()?;
+                }
+                  // CallKind::CNVs {
                   //     calls,
                   //     output,
                   //     min_bayes_factor,
