@@ -8,6 +8,7 @@ use std::ops::RangeInclusive;
 use std::path::Path;
 
 use anyhow::Result;
+use itertools::iproduct;
 use bio::stats::{LogProb, PHREDProb, Prob};
 use derive_builder::Builder;
 use rust_htslib::bcf;
@@ -85,58 +86,55 @@ impl Caller {
             // Problem Data
             let intervals = ContigLOHProbs::new(&mut self, &contig_id)?.create_all_intervals();
             let n_intervals = contig_length * (contig_length + 1) / 2;
-
+            let mut intervals_overlap_indicator: HashMap<(RangeInclusive<u64>, RangeInclusive<u64>), Bool> = HashMap::new();
+            for (interval1, interval2) in iproduct!(intervals.keys(), intervals.keys()) {
+                let key = (interval1, interval2);
+                let overlap_indicator = interval1.contains(interval2.start()) | interval1.contains(interval2.end());
+                intervals_overlap_indicator.insert(key, overlap_indicator);
+            }
             // Define problem and objective sense
             let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
 
             // Define Variables
-            let interval_loh_indicator: HashMap<RangeInclusive<u64>, LpInteger> =
+            let interval_loh_indicator: HashMap<RangeInclusive<u64>, LpBinary> =
                 intervals.iter()
                     .map(| (&range, &val)| {
                         let key = range;
-                        let loh_indicator = LpInteger::new(&format!("{:?}", key))
-                            .lower_bound(0.0)
-                            .upper_bound(1.0);
+                        let loh_indicator = LpBinary::new(&format!("{:?}", key));
                         (key, loh_indicator)
                     } )
                     .collect();
 
-            // Define Objective Function
-            let obj_vec: Vec<LpExpression> = {
+            // Define Objective Function: maximise length of selected LOH regions
+            let selected_lengths_vec: Vec<LpExpression> = {
                 interval_loh_indicator.iter()
                     .map( |(&interval, loh_indicator)| {
                         loh_indicator * (interval.end() - interval.start() + 1)
                 } )
             }.collect();
-            problem += obj_vec.sum();
+            problem += selected_lengths_vec.sum();
 
             // Constraint: no overlapping intervals
             for ( current_interval, _) in intervals {
-                problem += sum(
-                    interval_loh_indicator.keys().collect(),
-                    | &interval | {
-                        if current_interval.contains(interval.start()) | current_interval.contains(interval.end()) {
-                            interval_loh_indicator.get(interval).unwrap()
-                        } else {
-                            0
-                        }
-                    }
-                ).le( 1 - interval_loh_indicator.get(&current_interval).unwrap() * n_intervals );
+                let n_overlapping_selected: Vec<LpExpression> = {
+                    interval_loh_indicator.iter()
+                        .map(| (&interval, loh_indicator) |
+                            loh_indicator * intervals_overlap_indicator.get(&(current_interval, interval) )
+                        ).collect()
+                };
+                let interval_bound = (1 - interval_loh_indicator.get(&current_interval).unwrap()) * n_intervals;
+                problem += n_overlapping_selected.sum().le( interval_bound );
             }
+        }
 
             // Constraint: control false discovery rate at alpha
-            problem += sum(
-                    interval_loh_indicator.keys().collect(),
-                    | &interval | {
-                        interval_loh_indicator.get(interval).unwrap() * Prob::from( intervals.get(interval).unwrap().ln_one_minus_exp() )
-                    }
-                ).le(sum(
-                    interval_loh_indicator.keys().collect(),
-                     | &interval | {
-                         interval_loh_indicator.get(interval).unwrap()
-                     }
-                ) * self.alpha
-            );
+            let selected_probs_vec: Vec<LpExpression> = {
+                interval_loh_indicator.iter()
+                    .map( |(&interval, loh_indicator)| {
+                        loh_indicator * Prob::from( intervals.get(*interval ).unwrap().ln_one_minus_exp() )
+                    } )
+            }.collect();
+            problem += selected_probs_vec.sum().le(interval_loh_indicator.values().collect().sum() * self.alpha );
 
             // Specify solver
             let solver = CbcSolver::new();
