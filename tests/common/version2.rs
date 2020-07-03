@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use yaml_rust::Yaml;
+use serde_json::json;
 
 use crate::common::Testcase;
 
@@ -48,6 +49,7 @@ impl Testcase for TestcaseVersion2 {
 
         let variants = options["Preprocess"]["kind"].get_mut("Variants").unwrap();
         variants["realignment_window"] = variants["indel_window"].clone();
+        variants["candidates"] = json!("dummy.bcf");
 
         options.to_string()
     }

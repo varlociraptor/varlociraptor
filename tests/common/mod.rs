@@ -162,7 +162,7 @@ pub(crate) trait Testcase {
                     // replace options
                     *bam = test_bam;
                     *reference = PathBuf::from((*temp_ref).as_ref());
-                    *candidates = Some(self.candidates());
+                    *candidates = self.candidates();
                     *output = Some(self.sample_preprocessed_path(sample_name, &temp_preprocess));
                     *alignment_properties = Some(props.path().to_owned());
 

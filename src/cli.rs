@@ -135,9 +135,10 @@ pub enum PreprocessKind {
         #[structopt(
             parse(from_os_str),
             long,
+            required = true,
             help = "VCF/BCF file to process (if omitted, read from STDIN)."
         )]
-        candidates: Option<PathBuf>,
+        candidates: PathBuf,
         #[structopt(
             long,
             required = true,

@@ -66,12 +66,8 @@ impl ObservationProcessorBuilder {
         self.realigner(realignment::Realigner::new(ref_buffer, gap_params, window))
     }
 
-    pub(crate) fn inbcf<P: AsRef<Path>>(self, path: Option<P>) -> Result<Self> {
-        Ok(self.bcf_reader(if let Some(path) = path {
-            bcf::Reader::from_path(path)?
-        } else {
-            bcf::Reader::from_stdin()?
-        }))
+    pub(crate) fn inbcf<P: AsRef<Path>>(self, path: P) -> Result<Self> {
+        Ok(self.bcf_reader(bcf::Reader::from_path(path)?))
     }
 
     pub(crate) fn outbcf<P: AsRef<Path>>(

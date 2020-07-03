@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use yaml_rust::Yaml;
+use serde_json::json;
 
 use crate::common::Testcase;
 
@@ -25,6 +26,20 @@ impl Testcase for TestcaseVersion3 {
         self.index_reference(&reference_path);
 
         Ok(Box::new(reference_path.to_owned()))
+    }
+
+    fn preprocess_options(&self, sample_name: &str) -> String {
+        let mut options: serde_json::Value = serde_json::from_str(
+            self.yaml()["samples"][sample_name]["options"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+
+        let variants = options["Preprocess"]["kind"].get_mut("Variants").unwrap();
+        variants["candidates"] = json!("dummy.bcf");
+
+        options.to_string()
     }
 }
 

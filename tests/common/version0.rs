@@ -99,7 +99,7 @@ impl Testcase for TestcaseVersion0 {
                         // The rest will be overwritten.
                         alignment_properties: None,
                         bam: PathBuf::from("dummy"),
-                        candidates: None,
+                        candidates: self.candidates(),
                         output: None,
                         omit_insert_size: false,
                     },
