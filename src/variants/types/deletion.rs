@@ -93,11 +93,15 @@ impl Deletion {
                 .unwrap())
         }
     }
+
+    pub fn len(&self) -> u64 {
+        self.enclosable_len().unwrap()
+    }
 }
 
 impl SamplingBias for Deletion {
-    fn len(&self) -> u64 {
-        self.locus.range().end - self.locus.range().start
+    fn enclosable_len(&self) -> Option<u64> {
+        Some(self.locus.range().end - self.locus.range().start)
     }
 }
 

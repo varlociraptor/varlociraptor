@@ -74,8 +74,8 @@ impl<'a> Realignable<'a> for Insertion {
 }
 
 impl SamplingBias for Insertion {
-    fn len(&self) -> u64 {
-        self.ins_seq.len() as u64
+    fn enclosable_len(&self) -> Option<u64> {
+        Some(self.ins_seq.len() as u64)
     }
 }
 

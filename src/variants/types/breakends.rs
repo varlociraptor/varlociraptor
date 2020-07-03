@@ -83,6 +83,126 @@ impl BreakendGroup {
     }
 }
 
+impl Variant for BreakendGroup {
+    type Evidence = PairedEndEvidence;
+    type Loci = MultiLocus;
+
+    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
+        let overlapping: Vec<_> = match evidence {
+            PairedEndEvidence::SingleEnd(read) => self
+                .loci
+                .iter()
+                .enumerate()
+                .filter_map(|(i, locus)| {
+                    if !locus.overlap(read, true).is_none() {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            PairedEndEvidence::PairedEnd { left, right } => self
+                .loci
+                .iter()
+                .enumerate()
+                .filter_map(|(i, locus)| {
+                    if !locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none()
+                    {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        };
+
+        if overlapping.is_empty() {
+            None
+        } else {
+            Some(overlapping)
+        }
+    }
+
+    /// Return variant loci.
+    fn loci(&self) -> &Self::Loci {
+        &self.loci
+    }
+
+    /// Calculate probability for alt and reference allele.
+    fn allele_support(
+        &self,
+        evidence: &Self::Evidence,
+        _: &AlignmentProperties,
+    ) -> Result<Option<AlleleSupport>> {
+        match evidence {
+            PairedEndEvidence::SingleEnd(record) => Ok(Some(
+                self.realigner
+                    .borrow_mut()
+                    .allele_support(record, self.loci.iter(), self)?,
+            )),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let left_support =
+                    self.realigner
+                        .borrow_mut()
+                        .allele_support(left, self.loci.iter(), self)?;
+                let right_support =
+                    self.realigner
+                        .borrow_mut()
+                        .allele_support(right, self.loci.iter(), self)?;
+
+                let mut support = left_support;
+
+                support.merge(&right_support);
+
+                Ok(Some(support))
+            }
+        }
+    }
+
+    /// Calculate probability to sample a record length like the given one from the alt allele.
+    fn prob_sample_alt(
+        &self,
+        evidence: &Self::Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> LogProb {
+        match evidence {
+            PairedEndEvidence::PairedEnd { left, right } => {
+                // METHOD: we do not require the fragment to enclose the breakend group.
+                // Hence, we treat both reads independently.
+                (self
+                    .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
+                    .ln_one_minus_exp()
+                    + self
+                        .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
+                        .ln_one_minus_exp())
+                .ln_one_minus_exp()
+            }
+            PairedEndEvidence::SingleEnd(read) => {
+                self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+            }
+        }
+    }
+}
+
+impl SamplingBias for BreakendGroup {
+    fn enclosable_len(&self) -> Option<u64> {
+        let first = self.breakends.keys().next().unwrap();
+        if self
+            .breakends
+            .values()
+            .skip(1)
+            .all(|bnd| bnd.locus.contig() == first.contig())
+        {
+            let last = self.breakends.values().last().unwrap();
+            Some(last.locus.pos() + last.ref_allele.len() as u64 - first.pos())
+        } else {
+            None
+        }
+    }
+}
+
+impl ReadSamplingBias for BreakendGroup {}
+
 impl<'a> Realignable<'a> for BreakendGroup {
     type EmissionParams = BreakendEmissionParams<'a>;
 
