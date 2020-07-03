@@ -3,16 +3,17 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
 
 use anyhow::Result;
 use bio::io::fasta;
 use bio::stats::LogProb;
-use bio_types::genome;
+use bio_types::genome::{self, AbstractLocus};
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
 use derive_builder::Builder;
@@ -39,12 +40,13 @@ pub(crate) struct ObservationProcessor {
     reference_buffer: Arc<reference::Buffer>,
     #[builder(private)]
     realigner: realignment::Realigner,
-    #[builder(private)]
-    bcf_reader: bcf::Reader,
+    inbcf: PathBuf,
     #[builder(private)]
     bcf_writer: bcf::Writer,
-    omit_snvs: bool,
-    omit_indels: bool,
+    #[builder(default)]
+    breakend_last_record: HashMap<Vec<u8>, usize>,
+    #[builder(default)]
+    breakend_groups: HashMap<Vec<u8>, variants::types::breakends::BreakendGroup>,
 }
 
 impl ObservationProcessorBuilder {
@@ -66,10 +68,6 @@ impl ObservationProcessorBuilder {
         self.realigner(realignment::Realigner::new(ref_buffer, gap_params, window))
     }
 
-    pub(crate) fn inbcf<P: AsRef<Path>>(self, path: P) -> Result<Self> {
-        Ok(self.bcf_reader(bcf::Reader::from_path(path)?))
-    }
-
     pub(crate) fn outbcf<P: AsRef<Path>>(
         self,
         path: Option<P>,
@@ -77,10 +75,18 @@ impl ObservationProcessorBuilder {
     ) -> Result<Self> {
         let mut header = bcf::Header::new();
 
-        // register SVLEN
+        // register tags
         header.push_record(
             b"##INFO=<ID=SVLEN,Number=A,Type=Integer,\
               Description=\"Difference in length between REF and ALT alleles\">",
+        );
+        header.push_record(
+            b"##INFO=<ID=SVTYPE,Number=A,Type=Integer,\
+              Description=\"Structural variant type\">",
+        );
+        header.push_record(
+            b"##INFO=<ID=EVENT,Number=A,Type=String,\
+              Description=\"ID of event associated to breakend\">",
         );
 
         // register sequences
@@ -140,67 +146,140 @@ impl ObservationProcessorBuilder {
 }
 
 impl ObservationProcessor {
-    pub(crate) fn process(&mut self) -> Result<()> {
+    pub(crate) fn collect_breakends(&mut self) -> Result<()> {
+        let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+        if !utils::is_sv_bcf(&bcf_reader) {
+            return Ok(());
+        }
+
         let mut i = 0;
         loop {
-            let mut record = self.bcf_reader.empty_record();
-            if !self.bcf_reader.read(&mut record)? {
+            let mut record = bcf_reader.empty_record();
+            if !bcf_reader.read(&mut record)? {
                 return Ok(());
             }
 
-            i += 1;
+            if utils::is_bnd(&mut record)? {
+                if let Some(event) = record.info(b"EVENT").string()? {
+                    let event = event[0];
+                    self.breakend_last_record.insert(event.to_owned(), i);
+                }
+            }
 
-            let call = self.process_record(&mut record)?;
-            if let Some(call) = call {
-                call.write_preprocessed_record(&mut self.bcf_writer)?;
-            }
-            if i % 100 == 0 {
-                info!("{} records processed.", i);
-            }
+            i += 1;
         }
     }
 
-    fn process_record(&mut self, record: &mut bcf::Record) -> Result<Option<Call>> {
+    pub(crate) fn process(&mut self) -> Result<()> {
+        let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+        let mut i = 0;
+        loop {
+            let mut record = bcf_reader.empty_record();
+            if !bcf_reader.read(&mut record)? {
+                return Ok(());
+            }
+
+            let calls = self.process_record(&mut record, &bcf_reader, i)?;
+            for call in calls {
+                call.write_preprocessed_record(&mut self.bcf_writer)?;
+            }
+            if (i + 1) % 100 == 0 {
+                info!("{} records processed.", i + 1);
+            }
+
+            i += 1;
+        }
+    }
+
+    fn process_record(
+        &mut self,
+        record: &mut bcf::Record,
+        bcf_reader: &bcf::Reader,
+        record_index: usize,
+    ) -> Result<Vec<Call>> {
         let start = record.pos() as u64;
-        let chrom = String::from_utf8(chrom(&self.bcf_reader, &record).to_owned()).unwrap();
-        let variants = utils::collect_variants(record, self.omit_snvs, self.omit_indels, None)?;
+        let chrom = String::from_utf8(chrom(bcf_reader, &record).to_owned()).unwrap();
+        let variants = utils::collect_variants(record)?;
 
         if variants.is_empty() {
-            return Ok(None);
+            return Ok(vec![]);
         }
 
-        let mut call = CallBuilder::default()
-            .chrom(chrom.as_bytes().to_owned())
-            .pos(start as u64)
-            .id({
-                let id = record.id();
-                if id == b"." {
-                    None
-                } else {
-                    Some(id)
-                }
-            })
-            .variants(Vec::new())
-            .build()
-            .unwrap();
+        let build_call = || {
+            CallBuilder::default()
+                .chrom(chrom.as_bytes().to_owned())
+                .pos(start as u64)
+                .id({
+                    let id = record.id();
+                    if id == b"." {
+                        None
+                    } else {
+                        Some(id)
+                    }
+                })
+                .variants(Vec::new())
+                .build()
+                .unwrap()
+        };
 
-        for variant in variants.into_iter() {
+        // TODO handle breakends separately. Each needs an own call object.
+        if variants.iter().any(|variant| !variant.is_breakend()) {
+            let mut call = build_call();
+
+            for variant in variants
+                .into_iter()
+                .filter(|variant| !variant.is_breakend())
+            {
+                let chrom_seq = self.reference_buffer.seq(&chrom)?;
+                let pileup = self
+                    .extract_observations(start, &chrom, &variant, record_index)?
+                    .unwrap();
+                let start = start as usize;
+
+                // add variant information
+                call.variants.push(
+                    VariantBuilder::default()
+                        .variant(&variant, start, Some(chrom_seq.as_ref()))
+                        .observations(Some(pileup))
+                        .build()
+                        .unwrap(),
+                );
+            }
+
+            Ok(vec![call])
+        } else {
             let chrom_seq = self.reference_buffer.seq(&chrom)?;
-            let pileup = self.extract_observations(start, &chrom, &variant)?;
+            let mut calls = Vec::new();
+            for variant in variants.into_iter() {
+                if let model::Variant::Breakend { ref event, .. } = variant {
+                    if let Some(pileup) =
+                        self.extract_observations(start, &chrom, &variant, record_index)?
+                    {
+                        let mut pileup = Some(pileup);
+                        for breakend in self.breakend_groups.get(event).unwrap().breakends() {
+                            let mut call = build_call();
+                            let start = start as usize;
 
-            let start = start as usize;
-
-            // add variant information
-            call.variants.push(
-                VariantBuilder::default()
-                    .variant(&variant, start, chrom_seq.as_ref())
-                    .observations(Some(pileup))
-                    .build()
-                    .unwrap(),
-            );
+                            // add variant information
+                            call.variants.push(
+                                VariantBuilder::default()
+                                    .variant(
+                                        &breakend.to_variant(event),
+                                        breakend.locus().pos() as usize,
+                                        None,
+                                    )
+                                    .observations(pileup)
+                                    .build()
+                                    .unwrap(),
+                            );
+                            // Subsequent calls should not contain the pileup again (saving space).
+                            pileup = None;
+                        }
+                    }
+                }
+            }
+            Ok(calls)
         }
-
-        Ok(Some(call))
     }
 
     fn extract_observations(
@@ -208,42 +287,72 @@ impl ObservationProcessor {
         start: u64,
         chrom: &str,
         variant: &model::Variant,
-    ) -> Result<Vec<Observation>> {
+        record_index: usize,
+    ) -> Result<Option<Vec<Observation>>> {
         let locus = || genome::Locus::new(chrom.to_owned(), start);
         let interval = |len: u64| genome::Interval::new(chrom.to_owned(), start..start + len);
         let start = start as usize;
 
+        let as_option = |obs| Some(obs);
+
         match variant {
-            model::Variant::SNV(alt) => self.sample.extract_observations(
-                &variants::types::SNV::new(locus(), self.reference_buffer.seq(chrom)?[start], *alt),
-            ),
-            model::Variant::MNV(alt) => {
-                self.sample.extract_observations(&variants::types::MNV::new(
+            model::Variant::SNV(alt) => self
+                .sample
+                .extract_observations(&variants::types::SNV::new(
+                    locus(),
+                    self.reference_buffer.seq(chrom)?[start],
+                    *alt,
+                ))
+                .map(as_option),
+            model::Variant::MNV(alt) => self
+                .sample
+                .extract_observations(&variants::types::MNV::new(
                     locus(),
                     self.reference_buffer.seq(chrom)?[start..start + alt.len()].to_owned(),
                     alt.to_owned(),
                 ))
-            }
+                .map(as_option),
             model::Variant::None => self
                 .sample
                 .extract_observations(&variants::types::None::new(
                     locus(),
                     self.reference_buffer.seq(chrom)?[start],
-                )),
-            model::Variant::Deletion(l) => {
-                self.sample
-                    .extract_observations(&variants::types::Deletion::new(
-                        interval(*l),
-                        self.realigner.clone(),
-                    ))
-            }
-            model::Variant::Insertion(seq) => {
-                self.sample
-                    .extract_observations(&variants::types::Insertion::new(
-                        locus(),
-                        seq.to_owned(),
-                        self.realigner.clone(),
-                    ))
+                ))
+                .map(as_option),
+            model::Variant::Deletion(l) => self
+                .sample
+                .extract_observations(&variants::types::Deletion::new(
+                    interval(*l),
+                    self.realigner.clone(),
+                ))
+                .map(as_option),
+            model::Variant::Insertion(seq) => self
+                .sample
+                .extract_observations(&variants::types::Insertion::new(
+                    locus(),
+                    seq.to_owned(),
+                    self.realigner.clone(),
+                ))
+                .map(as_option),
+            model::Variant::Breakend {
+                ref_allele,
+                spec,
+                event,
+            } => {
+                if !self.breakend_groups.contains_key(event) {
+                    self.breakend_groups.insert(
+                        event.to_owned(),
+                        variants::types::breakends::BreakendGroup::new(self.realigner.clone()),
+                    );
+                }
+                let group = self.breakend_groups.get_mut(event).unwrap();
+                group.push(locus(), ref_allele, spec);
+
+                if *self.breakend_last_record.get(event).unwrap() == record_index {
+                    self.sample.extract_observations(group).map(as_option)
+                } else {
+                    Ok(None)
+                }
             }
         }
     }

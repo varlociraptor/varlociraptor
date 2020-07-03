@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use yaml_rust::Yaml;
 use serde_json::json;
+use yaml_rust::Yaml;
 
 use crate::common::Testcase;
 
@@ -38,6 +38,8 @@ impl Testcase for TestcaseVersion3 {
 
         let variants = options["Preprocess"]["kind"].get_mut("Variants").unwrap();
         variants["candidates"] = json!("dummy.bcf");
+        variants.as_object_mut().unwrap().remove("omit_snvs");
+        variants.as_object_mut().unwrap().remove("omit_indels");
 
         options.to_string()
     }

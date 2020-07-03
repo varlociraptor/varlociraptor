@@ -25,6 +25,24 @@ use crate::Event;
 
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
+pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {
+    for rec in reader.header().header_records() {
+        if let bcf::header::HeaderRecord::Info { key, values } = rec {
+            if values.get("ID").map_or(false, |id| id == "SVTYPE") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+pub(crate) fn is_bnd(record: &mut bcf::Record) -> Result<bool> {
+    Ok(record
+        .info(b"SVTYPE")
+        .string()?
+        .map_or(false, |entries| entries[0] == b"BND"))
+}
+
 pub(crate) fn is_reverse_strand(record: &bam::Record) -> bool {
     record.flags() & 0x10 != 0
 }
@@ -78,12 +96,7 @@ pub(crate) fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
 }
 
 /// Collect variants from a given ´bcf::Record`.
-pub(crate) fn collect_variants(
-    record: &mut bcf::Record,
-    omit_snvs: bool,
-    omit_indels: bool,
-    indel_len_range: Option<Range<u64>>,
-) -> Result<Vec<model::Variant>> {
+pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Variant>> {
     let pos = record.pos() as u64;
     let svlens = match record.info(b"SVLEN").integer() {
         Ok(Some(svlens)) => Some(
@@ -113,15 +126,9 @@ pub(crate) fn collect_variants(
         _ => None,
     };
 
-    // check if len is within the given range
-    let is_valid_len = |svlen| {
-        if let Some(ref len_range) = indel_len_range {
-            // TODO replace with Range::contains once stabilized
-            if svlen < len_range.start || svlen >= len_range.end {
-                return false;
-            }
-        }
-        true
+    let event = match record.info(b"EVENT").string() {
+        Ok(Some(event)) => Some(event[0].to_owned()),
+        _ => None,
     };
 
     let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
@@ -139,64 +146,71 @@ pub(crate) fn collect_variants(
     let mut variants = Vec::new();
 
     if let Some(svtype) = svtype {
-        if !omit_indels {
-            if svtype == b"INS" {
-                // get sequence
-                let alleles = record.alleles();
-                if alleles.len() > 2 {
-                    return Err(errors::Error::InvalidBCFRecord {
-                        msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
+        if svtype == b"BND" {
+            let alleles = record.alleles();
+            if let Some(ref event) = event {
+                for spec in &alleles[1..] {
+                    variants.push(model::Variant::Breakend {
+                        event: event.clone(),
+                        ref_allele: alleles[0].to_owned(),
+                        spec: spec.to_vec(),
+                    })
+                }
+            } else {
+                info!("Skipping breakend without EVENT definition.");
+            }
+        } else if svtype == b"INS" {
+            // get sequence
+            let alleles = record.alleles();
+            if alleles.len() > 2 {
+                return Err(errors::Error::InvalidBCFRecord {
+                    msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
+                }
+                .into());
+            }
+            let ref_allele = alleles[0];
+            let alt_allele = alleles[1];
+
+            if alt_allele != b"<INS>" {
+                // don't support insertions without exact sequence
+                let len = alt_allele.len() - ref_allele.len();
+
+                if is_valid_insertion_alleles(ref_allele, alt_allele) {
+                    variants.push(model::Variant::Insertion(
+                        alt_allele[ref_allele.len()..].to_owned(),
+                    ));
+                }
+            }
+        } else if svtype == b"DEL" {
+            let svlen = match (svlens, end) {
+                (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
+                (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
+                _ => {
+                    return Err(errors::Error::MissingBCFTag {
+                        name: "SVLEN or END".to_owned(),
                     }
                     .into());
                 }
-                let ref_allele = alleles[0];
-                let alt_allele = alleles[1];
+            };
+            if svlen == 0 {
+                return Err(errors::Error::InvalidBCFRecord {
+                    msg: "Absolute value of SVLEN or END - POS must be greater than zero."
+                        .to_owned(),
+                }
+                .into());
+            }
+            let alleles = record.alleles();
+            if alleles.len() > 2 {
+                return Err(errors::Error::InvalidBCFRecord {
+                    msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
+                }
+                .into());
+            }
+            let ref_allele = alleles[0];
+            let alt_allele = alleles[1];
 
-                if alt_allele != b"<INS>" {
-                    // don't support insertions without exact sequence
-                    let len = alt_allele.len() - ref_allele.len();
-
-                    if is_valid_insertion_alleles(ref_allele, alt_allele)
-                        && is_valid_len(len as u64)
-                    {
-                        variants.push(model::Variant::Insertion(
-                            alt_allele[ref_allele.len()..].to_owned(),
-                        ));
-                    }
-                }
-            } else if svtype == b"DEL" {
-                let svlen = match (svlens, end) {
-                    (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
-                    (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
-                    _ => {
-                        return Err(errors::Error::MissingBCFTag {
-                            name: "SVLEN or END".to_owned(),
-                        }
-                        .into());
-                    }
-                };
-                if svlen == 0 {
-                    return Err(errors::Error::InvalidBCFRecord {
-                        msg: "Absolute value of SVLEN or END - POS must be greater than zero."
-                            .to_owned(),
-                    }
-                    .into());
-                }
-                let alleles = record.alleles();
-                if alleles.len() > 2 {
-                    return Err(errors::Error::InvalidBCFRecord {
-                        msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
-                    }
-                    .into());
-                }
-                let ref_allele = alleles[0];
-                let alt_allele = alleles[1];
-
-                if (alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele))
-                    && is_valid_len(svlen)
-                {
-                    variants.push(model::Variant::Deletion(svlen));
-                }
+            if alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele) {
+                variants.push(model::Variant::Deletion(svlen));
             }
         }
     } else {
@@ -206,9 +220,7 @@ pub(crate) fn collect_variants(
         for (i, alt_allele) in alleles.iter().skip(1).enumerate() {
             if alt_allele == b"<*>" {
                 // dummy non-ref allele, signifying potential homozygous reference site
-                if !omit_snvs {
-                    variants.push(model::Variant::None)
-                }
+                variants.push(model::Variant::None);
             } else if alt_allele == b"<DEL>" {
                 if let Some(ref svlens) = svlens {
                     if let Some(svlen) = svlens[i] {
@@ -220,19 +232,14 @@ pub(crate) fn collect_variants(
                 // skip any other special alleles
             } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 // SNV
-                if !omit_snvs {
-                    variants.push(model::Variant::SNV(alt_allele[0]));
-                }
+                variants.push(model::Variant::SNV(alt_allele[0]));
             } else if alt_allele.len() == ref_allele.len() {
                 // MNV
                 variants.push(model::Variant::MNV(alt_allele.to_vec()));
             } else {
                 let indel_len = (alt_allele.len() as i64 - ref_allele.len() as i64).abs() as u64;
                 // TODO fix position if variant is like this: cttt -> ct
-
-                if omit_indels || !is_valid_len(indel_len) {
-                    // skip
-                } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
+                if is_valid_deletion_alleles(ref_allele, alt_allele) {
                     variants.push(model::Variant::Deletion(
                         (ref_allele.len() - alt_allele.len()) as u64,
                     ));
@@ -261,7 +268,7 @@ pub(crate) fn tags_prob_sum(
     tags: &[String],
     vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>> {
-    let variants = (utils::collect_variants(record, false, false, None))?;
+    let variants = utils::collect_variants(record)?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
     for tag in tags {

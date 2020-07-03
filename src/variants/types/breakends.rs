@@ -22,22 +22,32 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};
 
-#[derive(new)]
 pub(crate) struct BreakendGroup {
-    #[new(default)]
     loci: MultiLocus,
-    #[new(default)]
     breakends: BTreeMap<genome::Locus, Breakend>,
-    #[new(default)]
     alt_alleles: RefCell<HashMap<Vec<usize>, Rc<Vec<u8>>>>,
     realigner: RefCell<Realigner>,
 }
 
 impl BreakendGroup {
+    pub(crate) fn new(realigner: Realigner) -> Self {
+        BreakendGroup {
+            loci: MultiLocus::default(),
+            breakends: BTreeMap::default(),
+            alt_alleles: RefCell::default(),
+            realigner: RefCell::new(realigner),
+        }
+    }
+
+    pub(crate) fn breakends(&self) -> impl Iterator<Item = &Breakend> {
+        self.breakends.values()
+    }
+
     pub(crate) fn push(
         &mut self,
         locus: genome::Locus,
@@ -345,10 +355,13 @@ impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
 }
 
 /// Modeling of breakends.
+#[derive(Getters)]
 pub(crate) struct Breakend {
+    #[getset(get = "pub")]
     locus: genome::Locus,
     ref_allele: Vec<u8>,
     operations: [Operation; 2],
+    spec: Vec<u8>,
 }
 
 impl Breakend {
@@ -435,7 +448,16 @@ impl Breakend {
             locus,
             ref_allele: ref_allele.to_owned(),
             operations: [operations[0].clone(), operations[1].clone()],
+            spec: spec.as_bytes().to_owned(),
         }))
+    }
+
+    pub(crate) fn to_variant(&self, event: &[u8]) -> model::Variant {
+        model::Variant::Breakend {
+            ref_allele: self.ref_allele.clone(),
+            spec: self.spec.clone(),
+            event: event.to_owned(),
+        }
     }
 
     fn mate_locus(&self) -> &genome::Locus {

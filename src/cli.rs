@@ -188,10 +188,6 @@ pub enum PreprocessKind {
             help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
         )]
         protocol_strandedness: ProtocolStrandedness,
-        #[structopt(long = "omit-snvs", help = "Don't call SNVs.")]
-        omit_snvs: bool,
-        #[structopt(long = "omit-indels", help = "Don't call Indels.")]
-        omit_indels: bool,
         #[structopt(
             long = "indel-window",
             default_value = "64",
@@ -463,8 +459,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     spurious_insext_rate,
                     spurious_delext_rate,
                     protocol_strandedness,
-                    omit_snvs,
-                    omit_indels,
                     realignment_window,
                     max_depth,
                     omit_insert_size,
@@ -513,18 +507,17 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
                             .sample(sample)
-                            .omit_snvs(omit_snvs)
-                            .omit_indels(omit_indels)
                             .reference(
                                 fasta::IndexedReader::from_file(&reference)
                                     .context("Unable to read genome reference.")?,
                             )
                             .realignment(gap_params, realignment_window)
-                            .inbcf(candidates)?
+                            .inbcf(candidates)
                             .outbcf(output, &opt_clone)?
                             .build()
                             .unwrap();
 
+                    processor.collect_breakends()?;
                     processor.process()?
                 }
             }

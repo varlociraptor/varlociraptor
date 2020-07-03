@@ -175,7 +175,7 @@ impl Testcase {
         // get and write candidate
         let mut candidate = None;
         for (i, mut record) in (self.variants()?).into_iter().enumerate() {
-            let variants = utils::collect_variants(&mut record, false, false, None)?;
+            let variants = utils::collect_variants(&mut record)?;
             for variant in variants {
                 if i == self.idx {
                     // if no chromosome was specified, we infer the locus from the matching
@@ -213,6 +213,9 @@ impl Testcase {
             (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
             (Variant::MNV(ref bases), _) => {
                 (pos.saturating_sub(100), pos + bases.len() as u64 + 100)
+            }
+            (Variant::Breakend { .. }, _) => {
+                (pos.saturating_sub(1000), pos + 1 + 1000) // TODO collect entire breakend event!
             }
             (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
         };

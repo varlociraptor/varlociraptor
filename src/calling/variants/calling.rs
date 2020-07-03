@@ -252,6 +252,11 @@ where
                 rid = Some(current_rid);
             }
 
+            // TODO handle breakends:
+            // Call on the first record, keep results, and print subsequent records with results at the correctly sorted
+            // positions in the BCF output.
+            unimplemented!();
+
             let call = self.call_record(&mut records, &events)?;
 
             if let Some(call) = call {
