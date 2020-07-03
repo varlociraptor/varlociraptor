@@ -111,6 +111,7 @@ impl<'a> Realignable<'a> for Deletion {
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
+        _: &genome::Interval,
         ref_window: usize,
     ) -> Result<DeletionEmissionParams<'a>> {
         let start = self.locus.range().start as usize;

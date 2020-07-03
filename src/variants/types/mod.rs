@@ -19,12 +19,12 @@ use crate::variants::evidence::observation::{
 };
 use crate::variants::sample;
 
+pub(crate) mod breakends;
 pub(crate) mod deletion;
 pub(crate) mod insertion;
 pub(crate) mod mnv;
 pub(crate) mod none;
 pub(crate) mod snv;
-pub(crate) mod breakends;
 
 pub(crate) use deletion::Deletion;
 pub(crate) use insertion::Insertion;

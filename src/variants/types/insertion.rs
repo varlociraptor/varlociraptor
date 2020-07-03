@@ -51,6 +51,7 @@ impl<'a> Realignable<'a> for Insertion {
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
+        _: &genome::Interval,
         ref_window: usize,
     ) -> Result<InsertionEmissionParams<'a>> {
         let l = self.ins_seq.len() as usize;

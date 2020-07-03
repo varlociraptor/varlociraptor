@@ -4,14 +4,15 @@
 // except according to those terms.
 
 use std::cmp;
-use std::ops::{Deref, Range};
+use std::ops::Range;
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
 
 use anyhow::Result;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
-use bio_types::genome::{self, AbstractInterval};
+use bio_types::genome;
+use bio_types::genome::AbstractInterval;
 use rust_htslib::bam;
 
 use crate::reference;
@@ -35,6 +36,7 @@ pub(crate) trait Realignable<'a> {
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
+        ref_interval: &genome::Interval,
         ref_window: usize,
     ) -> Result<Self::EmissionParams>;
 }
@@ -259,6 +261,10 @@ impl Realigner {
                 variant.alt_emission_params(
                     Rc::clone(&read_emission),
                     Arc::clone(&self.ref_buffer),
+                    &genome::Interval::new(
+                        record.contig().to_owned(),
+                        region.ref_interval.start as u64..region.ref_interval.end as u64,
+                    ),
                     self.ref_window(),
                 )?,
                 &edit_dist,
