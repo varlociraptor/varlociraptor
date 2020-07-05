@@ -188,7 +188,6 @@ impl Call {
                 if let Some(ref svtype) = variant.svtype {
                     svtypes.push(svtype.as_slice());
                 }
-                
             }
 
             // set alleles
@@ -197,7 +196,7 @@ impl Call {
             record.push_info_integer(b"SVLEN", &svlens)?;
             record.push_info_string(b"SVTYPE", &svtypes)?;
             record.push_info_string(b"EVENT", &events)?;
-            
+
             if let Some(ref mateid) = self.mateid {
                 record.push_info_string(b"MATEID", &[mateid])?;
             }

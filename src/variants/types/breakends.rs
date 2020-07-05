@@ -75,9 +75,9 @@ impl BreakendGroup {
     fn upstream_bnd(&self, locus: &genome::Locus) -> Option<&Breakend> {
         for (l, bnd) in self.breakends.range(..locus).rev() {
             if l.contig() == locus.contig() {
-                if  l.pos() < locus.pos() {
+                if l.pos() < locus.pos() {
                     // Return first locus with smaller position.
-                    return Some(bnd)
+                    return Some(bnd);
                 }
             } else {
                 break;
@@ -528,7 +528,6 @@ impl BreakendIndex {
         self.last_records.get(event).cloned()
     }
 }
-
 
 struct LocusPlusOne<'a>(&'a genome::Locus);
 
