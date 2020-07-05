@@ -81,12 +81,16 @@ impl ObservationProcessorBuilder {
               Description=\"Difference in length between REF and ALT alleles\">",
         );
         header.push_record(
-            b"##INFO=<ID=SVTYPE,Number=A,Type=Integer,\
+            b"##INFO=<ID=SVTYPE,Number=A,Type=String,\
               Description=\"Structural variant type\">",
         );
         header.push_record(
             b"##INFO=<ID=EVENT,Number=A,Type=String,\
               Description=\"ID of event associated to breakend\">",
+        );
+        header.push_record(
+            b"##INFO=<ID=MATEID,Number=1,Type=String,\
+              Description=\"ID of mate breakend\">",
         );
 
         // register sequences
