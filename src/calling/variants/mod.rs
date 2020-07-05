@@ -33,6 +33,8 @@ pub(crate) struct Call {
     pos: u64,
     #[builder(default = "None")]
     id: Option<Vec<u8>>,
+    #[builder(default = "None")]
+    mateid: Option<Vec<u8>>,
     #[builder(default = "Vec::new()")]
     variants: Vec<Variant>,
 }
@@ -61,6 +63,9 @@ impl Call {
             }
             if let Some(ref svtype) = variant.svtype {
                 record.push_info_string(b"SVTYPE", &[svtype])?;
+            }
+            if let Some(ref mateid) = self.mateid {
+                record.push_info_string(b"MATEID", &[mateid])?;
             }
 
             // set qual
@@ -261,8 +266,8 @@ impl VariantBuilder {
             .ref_allele(alleles[0].to_owned())
             .alt_allele(alleles[1].to_owned())
             .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0]))
-            .event(record.info(b"EVENT").string()?.map(|e| e[0].to_vec()))
-            .event(record.info(b"SVTYPE").string()?.map(|t| t[0].to_vec())))
+            .event(utils::info_tag_event(record)?.map(|e| e.to_vec()))
+            .svtype(utils::info_tag_svtype(record)?.map(|s| s.to_vec())))
     }
 
     pub(crate) fn variant(

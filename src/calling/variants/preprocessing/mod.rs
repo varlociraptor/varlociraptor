@@ -31,6 +31,7 @@ use crate::variants::evidence::observation::{Observation, ObservationBuilder};
 use crate::variants::evidence::realignment;
 use crate::variants::model;
 use crate::variants::sample::Sample;
+use crate::variants::types::breakends::BreakendIndex;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -43,8 +44,7 @@ pub(crate) struct ObservationProcessor {
     inbcf: PathBuf,
     #[builder(private)]
     bcf_writer: bcf::Writer,
-    #[builder(default)]
-    breakend_last_record: HashMap<Vec<u8>, usize>,
+    breakend_index: BreakendIndex,
     #[builder(default)]
     breakend_groups: HashMap<Vec<u8>, variants::types::breakends::BreakendGroup>,
 }
@@ -146,30 +146,6 @@ impl ObservationProcessorBuilder {
 }
 
 impl ObservationProcessor {
-    pub(crate) fn collect_breakends(&mut self) -> Result<()> {
-        let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
-        if !utils::is_sv_bcf(&bcf_reader) {
-            return Ok(());
-        }
-
-        let mut i = 0;
-        loop {
-            let mut record = bcf_reader.empty_record();
-            if !bcf_reader.read(&mut record)? {
-                return Ok(());
-            }
-
-            if utils::is_bnd(&mut record)? {
-                if let Some(event) = record.info(b"EVENT").string()? {
-                    let event = event[0];
-                    self.breakend_last_record.insert(event.to_owned(), i);
-                }
-            }
-
-            i += 1;
-        }
-    }
-
     pub(crate) fn process(&mut self) -> Result<()> {
         let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
         let mut i = 0;
@@ -205,26 +181,30 @@ impl ObservationProcessor {
             return Ok(vec![]);
         }
 
-        let build_call = || {
-            CallBuilder::default()
-                .chrom(chrom.as_bytes().to_owned())
-                .pos(start as u64)
+        let call_builder = |chrom, start, id| {
+            let mut builder = CallBuilder::default();
+            builder
+                .chrom(chrom)
+                .pos(start)
                 .id({
-                    let id = record.id();
                     if id == b"." {
                         None
                     } else {
                         Some(id)
                     }
                 })
-                .variants(Vec::new())
-                .build()
-                .unwrap()
+                .variants(Vec::new());
+            builder
         };
 
-        // TODO handle breakends separately. Each needs an own call object.
-        if variants.iter().any(|variant| !variant.is_breakend()) {
-            let mut call = build_call();
+        if variants.iter().all(|variant| !variant.is_breakend()) {
+            let mut call = call_builder(
+                chrom.as_bytes().to_owned(),
+                record.pos() as u64,
+                record.id(),
+            )
+            .build()
+            .unwrap();
 
             for variant in variants
                 .into_iter()
@@ -232,7 +212,7 @@ impl ObservationProcessor {
             {
                 let chrom_seq = self.reference_buffer.seq(&chrom)?;
                 let pileup = self
-                    .extract_observations(start, &chrom, &variant, record_index)?
+                    .extract_observations(start, &chrom, &variant, record_index, record)?
                     .unwrap();
                 let start = start as usize;
 
@@ -248,17 +228,22 @@ impl ObservationProcessor {
 
             Ok(vec![call])
         } else {
-            let chrom_seq = self.reference_buffer.seq(&chrom)?;
             let mut calls = Vec::new();
             for variant in variants.into_iter() {
                 if let model::Variant::Breakend { ref event, .. } = variant {
                     if let Some(pileup) =
-                        self.extract_observations(start, &chrom, &variant, record_index)?
+                        self.extract_observations(start, &chrom, &variant, record_index, record)?
                     {
                         let mut pileup = Some(pileup);
                         for breakend in self.breakend_groups.get(event).unwrap().breakends() {
-                            let mut call = build_call();
-                            let start = start as usize;
+                            let mut call = call_builder(
+                                breakend.locus().contig().as_bytes().to_owned(),
+                                breakend.locus().pos(),
+                                breakend.id().to_owned(),
+                            )
+                            .mateid(Some(breakend.mateid().to_owned()))
+                            .build()
+                            .unwrap();
 
                             // add variant information
                             call.variants.push(
@@ -272,6 +257,7 @@ impl ObservationProcessor {
                                     .build()
                                     .unwrap(),
                             );
+                            calls.push(call);
                             // Subsequent calls should not contain the pileup again (saving space).
                             pileup = None;
                         }
@@ -288,6 +274,7 @@ impl ObservationProcessor {
         chrom: &str,
         variant: &model::Variant,
         record_index: usize,
+        record: &mut bcf::Record,
     ) -> Result<Option<Vec<Observation>>> {
         let locus = || genome::Locus::new(chrom.to_owned(), start);
         let interval = |len: u64| genome::Interval::new(chrom.to_owned(), start..start + len);
@@ -346,12 +333,23 @@ impl ObservationProcessor {
                     );
                 }
                 let group = self.breakend_groups.get_mut(event).unwrap();
-                group.push(locus(), ref_allele, spec);
+                if let Some(mateid) =
+                    utils::info_tag_mateid(record)?.map(|mateid| mateid.to_owned())
+                {
+                    group.push(locus(), ref_allele, spec, record.id(), mateid)?;
 
-                if *self.breakend_last_record.get(event).unwrap() == record_index {
-                    self.sample.extract_observations(group).map(as_option)
+                    if self.breakend_index.last_record_index(event).unwrap() == record_index {
+                        // METHOD: last record of the breakend event. Hence, we can extract observations,
+                        // and discard the breakend group to free some memory.
+                        let obs = self.sample.extract_observations(group).map(as_option);
+                        self.breakend_groups.remove(event);
+
+                        obs
+                    } else {
+                        Ok(None)
+                    }
                 } else {
-                    Ok(None)
+                    Err(errors::Error::InvalidBNDRecordMateid.into())
                 }
             }
         }

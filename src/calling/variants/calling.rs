@@ -16,6 +16,7 @@ use crate::calling::variants::{
 };
 use crate::errors;
 use crate::grammar;
+use crate::utils;
 use crate::variants::model;
 use crate::variants::model::{AlleleFreq, StrandBias};
 
@@ -36,6 +37,8 @@ where
     #[builder(private)]
     bcf_writer: bcf::Writer,
     model: bayesian::Model<L, Pr, Po, ModelPayload>,
+    #[builder(default, private)]
+    breakend_result: Option<BreakendResult>,
 }
 
 impl<L, Pr, Po, ModelPayload> CallerBuilder<L, Pr, Po, ModelPayload>
@@ -240,7 +243,6 @@ where
                 }
 
                 // update prior to the VAF universe of the current chromosome
-
                 let mut vaf_universes = self.scenario.sample_info();
                 for (sample_name, sample) in self.scenario.samples().iter() {
                     let universe = sample.contig_universe(&contig)?;
@@ -251,11 +253,6 @@ where
 
                 rid = Some(current_rid);
             }
-
-            // TODO handle breakends:
-            // Call on the first record, keep results, and print subsequent records with results at the correctly sorted
-            // positions in the BCF output.
-            unimplemented!();
 
             let call = self.call_record(&mut records, &events)?;
 
@@ -273,7 +270,7 @@ where
         records: &mut grammar::SampleInfo<bcf::Record>,
         event_universe: &[Po::Event],
     ) -> Result<Option<Call>> {
-        let (mut call, mut variant_builder, snv) = {
+        let (mut call, snv, bnd_event) = {
             let first_record = records
                 .first_mut()
                 .expect("bug: there must be at least one record");
@@ -301,9 +298,6 @@ where
                 .build()
                 .unwrap();
 
-            let mut variant_builder = VariantBuilder::default();
-            variant_builder.record(first_record)?;
-
             // store information about SNV for special handling in posterior computation (variant selection operations)
             let snv = {
                 let alleles = first_record.alleles();
@@ -317,9 +311,33 @@ where
                 }
             };
 
-            (call, variant_builder, snv)
+            let bnd_event = if utils::is_bnd(first_record)? {
+                Some(utils::info_tag_event(first_record)?.unwrap().to_owned())
+            } else {
+                None
+            };
+
+            (call, snv, bnd_event)
         };
 
+        if let Some(ref event) = bnd_event {
+            if let Some(ref mut result) = self.breakend_result {
+                if &result.event == event {
+                    // METHOD: Another breakend in the same event was already processed, hence, we just copy the
+                    // results. This works because preprocessing ensures that all breakends of one event appear
+                    // "en block".
+                    result
+                        .variant_builder
+                        .record(records.first_mut().unwrap())?;
+                    call.variants.push(result.variant_builder.build().unwrap());
+
+                    return Ok(Some(call));
+                } else {
+                    // new breakend event, clear old result.
+                    self.breakend_result = None;
+                }
+            }
+        }
         // obtain pileups
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
@@ -329,6 +347,8 @@ where
 
         // Compute probabilities for given events.
         let m = self.model.compute(event_universe.iter().cloned(), &data);
+
+        let mut variant_builder = VariantBuilder::default();
 
         // add calling results
         let mut event_probs: HashMap<String, LogProb> = event_universe
@@ -391,8 +411,23 @@ where
             Some(Vec::new())
         });
 
+        // Store breakend results for next breakend of the same event.
+        if let Some(event) = bnd_event {
+            self.breakend_result = Some(BreakendResult {
+                event,
+                variant_builder: variant_builder.clone(),
+            });
+        }
+
+        variant_builder.record(records.first_mut().unwrap())?;
+
         call.variants.push(variant_builder.build().unwrap());
 
         Ok(Some(call))
     }
+}
+
+struct BreakendResult {
+    event: Vec<u8>,
+    variant_builder: VariantBuilder,
 }

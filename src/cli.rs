@@ -30,6 +30,7 @@ use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::variants::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::variants::model::{Contamination, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
+use crate::variants::types::breakends::BreakendIndex;
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -512,12 +513,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .context("Unable to read genome reference.")?,
                             )
                             .realignment(gap_params, realignment_window)
+                            .breakend_index(BreakendIndex::new(&candidates)?)
                             .inbcf(candidates)
                             .outbcf(output, &opt_clone)?
                             .build()
                             .unwrap();
 
-                    processor.collect_breakends()?;
                     processor.process()?
                 }
             }
@@ -637,7 +638,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         )?;
                                         if i == 0 {
                                             testcase_builder =
-                                                testcase_builder.candidates(obspath)?;
+                                                testcase_builder.candidates(obspath.to_owned());
                                             testcase_builder = testcase_builder
                                                 .reference(preprocess_input.reference)?;
                                         }
@@ -679,7 +680,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         &normal_observations,
                                     )?;
                                 let mut testcase = testcase_builder
-                                    .candidates(tumor_observations)?
+                                    .candidates(tumor_observations)
                                     .reference(tumor_options.preprocess_input().reference)?
                                     .register_sample(
                                         "tumor",

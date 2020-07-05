@@ -9,6 +9,7 @@ use std::str;
 use anyhow::Result;
 use askama::Template;
 use bio::io::fasta;
+use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
@@ -19,6 +20,7 @@ use crate::errors;
 use crate::utils;
 use crate::variants::model::Variant;
 use crate::variants::sample;
+use crate::variants::types::breakends::BreakendIndex;
 
 lazy_static! {
     static ref TESTCASE_RE: Regex =
@@ -62,8 +64,7 @@ pub struct Testcase {
     idx: usize,
     #[builder(private)]
     reference_reader: fasta::IndexedReader<File>,
-    #[builder(private)]
-    candidate_reader: bcf::Reader,
+    candidates: PathBuf,
     #[builder(private)]
     bams: HashMap<String, PathBuf>,
     scenario: Option<PathBuf>,
@@ -77,10 +78,6 @@ pub struct Testcase {
 impl TestcaseBuilder {
     pub(crate) fn reference(self, path: impl AsRef<Path>) -> Result<Self> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
-    }
-
-    pub(crate) fn candidates(self, path: impl AsRef<Path>) -> Result<Self> {
-        Ok(self.candidate_reader(bcf::Reader::from_path(path)?))
     }
 
     pub(crate) fn locus(self, locus: &str) -> Result<Self> {
@@ -137,16 +134,22 @@ impl TestcaseBuilder {
 }
 
 impl Testcase {
+    fn candidate_reader(&self) -> Result<bcf::Reader> {
+        Ok(bcf::Reader::from_path(&self.candidates)?)
+    }
+
     fn variants(&mut self) -> Result<Vec<bcf::Record>> {
+        let mut candidate_reader = self.candidate_reader()?;
+
         // get variant
         let rid = if let Some(name) = self.chrom_name.as_ref() {
-            Some(self.candidate_reader.header().name2rid(name)?)
+            Some(candidate_reader.header().name2rid(name)?)
         } else {
             None
         };
 
         let mut found = vec![];
-        for res in self.candidate_reader.records() {
+        for res in candidate_reader.records() {
             let rec = res?;
             if let Some(rec_rid) = rec.rid() {
                 if let Some(rid) = rid {
@@ -163,6 +166,49 @@ impl Testcase {
         if found.is_empty() {
             Err(errors::Error::NoCandidateFound.into())
         } else {
+            if rid.is_some() {
+                // If not collecting all records, fetch all breakends belonging to the same events.
+                let mut breakend_index = None;
+                let mut aux_breakends = Vec::new();
+
+                for rec in &mut found {
+                    if utils::is_bnd(rec)? {
+                        if let Some(event) =
+                            utils::info_tag_event(rec)?.map(|event| event.to_owned())
+                        {
+                            // METHOD: for breakend events, collect all the other breakends.
+                            if breakend_index.is_none() {
+                                breakend_index = Some(BreakendIndex::new(&self.candidates)?);
+                            }
+                            let breakend_index = breakend_index.as_ref().unwrap();
+                            let last_idx = breakend_index.last_record_index(&event).unwrap();
+
+                            let mut candidate_reader = self.candidate_reader()?;
+                            for (i, res) in candidate_reader.records().enumerate() {
+                                let mut other_rec = res?;
+                                if let Some(other_event) = utils::info_tag_event(&mut other_rec)? {
+                                    if event == other_event
+                                        && (other_rec.contig() != rec.contig()
+                                            || other_rec.pos() != rec.pos())
+                                    {
+                                        // This is another record of the same event.
+                                        aux_breakends.push(other_rec);
+                                    }
+                                }
+                                if i == last_idx {
+                                    // Last record of this event processed, stop.
+                                    break;
+                                }
+                            }
+                        } else {
+                            info!("Skipping collection of mate breakends because EVENT tag is not specified, which is unsupported at the moment.")
+                        }
+                    }
+                }
+
+                found.extend(aux_breakends);
+            }
+
             Ok(found)
         }
     }
@@ -182,7 +228,7 @@ impl Testcase {
                     // variant
                     if self.chrom_name.is_none() {
                         self.chrom_name = Some(
-                            self.candidate_reader
+                            self.candidate_reader()?
                                 .header()
                                 .rid2name(record.rid().unwrap())
                                 .unwrap()
@@ -270,7 +316,7 @@ impl Testcase {
         // write candidate
         let mut candidate_writer = bcf::Writer::from_path(
             self.prefix.join(candidate_filename),
-            &bcf::Header::from_template(self.candidate_reader.header()),
+            &bcf::Header::from_template(self.candidate_reader()?.header()),
             true,
             bcf::Format::BCF,
         )?;

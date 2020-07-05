@@ -5,7 +5,6 @@
 
 use std::fmt::Display;
 use std::hash::Hash;
-use std::ops::Range;
 use std::str;
 
 use anyhow::Result;
@@ -27,7 +26,7 @@ pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
 pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {
     for rec in reader.header().header_records() {
-        if let bcf::header::HeaderRecord::Info { key, values } = rec {
+        if let bcf::header::HeaderRecord::Info { values, .. } = rec {
             if values.get("ID").map_or(false, |id| id == "SVTYPE") {
                 return true;
             }
@@ -41,6 +40,18 @@ pub(crate) fn is_bnd(record: &mut bcf::Record) -> Result<bool> {
         .info(b"SVTYPE")
         .string()?
         .map_or(false, |entries| entries[0] == b"BND"))
+}
+
+pub(crate) fn info_tag_svtype(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+    Ok(record.info(b"SVTYPE").string()?.map(|v| v[0]))
+}
+
+pub(crate) fn info_tag_event(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+    Ok(record.info(b"EVENT").string()?.map(|v| v[0]))
+}
+
+pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+    Ok(record.info(b"MATEID").string()?.map(|v| v[0]))
 }
 
 pub(crate) fn is_reverse_strand(record: &bam::Record) -> bool {
@@ -173,8 +184,6 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
 
             if alt_allele != b"<INS>" {
                 // don't support insertions without exact sequence
-                let len = alt_allele.len() - ref_allele.len();
-
                 if is_valid_insertion_alleles(ref_allele, alt_allele) {
                     variants.push(model::Variant::Insertion(
                         alt_allele[ref_allele.len()..].to_owned(),
@@ -237,7 +246,6 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
                 // MNV
                 variants.push(model::Variant::MNV(alt_allele.to_vec()));
             } else {
-                let indel_len = (alt_allele.len() as i64 - ref_allele.len() as i64).abs() as u64;
                 // TODO fix position if variant is like this: cttt -> ct
                 if is_valid_deletion_alleles(ref_allele, alt_allele) {
                     variants.push(model::Variant::Deletion(

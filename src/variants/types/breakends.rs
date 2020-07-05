@@ -4,8 +4,8 @@
 // except according to those terms.
 
 use std::cell::RefCell;
-use std::cmp;
 use std::collections::{BTreeMap, HashMap};
+use std::path::Path;
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
@@ -16,10 +16,12 @@ use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use regex::Regex;
+use rust_htslib::bcf::{self, Read};
 
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
+use crate::utils;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
@@ -53,8 +55,10 @@ impl BreakendGroup {
         locus: genome::Locus,
         ref_allele: &[u8],
         spec: &[u8],
+        id: Vec<u8>,
+        mateid: Vec<u8>,
     ) -> Result<()> {
-        if let Some(breakend) = Breakend::new(locus, ref_allele, spec)? {
+        if let Some(breakend) = Breakend::new(locus, ref_allele, spec, id, mateid)? {
             let interval = genome::Interval::new(
                 breakend.locus.contig().to_owned(),
                 breakend.locus.pos()..breakend.locus.pos() + ref_allele.len() as u64,
@@ -79,17 +83,13 @@ impl BreakendGroup {
     }
 
     fn downstream_bnd(&self, locus: &genome::Locus) -> Option<&Breakend> {
-        self.breakends
-            .range(locus..)
-            .skip(1)
-            .next()
-            .and_then(|(_, bnd)| {
-                if bnd.locus.contig() == locus.contig() {
-                    Some(bnd)
-                } else {
-                    None
-                }
-            })
+        self.breakends.range(locus..).nth(1).and_then(|(_, bnd)| {
+            if bnd.locus.contig() == locus.contig() {
+                Some(bnd)
+            } else {
+                None
+            }
+        })
     }
 }
 
@@ -242,18 +242,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
         if !self.alt_alleles.borrow().contains_key(&bnds) {
             // Compute alt allele sequence once.
-            let first = self
-                .breakends
-                .values()
-                .skip(*bnds.first().unwrap())
-                .next()
-                .unwrap();
-            let last = self
-                .breakends
-                .values()
-                .skip(*bnds.last().unwrap())
-                .next()
-                .unwrap();
+            let first = self.breakends.values().nth(*bnds.first().unwrap()).unwrap();
 
             let mut alt_allele = Vec::new();
 
@@ -362,10 +351,20 @@ pub(crate) struct Breakend {
     ref_allele: Vec<u8>,
     operations: [Operation; 2],
     spec: Vec<u8>,
+    #[getset(get = "pub")]
+    id: Vec<u8>,
+    #[getset(get = "pub")]
+    mateid: Vec<u8>,
 }
 
 impl Breakend {
-    fn new(locus: genome::Locus, ref_allele: &[u8], spec: &[u8]) -> Result<Option<Self>> {
+    fn new(
+        locus: genome::Locus,
+        ref_allele: &[u8],
+        spec: &[u8],
+        id: Vec<u8>,
+        mateid: Vec<u8>,
+    ) -> Result<Option<Self>> {
         lazy_static! {
             static ref RE: Regex = Regex::new("((?P<replacement>[ACGTN]+)|((?P<bracket1>[\\]\\[])(?P<anglebracket1><)?(?P<contig>[^\\]\\[])(?P<anglebracket2>>)?(:(?P<pos>[^\\]\\[]))?(?P<bracket2>[\\]\\[])))").unwrap();
         }
@@ -374,7 +373,7 @@ impl Breakend {
 
         let ops: Vec<_> = RE.captures_iter(&spec).collect();
         if ops.len() != 2 {
-            return Err(Error::InvalidBNDRecord { spec }.into());
+            return Err(Error::InvalidBNDRecordAlt { spec }.into());
         }
 
         let mut operations = Vec::new();
@@ -386,7 +385,7 @@ impl Breakend {
                 // Must be in second case.
                 let bracket = caps.name("bracket1").unwrap().as_str();
                 if bracket != caps.name("bracket2").unwrap().as_str() {
-                    return Err(Error::InvalidBNDRecord { spec }.into());
+                    return Err(Error::InvalidBNDRecordAlt { spec }.into());
                 }
 
                 // insertion from assembly file
@@ -406,7 +405,7 @@ impl Breakend {
                     (false, false) => (), // no insertion from assembly file,
                     _ => {
                         // angle brackets do not match
-                        return Err(Error::InvalidBNDRecord { spec }.into());
+                        return Err(Error::InvalidBNDRecordAlt { spec }.into());
                     }
                 }
 
@@ -418,7 +417,7 @@ impl Breakend {
                 } else {
                     Side::LeftOfPos
                 };
-                let extension_modification = if operations.len() > 0 {
+                let extension_modification = if !operations.is_empty() {
                     // Replacement sequence is inserted before.
                     // ] means reverse complement.
                     if bracket == "[" {
@@ -449,6 +448,8 @@ impl Breakend {
             ref_allele: ref_allele.to_owned(),
             operations: [operations[0].clone(), operations[1].clone()],
             spec: spec.as_bytes().to_owned(),
+            id,
+            mateid,
         }))
     }
 
@@ -458,15 +459,6 @@ impl Breakend {
             spec: self.spec.clone(),
             event: event.to_owned(),
         }
-    }
-
-    fn mate_locus(&self) -> &genome::Locus {
-        for op in &self.operations {
-            if let Operation::Join { ref locus, .. } = op {
-                return locus;
-            }
-        }
-        unreachable!();
     }
 }
 
@@ -490,4 +482,41 @@ pub(crate) enum Operation {
         side: Side,
         extension_modification: ExtensionModification,
     },
+}
+
+#[derive(Default, Debug)]
+pub(crate) struct BreakendIndex {
+    last_records: HashMap<Vec<u8>, usize>,
+}
+
+impl BreakendIndex {
+    pub(crate) fn new<P: AsRef<Path>>(inbcf: P) -> Result<Self> {
+        let mut bcf_reader = bcf::Reader::from_path(inbcf)?;
+        if !utils::is_sv_bcf(&bcf_reader) {
+            return Ok(BreakendIndex::default());
+        }
+
+        let mut last_records = HashMap::new();
+
+        let mut i = 0;
+        loop {
+            let mut record = bcf_reader.empty_record();
+            if !bcf_reader.read(&mut record)? {
+                return Ok(BreakendIndex { last_records });
+            }
+
+            if utils::is_bnd(&mut record)? {
+                if let Some(event) = record.info(b"EVENT").string()? {
+                    let event = event[0];
+                    last_records.insert(event.to_owned(), i);
+                }
+            }
+
+            i += 1;
+        }
+    }
+
+    pub(crate) fn last_record_index(&self, event: &[u8]) -> Option<usize> {
+        self.last_records.get(event).cloned()
+    }
 }
