@@ -72,7 +72,9 @@ impl Call {
             record.set_qual(f32::missing());
 
             // add raw observations
-            write_observations(variant.observations.as_ref().unwrap(), &mut record)?;
+            if let Some(ref obs) = variant.observations {
+                write_observations(obs, &mut record)?;
+            }
 
             bcf_writer.write(&record)?;
         }
@@ -104,6 +106,8 @@ impl Call {
             let mut strand_bias = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
+            let mut events = Vec::new();
+            let mut svtypes = Vec::new();
             alleles.push(&ref_allele[..]);
 
             // collect per group information
@@ -177,11 +181,26 @@ impl Call {
                 } else {
                     svlens.push(i32::missing());
                 }
+
+                if let Some(ref event) = variant.event {
+                    events.push(event.as_slice());
+                }
+                if let Some(ref svtype) = variant.svtype {
+                    svtypes.push(svtype.as_slice());
+                }
+                
             }
 
             // set alleles
             record.set_alleles(&alleles)?;
+
             record.push_info_integer(b"SVLEN", &svlens)?;
+            record.push_info_string(b"SVTYPE", &svtypes)?;
+            record.push_info_string(b"EVENT", &events)?;
+            
+            if let Some(ref mateid) = self.mateid {
+                record.push_info_string(b"MATEID", &[mateid])?;
+            }
 
             // set qual
             record.set_qual(f32::missing());

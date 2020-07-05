@@ -265,6 +265,8 @@ impl ObservationProcessor {
                             // Subsequent calls should not contain the pileup again (saving space).
                             pileup = None;
                         }
+                        // As all records a written, the breakend group can be discarded.
+                        self.breakend_groups.remove(event);
                     }
                 }
             }
@@ -343,12 +345,8 @@ impl ObservationProcessor {
                     group.push(locus(), ref_allele, spec, record.id(), mateid)?;
 
                     if self.breakend_index.last_record_index(event).unwrap() == record_index {
-                        // METHOD: last record of the breakend event. Hence, we can extract observations,
-                        // and discard the breakend group to free some memory.
-                        let obs = self.sample.extract_observations(group).map(as_option);
-                        self.breakend_groups.remove(event);
-
-                        obs
+                        // METHOD: last record of the breakend event. Hence, we can extract observations.
+                        self.sample.extract_observations(group).map(as_option)
                     } else {
                         Ok(None)
                     }

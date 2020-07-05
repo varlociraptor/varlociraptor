@@ -40,7 +40,7 @@ pub mod filtration;
 pub(crate) mod grammar;
 pub(crate) mod reference;
 pub mod testcase;
-pub(crate) mod utils;
+pub mod utils;
 pub mod variants;
 
 /// Event to call.

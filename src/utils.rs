@@ -35,7 +35,7 @@ pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {
     false
 }
 
-pub(crate) fn is_bnd(record: &mut bcf::Record) -> Result<bool> {
+pub fn is_bnd(record: &mut bcf::Record) -> Result<bool> {
     Ok(record
         .info(b"SVTYPE")
         .string()?

@@ -40,7 +40,7 @@ impl BreakendGroup {
     pub(crate) fn new(realigner: Realigner) -> Self {
         BreakendGroup {
             loci: MultiLocus::default(),
-            breakends: BTreeMap::default(),
+            breakends: BTreeMap::new(),
             alt_alleles: RefCell::default(),
             realigner: RefCell::new(realigner),
         }
@@ -73,23 +73,31 @@ impl BreakendGroup {
     }
 
     fn upstream_bnd(&self, locus: &genome::Locus) -> Option<&Breakend> {
-        self.breakends.range(..locus).last().and_then(|(_, bnd)| {
-            if bnd.locus.contig() == locus.contig() {
-                Some(bnd)
+        for (l, bnd) in self.breakends.range(..locus).rev() {
+            if l.contig() == locus.contig() {
+                if  l.pos() < locus.pos() {
+                    // Return first locus with smaller position.
+                    return Some(bnd)
+                }
             } else {
-                None
+                break;
             }
-        })
+        }
+        None
     }
 
     fn downstream_bnd(&self, locus: &genome::Locus) -> Option<&Breakend> {
-        self.breakends.range(locus..).nth(1).and_then(|(_, bnd)| {
-            if bnd.locus.contig() == locus.contig() {
-                Some(bnd)
+        for (l, bnd) in self.breakends.range(locus..) {
+            if l.contig() == locus.contig() {
+                if l.pos() > locus.pos() {
+                    // Return first locus with larger position.
+                    return Some(bnd);
+                }
             } else {
-                None
+                break;
             }
-        })
+        }
+        None
     }
 }
 
@@ -366,7 +374,7 @@ impl Breakend {
         mateid: Vec<u8>,
     ) -> Result<Option<Self>> {
         lazy_static! {
-            static ref RE: Regex = Regex::new("((?P<replacement>[ACGTN]+)|((?P<bracket1>[\\]\\[])(?P<anglebracket1><)?(?P<contig>[^\\]\\[])(?P<anglebracket2>>)?(:(?P<pos>[^\\]\\[]))?(?P<bracket2>[\\]\\[])))").unwrap();
+            static ref RE: Regex = Regex::new("((?P<replacement>[ACGTN]+)|((?P<bracket1>[\\]\\[])(?P<anglebracket1><)?(?P<contig>[^\\]\\[:>]+)(?P<anglebracket2>>)?(:(?P<pos>[0-9]+))?(?P<bracket2>[\\]\\[])))").unwrap();
         }
 
         let spec = str::from_utf8(spec).unwrap().to_owned();
@@ -387,7 +395,7 @@ impl Breakend {
                 if bracket != caps.name("bracket2").unwrap().as_str() {
                     return Err(Error::InvalidBNDRecordAlt { spec }.into());
                 }
-
+                dbg!(&caps);
                 // insertion from assembly file
                 match (
                     caps.name("anglebracket1").is_some(),
@@ -518,5 +526,30 @@ impl BreakendIndex {
 
     pub(crate) fn last_record_index(&self, event: &[u8]) -> Option<usize> {
         self.last_records.get(event).cloned()
+    }
+}
+
+
+struct LocusPlusOne<'a>(&'a genome::Locus);
+
+impl<'a> AbstractLocus for LocusPlusOne<'a> {
+    fn contig(&self) -> &str {
+        self.0.contig()
+    }
+
+    fn pos(&self) -> u64 {
+        self.0.pos() + 1
+    }
+}
+
+struct LocusMinusOne<'a>(&'a genome::Locus);
+
+impl<'a> AbstractLocus for LocusMinusOne<'a> {
+    fn contig(&self) -> &str {
+        self.0.contig()
+    }
+
+    fn pos(&self) -> u64 {
+        self.0.pos() - 1
     }
 }

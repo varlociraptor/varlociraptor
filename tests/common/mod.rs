@@ -26,6 +26,7 @@ use yaml_rust::{Yaml, YamlLoader};
 
 use varlociraptor::cli::{run, CallKind, PreprocessKind, VariantCallMode, Varlociraptor};
 use varlociraptor::testcase::Mode;
+use varlociraptor::utils;
 
 pub(crate) fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>> {
     let mut reader = File::open(path.as_ref().join("testcase.yaml"))?;
@@ -228,50 +229,55 @@ pub(crate) trait Testcase {
     fn check(&self) {
         let mut reader = bcf::Reader::from_path(self.output()).unwrap();
         let mut calls = reader.records().map(|r| r.unwrap()).collect_vec();
-        assert_eq!(calls.len(), 1, "unexpected number of calls");
-        let mut call = calls.pop().unwrap();
 
-        let afs = call.format(b"AF").float().unwrap();
-        if let Some(exprs) = self.yaml()["expected"]["allelefreqs"].as_vec() {
-            for expr in exprs.iter() {
-                let mut expr = Expr::new(expr.as_str().unwrap());
-
-                for (sample, af) in reader.header().samples().into_iter().zip(afs.iter()) {
-                    expr = expr.value(str::from_utf8(sample).unwrap(), af[0]);
-                }
-                assert!(
-                    expr.exec()
-                        .map(|v| v.as_bool().unwrap_or(false))
-                        .unwrap_or(false),
-                    "{:?} did not return true",
-                    expr
-                );
-            }
+        if !utils::is_bnd(&mut calls[0]).expect("bug: failed to check for breakend") {
+            // If not a breakend, allow only one call.
+            assert_eq!(calls.len(), 1, "unexpected number of calls");
         }
 
-        if let Some(exprs) = self.yaml()["expected"]["posteriors"].as_vec() {
-            for expr in exprs.iter() {
-                let mut expr = Expr::new(expr.as_str().unwrap());
+        for call in calls.iter_mut() {
+            let afs = call.format(b"AF").float().unwrap();
+            if let Some(exprs) = self.yaml()["expected"]["allelefreqs"].as_vec() {
+                for expr in exprs.iter() {
+                    let mut expr = Expr::new(expr.as_str().unwrap());
 
-                for rec in reader.header().header_records() {
-                    match rec {
-                        bcf::HeaderRecord::Info { values, .. } => {
-                            let id = values.get("ID").unwrap().clone();
-                            if id.starts_with("PROB_") {
-                                let values = call.info(id.as_bytes()).float().unwrap().unwrap();
-                                expr = expr.value(id.clone(), values[0])
-                            }
-                        }
-                        _ => (), // ignore other tags
+                    for (sample, af) in reader.header().samples().into_iter().zip(afs.iter()) {
+                        expr = expr.value(str::from_utf8(sample).unwrap(), af[0]);
                     }
+                    assert!(
+                        expr.exec()
+                            .map(|v| v.as_bool().unwrap_or(false))
+                            .unwrap_or(false),
+                        "{:?} did not return true",
+                        expr
+                    );
                 }
-                assert!(
-                    expr.exec()
-                        .map(|v| v.as_bool().unwrap_or(false))
-                        .unwrap_or(false),
-                    "{:?} did not return true",
-                    expr
-                );
+            }
+
+            if let Some(exprs) = self.yaml()["expected"]["posteriors"].as_vec() {
+                for expr in exprs.iter() {
+                    let mut expr = Expr::new(expr.as_str().unwrap());
+
+                    for rec in reader.header().header_records() {
+                        match rec {
+                            bcf::HeaderRecord::Info { values, .. } => {
+                                let id = values.get("ID").unwrap().clone();
+                                if id.starts_with("PROB_") {
+                                    let values = call.info(id.as_bytes()).float().unwrap().unwrap();
+                                    expr = expr.value(id.clone(), values[0])
+                                }
+                            }
+                            _ => (), // ignore other tags
+                        }
+                    }
+                    assert!(
+                        expr.exec()
+                            .map(|v| v.as_bool().unwrap_or(false))
+                            .unwrap_or(false),
+                        "{:?} did not return true",
+                        expr
+                    );
+                }
             }
         }
     }

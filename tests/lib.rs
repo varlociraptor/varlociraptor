@@ -73,6 +73,7 @@ testcase!(test38);
 testcase!(test39);
 testcase!(test40);
 testcase!(test41);
+testcase!(test42);
 testcase!(pattern_too_long);
 testcase!(test_wgbs01);
 testcase!(test_long_pattern);
