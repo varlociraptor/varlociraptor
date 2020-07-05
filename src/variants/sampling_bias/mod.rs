@@ -15,13 +15,12 @@ pub(crate) use reads::ReadSamplingBias;
 pub(crate) trait SamplingBias: Variant {
     /// Number of bases that are feasible for overlapping the variant.
     fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
-        if self.enclosable_len().map_or(false, |len| {
-            len < (alignment_properties.max_del_cigar_len as u64)
-        }) {
-            read_len
-        } else {
-            (read_len as f64 * alignment_properties.frac_max_softclip) as u64
+        if let Some(len) = self.enclosable_len() {
+            if len < (alignment_properties.max_del_cigar_len as u64) {
+                return read_len;
+            }
         }
+        (read_len as f64 * alignment_properties.frac_max_softclip) as u64
     }
 
     fn enclosable_len(&self) -> Option<u64>;
