@@ -26,7 +26,7 @@ pub(crate) struct Caller {
     #[builder(private)]
     bcf_writer: bcf::Writer,
     #[builder(private)]
-    contig_lens: HashMap<u32, u32>,
+    contig_lens: HashMap<u32, u64>,
     alpha: Prob
 }
 
@@ -34,11 +34,14 @@ impl CallerBuilder {
 
     /// Add alpha value for false discovery rate control of loss-of-heterozygosity calls
     pub(crate) fn add_and_check_alpha(mut self, alpha: f64) -> Result<Self> {
-        if let correct_alpha= Prob::checked(alpha)? {
-            self.alpha = Some(correct_alpha);
-            Ok(self)
-        } else {
-            panic!("Incorrect alpha specified: {}. Must be 0 <= alpha <= 1].", alpha);
+        match Prob::checked(alpha) {
+            Ok(correct_alpha) => {
+                self.alpha = Some(correct_alpha);
+                Ok(self)
+            }
+            Err(_err) => {
+                panic!("Incorrect alpha specified: {}. Must be 0 <= alpha <= 1].", alpha);
+            }
         }
     }
 
@@ -81,14 +84,16 @@ impl CallerBuilder {
 
 impl Caller {
     pub(crate) fn call(&mut self) -> Result<()> {
-        for (contig_id, contig_length) in self.contig_lens {
+        let contig_ids: Vec<u32> = self.contig_lens.keys().cloned().collect();
+        for contig_id in contig_ids {
 
             // Problem Data
-            let intervals = ContigLOHProbs::new(&mut self, &contig_id)?.create_all_intervals();
-            let n_intervals = (contig_length * (contig_length + 1) / 2) as i32;
-            let mut intervals_overlap_indicator: HashMap<(RangeInclusive<u64>, RangeInclusive<u64>), bool> = HashMap::new();
+            let contig = ContigLOHProbs::new(self, &contig_id)?;
+            let intervals = contig.create_all_intervals();
+            let n_intervals = (contig.contig_length * (contig.contig_length + 1) / 2) as i32;
+            let mut intervals_overlap_indicator: HashMap<(&RangeInclusive<u64>, &RangeInclusive<u64>), bool> = HashMap::new();
             for (interval1, interval2) in iproduct!(intervals.keys(), intervals.keys()) {
-                let key = (*interval1, *interval2);
+                let key = (interval1, interval2);
                 let overlap_indicator = interval1.contains(interval2.start()) | interval1.contains(interval2.end());
                 intervals_overlap_indicator.insert(key, overlap_indicator);
             }
@@ -96,9 +101,9 @@ impl Caller {
             let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
 
             // Define Variables
-            let interval_loh_indicator: HashMap< RangeInclusive<u64>, LpBinary > =
+            let interval_loh_indicator: HashMap< &RangeInclusive<u64>, LpBinary > =
                 intervals.iter()
-                    .map(|(&range, _)| {
+                    .map(|(range, _)| {
                         let key = range;
                         let loh_indicator = LpBinary::new(&format!("{:?}", key));
                         (key, loh_indicator)
@@ -116,16 +121,16 @@ impl Caller {
             problem += selected_lengths_vec.sum();
 
             // Constraint: no overlapping intervals
-            for (current_interval, _) in intervals {
+            for (current_interval, _) in &intervals {
                 let n_overlapping_selected: Vec<LpExpression> = {
                     interval_loh_indicator.iter()
                         .map(|(&interval, loh_indicator)| {
-                            let interval_selected: i32 = if *intervals_overlap_indicator.get(&(current_interval, interval)).unwrap() {
+                            let interval_overlaps: i32 = if *intervals_overlap_indicator.get(&(current_interval, interval)).unwrap() {
                                 1
                             } else {
                                 0
                             };
-                            interval_selected * loh_indicator
+                            interval_overlaps * loh_indicator
                         }
                         ).collect()
                 };
@@ -167,51 +172,52 @@ pub(crate) fn info_phred_to_log_prob(
     record: &mut bcf::Record,
     info_field_name: &[u8]
 ) -> LogProb {
-    if let Ok(prob) = record.info(info_field_name).float() {
-        if let Some(_prob) = prob {
-            if !_prob[0].is_missing() && !_prob[0].is_nan() {
-                let log_prob = LogProb::from(PHREDProb(_prob[0] as f64));
-                assert!(
-                    log_prob.is_valid(),
-                    "invalid PHRED probability '{:?}': {}, at pos: {:?}",
-                    info_field_name,
-                    _prob[0],
-                    record.pos()
-                );
-                log_prob
-            } else {
-                panic!(
-                    "PHRED probability '{:?}' at pos '{:?}' is missing or NaN",
-                    info_field_name,
-                    record.pos()
-                )
+    let pos =  record.pos();
+    match record.info(info_field_name).float() {
+        Ok(prob) => {
+            match prob {
+                Some(_prob) => {
+                    if !_prob[0].is_missing() && !_prob[0].is_nan() {
+                        let log_prob = LogProb::from(PHREDProb(_prob[0] as f64));
+                        assert!(
+                            log_prob.is_valid(),
+                            "invalid PHRED probability '{:?}': {}, at pos: {:?}",
+                            info_field_name,
+                            _prob[0],
+                            pos
+                        );
+                        log_prob
+                    } else {
+                        panic!(
+                            "PHRED probability '{:?}' at pos '{:?}' is missing or NaN",
+                            info_field_name,
+                            pos
+                        )
+                    }
+                }
+                None => {
+                    panic!(
+                        "Expected PHRED probability value in field '{:?}' at pos '{:?}', got None.",
+                        info_field_name,
+                        pos
+                    )
+                }
             }
-        } else {
+        }
+        Err(..) => {
             panic!(
-                "Expected PHRED probability value in field '{:?}' at pos '{:?}', got None.",
+                "error unpacking PHRED probability INFO field '{:?}' at pos '{:?}",
                 info_field_name,
-                record.pos()
+                pos
             )
         }
-    } else {
-        panic!(
-            "error unpacking PHRED probability INFO field '{:?}' at pos '{:?}",
-            info_field_name,
-            record.pos()
-        )
     }
 }
-
-pub(crate) struct Interval {
-    range: RangeInclusive<u64>,
-    posterior_prob_loh: LogProb,
-}
-
 
 #[derive(Debug) ]
 pub(crate) struct ContigLOHProbs {
     contig_id: u32,
-    length: u64,
+    contig_length: u64,
     cum_log_prob_loh: Vec<LogProb>,
 }
 
@@ -221,25 +227,28 @@ impl ContigLOHProbs {
         contig_id: &u32
     ) -> Result<ContigLOHProbs> {
         let mut record = caller.bcf_reader.empty_record();
-        if let Some(contig_length) = caller.contig_lens.get(contig_id) {
-            let mut cum_log_prob_loh = Vec::with_capacity(*contig_length as usize + 1);
-            caller.bcf_reader.fetch(*contig_id, 0, (contig_length - 1).into());
-            cum_log_prob_loh.push(LogProb::ln_one());
-            while caller.bcf_reader.read(&mut record)? {
-                cum_log_prob_loh.push(cum_log_prob_loh.last().unwrap() + log_prob_loh_given_germ_het(&mut record));
-            }
-            Ok(
-                ContigLOHProbs {
-                    contig_id: *contig_id,
-                    length: *contig_length as u64,
-                    cum_log_prob_loh: cum_log_prob_loh,
+        match caller.contig_lens.get(contig_id) {
+            Some(contig_length) => {
+                let mut cum_log_prob_loh = Vec::with_capacity(*contig_length as usize + 1);
+                caller.bcf_reader.fetch(*contig_id, 0, (contig_length - 1).into())?;
+                cum_log_prob_loh.push(LogProb::ln_one());
+                while caller.bcf_reader.read(&mut record)? {
+                    cum_log_prob_loh.push(cum_log_prob_loh.last().unwrap() + log_prob_loh_given_germ_het(&mut record));
                 }
-            )
-        } else {
-            panic!(
-                "This should not have happened: cannot find contig_id '{}'.",
-                contig_id
-            )
+                Ok(
+                    ContigLOHProbs {
+                        contig_id: *contig_id,
+                        contig_length: *contig_length as u64,
+                        cum_log_prob_loh: cum_log_prob_loh,
+                    }
+                )
+            }
+            None => {
+                panic!(
+                    "This should not have happened: cannot find contig_id '{}'.",
+                    contig_id
+                )
+            }
         }
     }
 
@@ -247,8 +256,8 @@ impl ContigLOHProbs {
         &self
     ) -> HashMap<RangeInclusive<u64>, LogProb> {
         let mut intervals= HashMap::new();
-        for start in 1..=self.length {
-            for end in start..=self.length {
+        for start in 1..=self.contig_length {
+            for end in start..=self.contig_length {
                 intervals.insert(
                     start..=end,
                     self.cum_log_prob_loh[ end as usize ] - self.cum_log_prob_loh[ (start - 1) as usize ]
