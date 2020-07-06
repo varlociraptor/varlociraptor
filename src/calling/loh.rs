@@ -33,10 +33,10 @@ pub(crate) struct Caller {
 impl CallerBuilder {
 
     /// Add alpha value for false discovery rate control of loss-of-heterozygosity calls
-    pub(crate) fn add_and_check_alpha(&self, alpha: f64) -> Result<Self> {
+    pub(crate) fn add_and_check_alpha(mut self, alpha: f64) -> Result<Self> {
         if let correct_alpha= Prob::checked(alpha)? {
             self.alpha = Some(correct_alpha);
-            Ok(*self)
+            Ok(self)
         } else {
             panic!("Incorrect alpha specified: {}. Must be 0 <= alpha <= 1].", alpha);
         }
@@ -85,10 +85,10 @@ impl Caller {
 
             // Problem Data
             let intervals = ContigLOHProbs::new(&mut self, &contig_id)?.create_all_intervals();
-            let n_intervals = contig_length * (contig_length + 1) / 2;
-            let mut intervals_overlap_indicator: HashMap<(RangeInclusive<u64>, RangeInclusive<u64>), Bool> = HashMap::new();
+            let n_intervals = (contig_length * (contig_length + 1) / 2) as i32;
+            let mut intervals_overlap_indicator: HashMap<(RangeInclusive<u64>, RangeInclusive<u64>), bool> = HashMap::new();
             for (interval1, interval2) in iproduct!(intervals.keys(), intervals.keys()) {
-                let key = (interval1, interval2);
+                let key = (*interval1, *interval2);
                 let overlap_indicator = interval1.contains(interval2.start()) | interval1.contains(interval2.end());
                 intervals_overlap_indicator.insert(key, overlap_indicator);
             }
@@ -96,45 +96,53 @@ impl Caller {
             let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
 
             // Define Variables
-            let interval_loh_indicator: HashMap<RangeInclusive<u64>, LpBinary> =
+            let interval_loh_indicator: HashMap< RangeInclusive<u64>, LpBinary > =
                 intervals.iter()
-                    .map(| (&range, &val)| {
+                    .map(|(&range, _)| {
                         let key = range;
                         let loh_indicator = LpBinary::new(&format!("{:?}", key));
                         (key, loh_indicator)
-                    } )
+                    })
                     .collect();
 
             // Define Objective Function: maximise length of selected LOH regions
             let selected_lengths_vec: Vec<LpExpression> = {
                 interval_loh_indicator.iter()
-                    .map( |(&interval, loh_indicator)| {
-                        loh_indicator * (interval.end() - interval.start() + 1)
-                } )
-            }.collect();
+                    .map(|(&interval, loh_indicator)| {
+                        let interval_length = (interval.end() - interval.start() + 1) as i32;
+                        interval_length * loh_indicator
+                    }).collect()
+            };
             problem += selected_lengths_vec.sum();
 
             // Constraint: no overlapping intervals
-            for ( current_interval, _) in intervals {
+            for (current_interval, _) in intervals {
                 let n_overlapping_selected: Vec<LpExpression> = {
                     interval_loh_indicator.iter()
-                        .map(| (&interval, loh_indicator) |
-                            loh_indicator * intervals_overlap_indicator.get(&(current_interval, interval) )
+                        .map(|(&interval, loh_indicator)| {
+                            let interval_selected: i32 = if *intervals_overlap_indicator.get(&(current_interval, interval)).unwrap() {
+                                1
+                            } else {
+                                0
+                            };
+                            interval_selected * loh_indicator
+                        }
                         ).collect()
                 };
-                let interval_bound = (1 - interval_loh_indicator.get(&current_interval).unwrap()) * n_intervals;
-                problem += n_overlapping_selected.sum().le( interval_bound );
+                problem += n_overlapping_selected.sum()
+                    .le(n_intervals * (1 - interval_loh_indicator.get(&current_interval).unwrap() ) );
             }
-        }
 
             // Constraint: control false discovery rate at alpha
             let selected_probs_vec: Vec<LpExpression> = {
                 interval_loh_indicator.iter()
-                    .map( |(&interval, loh_indicator)| {
-                        loh_indicator * Prob::from( intervals.get(*interval ).unwrap().ln_one_minus_exp() )
-                    } )
-            }.collect();
-            problem += selected_probs_vec.sum().le(interval_loh_indicator.values().collect().sum() * self.alpha );
+                    .map(|(&interval, loh_indicator)| {
+                        let interval_prob = f64::from( Prob::from(intervals.get(&interval).unwrap().ln_one_minus_exp() ) ) as f32;
+                        interval_prob * loh_indicator
+                    }).collect()
+            };
+            let selected: Vec<&LpBinary> = interval_loh_indicator.values().collect();
+            problem += selected_probs_vec.sum().le(f64::from( self.alpha ) as f32 * selected.sum());
 
             // Specify solver
             let solver = CbcSolver::new();
@@ -200,7 +208,7 @@ pub(crate) struct Interval {
 }
 
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug) ]
 pub(crate) struct ContigLOHProbs {
     contig_id: u32,
     length: u64,
