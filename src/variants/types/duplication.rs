@@ -20,6 +20,25 @@ impl Duplication {
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
 
         // Encode duplication via breakend, see VCF spec.
+        let ref_allele = get_ref_allele(interval.range().start - 1);
+        breakend_group.push(Breakend::from_operations(
+            get_locus(interval.range().start - 1),
+            ref_allele,
+            [
+                Operation::Join {
+                    locus: genome::Locus::new(
+                        interval.contig().to_owned(),
+                        interval.range().end - 1,
+                    ),
+                    side: Side::LeftOfPos,
+                    extension_modification: ExtensionModification::None,
+                },
+                Operation::Replacement(ref_allele.to_owned()),
+            ],
+            b"w",
+            b"u",
+        ));
+
         let ref_allele = get_ref_allele(interval.range().end - 1);
         breakend_group.push(Breakend::from_operations(
             get_locus(interval.range().end - 1),
@@ -35,8 +54,8 @@ impl Duplication {
                     extension_modification: ExtensionModification::None,
                 },
             ],
-            b"w",
             b"u",
+            b"w",
         ));
 
         Duplication(breakend_group)
