@@ -107,7 +107,7 @@ impl AlignmentProperties {
             }
 
             max_mapq = cmp::max(max_mapq, record.mapq());
-            max_read_len = cmp::max(max_read_len, record.seq().len());
+            max_read_len = cmp::max(max_read_len, record.seq().len() as u32);
 
             let (is_regular, has_soft_clip) =
                 properties.update_max_cigar_ops_len(&record, allow_hardclips);
@@ -135,6 +135,8 @@ impl AlignmentProperties {
 
             i += 1;
         }
+
+        properties.max_read_len = max_read_len;
 
         if tlens.is_empty() {
             warn!(
