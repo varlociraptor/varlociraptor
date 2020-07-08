@@ -1,3 +1,5 @@
+# heterozygous inversion
+
 expected:
   allelefreqs:
     - simulated == 0.5

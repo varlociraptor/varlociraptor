@@ -1,3 +1,5 @@
+# heterozygous duplication
+
 expected:
   allelefreqs:
     - simulated == 0.5
