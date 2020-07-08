@@ -39,22 +39,6 @@ impl Duplication {
             b"u",
         ));
 
-        let ref_allele = get_ref_allele(interval.range().end);
-        breakend_group.push(Breakend::from_operations(
-            get_locus(interval.range().end),
-            ref_allele,
-            [
-                Operation::Replacement(ref_allele.to_owned()),
-                Operation::Join {
-                    locus: genome::Locus::new(interval.contig().to_owned(), interval.range().end),
-                    side: Side::LeftOfPos,
-                    extension_modification: ExtensionModification::None,
-                },
-            ],
-            b"u",
-            b"u",
-        ));
-
         Duplication(breakend_group)
     }
 }

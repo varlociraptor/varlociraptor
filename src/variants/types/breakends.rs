@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
@@ -250,8 +250,13 @@ impl<'a> Realignable<'a> for BreakendGroup {
             );
 
             // breakend operations in between
+            let mut visited = HashSet::new();
             let mut next_bnd = Some(first);
             while let Some(current) = next_bnd {
+                if visited.contains(&current.id) {
+                    break;
+                }
+                visited.insert(&current.id);
                 // apply operation
                 for op in &current.operations {
                     match op {
