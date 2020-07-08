@@ -356,8 +356,8 @@ pub enum VariantCallMode {
         name = "generic",
         about = "Call variants for a given scenario specified with the varlociraptor calling \
                  grammar and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants --output calls.bcf generic --observations relapse=relapse.bcf \
-                 tumor=tumor.bcf normal=normal.bcf",
+        usage = "varlociraptor call variants --output calls.bcf generic --scenario scenario.yaml \
+                 --obs relapse=relapse.bcf tumor=tumor.bcf normal=normal.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Generic {
