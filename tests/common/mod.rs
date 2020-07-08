@@ -2,11 +2,13 @@ pub(crate) mod version0;
 pub(crate) mod version1;
 pub(crate) mod version2;
 pub(crate) mod version3;
+pub(crate) mod version4;
 
 pub(crate) use version0::TestcaseVersion0;
 pub(crate) use version1::TestcaseVersion1;
 pub(crate) use version2::TestcaseVersion2;
 pub(crate) use version3::TestcaseVersion3;
+pub(crate) use version4::TestcaseVersion4;
 
 use std::fs::File;
 use std::io::{Read, Write};
@@ -47,6 +49,10 @@ pub(crate) fn load_testcase(path: impl AsRef<Path>) -> Result<Box<dyn Testcase>>
             path: path.as_ref().to_owned(),
         }),
         Yaml::String(version) if version == "3" => Box::new(TestcaseVersion3 {
+            inner: yaml,
+            path: path.as_ref().to_owned(),
+        }),
+        Yaml::String(version) if version == "4" => Box::new(TestcaseVersion4 {
             inner: yaml,
             path: path.as_ref().to_owned(),
         }),
