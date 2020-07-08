@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
 use std::str;
@@ -157,7 +158,17 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
     let mut variants = Vec::new();
 
     if let Some(svtype) = svtype {
-        if svtype == b"BND" {
+        if svtype == b"INV" {
+            let alleles = record.alleles();
+            if alleles.len() != 2 {
+                info!("Skipping inversion with invalid number of ALT alleles (must be 1)");
+            } else if let Some(end) = end {
+                let len = end - (pos + 1); // pos is pointing to the allele before the INV
+                variants.push(model::Variant::Inversion(len));
+            } else {
+                info!("Skipping inversion without END tag.");
+            }
+        } else if svtype == b"BND" {
             let alleles = record.alleles();
             if let Some(ref event) = event {
                 for spec in &alleles[1..] {
@@ -326,12 +337,22 @@ pub(crate) fn collect_prob_dist<E>(
 where
     E: Event,
 {
+    let mut visited_breakend_events = HashSet::new();
+
     let mut record = calls.empty_record();
     let mut prob_dist = Vec::new();
     let tags = events_to_tags(events);
     loop {
         if !calls.read(&mut record)? {
             break;
+        }
+        if let Ok(Some(event)) = info_tag_event(&mut record) {
+            if visited_breakend_events.contains(event) {
+                // Do not record probability of this event twice.
+                continue;
+            } else {
+                visited_breakend_events.insert(event.to_owned());
+            }
         }
 
         for p in utils::tags_prob_sum(&mut record, &tags, Some(&vartype))? {
@@ -363,17 +384,54 @@ pub(crate) fn filter_by_threshold<E: Event>(
     events: &[E],
     vartype: &model::VariantType,
 ) -> Result<()> {
+    let mut breakend_event_decisions = HashMap::new();
+
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
-    let filter = |record: &mut bcf::Record| {
+    let filter = |record: &mut bcf::Record| -> Result<Vec<bool>> {
+        let bnd_event = if let Ok(event) = info_tag_event(record) {
+            event.map(|event| event.to_owned())
+        } else {
+            None
+        };
+
+        let keep = if let Some(event) = bnd_event.as_ref() {
+            breakend_event_decisions.get(event).cloned()
+        } else {
+            None
+        };
+
         let probs = utils::tags_prob_sum(record, &tags, Some(vartype))?;
-        Ok(probs.into_iter().map(|p| {
-            match (p, threshold) {
-                // we allow some numerical instability in case of equality
-                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => true,
-                (Some(_), None) => true,
-                _ => false,
-            }
-        }))
+
+        assert!(
+            bnd_event.is_none() || probs.len() == 1,
+            "breakend events may only occur in single variant records"
+        );
+
+        Ok(probs
+            .into_iter()
+            .map(|p| {
+                if let Some(keep) = keep {
+                    // already know decision from previous breakend
+                    keep
+                } else {
+                    let keep = match (p, threshold) {
+                        // we allow some numerical instability in case of equality
+                        (Some(p), Some(threshold))
+                            if p > threshold || relative_eq!(*p, *threshold) =>
+                        {
+                            true
+                        }
+                        (Some(_), None) => true,
+                        _ => false,
+                    };
+                    if let Some(event) = bnd_event.as_ref() {
+                        breakend_event_decisions.insert(event.to_owned(), keep);
+                    }
+
+                    keep
+                }
+            })
+            .collect())
     };
     filter_calls(calls, out, filter)
 }
@@ -388,10 +446,10 @@ pub(crate) fn filter_by_threshold<E: Event>(
 pub(crate) fn filter_calls<F, I, II>(
     calls: &mut bcf::Reader,
     out: &mut bcf::Writer,
-    filter: F,
+    mut filter: F,
 ) -> Result<()>
 where
-    F: Fn(&mut bcf::Record) -> Result<II>,
+    F: FnMut(&mut bcf::Record) -> Result<II>,
     I: Iterator<Item = bool>,
     II: IntoIterator<Item = bool, IntoIter = I>,
 {

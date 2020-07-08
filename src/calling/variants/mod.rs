@@ -58,6 +58,9 @@ impl Call {
             if let Some(svlen) = variant.svlen {
                 record.push_info_integer(b"SVLEN", &[svlen])?;
             }
+            if let Some(end) = variant.end {
+                record.push_info_integer(b"END", &[end as i32])?;
+            }
             if let Some(ref event) = variant.event {
                 record.push_info_string(b"EVENT", &[event])?;
             }
@@ -269,6 +272,8 @@ pub(crate) struct Variant {
     #[builder(private, default = "None")]
     event: Option<Vec<u8>>,
     #[builder(private, default = "None")]
+    end: Option<u64>,
+    #[builder(private, default = "None")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
     observations: Option<Vec<Observation>>,
@@ -337,6 +342,11 @@ impl VariantBuilder {
                 .alt_allele(spec.to_vec())
                 .event(Some(event.to_owned()))
                 .svtype(Some(b"BND".to_vec())),
+            model::Variant::Inversion(len) => self
+                .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
+                .alt_allele(b"<INV>".to_vec())
+                .svtype(Some(b"INV".to_vec()))
+                .end(Some(start as u64 + len)), // end tag is inclusive but one-based (hence - 1 + 1)
             model::Variant::None => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(b"<REF>".to_ascii_uppercase()),

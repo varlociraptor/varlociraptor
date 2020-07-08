@@ -60,6 +60,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 derefable = "0.1"
 lru_time_cache = "0.10"
+format-bytes = "0.1"
 
 [dev-dependencies]
 env_logger = "0.3"

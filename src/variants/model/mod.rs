@@ -199,6 +199,7 @@ pub(crate) enum Variant {
         spec: Vec<u8>,
         event: Vec<u8>,
     },
+    Inversion(u64),
     None,
 }
 
@@ -236,6 +237,7 @@ impl Variant {
             Variant::SNV(_) => 1,
             Variant::MNV(ref alt) => alt.len() as u64,
             Variant::Breakend { .. } => 1,
+            Variant::Inversion(l) => l,
             Variant::None => 1,
         }
     }

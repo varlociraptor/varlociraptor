@@ -50,26 +50,15 @@ impl BreakendGroup {
         self.breakends.values()
     }
 
-    pub(crate) fn push(
-        &mut self,
-        locus: genome::Locus,
-        ref_allele: &[u8],
-        spec: &[u8],
-        id: Vec<u8>,
-        mateid: Vec<u8>,
-    ) -> Result<()> {
-        if let Some(breakend) = Breakend::new(locus, ref_allele, spec, id, mateid)? {
-            let interval = genome::Interval::new(
-                breakend.locus.contig().to_owned(),
-                breakend.locus.pos()..breakend.locus.pos() + ref_allele.len() as u64,
-            );
+    pub(crate) fn push(&mut self, breakend: Breakend) {
+        let interval = genome::Interval::new(
+            breakend.locus.contig().to_owned(),
+            breakend.locus.pos()..breakend.locus.pos() + breakend.ref_allele.len() as u64,
+        );
 
-            self.breakends.insert(breakend.locus.clone(), breakend);
+        self.breakends.insert(breakend.locus.clone(), breakend);
 
-            self.loci.push(SingleLocus::new(interval));
-        }
-
-        Ok(())
+        self.loci.push(SingleLocus::new(interval));
     }
 
     fn upstream_bnd(&self, locus: &genome::Locus) -> Option<&Breakend> {
@@ -358,7 +347,7 @@ pub(crate) struct Breakend {
     locus: genome::Locus,
     ref_allele: Vec<u8>,
     operations: [Operation; 2],
-    spec: Vec<u8>,
+    spec: Option<Vec<u8>>,
     #[getset(get = "pub")]
     id: Vec<u8>,
     #[getset(get = "pub")]
@@ -366,12 +355,12 @@ pub(crate) struct Breakend {
 }
 
 impl Breakend {
-    fn new(
+    pub(crate) fn new(
         locus: genome::Locus,
         ref_allele: &[u8],
         spec: &[u8],
-        id: Vec<u8>,
-        mateid: Vec<u8>,
+        id: &[u8],
+        mateid: &[u8],
     ) -> Result<Option<Self>> {
         lazy_static! {
             static ref RE: Regex = Regex::new("((?P<replacement>[ACGTN]+)|((?P<bracket1>[\\]\\[])(?P<anglebracket1><)?(?P<contig>[^\\]\\[:>]+)(?P<anglebracket2>>)?(:(?P<pos>[0-9]+))?(?P<bracket2>[\\]\\[])))").unwrap();
@@ -395,7 +384,6 @@ impl Breakend {
                 if bracket != caps.name("bracket2").unwrap().as_str() {
                     return Err(Error::InvalidBNDRecordAlt { spec }.into());
                 }
-                dbg!(&caps);
                 // insertion from assembly file
                 match (
                     caps.name("anglebracket1").is_some(),
@@ -455,17 +443,38 @@ impl Breakend {
             locus,
             ref_allele: ref_allele.to_owned(),
             operations: [operations[0].clone(), operations[1].clone()],
-            spec: spec.as_bytes().to_owned(),
-            id,
-            mateid,
+            spec: Some(spec.as_bytes().to_owned()),
+            id: id.to_owned(),
+            mateid: mateid.to_owned(),
         }))
     }
 
-    pub(crate) fn to_variant(&self, event: &[u8]) -> model::Variant {
-        model::Variant::Breakend {
-            ref_allele: self.ref_allele.clone(),
-            spec: self.spec.clone(),
-            event: event.to_owned(),
+    pub(crate) fn from_operations(
+        locus: genome::Locus,
+        ref_allele: &[u8],
+        operations: [Operation; 2],
+        id: &[u8],
+        mateid: &[u8],
+    ) -> Self {
+        Breakend {
+            locus,
+            ref_allele: ref_allele.to_owned(),
+            operations,
+            spec: None,
+            id: id.to_owned(),
+            mateid: mateid.to_owned(),
+        }
+    }
+
+    pub(crate) fn to_variant(&self, event: &[u8]) -> Option<model::Variant> {
+        if let Some(ref spec) = self.spec {
+            Some(model::Variant::Breakend {
+                ref_allele: self.ref_allele.clone(),
+                spec: spec.to_owned(),
+                event: event.to_owned(),
+            })
+        } else {
+            None
         }
     }
 }

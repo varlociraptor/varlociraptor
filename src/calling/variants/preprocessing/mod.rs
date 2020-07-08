@@ -31,7 +31,7 @@ use crate::variants::evidence::observation::{Observation, ObservationBuilder};
 use crate::variants::evidence::realignment;
 use crate::variants::model;
 use crate::variants::sample::Sample;
-use crate::variants::types::breakends::BreakendIndex;
+use crate::variants::types::breakends::{Breakend, BreakendIndex};
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -46,7 +46,7 @@ pub(crate) struct ObservationProcessor {
     bcf_writer: bcf::Writer,
     breakend_index: BreakendIndex,
     #[builder(default)]
-    breakend_groups: HashMap<Vec<u8>, variants::types::breakends::BreakendGroup>,
+    breakend_groups: HashMap<Vec<u8>, Option<variants::types::breakends::BreakendGroup>>,
 }
 
 impl ObservationProcessorBuilder {
@@ -79,6 +79,10 @@ impl ObservationProcessorBuilder {
         header.push_record(
             b"##INFO=<ID=SVLEN,Number=A,Type=Integer,\
               Description=\"Difference in length between REF and ALT alleles\">",
+        );
+        header.push_record(
+            b"##INFO=<ID=END,Number=A,Type=Integer,\
+              Description=\"End position of structural variant (inclusive, 1-based).\">",
         );
         header.push_record(
             b"##INFO=<ID=SVTYPE,Number=A,Type=String,\
@@ -239,7 +243,14 @@ impl ObservationProcessor {
                         self.extract_observations(start, &chrom, &variant, record_index, record)?
                     {
                         let mut pileup = Some(pileup);
-                        for breakend in self.breakend_groups.get(event).unwrap().breakends() {
+                        for breakend in self
+                            .breakend_groups
+                            .get(event)
+                            .unwrap()
+                            .as_ref()
+                            .unwrap()
+                            .breakends()
+                        {
                             let mut call = call_builder(
                                 breakend.locus().contig().as_bytes().to_owned(),
                                 breakend.locus().pos(),
@@ -253,7 +264,7 @@ impl ObservationProcessor {
                             call.variants.push(
                                 VariantBuilder::default()
                                     .variant(
-                                        &breakend.to_variant(event),
+                                        &breakend.to_variant(event).unwrap(),
                                         breakend.locus().pos() as usize,
                                         None,
                                     )
@@ -327,6 +338,14 @@ impl ObservationProcessor {
                     self.realigner.clone(),
                 ))
                 .map(as_option),
+            model::Variant::Inversion(len) => self
+                .sample
+                .extract_observations(&variants::types::Inversion::new(
+                    interval(*len),
+                    self.realigner.clone(),
+                    self.reference_buffer.seq(chrom)?.as_ref(),
+                ))
+                .map(as_option),
             model::Variant::Breakend {
                 ref_allele,
                 spec,
@@ -335,23 +354,38 @@ impl ObservationProcessor {
                 if !self.breakend_groups.contains_key(event) {
                     self.breakend_groups.insert(
                         event.to_owned(),
-                        variants::types::breakends::BreakendGroup::new(self.realigner.clone()),
+                        Some(variants::types::breakends::BreakendGroup::new(
+                            self.realigner.clone(),
+                        )),
                     );
                 }
-                let group = self.breakend_groups.get_mut(event).unwrap();
-                if let Some(mateid) =
-                    utils::info_tag_mateid(record)?.map(|mateid| mateid.to_owned())
-                {
-                    group.push(locus(), ref_allele, spec, record.id(), mateid)?;
+                if let Some(group) = self.breakend_groups.get_mut(event).unwrap() {
+                    if let Some(mateid) =
+                        utils::info_tag_mateid(record)?.map(|mateid| mateid.to_owned())
+                    {
+                        if let Some(breakend) =
+                            Breakend::new(locus(), ref_allele, spec, &record.id(), &mateid)?
+                        {
+                            group.push(breakend);
 
-                    if self.breakend_index.last_record_index(event).unwrap() == record_index {
-                        // METHOD: last record of the breakend event. Hence, we can extract observations.
-                        self.sample.extract_observations(group).map(as_option)
+                            if self.breakend_index.last_record_index(event).unwrap() == record_index
+                            {
+                                // METHOD: last record of the breakend event. Hence, we can extract observations.
+                                self.sample.extract_observations(group).map(as_option)
+                            } else {
+                                Ok(None)
+                            }
+                        } else {
+                            // Breakend type not supported, remove breakend group.
+                            self.breakend_groups.insert(event.to_owned(), None);
+                            Ok(None)
+                        }
                     } else {
-                        Ok(None)
+                        Err(errors::Error::InvalidBNDRecordMateid.into())
                     }
                 } else {
-                    Err(errors::Error::InvalidBNDRecordMateid.into())
+                    // Breakend group has been removed before because one breakend was invalid.
+                    Ok(None)
                 }
             }
         }
