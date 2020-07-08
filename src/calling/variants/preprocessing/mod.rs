@@ -346,6 +346,14 @@ impl ObservationProcessor {
                     self.reference_buffer.seq(chrom)?.as_ref(),
                 ))
                 .map(as_option),
+            model::Variant::Duplication(len) => self
+                .sample
+                .extract_observations(&variants::types::Duplication::new(
+                    interval(*len),
+                    self.realigner.clone(),
+                    self.reference_buffer.seq(chrom)?.as_ref(),
+                ))
+                .map(as_option),
             model::Variant::Breakend {
                 ref_allele,
                 spec,

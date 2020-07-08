@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use yaml_rust::Yaml;
-use serde_json::json;
 
 use crate::common::Testcase;
 

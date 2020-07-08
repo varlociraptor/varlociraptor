@@ -168,6 +168,16 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
             } else {
                 info!("Skipping inversion without END tag.");
             }
+        } else if svtype == b"DUP" {
+            let alleles = record.alleles();
+            if alleles.len() != 2 {
+                info!("Skipping duplication with invalid number of ALT alleles (must be 1)");
+            } else if let Some(end) = end {
+                let len = end - (pos + 1); // pos is pointing to the allele before the INV
+                variants.push(model::Variant::Duplication(len));
+            } else {
+                info!("Skipping duplication without END tag.");
+            }
         } else if svtype == b"BND" {
             let alleles = record.alleles();
             if let Some(ref event) = event {

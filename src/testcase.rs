@@ -264,6 +264,7 @@ impl Testcase {
                 (pos.saturating_sub(1000), pos + 1 + 1000) // TODO collect entire breakend event!
             }
             (Variant::Inversion(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
+            (Variant::Duplication(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
             (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
         };
 
