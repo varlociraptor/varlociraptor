@@ -59,4 +59,6 @@ pub(crate) enum Error {
     InvalidBNDRecordAlt { spec: String },
     #[snafu(display("invalid BND record: MATEID not specified"))]
     InvalidBNDRecordMateid,
+    #[snafu(display("at least one BCF with observations must be provided"))]
+    EmptyObservations,
 }

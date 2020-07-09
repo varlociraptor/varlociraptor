@@ -32,7 +32,7 @@ where
     ModelPayload: Default,
 {
     samplenames: grammar::SampleInfo<String>,
-    observations: grammar::SampleInfo<bcf::Reader>,
+    observations: grammar::SampleInfo<Option<bcf::Reader>>,
     scenario: grammar::Scenario,
     #[builder(private)]
     bcf_writer: bcf::Writer,
@@ -53,8 +53,7 @@ where
             self.observations
                 .as_ref()
                 .expect("bug: observations() must be called bfore outbcf()")
-                .first()
-                .unwrap()
+                .first_not_none()?
                 .header(),
         );
 
@@ -148,7 +147,7 @@ where
     }
 
     pub(crate) fn call(&mut self) -> Result<()> {
-        for obs_reader in self.observations.iter() {
+        for obs_reader in self.observations.iter_not_none() {
             let mut valid = false;
             for record in obs_reader.header().header_records() {
                 if let bcf::HeaderRecord::Generic { key, value } = record {
@@ -168,9 +167,15 @@ where
         let mut events = Vec::new();
         let mut i = 0;
         loop {
-            let mut records = self.observations.map(|reader| reader.empty_record());
+            let mut records = self
+                .observations
+                .map(|reader| reader.as_ref().map(|reader| reader.empty_record()));
             let mut eof = Vec::new();
-            for (reader, record) in self.observations.iter_mut().zip(records.iter_mut()) {
+            for (reader, record) in self
+                .observations
+                .iter_not_none_mut()
+                .zip(records.iter_not_none_mut())
+            {
                 eof.push(!reader.read(record)?);
             }
 
@@ -184,11 +189,11 @@ where
             i += 1;
 
             // ensure that all observation BCFs contain exactly the same calls
-            let first_record = records.first().unwrap();
+            let first_record = records.first_not_none()?;
             let current_rid = first_record.rid();
             let current_pos = first_record.pos();
             let current_alleles = first_record.alleles();
-            for record in &records[1..] {
+            for record in records.iter_not_none().skip(1) {
                 if record.rid() != current_rid
                     || record.pos() != current_pos
                     || record.alleles() != current_alleles
@@ -205,8 +210,7 @@ where
                 // rid is not the same as before, obtain event universe
                 let contig = str::from_utf8(
                     self.observations
-                        .first()
-                        .unwrap()
+                        .first_not_none()?
                         .header()
                         .rid2name(current_rid)?,
                 )
@@ -267,21 +271,13 @@ where
 
     fn call_record(
         &mut self,
-        records: &mut grammar::SampleInfo<bcf::Record>,
+        records: &mut grammar::SampleInfo<Option<bcf::Record>>,
         event_universe: &[Po::Event],
     ) -> Result<Option<Call>> {
         let (mut call, snv, bnd_event) = {
-            let first_record = records
-                .first_mut()
-                .expect("bug: there must be at least one record");
+            let first_record = records.first_not_none_mut()?;
             let start = first_record.pos() as u64;
-            let chrom = chrom(
-                &self
-                    .observations
-                    .first()
-                    .expect("bug: there must be at least one observation reader"),
-                first_record,
-            );
+            let chrom = chrom(self.observations.first_not_none()?, first_record);
 
             let call = CallBuilder::default()
                 .chrom(chrom.to_owned())
@@ -328,7 +324,7 @@ where
                     // "en block".
                     result
                         .variant_builder
-                        .record(records.first_mut().unwrap())?;
+                        .record(records.first_not_none_mut()?)?;
                     call.variants.push(result.variant_builder.build().unwrap());
 
                     return Ok(Some(call));
@@ -341,7 +337,14 @@ where
         // obtain pileups
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
-            pileups.push(read_observations(record)?);
+            if let Some(record) = record {
+                pileups.push(read_observations(record)?);
+            } else {
+                // METHOD: If no observations have been provided, we push an empty record.
+                // This ensures that there is no preference for any of the allele
+                // frequencies.
+                pileups.push(Vec::new());
+            }
         }
         let data = model::modes::generic::Data::new(pileups, snv);
 
@@ -419,7 +422,7 @@ where
             });
         }
 
-        variant_builder.record(records.first_mut().unwrap())?;
+        variant_builder.record(records.first_not_none_mut()?)?;
 
         call.variants.push(variant_builder.build().unwrap());
 

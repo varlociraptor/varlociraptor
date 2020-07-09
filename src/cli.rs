@@ -573,25 +573,26 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             contaminations = contaminations.push(sample_name, contamination);
                             resolutions = resolutions.push(sample_name, *sample.resolution());
 
-                            let obs = observations.get(sample_name).ok_or(
-                                errors::Error::InvalidObservationSampleName {
-                                    name: sample_name.to_owned(),
-                                },
-                            )?;
-                            sample_observations =
-                                sample_observations.push(sample_name, bcf::Reader::from_path(obs)?);
+                            if let Some(obs) = observations.get(sample_name) {
+                                sample_observations = sample_observations
+                                    .push(sample_name, Some(bcf::Reader::from_path(obs)?));
+                            } else {
+                                sample_observations = sample_observations.push(sample_name, None);
+                            }
+
                             sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
 
-                        // register groups
-                        // for (sample_name, sample) in scenario.samples().iter() {
-                        //     if let Some(group) = sample.group() {
-                        //         sample_idx.insert(
-                        //             group,
-                        //             *sample_idx.get(sample_name).unwrap(),
-                        //         );
-                        //     }
-                        // }
+                        let sample_names = sample_names.build();
+
+                        for obs_sample_name in observations.keys() {
+                            if !sample_names.as_slice().contains(obs_sample_name) {
+                                return Err(errors::Error::InvalidObservationSampleName {
+                                    name: obs_sample_name.to_owned(),
+                                }
+                                .into());
+                            }
+                        }
 
                         let model = GenericModelBuilder::default()
                             // TODO allow to define prior in the grammar
@@ -603,7 +604,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                         // setup caller
                         let mut caller = calling::variants::CallerBuilder::default()
-                            .samplenames(sample_names.build())
+                            .samplenames(sample_names)
                             .observations(sample_observations.build())
                             .scenario(scenario)
                             .model(model)
