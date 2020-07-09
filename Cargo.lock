@@ -2184,7 +2184,7 @@ checksum = "a1ca13c08c41c9c3e04224ed9ff80461d97e121589ff27c753a16cb10830ae0f"
 
 [[package]]
 name = "varlociraptor"
-version = "1.7.3-alpha.0"
+version = "2.0.0"
 dependencies = [
  "GSL",
  "anyhow",
