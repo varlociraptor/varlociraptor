@@ -371,7 +371,7 @@ pub enum VariantCallMode {
         #[structopt(
             long = "obs",
             required = true,
-            help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario (given as samplename=path/to/calls.bcf)."
+            help = "BCF file with varlociraptor preprocess results for samples defined in the given scenario (given as samplename=path/to/calls.bcf). It is possible to omit a sample here (e.g. model tumor/normal in the scenario, but only call on the tumor sample when there is no normal sequenced). In that case, the resulting probabilities will be accordingly uncertain, because observations of the omitted sample are missing (which is equivalent to having no coverage in the sample)."
         )]
         sample_observations: Vec<String>,
     },
