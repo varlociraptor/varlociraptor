@@ -1,0 +1,33 @@
+# heterozygous duplication
+# We mimic a tumor-only sample here, that is contaminated by 25% normal.
+# The resulting probabilities should favor germline_het, because the allele frequency is close to 0.5.
+
+expected:
+  posteriors:
+    # PHRED space, the smaller the better.
+    # Germline should be more likely than somatic.
+    - PROB_GERMLINE < PROB_SOMATIC_TUMOR
+
+# necessary bam files
+samples:
+  tumor:
+    path: 'simulated.bam'
+    properties: '{"insert_size":{"mean":539.7590852685694,"sd":205.96587181874736},"max_del_cigar_len":1,"max_ins_cigar_len":1,"frac_max_softclip":0.55,"max_read_len":100}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"resources/chrI.genome.fasta","candidates":"results/simulated.variants.vcf","bam":"results/mapped/30x.sorted.bam","alignment_properties":null,"output":"results/varlociraptor/preprocess/30x.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
