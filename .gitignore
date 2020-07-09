@@ -19,3 +19,4 @@ tests/resources/testcases/*/*
 !tests/resources/testcases/*/*.vcf
 !tests/resources/testcases/*/*.bam
 !tests/resources/testcases/*/scenario.yaml
+!tests/resources/testcases/*/*.fa

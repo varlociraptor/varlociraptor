@@ -3,9 +3,9 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
-use std::ops::Range;
 use std::str;
 
 use anyhow::Result;
@@ -24,6 +24,36 @@ use crate::variants::model;
 use crate::Event;
 
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
+
+pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {
+    for rec in reader.header().header_records() {
+        if let bcf::header::HeaderRecord::Info { values, .. } = rec {
+            if values.get("ID").map_or(false, |id| id == "SVTYPE") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+pub fn is_bnd(record: &mut bcf::Record) -> Result<bool> {
+    Ok(record
+        .info(b"SVTYPE")
+        .string()?
+        .map_or(false, |entries| entries[0] == b"BND"))
+}
+
+pub(crate) fn info_tag_svtype(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+    Ok(record.info(b"SVTYPE").string()?.map(|v| v[0]))
+}
+
+pub(crate) fn info_tag_event(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+    Ok(record.info(b"EVENT").string()?.map(|v| v[0]))
+}
+
+pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+    Ok(record.info(b"MATEID").string()?.map(|v| v[0]))
+}
 
 pub(crate) fn is_reverse_strand(record: &bam::Record) -> bool {
     record.flags() & 0x10 != 0
@@ -78,12 +108,7 @@ pub(crate) fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
 }
 
 /// Collect variants from a given ´bcf::Record`.
-pub(crate) fn collect_variants(
-    record: &mut bcf::Record,
-    omit_snvs: bool,
-    omit_indels: bool,
-    indel_len_range: Option<Range<u64>>,
-) -> Result<Vec<model::Variant>> {
+pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Variant>> {
     let pos = record.pos() as u64;
     let svlens = match record.info(b"SVLEN").integer() {
         Ok(Some(svlens)) => Some(
@@ -113,15 +138,9 @@ pub(crate) fn collect_variants(
         _ => None,
     };
 
-    // check if len is within the given range
-    let is_valid_len = |svlen| {
-        if let Some(ref len_range) = indel_len_range {
-            // TODO replace with Range::contains once stabilized
-            if svlen < len_range.start || svlen >= len_range.end {
-                return false;
-            }
-        }
-        true
+    let event = match record.info(b"EVENT").string() {
+        Ok(Some(event)) => Some(event[0].to_owned()),
+        _ => None,
     };
 
     let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
@@ -139,64 +158,89 @@ pub(crate) fn collect_variants(
     let mut variants = Vec::new();
 
     if let Some(svtype) = svtype {
-        if !omit_indels {
-            if svtype == b"INS" {
-                // get sequence
-                let alleles = record.alleles();
-                if alleles.len() > 2 {
-                    return Err(errors::Error::InvalidBCFRecord {
-                        msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
+        if svtype == b"INV" {
+            let alleles = record.alleles();
+            if alleles.len() != 2 {
+                info!("Skipping inversion with invalid number of ALT alleles (must be 1)");
+            } else if let Some(end) = end {
+                let len = end - (pos + 1); // pos is pointing to the allele before the INV
+                variants.push(model::Variant::Inversion(len));
+            } else {
+                info!("Skipping inversion without END tag.");
+            }
+        } else if svtype == b"DUP" {
+            let alleles = record.alleles();
+            if alleles.len() != 2 {
+                info!("Skipping duplication with invalid number of ALT alleles (must be 1)");
+            } else if let Some(end) = end {
+                let len = end - (pos + 1); // pos is pointing to the allele before the INV
+                variants.push(model::Variant::Duplication(len));
+            } else {
+                info!("Skipping duplication without END tag.");
+            }
+        } else if svtype == b"BND" {
+            let alleles = record.alleles();
+            if let Some(ref event) = event {
+                for spec in &alleles[1..] {
+                    variants.push(model::Variant::Breakend {
+                        event: event.clone(),
+                        ref_allele: alleles[0].to_owned(),
+                        spec: spec.to_vec(),
+                    })
+                }
+            } else {
+                info!("Skipping breakend without EVENT definition.");
+            }
+        } else if svtype == b"INS" {
+            // get sequence
+            let alleles = record.alleles();
+            if alleles.len() > 2 {
+                return Err(errors::Error::InvalidBCFRecord {
+                    msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
+                }
+                .into());
+            }
+            let ref_allele = alleles[0];
+            let alt_allele = alleles[1];
+
+            if alt_allele != b"<INS>" {
+                // don't support insertions without exact sequence
+                if is_valid_insertion_alleles(ref_allele, alt_allele) {
+                    variants.push(model::Variant::Insertion(
+                        alt_allele[ref_allele.len()..].to_owned(),
+                    ));
+                }
+            }
+        } else if svtype == b"DEL" {
+            let svlen = match (svlens, end) {
+                (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
+                (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
+                _ => {
+                    return Err(errors::Error::MissingBCFTag {
+                        name: "SVLEN or END".to_owned(),
                     }
                     .into());
                 }
-                let ref_allele = alleles[0];
-                let alt_allele = alleles[1];
+            };
+            if svlen == 0 {
+                return Err(errors::Error::InvalidBCFRecord {
+                    msg: "Absolute value of SVLEN or END - POS must be greater than zero."
+                        .to_owned(),
+                }
+                .into());
+            }
+            let alleles = record.alleles();
+            if alleles.len() > 2 {
+                return Err(errors::Error::InvalidBCFRecord {
+                    msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
+                }
+                .into());
+            }
+            let ref_allele = alleles[0];
+            let alt_allele = alleles[1];
 
-                if alt_allele != b"<INS>" {
-                    // don't support insertions without exact sequence
-                    let len = alt_allele.len() - ref_allele.len();
-
-                    if is_valid_insertion_alleles(ref_allele, alt_allele)
-                        && is_valid_len(len as u64)
-                    {
-                        variants.push(model::Variant::Insertion(
-                            alt_allele[ref_allele.len()..].to_owned(),
-                        ));
-                    }
-                }
-            } else if svtype == b"DEL" {
-                let svlen = match (svlens, end) {
-                    (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
-                    (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
-                    _ => {
-                        return Err(errors::Error::MissingBCFTag {
-                            name: "SVLEN or END".to_owned(),
-                        }
-                        .into());
-                    }
-                };
-                if svlen == 0 {
-                    return Err(errors::Error::InvalidBCFRecord {
-                        msg: "Absolute value of SVLEN or END - POS must be greater than zero."
-                            .to_owned(),
-                    }
-                    .into());
-                }
-                let alleles = record.alleles();
-                if alleles.len() > 2 {
-                    return Err(errors::Error::InvalidBCFRecord {
-                        msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
-                    }
-                    .into());
-                }
-                let ref_allele = alleles[0];
-                let alt_allele = alleles[1];
-
-                if (alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele))
-                    && is_valid_len(svlen)
-                {
-                    variants.push(model::Variant::Deletion(svlen));
-                }
+            if alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele) {
+                variants.push(model::Variant::Deletion(svlen));
             }
         }
     } else {
@@ -206,9 +250,7 @@ pub(crate) fn collect_variants(
         for (i, alt_allele) in alleles.iter().skip(1).enumerate() {
             if alt_allele == b"<*>" {
                 // dummy non-ref allele, signifying potential homozygous reference site
-                if !omit_snvs {
-                    variants.push(model::Variant::None)
-                }
+                variants.push(model::Variant::None);
             } else if alt_allele == b"<DEL>" {
                 if let Some(ref svlens) = svlens {
                     if let Some(svlen) = svlens[i] {
@@ -220,19 +262,13 @@ pub(crate) fn collect_variants(
                 // skip any other special alleles
             } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 // SNV
-                if !omit_snvs {
-                    variants.push(model::Variant::SNV(alt_allele[0]));
-                }
+                variants.push(model::Variant::SNV(alt_allele[0]));
             } else if alt_allele.len() == ref_allele.len() {
                 // MNV
                 variants.push(model::Variant::MNV(alt_allele.to_vec()));
             } else {
-                let indel_len = (alt_allele.len() as i64 - ref_allele.len() as i64).abs() as u64;
                 // TODO fix position if variant is like this: cttt -> ct
-
-                if omit_indels || !is_valid_len(indel_len) {
-                    // skip
-                } else if is_valid_deletion_alleles(ref_allele, alt_allele) {
+                if is_valid_deletion_alleles(ref_allele, alt_allele) {
                     variants.push(model::Variant::Deletion(
                         (ref_allele.len() - alt_allele.len()) as u64,
                     ));
@@ -261,7 +297,7 @@ pub(crate) fn tags_prob_sum(
     tags: &[String],
     vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>> {
-    let variants = (utils::collect_variants(record, false, false, None))?;
+    let variants = utils::collect_variants(record)?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
     for tag in tags {
@@ -311,12 +347,22 @@ pub(crate) fn collect_prob_dist<E>(
 where
     E: Event,
 {
+    let mut visited_breakend_events = HashSet::new();
+
     let mut record = calls.empty_record();
     let mut prob_dist = Vec::new();
     let tags = events_to_tags(events);
     loop {
         if !calls.read(&mut record)? {
             break;
+        }
+        if let Ok(Some(event)) = info_tag_event(&mut record) {
+            if visited_breakend_events.contains(event) {
+                // Do not record probability of this event twice.
+                continue;
+            } else {
+                visited_breakend_events.insert(event.to_owned());
+            }
         }
 
         for p in utils::tags_prob_sum(&mut record, &tags, Some(&vartype))? {
@@ -348,17 +394,54 @@ pub(crate) fn filter_by_threshold<E: Event>(
     events: &[E],
     vartype: &model::VariantType,
 ) -> Result<()> {
+    let mut breakend_event_decisions = HashMap::new();
+
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
-    let filter = |record: &mut bcf::Record| {
+    let filter = |record: &mut bcf::Record| -> Result<Vec<bool>> {
+        let bnd_event = if let Ok(event) = info_tag_event(record) {
+            event.map(|event| event.to_owned())
+        } else {
+            None
+        };
+
+        let keep = if let Some(event) = bnd_event.as_ref() {
+            breakend_event_decisions.get(event).cloned()
+        } else {
+            None
+        };
+
         let probs = utils::tags_prob_sum(record, &tags, Some(vartype))?;
-        Ok(probs.into_iter().map(|p| {
-            match (p, threshold) {
-                // we allow some numerical instability in case of equality
-                (Some(p), Some(threshold)) if p > threshold || relative_eq!(*p, *threshold) => true,
-                (Some(_), None) => true,
-                _ => false,
-            }
-        }))
+
+        assert!(
+            bnd_event.is_none() || probs.len() == 1,
+            "breakend events may only occur in single variant records"
+        );
+
+        Ok(probs
+            .into_iter()
+            .map(|p| {
+                if let Some(keep) = keep {
+                    // already know decision from previous breakend
+                    keep
+                } else {
+                    let keep = match (p, threshold) {
+                        // we allow some numerical instability in case of equality
+                        (Some(p), Some(threshold))
+                            if p > threshold || relative_eq!(*p, *threshold) =>
+                        {
+                            true
+                        }
+                        (Some(_), None) => true,
+                        _ => false,
+                    };
+                    if let Some(event) = bnd_event.as_ref() {
+                        breakend_event_decisions.insert(event.to_owned(), keep);
+                    }
+
+                    keep
+                }
+            })
+            .collect())
     };
     filter_calls(calls, out, filter)
 }
@@ -373,10 +456,10 @@ pub(crate) fn filter_by_threshold<E: Event>(
 pub(crate) fn filter_calls<F, I, II>(
     calls: &mut bcf::Reader,
     out: &mut bcf::Writer,
-    filter: F,
+    mut filter: F,
 ) -> Result<()>
 where
-    F: Fn(&mut bcf::Record) -> Result<II>,
+    F: FnMut(&mut bcf::Record) -> Result<II>,
     I: Iterator<Item = bool>,
     II: IntoIterator<Item = bool, IntoIter = I>,
 {

@@ -15,19 +15,21 @@ use rusty_machine::linalg::{Matrix, Vector};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Estimate {
+pub(crate) struct Estimate {
     observations: Vec<(f64, u64)>,
     intercept: f64,
     slope: f64,
 }
 
 impl Estimate {
-    pub fn effective_mutation_rate(&self) -> f64 {
+    pub(crate) fn effective_mutation_rate(&self) -> f64 {
         self.slope
     }
 }
 
-pub fn estimate<F: IntoIterator<Item = AlleleFreq>>(allele_frequencies: F) -> Result<Estimate> {
+pub(crate) fn estimate<F: IntoIterator<Item = AlleleFreq>>(
+    allele_frequencies: F,
+) -> Result<Estimate> {
     let mut observations = BTreeMap::new();
     for f in allele_frequencies {
         // count occurrences of 1 / f

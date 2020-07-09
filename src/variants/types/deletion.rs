@@ -15,6 +15,7 @@ use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::reference;
 use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
@@ -92,11 +93,15 @@ impl Deletion {
                 .unwrap())
         }
     }
+
+    pub fn len(&self) -> u64 {
+        self.enclosable_len().unwrap()
+    }
 }
 
 impl SamplingBias for Deletion {
-    fn len(&self) -> u64 {
-        self.locus.range().end - self.locus.range().start
+    fn enclosable_len(&self) -> Option<u64> {
+        Some(self.locus.range().end - self.locus.range().start)
     }
 }
 
@@ -109,19 +114,22 @@ impl<'a> Realignable<'a> for Deletion {
     fn alt_emission_params(
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
-        ref_seq: Arc<Vec<u8>>,
+        ref_buffer: Arc<reference::Buffer>,
+        _: &genome::Interval,
         ref_window: usize,
-    ) -> DeletionEmissionParams<'a> {
+    ) -> Result<DeletionEmissionParams<'a>> {
         let start = self.locus.range().start as usize;
         let end = self.locus.range().end as usize;
-        DeletionEmissionParams {
+        let ref_seq = ref_buffer.seq(self.locus.contig())?;
+
+        Ok(DeletionEmissionParams {
             del_start: start,
             del_len: end - start,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
             ref_seq,
             read_emission: read_emission_params,
-        }
+        })
     }
 }
 
@@ -172,7 +180,7 @@ impl Variant for Deletion {
             PairedEndEvidence::SingleEnd(record) => Ok(Some(
                 self.realigner
                     .borrow_mut()
-                    .allele_support(record, &self.locus, self)?,
+                    .allele_support(record, &[&self.locus], self)?,
             )),
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
@@ -192,11 +200,11 @@ impl Variant for Deletion {
                 let left_support =
                     self.realigner
                         .borrow_mut()
-                        .allele_support(left, &self.locus, self)?;
+                        .allele_support(left, &[&self.locus], self)?;
                 let right_support =
                     self.realigner
                         .borrow_mut()
-                        .allele_support(right, &self.locus, self)?;
+                        .allele_support(right, &[&self.locus], self)?;
                 let isize_support = self.allele_support_isize(left, right, alignment_properties)?;
 
                 let mut support = left_support;

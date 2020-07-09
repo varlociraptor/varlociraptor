@@ -25,7 +25,9 @@ pub(crate) trait ReadSamplingBias: Variant + SamplingBias {
         let feasible = self.feasible_bases(read_len, alignment_properties);
 
         let prob = {
-            let n_alt = cmp::min(self.len(), read_len);
+            let n_alt = self
+                .enclosable_len()
+                .map_or(read_len, |len| cmp::min(len, read_len));
             let n_alt_valid = cmp::min(n_alt, feasible);
 
             LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
