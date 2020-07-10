@@ -93,6 +93,10 @@ pub(crate) trait Variant {
     /// Return variant loci.
     fn loci(&self) -> &Self::Loci;
 
+    fn fetch_loci(&self) -> &Self::Loci {
+        self.loci()
+    }
+
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
@@ -123,7 +127,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
     ) -> Result<Vec<Observation>> {
-        let locus = self.loci();
+        let locus = self.fetch_loci();
         buffer.fetch(locus, false)?;
 
         let candidates: Vec<_> = buffer
@@ -179,7 +183,7 @@ where
         let mut candidate_records = BTreeMap::new();
 
         let mut fetches = buffer.build_fetches(true);
-        for locus in self.loci().iter() {
+        for locus in self.fetch_loci().iter() {
             fetches.push(locus);
         }
         for interval in fetches.iter() {

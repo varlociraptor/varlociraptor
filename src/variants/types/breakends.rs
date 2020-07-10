@@ -135,6 +135,10 @@ impl Variant for BreakendGroup {
         &self.loci
     }
 
+    fn fetch_loci(&self) -> &Self::Loci {
+        // TODO just return first and last
+    }
+
     /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
