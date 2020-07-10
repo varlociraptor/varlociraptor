@@ -60,6 +60,11 @@ jobs:
         run: |
             sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools
 
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
