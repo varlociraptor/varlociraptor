@@ -170,6 +170,12 @@ pub enum VariantType {
     SNV,
     #[strum(serialize = "MNV")]
     MNV,
+    #[strum(serialize = "BND")]
+    Breakend,
+    #[strum(serialize = "INV")]
+    Inversion,
+    #[strum(serialize = "DUP")]
+    Duplication,
     #[strum(serialize = "REF")]
     None, // site with no suggested alternative allele
 }
@@ -192,10 +198,25 @@ pub(crate) enum Variant {
     Insertion(Vec<u8>),
     SNV(u8),
     MNV(Vec<u8>),
+    Breakend {
+        ref_allele: Vec<u8>,
+        spec: Vec<u8>,
+        event: Vec<u8>,
+    },
+    Inversion(u64),
+    Duplication(u64),
     None,
 }
 
 impl Variant {
+    pub(crate) fn is_breakend(&self) -> bool {
+        if let Variant::Breakend { .. } = self {
+            true
+        } else {
+            false
+        }
+    }
+
     pub(crate) fn is_type(&self, vartype: &VariantType) -> bool {
         match (self, vartype) {
             (&Variant::Deletion(l), &VariantType::Deletion(Some(ref range))) => {
@@ -209,6 +230,9 @@ impl Variant {
             (&Variant::SNV(_), &VariantType::SNV) => true,
             (&Variant::MNV(_), &VariantType::MNV) => true,
             (&Variant::None, &VariantType::None) => true,
+            (&Variant::Breakend { .. }, &VariantType::Breakend) => true,
+            (&Variant::Inversion { .. }, &VariantType::Inversion) => true,
+            (&Variant::Duplication { .. }, &VariantType::Duplication) => true,
             _ => false,
         }
     }
@@ -219,6 +243,9 @@ impl Variant {
             Variant::Insertion(ref s) => s.len() as u64,
             Variant::SNV(_) => 1,
             Variant::MNV(ref alt) => alt.len() as u64,
+            Variant::Breakend { .. } => 1,
+            Variant::Inversion(l) => l,
+            Variant::Duplication(l) => l,
             Variant::None => 1,
         }
     }

@@ -118,18 +118,22 @@ pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
         let left_feasible = self.feasible_bases(left_read_len, alignment_properties);
         let right_feasible = self.feasible_bases(right_read_len, alignment_properties);
 
-        let delta_ref = self.len();
-        let delta_alt = 0;
-        self.expected_prob_sample_alt(
-            left_read_len,
-            right_read_len,
-            left_feasible,
-            right_feasible,
-            delta_ref,
-            delta_alt,
-            true,
-            alignment_properties,
-        )
+        if let Some(len) = self.enclosable_len() {
+            let delta_ref = len;
+            let delta_alt = 0;
+            self.expected_prob_sample_alt(
+                left_read_len,
+                right_read_len,
+                left_feasible,
+                right_feasible,
+                delta_ref,
+                delta_alt,
+                true,
+                alignment_properties,
+            )
+        } else {
+            LogProb::ln_zero()
+        }
     }
 
     fn is_within_sd(

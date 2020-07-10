@@ -35,12 +35,12 @@ pub(crate) mod calling;
 pub mod cli;
 pub(crate) mod conversion;
 pub(crate) mod errors;
-pub mod estimation;
+pub(crate) mod estimation;
 pub mod filtration;
 pub(crate) mod grammar;
 pub(crate) mod reference;
 pub mod testcase;
-pub(crate) mod utils;
+pub mod utils;
 pub mod variants;
 
 /// Event to call.

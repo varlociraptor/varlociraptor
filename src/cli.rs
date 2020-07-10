@@ -30,6 +30,7 @@ use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::variants::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::variants::model::{Contamination, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
+use crate::variants::types::breakends::BreakendIndex;
 use crate::SimpleEvent;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -135,9 +136,10 @@ pub enum PreprocessKind {
         #[structopt(
             parse(from_os_str),
             long,
+            required = true,
             help = "VCF/BCF file to process (if omitted, read from STDIN)."
         )]
-        candidates: Option<PathBuf>,
+        candidates: PathBuf,
         #[structopt(
             long,
             required = true,
@@ -187,10 +189,6 @@ pub enum PreprocessKind {
             help = "Strandedness of sequencing protocol in case of paired-end (opposite strand as usual or same strand as with mate-pair sequencing.)"
         )]
         protocol_strandedness: ProtocolStrandedness,
-        #[structopt(long = "omit-snvs", help = "Don't call SNVs.")]
-        omit_snvs: bool,
-        #[structopt(long = "omit-indels", help = "Don't call Indels.")]
-        omit_indels: bool,
         #[structopt(
             long = "indel-window",
             default_value = "64",
@@ -386,8 +384,8 @@ pub enum VariantCallMode {
         name = "generic",
         about = "Call variants for a given scenario specified with the varlociraptor calling \
                  grammar and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants --output calls.bcf generic --observations relapse=relapse.bcf \
-                 tumor=tumor.bcf normal=normal.bcf",
+        usage = "varlociraptor call variants --output calls.bcf generic --scenario scenario.yaml \
+                 --obs relapse=relapse.bcf tumor=tumor.bcf normal=normal.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Generic {
@@ -490,8 +488,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     spurious_insext_rate,
                     spurious_delext_rate,
                     protocol_strandedness,
-                    omit_snvs,
-                    omit_indels,
                     realignment_window,
                     max_depth,
                     omit_insert_size,
@@ -539,16 +535,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
-                            .realignment_window(realignment_window)
-                            .gap_params(gap_params)
                             .sample(sample)
-                            .omit_snvs(omit_snvs)
-                            .omit_indels(omit_indels)
                             .reference(
                                 fasta::IndexedReader::from_file(&reference)
                                     .context("Unable to read genome reference.")?,
-                            )?
-                            .inbcf(candidates)?
+                            )
+                            .realignment(gap_params, realignment_window)
+                            .breakend_index(BreakendIndex::new(&candidates)?)
+                            .inbcf(candidates)
                             .outbcf(output, &opt_clone)?
                             .build()
                             .unwrap();
@@ -672,7 +666,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         )?;
                                         if i == 0 {
                                             testcase_builder =
-                                                testcase_builder.candidates(obspath)?;
+                                                testcase_builder.candidates(obspath.to_owned());
                                             testcase_builder = testcase_builder
                                                 .reference(preprocess_input.reference)?;
                                         }
@@ -714,7 +708,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         &normal_observations,
                                     )?;
                                 let mut testcase = testcase_builder
-                                    .candidates(tumor_observations)?
+                                    .candidates(tumor_observations)
                                     .reference(tumor_options.preprocess_input().reference)?
                                     .register_sample(
                                         "tumor",

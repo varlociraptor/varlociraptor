@@ -14,6 +14,7 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::reference;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
@@ -49,13 +50,17 @@ impl<'a> Realignable<'a> for Insertion {
     fn alt_emission_params(
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
-        ref_seq: Arc<Vec<u8>>,
+        ref_buffer: Arc<reference::Buffer>,
+        _: &genome::Interval,
         ref_window: usize,
-    ) -> InsertionEmissionParams<'a> {
+    ) -> Result<InsertionEmissionParams<'a>> {
         let l = self.ins_seq.len() as usize;
         let start = self.locus().range().start as usize;
+
+        let ref_seq = ref_buffer.seq(self.locus().contig())?;
+
         let ref_seq_len = ref_seq.len();
-        InsertionEmissionParams {
+        Ok(InsertionEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + l + ref_window, ref_seq_len),
@@ -64,13 +69,13 @@ impl<'a> Realignable<'a> for Insertion {
             ins_end: start + l,
             ins_seq: Rc::clone(&self.ins_seq),
             read_emission: read_emission_params,
-        }
+        })
     }
 }
 
 impl SamplingBias for Insertion {
-    fn len(&self) -> u64 {
-        self.ins_seq.len() as u64
+    fn enclosable_len(&self) -> Option<u64> {
+        Some(self.ins_seq.len() as u64)
     }
 }
 
@@ -109,17 +114,17 @@ impl Variant for Insertion {
             PairedEndEvidence::SingleEnd(record) => Ok(Some(
                 self.realigner
                     .borrow_mut()
-                    .allele_support(record, self.locus(), self)?,
+                    .allele_support(record, self.locus.iter(), self)?,
             )),
             PairedEndEvidence::PairedEnd { left, right } => {
                 let left_support =
                     self.realigner
                         .borrow_mut()
-                        .allele_support(left, self.locus(), self)?;
+                        .allele_support(left, self.locus.iter(), self)?;
                 let right_support =
                     self.realigner
                         .borrow_mut()
-                        .allele_support(right, self.locus(), self)?;
+                        .allele_support(right, self.locus.iter(), self)?;
 
                 let mut support = left_support;
 

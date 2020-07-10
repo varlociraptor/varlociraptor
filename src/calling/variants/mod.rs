@@ -33,6 +33,8 @@ pub(crate) struct Call {
     pos: u64,
     #[builder(default = "None")]
     id: Option<Vec<u8>>,
+    #[builder(default = "None")]
+    mateid: Option<Vec<u8>>,
     #[builder(default = "Vec::new()")]
     variants: Vec<Variant>,
 }
@@ -51,15 +53,31 @@ impl Call {
 
             // set alleles
             record.set_alleles(&[&variant.ref_allele[..], &variant.alt_allele[..]])?;
+
+            // set tags
             if let Some(svlen) = variant.svlen {
                 record.push_info_integer(b"SVLEN", &[svlen])?;
+            }
+            if let Some(end) = variant.end {
+                record.push_info_integer(b"END", &[end as i32])?;
+            }
+            if let Some(ref event) = variant.event {
+                record.push_info_string(b"EVENT", &[event])?;
+            }
+            if let Some(ref svtype) = variant.svtype {
+                record.push_info_string(b"SVTYPE", &[svtype])?;
+            }
+            if let Some(ref mateid) = self.mateid {
+                record.push_info_string(b"MATEID", &[mateid])?;
             }
 
             // set qual
             record.set_qual(f32::missing());
 
             // add raw observations
-            write_observations(variant.observations.as_ref().unwrap(), &mut record)?;
+            if let Some(ref obs) = variant.observations {
+                write_observations(obs, &mut record)?;
+            }
 
             bcf_writer.write(&record)?;
         }
@@ -91,6 +109,8 @@ impl Call {
             let mut strand_bias = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
+            let mut events = Vec::new();
+            let mut svtypes = Vec::new();
             alleles.push(&ref_allele[..]);
 
             // collect per group information
@@ -164,11 +184,25 @@ impl Call {
                 } else {
                     svlens.push(i32::missing());
                 }
+
+                if let Some(ref event) = variant.event {
+                    events.push(event.as_slice());
+                }
+                if let Some(ref svtype) = variant.svtype {
+                    svtypes.push(svtype.as_slice());
+                }
             }
 
             // set alleles
             record.set_alleles(&alleles)?;
+
             record.push_info_integer(b"SVLEN", &svlens)?;
+            record.push_info_string(b"SVTYPE", &svtypes)?;
+            record.push_info_string(b"EVENT", &events)?;
+
+            if let Some(ref mateid) = self.mateid {
+                record.push_info_string(b"MATEID", &[mateid])?;
+            }
 
             // set qual
             record.set_qual(f32::missing());
@@ -234,6 +268,12 @@ pub(crate) struct Variant {
     #[builder(private, default = "None")]
     svlen: Option<i32>,
     #[builder(private, default = "None")]
+    svtype: Option<Vec<u8>>,
+    #[builder(private, default = "None")]
+    event: Option<Vec<u8>>,
+    #[builder(private, default = "None")]
+    end: Option<u64>,
+    #[builder(private, default = "None")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
     observations: Option<Vec<Observation>>,
@@ -248,47 +288,72 @@ impl VariantBuilder {
         Ok(self
             .ref_allele(alleles[0].to_owned())
             .alt_allele(alleles[1].to_owned())
-            .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0])))
+            .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0]))
+            .event(utils::info_tag_event(record)?.map(|e| e.to_vec()))
+            .svtype(utils::info_tag_svtype(record)?.map(|s| s.to_vec())))
     }
 
     pub(crate) fn variant(
         &mut self,
         variant: &model::Variant,
         start: usize,
-        chrom_seq: &[u8],
+        chrom_seq: Option<&[u8]>,
     ) -> &mut Self {
         match variant {
             model::Variant::Deletion(l) => {
                 let l = *l;
                 let svlen = -(l as i32);
                 if l <= 50 {
-                    self.ref_allele(chrom_seq[start..start + 1 + l as usize].to_ascii_uppercase())
-                        .alt_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
-                        .svlen(Some(svlen))
+                    self.ref_allele(
+                        chrom_seq.unwrap()[start..start + 1 + l as usize].to_ascii_uppercase(),
+                    )
+                    .alt_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
+                    .svlen(Some(svlen))
                 } else {
-                    self.ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                    self.ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                         .alt_allele(b"<DEL>".to_ascii_uppercase())
                         .svlen(Some(svlen))
+                        .svtype(Some(b"DEL".to_vec()))
                 }
             }
             model::Variant::Insertion(ref seq) => {
                 let svlen = seq.len() as i32;
-                let ref_allele = vec![chrom_seq[start]];
+                let ref_allele = vec![chrom_seq.unwrap()[start]];
                 let mut alt_allele = ref_allele.clone();
                 alt_allele.extend(seq);
 
                 self.ref_allele(ref_allele.to_ascii_uppercase())
                     .alt_allele(alt_allele.to_ascii_uppercase())
                     .svlen(Some(svlen))
+                    .svtype(Some(b"INS".to_vec()))
             }
             model::Variant::SNV(base) => self
-                .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(vec![*base].to_ascii_uppercase()),
             model::Variant::MNV(bases) => self
-                .ref_allele(chrom_seq[start..start + bases.len()].to_ascii_uppercase())
+                .ref_allele(chrom_seq.unwrap()[start..start + bases.len()].to_ascii_uppercase())
                 .alt_allele(bases.to_ascii_uppercase()),
+            model::Variant::Breakend {
+                ref_allele,
+                spec,
+                event,
+            } => self
+                .ref_allele(ref_allele.to_ascii_uppercase())
+                .alt_allele(spec.to_vec())
+                .event(Some(event.to_owned()))
+                .svtype(Some(b"BND".to_vec())),
+            model::Variant::Inversion(len) => self
+                .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
+                .alt_allele(b"<INV>".to_vec())
+                .svtype(Some(b"INV".to_vec()))
+                .end(Some(start as u64 + len)), // end tag is inclusive but one-based (hence - 1 + 1)
+            model::Variant::Duplication(len) => self
+                .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
+                .alt_allele(b"<DUP>".to_vec())
+                .svtype(Some(b"DUP".to_vec()))
+                .end(Some(start as u64 + len)), // end tag is inclusive but one-based (hence - 1 + 1)
             model::Variant::None => self
-                .ref_allele(chrom_seq[start..start + 1].to_ascii_uppercase())
+                .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(b"<REF>".to_ascii_uppercase()),
         }
     }

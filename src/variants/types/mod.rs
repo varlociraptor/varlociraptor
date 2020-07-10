@@ -19,14 +19,19 @@ use crate::variants::evidence::observation::{
 };
 use crate::variants::sample;
 
+pub(crate) mod breakends;
 pub(crate) mod deletion;
+pub(crate) mod duplication;
 pub(crate) mod insertion;
+pub(crate) mod inversion;
 pub(crate) mod mnv;
 pub(crate) mod none;
 pub(crate) mod snv;
 
 pub(crate) use deletion::Deletion;
+pub(crate) use duplication::Duplication;
 pub(crate) use insertion::Insertion;
+pub(crate) use inversion::Inversion;
 pub(crate) use mnv::MNV;
 pub(crate) use none::None;
 pub(crate) use snv::SNV;
@@ -274,6 +279,12 @@ pub(crate) trait Loci {}
 #[derive(Debug, Derefable, new)]
 pub(crate) struct SingleLocus(#[deref] genome::Interval);
 
+impl AsRef<SingleLocus> for SingleLocus {
+    fn as_ref(&self) -> &SingleLocus {
+        self
+    }
+}
+
 impl SingleLocus {
     pub(crate) fn overlap(&self, record: &bam::Record, consider_clips: bool) -> Overlap {
         let mut pos = record.pos() as u64;
@@ -306,7 +317,7 @@ impl Loci for SingleLocus {}
 
 #[derive(new, Default, Debug, Derefable)]
 pub(crate) struct MultiLocus {
-    #[deref]
+    #[deref(mutable)]
     loci: Vec<SingleLocus>,
 }
 
