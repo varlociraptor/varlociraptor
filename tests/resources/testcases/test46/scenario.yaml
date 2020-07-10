@@ -10,5 +10,5 @@ samples:
       fraction: 0.25
 
 events:
-  germline:        "normal:0.5 | normal:1.0"
+  germline:        "(normal:0.5 & tumor:0.5) | (normal:1.0 & tumor:1.0)"
   somatic_tumor:   "normal:0.0 & tumor:]0.0,1.0]"

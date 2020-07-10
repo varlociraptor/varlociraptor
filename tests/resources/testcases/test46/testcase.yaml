@@ -1,12 +1,12 @@
 # heterozygous duplication
 # We mimic a tumor-only sample here, that is contaminated by 25% normal.
-# The resulting probabilities should favor germline_het, because the allele frequency is close to 0.5.
+# The resulting probabilities should still favor somatic, because the allele frequency is 
+# quite far away from 0.5
 
 expected:
   posteriors:
-    # PHRED space, the smaller the better.
     # Germline should be more likely than somatic.
-    - PROB_GERMLINE < PROB_SOMATIC_TUMOR
+    - PROB_SOMATIC_TUMOR < PROB_GERMLINE
 
 # necessary bam files
 samples:

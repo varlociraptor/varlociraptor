@@ -2,9 +2,6 @@
 # We have artificially removed the normal sample, but still model it in the scenario,
 # with 25% contamination.
 # Still, an AF of 0.125 is not likely to be a germline variant in the tumor.
-# Of course though the probability of being somatic in the tumor must be weaker than
-# when the normal is present (in that case it is <=0.12, see test02). The reason is
-# that of course there can be some deviation from the ideal AF of 0.5 for the germline case.
 
 expected:
   allelefreqs:
@@ -12,11 +9,7 @@ expected:
   - tumor >= 0.09 && tumor <= 0.125
   - normal == 0.0
   posteriors:
-    # There are some fragments with increased insert size that let prosic think
-    # there is a bit of evidence for having a somatic normal call. This makes
-    # the probability for somatic tumor weak.
-  - PROB_SOMATIC_TUMOR > 0.12
-  - PROB_SOMATIC_TUMOR < 2.0
+  - PROB_SOMATIC_TUMOR < 0.12
 
 # necessary bam files
 samples:
