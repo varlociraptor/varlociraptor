@@ -229,7 +229,9 @@ fn log_prob_loh_given_germ_het(
 ) -> LogProb {
     let log_prob_loh = info_phred_to_log_prob(record, &String::from("PROB_LOH") );
     let log_prob_no_loh = info_phred_to_log_prob(record, &String::from("PROB_NO_LOH") );
-    let log_prob_germline_het = log_prob_loh.ln_add_exp(log_prob_no_loh);
+    let log_prob_germline_het = log_prob_loh
+        .ln_add_exp(log_prob_no_loh)
+        .cap_numerical_overshoot(0.000001);
     let log_prob_loh_given_germ_het = log_prob_germline_het.ln_one_minus_exp().ln_add_exp(log_prob_loh + log_prob_germline_het);
     log_prob_loh_given_germ_het
 }
@@ -238,5 +240,28 @@ fn log_prob_loh_given_germ_het(
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_log_prob_loh_given_germ_het() {
+        // set up test input
+        let test_file = "tests/resources/loh.vcf";
+        let mut loh_calls = bcf::Reader::from_path(test_file).unwrap();
+        let mut record = loh_calls.empty_record();
 
+        let log_probs = [
+            LogProb(-15.735129611157593),
+            LogProb(-0.0000000001113695252626908),
+            LogProb(-0.00002621896814339697),
+            LogProb(-0.0004275831483212109),
+            LogProb(-0.000026656113726260797),
+        ];
+
+        let mut index = 0;
+        while loh_calls.read(&mut record).unwrap() {
+            assert_eq!(
+                log_prob_loh_given_germ_het(&mut record),
+                log_probs[index]
+            );
+            index += 1;
+        }
+    }
 }
