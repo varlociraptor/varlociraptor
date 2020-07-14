@@ -9,14 +9,15 @@ use std::path::Path;
 
 use anyhow::Result;
 use itertools::iproduct;
-use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::stats::{LogProb, Prob};
 use derive_builder::Builder;
 use rust_htslib::bcf;
-use rust_htslib::bcf::record::Numeric;
 use rust_htslib::bcf::Read;
 
 use lp_modeler::dsl::*;
 use lp_modeler::solvers::{CbcSolver, SolverTrait};
+
+use crate::utils::info_phred_to_log_prob;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -168,51 +169,6 @@ impl Caller {
     }
 }
 
-pub(crate) fn info_phred_to_log_prob(
-    record: &mut bcf::Record,
-    info_field_name: &[u8]
-) -> LogProb {
-    let pos =  record.pos();
-    match record.info(info_field_name).float() {
-        Ok(prob) => {
-            match prob {
-                Some(_prob) => {
-                    if !_prob[0].is_missing() && !_prob[0].is_nan() {
-                        let log_prob = LogProb::from(PHREDProb(_prob[0] as f64));
-                        assert!(
-                            log_prob.is_valid(),
-                            "invalid PHRED probability '{:?}': {}, at pos: {:?}",
-                            info_field_name,
-                            _prob[0],
-                            pos
-                        );
-                        log_prob
-                    } else {
-                        panic!(
-                            "PHRED probability '{:?}' at pos '{:?}' is missing or NaN",
-                            info_field_name,
-                            pos
-                        )
-                    }
-                }
-                None => {
-                    panic!(
-                        "Expected PHRED probability value in field '{:?}' at pos '{:?}', got None.",
-                        info_field_name,
-                        pos
-                    )
-                }
-            }
-        }
-        Err(..) => {
-            panic!(
-                "error unpacking PHRED probability INFO field '{:?}' at pos '{:?}",
-                info_field_name,
-                pos
-            )
-        }
-    }
-}
 
 #[derive(Debug) ]
 pub(crate) struct ContigLOHProbs {
@@ -271,27 +227,16 @@ impl ContigLOHProbs {
 fn log_prob_loh_given_germ_het(
     record: &mut bcf::Record,
 ) -> LogProb {
-    let log_prob_loh = info_phred_to_log_prob(record, b"PROB_LOH");
-    let log_prob_no_loh = info_phred_to_log_prob(record, b"PROB_NO_LOH");
+    let log_prob_loh = info_phred_to_log_prob(record, &String::from("PROB_LOH") );
+    let log_prob_no_loh = info_phred_to_log_prob(record, &String::from("PROB_NO_LOH") );
     let log_prob_germline_het = log_prob_loh.ln_add_exp(log_prob_no_loh);
     let log_prob_loh_given_germ_het = log_prob_germline_het.ln_one_minus_exp().ln_add_exp(log_prob_loh + log_prob_germline_het);
     log_prob_loh_given_germ_het
 }
 
-// //#[cfg(test)]
-// mod tests {
-//     use super::*;
-//
-//     #[test]
-//     fn test_allele_freq_pdf() {
-//         assert_eq!(
-//             allele_freq_pdf(AlleleFreq(0.64), AlleleFreq(1.0), 10),
-//             LogProb::ln_zero()
-//         );
-//         assert_eq!(
-//             allele_freq_pdf(AlleleFreq(0.1), AlleleFreq(0.0), 10),
-//             LogProb::ln_zero()
-//         );
-//     }
-//
-// }
+//#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+}

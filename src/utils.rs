@@ -284,6 +284,62 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
     Ok(variants)
 }
 
+
+/// Get a log probability from a PHRED encoded BCF INFO field. Tests for a valid `LogProb`.
+///
+/// TODO: Move to rust-bio and implement as From Trait for LogProb?
+///
+/// # Arguments
+///
+/// * `record` - reference to a `bcf::Record`
+/// * `info_field_name` - name of the PHRED-scaled INFO field
+///
+pub(crate) fn info_phred_to_log_prob(
+    record: &mut bcf::Record,
+    info_field_name: &String
+) -> LogProb {
+    let pos =  record.pos();
+    match record.info( info_field_name.as_bytes() ).float() {
+        Ok(prob) => {
+            match prob {
+                Some(_prob) => {
+                    if !_prob[0].is_missing() && !_prob[0].is_nan() {
+                        let log_prob = LogProb::from(PHREDProb(_prob[0] as f64));
+                        assert!(
+                            log_prob.is_valid(),
+                            "invalid PHRED probability '{:?}': {}, at pos: {:?}",
+                            info_field_name,
+                            _prob[0],
+                            pos
+                        );
+                        log_prob
+                    } else {
+                        panic!(
+                            "PHRED probability '{:?}' at pos '{:?}' is missing or NaN",
+                            info_field_name,
+                            pos
+                        )
+                    }
+                }
+                None => {
+                    panic!(
+                        "Expected PHRED probability value in field '{:?}' at pos '{:?}', got None.",
+                        info_field_name,
+                        pos
+                    )
+                }
+            }
+        }
+        Err(..) => {
+            panic!(
+                "error unpacking PHRED probability INFO field '{:?}' at pos '{:?}",
+                info_field_name,
+                pos
+            )
+        }
+    }
+}
+
 /// Sum up in log space the probabilities of the given tags for all variants of
 /// vartype in the given BCF record.
 ///
@@ -551,6 +607,44 @@ mod tests {
     use crate::SimpleEvent;
     use bio::stats::{LogProb, Prob};
     use rust_htslib::bcf::{self, Read};
+
+    #[test]
+    fn test_info_phred_to_log_prob() {
+        // set up test input
+        let test_file = "tests/resources/test_tags_prob_sum/overshoot.vcf";
+        let mut overshoot_calls = bcf::Reader::from_path(test_file).unwrap();
+        let mut record = overshoot_calls.empty_record();
+        if let Err(e) = overshoot_calls.read(&mut record) {
+            panic!("BCF reading error: {}", e);
+        }
+
+        // set up all alt events with names as in prosolo
+        let tags = [
+            String::from("PROB_HOM_REF"),
+            String::from("PROB_HOM_ALT"),
+            String::from("PROB_ERR_REF"),
+            String::from("PROB_ERR_ALT"),
+            String::from("PROB_ADO_TO_REF"),
+            String::from("PROB_ADO_TO_ALT"),
+            String::from("PROB_HET"),
+        ];
+        let log_probs = [
+            LogProb(-40.8678919275925),
+            LogProb(-0.18592199920521207),
+            LogProb(-2.2250224758397614),
+            LogProb(-482.2971912310041),
+            LogProb(-6.966402053842147),
+            LogProb(-34.08723979546729),
+            LogProb(-2.802568436248716),
+        ];
+
+        for i in 0..tags.len() {
+            assert_eq!(
+                info_phred_to_log_prob(&mut record, &tags[i] ),
+                log_probs[i]
+            );
+        }
+    }
 
     #[test]
     fn test_tags_prob_sum() {
