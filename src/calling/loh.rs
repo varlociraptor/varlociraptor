@@ -16,6 +16,7 @@ use rust_htslib::bcf::Read;
 
 use lp_modeler::dsl::*;
 use lp_modeler::solvers::{CbcSolver, SolverTrait};
+use lp_modeler::format::lp_format::LpFileFormat;
 
 use crate::utils::info_phred_to_log_prob;
 use std::cmp::max;
@@ -159,20 +160,24 @@ impl Caller {
             let selected: Vec<&LpBinary> = interval_loh_indicator.values().collect();
             problem += selected_probs_vec.sum().le(f64::from( self.alpha ) as f32 * selected.sum());
 
+            problem.write_lp("problem.lp");
             // Specify solver
             let solver = CbcSolver::new();
+            let result = solver.run(&problem);
 
-            // Run optimisation and process output hashmap
-            // Write result to bcf
-            match solver.run(&problem) {
-                Ok((status, var_values)) => {
-                    println!("Status {:?}", status);
-                    for (name, value) in var_values.iter() {
-                        println!("value of {} = {}", name, value);
-                    }
-                },
-                Err(msg) => println!("{}", msg),
+            // (terminate if error, or assign status & variable values)
+            assert!(result.is_ok(), result.unwrap_err());
+            let (status, results) = result.unwrap();
+
+            // Print output
+            println!("Status: {:?}", status);
+            for (var_name, var_value) in &results {
+                let int_var_value = *var_value as u32;
+                if int_var_value == 1{
+                    println!("{} = {}", var_name, int_var_value);
+                }
             }
+            // Write result to bcf
         }
         Ok(())
     }
@@ -275,19 +280,20 @@ mod tests {
         }
     }
 
-//    #[test]
-//    fn test_loh_caller() {
-//        let test_input = PathBuf("tests/resources/loh.vcf");
-//        let test_output = Some(PathBuf::from("tests/resources/loh.out.vcf"));
-//        let alpha = 0.2;
-//        let mut caller = CallerBuilder::default()
-//            .bcfs(&test_input, test_output.as_ref())?
-//            .add_and_check_alpha(alpha)?
-//            .build()
-//            .unwrap();
-//
-//        caller.call()?;
-//    }
+    #[test]
+    fn test_loh_caller() {
+        let test_input = PathBuf::from("tests/resources/loh.bcf");
+        let test_output = Some(PathBuf::from("tests/resources/loh.out.bcf"));
+        let alpha = 0.2;
+        let mut caller = CallerBuilder::default()
+            .bcfs(&test_input, test_output.as_ref()).unwrap()
+            .add_and_check_alpha(alpha).unwrap()
+            .build()
+            .unwrap();
+
+        caller.call();
+        assert!(false);
+    }
 
     #[test]
     fn test_contig_loh_probs() {
