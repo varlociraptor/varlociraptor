@@ -29,7 +29,7 @@ pub(crate) struct Caller {
     #[builder(private)]
     bcf_writer: bcf::Writer,
     #[builder(private)]
-    contig_lens: HashMap<u32, u64>,
+    contig_lens: HashMap<u32, usize>,
     alpha: Prob
 }
 
@@ -101,7 +101,6 @@ impl Caller {
                 )
             };
             let intervals = contig.create_all_intervals();
-            let n_intervals = (contig.contig_length * (contig.contig_length + 1) / 2) as i32;
             let mut intervals_overlap_indicator: HashMap<(&RangeInclusive<usize>, &RangeInclusive<usize>), bool> = HashMap::new();
             for (interval1, interval2) in iproduct!(intervals.keys(), intervals.keys()) {
                 let key = (interval1, interval2);
@@ -116,7 +115,7 @@ impl Caller {
                 intervals.iter()
                     .map(|(range, _)| {
                         let key = range;
-                        let loh_indicator = LpBinary::new(&format!("{:?}", key));
+                        let loh_indicator = LpBinary::new(&format!("i_{}_{}", key.start(), key.end()));
                         (key, loh_indicator)
                     })
                     .collect();
@@ -131,10 +130,12 @@ impl Caller {
             };
             problem += selected_lengths_vec.sum();
 
-            // Constraint: no overlapping intervals
+            // Constraint: no overlapping intervals for selected intervals
             for (current_interval, _) in &intervals {
                 let n_overlapping_selected: Vec<LpExpression> = {
-                    interval_loh_indicator.iter()
+                    let mut interval_loh_indicator_without_ci = interval_loh_indicator.clone();
+                    interval_loh_indicator_without_ci.remove(current_interval);
+                    interval_loh_indicator_without_ci.iter()
                         .map(|(&interval, loh_indicator)| {
                             let interval_overlaps: i32 = if *intervals_overlap_indicator.get(&(current_interval, interval)).unwrap() {
                                 1
@@ -146,19 +147,19 @@ impl Caller {
                         ).collect()
                 };
                 problem += n_overlapping_selected.sum()
-                    .le(n_intervals * (1 - interval_loh_indicator.get(&current_interval).unwrap() ) );
+                    .le(intervals.len() as f32 * (1 - interval_loh_indicator.get(&current_interval).unwrap() ) );
             }
 
             // Constraint: control false discovery rate at alpha
             let selected_probs_vec: Vec<LpExpression> = {
                 interval_loh_indicator.iter()
                     .map(|(&interval, loh_indicator)| {
-                        let interval_prob = f64::from( Prob::from(intervals.get(&interval).unwrap().ln_one_minus_exp() ) ) as f32;
-                        interval_prob * loh_indicator
+                        let interval_prob_no_loh = f64::from( Prob::from(intervals.get(&interval).unwrap().ln_one_minus_exp() ) ) as f32;
+                        println!("interval: {:?}, interval_prob_no_loh: {}", interval, interval_prob_no_loh);
+                        (interval_prob_no_loh - f64::from(self.alpha) as f32) * loh_indicator
                     }).collect()
             };
-            let selected: Vec<&LpBinary> = interval_loh_indicator.values().collect();
-            problem += selected_probs_vec.sum().le(f64::from( self.alpha ) as f32 * selected.sum());
+            problem += selected_probs_vec.sum().le(0);
 
             problem.write_lp("problem.lp");
             // Specify solver
@@ -170,10 +171,10 @@ impl Caller {
             let (status, results) = result.unwrap();
 
             // Print output
-            println!("Status: {:?}", status);
+            debug!("Status: {:?}", status);
             for (var_name, var_value) in &results {
                 let int_var_value = *var_value as u32;
-                if int_var_value == 1{
+                if int_var_value == 1 {
                     println!("{} = {}", var_name, int_var_value);
                 }
             }
@@ -187,7 +188,7 @@ impl Caller {
 #[derive(Debug) ]
 pub(crate) struct ContigLOHProbs {
     contig_id: u32,
-    contig_length: u64,
+    contig_length: usize,
     cum_log_prob_loh: Vec<LogProb>,
 }
 
@@ -195,23 +196,23 @@ impl ContigLOHProbs {
     pub(crate) fn new(
         bcf_reader: &mut bcf::IndexedReader,
         contig_id: &u32,
-        contig_length: &u64
+        contig_length: &usize
     ) -> Result<ContigLOHProbs> {
         let mut record = bcf_reader.empty_record();
-        let mut cum_log_prob_loh = Vec::with_capacity(*contig_length as usize);
-        bcf_reader.fetch(*contig_id, 0, (contig_length - 1).into())?;
+        let mut cum_log_prob_loh = Vec::with_capacity(*contig_length);
+        bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
         if bcf_reader.read(&mut record)? {
-            cum_log_prob_loh.push(log_prob_loh_given_germ_het(&mut record));
+            cum_log_prob_loh.push(log_prob_loh_or_germ_hom(&mut record));
         }
         // cumulatively add the following LOH probabilities
         while bcf_reader.read(&mut record)? {
-            cum_log_prob_loh.push(cum_log_prob_loh.last().unwrap() + log_prob_loh_given_germ_het(&mut record));
+            cum_log_prob_loh.push(cum_log_prob_loh.last().unwrap() + log_prob_loh_or_germ_hom(&mut record));
         }
         Ok(
             ContigLOHProbs {
                 contig_id: *contig_id,
-                contig_length: *contig_length as u64,
+                contig_length: *contig_length,
                 cum_log_prob_loh: cum_log_prob_loh,
             }
         )
@@ -238,7 +239,7 @@ impl ContigLOHProbs {
     }
 }
 
-fn log_prob_loh_given_germ_het(
+fn log_prob_loh_or_germ_hom(
     record: &mut bcf::Record,
 ) -> LogProb {
     let log_prob_loh = info_phred_to_log_prob(record, &String::from("PROB_LOH") );
@@ -246,8 +247,7 @@ fn log_prob_loh_given_germ_het(
     let log_prob_germline_het = log_prob_loh
         .ln_add_exp(log_prob_no_loh)
         .cap_numerical_overshoot(0.000001);
-    let log_prob_loh_given_germ_het = log_prob_germline_het.ln_one_minus_exp().ln_add_exp(log_prob_loh + log_prob_germline_het);
-    log_prob_loh_given_germ_het
+    (log_prob_germline_het + log_prob_loh).ln_add_exp( log_prob_germline_het.ln_one_minus_exp() )
 }
 
 //#[cfg(test)]
@@ -256,24 +256,28 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     #[test]
-    fn test_log_prob_loh_given_germ_het() {
+    fn test_log_prob_loh_or_germ_hom() {
         // set up test input
-        let test_file = "tests/resources/loh.bcf";
+        let test_file = "tests/resources/test_loh/loh.bcf";
         let mut loh_calls = bcf::Reader::from_path(test_file).unwrap();
         let mut record = loh_calls.empty_record();
 
         let log_probs = [
-            LogProb(-15.735129611157593),
             LogProb(-0.0000000001113695252626908),
-            LogProb(-0.00002621896814339697),
-            LogProb(-0.0004275831483212109),
+            LogProb(-15.735129611157593),
+            LogProb(-0.000026217939537273105),
             LogProb(-0.000026656113726260797),
+            LogProb(-0.000026218615627557916),
+            LogProb(-7.757570481522067),
+            LogProb(-0.00002621896814339697),
         ];
 
         let mut index = 0;
         while loh_calls.read(&mut record).unwrap() {
+            let log_prob = log_prob_loh_or_germ_hom(&mut record);
+            println!("LogProb: {:?}, Prob: {:?}", log_prob, Prob::from(log_prob));
             assert_eq!(
-                log_prob_loh_given_germ_het(&mut record),
+                log_prob,
                 log_probs[index]
             );
             index += 1;
@@ -282,8 +286,8 @@ mod tests {
 
     #[test]
     fn test_loh_caller() {
-        let test_input = PathBuf::from("tests/resources/loh.bcf");
-        let test_output = Some(PathBuf::from("tests/resources/loh.out.bcf"));
+        let test_input = PathBuf::from("tests/resources/test_loh/loh_no_loh.bcf");
+        let test_output = Some(PathBuf::from("tests/resources/test_loh/loh_no_loh.out.bcf"));
         let alpha = 0.2;
         let mut caller = CallerBuilder::default()
             .bcfs(&test_input, test_output.as_ref()).unwrap()
@@ -297,7 +301,7 @@ mod tests {
 
     #[test]
     fn test_contig_loh_probs() {
-        let test_input = "tests/resources/loh.bcf";
+        let test_input = "tests/resources/test_loh/loh.bcf";
         let mut loh_calls = bcf::IndexedReader::from_path(test_input).unwrap();
         let contig_id = loh_calls.header().name2rid( b"chr8" ).unwrap();
         let contig_length = 145138636;
@@ -316,26 +320,26 @@ mod tests {
         }
         assert_eq!(
             loh_probs.cum_log_prob_loh.last().unwrap(),
-            &LogProb(-15.735610069499153)
+            &LogProb(-23.492805404428065)
         );
 
         let intervals = loh_probs.create_all_intervals();
         assert_eq!(
             intervals.get( &(0..=4) ).unwrap(),
-            &LogProb(-15.735610069499153)
+            &LogProb(-15.735208703937852)
         );
         assert_eq!(
             intervals.get( &(0..=0) ).unwrap(),
-            &LogProb(-15.735129611157593)
+            &LogProb(-0.0000000001113695252626908)
         );
         assert_relative_eq!(
             f64::from( *intervals.get( &(4..=4) ).unwrap() ),
-            &(-0.000026656113726260797 as f64),
+            &(-0.000026218615627557916 as f64),
             epsilon = 0.000000000000001
         );
         assert_relative_eq!(
             f64::from( *intervals.get( &(1..=4) ).unwrap() ),
-            &(-0.00048045834156 as f64),
+            &(-15.73520870382648 as f64),
             epsilon = 0.0000000000001
         );
     }
