@@ -48,16 +48,6 @@ impl CallerBuilder<'_> {
         }
     }
 
-//    pub(crate) fn bed<W, P: AsRef<Path>>(mut self, out_path: Option<P>) -> Result<Self> {
-//        self.bed_writer: W =
-//            if let Some(path) = out_path {
-//                bed::Writer::to_file(path)?
-//            } else {
-//                bed::Writer::new(std::io::stdout())
-//            };
-//        Ok(self)
-//    }
-
     pub(crate) fn bcf<P: AsRef<Path>>(mut self, in_path: P) -> Result<Self> {
         self = self.bcf_reader( bcf::IndexedReader::from_path( in_path )? );
 
@@ -81,46 +71,6 @@ impl CallerBuilder<'_> {
 
 
 impl Caller<'_> {
-//    pub(crate) fn new<P: AsRef<Path>>(in_path: P, out_path: Option<P>, alpha: f64) -> Result<Self> {
-//        let mut alpha_checked: Prob;
-//        match Prob::checked(alpha) {
-//            Ok(correct_alpha) => {
-//                alpha_checked = correct_alpha;
-//            }
-//            Err(_err) => {
-//                panic!("Incorrect alpha specified: {}. Must be 0 <= alpha <= 1].", alpha);
-//            }
-//        }
-//
-//        let bed_writer : bed::Writer<dyn io::Write> = match out_path {
-//            Some(path) => bed::Writer::to_file(path)?,
-//            None => bed::Writer::new(io::stdout())
-//            };
-//
-//        let bcf_reader = bcf::IndexedReader::from_path( in_path )?;
-//
-////        let read_bcf_header = bcf_reader.as_ref().unwrap();
-//
-//        let mut contig_lens = HashMap::new();
-//        // register sequences
-//        for rec in bcf_reader.header().header_records() {
-//            if let bcf::header::HeaderRecord::Contig { values, .. } = rec {
-//                let name = values.get("ID").unwrap();
-//                let len = values.get("length").unwrap();
-//                contig_lens.insert(bcf_reader.header().name2rid( name.as_bytes() )?, len.parse()?);
-//            }
-//        }
-//
-//        Ok(
-//            Caller {
-//                bcf_reader: bcf_reader,
-//                bed_writer: bed_writer,
-//                contig_lens: contig_lens,
-//                alpha: alpha_checked,
-//            }
-//        )
-//    }
-
     pub(crate) fn call(&mut self) -> Result<()> {
         let mut bed_writer = bed::Writer::to_file(self.bed_path)?;
         let contig_ids: Vec<u32> = self.contig_lens.keys().cloned().collect();
