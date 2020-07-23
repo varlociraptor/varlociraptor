@@ -461,24 +461,6 @@ mod tests {
     }
 
     #[test]
-    fn test_uninteresing_between_no_loh() {
-        let test_input = PathBuf::from("tests/resources/test_loh/no_het_between_no_loh.bcf");
-        let test_output = PathBuf::from("tests/resources/test_loh/no_het_between_no_loh.out.bed");
-        let expected_bed : Vec<u8> = Vec::from("chr8\t7999999\t8001000\t\t0.00022772612935821607\n");
-        let alpha = 0.01;
-        let mut caller = CallerBuilder::default()
-            .bcf(&test_input).unwrap()
-            .bed_path(&test_output)
-            .add_and_check_alpha(alpha).unwrap()
-            .build()
-            .unwrap();
-
-        caller.call().unwrap();
-        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
-        assert_eq!( expected_bed, produced_bed );
-    }
-
-    #[test]
     fn test_contig_loh_probs() {
         let test_input = "tests/resources/test_loh/loh.bcf";
         let mut loh_calls = bcf::IndexedReader::from_path(test_input).unwrap();
