@@ -122,7 +122,7 @@ impl Caller<'_> {
                     .map(|(&interval, loh_indicator)| {
                         let interval_length = (interval.end() - interval.start() + 1) as i32;
                         let log_probs = intervals.get(&interval).unwrap();
-                        let probs_diff_f32 = if log_probs.loh > log_probs.no_loh {
+                        let probs_diff_f32 = if log_probs.loh >= log_probs.no_loh {
                             f64::from(
                                 Prob::from(
                                     log_probs.loh.ln_sub_exp(log_probs.no_loh)
@@ -135,32 +135,11 @@ impl Caller<'_> {
                                 )
                             ) as f32
                         };
-//                        // anything.abs() < 0.00001 is considered zero by lp-modeler:
-//                        // https://github.com/jcavat/rust-lp-modeler/blob/bf2dce88ee035f46b23e3019b653fe84ffa3316a/src/util.rs#L1-L3
-//                        let lp_modeler_min_f32 = 0.00001;
-//                        let probs_diff_f32 = if probs_diff_f64.abs() < lp_modeler_min_f32 {
-//                            if log_probs.loh > log_probs.no_loh {
-//                                lp_modeler_min_f32 as f32
-//                            } else if log_probs.loh < log_probs.no_loh{
-//                                - lp_modeler_min_f32 as f32
-//                            } else {
-//                                0.0 as f32
-//                            }
-//                        } else {
-//                            probs_diff_f64 as f32
-//                        };
                         #[cfg(debug_assertions)]
                         println!("interval: {:?}, probs_diff_f32: {}",
                             interval, probs_diff_f32
                         );
-//                        let loh = f64::from(
-//                            Prob::from( log_probs.loh )
-//                        ) as f32;
-//                        let no_loh = f64::from(
-//                            Prob::from( log_probs.no_loh )
-//                        ) as f32;
                         probs_diff_f32 * interval_length as f32 * loh_indicator
-//                        interval_length * loh_indicator
                     }).collect()
             };
             problem += selected_lengths_vec.sum();
