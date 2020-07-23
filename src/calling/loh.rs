@@ -139,12 +139,21 @@ impl Caller<'_> {
                 )
             };
             let intervals = contig.create_all_intervals();
-            let mut intervals_overlap_indicator: HashMap<(&RangeInclusive<usize>, &RangeInclusive<usize>), bool> = HashMap::new();
+            let mut intervals_overlap_or_adjacent: HashMap<(&RangeInclusive<usize>, &RangeInclusive<usize>), bool> = HashMap::new();
             for (interval1, interval2) in iproduct!(intervals.keys(), intervals.keys()) {
                 let key = (interval1, interval2);
-                let overlap_indicator = interval1.contains(interval2.start()) | interval1.contains(interval2.end());
-                intervals_overlap_indicator.insert(key, overlap_indicator);
+                let start2_minus_one = if interval2.start() >= &1 {
+                    interval2.start() - 1
+                } else {
+                    *interval2.start()
+                };
+                let overlap_indicator = interval1.contains(interval2.start()) |
+                    interval1.contains(&start2_minus_one) |
+                    interval1.contains(interval2.end()) |
+                    interval1.contains(&(interval2.end() + 1) );
+                intervals_overlap_or_adjacent.insert(key, overlap_indicator);
             }
+            println!("Overlaps: {:?}", intervals_overlap_or_adjacent);
             // Define problem and objective sense
             let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
 
@@ -175,7 +184,7 @@ impl Caller<'_> {
                     interval_loh_indicator_without_ci.remove(current_interval);
                     interval_loh_indicator_without_ci.iter()
                         .map(|(&interval, loh_indicator)| {
-                            let interval_overlaps: i32 = if *intervals_overlap_indicator.get(&(current_interval, interval)).unwrap() {
+                            let interval_overlaps: i32 = if *intervals_overlap_or_adjacent.get(&(current_interval, interval)).unwrap() {
                                 1
                             } else {
                                 0
@@ -210,7 +219,7 @@ impl Caller<'_> {
             assert!(result.is_ok(), result.unwrap_err());
             let (status, results) = result.unwrap();
 
-            debug!("Status: {:?}", status);
+            println!("Status: {:?}", status);
             for (var_name, var_value) in &results {
                 let split: Vec<_> = var_name.split("_").collect();
                 let start_index: usize = split[1].parse()?;
@@ -309,6 +318,7 @@ fn log_prob_loh_or_germ_hom(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn test_log_prob_loh_or_germ_hom() {
@@ -343,6 +353,7 @@ mod tests {
     fn test_loh_caller() {
         let test_input = PathBuf::from("tests/resources/test_loh/loh_no_loh.bcf");
         let test_output = PathBuf::from("tests/resources/test_loh/loh_no_loh.out.bed");
+        let expected_bed : Vec<u8> = Vec::from("chr8\t249133\t249134\t\t0.0000006369450033776132\n");
         let alpha = 0.2;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input).unwrap()
@@ -352,7 +363,26 @@ mod tests {
             .unwrap();
 
         caller.call().unwrap();
-        assert!(false);
+        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
+        assert_eq!( expected_bed, produced_bed );
+    }
+
+    #[test]
+    fn test_uninteresing_between_no_loh() {
+        let test_input = PathBuf::from("tests/resources/test_loh/no_het_between_no_loh.bcf");
+        let test_output = PathBuf::from("tests/resources/test_loh/no_het_between_no_loh.out.bed");
+        let expected_bed : Vec<u8> = Vec::from("chr8\t249133\t249134\t\t0.0000006369450033776132\n");
+        let alpha = 0.01;
+        let mut caller = CallerBuilder::default()
+            .bcf(&test_input).unwrap()
+            .bed_path(&test_output)
+            .add_and_check_alpha(alpha).unwrap()
+            .build()
+            .unwrap();
+
+        caller.call().unwrap();
+        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
+        assert_eq!( expected_bed, produced_bed );
     }
 
     #[test]
