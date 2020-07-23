@@ -5,11 +5,12 @@
 
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use itertools::iproduct;
-use bio::stats::{LogProb, Prob};
+use bio::stats::{LogProb, Prob, PHREDProb};
+use bio::io::bed;
 use derive_builder::Builder;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
@@ -19,21 +20,20 @@ use lp_modeler::solvers::{CbcSolver, SolverTrait};
 use lp_modeler::format::lp_format::LpFileFormat;
 
 use crate::utils::info_phred_to_log_prob;
-use std::cmp::max;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub(crate) struct Caller {
+pub(crate) struct Caller<'a> {
     #[builder(private)]
     bcf_reader: bcf::IndexedReader,
-    #[builder(private)]
-    bcf_writer: bcf::Writer,
+    bed_path: &'a PathBuf,
     #[builder(private)]
     contig_lens: HashMap<u32, usize>,
+    #[builder(private)]
     alpha: Prob
 }
 
-impl CallerBuilder {
+impl CallerBuilder<'_> {
 
     /// Add alpha value for false discovery rate control of loss-of-heterozygosity calls
     pub(crate) fn add_and_check_alpha(mut self, alpha: f64) -> Result<Self> {
@@ -48,48 +48,86 @@ impl CallerBuilder {
         }
     }
 
-    pub(crate) fn bcfs<P: AsRef<Path>>(mut self, in_path: P, out_path: Option<P>) -> Result<Self> {
+//    pub(crate) fn bed<W, P: AsRef<Path>>(mut self, out_path: Option<P>) -> Result<Self> {
+//        self.bed_writer: W =
+//            if let Some(path) = out_path {
+//                bed::Writer::to_file(path)?
+//            } else {
+//                bed::Writer::new(std::io::stdout())
+//            };
+//        Ok(self)
+//    }
+
+    pub(crate) fn bcf<P: AsRef<Path>>(mut self, in_path: P) -> Result<Self> {
         self = self.bcf_reader( bcf::IndexedReader::from_path( in_path )? );
 
         let bcf_reader = self.bcf_reader.as_ref().unwrap();
 
-        let mut header = bcf::Header::new();
-        for sample in bcf_reader.header().samples() {
-            header.push_sample(sample);
-        }
-
-        header.push_record(
-            "##INFO=<ID=LOHEND,Number=1,Type=Integer,Description=\"Last variant position supporting loss-of-heterozygosity region.\">"
-                .as_bytes(),
-        );
-
         let mut contig_lens = HashMap::new();
-        // register sequences
+        // collect reference sequences / contigs
         for rec in bcf_reader.header().header_records() {
             if let bcf::header::HeaderRecord::Contig { values, .. } = rec {
                 let name = values.get("ID").unwrap();
                 let len = values.get("length").unwrap();
                 contig_lens.insert(bcf_reader.header().name2rid( name.as_bytes() )?, len.parse()?);
-                header.push_record(format!("##contig=<ID={},length={}>", name, len).as_bytes());
             }
         }
 
         self = self.contig_lens(contig_lens);
 
-        Ok(self.bcf_writer(if let Some(path) = out_path {
-            bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)?
-        } else {
-            bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?
-        }))
+        Ok(self)
     }
 }
 
 
-impl Caller {
-    pub(crate) fn call(&mut self) -> Result<()> {
-        let contig_ids: Vec<u32> = self.contig_lens.keys().cloned().collect();
-        for contig_id in contig_ids {
+impl Caller<'_> {
+//    pub(crate) fn new<P: AsRef<Path>>(in_path: P, out_path: Option<P>, alpha: f64) -> Result<Self> {
+//        let mut alpha_checked: Prob;
+//        match Prob::checked(alpha) {
+//            Ok(correct_alpha) => {
+//                alpha_checked = correct_alpha;
+//            }
+//            Err(_err) => {
+//                panic!("Incorrect alpha specified: {}. Must be 0 <= alpha <= 1].", alpha);
+//            }
+//        }
+//
+//        let bed_writer : bed::Writer<dyn io::Write> = match out_path {
+//            Some(path) => bed::Writer::to_file(path)?,
+//            None => bed::Writer::new(io::stdout())
+//            };
+//
+//        let bcf_reader = bcf::IndexedReader::from_path( in_path )?;
+//
+////        let read_bcf_header = bcf_reader.as_ref().unwrap();
+//
+//        let mut contig_lens = HashMap::new();
+//        // register sequences
+//        for rec in bcf_reader.header().header_records() {
+//            if let bcf::header::HeaderRecord::Contig { values, .. } = rec {
+//                let name = values.get("ID").unwrap();
+//                let len = values.get("length").unwrap();
+//                contig_lens.insert(bcf_reader.header().name2rid( name.as_bytes() )?, len.parse()?);
+//            }
+//        }
+//
+//        Ok(
+//            Caller {
+//                bcf_reader: bcf_reader,
+//                bed_writer: bed_writer,
+//                contig_lens: contig_lens,
+//                alpha: alpha_checked,
+//            }
+//        )
+//    }
 
+    pub(crate) fn call(&mut self) -> Result<()> {
+        let mut bed_writer = bed::Writer::to_file(self.bed_path)?;
+        let contig_ids: Vec<u32> = self.contig_lens.keys().cloned().collect();
+        let mut bed_record = bed::Record::new();
+        for contig_id in contig_ids {
+            let contig_name = String::from_utf8_lossy(self.bcf_reader.header().rid2name(contig_id)?);
+            bed_record.set_chrom(&contig_name);
             // Problem Data
             let contig: ContigLOHProbs;
             if let Some(contig_length) = self.contig_lens.get(&contig_id) {
@@ -161,7 +199,9 @@ impl Caller {
             };
             problem += selected_probs_vec.sum().le(0);
 
-            problem.write_lp("problem.lp");
+            #[cfg(debug_assertions)]
+            problem.write_lp("problem.lp")?;
+
             // Specify solver
             let solver = CbcSolver::new();
             let result = solver.run(&problem);
@@ -170,15 +210,26 @@ impl Caller {
             assert!(result.is_ok(), result.unwrap_err());
             let (status, results) = result.unwrap();
 
-            // Print output
             debug!("Status: {:?}", status);
             for (var_name, var_value) in &results {
-                let int_var_value = *var_value as u32;
+                let split: Vec<_> = var_name.split("_").collect();
+                let start_index: usize = split[1].parse()?;
+                let end_index: usize = split[2].parse()?;
+                let int_var_value= *var_value as u32;
                 if int_var_value == 1 {
                     println!("{} = {}", var_name, int_var_value);
+                    let score = f64::from(
+                        PHREDProb::from(
+                            *( intervals.get(&(start_index..=end_index)).unwrap() )
+                        )
+                    ).to_string();
+                    // Write result to bed
+                    bed_record.set_start(contig.positions[start_index] - 1);
+                    bed_record.set_end(contig.positions[end_index]);
+                    bed_record.set_score(score.as_str());
+                    bed_writer.write(&bed_record)?;
                 }
             }
-            // Write result to bcf
         }
         Ok(())
     }
@@ -190,6 +241,7 @@ pub(crate) struct ContigLOHProbs {
     contig_id: u32,
     contig_length: usize,
     cum_log_prob_loh: Vec<LogProb>,
+    positions: Vec<u64>,
 }
 
 impl ContigLOHProbs {
@@ -200,20 +252,24 @@ impl ContigLOHProbs {
     ) -> Result<ContigLOHProbs> {
         let mut record = bcf_reader.empty_record();
         let mut cum_log_prob_loh = Vec::with_capacity(*contig_length);
+        let mut positions = Vec::with_capacity(*contig_length);
         bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
         if bcf_reader.read(&mut record)? {
             cum_log_prob_loh.push(log_prob_loh_or_germ_hom(&mut record));
+            positions.push(record.pos() as u64);
         }
         // cumulatively add the following LOH probabilities
         while bcf_reader.read(&mut record)? {
             cum_log_prob_loh.push(cum_log_prob_loh.last().unwrap() + log_prob_loh_or_germ_hom(&mut record));
+            positions.push(record.pos() as u64);
         }
         Ok(
             ContigLOHProbs {
                 contig_id: *contig_id,
                 contig_length: *contig_length,
                 cum_log_prob_loh: cum_log_prob_loh,
+                positions: positions,
             }
         )
     }
@@ -250,10 +306,9 @@ fn log_prob_loh_or_germ_hom(
     (log_prob_germline_het + log_prob_loh).ln_add_exp( log_prob_germline_het.ln_one_minus_exp() )
 }
 
-//#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::{Path, PathBuf};
 
     #[test]
     fn test_log_prob_loh_or_germ_hom() {
@@ -287,15 +342,16 @@ mod tests {
     #[test]
     fn test_loh_caller() {
         let test_input = PathBuf::from("tests/resources/test_loh/loh_no_loh.bcf");
-        let test_output = Some(PathBuf::from("tests/resources/test_loh/loh_no_loh.out.bcf"));
+        let test_output = PathBuf::from("tests/resources/test_loh/loh_no_loh.out.bed");
         let alpha = 0.2;
         let mut caller = CallerBuilder::default()
-            .bcfs(&test_input, test_output.as_ref()).unwrap()
+            .bcf(&test_input).unwrap()
+            .bed_path(&test_output)
             .add_and_check_alpha(alpha).unwrap()
             .build()
             .unwrap();
 
-        caller.call();
+        caller.call().unwrap();
         assert!(false);
     }
 

@@ -300,10 +300,11 @@ pub enum CallKind {
         calls: PathBuf,
         #[structopt(
             parse(from_os_str),
+            required = true,
             long,
-            help = "BCF file to write results to (if omitted, write to STDOUT)."
+            help = "BED file to write results to."
         )]
-        output: Option<PathBuf>,
+        output: PathBuf,
         #[structopt(
             long,
             short = "a",
@@ -768,7 +769,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     alpha,
                 } => {
                     let mut caller = calling::loh::CallerBuilder::default()
-                        .bcfs(&calls, output.as_ref())?
+                        .bcf(&calls)?
+                        .bed_path(&output)
                         .add_and_check_alpha(alpha)?
                         .build()
                         .unwrap();
