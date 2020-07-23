@@ -302,7 +302,8 @@ pub enum CallKind {
             parse(from_os_str),
             required = true,
             long,
-            help = "BED file to write results to."
+            help = "BED file to write results to. Each line contains 'ref_seq    start(0-based)  end(1-based)        score' \
+                    where the score is the PHRED-scaled cumulative loss-of-heterozygosity probability of the interval."
         )]
         output: PathBuf,
         #[structopt(

@@ -3,7 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 
@@ -79,9 +79,9 @@ impl Caller<'_> {
             let contig_name = String::from_utf8_lossy(self.bcf_reader.header().rid2name(contig_id)?);
             bed_record.set_chrom(&contig_name);
             // Problem Data
-            let contig: ContigLOHProbs;
+            let contig: ContigLogProbsLOH;
             if let Some(contig_length) = self.contig_lens.get(&contig_id) {
-                contig = ContigLOHProbs::new(&mut self.bcf_reader, &contig_id, contig_length)?;
+                contig = ContigLogProbsLOH::new(&mut self.bcf_reader, &contig_id, contig_length)?;
             } else {
                 panic!(
                     "This should not have happened: cannot find contig_id '{}'.",
@@ -103,7 +103,6 @@ impl Caller<'_> {
                     interval1.contains(&(interval2.end() + 1) );
                 intervals_overlap_or_adjacent.insert(key, overlap_indicator);
             }
-            println!("Overlaps: {:?}", intervals_overlap_or_adjacent);
             // Define problem and objective sense
             let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
 
@@ -122,7 +121,46 @@ impl Caller<'_> {
                 interval_loh_indicator.iter()
                     .map(|(&interval, loh_indicator)| {
                         let interval_length = (interval.end() - interval.start() + 1) as i32;
-                        interval_length * loh_indicator
+                        let log_probs = intervals.get(&interval).unwrap();
+                        let probs_diff_f32 = if log_probs.loh > log_probs.no_loh {
+                            f64::from(
+                                Prob::from(
+                                    log_probs.loh.ln_sub_exp(log_probs.no_loh)
+                                )
+                            ) as f32
+                        } else {
+                            - f64::from(
+                                Prob::from(
+                                    log_probs.no_loh.ln_sub_exp(log_probs.loh)
+                                )
+                            ) as f32
+                        };
+//                        // anything.abs() < 0.00001 is considered zero by lp-modeler:
+//                        // https://github.com/jcavat/rust-lp-modeler/blob/bf2dce88ee035f46b23e3019b653fe84ffa3316a/src/util.rs#L1-L3
+//                        let lp_modeler_min_f32 = 0.00001;
+//                        let probs_diff_f32 = if probs_diff_f64.abs() < lp_modeler_min_f32 {
+//                            if log_probs.loh > log_probs.no_loh {
+//                                lp_modeler_min_f32 as f32
+//                            } else if log_probs.loh < log_probs.no_loh{
+//                                - lp_modeler_min_f32 as f32
+//                            } else {
+//                                0.0 as f32
+//                            }
+//                        } else {
+//                            probs_diff_f64 as f32
+//                        };
+                        #[cfg(debug_assertions)]
+                        println!("interval: {:?}, probs_diff_f32: {}",
+                            interval, probs_diff_f32
+                        );
+//                        let loh = f64::from(
+//                            Prob::from( log_probs.loh )
+//                        ) as f32;
+//                        let no_loh = f64::from(
+//                            Prob::from( log_probs.no_loh )
+//                        ) as f32;
+                        probs_diff_f32 * interval_length as f32 * loh_indicator
+//                        interval_length * loh_indicator
                     }).collect()
             };
             problem += selected_lengths_vec.sum();
@@ -151,7 +189,12 @@ impl Caller<'_> {
             let selected_probs_vec: Vec<LpExpression> = {
                 interval_loh_indicator.iter()
                     .map(|(&interval, loh_indicator)| {
-                        let interval_prob_no_loh = f64::from( Prob::from(intervals.get(&interval).unwrap().ln_one_minus_exp() ) ) as f32;
+                        let interval_prob_no_loh = f64::from(
+                            Prob::from(
+                                intervals.get(&interval).unwrap().loh.ln_one_minus_exp()
+                            )
+                        ) as f32;
+                        #[cfg(debug_assertions)]
                         println!("interval: {:?}, interval_prob_no_loh: {}", interval, interval_prob_no_loh);
                         (interval_prob_no_loh - f64::from(self.alpha) as f32) * loh_indicator
                     }).collect()
@@ -159,7 +202,7 @@ impl Caller<'_> {
             problem += selected_probs_vec.sum().le(0);
 
             #[cfg(debug_assertions)]
-            problem.write_lp("problem.lp")?;
+            problem.write_lp("tests/resources/test_loh/problem.lp")?;
 
             // Specify solver
             let solver = CbcSolver::new();
@@ -169,65 +212,83 @@ impl Caller<'_> {
             assert!(result.is_ok(), result.unwrap_err());
             let (status, results) = result.unwrap();
 
+            #[cfg(debug_assertions)]
             println!("Status: {:?}", status);
+            let mut sorted_records: BTreeMap<u64, bed::Record> = BTreeMap::new();
             for (var_name, var_value) in &results {
                 let split: Vec<_> = var_name.split("_").collect();
                 let start_index: usize = split[1].parse()?;
                 let end_index: usize = split[2].parse()?;
                 let int_var_value= *var_value as u32;
                 if int_var_value == 1 {
+                    #[cfg(debug_assertions)]
                     println!("{} = {}", var_name, int_var_value);
                     let score = f64::from(
                         PHREDProb::from(
-                            *( intervals.get(&(start_index..=end_index)).unwrap() )
+                            intervals.get(&(start_index..=end_index)).unwrap().loh
                         )
                     ).to_string();
                     // Write result to bed
-                    bed_record.set_start(contig.positions[start_index] - 1);
-                    bed_record.set_end(contig.positions[end_index]);
+                    bed_record.set_start(contig.positions[start_index]); // 0-based as in bcf::Record::pos()
+                    bed_record.set_end(contig.positions[end_index] + 1); // 1-based
                     bed_record.set_score(score.as_str());
-                    bed_writer.write(&bed_record)?;
+                    sorted_records.insert( bed_record.start(), bed_record.clone());
                 }
+            }
+            for (_, record ) in sorted_records {
+                bed_writer.write(&record)?;
             }
         }
         Ok(())
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct LogProbsLOHnoLOH {
+    loh: LogProb,
+    no_loh: LogProb
+}
 
 #[derive(Debug) ]
-pub(crate) struct ContigLOHProbs {
+pub(crate) struct ContigLogProbsLOH {
     contig_id: u32,
     contig_length: usize,
-    cum_log_prob_loh: Vec<LogProb>,
+    cum_loh: Vec<LogProb>,
+    cum_no_loh: Vec<LogProb>,
     positions: Vec<u64>,
 }
 
-impl ContigLOHProbs {
+impl ContigLogProbsLOH {
     pub(crate) fn new(
         bcf_reader: &mut bcf::IndexedReader,
         contig_id: &u32,
         contig_length: &usize
-    ) -> Result<ContigLOHProbs> {
+    ) -> Result<ContigLogProbsLOH> {
         let mut record = bcf_reader.empty_record();
         let mut cum_log_prob_loh = Vec::with_capacity(*contig_length);
+        let mut cum_log_prob_no_loh = Vec::with_capacity(*contig_length);
         let mut positions = Vec::with_capacity(*contig_length);
         bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
         if bcf_reader.read(&mut record)? {
-            cum_log_prob_loh.push(log_prob_loh_or_germ_hom(&mut record));
+            let log_probs = log_probs_loh_no_loh(&mut record);
+            cum_log_prob_loh.push(log_probs.loh);
+            cum_log_prob_no_loh.push(log_probs.no_loh);
             positions.push(record.pos() as u64);
         }
         // cumulatively add the following LOH probabilities
         while bcf_reader.read(&mut record)? {
-            cum_log_prob_loh.push(cum_log_prob_loh.last().unwrap() + log_prob_loh_or_germ_hom(&mut record));
+            let log_probs = log_probs_loh_no_loh(&mut record);
+            cum_log_prob_loh.push(cum_log_prob_loh.last().unwrap() + log_probs.loh);
+            cum_log_prob_no_loh.push(cum_log_prob_no_loh.last().unwrap() + log_probs.no_loh);
             positions.push(record.pos() as u64);
         }
         Ok(
-            ContigLOHProbs {
+            ContigLogProbsLOH {
                 contig_id: *contig_id,
                 contig_length: *contig_length,
-                cum_log_prob_loh: cum_log_prob_loh,
+                cum_loh: cum_log_prob_loh,
+                cum_no_loh: cum_log_prob_no_loh,
                 positions: positions,
             }
         )
@@ -235,18 +296,24 @@ impl ContigLOHProbs {
 
     pub(crate) fn create_all_intervals(
         &self
-    ) -> HashMap<RangeInclusive<usize>, LogProb> {
+    ) -> HashMap<RangeInclusive<usize>, LogProbsLOHnoLOH> {
         let mut intervals= HashMap::new();
-        for start in 0..self.cum_log_prob_loh.len() {
-            for end in start..self.cum_log_prob_loh.len() {
-                let start_log_prob = if start > 0 {
-                    self.cum_log_prob_loh[ (start - 1) as usize ]
+        for start in 0..self.cum_loh.len() {
+            for end in start..self.cum_loh.len() {
+                let ( start_log_prob_loh, start_log_prob_no_loh ) = if start > 0 {
+                    (
+                        self.cum_loh[ (start - 1) as usize ],
+                        self.cum_no_loh[ (start - 1) as usize ]
+                    )
                 } else {
-                    LogProb::ln_one()
+                    ( LogProb::ln_one(), LogProb::ln_one() )
                 };
                 intervals.insert(
                     start..=end,
-                    self.cum_log_prob_loh[ end as usize ] - start_log_prob
+                    LogProbsLOHnoLOH {
+                        loh: self.cum_loh[end as usize] - start_log_prob_loh,
+                        no_loh: self.cum_no_loh[end as usize] - start_log_prob_no_loh,
+                    }
                 );
             }
         }
@@ -254,15 +321,20 @@ impl ContigLOHProbs {
     }
 }
 
-fn log_prob_loh_or_germ_hom(
+fn log_probs_loh_no_loh(
     record: &mut bcf::Record,
-) -> LogProb {
+) -> LogProbsLOHnoLOH {
     let log_prob_loh = info_phred_to_log_prob(record, &String::from("PROB_LOH") );
     let log_prob_no_loh = info_phred_to_log_prob(record, &String::from("PROB_NO_LOH") );
     let log_prob_germline_het = log_prob_loh
         .ln_add_exp(log_prob_no_loh)
         .cap_numerical_overshoot(0.000001);
-    (log_prob_germline_het + log_prob_loh).ln_add_exp( log_prob_germline_het.ln_one_minus_exp() )
+    let loh = (log_prob_germline_het + log_prob_loh).ln_add_exp( log_prob_germline_het.ln_one_minus_exp() );
+    let no_loh = (log_prob_germline_het + log_prob_no_loh).ln_add_exp( log_prob_germline_het.ln_one_minus_exp() );
+    LogProbsLOHnoLOH {
+        loh: loh,
+        no_loh: no_loh
+    }
 }
 
 #[cfg(test)]
@@ -271,13 +343,13 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn test_log_prob_loh_or_germ_hom() {
+    fn test_log_probs_loh_no_loh() {
         // set up test input
         let test_file = "tests/resources/test_loh/loh.bcf";
         let mut loh_calls = bcf::Reader::from_path(test_file).unwrap();
         let mut record = loh_calls.empty_record();
 
-        let log_probs = [
+        let log_probs_loh = [
             LogProb(-0.0000000001113695252626908),
             LogProb(-15.735129611157593),
             LogProb(-0.000026217939537273105),
@@ -289,11 +361,11 @@ mod tests {
 
         let mut index = 0;
         while loh_calls.read(&mut record).unwrap() {
-            let log_prob = log_prob_loh_or_germ_hom(&mut record);
-            println!("LogProb: {:?}, Prob: {:?}", log_prob, Prob::from(log_prob));
+            let log_probs = log_probs_loh_no_loh(&mut record);
+            println!("LogProb LOH: {:?}, Prob LOH`: {:?}", log_probs.loh, Prob::from(log_probs.loh));
             assert_eq!(
-                log_prob,
-                log_probs[index]
+                log_probs.loh,
+                log_probs_loh[index]
             );
             index += 1;
         }
@@ -303,7 +375,99 @@ mod tests {
     fn test_loh_caller() {
         let test_input = PathBuf::from("tests/resources/test_loh/loh_no_loh.bcf");
         let test_output = PathBuf::from("tests/resources/test_loh/loh_no_loh.out.bed");
-        let expected_bed : Vec<u8> = Vec::from("chr8\t249133\t249134\t\t0.0000006369450033776132\n");
+        let expected_bed : Vec<u8> = Vec::from("chr8\t249134\t249135\t\t0.0000006369450033776132\n");
+        let alpha = 0.2;
+        let mut caller = CallerBuilder::default()
+            .bcf(&test_input).unwrap()
+            .bed_path(&test_output)
+            .add_and_check_alpha(alpha).unwrap()
+            .build()
+            .unwrap();
+
+        caller.call().unwrap();
+        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
+        assert_eq!( expected_bed, produced_bed );
+    }
+
+    #[test]
+    fn test_slightly_loh_no_het_between_loh() {
+        let test_input = PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_loh.bcf");
+        let test_output = PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_loh.out.bed");
+        let expected_bed : Vec<u8> = Vec::from("chr8\t7999999\t8002000\t\t0.00022836455119424118\n");
+        let alpha = 0.01;
+        let mut caller = CallerBuilder::default()
+            .bcf(&test_input).unwrap()
+            .bed_path(&test_output)
+            .add_and_check_alpha(alpha).unwrap()
+            .build()
+            .unwrap();
+
+        caller.call().unwrap();
+        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
+        assert_eq!( expected_bed, produced_bed );
+    }
+
+    #[test]
+    fn test_slightly_no_loh_no_het_between_loh() {
+        let test_input = PathBuf::from("tests/resources/test_loh/slightly_no_loh_no_het_between_loh.bcf");
+        let test_output = PathBuf::from("tests/resources/test_loh/slightly_no_loh_no_het_between_loh.out.bed");
+        let expected_bed : Vec<u8> = Vec::from("chr8\t7999999\t8002000\t\t0.00022836753668196763\n");
+        let alpha = 0.01;
+        let mut caller = CallerBuilder::default()
+            .bcf(&test_input).unwrap()
+            .bed_path(&test_output)
+            .add_and_check_alpha(alpha).unwrap()
+            .build()
+            .unwrap();
+
+        caller.call().unwrap();
+        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
+        assert_eq!( expected_bed, produced_bed );
+    }
+
+    #[test]
+    fn test_slightly_loh_no_het_between_no_loh() {
+        let test_input = PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_no_loh.bcf");
+        let test_output = PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_no_loh.out.bed");
+        let expected_bed : Vec<u8> = vec![];
+        let alpha = 0.01;
+        let mut caller = CallerBuilder::default()
+            .bcf(&test_input).unwrap()
+            .bed_path(&test_output)
+            .add_and_check_alpha(alpha).unwrap()
+            .build()
+            .unwrap();
+
+        caller.call().unwrap();
+        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
+        assert_eq!( expected_bed, produced_bed );
+    }
+
+    #[test]
+    fn test_medium_no_loh_no_het_between_loh() {
+        let test_input = PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.bcf");
+        let test_output = PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.out.bed");
+        let expected_bed : Vec<u8> = Vec::from(
+            "chr8\t7999999\t8000000\t\t0.00011386306467910803\nchr8\t8001999\t8002000\t\t0.0000006369450033776132\n"
+        );
+        let alpha = 0.05;
+        let mut caller = CallerBuilder::default()
+            .bcf(&test_input).unwrap()
+            .bed_path(&test_output)
+            .add_and_check_alpha(alpha).unwrap()
+            .build()
+            .unwrap();
+
+        caller.call().unwrap();
+        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
+        assert_eq!( expected_bed, produced_bed );
+    }
+
+    #[test]
+    fn test_medium_loh_no_het_between_no_loh() {
+        let test_input = PathBuf::from("tests/resources/test_loh/medium_loh_no_het_between_no_loh.bcf");
+        let test_output = PathBuf::from("tests/resources/test_loh/medium_loh_no_het_between_no_loh.out.bed");
+        let expected_bed : Vec<u8> = Vec::from("chr8\t8000999\t8001000\t\t0.798912553509115\n");
         let alpha = 0.2;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input).unwrap()
@@ -321,7 +485,7 @@ mod tests {
     fn test_uninteresing_between_no_loh() {
         let test_input = PathBuf::from("tests/resources/test_loh/no_het_between_no_loh.bcf");
         let test_output = PathBuf::from("tests/resources/test_loh/no_het_between_no_loh.out.bed");
-        let expected_bed : Vec<u8> = Vec::from("chr8\t249133\t249134\t\t0.0000006369450033776132\n");
+        let expected_bed : Vec<u8> = Vec::from("chr8\t7999999\t8001000\t\t0.00022772612935821607\n");
         let alpha = 0.01;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input).unwrap()
@@ -341,7 +505,7 @@ mod tests {
         let mut loh_calls = bcf::IndexedReader::from_path(test_input).unwrap();
         let contig_id = loh_calls.header().name2rid( b"chr8" ).unwrap();
         let contig_length = 145138636;
-        let loh_probs = ContigLOHProbs::new(&mut loh_calls, &contig_id, &contig_length).unwrap();
+        let loh_probs = ContigLogProbsLOH::new(&mut loh_calls, &contig_id, &contig_length).unwrap();
 
         assert_eq!(
             loh_probs.contig_length,
@@ -351,31 +515,31 @@ mod tests {
             loh_probs.contig_id,
             0
         );
-        for log_prob in loh_probs.cum_log_prob_loh.clone() {
+        for log_prob in loh_probs.cum_loh.clone() {
             println!("contig '{:?}' (length '{:?}'), cum_log_prob_loh: '{:?}'", loh_probs.contig_id, loh_probs.contig_length, log_prob);
         }
         assert_eq!(
-            loh_probs.cum_log_prob_loh.last().unwrap(),
+            loh_probs.cum_loh.last().unwrap(),
             &LogProb(-23.492805404428065)
         );
 
         let intervals = loh_probs.create_all_intervals();
         assert_eq!(
-            intervals.get( &(0..=4) ).unwrap(),
-            &LogProb(-15.735208703937852)
+            intervals.get( &(0..=4) ).unwrap().loh,
+            LogProb(-15.735208703937852)
         );
         assert_eq!(
-            intervals.get( &(0..=0) ).unwrap(),
-            &LogProb(-0.0000000001113695252626908)
+            intervals.get( &(0..=0) ).unwrap().loh,
+            LogProb(-0.0000000001113695252626908)
         );
         assert_relative_eq!(
-            f64::from( *intervals.get( &(4..=4) ).unwrap() ),
-            &(-0.000026218615627557916 as f64),
+            f64::from( *intervals.get( &(4..=4) ).unwrap().loh ),
+            (-0.000026218615627557916 as f64),
             epsilon = 0.000000000000001
         );
         assert_relative_eq!(
-            f64::from( *intervals.get( &(1..=4) ).unwrap() ),
-            &(-15.73520870382648 as f64),
+            f64::from( *intervals.get( &(1..=4) ).unwrap().loh ),
+            (-15.73520870382648 as f64),
             epsilon = 0.0000000000001
         );
     }
