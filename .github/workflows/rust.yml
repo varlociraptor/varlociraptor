@@ -64,6 +64,8 @@ jobs:
           channels: conda-forge,defaults
           activate-environment: coincbc
           environment-file: .github/workflows/envs/coincbc.yaml
+      - shell: bash -l {0}
+        run: conda activate coincbc
 
       - name: Install system dependencies
         run: |
