@@ -56,20 +56,9 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Install CBC-coin
-        uses: goanpeca/setup-miniconda@v1
-        with:
-          python-version: 3.7
-          mamba-version: "0.4"
-          channels: conda-forge,defaults
-          activate-environment: coincbc
-          environment-file: .github/workflows/envs/coincbc.yaml
-      - shell: bash -l {0}
-        run: conda activate coincbc
-
       - name: Install system dependencies
         run: |
-            sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools
+            sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools coinor-cbc
 
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
