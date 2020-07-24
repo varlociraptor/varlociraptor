@@ -313,7 +313,7 @@ pub enum CallKind {
             help = "False discovery rate to control loss-of-heterozygosity regions for."
         )]
         alpha: f64,
-        },
+    },
     // #[structopt(
     //     name = "cnvs",
     //     about = "Call CNVs in tumor-normal sample pairs. This is experimental (do not use it yet).",
@@ -763,7 +763,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             call_generic(scenario, observations)?;
                         }
                     }
-                },
+                }
                 CallKind::LOH {
                     calls,
                     output,
@@ -776,8 +776,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         .build()
                         .unwrap();
                     caller.call()?;
-                }
-                  // CallKind::CNVs {
+                } // CallKind::CNVs {
                   //     calls,
                   //     output,
                   //     min_bayes_factor,
