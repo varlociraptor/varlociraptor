@@ -1,0 +1,4 @@
+channels:
+  - conda-forge
+dependencies:
+  - coincbc ==2.10
