@@ -1,3 +1,4 @@
+name: coincbc
 channels:
   - conda-forge
 dependencies:
