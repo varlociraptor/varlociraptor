@@ -63,7 +63,7 @@ jobs:
           mamba-version: "0.4"
           channels: conda-forge,defaults
           activate-environment: coincbc
-          environment-file: envs/coincbc.yml
+          environment-file: .github/workflows/envs/coincbc.yml
 
       - name: Install system dependencies
         run: |
