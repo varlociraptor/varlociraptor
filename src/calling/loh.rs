@@ -123,11 +123,10 @@ impl Caller<'_> {
                 .collect();
 
             // Define Objective Function: maximise length of selected LOH regions
-            let selected_lengths_vec: Vec<LpExpression> = {
+            let contig_log_prob: Vec<LpExpression> = {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
-//                        let interval_length = (interval.end() - interval.start() + 1) as i32;
                         let log_probs = intervals.get(&interval).unwrap();
                         let loh = NotNan::from(log_probs.loh);
                         let no_loh = NotNan::from(log_probs.no_loh);
@@ -136,32 +135,19 @@ impl Caller<'_> {
                         if loh > no_loh {
                             abs_log_probs_diff = loh - no_loh;
                             log_diffs = abs_log_probs_diff.into_inner() as f32;
-                            println!("abs_log_probs_diff: {:?}; log_diffs: {}", abs_log_probs_diff, log_diffs);
                         } else if loh < no_loh {
                             abs_log_probs_diff = no_loh - loh;
                             log_diffs = - abs_log_probs_diff.into_inner() as f32;
-                            println!("abs_log_probs_diff: {:?}; log_diffs: {}", abs_log_probs_diff, log_diffs);
                         } else {
                             log_diffs = 0 as f32;
-                            println!("log_diffs: {}", log_diffs);
                         };
 
-//                        let probs_diff_f32 = if log_probs.loh >= log_probs.no_loh {
-//                            f64::from(Prob::from(log_probs.loh.ln_sub_exp(log_probs.no_loh))) as f32
-//                        } else {
-//                            -f64::from(Prob::from(log_probs.no_loh.ln_sub_exp(log_probs.loh))) as f32
-//                        };
-//                        #[cfg(debug_assertions)]
-//                        println!(
-//                            "interval: {:?}, probs_diff_f32: {}",
-//                            interval, probs_diff_f32
-//                        );
-//                        probs_diff_f32 * interval_length as f32 * loh_indicator
-                        log_diffs as f32 * loh_indicator
+                        debug!("{:?} log_diffs: {}", interval, log_diffs);
+                        log_diffs * loh_indicator
                     })
                     .collect()
             };
-            problem += selected_lengths_vec.sum();
+            problem += contig_log_prob.sum();
 
             // Constraint: no overlapping intervals for selected intervals
             for (current_interval, _) in &intervals {
@@ -195,8 +181,7 @@ impl Caller<'_> {
                         let interval_prob_no_loh = f64::from(Prob::from(
                             intervals.get(&interval).unwrap().loh.ln_one_minus_exp(),
                         )) as f32;
-                        #[cfg(debug_assertions)]
-                        println!(
+                        debug!(
                             "interval: {:?}, interval_prob_no_loh: {}",
                             interval, interval_prob_no_loh
                         );
@@ -217,8 +202,7 @@ impl Caller<'_> {
             assert!(result.is_ok(), result.unwrap_err());
             let (status, results) = result.unwrap();
 
-            #[cfg(debug_assertions)]
-            println!("Status: {:?}", status);
+            debug!("Status: {:?}", status);
             let mut sorted_records: BTreeMap<u64, bed::Record> = BTreeMap::new();
             for (var_name, var_value) in &results {
                 let split: Vec<_> = var_name.split("_").collect();
@@ -226,8 +210,7 @@ impl Caller<'_> {
                 let end_index: usize = split[2].parse()?;
                 let int_var_value = *var_value as u32;
                 if int_var_value == 1 {
-                    #[cfg(debug_assertions)]
-                    println!("{} = {}", var_name, int_var_value);
+                    debug!("{} is selected", var_name);
                     let score = f64::from(PHREDProb::from(
                         intervals.get(&(start_index..=end_index)).unwrap().loh,
                     ))
