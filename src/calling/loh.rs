@@ -12,6 +12,7 @@ use bio::io::bed;
 use bio::stats::{LogProb, PHREDProb, Prob};
 use derive_builder::Builder;
 use itertools::iproduct;
+use ordered_float::NotNan;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
@@ -126,20 +127,37 @@ impl Caller<'_> {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
-                        let interval_length = (interval.end() - interval.start() + 1) as i32;
+//                        let interval_length = (interval.end() - interval.start() + 1) as i32;
                         let log_probs = intervals.get(&interval).unwrap();
-                        let probs_diff_f32 = if log_probs.loh >= log_probs.no_loh {
-                            f64::from(Prob::from(log_probs.loh.ln_sub_exp(log_probs.no_loh))) as f32
+                        let loh = NotNan::from(log_probs.loh);
+                        let no_loh = NotNan::from(log_probs.no_loh);
+                        let abs_log_probs_diff: NotNan<f64>;
+                        let log_diffs: f32;
+                        if loh > no_loh {
+                            abs_log_probs_diff = loh - no_loh;
+                            log_diffs = abs_log_probs_diff.into_inner() as f32;
+                            println!("abs_log_probs_diff: {:?}; log_diffs: {}", abs_log_probs_diff, log_diffs);
+                        } else if loh < no_loh {
+                            abs_log_probs_diff = no_loh - loh;
+                            log_diffs = - abs_log_probs_diff.into_inner() as f32;
+                            println!("abs_log_probs_diff: {:?}; log_diffs: {}", abs_log_probs_diff, log_diffs);
                         } else {
-                            -f64::from(Prob::from(log_probs.no_loh.ln_sub_exp(log_probs.loh)))
-                                as f32
+                            log_diffs = 0 as f32;
+                            println!("log_diffs: {}", log_diffs);
                         };
-                        #[cfg(debug_assertions)]
-                        println!(
-                            "interval: {:?}, probs_diff_f32: {}",
-                            interval, probs_diff_f32
-                        );
-                        probs_diff_f32 * interval_length as f32 * loh_indicator
+
+//                        let probs_diff_f32 = if log_probs.loh >= log_probs.no_loh {
+//                            f64::from(Prob::from(log_probs.loh.ln_sub_exp(log_probs.no_loh))) as f32
+//                        } else {
+//                            -f64::from(Prob::from(log_probs.no_loh.ln_sub_exp(log_probs.loh))) as f32
+//                        };
+//                        #[cfg(debug_assertions)]
+//                        println!(
+//                            "interval: {:?}, probs_diff_f32: {}",
+//                            interval, probs_diff_f32
+//                        );
+//                        probs_diff_f32 * interval_length as f32 * loh_indicator
+                        log_diffs as f32 * loh_indicator
                     })
                     .collect()
             };
