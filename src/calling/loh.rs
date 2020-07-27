@@ -137,7 +137,7 @@ impl Caller<'_> {
                             log_diffs = abs_log_probs_diff.into_inner() as f32;
                         } else if loh < no_loh {
                             abs_log_probs_diff = no_loh - loh;
-                            log_diffs = - abs_log_probs_diff.into_inner() as f32;
+                            log_diffs = -abs_log_probs_diff.into_inner() as f32;
                         } else {
                             log_diffs = 0 as f32;
                         };
