@@ -37,18 +37,8 @@ pub(crate) struct Caller<'a> {
 impl CallerBuilder<'_> {
     /// Add alpha value for false discovery rate control of loss-of-heterozygosity calls
     pub(crate) fn add_and_check_alpha(mut self, alpha: f64) -> Result<Self> {
-        match Prob::checked(alpha) {
-            Ok(correct_alpha) => {
-                self.alpha = Some(correct_alpha);
-                Ok(self)
-            }
-            Err(_err) => {
-                panic!(
-                    "Incorrect alpha specified: {}. Must be 0 <= alpha <= 1].",
-                    alpha
-                );
-            }
-        }
+        self.alpha = Some(Prob::checked(alpha)?);
+        Ok(self)
     }
 
     pub(crate) fn bcf<P: AsRef<Path>>(mut self, in_path: P) -> Result<Self> {
@@ -132,14 +122,12 @@ impl Caller<'_> {
                         let no_loh = NotNan::from(log_probs.no_loh);
                         let abs_log_probs_diff: NotNan<f64>;
                         let log_diffs: f32;
-                        if loh > no_loh {
+                        if loh >= no_loh {
                             abs_log_probs_diff = loh - no_loh;
                             log_diffs = abs_log_probs_diff.into_inner() as f32;
-                        } else if loh < no_loh {
+                        } else {
                             abs_log_probs_diff = no_loh - loh;
                             log_diffs = -abs_log_probs_diff.into_inner() as f32;
-                        } else {
-                            log_diffs = 0 as f32;
                         };
 
                         debug!("{:?} log_diffs: {}", interval, log_diffs);
@@ -150,7 +138,7 @@ impl Caller<'_> {
             problem += contig_log_prob.sum();
 
             // Constraint: no overlapping intervals for selected intervals
-            for (current_interval, _) in &intervals {
+            for current_interval in intervals.keys() {
                 let n_overlapping_selected: Vec<LpExpression> = {
                     let mut interval_loh_indicator_without_ci = interval_loh_indicator.clone();
                     interval_loh_indicator_without_ci.remove(current_interval);
@@ -205,7 +193,7 @@ impl Caller<'_> {
             debug!("Status: {:?}", status);
             let mut sorted_records: BTreeMap<u64, bed::Record> = BTreeMap::new();
             for (var_name, var_value) in &results {
-                let split: Vec<_> = var_name.split("_").collect();
+                let split: Vec<_> = var_name.split('_').collect();
                 let start_index: usize = split[1].parse()?;
                 let end_index: usize = split[2].parse()?;
                 let int_var_value = *var_value as u32;
@@ -275,7 +263,7 @@ impl ContigLogProbsLOH {
             contig_length: *contig_length,
             cum_loh: cum_log_prob_loh,
             cum_no_loh: cum_log_prob_no_loh,
-            positions: positions,
+            positions,
         })
     }
 
@@ -315,8 +303,8 @@ fn log_probs_loh_no_loh(record: &mut bcf::Record) -> LogProbsLOHnoLOH {
     let no_loh = (log_prob_germline_het + log_prob_no_loh)
         .ln_add_exp(log_prob_germline_het.ln_one_minus_exp());
     LogProbsLOHnoLOH {
-        loh: loh,
-        no_loh: no_loh,
+        loh,
+        no_loh,
     }
 }
 
