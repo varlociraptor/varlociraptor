@@ -81,7 +81,9 @@ impl Caller<'_> {
                     contig_id
                 )
             };
-            if contig.positions.is_empty() { continue; }
+            if contig.positions.is_empty() {
+                continue;
+            }
             let intervals = contig.create_all_intervals();
             let mut intervals_overlap_or_adjacent: HashMap<
                 (&RangeInclusive<usize>, &RangeInclusive<usize>),
