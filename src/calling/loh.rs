@@ -302,10 +302,7 @@ fn log_probs_loh_no_loh(record: &mut bcf::Record) -> LogProbsLOHnoLOH {
         (log_prob_germline_het + log_prob_loh).ln_add_exp(log_prob_germline_het.ln_one_minus_exp());
     let no_loh = (log_prob_germline_het + log_prob_no_loh)
         .ln_add_exp(log_prob_germline_het.ln_one_minus_exp());
-    LogProbsLOHnoLOH {
-        loh,
-        no_loh,
-    }
+    LogProbsLOHnoLOH { loh, no_loh }
 }
 
 #[cfg(test)]

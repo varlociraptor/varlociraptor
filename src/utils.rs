@@ -293,10 +293,7 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
 /// * `record` - reference to a `bcf::Record`
 /// * `info_field_name` - name of the PHRED-scaled INFO field
 ///
-pub(crate) fn info_phred_to_log_prob(
-    record: &mut bcf::Record,
-    info_field_name: &str,
-) -> LogProb {
+pub(crate) fn info_phred_to_log_prob(record: &mut bcf::Record, info_field_name: &str) -> LogProb {
     let pos = record.pos();
     match record.info(info_field_name.as_bytes()).float() {
         Ok(prob) => match prob {
