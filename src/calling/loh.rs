@@ -244,9 +244,9 @@ impl ContigLogProbsLOH {
         contig_length: &usize,
     ) -> Result<ContigLogProbsLOH> {
         let mut record = bcf_reader.empty_record();
-        let mut cum_log_prob_loh = Vec::with_capacity(*contig_length);
-        let mut cum_log_prob_no_loh = Vec::with_capacity(*contig_length);
-        let mut positions = Vec::with_capacity(*contig_length);
+        let mut cum_log_prob_loh = Vec::new();
+        let mut cum_log_prob_no_loh = Vec::new();
+        let mut positions = Vec::new();
         bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
         if bcf_reader.read(&mut record)? {
