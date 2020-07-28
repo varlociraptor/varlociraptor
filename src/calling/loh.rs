@@ -120,21 +120,22 @@ impl Caller<'_> {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
+                        let interval_length = (interval.end() - interval.start() + 1) as f64;
                         let log_probs = intervals.get(&interval).unwrap();
                         let loh = NotNan::from(log_probs.loh);
                         let no_loh = NotNan::from(log_probs.no_loh);
                         let abs_log_probs_diff: NotNan<f64>;
-                        let log_diffs: f32;
+                        let log_diffs_times_length: f32;
                         if loh >= no_loh {
                             abs_log_probs_diff = loh - no_loh;
-                            log_diffs = abs_log_probs_diff.into_inner() as f32;
+                            log_diffs_times_length = ( abs_log_probs_diff.into_inner() * interval_length ) as f32;
                         } else {
                             abs_log_probs_diff = no_loh - loh;
-                            log_diffs = -abs_log_probs_diff.into_inner() as f32;
+                            log_diffs_times_length = ( -abs_log_probs_diff.into_inner() * interval_length ) as f32;
                         };
 
-                        debug!("{:?} log_diffs: {}", interval, log_diffs);
-                        log_diffs * loh_indicator
+                        debug!("{:?} log_diffs: {}", interval, log_diffs_times_length);
+                        log_diffs_times_length * loh_indicator
                     })
                     .collect()
             };
