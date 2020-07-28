@@ -9,8 +9,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bio::io::bed;
+use bio::stats::bayesian::bayes_factors::{evidence, BayesFactor};
 use bio::stats::{LogProb, PHREDProb, Prob};
-use bio::stats::bayesian::bayes_factors::{BayesFactor, evidence};
 use derive_builder::Builder;
 use itertools::iproduct;
 use ordered_float::NotNan;
@@ -129,10 +129,12 @@ impl Caller<'_> {
                         let log_diffs_times_length: f32;
                         if loh >= no_loh {
                             abs_log_probs_diff = loh - no_loh;
-                            log_diffs_times_length = ( abs_log_probs_diff.into_inner() * interval_length ) as f32;
+                            log_diffs_times_length =
+                                (abs_log_probs_diff.into_inner() * interval_length) as f32;
                         } else {
                             abs_log_probs_diff = no_loh - loh;
-                            log_diffs_times_length = ( -abs_log_probs_diff.into_inner() * interval_length ) as f32;
+                            log_diffs_times_length =
+                                (-abs_log_probs_diff.into_inner() * interval_length) as f32;
                         };
 
                         debug!("{:?} log_diffs: {}", interval, log_diffs_times_length);
@@ -279,15 +281,17 @@ impl ContigLogProbsLOH {
                 let (prob_loh, prob_no_loh) = if start > 0 {
                     (
                         self.cum_loh[end as usize] - self.cum_loh[(start - 1) as usize],
-                        self.cum_no_loh[end as usize] - self.cum_no_loh[(start - 1) as usize]
+                        self.cum_no_loh[end as usize] - self.cum_no_loh[(start - 1) as usize],
                     )
                 } else {
                     (
                         self.cum_loh[end as usize] - LogProb::ln_one(),
-                        self.cum_no_loh[end as usize] - LogProb::ln_one()
+                        self.cum_no_loh[end as usize] - LogProb::ln_one(),
                     )
                 };
-                if BayesFactor::new(prob_loh, prob_no_loh).evidence_kass_raftery() != evidence::KassRaftery::None {
+                if BayesFactor::new(prob_loh, prob_no_loh).evidence_kass_raftery()
+                    != evidence::KassRaftery::None
+                {
                     intervals.insert(
                         start..=end,
                         LogProbsLOHnoLOH {
