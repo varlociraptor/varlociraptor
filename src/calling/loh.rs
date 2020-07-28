@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bio::io::bed;
 use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::stats::bayesian::bayes_factors::{BayesFactor, evidence};
 use derive_builder::Builder;
 use itertools::iproduct;
 use ordered_float::NotNan;
@@ -275,21 +276,26 @@ impl ContigLogProbsLOH {
         let mut intervals = HashMap::new();
         for start in 0..self.cum_loh.len() {
             for end in start..self.cum_loh.len() {
-                let (start_log_prob_loh, start_log_prob_no_loh) = if start > 0 {
+                let (prob_loh, prob_no_loh) = if start > 0 {
                     (
-                        self.cum_loh[(start - 1) as usize],
-                        self.cum_no_loh[(start - 1) as usize],
+                        self.cum_loh[end as usize] - self.cum_loh[(start - 1) as usize],
+                        self.cum_no_loh[end as usize] - self.cum_no_loh[(start - 1) as usize]
                     )
                 } else {
-                    (LogProb::ln_one(), LogProb::ln_one())
+                    (
+                        self.cum_loh[end as usize] - LogProb::ln_one(),
+                        self.cum_no_loh[end as usize] - LogProb::ln_one()
+                    )
                 };
-                intervals.insert(
-                    start..=end,
-                    LogProbsLOHnoLOH {
-                        loh: self.cum_loh[end as usize] - start_log_prob_loh,
-                        no_loh: self.cum_no_loh[end as usize] - start_log_prob_no_loh,
-                    },
-                );
+                if BayesFactor::new(prob_loh, prob_no_loh).evidence_kass_raftery() != evidence::KassRaftery::None {
+                    intervals.insert(
+                        start..=end,
+                        LogProbsLOHnoLOH {
+                            loh: prob_loh,
+                            no_loh: prob_no_loh,
+                        },
+                    );
+                }
             }
         }
         intervals
@@ -498,13 +504,15 @@ mod tests {
         );
 
         let intervals = loh_probs.create_all_intervals();
+        println!("intervals: {:?}", intervals);
+
         assert_eq!(
             intervals.get(&(0..=4)).unwrap().loh,
             LogProb(-15.735208703937852)
         );
         assert_eq!(
-            intervals.get(&(0..=0)).unwrap().loh,
-            LogProb(-0.0000000001113695252626908)
+            intervals.get(&(2..=2)).unwrap().no_loh,
+            LogProb(-10.549053988645685)
         );
         assert_relative_eq!(
             f64::from(*intervals.get(&(4..=4)).unwrap().loh),
