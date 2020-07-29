@@ -28,7 +28,6 @@ impl EditDistanceCalculation {
         128
     }
 
-
     /// Create new instance.
     ///
     /// # Arguments
@@ -63,18 +62,16 @@ impl EditDistanceCalculation {
         let mut best_dist = usize::max_value();
         let mut positions = Vec::new();
 
-        let mut handle_match = |pos, dist: usize| {
-            match dist.cmp(&best_dist) {
-                Ordering::Less => {
-                    positions.clear();
-                    positions.push(pos);
-                    best_dist = dist;
-                }
-                Ordering::Equal => {
-                    positions.push(pos);
-                }
-                Ordering::Greater => (),
+        let mut handle_match = |pos, dist: usize| match dist.cmp(&best_dist) {
+            Ordering::Less => {
+                positions.clear();
+                positions.push(pos);
+                best_dist = dist;
             }
+            Ordering::Equal => {
+                positions.push(pos);
+            }
+            Ordering::Greater => (),
         };
 
         match &self.myers {
@@ -82,7 +79,7 @@ impl EditDistanceCalculation {
                 for (pos, dist) in myers.find_all_end(ref_seq, self.read_seq_len as u8) {
                     handle_match(pos, dist as usize);
                 }
-            },
+            }
             Myers::Long(myers) => {
                 for (pos, dist) in myers.find_all_end(ref_seq, usize::max_value() - 64) {
                     handle_match(pos, dist);
