@@ -43,8 +43,8 @@ pub(crate) trait Realignable<'a> {
 
 #[derive(Clone)]
 pub(crate) struct Realigner {
-    pairhmm: PairHMM,
     gap_params: pairhmm::GapParams,
+    pairhmm: PairHMM,
     max_window: u64,
     ref_buffer: Arc<reference::Buffer>,
 }
@@ -56,9 +56,10 @@ impl Realigner {
         gap_params: pairhmm::GapParams,
         max_window: u64,
     ) -> Self {
+        let pairhmm = PairHMM::new(&gap_params);
         Realigner {
             gap_params,
-            pairhmm: PairHMM::new(),
+            pairhmm,
             max_window,
             ref_buffer,
         }
@@ -344,8 +345,8 @@ impl Realigner {
 
             // METHOD: Further, we run the HMM on a band around the best edit distance.
             self.pairhmm.prob_related(
-                &self.gap_params,
                 &allele_params,
+                &self.gap_params,
                 Some(hit.dist_upper_bound()),
             )
         }
