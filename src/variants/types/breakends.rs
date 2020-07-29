@@ -528,7 +528,8 @@ impl BreakendIndex {
             }
 
             if utils::is_bnd(&mut record)? {
-                if let Some(event) = record.info(b"EVENT").string()? {
+                // TODO support records without EVENT tag.
+                if let Ok(Some(event)) = record.info(b"EVENT").string() {
                     let event = event[0];
                     last_records.insert(event.to_owned(), i);
                 }
