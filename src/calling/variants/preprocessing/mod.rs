@@ -65,7 +65,7 @@ impl ObservationProcessorBuilder {
                 .expect("You need to set reference before setting realignment parameters"),
         );
 
-        self.realigner(realignment::Realigner::new(ref_buffer, gap_params, window))
+        self.realigner(realignment::Realigner::new(ref_buffer, &gap_params, window))
     }
 
     pub(crate) fn outbcf<P: AsRef<Path>>(
