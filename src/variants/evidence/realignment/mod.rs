@@ -30,7 +30,9 @@ pub(crate) struct CandidateRegion {
 }
 
 pub(crate) trait Realignable<'a> {
-    type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission + AltEmissionProperties;
+    type EmissionParams: stats::pairhmm::EmissionParameters
+        + pairhmm::RefBaseEmission
+        + AltEmissionProperties;
 
     fn alt_emission_params(
         &self,
@@ -363,7 +365,6 @@ pub(crate) trait AltAlleleEmissionBuilder {
         ref_seq: &'a [u8],
     ) -> Self::EmissionParams;
 }
-
 
 pub(crate) trait AltEmissionProperties {
     fn maybe_revcomp(&self) -> bool;

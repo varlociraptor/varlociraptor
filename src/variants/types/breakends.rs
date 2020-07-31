@@ -4,12 +4,12 @@
 // except according to those terms.
 
 use std::cell::RefCell;
+use std::cmp;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
-use std::cmp;
 
 use anyhow::Result;
 use bio::alphabets::dna;
@@ -24,10 +24,12 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
-use crate::variants::evidence::realignment::{Realignable, Realigner, AltEmissionProperties};
+use crate::variants::evidence::realignment::{AltEmissionProperties, Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocusBuilder, Variant};
+use crate::variants::types::{
+    AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocusBuilder, Variant,
+};
 use crate::{default_emission, default_ref_base_emission};
 
 pub(crate) struct BreakendGroup {
@@ -59,7 +61,12 @@ impl BreakendGroup {
 
         self.breakends.insert(breakend.locus.clone(), breakend);
 
-        self.loci.push(SingleLocusBuilder::default().interval(interval).build().unwrap());
+        self.loci.push(
+            SingleLocusBuilder::default()
+                .interval(interval)
+                .build()
+                .unwrap(),
+        );
     }
 
     fn upstream_bnd(&self, locus: &genome::Locus) -> Option<&Breakend> {
@@ -91,14 +98,16 @@ impl BreakendGroup {
     }
 
     fn contained_breakend_indices(&self, ref_interval: &genome::Interval) -> Vec<usize> {
-        self
-            .breakends
+        self.breakends
             .keys()
             .enumerate()
             .filter_map(|(i, locus)| {
                 // TODO add genome::Interval::contains(genome::Locus) method to genome::Interval in bio-types.
-                // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9). 
-                if ref_interval.contig() == locus.contig() && locus.pos() >= ref_interval.range().start && locus.pos() < ref_interval.range().end {
+                // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9).
+                if ref_interval.contig() == locus.contig()
+                    && locus.pos() >= ref_interval.range().start
+                    && locus.pos() < ref_interval.range().end
+                {
                     Some(i)
                 } else {
                     None
@@ -108,13 +117,15 @@ impl BreakendGroup {
     }
 
     fn contained_breakends(&self, ref_interval: &genome::Interval) -> Vec<&Breakend> {
-        self
-            .breakends
+        self.breakends
             .iter()
             .filter_map(|(locus, bnd)| {
                 // TODO add genome::Interval::contains(genome::Locus) method to genome::Interval in bio-types.
                 // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9).
-                if ref_interval.contig() == locus.contig() && locus.pos() >= ref_interval.range().start && locus.pos() < ref_interval.range().end {
+                if ref_interval.contig() == locus.contig()
+                    && locus.pos() >= ref_interval.range().start
+                    && locus.pos() < ref_interval.range().end
+                {
                     Some(bnd)
                 } else {
                     None
@@ -277,11 +288,17 @@ impl<'a> Realignable<'a> for BreakendGroup {
             // Decide whether to go from right to left or left to right
             if first.is_left_to_right() {
                 // Add prefix on reference.
-                alt_allele.push_seq(ref_buffer.seq(first.locus.contig())?[prefix_range(first)].iter(), false);
+                alt_allele.push_seq(
+                    ref_buffer.seq(first.locus.contig())?[prefix_range(first)].iter(),
+                    false,
+                );
             } else {
                 // Add suffix on reference.
                 let ref_seq = ref_buffer.seq(first.locus.contig())?;
-                alt_allele.push_seq(ref_seq[suffix_range(first, ref_seq.len(), false)].iter(), true);
+                alt_allele.push_seq(
+                    ref_seq[suffix_range(first, ref_seq.len(), false)].iter(),
+                    true,
+                );
             }
             //alt_allele.push_back(b'1'); // dbg
 
@@ -294,7 +311,10 @@ impl<'a> Realignable<'a> for BreakendGroup {
                     let ref_seq = ref_buffer.seq(current.locus.contig())?;
                     if current.is_left_to_right() {
                         // Add suffix on reference.
-                        alt_allele.push_seq(ref_seq[suffix_range(current, ref_seq.len(), false)].iter(), false);
+                        alt_allele.push_seq(
+                            ref_seq[suffix_range(current, ref_seq.len(), false)].iter(),
+                            false,
+                        );
                     } else {
                         // Prepend prefix on reference.
                         alt_allele.push_seq(ref_seq[prefix_range(current)].iter(), true);
@@ -305,14 +325,18 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
                 // If we are operating right to left, the breakend operations need to be reversed, because
                 // they are prepended to the allele.
-                let ops: Box<dyn Iterator<Item=&Operation>> = if current.is_left_to_right() { Box::new(current.operations.iter()) } else { Box::new(current.operations.iter().rev()) };
+                let ops: Box<dyn Iterator<Item = &Operation>> = if current.is_left_to_right() {
+                    Box::new(current.operations.iter())
+                } else {
+                    Box::new(current.operations.iter().rev())
+                };
 
                 for op in ops {
                     match op {
                         Operation::Replacement(seq) => {
                             //alt_allele.push_back(b'|'); // dbg
                             alt_allele.push_seq(seq.iter(), !current.is_left_to_right());
-                        },
+                        }
                         Operation::Join {
                             ref locus,
                             side,
@@ -339,25 +363,43 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
                             //alt_allele.push_back(b'|'); // dbg
 
-                            match (extension_modification, next_bnd.is_none(), current.is_left_to_right()) {
-                                (ExtensionModification::None, false, is_left_to_right) => alt_allele.push_seq(seq.iter(), !is_left_to_right),
-                                (ExtensionModification::ReverseComplement, false, is_left_to_right) => {
-                                    alt_allele.push_seq(dna::revcomp(seq).iter(), !is_left_to_right);
+                            match (
+                                extension_modification,
+                                next_bnd.is_none(),
+                                current.is_left_to_right(),
+                            ) {
+                                (ExtensionModification::None, false, is_left_to_right) => {
+                                    alt_allele.push_seq(seq.iter(), !is_left_to_right)
+                                }
+                                (
+                                    ExtensionModification::ReverseComplement,
+                                    false,
+                                    is_left_to_right,
+                                ) => {
+                                    alt_allele
+                                        .push_seq(dna::revcomp(seq).iter(), !is_left_to_right);
                                     alt_allele.contains_revcomp = true;
                                 }
                                 (ExtensionModification::None, true, true) => {
                                     alt_allele.push_seq(seq[..ref_window].iter(), false);
                                 }
                                 (ExtensionModification::ReverseComplement, true, true) => {
-                                    alt_allele.push_seq(dna::revcomp(seq)[..ref_window].iter(), false);
+                                    alt_allele
+                                        .push_seq(dna::revcomp(seq)[..ref_window].iter(), false);
                                     alt_allele.contains_revcomp = true;
                                 }
                                 (ExtensionModification::None, true, false) => {
-                                    alt_allele.push_seq(seq[seq.len().saturating_sub(ref_window)..].iter(), true);
+                                    alt_allele.push_seq(
+                                        seq[seq.len().saturating_sub(ref_window)..].iter(),
+                                        true,
+                                    );
                                 }
                                 (ExtensionModification::ReverseComplement, true, false) => {
                                     let seq = dna::revcomp(seq);
-                                    alt_allele.push_seq(seq[seq.len().saturating_sub(ref_window)..].iter(), true);
+                                    alt_allele.push_seq(
+                                        seq[seq.len().saturating_sub(ref_window)..].iter(),
+                                        true,
+                                    );
                                     alt_allele.contains_revcomp = true;
                                 }
                             }
@@ -393,7 +435,7 @@ pub(crate) struct AltAllele {
 impl AltAllele {
     pub(crate) fn push_seq<'a, S>(&mut self, seq: S, front: bool)
     where
-        S: Iterator<Item=&'a u8> + DoubleEndedIterator
+        S: Iterator<Item = &'a u8> + DoubleEndedIterator,
     {
         if front {
             for c in seq.rev() {

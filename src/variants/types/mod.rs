@@ -278,7 +278,7 @@ pub(crate) trait Loci {}
 
 #[derive(Debug, Derefable, Builder, new)]
 pub(crate) struct SingleLocus {
-    #[deref] 
+    #[deref]
     interval: genome::Interval,
     #[builder(default = "true")]
     #[new(value = "true")]

@@ -16,7 +16,7 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
-use crate::variants::evidence::realignment::{Realignable, Realigner, AltEmissionProperties};
+use crate::variants::evidence::realignment::{AltEmissionProperties, Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};
@@ -197,11 +197,10 @@ impl<'a> EmissionParameters for InsertionEmissionParams<'a> {
     }
 }
 
-
 impl<'a> AltEmissionProperties for InsertionEmissionParams<'a> {
     fn maybe_revcomp(&self) -> bool {
         // TODO consider true here (in theory, an insertion could lead to
         // a read being falsely considered revcomp by the mapper).
-        false 
+        false
     }
 }

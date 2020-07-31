@@ -91,10 +91,7 @@ impl Duplication {
             [
                 Operation::Replacement(ref_allele.to_owned()),
                 Operation::Join {
-                    locus: genome::Locus::new(
-                        interval.contig().to_owned(),
-                        interval.range().start,
-                    ),
+                    locus: genome::Locus::new(interval.contig().to_owned(), interval.range().start),
                     side: Side::RightOfPos,
                     extension_modification: ExtensionModification::None,
                 },
