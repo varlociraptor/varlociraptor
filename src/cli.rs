@@ -313,6 +313,22 @@ pub enum CallKind {
             help = "False discovery rate to control loss-of-heterozygosity regions for."
         )]
         alpha: f64,
+        #[structopt(
+            long,
+            default_value = false,
+            help = "Control the local FDR of each possible interval. \
+                    Intervals with a posterior probability lower than 1 - alpha are not considered \
+                    in the integer linear program problem setup."
+        )]
+        control_local_fdr: bool,
+        #[structopt(
+            long,
+            default_value = false,
+            help = "Exclude intervals where the likelihood of an LOH is not even 'barely' better \
+                    than the likelihood of no LOH from the integer linear program problem setup. \
+                    'barely' refers to the Bayes Factor classification of Kass and Raftery."
+        )]
+        filter_bayes_factor_minimum_barely: bool,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -768,11 +784,15 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     calls,
                     output,
                     alpha,
+                    control_local_fdr,
+                    filter_bayes_factor_minimum_barely
                 } => {
                     let mut caller = calling::loh::CallerBuilder::default()
                         .bcf(&calls)?
                         .bed_path(&output)
                         .add_and_check_alpha(alpha)?
+                        .control_local_fdr(control_local_fdr)
+                        .filter_bayes_factor_minimum_barely(filter_bayes_factor_minimum_barely)
                         .build()
                         .unwrap();
                     caller.call()?;

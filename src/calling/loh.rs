@@ -33,6 +33,8 @@ pub(crate) struct Caller<'a> {
     contig_lens: HashMap<u32, usize>,
     #[builder(private)]
     alpha: Prob,
+    control_local_fdr: bool,
+    filter_bayes_factor_minimum_barely: bool
 }
 
 impl CallerBuilder<'_> {
@@ -73,9 +75,9 @@ impl Caller<'_> {
                 String::from_utf8_lossy(self.bcf_reader.header().rid2name(contig_id)?);
             bed_record.set_chrom(&contig_name);
             // Problem Data
-            let contig: ContigLogProbsLOH;
+            let contig: ContigLogLikelihoodsLOH;
             if let Some(contig_length) = self.contig_lens.get(&contig_id) {
-                contig = ContigLogProbsLOH::new(&mut self.bcf_reader, &contig_id, contig_length)?;
+                contig = ContigLogLikelihoodsLOH::new(&mut self.bcf_reader, &contig_id, contig_length)?;
             } else {
                 panic!(
                     "This should not have happened: cannot find contig_id '{}'.",
@@ -85,7 +87,7 @@ impl Caller<'_> {
             if contig.positions.is_empty() {
                 continue;
             }
-            let intervals = contig.create_all_intervals();
+            let intervals = contig.create_all_intervals(&self.alpha);
             let mut intervals_overlap_or_adjacent: HashMap<
                 (&RangeInclusive<usize>, &RangeInclusive<usize>),
                 bool,
@@ -226,97 +228,128 @@ impl Caller<'_> {
 }
 
 #[derive(Debug)]
-pub(crate) struct LogProbsLOHnoLOH {
+pub(crate) struct LogLikelihoodsLOHnoLOH {
     loh: LogProb,
     no_loh: LogProb,
 }
 
 #[derive(Debug)]
-pub(crate) struct ContigLogProbsLOH {
+pub(crate) struct ContigLogLikelihoodsLOH {
     contig_id: u32,
     contig_length: usize,
-    cum_loh: Vec<LogProb>,
-    cum_no_loh: Vec<LogProb>,
+    cum_loh_by_freq: Vec<Vec<LogProb>>,
     positions: Vec<u64>,
 }
 
-impl ContigLogProbsLOH {
+impl ContigLogLikelihoodsLOH {
     pub(crate) fn new(
         bcf_reader: &mut bcf::IndexedReader,
         contig_id: &u32,
         contig_length: &usize,
-    ) -> Result<ContigLogProbsLOH> {
+    ) -> Result<ContigLogLikelihoodsLOH> {
         let mut record = bcf_reader.empty_record();
-        let mut cum_log_prob_loh = Vec::new();
-        let mut cum_log_prob_no_loh = Vec::new();
+        let resolution = 25;
+        let freqs: Vec<LogProb> = (0..resolution).iter().map(|i| LogProb::from( Prob::checked( (i as f64 / resolution as f64) ) )).collect_vec();
+        let one_minus_freqs = freqs.iter().reverse();
+        // first index: position in contig array
+        // second index: loh frequency
+        let mut cum_log_likelihood_loh_by_freq: Vec<Vec<LogProb>> = Vec::new();
         let mut positions = Vec::new();
+        let &mut freq_likelihoods = Vec::with_capacity(resolution);
         bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
         if bcf_reader.read(&mut record)? {
-            let log_probs = log_probs_loh_no_loh(&mut record);
-            cum_log_prob_loh.push(log_probs.loh);
-            cum_log_prob_no_loh.push(log_probs.no_loh);
+            let previous_posterior_loh = info_phred_to_log_prob(*record, &String::from("PROB_LOH"));
+            let previous_posterior_no_loh = info_phred_to_log_prob(*record, &String::from("PROB_NO_LOH"));
+            let previous_posterior_hom = info_phred_to_log_prob(*record, &String::from("PROB_UNINTERESTING"));
+            for i in 0..resolution {
+                freq_likelihoods[i] = (freqs[i] + previous_posterior_loh)
+                        .ln_add_exp(one_minus_freqs[i] + previous_posterior_no_loh)
+                        .ln_add_exp(previous_posterior_hom);
+            }
+            cum_log_likelihood_loh_by_freq.push(freq_likelihoods);
             positions.push(record.pos() as u64);
         }
         // cumulatively add the following LOH probabilities
         while bcf_reader.read(&mut record)? {
-            let log_probs = log_probs_loh_no_loh(&mut record);
-            cum_log_prob_loh.push(cum_log_prob_loh.last().unwrap() + log_probs.loh);
-            cum_log_prob_no_loh.push(cum_log_prob_no_loh.last().unwrap() + log_probs.no_loh);
+            let previous_posterior_loh = info_phred_to_log_prob(*record, &String::from("PROB_LOH"));
+            let previous_posterior_no_loh = info_phred_to_log_prob(*record, &String::from("PROB_NO_LOH"));
+            let previous_posterior_hom = info_phred_to_log_prob(*record, &String::from("PROB_UNINTERESTING"));
+            let previous_vector = cum_log_likelihood_loh_by_freq.last().unwrap();
+            for i in 0..resolution {
+                freq_likelihoods[i] = previous_vector[i] +
+                    (freqs[i] + previous_posterior_loh)
+                        .ln_add_exp(one_minus_freqs[i] + previous_posterior_no_loh)
+                        .ln_add_exp(previous_posterior_hom);
+            }
+            cum_log_likelihood_loh_by_freq[i].push(freq_likelihoods);
             positions.push(record.pos() as u64);
         }
-        Ok(ContigLogProbsLOH {
+        Ok(ContigLogLikelihoodsLOH {
             contig_id: *contig_id,
             contig_length: *contig_length,
-            cum_loh: cum_log_prob_loh,
-            cum_no_loh: cum_log_prob_no_loh,
+            cum_loh_by_freq: cum_log_likelihood_loh_by_freq,
             positions,
         })
     }
 
-    pub(crate) fn create_all_intervals(&self) -> HashMap<RangeInclusive<usize>, LogProbsLOHnoLOH> {
+    pub(crate) fn create_all_intervals(&self, alpha: Prob, control_local_fdr: &bool, filter_bayes_factor_minimum_barely: &bool) -> HashMap<RangeInclusive<usize>, LogProb> {
+        let log_one_minus_alpha = LogProb::from(alpha).ln_one_minus_exp();
         let mut intervals = HashMap::new();
-        for start in 0..self.cum_loh.len() {
-            for end in start..self.cum_loh.len() {
-                let (prob_loh, prob_no_loh) = if start > 0 {
-                    (
-                        self.cum_loh[end as usize] - self.cum_loh[(start - 1) as usize],
-                        self.cum_no_loh[end as usize] - self.cum_no_loh[(start - 1) as usize],
+        for start in 0..self.cum_loh_by_freq.len() {
+            let &start_minus_one_vector = if start > 0 {
+                &self.cum_loh_by_freq[(start - 1)]
+            } else {
+                LogProb::ln_one()
+            };
+            for end in start..self.cum_loh_by_freq.len() {
+                let &end_vector = self.cum_loh_by_freq[end];
+                let log_likelihood_loh_one = if start > 0 {
+                    end_vector.last().unwrap() - start_minus_one_vector.last().unwrap()
+                } else {
+                    end_vector.last().unwrap()
+                };
+                let marginal_log_likelihood_loh = if start > 0 {
+                    LogProb::ln_sum_exp(
+                        end_vector.iter()
+                            .zip(start_minus_one_vector.iter())?
+                            .map(|(end, start)| end - start)?
+                            .collect_vec()
                     )
                 } else {
-                    (
-                        self.cum_loh[end as usize] - LogProb::ln_one(),
-                        self.cum_no_loh[end as usize] - LogProb::ln_one(),
-                    )
+                    LogProb::ln_sum_exp(&end_vector)
                 };
-                if BayesFactor::new(prob_loh, prob_no_loh).evidence_kass_raftery()
-                    != evidence::KassRaftery::None
-                {
-                    intervals.insert(
-                        start..=end,
-                        LogProbsLOHnoLOH {
-                            loh: prob_loh,
-                            no_loh: prob_no_loh,
-                        },
-                    );
+                let posterior_probability = log_likelihood_loh_one - marginal_log_likelihood_loh;
+                // skipping stuff can make the problem formulation much smaller to start with
+                if control_local_fdr & posterior_probability < log_one_minus_alpha {
+                    continue;
                 }
+                if filter_bayes_factor_minimum_barely
+                    & BayesFactor::new(
+                        log_likelihood_loh_one,
+                        marginal_log_likelihood_loh.ln_sub_exp(log_likelihood_loh_one)
+                ).evidence_kass_raftery() != evidence::KassRaftery::None {
+                    continue;
+                }
+                intervals.insert(start..=end, posterior_probability);
             }
         }
         intervals
     }
 }
 
-fn log_probs_loh_no_loh(record: &mut bcf::Record) -> LogProbsLOHnoLOH {
-    let log_prob_loh = info_phred_to_log_prob(record, &String::from("PROB_LOH"));
-    let log_prob_no_loh = info_phred_to_log_prob(record, &String::from("PROB_NO_LOH"));
-    let log_prob_germline_het = log_prob_loh
-        .ln_add_exp(log_prob_no_loh)
+fn log_likelihoods(record: &mut bcf::Record) -> LogLikelihoodsLOHnoLOH {
+    let previous_posterior_loh = info_phred_to_log_prob(record, &String::from("PROB_LOH"));
+    let previous_posterior_no_loh = info_phred_to_log_prob(record, &String::from("PROB_NO_LOH"));
+    let previous_posterior_hom = info_phred_to_log_prob(record, &String::from("PROB_UNINTERESTING"));
+    let previous_posterior_germline_het = previous_posterior_loh
+        .ln_add_exp(previous_posterior_no_loh)
         .cap_numerical_overshoot(0.000001);
-    let loh =
-        (log_prob_germline_het + log_prob_loh).ln_add_exp(log_prob_germline_het.ln_one_minus_exp());
-    let no_loh = (log_prob_germline_het + log_prob_no_loh)
-        .ln_add_exp(log_prob_germline_het.ln_one_minus_exp());
-    LogProbsLOHnoLOH { loh, no_loh }
+    let log_likelihood_loh = (previous_posterior_germline_het + previous_posterior_loh)
+        .ln_add_exp(previous_posterior_germline_het.ln_one_minus_exp());
+    let log_likelihood_no_loh = (previous_posterior_germline_het + previous_posterior_no_loh)
+        .ln_add_exp(previous_posterior_germline_het.ln_one_minus_exp());
+    LogLikelihoodsLOHnoLOH { loh: log_likelihood_loh, no_loh: log_likelihood_no_loh }
 }
 
 #[cfg(test)]
@@ -343,7 +376,7 @@ mod tests {
 
         let mut index = 0;
         while loh_calls.read(&mut record).unwrap() {
-            let log_probs = log_probs_loh_no_loh(&mut record);
+            let log_probs = log_likelihoods(&mut record);
             println!(
                 "LogProb LOH: {:?}, Prob LOH`: {:?}",
                 log_probs.loh,
@@ -492,22 +525,23 @@ mod tests {
         let mut loh_calls = bcf::IndexedReader::from_path(test_input).unwrap();
         let contig_id = loh_calls.header().name2rid(b"chr8").unwrap();
         let contig_length = 145138636;
-        let loh_probs = ContigLogProbsLOH::new(&mut loh_calls, &contig_id, &contig_length).unwrap();
+        let alpha = Prob(0.5);
+        let loh_probs = ContigLogLikelihoodsLOH::new(&mut loh_calls, &contig_id, &contig_length).unwrap();
 
         assert_eq!(loh_probs.contig_length, 145138636);
         assert_eq!(loh_probs.contig_id, 0);
-        for log_prob in loh_probs.cum_loh.clone() {
+        for log_prob in loh_probs.cum_loh_by_freq.clone() {
             println!(
                 "contig '{:?}' (length '{:?}'), cum_log_prob_loh: '{:?}'",
                 loh_probs.contig_id, loh_probs.contig_length, log_prob
             );
         }
         assert_eq!(
-            loh_probs.cum_loh.last().unwrap(),
+            loh_probs.cum_loh_by_freq.last().unwrap(),
             &LogProb(-23.492805404428065)
         );
 
-        let intervals = loh_probs.create_all_intervals();
+        let intervals = loh_probs.create_all_intervals(&alpha);
         println!("intervals: {:?}", intervals);
 
         assert_eq!(
