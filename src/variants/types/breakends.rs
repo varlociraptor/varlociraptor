@@ -262,8 +262,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
             let first = self.breakends.values().nth(*bnds.first().unwrap()).unwrap();
 
-            let mut alt_allele = VecDeque::new();
-            let mut contains_revcomp = false;
+            let mut alt_allele = AltAllele::default();
 
             let prefix_range = |bnd: &Breakend| {
                 let start = bnd.locus.pos() as usize;
@@ -275,20 +274,14 @@ impl<'a> Realignable<'a> for BreakendGroup {
                 start..cmp::min(start + ref_window, ref_len)
             };
 
-            fn prepend<'a, I: Iterator<Item=&'a u8> + DoubleEndedIterator>(seq: I, alt_allele: &mut VecDeque<u8>) {
-                for c in seq.rev() {
-                    alt_allele.push_front(*c);
-                }
-            };
-
             // Decide whether to go from right to left or left to right
             if first.is_left_to_right() {
                 // Add prefix on reference.
-                alt_allele.extend(&ref_buffer.seq(first.locus.contig())?[prefix_range(first)]);
+                alt_allele.push_seq(ref_buffer.seq(first.locus.contig())?[prefix_range(first)].iter(), false);
             } else {
                 // Add suffix on reference.
                 let ref_seq = ref_buffer.seq(first.locus.contig())?;
-                prepend(ref_seq[suffix_range(first, ref_seq.len(), false)].iter(), &mut alt_allele);
+                alt_allele.push_seq(ref_seq[suffix_range(first, ref_seq.len(), false)].iter(), true);
             }
             //alt_allele.push_back(b'1'); // dbg
 
@@ -301,10 +294,10 @@ impl<'a> Realignable<'a> for BreakendGroup {
                     let ref_seq = ref_buffer.seq(current.locus.contig())?;
                     if current.is_left_to_right() {
                         // Add suffix on reference.
-                        alt_allele.extend(&ref_seq[suffix_range(current, ref_seq.len(), false)]);
+                        alt_allele.push_seq(ref_seq[suffix_range(current, ref_seq.len(), false)].iter(), false);
                     } else {
                         // Prepend prefix on reference.
-                        prepend(ref_seq[prefix_range(current)].iter(), &mut alt_allele);
+                        alt_allele.push_seq(ref_seq[prefix_range(current)].iter(), true);
                     }
                     break;
                 }
@@ -318,11 +311,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
                     match op {
                         Operation::Replacement(seq) => {
                             //alt_allele.push_back(b'|'); // dbg
-                            if current.is_left_to_right() {
-                                alt_allele.extend(seq)
-                            } else {
-                                prepend(seq.iter(), &mut alt_allele);
-                            }
+                            alt_allele.push_seq(seq.iter(), !current.is_left_to_right());
                         },
                         Operation::Join {
                             ref locus,
@@ -351,30 +340,25 @@ impl<'a> Realignable<'a> for BreakendGroup {
                             //alt_allele.push_back(b'|'); // dbg
 
                             match (extension_modification, next_bnd.is_none(), current.is_left_to_right()) {
-                                (ExtensionModification::None, false, true) => alt_allele.extend(seq),
-                                (ExtensionModification::None, true, true) => {
-                                    alt_allele.extend(&seq[..ref_window]);
+                                (ExtensionModification::None, false, is_left_to_right) => alt_allele.push_seq(seq.iter(), !is_left_to_right),
+                                (ExtensionModification::ReverseComplement, false, is_left_to_right) => {
+                                    alt_allele.push_seq(dna::revcomp(seq).iter(), !is_left_to_right);
+                                    alt_allele.contains_revcomp = true;
                                 }
-                                (ExtensionModification::ReverseComplement, false, true) => {
-                                    alt_allele.extend(dna::revcomp(seq));
-                                    contains_revcomp = true;
+                                (ExtensionModification::None, true, true) => {
+                                    alt_allele.push_seq(seq[..ref_window].iter(), false);
                                 }
                                 (ExtensionModification::ReverseComplement, true, true) => {
-                                    alt_allele.extend(&dna::revcomp(seq)[..ref_window]);
-                                    contains_revcomp = true;
+                                    alt_allele.push_seq(dna::revcomp(seq)[..ref_window].iter(), false);
+                                    alt_allele.contains_revcomp = true;
                                 }
-                                (ExtensionModification::None, false, false) => prepend(seq.iter(), &mut alt_allele),
                                 (ExtensionModification::None, true, false) => {
-                                    prepend(seq[seq.len().saturating_sub(ref_window)..].iter(), &mut alt_allele);
-                                }
-                                (ExtensionModification::ReverseComplement, false, false) => {
-                                    prepend(dna::revcomp(seq).iter(), &mut alt_allele);
-                                    contains_revcomp = true;
+                                    alt_allele.push_seq(seq[seq.len().saturating_sub(ref_window)..].iter(), true);
                                 }
                                 (ExtensionModification::ReverseComplement, true, false) => {
                                     let seq = dna::revcomp(seq);
-                                    prepend(seq[seq.len().saturating_sub(ref_window)..].iter(), &mut alt_allele);
-                                    contains_revcomp = true;
+                                    alt_allele.push_seq(seq[seq.len().saturating_sub(ref_window)..].iter(), true);
+                                    alt_allele.contains_revcomp = true;
                                 }
                             }
                         }
@@ -384,7 +368,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
             self.alt_alleles
                 .borrow_mut()
-                .insert(bnds.clone(), Rc::new(AltAllele { seq: alt_allele, contains_revcomp }));
+                .insert(bnds.clone(), Rc::new(alt_allele));
         }
 
         let alt_allele = Rc::clone(self.alt_alleles.borrow().get(&bnds).unwrap());
@@ -399,11 +383,26 @@ impl<'a> Realignable<'a> for BreakendGroup {
     }
 }
 
-#[derive(Derefable, Debug)]
+#[derive(Derefable, Debug, Default)]
 pub(crate) struct AltAllele {
     #[deref]
     seq: VecDeque<u8>,
     contains_revcomp: bool,
+}
+
+impl AltAllele {
+    pub(crate) fn push_seq<'a, S>(&mut self, seq: S, front: bool)
+    where
+        S: Iterator<Item=&'a u8> + DoubleEndedIterator
+    {
+        if front {
+            for c in seq.rev() {
+                self.seq.push_front(*c);
+            }
+        } else {
+            self.seq.extend(seq);
+        }
+    }
 }
 
 #[derive(Debug)]
