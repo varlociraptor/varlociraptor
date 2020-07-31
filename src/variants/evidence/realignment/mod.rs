@@ -10,6 +10,7 @@ use std::str;
 use std::sync::Arc;
 
 use anyhow::Result;
+use bio::alphabets::dna;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractInterval;
@@ -30,9 +31,7 @@ pub(crate) struct CandidateRegion {
 }
 
 pub(crate) trait Realignable<'a> {
-    type EmissionParams: stats::pairhmm::EmissionParameters
-        + pairhmm::RefBaseEmission
-        + AltEmissionProperties;
+    type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
 
     fn alt_emission_params(
         &self,
@@ -41,6 +40,14 @@ pub(crate) trait Realignable<'a> {
         ref_interval: &genome::Interval,
         ref_window: usize,
     ) -> Result<Self::EmissionParams>;
+
+    /// Returns true if reads emitted from alt allele
+    /// may be interpreted as revcomp reads by the mapper.
+    /// In such a case, the realigner needs to consider both
+    /// forward and reverse sequence of the read.
+    fn maybe_revcomp(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Clone)]
@@ -241,13 +248,13 @@ impl Realigner {
         for region in merged_regions {
             // read emission
             let read_emission = Rc::new(ReadEmission::new(
-                read_seq,
+                Box::new(read_seq),
                 read_qual,
                 region.read_interval.start,
                 region.read_interval.end,
             ));
             let edit_dist =
-                EditDistanceCalculation::new((region.read_interval).map(|i| read_seq[i]));
+                EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
 
             // ref allele
             let mut prob_ref = self.prob_allele(
@@ -260,18 +267,57 @@ impl Realigner {
                 &edit_dist,
             );
 
-            let mut prob_alt = self.prob_allele(
-                variant.alt_emission_params(
-                    Rc::clone(&read_emission),
-                    Arc::clone(&self.ref_buffer),
-                    &genome::Interval::new(
-                        record.contig().to_owned(),
-                        region.ref_interval.start as u64..region.ref_interval.end as u64,
-                    ),
-                    self.ref_window(),
-                )?,
-                &edit_dist,
-            );
+            let mut prob_alt = {
+                let ref_interval = genome::Interval::new(
+                    record.contig().to_owned(),
+                    region.ref_interval.start as u64..region.ref_interval.end as u64,
+                );
+
+                let mut prob_alt = self.prob_allele(
+                    variant.alt_emission_params(
+                        Rc::clone(&read_emission),
+                        Arc::clone(&self.ref_buffer),
+                        &ref_interval,
+                        self.ref_window(),
+                    )?,
+                    &edit_dist,
+                );
+                if variant.maybe_revcomp() {
+                    // also try the reverse complement of the read
+
+                    let revcomp_seq = Box::new(dna::revcomp(read_seq.as_bytes()));
+                    let mut rev_quals = read_qual.to_owned();
+                    rev_quals.reverse();
+                    let rev_interval = revcomp_seq.len() - region.read_interval.end
+                        ..revcomp_seq.len() - region.read_interval.start;
+
+                    let edit_dist =
+                        EditDistanceCalculation::new(rev_interval.clone().map(|i| revcomp_seq[i]));
+
+                    let read_emission = Rc::new(ReadEmission::new(
+                        revcomp_seq,
+                        &rev_quals,
+                        rev_interval.start,
+                        rev_interval.end,
+                    ));
+
+                    let prob_alt_revcomp = self.prob_allele(
+                        variant.alt_emission_params(
+                            Rc::clone(&read_emission),
+                            Arc::clone(&self.ref_buffer),
+                            &ref_interval,
+                            self.ref_window(),
+                        )?,
+                        &edit_dist,
+                    );
+
+                    if prob_alt_revcomp > prob_alt {
+                        prob_alt = prob_alt_revcomp;
+                    }
+                }
+
+                prob_alt
+            };
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
@@ -364,8 +410,4 @@ pub(crate) trait AltAlleleEmissionBuilder {
         read_emission_params: &'a ReadEmission,
         ref_seq: &'a [u8],
     ) -> Self::EmissionParams;
-}
-
-pub(crate) trait AltEmissionProperties {
-    fn maybe_revcomp(&self) -> bool;
 }

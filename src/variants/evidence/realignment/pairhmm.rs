@@ -5,6 +5,7 @@
 
 use std::cmp;
 use std::fmt::Debug;
+use std::ops::Index;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -26,7 +27,7 @@ pub(crate) fn prob_read_base_miscall(base_qual: u8) -> LogProb {
     LogProb::from(PHREDProb::from((base_qual) as f64))
 }
 
-pub(crate) trait RefBaseEmission: Debug {
+pub(crate) trait RefBaseEmission {
     fn ref_base(&self, i: usize) -> u8;
 
     fn ref_offset(&self) -> usize;
@@ -150,10 +151,10 @@ macro_rules! default_emission {
     };
 }
 
-#[derive(Debug, Getters)]
+#[derive(Getters)]
 #[getset(get = "pub")]
 pub(crate) struct ReadEmission<'a> {
-    read_seq: bam::record::Seq<'a>,
+    read_seq: Box<dyn Index<usize, Output = u8> + 'a>,
     any_miscall: Vec<LogProb>,
     no_miscall: Vec<LogProb>,
     read_offset: usize,
@@ -162,7 +163,7 @@ pub(crate) struct ReadEmission<'a> {
 
 impl<'a> ReadEmission<'a> {
     pub(crate) fn new(
-        read_seq: bam::record::Seq<'a>,
+        read_seq: Box<dyn Index<usize, Output = u8> + 'a>,
         qual: &[u8],
         read_offset: usize,
         read_end: usize,
@@ -215,7 +216,6 @@ impl<'a> ReadEmission<'a> {
 }
 
 /// Emission parameters for PairHMM over reference allele.
-#[derive(Debug)]
 pub(crate) struct ReferenceEmissionParams<'a> {
     pub(crate) ref_seq: Arc<Vec<u8>>,
     pub(crate) ref_offset: usize,

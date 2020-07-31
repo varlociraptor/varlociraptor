@@ -24,7 +24,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
-use crate::variants::evidence::realignment::{AltEmissionProperties, Realignable, Realigner};
+use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
@@ -240,6 +240,10 @@ impl ReadSamplingBias for BreakendGroup {}
 impl<'a> Realignable<'a> for BreakendGroup {
     type EmissionParams = BreakendEmissionParams<'a>;
 
+    fn maybe_revcomp(&self) -> bool {
+        self.breakends.values().any(|bnd| bnd.emits_revcomp())
+    }
+
     fn alt_emission_params(
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
@@ -360,7 +364,6 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                 ) => {
                                     alt_allele
                                         .push_seq(dna::revcomp(seq).iter(), !is_left_to_right);
-                                    alt_allele.contains_revcomp = true;
                                 }
                                 (ExtensionModification::None, true, true) => {
                                     alt_allele.push_seq(seq[..ref_window].iter(), false);
@@ -368,7 +371,6 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                 (ExtensionModification::ReverseComplement, true, true) => {
                                     alt_allele
                                         .push_seq(dna::revcomp(seq)[..ref_window].iter(), false);
-                                    alt_allele.contains_revcomp = true;
                                 }
                                 (ExtensionModification::None, true, false) => {
                                     alt_allele.push_seq(
@@ -382,7 +384,6 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                         seq[seq.len().saturating_sub(ref_window)..].iter(),
                                         true,
                                     );
-                                    alt_allele.contains_revcomp = true;
                                 }
                             }
                         }
@@ -411,7 +412,6 @@ impl<'a> Realignable<'a> for BreakendGroup {
 pub(crate) struct AltAllele {
     #[deref]
     seq: VecDeque<u8>,
-    contains_revcomp: bool,
 }
 
 impl AltAllele {
@@ -429,7 +429,6 @@ impl AltAllele {
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct BreakendEmissionParams<'a> {
     alt_allele: Rc<AltAllele>,
     ref_offset: usize,
@@ -452,12 +451,6 @@ impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.alt_allele.len()
-    }
-}
-
-impl<'a> AltEmissionProperties for BreakendEmissionParams<'a> {
-    fn maybe_revcomp(&self) -> bool {
-        self.alt_allele.contains_revcomp
     }
 }
 
@@ -593,6 +586,20 @@ impl Breakend {
         } else {
             false
         }
+    }
+
+    fn emits_revcomp(&self) -> bool {
+        for op in &self.operations {
+            if let Operation::Join {
+                extension_modification: ExtensionModification::ReverseComplement,
+                ..
+            } = op
+            {
+                return true;
+            }
+        }
+
+        false
     }
 
     pub(crate) fn to_variant(&self, event: &[u8]) -> Option<model::Variant> {
