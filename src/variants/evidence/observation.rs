@@ -180,6 +180,15 @@ pub(crate) enum PairedEndEvidence {
     },
 }
 
+impl PairedEndEvidence {
+    pub(crate) fn qname(&self) -> &[u8] {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => rec.qname(),
+            PairedEndEvidence::PairedEnd { left, .. } => left.qname(),
+        }
+    }
+}
+
 impl Evidence for PairedEndEvidence {}
 
 impl PartialEq for PairedEndEvidence {

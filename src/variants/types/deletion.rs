@@ -40,16 +40,16 @@ impl Deletion {
         let contig = locus.contig().to_owned();
 
         let fetch_loci = MultiLocus::new(vec![
-            SingleLocus(genome::Interval::new(contig.clone(), start..start + 1)),
-            SingleLocus(genome::Interval::new(
+            SingleLocus::new(genome::Interval::new(contig.clone(), start..start + 1)),
+            SingleLocus::new(genome::Interval::new(
                 contig.clone(),
                 centerpoint..centerpoint + 1,
             )),
-            SingleLocus(genome::Interval::new(contig, end - 1..end)),
+            SingleLocus::new(genome::Interval::new(contig, end - 1..end)),
         ]);
 
         Deletion {
-            locus: SingleLocus(locus),
+            locus: SingleLocus::new(locus),
             fetch_loci,
             realigner: RefCell::new(realigner),
         }

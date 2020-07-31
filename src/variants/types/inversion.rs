@@ -1,3 +1,5 @@
+use std::str;
+
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
@@ -111,7 +113,11 @@ impl Variant for Inversion {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
-        (**self).allele_support(evidence, alignment_properties)
+        let support = (**self).allele_support(evidence, alignment_properties)?;
+        dbg!(str::from_utf8(evidence.qname()).unwrap());
+        dbg!(&support);
+
+        Ok(support)
     }
 
     fn prob_sample_alt(

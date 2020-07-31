@@ -276,8 +276,17 @@ where
 
 pub(crate) trait Loci {}
 
-#[derive(Debug, Derefable, new)]
-pub(crate) struct SingleLocus(#[deref] genome::Interval);
+#[derive(Debug, Derefable, Builder, new)]
+pub(crate) struct SingleLocus {
+    #[deref] 
+    interval: genome::Interval,
+    #[builder(default = "true")]
+    #[new(value = "true")]
+    from_left: bool,
+    #[builder(default = "true")]
+    #[new(value = "true")]
+    from_right: bool,
+}
 
 impl AsRef<SingleLocus> for SingleLocus {
     fn as_ref(&self) -> &SingleLocus {

@@ -4,11 +4,12 @@
 // except according to those terms.
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
+use std::cmp;
 
 use anyhow::Result;
 use bio::alphabets::dna;
@@ -26,7 +27,7 @@ use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmiss
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
-use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocusBuilder, Variant};
 use crate::{default_emission, default_ref_base_emission};
 
 pub(crate) struct BreakendGroup {
@@ -58,13 +59,13 @@ impl BreakendGroup {
 
         self.breakends.insert(breakend.locus.clone(), breakend);
 
-        self.loci.push(SingleLocus::new(interval));
+        self.loci.push(SingleLocusBuilder::default().interval(interval).build().unwrap());
     }
 
     fn upstream_bnd(&self, locus: &genome::Locus) -> Option<&Breakend> {
         for (l, bnd) in self.breakends.range(..locus).rev() {
             if l.contig() == locus.contig() {
-                if l.pos() < locus.pos() {
+                if l.pos() < locus.pos() && !bnd.is_left_to_right() {
                     // Return first locus with smaller position.
                     return Some(bnd);
                 }
@@ -78,8 +79,8 @@ impl BreakendGroup {
     fn downstream_bnd(&self, locus: &genome::Locus) -> Option<&Breakend> {
         for (l, bnd) in self.breakends.range(locus..) {
             if l.contig() == locus.contig() {
-                if l.pos() > locus.pos() {
-                    // Return first locus with larger position.
+                if l.pos() > locus.pos() && bnd.is_left_to_right() {
+                    // Return first unvisited bnd with larger position.
                     return Some(bnd);
                 }
             } else {
@@ -226,10 +227,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
             .keys()
             .enumerate()
             .filter_map(|(i, locus)| {
-                if ref_interval.contig() == locus.contig()
-                    && locus.pos() >= ref_interval.range().start
-                    && locus.pos() < ref_interval.range().end
-                {
+                if ref_interval.contig() == locus.contig() && locus.pos() >= ref_interval.range().start && locus.pos() < ref_interval.range().end {
                     Some(i)
                 } else {
                     None
@@ -239,76 +237,131 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
         if !self.alt_alleles.borrow().contains_key(&bnds) {
             // Compute alt allele sequence once.
+
             let first = self.breakends.values().nth(*bnds.first().unwrap()).unwrap();
 
-            let mut alt_allele = Vec::new();
+            let mut alt_allele = VecDeque::new();
 
-            // prefix on reference
-            let start = first.locus.pos() as usize;
-            alt_allele.extend(
-                &ref_buffer.seq(first.locus.contig())?[start.saturating_sub(ref_window)..start],
-            );
+            let prefix_range = |bnd: &Breakend| {
+                let start = bnd.locus.pos() as usize;
+                start.saturating_sub(ref_window)..start
+            };
 
-            // breakend operations in between
-            let mut visited = HashSet::new();
+            let suffix_range = |bnd: &Breakend, ref_len, inclusive| {
+                let start = bnd.locus.pos() as usize + if inclusive { 0 } else { 1 };
+                start..cmp::min(start + ref_window, ref_len)
+            };
+
+            fn prepend<'a, I: Iterator<Item=&'a u8> + DoubleEndedIterator>(seq: I, alt_allele: &mut VecDeque<u8>) {
+                for c in seq.rev() {
+                    alt_allele.push_front(*c);
+                }
+            };
+
+            // Decide whether to go from right to left or left to right
+            if first.is_left_to_right() {
+                // Add prefix on reference.
+                alt_allele.extend(&ref_buffer.seq(first.locus.contig())?[prefix_range(first)]);
+            } else {
+                // Add suffix on reference.
+                let ref_seq = ref_buffer.seq(first.locus.contig())?;
+                prepend(ref_seq[suffix_range(first, ref_seq.len(), false)].iter(), &mut alt_allele);
+            }
+            //alt_allele.push_back(b'1'); // dbg
+
             let mut next_bnd = Some(first);
+            let mut visited = HashSet::new();
             while let Some(current) = next_bnd {
                 if visited.contains(&current.id) {
+                    //alt_allele.push_back(b'2'); // dbg
+                    // We are back at a previous breakend, time to stop.
+                    let ref_seq = ref_buffer.seq(current.locus.contig())?;
+                    if current.is_left_to_right() {
+                        // Add suffix on reference.
+                        alt_allele.extend(&ref_seq[suffix_range(current, ref_seq.len(), false)]);
+                    } else {
+                        // Prepend prefix on reference.
+                        prepend(ref_seq[prefix_range(current)].iter(), &mut alt_allele);
+                    }
                     break;
                 }
                 visited.insert(&current.id);
-                // apply operation
-                for op in &current.operations {
+
+                // If we are operating right to left, the breakend operations need to be reversed, because
+                // they are prepended to the allele.
+                let ops: Box<dyn Iterator<Item=&Operation>> = if current.is_left_to_right() { Box::new(current.operations.iter()) } else { Box::new(current.operations.iter().rev()) };
+
+                for op in ops {
                     match op {
-                        Operation::Replacement(seq) => alt_allele.extend(seq),
+                        Operation::Replacement(seq) => {
+                            //alt_allele.push_back(b'|'); // dbg
+                            if current.is_left_to_right() {
+                                alt_allele.extend(seq)
+                            } else {
+                                prepend(seq.iter(), &mut alt_allele);
+                            }
+                        },
                         Operation::Join {
                             ref locus,
                             side,
                             extension_modification,
                         } => {
                             let ref_seq = ref_buffer.seq(locus.contig())?;
-                            // Find next breakend from here in order to know how long to extend and which to evaluate next.
+                            // Find next breakend from here in order to know how long to extend.
                             let seq = match side {
                                 Side::LeftOfPos => {
                                     next_bnd = self.upstream_bnd(locus);
                                     let seq_start =
-                                        next_bnd.map_or(0, |bnd| bnd.locus.pos() as usize + 1);
-                                    let seq_end = locus.pos() as usize;
-
+                                        next_bnd.map_or(0, |bnd| bnd.locus.pos() as usize); // bnd.locus.pos() is still on reference, the break occurs afterwards.
+                                    let seq_end = locus.pos() as usize + 1; // locus.pos() is meant inclusive, so we need to add 1 here.
                                     &ref_seq[seq_start..seq_end]
                                 }
                                 Side::RightOfPos => {
                                     next_bnd = self.downstream_bnd(locus);
-                                    let seq_start = locus.pos() as usize;
+                                    let seq_start = locus.pos() as usize; // locus.pos() is meant inclusive.
                                     let seq_end = next_bnd
-                                        .map_or(ref_seq.len(), |bnd| bnd.locus.pos() as usize);
-
+                                        .map_or(ref_seq.len(), |bnd| bnd.locus.pos() as usize + 1); // bnd.locus.pos() is still on reference (so before the break when coming from left), and we need an exclusive bound here, so +1.
                                     &ref_seq[seq_start..seq_end]
                                 }
                             };
 
-                            match (extension_modification, next_bnd.is_none()) {
-                                (ExtensionModification::None, false) => alt_allele.extend(seq),
-                                (ExtensionModification::None, true) => {
-                                    alt_allele.extend(&seq[..ref_window])
+                            //alt_allele.push_back(b'|'); // dbg
+
+                            match (extension_modification, next_bnd.is_none(), current.is_left_to_right()) {
+                                (ExtensionModification::None, false, true) => alt_allele.extend(seq),
+                                (ExtensionModification::None, true, true) => {
+                                    alt_allele.extend(&seq[..ref_window]);
                                 }
-                                (ExtensionModification::ReverseComplement, false) => {
-                                    alt_allele.extend(dna::revcomp(seq))
+                                (ExtensionModification::ReverseComplement, false, true) => {
+                                    alt_allele.extend(dna::revcomp(seq));
                                 }
-                                (ExtensionModification::ReverseComplement, true) => {
-                                    alt_allele.extend(&dna::revcomp(seq)[..ref_window])
+                                (ExtensionModification::ReverseComplement, true, true) => {
+                                    alt_allele.extend(&dna::revcomp(seq)[..ref_window]);
+                                }
+                                (ExtensionModification::None, false, false) => prepend(seq.iter(), &mut alt_allele),
+                                (ExtensionModification::None, true, false) => {
+                                    prepend(seq[seq.len().saturating_sub(ref_window)..].iter(), &mut alt_allele);
+                                }
+                                (ExtensionModification::ReverseComplement, false, false) => {
+                                    prepend(dna::revcomp(seq).iter(), &mut alt_allele);
+                                }
+                                (ExtensionModification::ReverseComplement, true, false) => {
+                                    let seq = dna::revcomp(seq);
+                                    prepend(seq[seq.len().saturating_sub(ref_window)..].iter(), &mut alt_allele);
                                 }
                             }
                         }
                     }
                 }
             }
+
             self.alt_alleles
                 .borrow_mut()
-                .insert(bnds.clone(), Rc::new(alt_allele));
+                .insert(bnds.clone(), Rc::new(Vec::from(alt_allele)));
         }
 
         let alt_allele = Rc::clone(self.alt_alleles.borrow().get(&bnds).unwrap());
+        dbg!(std::str::from_utf8(alt_allele.as_ref()).unwrap());
 
         Ok(BreakendEmissionParams {
             ref_offset: 0,
@@ -346,7 +399,7 @@ impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
 }
 
 /// Modeling of breakends.
-#[derive(Getters)]
+#[derive(Getters, Debug)]
 pub(crate) struct Breakend {
     #[getset(get = "pub")]
     locus: genome::Locus,
@@ -469,6 +522,25 @@ impl Breakend {
             id: id.to_owned(),
             mateid: mateid.to_owned(),
         }
+    }
+
+    fn is_left_to_right(&self) -> bool {
+        if let Operation::Replacement(_) = self.operations[0] {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn is_inclusive_bound(&self) -> bool {
+        for op in self.operations.iter() {
+            if let Operation::Replacement(seq) = op {
+                if seq == &self.ref_allele {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     pub(crate) fn to_variant(&self, event: &[u8]) -> Option<model::Variant> {

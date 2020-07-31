@@ -14,15 +14,60 @@ pub(crate) struct Duplication(#[deref] BreakendGroup);
 
 impl Duplication {
     pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
+        dbg!(&interval);
         let mut breakend_group = BreakendGroup::new(realigner);
 
-        let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..(pos + 1) as usize];
+        let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..pos as usize + 1];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
 
-        // Encode duplication via breakend, see VCF spec.
-        let ref_allele = get_ref_allele(interval.range().start - 1);
+        // Encode duplication via breakends, see VCF spec.
+        // let dup = &chrom_seq[interval.range().start as usize..interval.range().end as usize];
+
+        // let ref_allele = get_ref_allele(interval.range().end - 1);
+        // let mut repl = vec![ref_allele];
+        // repl.extend(dup);
+        // breakend_group.push(Breakend::from_operations(
+        //     get_locus(interval.range().start - 1),
+        //     vec![ref_allele],
+        //     [
+        //         Operation::Replacement(repl),
+        //         Operation::Join {
+        //             locus: genome::Locus::new(
+        //                 interval.contig().to_owned(),
+        //                 interval.range().end,
+        //             ),
+        //             side: Side::RightOfPos,
+        //             extension_modification: ExtensionModification::None,
+        //         },
+        //     ],
+        //     b"u",
+        //     b"v",
+        // ));
+
+        // let ref_allele = get_ref_allele(interval.range().end);
+        // let mut repl = dup.to_owned();
+        // repl.push(ref_allele);
+        // breakend_group.push(Breakend::from_operations(
+        //     get_locus(interval.range().end),
+        //     vec![ref_allele],
+        //     [
+        //         Operation::Join {
+        //             locus: genome::Locus::new(
+        //                 interval.contig().to_owned(),
+        //                 interval.range().start,
+        //             ),
+        //             side: Side::LeftOfPos,
+        //             extension_modification: ExtensionModification::None,
+        //         },
+        //         Operation::Replacement(repl),
+        //     ],
+        //     b"u",
+        //     b"v",
+        // ));
+
+        let ref_allele = get_ref_allele(interval.range().start);
         breakend_group.push(Breakend::from_operations(
-            get_locus(interval.range().start - 1),
+            get_locus(interval.range().start),
             ref_allele,
             [
                 Operation::Join {
@@ -35,8 +80,8 @@ impl Duplication {
                 },
                 Operation::Replacement(ref_allele.to_owned()),
             ],
-            b"w",
             b"u",
+            b"w",
         ));
 
         let ref_allele = get_ref_allele(interval.range().end - 1);
@@ -48,14 +93,14 @@ impl Duplication {
                 Operation::Join {
                     locus: genome::Locus::new(
                         interval.contig().to_owned(),
-                        interval.range().start - 1,
+                        interval.range().start,
                     ),
                     side: Side::RightOfPos,
                     extension_modification: ExtensionModification::None,
                 },
             ],
-            b"u",
             b"w",
+            b"u",
         ));
 
         Duplication(breakend_group)
@@ -79,7 +124,11 @@ impl Variant for Duplication {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
-        (**self).allele_support(evidence, alignment_properties)
+        let support = (**self).allele_support(evidence, alignment_properties)?;
+        dbg!(std::str::from_utf8(evidence.qname()).unwrap());
+        dbg!(&support);
+
+        Ok(support)
     }
 
     fn prob_sample_alt(

@@ -334,6 +334,7 @@ impl Realigner {
         E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
     {
         let hit = edit_dist.calc_best_hit(&allele_params);
+        dbg!(&hit);
         if hit.dist() == 0 {
             // METHOD: In case of a perfect match, we just take the base quality product.
             // All alternative paths in the HMM will anyway be much worse.
