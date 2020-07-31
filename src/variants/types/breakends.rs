@@ -24,7 +24,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
-use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::evidence::realignment::{Realignable, Realigner, AltEmissionProperties};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocusBuilder, Variant};
@@ -33,7 +33,7 @@ use crate::{default_emission, default_ref_base_emission};
 pub(crate) struct BreakendGroup {
     loci: MultiLocus,
     breakends: BTreeMap<genome::Locus, Breakend>,
-    alt_alleles: RefCell<HashMap<Vec<usize>, Rc<Vec<u8>>>>,
+    alt_alleles: RefCell<HashMap<Vec<usize>, Rc<AltAllele>>>,
     realigner: RefCell<Realigner>,
 }
 
@@ -88,6 +88,39 @@ impl BreakendGroup {
             }
         }
         None
+    }
+
+    fn contained_breakend_indices(&self, ref_interval: &genome::Interval) -> Vec<usize> {
+        self
+            .breakends
+            .keys()
+            .enumerate()
+            .filter_map(|(i, locus)| {
+                // TODO add genome::Interval::contains(genome::Locus) method to genome::Interval in bio-types.
+                // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9). 
+                if ref_interval.contig() == locus.contig() && locus.pos() >= ref_interval.range().start && locus.pos() < ref_interval.range().end {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn contained_breakends(&self, ref_interval: &genome::Interval) -> Vec<&Breakend> {
+        self
+            .breakends
+            .iter()
+            .filter_map(|(locus, bnd)| {
+                // TODO add genome::Interval::contains(genome::Locus) method to genome::Interval in bio-types.
+                // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9).
+                if ref_interval.contig() == locus.contig() && locus.pos() >= ref_interval.range().start && locus.pos() < ref_interval.range().end {
+                    Some(bnd)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
 
@@ -222,18 +255,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
         ref_window: usize,
     ) -> Result<BreakendEmissionParams<'a>> {
         // Step 1: fetch contained breakends
-        let bnds: Vec<_> = self
-            .breakends
-            .keys()
-            .enumerate()
-            .filter_map(|(i, locus)| {
-                if ref_interval.contig() == locus.contig() && locus.pos() >= ref_interval.range().start && locus.pos() < ref_interval.range().end {
-                    Some(i)
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let bnds = self.contained_breakend_indices(ref_interval);
 
         if !self.alt_alleles.borrow().contains_key(&bnds) {
             // Compute alt allele sequence once.
@@ -241,6 +263,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
             let first = self.breakends.values().nth(*bnds.first().unwrap()).unwrap();
 
             let mut alt_allele = VecDeque::new();
+            let mut contains_revcomp = false;
 
             let prefix_range = |bnd: &Breakend| {
                 let start = bnd.locus.pos() as usize;
@@ -334,9 +357,11 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                 }
                                 (ExtensionModification::ReverseComplement, false, true) => {
                                     alt_allele.extend(dna::revcomp(seq));
+                                    contains_revcomp = true;
                                 }
                                 (ExtensionModification::ReverseComplement, true, true) => {
                                     alt_allele.extend(&dna::revcomp(seq)[..ref_window]);
+                                    contains_revcomp = true;
                                 }
                                 (ExtensionModification::None, false, false) => prepend(seq.iter(), &mut alt_allele),
                                 (ExtensionModification::None, true, false) => {
@@ -344,10 +369,12 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                 }
                                 (ExtensionModification::ReverseComplement, false, false) => {
                                     prepend(dna::revcomp(seq).iter(), &mut alt_allele);
+                                    contains_revcomp = true;
                                 }
                                 (ExtensionModification::ReverseComplement, true, false) => {
                                     let seq = dna::revcomp(seq);
                                     prepend(seq[seq.len().saturating_sub(ref_window)..].iter(), &mut alt_allele);
+                                    contains_revcomp = true;
                                 }
                             }
                         }
@@ -357,11 +384,11 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
             self.alt_alleles
                 .borrow_mut()
-                .insert(bnds.clone(), Rc::new(Vec::from(alt_allele)));
+                .insert(bnds.clone(), Rc::new(AltAllele { seq: alt_allele, contains_revcomp }));
         }
 
         let alt_allele = Rc::clone(self.alt_alleles.borrow().get(&bnds).unwrap());
-        dbg!(std::str::from_utf8(alt_allele.as_ref()).unwrap());
+        //dbg!(std::str::from_utf8(&Vec::from(&**alt_allele.as_ref())).unwrap());
 
         Ok(BreakendEmissionParams {
             ref_offset: 0,
@@ -372,9 +399,16 @@ impl<'a> Realignable<'a> for BreakendGroup {
     }
 }
 
+#[derive(Derefable, Debug)]
+pub(crate) struct AltAllele {
+    #[deref]
+    seq: VecDeque<u8>,
+    contains_revcomp: bool,
+}
+
 #[derive(Debug)]
 pub(crate) struct BreakendEmissionParams<'a> {
-    alt_allele: Rc<Vec<u8>>,
+    alt_allele: Rc<AltAllele>,
     ref_offset: usize,
     ref_end: usize,
     read_emission: Rc<ReadEmission<'a>>,
@@ -395,6 +429,12 @@ impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.alt_allele.len()
+    }
+}
+
+impl<'a> AltEmissionProperties for BreakendEmissionParams<'a> {
+    fn maybe_revcomp(&self) -> bool {
+        self.alt_allele.contains_revcomp
     }
 }
 

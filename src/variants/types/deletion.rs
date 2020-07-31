@@ -18,7 +18,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
-use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::evidence::realignment::{Realignable, Realigner, AltEmissionProperties};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
@@ -264,5 +264,11 @@ impl<'a> EmissionParameters for DeletionEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
+    }
+}
+
+impl<'a> AltEmissionProperties for DeletionEmissionParams<'a> {
+    fn maybe_revcomp(&self) -> bool {
+        false 
     }
 }
