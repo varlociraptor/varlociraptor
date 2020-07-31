@@ -115,24 +115,6 @@ impl BreakendGroup {
             })
             .collect()
     }
-
-    fn contained_breakends(&self, ref_interval: &genome::Interval) -> Vec<&Breakend> {
-        self.breakends
-            .iter()
-            .filter_map(|(locus, bnd)| {
-                // TODO add genome::Interval::contains(genome::Locus) method to genome::Interval in bio-types.
-                // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9).
-                if ref_interval.contig() == locus.contig()
-                    && locus.pos() >= ref_interval.range().start
-                    && locus.pos() < ref_interval.range().end
-                {
-                    Some(bnd)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
 }
 
 impl Variant for BreakendGroup {
@@ -611,17 +593,6 @@ impl Breakend {
         } else {
             false
         }
-    }
-
-    fn is_inclusive_bound(&self) -> bool {
-        for op in self.operations.iter() {
-            if let Operation::Replacement(seq) = op {
-                if seq == &self.ref_allele {
-                    return true;
-                }
-            }
-        }
-        false
     }
 
     pub(crate) fn to_variant(&self, event: &[u8]) -> Option<model::Variant> {
