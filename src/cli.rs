@@ -315,7 +315,6 @@ pub enum CallKind {
         alpha: f64,
         #[structopt(
             long,
-            default_value = false,
             help = "Control the local FDR of each possible interval. \
                     Intervals with a posterior probability lower than 1 - alpha are not considered \
                     in the integer linear program problem setup."
@@ -323,7 +322,6 @@ pub enum CallKind {
         control_local_fdr: bool,
         #[structopt(
             long,
-            default_value = false,
             help = "Exclude intervals where the likelihood of an LOH is not even 'barely' better \
                     than the likelihood of no LOH from the integer linear program problem setup. \
                     'barely' refers to the Bayes Factor classification of Kass and Raftery."
