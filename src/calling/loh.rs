@@ -241,7 +241,7 @@ impl ContigLogLikelihoodsLOH {
                 Prob::checked( i as f64 / resolution as f64 ).unwrap()
             )
         ).collect();
-        let one_minus_freqs: Vec<&LogProb> = freqs.clone().iter().rev().collect();
+        let one_minus_freqs: Vec<LogProb> = freqs.iter().cloned().rev().collect();
         // first index: position in contig array
         // second index: loh frequency
         let mut cum_log_likelihood_loh_by_freq: Vec<Vec<LogProb>> = Vec::new();
@@ -293,26 +293,26 @@ impl ContigLogLikelihoodsLOH {
     ) -> Result<HashMap<RangeInclusive<usize>, LogProb>> {
         let log_one_minus_alpha = LogProb::from(alpha).ln_one_minus_exp();
         let mut intervals = HashMap::new();
+        let ones = [LogProb::ln_one()].repeat(self.cum_loh_by_freq.first().unwrap().len()).clone();
         for start in 0..self.cum_loh_by_freq.len() {
-            let &start_minus_one_vector = if start > 0 {
+            let start_minus_one_vector = if start > 0 {
                 &self.cum_loh_by_freq[(start - 1)]
             } else {
-                &[LogProb::ln_one()].repeat(self.cum_loh_by_freq.first().unwrap().len())
+                &ones
             };
             for end in start..self.cum_loh_by_freq.len() {
-                let &end_vector = &self.cum_loh_by_freq[end];
+                let end_vector = &self.cum_loh_by_freq[end];
                 let log_likelihood_loh_one = if start > 0 {
                     end_vector.last().unwrap() - start_minus_one_vector.last().unwrap()
                 } else {
                     end_vector.last().unwrap().clone()
                 };
                 let marginal_log_likelihood_loh = if start > 0 {
-                    LogProb::ln_sum_exp(
-                        &end_vector.iter()
+                    let log_likelihoods: Vec<_> = end_vector.iter()
                             .zip(start_minus_one_vector.iter())
                             .map(|(end, start)| end - start)
-                            .collect()
-                    )
+                            .collect();
+                    LogProb::ln_sum_exp( &log_likelihoods )
                 } else {
                     LogProb::ln_sum_exp(&end_vector)
                 };
