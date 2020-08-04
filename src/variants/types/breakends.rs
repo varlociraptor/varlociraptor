@@ -286,13 +286,14 @@ impl<'a> Realignable<'a> for BreakendGroup {
                     true,
                 );
             }
-            //alt_allele.push_back(b'1'); // dbg
+            alt_allele.push_seq(b"1".iter(), false); // dbg
 
             let mut next_bnd = Some(first);
+            let mut revcomp = false;
             let mut visited = HashSet::new();
             while let Some(current) = next_bnd {
                 if visited.contains(&current.id) {
-                    //alt_allele.push_back(b'2'); // dbg
+                    alt_allele.push_seq(b"2".iter(), false); // dbg
                     // We are back at a previous breakend, time to stop.
                     let ref_seq = ref_buffer.seq(current.locus.contig())?;
                     if current.is_left_to_right() {
@@ -311,7 +312,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
                 // If we are operating right to left, the breakend operations need to be reversed, because
                 // they are prepended to the allele.
-                let ops: Box<dyn Iterator<Item = &Operation>> = if current.is_left_to_right() {
+                let ops: Box<dyn Iterator<Item = &Operation>> = if current.is_left_to_right() && !revcomp {
                     Box::new(current.operations.iter())
                 } else {
                     Box::new(current.operations.iter().rev())
@@ -320,7 +321,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
                 for op in ops {
                     match op {
                         Operation::Replacement(seq) => {
-                            //alt_allele.push_back(b'|'); // dbg
+                            alt_allele.push_seq(b"|".iter(), false); // dbg
                             alt_allele.push_seq(seq.iter(), !current.is_left_to_right());
                         }
                         Operation::Join {
@@ -346,8 +347,15 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                     &ref_seq[seq_start..seq_end]
                                 }
                             };
+                            if let ExtensionModification::ReverseComplement = extension_modification {
+                                revcomp = true;
+                            } else {
+                                revcomp = false;
+                            }
 
-                            //alt_allele.push_back(b'|'); // dbg
+                            alt_allele.push_seq(b"|".iter(), false); // dbg
+
+                            dbg!((&current, next_bnd, std::str::from_utf8(seq).unwrap()));
 
                             match (
                                 extension_modification,
@@ -397,7 +405,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
         }
 
         let alt_allele = Rc::clone(self.alt_alleles.borrow().get(&bnds).unwrap());
-        //dbg!(std::str::from_utf8(&Vec::from(&**alt_allele.as_ref())).unwrap());
+        dbg!(std::str::from_utf8(&Vec::from((**alt_allele.as_ref()).clone())).unwrap());
 
         Ok(BreakendEmissionParams {
             ref_offset: 0,

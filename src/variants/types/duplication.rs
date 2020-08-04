@@ -21,49 +21,6 @@ impl Duplication {
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
 
         // Encode duplication via breakends, see VCF spec.
-        // let dup = &chrom_seq[interval.range().start as usize..interval.range().end as usize];
-
-        // let ref_allele = get_ref_allele(interval.range().end - 1);
-        // let mut repl = vec![ref_allele];
-        // repl.extend(dup);
-        // breakend_group.push(Breakend::from_operations(
-        //     get_locus(interval.range().start - 1),
-        //     vec![ref_allele],
-        //     [
-        //         Operation::Replacement(repl),
-        //         Operation::Join {
-        //             locus: genome::Locus::new(
-        //                 interval.contig().to_owned(),
-        //                 interval.range().end,
-        //             ),
-        //             side: Side::RightOfPos,
-        //             extension_modification: ExtensionModification::None,
-        //         },
-        //     ],
-        //     b"u",
-        //     b"v",
-        // ));
-
-        // let ref_allele = get_ref_allele(interval.range().end);
-        // let mut repl = dup.to_owned();
-        // repl.push(ref_allele);
-        // breakend_group.push(Breakend::from_operations(
-        //     get_locus(interval.range().end),
-        //     vec![ref_allele],
-        //     [
-        //         Operation::Join {
-        //             locus: genome::Locus::new(
-        //                 interval.contig().to_owned(),
-        //                 interval.range().start,
-        //             ),
-        //             side: Side::LeftOfPos,
-        //             extension_modification: ExtensionModification::None,
-        //         },
-        //         Operation::Replacement(repl),
-        //     ],
-        //     b"u",
-        //     b"v",
-        // ));
 
         let ref_allele = get_ref_allele(interval.range().start);
         breakend_group.push(Breakend::from_operations(

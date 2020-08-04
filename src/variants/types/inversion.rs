@@ -81,12 +81,12 @@ impl Inversion {
             get_locus(interval.range().end),
             ref_allele,
             [
-                Operation::Replacement(ref_allele.to_owned()),
                 Operation::Join {
                     locus: genome::Locus::new(interval.contig().to_owned(), interval.range().start),
                     side: Side::RightOfPos,
                     extension_modification: ExtensionModification::ReverseComplement,
                 },
+                Operation::Replacement(ref_allele.to_owned()),
             ],
             b"x",
             b"v",
