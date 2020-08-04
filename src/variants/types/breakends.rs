@@ -293,8 +293,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
                 alt_allele.push_seq(first.replacement().iter(), true);
             }
 
-            let left_to_right = first.is_left_to_right();
-
+            let mut revcomp = false;
             let mut next_bnd = Some(first);
             let mut visited = HashSet::new();
             while let Some(current) = next_bnd {
@@ -351,11 +350,17 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
                     dbg!((&current, next_bnd, std::str::from_utf8(&seq).unwrap()));
 
+                    let (left_to_right, extension_modification) = if revcomp {
+                        (!current.is_left_to_right(), extension_modification.invert())
+                    } else {
+                        (current.is_left_to_right(), *extension_modification)
+                    };
+
                     // Push sequence to alt allele.
                     match (
                         extension_modification,
                         next_bnd.is_none(),
-                        current.is_left_to_right(),
+                        left_to_right,
                     ) {
                         (ExtensionModification::None, false, is_left_to_right) => {
                             alt_allele.push_seq(seq.iter(), !is_left_to_right)
@@ -389,6 +394,13 @@ impl<'a> Realignable<'a> for BreakendGroup {
                             );
                         }
                     }
+
+                    // Update revcomp marker for next iteration.
+                    revcomp = if let ExtensionModification::ReverseComplement = extension_modification {
+                        true
+                    } else {
+                        false
+                    };
                 } else {
                     unreachable!();
                 }
@@ -642,10 +654,19 @@ pub(crate) enum Side {
     RightOfPos,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ExtensionModification {
     None,
     ReverseComplement,
+}
+
+impl ExtensionModification {
+    fn invert(&self) -> Self {
+        match self {
+            ExtensionModification::None => ExtensionModification::ReverseComplement,
+            ExtensionModification::ReverseComplement => ExtensionModification::None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
