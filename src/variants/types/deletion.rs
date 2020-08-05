@@ -117,19 +117,19 @@ impl<'a> Realignable<'a> for Deletion {
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<DeletionEmissionParams<'a>> {
+    ) -> Result<Vec<DeletionEmissionParams<'a>>> {
         let start = self.locus.range().start as usize;
         let end = self.locus.range().end as usize;
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
-        Ok(DeletionEmissionParams {
+        Ok(vec![DeletionEmissionParams {
             del_start: start,
             del_len: end - start,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
             ref_seq,
             read_emission: read_emission_params,
-        })
+        }])
     }
 }
 
