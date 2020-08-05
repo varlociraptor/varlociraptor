@@ -28,15 +28,25 @@ use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
-    AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocusBuilder, Variant,
+    AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocusBuilder, Variant, SingleLocus, Overlap
 };
 use crate::{default_emission, default_ref_base_emission};
 
+const MIN_REF_BASES: u64 = 10;
+
+#[derive(Builder)]
 pub(crate) struct BreakendGroup {
+    #[builder(default)]
     loci: MultiLocus,
+    #[builder(default)]
     breakends: BTreeMap<genome::Locus, Breakend>,
+    #[builder(default)]
     alt_alleles: RefCell<HashMap<Vec<usize>, Vec<Rc<AltAllele>>>>,
     realigner: RefCell<Realigner>,
+}
+
+impl BreakendGroupBuilder {
+
 }
 
 impl BreakendGroup {
@@ -102,12 +112,14 @@ impl BreakendGroup {
             .keys()
             .enumerate()
             .filter_map(|(i, locus)| {
+                dbg!((locus.pos(), ref_interval));
                 // TODO add genome::Interval::contains(genome::Locus) method to genome::Interval in bio-types.
                 // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9).
                 if ref_interval.contig() == locus.contig()
                     && locus.pos() >= ref_interval.range().start
                     && locus.pos() < ref_interval.range().end
                 {
+                    dbg!("ok");
                     Some(i)
                 } else {
                     None
@@ -122,13 +134,32 @@ impl Variant for BreakendGroup {
     type Loci = MultiLocus;
 
     fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
+        let valid_overlap = |locus: &SingleLocus, read| {
+            let overlap = locus.overlap(read, true);
+            if !overlap.is_none() {
+                let min_offset = cmp::min(
+                    locus.range().start.saturating_sub(read.pos() as u64),
+                    read.cigar_cached().unwrap().end_pos().saturating_sub(locus.range().end as i64) as u64,
+                );
+                
+                if min_offset >= MIN_REF_BASES {
+                    // METHOD: require at least 10 bases on the reference.
+                    // Otherwise, fragments can be completely contained between two breakends.
+                    // In such cases (e.g. with revcomp operations), they are undistinguishable from 
+                    // reference fragments.
+                    return true;
+                }
+            }
+            false
+        };
+
         let overlapping: Vec<_> = match evidence {
             PairedEndEvidence::SingleEnd(read) => self
                 .loci
                 .iter()
                 .enumerate()
                 .filter_map(|(i, locus)| {
-                    if !locus.overlap(read, true).is_none() {
+                    if valid_overlap(locus, read) {
                         Some(i)
                     } else {
                         None
@@ -140,7 +171,7 @@ impl Variant for BreakendGroup {
                 .iter()
                 .enumerate()
                 .filter_map(|(i, locus)| {
-                    if !locus.overlap(left, true).is_none() || !locus.overlap(right, true).is_none()
+                    if valid_overlap(locus, left) || valid_overlap(locus, right)
                     {
                         Some(i)
                     } else {
@@ -253,6 +284,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
     ) -> Result<Vec<BreakendEmissionParams<'a>>> {
         // Step 1: fetch contained breakends
         let bnds = self.contained_breakend_indices(ref_interval);
+        dbg!(&bnds);
 
         if !self.alt_alleles.borrow().contains_key(&bnds) {
             // Compute alt allele sequence once.
@@ -263,6 +295,8 @@ impl<'a> Realignable<'a> for BreakendGroup {
                 if !bnds.contains(&i) {
                     continue;
                 }
+
+                dbg!(i);
 
                 let mut alt_allele = AltAllele::default();
 
@@ -478,7 +512,7 @@ impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
 }
 
 /// Modeling of breakends.
-#[derive(Getters, Debug)]
+#[derive(Getters, Debug, Clone)]
 pub(crate) struct Breakend {
     #[getset(get = "pub")]
     locus: genome::Locus,

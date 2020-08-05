@@ -102,6 +102,7 @@ impl Realigner {
             ) {
                 // read encloses variant
                 (Some(qstart), Some(qend)) => {
+                    dbg!(("encloses", qstart, qend));
                     let qstart = qstart as usize;
                     // exclusive end of variant
                     let qend = qend as usize;
@@ -128,6 +129,7 @@ impl Realigner {
 
                 // read overlaps from right
                 (Some(qstart), None) => {
+                    dbg!(("left", locus_start, locus_end));
                     let qstart = qstart as usize;
                     let read_offset = qstart.saturating_sub(self.max_window as usize);
                     let read_end = cmp::min(qstart + self.max_window as usize, record.seq_len());
@@ -141,6 +143,7 @@ impl Realigner {
 
                 // read overlaps from left
                 (None, Some(qend)) => {
+                    dbg!("right");
                     let qend = qend as usize;
                     let read_offset = qend.saturating_sub(self.max_window as usize);
                     let read_end = cmp::min(qend + self.max_window as usize, record.seq_len());
@@ -154,6 +157,7 @@ impl Realigner {
 
                 // no overlap
                 (None, None) => {
+                    dbg!("none");
                     let m = record.seq_len() / 2;
                     let read_offset = m.saturating_sub(self.max_window as usize);
                     let read_end = cmp::min(m + self.max_window as usize - 1, record.seq_len());
@@ -278,7 +282,7 @@ impl Realigner {
                     region.ref_interval.start as u64..region.ref_interval.end as u64,
                 );
 
-                let prob_alt = self.prob_allele(
+                let mut prob_alt = self.prob_allele(
                     &mut variant.alt_emission_params(
                         Rc::clone(&read_emission),
                         Arc::clone(&self.ref_buffer),
@@ -288,39 +292,46 @@ impl Realigner {
                     &edit_dist,
                 );
                 
-                // if variant.maybe_revcomp() {
-                //     // also try the reverse complement of the read
+                if variant.maybe_revcomp() {
+                    // METHOD: also try the reverse complement of the read.
+                    // In inversions, it can happen that both reads of a pair are inside it. 
+                    // Then, they are revcomped by the mapper and perfectly match the reference genome.
+                    // In contrast, they don't match the inversion because they are at the wrong region of it (inverted).
+                    // This can be fixed by trying the reverse complement of the read sequence.
 
-                //     let revcomp_seq = Box::new(dna::revcomp(read_seq.as_bytes()));
-                //     let mut rev_quals = read_qual.to_owned();
-                //     rev_quals.reverse();
-                //     let rev_interval = revcomp_seq.len() - region.read_interval.end
-                //         ..revcomp_seq.len() - region.read_interval.start;
+                    // TODO often this is superfluous, find a way to omit it if possible.
 
-                //     let edit_dist =
-                //         EditDistanceCalculation::new(rev_interval.clone().map(|i| revcomp_seq[i]));
+                    let revcomp_seq = Box::new(dna::revcomp(read_seq.as_bytes()));
+                    dbg!(std::str::from_utf8(&revcomp_seq).unwrap());
+                    let mut rev_quals = read_qual.to_owned();
+                    rev_quals.reverse();
+                    let rev_interval = revcomp_seq.len() - region.read_interval.end
+                        ..revcomp_seq.len() - region.read_interval.start;
 
-                //     let read_emission = Rc::new(ReadEmission::new(
-                //         revcomp_seq,
-                //         &rev_quals,
-                //         rev_interval.start,
-                //         rev_interval.end,
-                //     ));
+                    let edit_dist =
+                        EditDistanceCalculation::new(rev_interval.clone().map(|i| revcomp_seq[i]));
 
-                //     let prob_alt_revcomp = self.prob_allele(
-                //         variant.alt_emission_params(
-                //             Rc::clone(&read_emission),
-                //             Arc::clone(&self.ref_buffer),
-                //             &ref_interval,
-                //             self.ref_window(),
-                //         )?,
-                //         &edit_dist,
-                //     );
+                    let read_emission = Rc::new(ReadEmission::new(
+                        revcomp_seq,
+                        &rev_quals,
+                        rev_interval.start,
+                        rev_interval.end,
+                    ));
 
-                //     if prob_alt_revcomp > prob_alt {
-                //         prob_alt = prob_alt_revcomp;
-                //     }
-                // }
+                    let prob_alt_revcomp = self.prob_allele(
+                        &mut variant.alt_emission_params(
+                            Rc::clone(&read_emission),
+                            Arc::clone(&self.ref_buffer),
+                            &ref_interval,
+                            self.ref_window(),
+                        )?,
+                        &edit_dist,
+                    );
+
+                    if prob_alt_revcomp > prob_alt {
+                        prob_alt = prob_alt_revcomp;
+                    }
+                }
 
                 prob_alt
             };

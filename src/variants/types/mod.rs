@@ -276,7 +276,7 @@ where
 
 pub(crate) trait Loci {}
 
-#[derive(Debug, Derefable, Builder, new)]
+#[derive(Debug, Derefable, Builder, new, Clone)]
 pub(crate) struct SingleLocus {
     #[deref]
     interval: genome::Interval,
@@ -324,7 +324,7 @@ impl SingleLocus {
 
 impl Loci for SingleLocus {}
 
-#[derive(new, Default, Debug, Derefable)]
+#[derive(new, Default, Debug, Derefable, Clone)]
 pub(crate) struct MultiLocus {
     #[deref(mutable)]
     loci: Vec<SingleLocus>,
