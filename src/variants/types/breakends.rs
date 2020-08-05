@@ -278,7 +278,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
                     ref_buffer.seq(first.locus.contig())?[prefix_range(first)].iter(),
                     false,
                 );
-                alt_allele.push_seq(b"1".iter(), false); // dbg
+                //alt_allele.push_seq(b"1".iter(), false); // dbg
                 // Add replacement to alt allele.
                 alt_allele.push_seq(first.replacement().iter(), false);
             } else {
@@ -288,7 +288,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
                     ref_seq[suffix_range(first, ref_seq.len(), false)].iter(),
                     true,
                 );
-                alt_allele.push_seq(b"1".iter(), true); // dbg
+                //alt_allele.push_seq(b"1".iter(), true); // dbg
                 // Add replacement to alt allele.
                 alt_allele.push_seq(first.replacement().iter(), true);
             }
@@ -298,7 +298,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
             let mut visited = HashSet::new();
             while let Some(current) = next_bnd {
                 if visited.contains(&current.id) {
-                    alt_allele.push_seq(b"2".iter(), false); // dbg
+                    //alt_allele.push_seq(b"2".iter(), false); // dbg
                     // We are back at a previous breakend, time to stop.
                     let ref_seq = ref_buffer.seq(current.locus.contig())?;
                     if current.is_left_to_right() {
@@ -346,9 +346,9 @@ impl<'a> Realignable<'a> for BreakendGroup {
                         (None, _) => seq.to_owned(),
                     };
 
-                    alt_allele.push_seq(b"|".iter(), false); // dbg
+                    //alt_allele.push_seq(b"|".iter(), false); // dbg
 
-                    dbg!((&current, next_bnd, std::str::from_utf8(&seq).unwrap()));
+                    //dbg!((&current, next_bnd, std::str::from_utf8(&seq).unwrap()));
 
                     let (left_to_right, extension_modification) = if revcomp {
                         (!current.is_left_to_right(), extension_modification.invert())
