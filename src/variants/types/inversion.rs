@@ -114,8 +114,6 @@ impl Variant for Inversion {
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
         let support = (**self).allele_support(evidence, alignment_properties)?;
-        dbg!(str::from_utf8(evidence.qname()).unwrap());
-        dbg!(&support);
 
         Ok(support)
     }

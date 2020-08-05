@@ -4,11 +4,11 @@
 // except according to those terms.
 
 use std::cmp;
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
-use std::collections::BTreeMap;
 use std::usize;
 
 use anyhow::Result;
@@ -102,7 +102,6 @@ impl Realigner {
             ) {
                 // read encloses variant
                 (Some(qstart), Some(qend)) => {
-                    dbg!(("encloses", qstart, qend));
                     let qstart = qstart as usize;
                     // exclusive end of variant
                     let qend = qend as usize;
@@ -129,7 +128,6 @@ impl Realigner {
 
                 // read overlaps from right
                 (Some(qstart), None) => {
-                    dbg!(("left", locus_start, locus_end));
                     let qstart = qstart as usize;
                     let read_offset = qstart.saturating_sub(self.max_window as usize);
                     let read_end = cmp::min(qstart + self.max_window as usize, record.seq_len());
@@ -143,7 +141,6 @@ impl Realigner {
 
                 // read overlaps from left
                 (None, Some(qend)) => {
-                    dbg!("right");
                     let qend = qend as usize;
                     let read_offset = qend.saturating_sub(self.max_window as usize);
                     let read_end = cmp::min(qend + self.max_window as usize, record.seq_len());
@@ -157,7 +154,6 @@ impl Realigner {
 
                 // no overlap
                 (None, None) => {
-                    dbg!("none");
                     let m = record.seq_len() / 2;
                     let read_offset = m.saturating_sub(self.max_window as usize);
                     let read_end = cmp::min(m + self.max_window as usize - 1, record.seq_len());
@@ -261,7 +257,6 @@ impl Realigner {
                 region.read_interval.start,
                 region.read_interval.end,
             ));
-            dbg!(&region.read_interval);
             let edit_dist =
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
 
@@ -276,65 +271,18 @@ impl Realigner {
                 &edit_dist,
             );
 
-            let mut prob_alt = {
-                let ref_interval = genome::Interval::new(
-                    record.contig().to_owned(),
-                    region.ref_interval.start as u64..region.ref_interval.end as u64,
-                );
-
-                let mut prob_alt = self.prob_allele(
-                    &mut variant.alt_emission_params(
-                        Rc::clone(&read_emission),
-                        Arc::clone(&self.ref_buffer),
-                        &ref_interval,
-                        self.ref_window(),
-                    )?,
-                    &edit_dist,
-                );
-                
-                if variant.maybe_revcomp() {
-                    // METHOD: also try the reverse complement of the read.
-                    // In inversions, it can happen that both reads of a pair are inside it. 
-                    // Then, they are revcomped by the mapper and perfectly match the reference genome.
-                    // In contrast, they don't match the inversion because they are at the wrong region of it (inverted).
-                    // This can be fixed by trying the reverse complement of the read sequence.
-
-                    // TODO often this is superfluous, find a way to omit it if possible.
-
-                    let revcomp_seq = Box::new(dna::revcomp(read_seq.as_bytes()));
-                    dbg!(std::str::from_utf8(&revcomp_seq).unwrap());
-                    let mut rev_quals = read_qual.to_owned();
-                    rev_quals.reverse();
-                    let rev_interval = revcomp_seq.len() - region.read_interval.end
-                        ..revcomp_seq.len() - region.read_interval.start;
-
-                    let edit_dist =
-                        EditDistanceCalculation::new(rev_interval.clone().map(|i| revcomp_seq[i]));
-
-                    let read_emission = Rc::new(ReadEmission::new(
-                        revcomp_seq,
-                        &rev_quals,
-                        rev_interval.start,
-                        rev_interval.end,
-                    ));
-
-                    let prob_alt_revcomp = self.prob_allele(
-                        &mut variant.alt_emission_params(
-                            Rc::clone(&read_emission),
-                            Arc::clone(&self.ref_buffer),
-                            &ref_interval,
-                            self.ref_window(),
-                        )?,
-                        &edit_dist,
-                    );
-
-                    if prob_alt_revcomp > prob_alt {
-                        prob_alt = prob_alt_revcomp;
-                    }
-                }
-
-                prob_alt
-            };
+            let mut prob_alt = self.prob_allele(
+                &mut variant.alt_emission_params(
+                    Rc::clone(&read_emission),
+                    Arc::clone(&self.ref_buffer),
+                    &genome::Interval::new(
+                        record.contig().to_owned(),
+                        region.ref_interval.start as u64..region.ref_interval.end as u64,
+                    ),
+                    self.ref_window(),
+                )?,
+                &edit_dist,
+            );
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
@@ -402,16 +350,17 @@ impl Realigner {
         let mut best_params = None;
         for params in candidate_allele_params {
             let hit = edit_dist.calc_best_hit(params);
-            if hit.dist() < best_hit.as_ref().map_or(usize::max_value(), |h: &EditDistanceHit| h.dist()) {
+            if hit.dist()
+                < best_hit
+                    .as_ref()
+                    .map_or(usize::max_value(), |h: &EditDistanceHit| h.dist())
+            {
                 best_hit = Some(hit);
                 best_params = Some(params);
             }
         }
 
         if let (Some(hit), Some(allele_params)) = (best_hit, best_params) {
-
-            dbg!(&hit);
-
             if hit.dist() == 0 {
                 // METHOD: In case of a perfect match, we just take the base quality product.
                 // All alternative paths in the HMM will anyway be much worse.

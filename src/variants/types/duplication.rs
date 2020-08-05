@@ -14,7 +14,6 @@ pub(crate) struct Duplication(#[deref] BreakendGroup);
 
 impl Duplication {
     pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
-        dbg!(&interval);
         let mut breakend_group = BreakendGroup::new(realigner);
 
         let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..pos as usize + 1];
@@ -79,8 +78,6 @@ impl Variant for Duplication {
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
         let support = (**self).allele_support(evidence, alignment_properties)?;
-        dbg!(std::str::from_utf8(evidence.qname()).unwrap());
-        dbg!(&support);
 
         Ok(support)
     }
