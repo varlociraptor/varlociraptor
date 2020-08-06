@@ -188,6 +188,11 @@ impl Variant for BreakendGroup {
 
         let is_valid_ref_bases = |read: &bam::Record| {
             if let Some(ref interval) = self.enclosable_ref_interval {
+                // METHOD: we try to ensure that at least MIN_REF_BASES bases are on the reference
+                // By that, we avoid that a read is entirely inside the breakend. Such reads are 
+                // complicated to map against the alt allele (because e.g. with revcomp that might
+                // at a completely different position on the genome). And further, they do not help 
+                // anyway, because they tend to map equally well to ref like to alt (e.g. as revcomp).
                 cmp::max(
                     interval.range().start.saturating_sub(read.pos() as u64),
                     read.cigar_cached()
