@@ -5,7 +5,7 @@ use bio_types::genome::{self, AbstractInterval};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::Realigner;
 use crate::variants::types::breakends::{
-    Breakend, BreakendGroup, ExtensionModification, Operation, Side,
+    Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Operation, Side,
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
@@ -14,15 +14,17 @@ pub(crate) struct Duplication(#[deref] BreakendGroup);
 
 impl Duplication {
     pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
-        let mut breakend_group = BreakendGroup::new(realigner);
+        let mut breakend_group_builder = BreakendGroupBuilder::default();
+        breakend_group_builder.set_realigner(realigner);
 
-        let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..(pos + 1) as usize];
+        let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..pos as usize + 1];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
 
-        // Encode duplication via breakend, see VCF spec.
-        let ref_allele = get_ref_allele(interval.range().start - 1);
-        breakend_group.push(Breakend::from_operations(
-            get_locus(interval.range().start - 1),
+        // Encode duplication via breakends, see VCF spec.
+
+        let ref_allele = get_ref_allele(interval.range().start);
+        breakend_group_builder.push_breakend(Breakend::from_operations(
+            get_locus(interval.range().start),
             ref_allele,
             [
                 Operation::Join {
@@ -35,30 +37,27 @@ impl Duplication {
                 },
                 Operation::Replacement(ref_allele.to_owned()),
             ],
-            b"w",
             b"u",
+            b"w",
         ));
 
         let ref_allele = get_ref_allele(interval.range().end - 1);
-        breakend_group.push(Breakend::from_operations(
+        breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().end - 1),
             ref_allele,
             [
                 Operation::Replacement(ref_allele.to_owned()),
                 Operation::Join {
-                    locus: genome::Locus::new(
-                        interval.contig().to_owned(),
-                        interval.range().start - 1,
-                    ),
+                    locus: genome::Locus::new(interval.contig().to_owned(), interval.range().start),
                     side: Side::RightOfPos,
                     extension_modification: ExtensionModification::None,
                 },
             ],
-            b"u",
             b"w",
+            b"u",
         ));
 
-        Duplication(breakend_group)
+        Duplication(breakend_group_builder.build().unwrap())
     }
 }
 
@@ -79,7 +78,9 @@ impl Variant for Duplication {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
-        (**self).allele_support(evidence, alignment_properties)
+        let support = (**self).allele_support(evidence, alignment_properties)?;
+
+        Ok(support)
     }
 
     fn prob_sample_alt(

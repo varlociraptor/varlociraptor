@@ -6,7 +6,6 @@
 use std::cmp;
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::str;
 
 use bio::pattern_matching::myers::{self, long};
 use bio::stats::pairhmm;

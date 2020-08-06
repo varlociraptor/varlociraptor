@@ -40,16 +40,16 @@ impl Deletion {
         let contig = locus.contig().to_owned();
 
         let fetch_loci = MultiLocus::new(vec![
-            SingleLocus(genome::Interval::new(contig.clone(), start..start + 1)),
-            SingleLocus(genome::Interval::new(
+            SingleLocus::new(genome::Interval::new(contig.clone(), start..start + 1)),
+            SingleLocus::new(genome::Interval::new(
                 contig.clone(),
                 centerpoint..centerpoint + 1,
             )),
-            SingleLocus(genome::Interval::new(contig, end - 1..end)),
+            SingleLocus::new(genome::Interval::new(contig, end - 1..end)),
         ]);
 
         Deletion {
-            locus: SingleLocus(locus),
+            locus: SingleLocus::new(locus),
             fetch_loci,
             realigner: RefCell::new(realigner),
         }
@@ -117,19 +117,19 @@ impl<'a> Realignable<'a> for Deletion {
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<DeletionEmissionParams<'a>> {
+    ) -> Result<Vec<DeletionEmissionParams<'a>>> {
         let start = self.locus.range().start as usize;
         let end = self.locus.range().end as usize;
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
-        Ok(DeletionEmissionParams {
+        Ok(vec![DeletionEmissionParams {
             del_start: start,
             del_len: end - start,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
             ref_seq,
             read_emission: read_emission_params,
-        })
+        }])
     }
 }
 
@@ -234,7 +234,6 @@ impl Variant for Deletion {
 }
 
 /// Emission parameters for PairHMM over deletion allele.
-#[derive(Debug)]
 pub(crate) struct DeletionEmissionParams<'a> {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,

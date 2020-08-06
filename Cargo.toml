@@ -10,7 +10,7 @@ include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE", "te
 edition = "2018"
 
 [dependencies]
-bio = { git = "https://github.com/rust-bio/rust-bio.git", branch = "fix-myers-long" }
+bio = "0.32"
 bio-types = "0.7"
 rust-htslib = "0.32"
 log = "0.4"
