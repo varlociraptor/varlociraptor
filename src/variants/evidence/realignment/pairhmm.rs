@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, PHREDProb, Prob};
-use rust_htslib::bam;
 
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 

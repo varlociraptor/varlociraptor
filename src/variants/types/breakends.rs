@@ -18,6 +18,7 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use regex::Regex;
 use rust_htslib::bcf::{self, Read};
+use rust_htslib::bam;
 
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -28,53 +29,96 @@ use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
-    AlleleSupport, MultiLocus, Overlap, PairedEndEvidence, SingleLocus, SingleLocusBuilder, Variant,
+    AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, SingleLocusBuilder, Variant,
 };
 use crate::{default_emission, default_ref_base_emission};
 
 const MIN_REF_BASES: u64 = 10;
 
 #[derive(Builder)]
+#[builder(build_fn(name = "build_inner"))]
 pub(crate) struct BreakendGroup {
     #[builder(default)]
     loci: MultiLocus,
+    #[builder(private, default)]
+    enclosable_ref_interval: Option<genome::Interval>,
     #[builder(default)]
+    // TODO consider making the right side a Vec<Breakend>!
     breakends: BTreeMap<genome::Locus, Breakend>,
     #[builder(default)]
     alt_alleles: RefCell<HashMap<Vec<usize>, Vec<Rc<AltAllele>>>>,
+    #[builder(private)]
     realigner: RefCell<Realigner>,
 }
 
-impl BreakendGroupBuilder {}
+impl BreakendGroupBuilder {
+    pub(crate) fn set_realigner(&mut self, realigner: Realigner) -> &mut Self {
+        self.realigner = Some(RefCell::new(realigner));
 
-impl BreakendGroup {
-    pub(crate) fn new(realigner: Realigner) -> Self {
-        BreakendGroup {
-            loci: MultiLocus::default(),
-            breakends: BTreeMap::new(),
-            alt_alleles: RefCell::default(),
-            realigner: RefCell::new(realigner),
-        }
+        self
     }
 
-    pub(crate) fn breakends(&self) -> impl Iterator<Item = &Breakend> {
-        self.breakends.values()
-    }
-
-    pub(crate) fn push(&mut self, breakend: Breakend) {
+    pub(crate) fn push_breakend(&mut self, breakend: Breakend) -> &mut Self {
         let interval = genome::Interval::new(
             breakend.locus.contig().to_owned(),
             breakend.locus.pos()..breakend.locus.pos() + breakend.ref_allele.len() as u64,
         );
 
-        self.breakends.insert(breakend.locus.clone(), breakend);
+        if self.breakends.is_none() {
+            self.breakends = Some(BTreeMap::default());
+            self.loci = Some(MultiLocus::default());
+        }
 
-        self.loci.push(
+        self.breakends.as_mut().unwrap().insert(breakend.locus.clone(), breakend);
+
+        self.loci.as_mut().unwrap().push(
             SingleLocusBuilder::default()
                 .interval(interval)
                 .build()
                 .unwrap(),
         );
+
+        self
+    }
+
+    pub(crate) fn build(&mut self) -> Result<BreakendGroup, String> {
+        // TODO add implicit breakends
+        // let breakends = self.breakends.as_ref().unwrap();
+        // let mut to_add = Vec::new();
+        // for bnd in breakends.values() {
+        //     if bnd.emits_revcomp() && bnd.is_left_to_right() {
+        //         if breakends.get(genome::Locus::new(bnd.locus.contig().to_owned(), bnd.locus.pos() + 1)).is_some() {
+                     
+        //         }
+        //     }
+        // }
+
+        // Calculate enclosable reference interval.
+        let first = self.breakends.as_ref().unwrap().keys().next().unwrap();
+        if self
+            .breakends
+            .as_ref()
+            .unwrap()
+            .values()
+            .skip(1)
+            .all(|bnd| bnd.locus.contig() == first.contig())
+        {
+            let interval = {
+                let last = self.breakends.as_ref().unwrap().values().last().unwrap();
+                genome::Interval::new(last.locus.contig().to_owned(), first.pos()..last.locus.pos() + if !last.is_left_to_right() {last.ref_allele.len() as u64 } else { 0 })
+            };
+            self.enclosable_ref_interval(
+                Some(interval)
+            );
+        }
+
+        self.build_inner()
+    }
+}
+
+impl BreakendGroup {
+    pub(crate) fn breakends(&self) -> impl Iterator<Item = &Breakend> {
+        self.breakends.values()
     }
 
     fn upstream_bnd(&self, locus: &genome::Locus) -> Option<&Breakend> {
@@ -130,53 +174,60 @@ impl Variant for BreakendGroup {
     type Loci = MultiLocus;
 
     fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
-        let valid_overlap = |locus: &SingleLocus, read| {
-            let overlap = locus.overlap(read, true);
-            if !overlap.is_none() {
-                let min_offset = cmp::min(
-                    locus.range().start.saturating_sub(read.pos() as u64),
-                    read.cigar_cached()
-                        .unwrap()
-                        .end_pos()
-                        .saturating_sub(locus.range().end as i64) as u64,
-                );
+        let is_valid_overlap = |locus: &SingleLocus, read| {
+            !locus.overlap(read, true).is_none()
+        };
 
-                if min_offset >= MIN_REF_BASES {
-                    // METHOD: require at least 10 bases on the reference.
-                    // Otherwise, fragments can be completely contained between two breakends.
-                    // In such cases (e.g. with revcomp operations), they are undistinguishable from
-                    // reference fragments.
-                    return true;
-                }
+        let is_valid_ref_bases = |read: &bam::Record| {
+            if let Some(ref interval) = self.enclosable_ref_interval {
+                cmp::max(
+                    interval.range().start.saturating_sub(read.pos() as u64),
+                    read.cigar_cached()
+                            .unwrap()
+                            .end_pos()
+                            .saturating_sub(interval.range().end as i64) as u64
+                ) > MIN_REF_BASES
+            } else {
+                true
             }
-            false
         };
 
         let overlapping: Vec<_> = match evidence {
-            PairedEndEvidence::SingleEnd(read) => self
+            PairedEndEvidence::SingleEnd(read) => {
+                if !is_valid_ref_bases(read) {
+                    return None;
+                }
+                self
                 .loci
                 .iter()
                 .enumerate()
                 .filter_map(|(i, locus)| {
-                    if valid_overlap(locus, read) {
+                    if is_valid_overlap(locus, read) {
                         Some(i)
                     } else {
                         None
                     }
                 })
-                .collect(),
-            PairedEndEvidence::PairedEnd { left, right } => self
+                .collect()
+            },
+            PairedEndEvidence::PairedEnd { left, right } => {
+                if !is_valid_ref_bases(left) && !is_valid_ref_bases(right) {
+                    return None
+                }
+
+                self
                 .loci
                 .iter()
                 .enumerate()
                 .filter_map(|(i, locus)| {
-                    if valid_overlap(locus, left) || valid_overlap(locus, right) {
+                    if is_valid_overlap(locus, left) || is_valid_overlap(locus, right) {
                         Some(i)
                     } else {
                         None
                     }
                 })
-                .collect(),
+                .collect()
+            }
         };
 
         if overlapping.is_empty() {
@@ -249,18 +300,7 @@ impl Variant for BreakendGroup {
 
 impl SamplingBias for BreakendGroup {
     fn enclosable_len(&self) -> Option<u64> {
-        let first = self.breakends.keys().next().unwrap();
-        if self
-            .breakends
-            .values()
-            .skip(1)
-            .all(|bnd| bnd.locus.contig() == first.contig())
-        {
-            let last = self.breakends.values().last().unwrap();
-            Some(last.locus.pos() + last.ref_allele.len() as u64 - first.pos())
-        } else {
-            None
-        }
+        self.enclosable_ref_interval.as_ref().map(|interval| interval.range().end - interval.range().start)
     }
 }
 

@@ -4,7 +4,6 @@
 // except according to those terms.
 
 use std::cmp;
-use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::str;
@@ -12,7 +11,6 @@ use std::sync::Arc;
 use std::usize;
 
 use anyhow::Result;
-use bio::alphabets::dna;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractInterval;

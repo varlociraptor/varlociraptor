@@ -1,4 +1,3 @@
-use std::str;
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -7,7 +6,7 @@ use bio_types::genome::{self, AbstractInterval};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::Realigner;
 use crate::variants::types::breakends::{
-    Breakend, BreakendGroup, ExtensionModification, Operation, Side,
+    Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Operation, Side,
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
@@ -16,14 +15,15 @@ pub(crate) struct Inversion(#[deref] BreakendGroup);
 
 impl Inversion {
     pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
-        let mut breakend_group = BreakendGroup::new(realigner);
+        let mut breakend_group_builder = BreakendGroupBuilder::default();
+        breakend_group_builder.set_realigner(realigner);
 
         let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..(pos + 1) as usize];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
 
         // Encode inversion via breakends, see VCF spec.
         let ref_allele = get_ref_allele(interval.range().start - 1);
-        breakend_group.push(Breakend::from_operations(
+        breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().start - 1),
             ref_allele,
             [
@@ -42,7 +42,7 @@ impl Inversion {
         ));
 
         let ref_allele = get_ref_allele(interval.range().start);
-        breakend_group.push(Breakend::from_operations(
+        breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().start),
             ref_allele,
             [
@@ -58,7 +58,7 @@ impl Inversion {
         ));
 
         let ref_allele = get_ref_allele(interval.range().end - 1);
-        breakend_group.push(Breakend::from_operations(
+        breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().end - 1),
             ref_allele,
             [
@@ -77,7 +77,7 @@ impl Inversion {
         ));
 
         let ref_allele = get_ref_allele(interval.range().end);
-        breakend_group.push(Breakend::from_operations(
+        breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().end),
             ref_allele,
             [
@@ -92,7 +92,7 @@ impl Inversion {
             b"v",
         ));
 
-        Inversion(breakend_group)
+        Inversion(breakend_group_builder.build().unwrap())
     }
 }
 
