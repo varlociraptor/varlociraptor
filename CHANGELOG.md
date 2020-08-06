@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.0.1] - 2020-08-06
+- Fixed allele frequency biases that occurred due to missed evidence when investigating breakends.
+- Fixed pattern-too-long error that occurred in some corner cases.
+- Fixed error occurring when investigation breakends without event tag. These are skipped for now. Special handling will be added later.
+
 ## [2.0.0] - 2020-07-09
 - Add support for inversions, deletions and breakends.
 - Slightly modified CLI options.
