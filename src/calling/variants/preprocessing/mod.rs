@@ -46,7 +46,8 @@ pub(crate) struct ObservationProcessor {
     bcf_writer: bcf::Writer,
     breakend_index: BreakendIndex,
     #[builder(default)]
-    breakend_group_builders: HashMap<Vec<u8>, Option<variants::types::breakends::BreakendGroupBuilder>>,
+    breakend_group_builders:
+        HashMap<Vec<u8>, Option<variants::types::breakends::BreakendGroupBuilder>>,
     #[builder(default)]
     breakend_groups: HashMap<Vec<u8>, variants::types::breakends::BreakendGroup>,
 }
@@ -363,10 +364,8 @@ impl ObservationProcessor {
                 if !self.breakend_group_builders.contains_key(event) {
                     let mut builder = variants::types::breakends::BreakendGroupBuilder::default();
                     builder.set_realigner(self.realigner.clone());
-                    self.breakend_group_builders.insert(
-                        event.to_owned(),
-                        Some(builder),
-                    );
+                    self.breakend_group_builders
+                        .insert(event.to_owned(), Some(builder));
                 }
                 if let Some(group) = self.breakend_group_builders.get_mut(event).unwrap() {
                     if let Some(mateid) =
@@ -381,8 +380,11 @@ impl ObservationProcessor {
                             {
                                 // METHOD: last record of the breakend event. Hence, we can extract observations.
                                 let breakend_group = group.build().unwrap();
-                                self.breakend_groups.insert(event.to_owned(), breakend_group);
-                                self.sample.extract_observations(self.breakend_groups.get(event).unwrap()).map(as_option)
+                                self.breakend_groups
+                                    .insert(event.to_owned(), breakend_group);
+                                self.sample
+                                    .extract_observations(self.breakend_groups.get(event).unwrap())
+                                    .map(as_option)
                             } else {
                                 Ok(None)
                             }

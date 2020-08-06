@@ -17,8 +17,8 @@ use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use regex::Regex;
-use rust_htslib::bcf::{self, Read};
 use rust_htslib::bam;
+use rust_htslib::bcf::{self, Read};
 
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -69,7 +69,10 @@ impl BreakendGroupBuilder {
             self.loci = Some(MultiLocus::default());
         }
 
-        self.breakends.as_mut().unwrap().insert(breakend.locus.clone(), breakend);
+        self.breakends
+            .as_mut()
+            .unwrap()
+            .insert(breakend.locus.clone(), breakend);
 
         self.loci.as_mut().unwrap().push(
             SingleLocusBuilder::default()
@@ -88,7 +91,7 @@ impl BreakendGroupBuilder {
         // for bnd in breakends.values() {
         //     if bnd.emits_revcomp() && bnd.is_left_to_right() {
         //         if breakends.get(genome::Locus::new(bnd.locus.contig().to_owned(), bnd.locus.pos() + 1)).is_some() {
-                     
+
         //         }
         //     }
         // }
@@ -105,11 +108,18 @@ impl BreakendGroupBuilder {
         {
             let interval = {
                 let last = self.breakends.as_ref().unwrap().values().last().unwrap();
-                genome::Interval::new(last.locus.contig().to_owned(), first.pos()..last.locus.pos() + if !last.is_left_to_right() {last.ref_allele.len() as u64 } else { 0 })
+                genome::Interval::new(
+                    last.locus.contig().to_owned(),
+                    first.pos()
+                        ..last.locus.pos()
+                            + if !last.is_left_to_right() {
+                                last.ref_allele.len() as u64
+                            } else {
+                                0
+                            },
+                )
             };
-            self.enclosable_ref_interval(
-                Some(interval)
-            );
+            self.enclosable_ref_interval(Some(interval));
         }
 
         self.build_inner()
@@ -174,18 +184,16 @@ impl Variant for BreakendGroup {
     type Loci = MultiLocus;
 
     fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
-        let is_valid_overlap = |locus: &SingleLocus, read| {
-            !locus.overlap(read, true).is_none()
-        };
+        let is_valid_overlap = |locus: &SingleLocus, read| !locus.overlap(read, true).is_none();
 
         let is_valid_ref_bases = |read: &bam::Record| {
             if let Some(ref interval) = self.enclosable_ref_interval {
                 cmp::max(
                     interval.range().start.saturating_sub(read.pos() as u64),
                     read.cigar_cached()
-                            .unwrap()
-                            .end_pos()
-                            .saturating_sub(interval.range().end as i64) as u64
+                        .unwrap()
+                        .end_pos()
+                        .saturating_sub(interval.range().end as i64) as u64,
                 ) > MIN_REF_BASES
             } else {
                 true
@@ -197,36 +205,34 @@ impl Variant for BreakendGroup {
                 if !is_valid_ref_bases(read) {
                     return None;
                 }
-                self
-                .loci
-                .iter()
-                .enumerate()
-                .filter_map(|(i, locus)| {
-                    if is_valid_overlap(locus, read) {
-                        Some(i)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-            },
+                self.loci
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, locus)| {
+                        if is_valid_overlap(locus, read) {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            }
             PairedEndEvidence::PairedEnd { left, right } => {
                 if !is_valid_ref_bases(left) && !is_valid_ref_bases(right) {
-                    return None
+                    return None;
                 }
 
-                self
-                .loci
-                .iter()
-                .enumerate()
-                .filter_map(|(i, locus)| {
-                    if is_valid_overlap(locus, left) || is_valid_overlap(locus, right) {
-                        Some(i)
-                    } else {
-                        None
-                    }
-                })
-                .collect()
+                self.loci
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, locus)| {
+                        if is_valid_overlap(locus, left) || is_valid_overlap(locus, right) {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
             }
         };
 
@@ -300,7 +306,9 @@ impl Variant for BreakendGroup {
 
 impl SamplingBias for BreakendGroup {
     fn enclosable_len(&self) -> Option<u64> {
-        self.enclosable_ref_interval.as_ref().map(|interval| interval.range().end - interval.range().start)
+        self.enclosable_ref_interval
+            .as_ref()
+            .map(|interval| interval.range().end - interval.range().start)
     }
 }
 
