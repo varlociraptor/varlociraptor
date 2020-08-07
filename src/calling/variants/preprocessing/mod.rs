@@ -368,34 +368,31 @@ impl ObservationProcessor {
                         .insert(event.to_owned(), Some(builder));
                 }
                 if let Some(group) = self.breakend_group_builders.get_mut(event).unwrap() {
-                    if let Some(mateid) =
-                        utils::info_tag_mateid(record)?.map(|mateid| mateid.to_owned())
-                    {
-                        if let Some(breakend) =
-                            Breakend::new(locus(), ref_allele, spec, &record.id(), &mateid)?
-                        {
-                            group.push_breakend(breakend);
+                    if let Some(breakend) = Breakend::new(
+                        locus(),
+                        ref_allele,
+                        spec,
+                        &record.id(),
+                        utils::info_tag_mateid(record)?.map(|mateid| mateid.to_owned()),
+                    )? {
+                        group.push_breakend(breakend);
 
-                            if self.breakend_index.last_record_index(event).unwrap() == record_index
-                            {
-                                // METHOD: last record of the breakend event. Hence, we can extract observations.
-                                let breakend_group =
-                                    group.build(Arc::clone(&self.reference_buffer)).unwrap();
-                                self.breakend_groups
-                                    .insert(event.to_owned(), breakend_group);
-                                self.sample
-                                    .extract_observations(self.breakend_groups.get(event).unwrap())
-                                    .map(as_option)
-                            } else {
-                                Ok(None)
-                            }
+                        if self.breakend_index.last_record_index(event).unwrap() == record_index {
+                            // METHOD: last record of the breakend event. Hence, we can extract observations.
+                            let breakend_group =
+                                group.build(Arc::clone(&self.reference_buffer)).unwrap();
+                            self.breakend_groups
+                                .insert(event.to_owned(), breakend_group);
+                            self.sample
+                                .extract_observations(self.breakend_groups.get(event).unwrap())
+                                .map(as_option)
                         } else {
-                            // Breakend type not supported, remove breakend group.
-                            self.breakend_group_builders.insert(event.to_owned(), None);
                             Ok(None)
                         }
                     } else {
-                        Err(errors::Error::InvalidBNDRecordMateid.into())
+                        // Breakend type not supported, remove breakend group.
+                        self.breakend_group_builders.insert(event.to_owned(), None);
+                        Ok(None)
                     }
                 } else {
                     // Breakend group has been removed before because one breakend was invalid.

@@ -686,7 +686,7 @@ impl Breakend {
         ref_allele: &[u8],
         spec: &[u8],
         id: &[u8],
-        mateid: &[u8],
+        mateid: Option<Vec<u8>>,
     ) -> Result<Option<Self>> {
         lazy_static! {
             static ref RE: Regex = Regex::new("((?P<replacement>[ACGTN]+)|((?P<bracket1>[\\]\\[])(?P<anglebracket1><)?(?P<contig>[^\\]\\[:>]+)(?P<anglebracket2>>)?(:(?P<pos>[0-9]+))?(?P<bracket2>[\\]\\[])))").unwrap();
@@ -806,7 +806,7 @@ impl Breakend {
                 join,
                 is_left_to_right,
                 id: id.to_owned(),
-                mateid: Some(mateid.to_owned()),
+                mateid: mateid,
             }))
         }
     }
