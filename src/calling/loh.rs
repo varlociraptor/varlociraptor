@@ -119,17 +119,32 @@ impl Caller<'_> {
                 .collect();
 
             // Define Objective Function: maximise length of selected LOH regions
-            let contig_log_posterior_prob: Vec<LpExpression> = {
+            let lengths: Vec<LpExpression> = {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
-                        let interval_length = (interval.end() - interval.start() + 1) as f32;
-                        let posterior_log_prob_loh = NotNan::from( *intervals.get(&interval).unwrap() ).into_inner() as f32;
-                        posterior_log_prob_loh * interval_length * loh_indicator
+                        let interval_length = (interval.end() - interval.start() + 1 ) as f32;
+                        interval_length * loh_indicator
                     })
                     .collect()
             };
-            problem += contig_log_posterior_prob.sum();
+            problem += lengths.sum();
+
+//            // force maximum to something smaller than zero
+//            let contig_log_posterior_prob: Vec<LpExpression> = {
+//                interval_loh_indicator
+//                    .iter()
+//                    .map(|(&interval, loh_indicator)| {
+//                        let posterior_log_prob_loh = *intervals.get(&interval).unwrap();
+//                        let posterior_log_prob_other_f64 = NotNan::from( posterior_log_prob_loh.ln_one_minus_exp() ).into_inner();
+//                        let posterior_log_prob_loh_f64 = NotNan::from( posterior_log_prob_loh ).into_inner();
+//                        let factor = ( posterior_log_prob_loh_f64 - posterior_log_prob_other_f64) as f32;
+//                        println!("p: {:?}, 1-p: {:?}, factor: {:?}", posterior_log_prob_loh_f64, posterior_log_prob_other_f64, factor);
+//                        posterior_log_prob_other_f64 as f32 + factor * loh_indicator
+//                    })
+//                    .collect()
+//            };
+//            problem += contig_log_posterior_prob.sum().le(0);
 
             // Constraint: no overlapping intervals for selected intervals
             for current_interval in intervals.keys() {
@@ -246,7 +261,7 @@ impl ContigLogLikelihoodsLOH {
         // second index: loh frequency
         let mut cum_log_likelihood_loh_by_freq: Vec<Vec<LogProb>> = Vec::new();
         let mut positions = Vec::new();
-        let mut freq_likelihoods = Vec::with_capacity(resolution);
+        let mut freq_likelihoods = vec![LogProb::ln_one(); resolution];
         bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
         if bcf_reader.read(&mut record)? {
@@ -328,6 +343,7 @@ impl ContigLogLikelihoodsLOH {
                 ).evidence_kass_raftery() != evidence::KassRaftery::None {
                     continue;
                 }
+                println!("interval: {:?}, posterior prob: {:?}", start..=end, posterior_probability);
                 intervals.insert(start..=end, posterior_probability);
             }
         }
@@ -345,7 +361,7 @@ mod tests {
         let test_input = PathBuf::from("tests/resources/test_loh/loh_no_loh.bcf");
         let test_output = PathBuf::from("tests/resources/test_loh/loh_no_loh.out.bed");
         let expected_bed: Vec<u8> = Vec::from("chr8\t249134\t249135\t\t0.0000006369450033776132\n");
-        let alpha = 0.2;
+        let alpha = 0.98;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
             .unwrap()
