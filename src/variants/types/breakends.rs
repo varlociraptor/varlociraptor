@@ -93,82 +93,92 @@ impl BreakendGroupBuilder {
             let breakends = self.breakends.as_ref().unwrap();
             let mut to_add = Vec::new();
             for bnd in breakends.values() {
-                if bnd.emits_revcomp() {
-                    if bnd.is_left_to_right() {
-                        if let Some(other) = breakends.get(&genome::Locus::new(
-                            bnd.locus.contig().to_owned(),
-                            bnd.locus.pos() + 1,
-                        )) {
-                            if let Join {
-                                locus,
-                                side: Side::RightOfPos,
-                                extension_modification: ExtensionModification::ReverseComplement,
-                            } = other.join()
-                            {
-                                if locus.pos() == bnd.join().locus.pos() + 1 {
-                                    // corresponding antisense breakend present
-                                    continue;
+                if let Some(ref bnd_join) = bnd.join() {
+                    if bnd.emits_revcomp() {
+                        if bnd.is_left_to_right() {
+                            if let Some(other) = breakends.get(&genome::Locus::new(
+                                bnd.locus.contig().to_owned(),
+                                bnd.locus.pos() + 1,
+                            )) {
+                                if let Some(Join {
+                                    locus,
+                                    side: Side::RightOfPos,
+                                    extension_modification: ExtensionModification::ReverseComplement,
+                                }) = other.join()
+                                {
+                                    if locus.pos() == bnd_join.locus.pos() + 1 {
+                                        // corresponding antisense breakend present
+                                        continue;
+                                    }
                                 }
                             }
-                        }
-                        // add antisense breakend
-                        let ref_allele = ref_buffer.seq(bnd.locus.contig()).unwrap()
-                            [bnd.locus.pos() as usize + 1];
+                            // add antisense breakend
+                            let ref_allele = ref_buffer.seq(bnd.locus.contig()).unwrap()
+                                [bnd.locus.pos() as usize + 1];
 
-                        to_add.push(Breakend::from_operations(
-                            genome::Locus::new(bnd.locus.contig().to_owned(), bnd.locus.pos() + 1),
-                            &[ref_allele],
-                            vec![ref_allele],
-                            Join {
-                                locus: genome::Locus::new(
+                            to_add.push(Breakend::from_operations(
+                                genome::Locus::new(
                                     bnd.locus.contig().to_owned(),
-                                    bnd.join().locus.pos() + 1,
+                                    bnd.locus.pos() + 1,
                                 ),
-                                side: Side::RightOfPos,
-                                extension_modification: ExtensionModification::ReverseComplement,
-                            },
-                            false,
-                            b".",
-                            b".",
-                        ));
-                    } else {
-                        if let Some(other) = breakends.get(&genome::Locus::new(
-                            bnd.locus.contig().to_owned(),
-                            bnd.locus.pos() - 1,
-                        )) {
-                            if let Join {
-                                locus,
-                                side: Side::LeftOfPos,
-                                extension_modification: ExtensionModification::ReverseComplement,
-                            } = other.join()
-                            {
-                                if locus.pos() == bnd.join().locus.pos() - 1 {
-                                    // corresponding antisense breakend present
-                                    continue;
+                                &[ref_allele],
+                                vec![ref_allele],
+                                Join {
+                                    locus: genome::Locus::new(
+                                        bnd.locus.contig().to_owned(),
+                                        bnd_join.locus.pos() + 1,
+                                    ),
+                                    side: Side::RightOfPos,
+                                    extension_modification:
+                                        ExtensionModification::ReverseComplement,
+                                },
+                                false,
+                                b".",
+                                b".",
+                            ));
+                        } else {
+                            if let Some(other) = breakends.get(&genome::Locus::new(
+                                bnd.locus.contig().to_owned(),
+                                bnd.locus.pos() - 1,
+                            )) {
+                                if let Some(Join {
+                                    locus,
+                                    side: Side::LeftOfPos,
+                                    extension_modification: ExtensionModification::ReverseComplement,
+                                }) = other.join()
+                                {
+                                    if locus.pos() == bnd_join.locus.pos() - 1 {
+                                        // corresponding antisense breakend present
+                                        continue;
+                                    }
                                 }
                             }
-                        }
 
-                        // add antisense breakend
-                        let ref_allele = ref_buffer.seq(bnd.locus.contig()).unwrap()
-                            [bnd.locus.pos() as usize - 1];
+                            // add antisense breakend
+                            let ref_allele = ref_buffer.seq(bnd.locus.contig()).unwrap()
+                                [bnd.locus.pos() as usize - 1];
 
-                        to_add.push(Breakend::from_operations(
-                            genome::Locus::new(bnd.locus.contig().to_owned(), bnd.locus.pos() - 1),
-                            &[ref_allele],
-                            vec![ref_allele],
-                            Join {
-                                locus: genome::Locus::new(
+                            to_add.push(Breakend::from_operations(
+                                genome::Locus::new(
                                     bnd.locus.contig().to_owned(),
-                                    bnd.join().locus.pos() - 1,
+                                    bnd.locus.pos() - 1,
                                 ),
-                                side: Side::LeftOfPos,
-                                extension_modification: ExtensionModification::ReverseComplement,
-                            },
-                            true,
-                            b".",
-                            b".",
-                        ));
+                                &[ref_allele],
+                                vec![ref_allele],
+                                Join {
+                                    locus: genome::Locus::new(
+                                        bnd.locus.contig().to_owned(),
+                                        bnd_join.locus.pos() - 1,
+                                    ),
+                                    side: Side::LeftOfPos,
+                                    extension_modification:
+                                        ExtensionModification::ReverseComplement,
+                                },
+                                true,
+                                b".",
+                                b".",
+                            ));
+                        }
                     }
                 }
             }
@@ -485,85 +495,97 @@ impl<'a> Realignable<'a> for BreakendGroup {
                     }
                     visited.insert(&current.id);
 
-                    let join = current.join();
-
-                    let ref_seq = ref_buffer.seq(join.locus.contig())?;
-                    // Find next breakend from here in order to know how long to extend.
-                    let seq = match join.side {
-                        Side::LeftOfPos => {
-                            next_bnd = self.upstream_bnd(&join.locus);
-                            let seq_start = next_bnd.map_or(0, |bnd| bnd.locus.pos() as usize + 1); // end before the beginning of the next bnd
-                            let seq_end = join.locus.pos() as usize + 1; // locus.pos() is meant inclusive, so we need to add 1 here.
-                            &ref_seq[seq_start..seq_end]
-                        }
-                        Side::RightOfPos => {
-                            next_bnd = self.downstream_bnd(&join.locus);
-                            let seq_start = join.locus.pos() as usize; // locus.pos() is meant inclusive.
-                            let seq_end =
-                                next_bnd.map_or(ref_seq.len(), |bnd| bnd.locus.pos() as usize); // end before the start of the next bnd
-                            &ref_seq[seq_start..seq_end]
-                        }
-                    };
-
-                    // Apply replacement operation of next bnd if necessary.
-                    let seq: Vec<u8> = match (next_bnd, &join.side) {
-                        (Some(next_bnd), Side::RightOfPos) => seq
-                            .iter()
-                            .chain(next_bnd.replacement().iter())
-                            .cloned()
-                            .collect(),
-                        (Some(next_bnd), Side::LeftOfPos) => next_bnd
-                            .replacement()
-                            .iter()
-                            .chain(seq.iter())
-                            .cloned()
-                            .collect(),
-                        (None, _) => seq.to_owned(),
-                    };
-
-                    let (left_to_right, extension_modification) = if revcomp {
-                        (
-                            !current.is_left_to_right(),
-                            join.extension_modification.invert(),
-                        )
+                    let left_to_right = if revcomp {
+                        !current.is_left_to_right()
                     } else {
-                        (current.is_left_to_right(), join.extension_modification)
+                        current.is_left_to_right()
                     };
 
-                    //alt_allele.push_seq(b"|".iter(), !left_to_right); // dbg
+                    if let Some(ref join) = current.join() {
+                        let ref_seq = ref_buffer.seq(join.locus.contig())?;
+                        // Find next breakend from here in order to know how long to extend.
+                        let seq = match join.side {
+                            Side::LeftOfPos => {
+                                next_bnd = self.upstream_bnd(&join.locus);
+                                let seq_start =
+                                    next_bnd.map_or(0, |bnd| bnd.locus.pos() as usize + 1); // end before the beginning of the next bnd
+                                let seq_end = join.locus.pos() as usize + 1; // locus.pos() is meant inclusive, so we need to add 1 here.
+                                &ref_seq[seq_start..seq_end]
+                            }
+                            Side::RightOfPos => {
+                                next_bnd = self.downstream_bnd(&join.locus);
+                                let seq_start = join.locus.pos() as usize; // locus.pos() is meant inclusive.
+                                let seq_end =
+                                    next_bnd.map_or(ref_seq.len(), |bnd| bnd.locus.pos() as usize); // end before the start of the next bnd
+                                &ref_seq[seq_start..seq_end]
+                            }
+                        };
 
-                    // Push sequence to alt allele.
-                    match (extension_modification, next_bnd.is_none(), left_to_right) {
-                        (ExtensionModification::None, false, is_left_to_right) => {
-                            alt_allele.push_seq(seq.iter(), !is_left_to_right)
-                        }
-                        (ExtensionModification::ReverseComplement, false, is_left_to_right) => {
-                            alt_allele.push_seq(dna::revcomp(&seq).iter(), !is_left_to_right);
-                        }
-                        (ExtensionModification::None, true, true) => {
-                            alt_allele.push_seq(seq[..ref_window].iter(), false);
-                        }
-                        (ExtensionModification::ReverseComplement, true, true) => {
-                            alt_allele.push_seq(dna::revcomp(seq)[..ref_window].iter(), false);
-                        }
-                        (ExtensionModification::None, true, false) => {
-                            alt_allele
-                                .push_seq(seq[seq.len().saturating_sub(ref_window)..].iter(), true);
-                        }
-                        (ExtensionModification::ReverseComplement, true, false) => {
-                            let seq = dna::revcomp(seq);
-                            alt_allele
-                                .push_seq(seq[seq.len().saturating_sub(ref_window)..].iter(), true);
-                        }
-                    }
+                        // Apply replacement operation of next bnd if necessary.
+                        let seq: Vec<u8> = match (next_bnd, &join.side) {
+                            (Some(next_bnd), Side::RightOfPos) => seq
+                                .iter()
+                                .chain(next_bnd.replacement().iter())
+                                .cloned()
+                                .collect(),
+                            (Some(next_bnd), Side::LeftOfPos) => next_bnd
+                                .replacement()
+                                .iter()
+                                .chain(seq.iter())
+                                .cloned()
+                                .collect(),
+                            (None, _) => seq.to_owned(),
+                        };
 
-                    // Update revcomp marker for next iteration.
-                    revcomp =
-                        if let ExtensionModification::ReverseComplement = extension_modification {
+                        let extension_modification = if revcomp {
+                            join.extension_modification.invert()
+                        } else {
+                            join.extension_modification
+                        };
+
+                        //alt_allele.push_seq(b"|".iter(), !left_to_right); // dbg
+
+                        // Push sequence to alt allele.
+                        match (extension_modification, next_bnd.is_none(), left_to_right) {
+                            (ExtensionModification::None, false, is_left_to_right) => {
+                                alt_allele.push_seq(seq.iter(), !is_left_to_right)
+                            }
+                            (ExtensionModification::ReverseComplement, false, is_left_to_right) => {
+                                alt_allele.push_seq(dna::revcomp(&seq).iter(), !is_left_to_right);
+                            }
+                            (ExtensionModification::None, true, true) => {
+                                alt_allele.push_seq(seq[..ref_window].iter(), false);
+                            }
+                            (ExtensionModification::ReverseComplement, true, true) => {
+                                alt_allele.push_seq(dna::revcomp(seq)[..ref_window].iter(), false);
+                            }
+                            (ExtensionModification::None, true, false) => {
+                                alt_allele.push_seq(
+                                    seq[seq.len().saturating_sub(ref_window)..].iter(),
+                                    true,
+                                );
+                            }
+                            (ExtensionModification::ReverseComplement, true, false) => {
+                                let seq = dna::revcomp(seq);
+                                alt_allele.push_seq(
+                                    seq[seq.len().saturating_sub(ref_window)..].iter(),
+                                    true,
+                                );
+                            }
+                        }
+
+                        // Update revcomp marker for next iteration.
+                        revcomp = if let ExtensionModification::ReverseComplement =
+                            extension_modification
+                        {
                             true
                         } else {
                             false
                         };
+                    } else {
+                        // Single breakend, assembly stops here.
+                        // Nothing else to do, the replacement sequence has already been added in the step before.
+                    }
                 }
 
                 candidate_alt_alleles.push(Rc::new(alt_allele));
@@ -649,13 +671,13 @@ pub(crate) struct Breakend {
     #[getset(get = "pub(crate)")]
     replacement: Vec<u8>,
     #[getset(get = "pub(crate)")]
-    join: Join,
+    join: Option<Join>,
     #[getset(get_copy = "pub(crate)")]
     is_left_to_right: bool,
     #[getset(get = "pub(crate)")]
     id: Vec<u8>,
     #[getset(get = "pub(crate)")]
-    mateid: Vec<u8>,
+    mateid: Option<Vec<u8>>,
 }
 
 impl Breakend {
@@ -669,94 +691,124 @@ impl Breakend {
         lazy_static! {
             static ref RE: Regex = Regex::new("((?P<replacement>[ACGTN]+)|((?P<bracket1>[\\]\\[])(?P<anglebracket1><)?(?P<contig>[^\\]\\[:>]+)(?P<anglebracket2>>)?(:(?P<pos>[0-9]+))?(?P<bracket2>[\\]\\[])))").unwrap();
         }
+        lazy_static! {
+            static ref SINGLE_RE: Regex =
+                Regex::new("(\\.(?P<from_right>[ACGTN]+))|((?P<from_left>[ACGTN]+)\\.)").unwrap();
+        }
 
         let spec = str::from_utf8(spec).unwrap().to_owned();
 
+        let single_ops: Vec<_> = SINGLE_RE.captures_iter(&spec).collect();
         let ops: Vec<_> = RE.captures_iter(&spec).collect();
-        if ops.len() != 2 {
-            return Err(Error::InvalidBNDRecordAlt { spec }.into());
-        }
+        if single_ops.len() == 1 {
+            // Parse a single breakend (e.g. .ACTT)
 
-        let mut replacement = None;
-        let mut join = None;
-        let mut is_left_to_right = false;
-        for caps in ops {
-            if let Some(repl) = caps.name("replacement") {
-                let repl = repl.as_str().as_bytes().to_owned();
-                if join.is_none() {
-                    is_left_to_right = true;
-                }
-                replacement = Some(repl);
+            let caps = &single_ops[0];
+            let (is_left_to_right, replacement) = if let Some(repl) = caps.name("from_left") {
+                (true, repl)
+            } else if let Some(repl) = caps.name("from_right") {
+                (false, repl)
             } else {
-                // Must be in second case.
-                let bracket = caps.name("bracket1").unwrap().as_str();
-                if bracket != caps.name("bracket2").unwrap().as_str() {
-                    return Err(Error::InvalidBNDRecordAlt { spec }.into());
-                }
-                // insertion from assembly file
-                match (
-                    caps.name("anglebracket1").is_some(),
-                    caps.name("anglebracket2").is_some(),
-                ) {
-                    (true, true) => {
-                        // insertion from assembly file
-                        info!(
-                            "Skipping BND at {}:{} pointing to assembly file",
-                            locus.contig(),
-                            locus.pos()
-                        );
-                        return Ok(None);
+                return Err(Error::InvalidBNDRecordAlt { spec }.into());
+            };
+
+            Ok(Some(Breakend {
+                locus,
+                ref_allele: ref_allele.to_owned(),
+                replacement: replacement.as_str().as_bytes().to_owned(),
+                join: None,
+                is_left_to_right,
+                id: id.to_owned(),
+                mateid: None,
+            }))
+        } else {
+            // parse a normal breakend
+
+            if ops.len() != 2 {
+                return Err(Error::InvalidBNDRecordAlt { spec }.into());
+            }
+
+            let mut replacement = None;
+            let mut join = None;
+            let mut is_left_to_right = false;
+            for caps in ops {
+                if let Some(repl) = caps.name("replacement") {
+                    let repl = repl.as_str().as_bytes().to_owned();
+                    if join.is_none() {
+                        is_left_to_right = true;
                     }
-                    (false, false) => (), // no insertion from assembly file,
-                    _ => {
-                        // angle brackets do not match
+                    replacement = Some(repl);
+                } else {
+                    // Must be in second case.
+                    let bracket = caps.name("bracket1").unwrap().as_str();
+                    if bracket != caps.name("bracket2").unwrap().as_str() {
                         return Err(Error::InvalidBNDRecordAlt { spec }.into());
                     }
+                    // insertion from assembly file
+                    match (
+                        caps.name("anglebracket1").is_some(),
+                        caps.name("anglebracket2").is_some(),
+                    ) {
+                        (true, true) => {
+                            // insertion from assembly file
+                            info!(
+                                "Skipping BND at {}:{} pointing to assembly file",
+                                locus.contig(),
+                                locus.pos()
+                            );
+                            return Ok(None);
+                        }
+                        (false, false) => (), // no insertion from assembly file,
+                        _ => {
+                            // angle brackets do not match
+                            return Err(Error::InvalidBNDRecordAlt { spec }.into());
+                        }
+                    }
+
+                    let contig = caps.name("contig").unwrap().as_str().to_owned();
+                    let pos = caps.name("pos").unwrap().as_str().parse::<u64>()? - 1; // pos is 1-based, need to convert to 0-based
+
+                    let side = if bracket == "[" {
+                        Side::RightOfPos
+                    } else {
+                        Side::LeftOfPos
+                    };
+                    let extension_modification = if is_left_to_right {
+                        // Replacement sequence is inserted before.
+                        // ] means reverse complement.
+                        if bracket == "[" {
+                            ExtensionModification::None
+                        } else {
+                            ExtensionModification::ReverseComplement
+                        }
+                    } else {
+                        // Replacement sequence is inserted next.
+                        // [ means reverse complement.
+                        if bracket == "[" {
+                            ExtensionModification::ReverseComplement
+                        } else {
+                            ExtensionModification::None
+                        }
+                    };
+
+                    join = Some(Join {
+                        locus: genome::Locus::new(contig, pos),
+                        side,
+                        extension_modification,
+                    });
                 }
-
-                let contig = caps.name("contig").unwrap().as_str().to_owned();
-                let pos = caps.name("pos").unwrap().as_str().parse::<u64>()? - 1; // pos is 1-based, need to convert to 0-based
-
-                let side = if bracket == "[" {
-                    Side::RightOfPos
-                } else {
-                    Side::LeftOfPos
-                };
-                let extension_modification = if is_left_to_right {
-                    // Replacement sequence is inserted before.
-                    // ] means reverse complement.
-                    if bracket == "[" {
-                        ExtensionModification::None
-                    } else {
-                        ExtensionModification::ReverseComplement
-                    }
-                } else {
-                    // Replacement sequence is inserted next.
-                    // [ means reverse complement.
-                    if bracket == "[" {
-                        ExtensionModification::ReverseComplement
-                    } else {
-                        ExtensionModification::None
-                    }
-                };
-
-                join = Some(Join {
-                    locus: genome::Locus::new(contig, pos),
-                    side,
-                    extension_modification,
-                });
             }
-        }
 
-        Ok(Some(Breakend {
-            locus,
-            ref_allele: ref_allele.to_owned(),
-            replacement: replacement.unwrap(),
-            join: join.unwrap(),
-            is_left_to_right,
-            id: id.to_owned(),
-            mateid: mateid.to_owned(),
-        }))
+            Ok(Some(Breakend {
+                locus,
+                ref_allele: ref_allele.to_owned(),
+                replacement: replacement.unwrap(),
+                join,
+                is_left_to_right,
+                id: id.to_owned(),
+                mateid: Some(mateid.to_owned()),
+            }))
+        }
     }
 
     pub(crate) fn from_operations(
@@ -772,47 +824,69 @@ impl Breakend {
             locus,
             ref_allele: ref_allele.to_owned(),
             replacement,
-            join,
+            join: Some(join),
             is_left_to_right,
             id: id.to_owned(),
-            mateid: mateid.to_owned(),
+            mateid: Some(mateid.to_owned()),
         }
     }
 
     pub(crate) fn spec(&self) -> Vec<u8> {
         let mut prefix = "";
         let mut suffix = "";
-        let bracket;
-        if self.is_left_to_right() {
-            prefix = str::from_utf8(&self.replacement).unwrap();
-            if self.emits_revcomp() {
-                bracket = ']'
-            } else {
-                bracket = '['
-            };
-        } else {
-            if self.emits_revcomp() {
-                bracket = '[';
-            } else {
-                bracket = ']';
-            };
-            suffix = str::from_utf8(&self.replacement).unwrap();
-        }
 
-        format!(
-            "{prefix}{bracket}{contig}:{pos}{bracket}{suffix}",
-            prefix = prefix,
-            suffix = suffix,
-            bracket = bracket,
-            contig = self.join.locus.contig(),
-            pos = self.join.locus.pos() + 1
-        )
-        .as_bytes()
-        .to_owned()
+        if let Some(ref join) = self.join {
+            let bracket;
+            if self.is_left_to_right() {
+                prefix = str::from_utf8(&self.replacement).unwrap();
+                if self.emits_revcomp() {
+                    bracket = ']'
+                } else {
+                    bracket = '['
+                };
+            } else {
+                if self.emits_revcomp() {
+                    bracket = '[';
+                } else {
+                    bracket = ']';
+                };
+                suffix = str::from_utf8(&self.replacement).unwrap();
+            }
+
+            format!(
+                "{prefix}{bracket}{contig}:{pos}{bracket}{suffix}",
+                prefix = prefix,
+                suffix = suffix,
+                bracket = bracket,
+                contig = join.locus.contig(),
+                pos = join.locus.pos() + 1
+            )
+            .as_bytes()
+            .to_owned()
+        } else {
+            if self.is_left_to_right() {
+                suffix = "."
+            } else {
+                prefix = "."
+            }
+
+            format!(
+                "{prefix}{replacement}{suffix}",
+                prefix = prefix,
+                suffix = suffix,
+                replacement = str::from_utf8(&self.replacement).unwrap()
+            )
+            .as_bytes()
+            .to_owned()
+        }
     }
 
     fn emits_revcomp(&self) -> bool {
-        if let ExtensionModification::ReverseComplement = self.join().extension_modification {
+        if let Some(Join {
+            extension_modification: ExtensionModification::ReverseComplement,
+            ..
+        }) = self.join()
+        {
             true
         } else {
             false

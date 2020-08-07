@@ -258,7 +258,7 @@ impl ObservationProcessor {
                                 breakend.locus().pos(),
                                 breakend.id().to_owned(),
                             )
-                            .mateid(Some(breakend.mateid().to_owned()))
+                            .mateid(breakend.mateid().to_owned())
                             .build()
                             .unwrap();
 
