@@ -76,6 +76,10 @@ impl Realigner {
         }
     }
 
+    pub(crate) fn ref_buffer(&self) -> Arc<reference::Buffer> {
+        Arc::clone(&self.ref_buffer)
+    }
+
     fn candidate_region(
         &self,
         record: &bam::Record,

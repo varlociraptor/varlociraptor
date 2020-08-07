@@ -5,7 +5,7 @@ use bio_types::genome::{self, AbstractInterval};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::Realigner;
 use crate::variants::types::breakends::{
-    Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Operation, Side,
+    Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
@@ -14,6 +14,7 @@ pub(crate) struct Duplication(#[deref] BreakendGroup);
 
 impl Duplication {
     pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
+        let reference_buffer = realigner.ref_buffer();
         let mut breakend_group_builder = BreakendGroupBuilder::default();
         breakend_group_builder.set_realigner(realigner);
 
@@ -26,17 +27,16 @@ impl Duplication {
         breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().start),
             ref_allele,
-            [
-                Operation::Join {
-                    locus: genome::Locus::new(
-                        interval.contig().to_owned(),
-                        interval.range().end - 1,
-                    ),
-                    side: Side::LeftOfPos,
-                    extension_modification: ExtensionModification::None,
-                },
-                Operation::Replacement(ref_allele.to_owned()),
-            ],
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(
+                    interval.contig().to_owned(),
+                    interval.range().end - 1,
+                ),
+                Side::LeftOfPos,
+                ExtensionModification::None,
+            ),
+            false,
             b"u",
             b"w",
         ));
@@ -45,19 +45,18 @@ impl Duplication {
         breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().end - 1),
             ref_allele,
-            [
-                Operation::Replacement(ref_allele.to_owned()),
-                Operation::Join {
-                    locus: genome::Locus::new(interval.contig().to_owned(), interval.range().start),
-                    side: Side::RightOfPos,
-                    extension_modification: ExtensionModification::None,
-                },
-            ],
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().start),
+                Side::RightOfPos,
+                ExtensionModification::None,
+            ),
+            true,
             b"w",
             b"u",
         ));
 
-        Duplication(breakend_group_builder.build().unwrap())
+        Duplication(breakend_group_builder.build(reference_buffer).unwrap())
     }
 }
 
