@@ -295,6 +295,7 @@ where
                     }
                 })
                 .variants(Vec::new())
+                .record(first_record)?
                 .build()
                 .unwrap();
 

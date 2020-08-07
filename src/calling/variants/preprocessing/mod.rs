@@ -266,7 +266,7 @@ impl ObservationProcessor {
                             call.variants.push(
                                 VariantBuilder::default()
                                     .variant(
-                                        &breakend.to_variant(event).unwrap(),
+                                        &breakend.to_variant(event),
                                         breakend.locus().pos() as usize,
                                         None,
                                     )
@@ -379,7 +379,8 @@ impl ObservationProcessor {
                             if self.breakend_index.last_record_index(event).unwrap() == record_index
                             {
                                 // METHOD: last record of the breakend event. Hence, we can extract observations.
-                                let breakend_group = group.build().unwrap();
+                                let breakend_group =
+                                    group.build(Arc::clone(&self.reference_buffer)).unwrap();
                                 self.breakend_groups
                                     .insert(event.to_owned(), breakend_group);
                                 self.sample
