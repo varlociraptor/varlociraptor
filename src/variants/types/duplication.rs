@@ -29,10 +29,7 @@ impl Duplication {
             ref_allele,
             ref_allele.to_owned(),
             Join::new(
-                genome::Locus::new(
-                    interval.contig().to_owned(),
-                    interval.range().end - 1,
-                ),
+                genome::Locus::new(interval.contig().to_owned(), interval.range().end - 1),
                 Side::LeftOfPos,
                 ExtensionModification::None,
             ),
