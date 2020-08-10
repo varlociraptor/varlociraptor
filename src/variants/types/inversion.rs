@@ -5,7 +5,7 @@ use bio_types::genome::{self, AbstractInterval};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::realignment::Realigner;
 use crate::variants::types::breakends::{
-    Breakend, BreakendGroup, ExtensionModification, Operation, Side,
+    Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
@@ -14,81 +14,75 @@ pub(crate) struct Inversion(#[deref] BreakendGroup);
 
 impl Inversion {
     pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
-        let mut breakend_group = BreakendGroup::new(realigner);
+        let reference_buffer = realigner.ref_buffer();
+        let mut breakend_group_builder = BreakendGroupBuilder::default();
+        breakend_group_builder.set_realigner(realigner);
 
         let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..(pos + 1) as usize];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
 
         // Encode inversion via breakends, see VCF spec.
         let ref_allele = get_ref_allele(interval.range().start - 1);
-        breakend_group.push(Breakend::from_operations(
+        breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().start - 1),
             ref_allele,
-            [
-                Operation::Replacement(ref_allele.to_owned()),
-                Operation::Join {
-                    locus: genome::Locus::new(
-                        interval.contig().to_owned(),
-                        interval.range().end - 1,
-                    ),
-                    side: Side::LeftOfPos,
-                    extension_modification: ExtensionModification::ReverseComplement,
-                },
-            ],
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().end - 1),
+                Side::LeftOfPos,
+                ExtensionModification::ReverseComplement,
+            ),
+            true,
             b"w",
             b"u",
         ));
 
         let ref_allele = get_ref_allele(interval.range().start);
-        breakend_group.push(Breakend::from_operations(
+        breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().start),
             ref_allele,
-            [
-                Operation::Join {
-                    locus: genome::Locus::new(interval.contig().to_owned(), interval.range().end),
-                    side: Side::RightOfPos,
-                    extension_modification: ExtensionModification::ReverseComplement,
-                },
-                Operation::Replacement(ref_allele.to_owned()),
-            ],
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().end),
+                Side::RightOfPos,
+                ExtensionModification::ReverseComplement,
+            ),
+            false,
             b"v",
             b"x",
         ));
 
         let ref_allele = get_ref_allele(interval.range().end - 1);
-        breakend_group.push(Breakend::from_operations(
+        breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().end - 1),
             ref_allele,
-            [
-                Operation::Replacement(ref_allele.to_owned()),
-                Operation::Join {
-                    locus: genome::Locus::new(
-                        interval.contig().to_owned(),
-                        interval.range().start - 1,
-                    ),
-                    side: Side::LeftOfPos,
-                    extension_modification: ExtensionModification::ReverseComplement,
-                },
-            ],
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().start - 1),
+                Side::LeftOfPos,
+                ExtensionModification::ReverseComplement,
+            ),
+            true,
             b"u",
             b"w",
         ));
 
         let ref_allele = get_ref_allele(interval.range().end);
-        breakend_group.push(Breakend::from_operations(
+        breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().end),
             ref_allele,
-            [
-                Operation::Replacement(ref_allele.to_owned()),
-                Operation::Join {
-                    locus: genome::Locus::new(interval.contig().to_owned(), interval.range().start),
-                    side: Side::RightOfPos,
-                    extension_modification: ExtensionModification::ReverseComplement,
-                },
-            ],
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().start),
+                Side::RightOfPos,
+                ExtensionModification::ReverseComplement,
+            ),
+            false,
             b"x",
             b"v",
         ));
+
+        let breakend_group = breakend_group_builder.build(reference_buffer).unwrap();
 
         Inversion(breakend_group)
     }
@@ -111,7 +105,9 @@ impl Variant for Inversion {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
-        (**self).allele_support(evidence, alignment_properties)
+        let support = (**self).allele_support(evidence, alignment_properties)?;
+
+        Ok(support)
     }
 
     fn prob_sample_alt(

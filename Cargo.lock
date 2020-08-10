@@ -54,6 +54,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "array-macro"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06e97b4e522f9e55523001238ac59d13a8603af57f69980de5d8de4bbbe8ada6"
+
+[[package]]
 name = "askama"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -142,9 +148,9 @@ dependencies = [
 
 [[package]]
 name = "bio"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ca7a4ba213a7a4b07471edf914d12e5afbadcd274a844ebbfe2df195301a04f"
+checksum = "f1161c7b80eea668a884b4be136d83ef5175df5aaa6dcba482bdf4fbe1d046f2"
 dependencies = [
  "approx",
  "bio-types",
@@ -153,10 +159,11 @@ dependencies = [
  "bytecount",
  "csv",
  "custom_derive",
+ "enum-map",
  "fnv",
  "fxhash",
  "getset 0.0.9",
- "itertools 0.9.0",
+ "itertools",
  "itertools-num",
  "lazy_static 1.4.0",
  "multimap",
@@ -171,9 +178,10 @@ dependencies = [
  "serde",
  "serde_derive",
  "snafu",
- "statrs 0.12.0",
+ "statrs",
  "strum",
  "strum_macros",
+ "triple_accel",
  "vec_map",
 ]
 
@@ -570,6 +578,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
 
 [[package]]
+name = "enum-map"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70a375f899a53b9848ad9fb459b5bf90e4851ae5d9fea89134b062dc1828b26e"
+dependencies = [
+ "array-macro",
+ "enum-map-derive",
+]
+
+[[package]]
+name = "enum-map-derive"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e57001dfb2532f5a103ff869656887fae9a8defa7d236f3e39d2ee86ed629ad7"
+dependencies = [
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "syn 1.0.33",
+]
+
+[[package]]
 name = "env_logger"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -853,15 +882,6 @@ name = "itertools"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
 dependencies = [
  "either",
 ]
@@ -1842,7 +1862,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83695fde96cbe9e08f0e4eb96b1b56fdbd44f2098ee27462dda964c7745fddc7"
 dependencies = [
  "bitflags",
- "itertools 0.8.2",
+ "itertools",
  "proc-macro2 1.0.18",
  "quote 1.0.7",
  "syn 1.0.33",
@@ -1885,15 +1905,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "835a1669368b3524d9214cfcb274a1f5e3b0820b5f275c1509bfb0cc67664636"
 dependencies = [
  "rand 0.6.5",
-]
-
-[[package]]
-name = "statrs"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cce16f6de653e88beca7bd13780d08e09d4489dbca1f9210e041bc4852481382"
-dependencies = [
- "rand 0.7.3",
 ]
 
 [[package]]
@@ -2086,6 +2097,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efd1f82c56340fdf16f2a953d7bda4f8fdffba13d93b00844c25572110b26079"
 
 [[package]]
+name = "triple_accel"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13fef44d8e806b2203c290d3cf081a1bb683c61715e8244a9591fecd017066b5"
+
+[[package]]
 name = "typeable"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2184,7 +2201,7 @@ checksum = "a1ca13c08c41c9c3e04224ed9ff80461d97e121589ff27c753a16cb10830ae0f"
 
 [[package]]
 name = "varlociraptor"
-version = "2.0.1-alpha.0"
+version = "2.0.2-alpha.0"
 dependencies = [
  "GSL",
  "anyhow",
@@ -2211,7 +2228,7 @@ dependencies = [
  "getset 0.1.1",
  "half",
  "hyper",
- "itertools 0.8.2",
+ "itertools",
  "itertools-num",
  "lazy_static 1.4.0",
  "log 0.4.8",
@@ -2232,7 +2249,7 @@ dependencies = [
  "serde_yaml",
  "shrinkwraprs",
  "snafu",
- "statrs 0.11.0",
+ "statrs",
  "structopt",
  "strum",
  "strum_macros",

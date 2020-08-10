@@ -52,6 +52,7 @@ pub(crate) fn info_tag_event(record: &mut bcf::Record) -> Result<Option<&[u8]>> 
 }
 
 pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+    // TODO support multiple mateids (in case of uncertainty, see spec)
     Ok(record.info(b"MATEID").string()?.map(|v| v[0]))
 }
 
@@ -163,7 +164,7 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
             if alleles.len() != 2 {
                 info!("Skipping inversion with invalid number of ALT alleles (must be 1)");
             } else if let Some(end) = end {
-                let len = end - (pos + 1); // pos is pointing to the allele before the INV
+                let len = end + 1 - pos; // end is inclusive, pos as well.
                 variants.push(model::Variant::Inversion(len));
             } else {
                 info!("Skipping inversion without END tag.");
@@ -173,7 +174,7 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
             if alleles.len() != 2 {
                 info!("Skipping duplication with invalid number of ALT alleles (must be 1)");
             } else if let Some(end) = end {
-                let len = end - (pos + 1); // pos is pointing to the allele before the INV
+                let len = end + 1 - pos; // end is inclusive, pos as well.
                 variants.push(model::Variant::Duplication(len));
             } else {
                 info!("Skipping duplication without END tag.");

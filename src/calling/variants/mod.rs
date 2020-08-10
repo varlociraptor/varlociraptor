@@ -39,6 +39,12 @@ pub(crate) struct Call {
     variants: Vec<Variant>,
 }
 
+impl CallBuilder {
+    pub(crate) fn record(&mut self, record: &mut bcf::Record) -> Result<&mut Self> {
+        Ok(self.mateid(utils::info_tag_mateid(record)?.map(|e| e.to_vec())))
+    }
+}
+
 impl Call {
     pub(crate) fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
