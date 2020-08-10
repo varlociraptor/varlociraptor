@@ -276,7 +276,7 @@ impl BreakendGroup {
 
     fn breakend_pair(&self) -> Option<(&Breakend, &Breakend)> {
         if self.breakends.len() == 2 {
-            let left = self.breakends.values().nth(0).unwrap();
+            let left = self.breakends.values().next().unwrap();
             let right = self.breakends.values().nth(1).unwrap();
             Some((left, right))
         } else {
@@ -292,7 +292,7 @@ impl BreakendGroup {
                 && !right.emits_revcomp()
                 && left.is_left_to_right()
                 && left.replacement.len() > 1
-                && &right.replacement[..right.replacement.len() - 1] == &left.replacement[1..]
+                && right.replacement[..right.replacement.len() - 1] == left.replacement[1..]
                 && !right.is_left_to_right()
             {
                 return true;
@@ -472,7 +472,7 @@ impl SamplingBias for BreakendGroup {
                 return Some(right.locus.pos() - left.locus.pos());
             }
         } else if self.is_insertion() {
-            return Some(self.breakends.values().nth(0).unwrap().replacement.len() as u64 - 1);
+            return Some(self.breakends.values().next().unwrap().replacement.len() as u64 - 1);
         }
         None
     }
@@ -882,7 +882,7 @@ impl Breakend {
                 join,
                 is_left_to_right,
                 id: id.to_owned(),
-                mateid: mateid,
+                mateid,
             }))
         }
     }
