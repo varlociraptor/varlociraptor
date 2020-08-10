@@ -176,6 +176,8 @@ pub enum VariantType {
     Inversion,
     #[strum(serialize = "DUP")]
     Duplication,
+    #[strum(serialize = "REP")]
+    Replacement,
     #[strum(serialize = "REF")]
     None, // site with no suggested alternative allele
 }
@@ -187,6 +189,10 @@ impl From<&str> for VariantType {
             "DEL" => VariantType::Deletion(None),
             "SNV" => VariantType::SNV,
             "REF" => VariantType::None,
+            "INV" => VariantType::Inversion,
+            "DUP" => VariantType::Duplication,
+            "REP" => VariantType::Replacement,
+            "BND" => VariantType::Breakend,
             _ => panic!("bug: given string does not describe a valid variant type"),
         }
     }
@@ -205,6 +211,10 @@ pub(crate) enum Variant {
     },
     Inversion(u64),
     Duplication(u64),
+    Replacement {
+        ref_allele: Vec<u8>,
+        alt_allele: Vec<u8>,
+    },
     None,
 }
 
@@ -233,6 +243,7 @@ impl Variant {
             (&Variant::Breakend { .. }, &VariantType::Breakend) => true,
             (&Variant::Inversion { .. }, &VariantType::Inversion) => true,
             (&Variant::Duplication { .. }, &VariantType::Duplication) => true,
+            (&Variant::Replacement { .. }, &VariantType::Replacement) => true,
             _ => false,
         }
     }
@@ -246,6 +257,7 @@ impl Variant {
             Variant::Breakend { .. } => 1,
             Variant::Inversion(l) => l,
             Variant::Duplication(l) => l,
+            Variant::Replacement { ref alt_allele, .. } => alt_allele.len() as u64,
             Variant::None => 1,
         }
     }

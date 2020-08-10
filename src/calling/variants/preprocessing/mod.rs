@@ -356,6 +356,18 @@ impl ObservationProcessor {
                     self.reference_buffer.seq(chrom)?.as_ref(),
                 ))
                 .map(as_option),
+            model::Variant::Replacement {
+                ref_allele,
+                alt_allele,
+            } => self
+                .sample
+                .extract_observations(&variants::types::Replacement::new(
+                    interval(ref_allele.len() as u64),
+                    alt_allele.to_owned(),
+                    self.realigner.clone(),
+                    self.reference_buffer.seq(chrom)?.as_ref(),
+                ))
+                .map(as_option),
             model::Variant::Breakend {
                 ref_allele,
                 spec,

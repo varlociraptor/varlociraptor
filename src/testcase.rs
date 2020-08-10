@@ -265,6 +265,10 @@ impl Testcase {
             }
             (Variant::Inversion(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
             (Variant::Duplication(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
+            (Variant::Replacement { ref ref_allele, .. }, _) => (
+                pos.saturating_sub(1000),
+                pos + ref_allele.len() as u64 + 1000,
+            ),
             (Variant::None, _) => (pos.saturating_sub(100), pos + 1 + 100),
         };
 
