@@ -277,6 +277,12 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
                     variants.push(model::Variant::Insertion(
                         alt_allele[ref_allele.len()..].to_owned(),
                     ));
+                } else {
+                    // arbitrary replacement
+                    variants.push(model::Variant::Replacement {
+                        ref_allele: ref_allele.to_owned(),
+                        alt_allele: alt_allele.to_vec(),
+                    });
                 }
             }
         }

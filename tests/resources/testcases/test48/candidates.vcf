@@ -32,11 +32,13 @@
 ##INFO=<ID=NTLEN,Number=A,Type=Integer,Description="">
 ##INFO=<ID=SVLEN,Number=A,Type=Integer,Description="Variant length">
 ##INFO=<ID=SVTYPE,Number=A,Type=String,Description="Variant type">
+##INFO=<ID=MATEID,Number=1,Type=String,Description="Breakend mate">
+##INFO=<ID=EVENT,Number=A,Type=String,Description="Breakend event">
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Unphased genotypes">
 ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Number of reads supporting alternative allele">
 ##bcftools_annotateVersion=1.3+htslib-1.3
 ##bcftools_annotateCommand=annotate -Ob -o external-fixed/simulated-pindel.bcf -h resources/pindel_header.txt /export/scratch2/dijkstra/somatic-mutation-calling/initial-vcfs/pindel.sorted.vcf
 ##bcftools_viewVersion=1.3.1+htslib-1.3.1
-##bcftools_viewCommand=view external-fixed/simulated-pindel.bcf chr1:1905599
-#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	CANCER	NORMAL
-chr1	1099	.	CT	C	.	PASS	END=1905600;HOMLEN=18;HOMSEQ=TTTTTTTTTTTTTTTTTT;SVLEN=-1;SVTYPE=DEL	GT:AD	0/1:32,16	0/1:27,11
+##bcftools_viewCommand=view external-fixed/simulated-pindel.bcf chr1:887344
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT
+chr1	1001	.	TG	TAAAACG	.	PASS		GT:AD

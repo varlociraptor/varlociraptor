@@ -26,6 +26,7 @@ pub(crate) mod insertion;
 pub(crate) mod inversion;
 pub(crate) mod mnv;
 pub(crate) mod none;
+pub(crate) mod replacement;
 pub(crate) mod snv;
 
 pub(crate) use deletion::Deletion;
@@ -34,6 +35,7 @@ pub(crate) use insertion::Insertion;
 pub(crate) use inversion::Inversion;
 pub(crate) use mnv::MNV;
 pub(crate) use none::None;
+pub(crate) use replacement::Replacement;
 pub(crate) use snv::SNV;
 
 #[derive(Debug, CopyGetters, Builder)]
