@@ -52,6 +52,7 @@ pub(crate) fn info_tag_event(record: &mut bcf::Record) -> Result<Option<&[u8]>> 
 }
 
 pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+    // TODO support multiple mateids (in case of uncertainty, see spec)
     Ok(record.info(b"MATEID").string()?.map(|v| v[0]))
 }
 
