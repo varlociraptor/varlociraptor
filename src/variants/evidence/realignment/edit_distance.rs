@@ -7,13 +7,18 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
-use bio::pattern_matching::myers::Myers;
+use bio::pattern_matching::myers::{self, long};
 use bio::stats::pairhmm;
 
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
+enum Myers {
+    Short(myers::Myers<u128>),
+    Long(long::Myers<u64>),
+}
+
 pub(crate) struct EditDistanceCalculation {
-    myers: Myers<u128>,
+    myers: Myers,
     read_seq_len: usize,
 }
 
@@ -31,8 +36,15 @@ impl EditDistanceCalculation {
         P: Iterator<Item = u8> + DoubleEndedIterator + ExactSizeIterator,
     {
         let l = read_seq.len();
+
+        let myers = if l <= 128 {
+            Myers::Short(myers::Myers::new(read_seq.rev()))
+        } else {
+            Myers::Long(long::Myers::new(read_seq.rev()))
+        };
+
         EditDistanceCalculation {
-            myers: Myers::new(read_seq.rev()),
+            myers,
             read_seq_len: l,
         }
     }
@@ -46,19 +58,31 @@ impl EditDistanceCalculation {
         let ref_seq = (0..emission_params.len_x())
             .rev()
             .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
-        let mut best_dist = u8::max_value();
+        let mut best_dist = usize::max_value();
         let mut positions = Vec::new();
-        for (pos, dist) in self.myers.find_all_end(ref_seq, u8::max_value()) {
-            match dist.cmp(&best_dist) {
-                Ordering::Less => {
-                    positions.clear();
-                    positions.push(pos);
-                    best_dist = dist;
+
+        let mut handle_match = |pos, dist: usize| match dist.cmp(&best_dist) {
+            Ordering::Less => {
+                positions.clear();
+                positions.push(pos);
+                best_dist = dist;
+            }
+            Ordering::Equal => {
+                positions.push(pos);
+            }
+            Ordering::Greater => (),
+        };
+
+        match &self.myers {
+            Myers::Short(myers) => {
+                for (pos, dist) in myers.find_all_end(ref_seq, self.read_seq_len as u8) {
+                    handle_match(pos, dist as usize);
                 }
-                Ordering::Equal => {
-                    positions.push(pos);
+            }
+            Myers::Long(myers) => {
+                for (pos, dist) in myers.find_all_end(ref_seq, usize::max_value() - 64) {
+                    handle_match(pos, dist);
                 }
-                Ordering::Greater => (),
             }
         }
         let ambiguous = positions.len() > 1;
@@ -86,7 +110,7 @@ impl EditDistanceCalculation {
 pub(crate) struct EditDistanceHit {
     start: usize,
     end: usize,
-    dist: u8,
+    dist: usize,
     ambiguous: bool,
 }
 
