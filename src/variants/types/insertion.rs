@@ -74,6 +74,15 @@ impl<'a> Realignable<'a> for Insertion {
 }
 
 impl SamplingBias for Insertion {
+    fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
+        if let Some(len) = self.enclosable_len() {
+            if len < (alignment_properties.max_ins_cigar_len as u64) {
+                return read_len;
+            }
+        }
+        (read_len as f64 * alignment_properties.frac_max_softclip) as u64
+    }
+
     fn enclosable_len(&self) -> Option<u64> {
         Some(self.ins_seq.len() as u64)
     }
