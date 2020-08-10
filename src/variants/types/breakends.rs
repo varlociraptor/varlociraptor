@@ -19,6 +19,7 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use regex::Regex;
 use rust_htslib::bam;
 use rust_htslib::bcf::{self, Read};
+use vec_map::VecMap;
 
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -46,7 +47,7 @@ pub(crate) struct BreakendGroup {
     // TODO consider making the right side a Vec<Breakend>!
     breakends: BTreeMap<genome::Locus, Breakend>,
     #[builder(default)]
-    alt_alleles: RefCell<HashMap<Vec<usize>, Vec<Rc<AltAllele>>>>,
+    alt_alleles: RefCell<VecMap<Vec<Rc<AltAllele>>>>,
     #[builder(private)]
     realigner: RefCell<Realigner>,
 }
@@ -252,23 +253,68 @@ impl BreakendGroup {
         None
     }
 
-    fn contained_breakend_indices(&self, ref_interval: &genome::Interval) -> Vec<usize> {
+    fn contained_breakends<'a, 'b: 'a>(
+        &'b self,
+        ref_interval: &'a genome::Interval,
+    ) -> impl Iterator<Item = (usize, &'b Breakend)> + 'a {
         self.breakends
-            .keys()
+            .values()
             .enumerate()
-            .filter_map(|(i, locus)| {
+            .filter_map(move |(i, bnd)| {
                 // TODO add genome::Interval::contains(genome::Locus) method to genome::Interval in bio-types.
                 // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9).
-                if ref_interval.contig() == locus.contig()
-                    && locus.pos() >= ref_interval.range().start
-                    && locus.pos() < ref_interval.range().end
+                if ref_interval.contig() == bnd.locus.contig()
+                    && bnd.locus.pos() >= ref_interval.range().start
+                    && bnd.locus.pos() < ref_interval.range().end
                 {
-                    Some(i)
+                    Some((i, bnd))
                 } else {
                     None
                 }
             })
-            .collect()
+    }
+
+    fn breakend_pair(&self) -> Option<(&Breakend, &Breakend)> {
+        if self.breakends.len() == 2 {
+            let left = self.breakends.values().nth(0).unwrap();
+            let right = self.breakends.values().nth(1).unwrap();
+            Some((left, right))
+        } else {
+            None
+        }
+    }
+
+    fn is_insertion(&self) -> bool {
+        if let Some((left, right)) = self.breakend_pair() {
+            if left.locus.pos() + 1 == right.locus.pos()
+                && left.locus.contig() == right.locus.contig()
+                && !left.emits_revcomp()
+                && !right.emits_revcomp()
+                && left.is_left_to_right()
+                && left.replacement.len() > 1
+                && &right.replacement[..right.replacement.len() - 1] == &left.replacement[1..]
+                && !right.is_left_to_right()
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn is_deletion(&self) -> bool {
+        if let Some((left, right)) = self.breakend_pair() {
+            if left.locus.contig() == right.locus.contig()
+                && left.replacement.len() == 1
+                && right.replacement.len() == 1
+                && left.is_left_to_right()
+                && !right.is_left_to_right()
+                && !left.emits_revcomp()
+                && !right.emits_revcomp()
+            {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -403,10 +449,32 @@ impl Variant for BreakendGroup {
 }
 
 impl SamplingBias for BreakendGroup {
+    fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
+        if self.is_deletion() {
+            if let Some(len) = self.enclosable_len() {
+                if len < (alignment_properties.max_del_cigar_len as u64) {
+                    return read_len;
+                }
+            }
+        } else if self.is_insertion() {
+            if let Some(len) = self.enclosable_len() {
+                if len < (alignment_properties.max_ins_cigar_len as u64) {
+                    return read_len;
+                }
+            }
+        }
+        (read_len as f64 * alignment_properties.frac_max_softclip) as u64
+    }
+
     fn enclosable_len(&self) -> Option<u64> {
-        self.enclosable_ref_interval
-            .as_ref()
-            .map(|interval| interval.range().end - interval.range().start)
+        if self.is_deletion() {
+            if let Some((left, right)) = self.breakend_pair() {
+                return Some(right.locus.pos() - left.locus.pos());
+            }
+        } else if self.is_insertion() {
+            return Some(self.breakends.values().nth(0).unwrap().replacement.len() as u64 - 1);
+        }
+        None
     }
 }
 
@@ -427,18 +495,12 @@ impl<'a> Realignable<'a> for BreakendGroup {
         ref_window: usize,
     ) -> Result<Vec<BreakendEmissionParams<'a>>> {
         // Step 1: fetch contained breakends
-        let bnds = self.contained_breakend_indices(ref_interval);
+        let mut emission_params = Vec::new();
 
-        if !self.alt_alleles.borrow().contains_key(&bnds) {
-            // Compute alt allele sequence once.
-
-            let mut candidate_alt_alleles = Vec::new();
-
-            for (i, first) in self.breakends.values().enumerate() {
-                if !bnds.contains(&i) {
-                    continue;
-                }
-
+        for (bnd_idx, first) in self.contained_breakends(ref_interval) {
+            if !self.alt_alleles.borrow().contains_key(bnd_idx) {
+                let mut candidate_alt_alleles = Vec::new();
+                // Compute alt allele sequence once.
                 let mut alt_allele = AltAllele::default();
 
                 let prefix_range = |bnd: &Breakend| {
@@ -457,20 +519,22 @@ impl<'a> Realignable<'a> for BreakendGroup {
                     alt_allele.push_seq(
                         ref_buffer.seq(first.locus.contig())?[prefix_range(first)].iter(),
                         false,
+                        false,
                     );
                     //alt_allele.push_seq(b"1".iter(), false); // dbg
                     // Add replacement to alt allele.
-                    alt_allele.push_seq(first.replacement().iter(), false);
+                    alt_allele.push_seq(first.replacement().iter(), false, true);
                 } else {
                     // Add suffix on reference.
                     let ref_seq = ref_buffer.seq(first.locus.contig())?;
                     alt_allele.push_seq(
                         ref_seq[suffix_range(first, ref_seq.len(), false)].iter(),
                         true,
+                        false,
                     );
                     //alt_allele.push_seq(b"1".iter(), true); // dbg
                     // Add replacement to alt allele.
-                    alt_allele.push_seq(first.replacement().iter(), true);
+                    alt_allele.push_seq(first.replacement().iter(), true, true);
                 }
 
                 let mut revcomp = false;
@@ -486,10 +550,11 @@ impl<'a> Realignable<'a> for BreakendGroup {
                             alt_allele.push_seq(
                                 ref_seq[suffix_range(current, ref_seq.len(), false)].iter(),
                                 false,
+                                false,
                             );
                         } else {
                             // Prepend prefix on reference.
-                            alt_allele.push_seq(ref_seq[prefix_range(current)].iter(), true);
+                            alt_allele.push_seq(ref_seq[prefix_range(current)].iter(), true, false);
                         }
                         break;
                     }
@@ -548,20 +613,29 @@ impl<'a> Realignable<'a> for BreakendGroup {
                         // Push sequence to alt allele.
                         match (extension_modification, next_bnd.is_none(), left_to_right) {
                             (ExtensionModification::None, false, is_left_to_right) => {
-                                alt_allele.push_seq(seq.iter(), !is_left_to_right)
+                                alt_allele.push_seq(seq.iter(), !is_left_to_right, true)
                             }
                             (ExtensionModification::ReverseComplement, false, is_left_to_right) => {
-                                alt_allele.push_seq(dna::revcomp(&seq).iter(), !is_left_to_right);
+                                alt_allele.push_seq(
+                                    dna::revcomp(&seq).iter(),
+                                    !is_left_to_right,
+                                    true,
+                                );
                             }
                             (ExtensionModification::None, true, true) => {
-                                alt_allele.push_seq(seq[..ref_window].iter(), false);
+                                alt_allele.push_seq(seq[..ref_window].iter(), false, true);
                             }
                             (ExtensionModification::ReverseComplement, true, true) => {
-                                alt_allele.push_seq(dna::revcomp(seq)[..ref_window].iter(), false);
+                                alt_allele.push_seq(
+                                    dna::revcomp(seq)[..ref_window].iter(),
+                                    false,
+                                    true,
+                                );
                             }
                             (ExtensionModification::None, true, false) => {
                                 alt_allele.push_seq(
                                     seq[seq.len().saturating_sub(ref_window)..].iter(),
+                                    true,
                                     true,
                                 );
                             }
@@ -569,6 +643,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                 let seq = dna::revcomp(seq);
                                 alt_allele.push_seq(
                                     seq[seq.len().saturating_sub(ref_window)..].iter(),
+                                    true,
                                     true,
                                 );
                             }
@@ -587,31 +662,28 @@ impl<'a> Realignable<'a> for BreakendGroup {
                         // Nothing else to do, the replacement sequence has already been added in the step before.
                     }
                 }
+                //dbg!(str::from_utf8(&alt_allele.iter().cloned().collect::<Vec<_>>()).unwrap());
 
-                candidate_alt_alleles.push(Rc::new(alt_allele));
+                let alt_allele = Rc::new(alt_allele);
+
+                candidate_alt_alleles.push(alt_allele);
+
+                self.alt_alleles
+                    .borrow_mut()
+                    .insert(bnd_idx, candidate_alt_alleles);
             }
-            self.alt_alleles
-                .borrow_mut()
-                .insert(bnds.clone(), candidate_alt_alleles);
-        }
 
-        Ok(self
-            .alt_alleles
-            .borrow()
-            .get(&bnds)
-            .unwrap()
-            .iter()
-            .map(|alt_allele| {
-                let alt_allele = Rc::clone(alt_allele);
-
-                BreakendEmissionParams {
+            for alt_allele in self.alt_alleles.borrow().get(bnd_idx).unwrap() {
+                emission_params.push(BreakendEmissionParams {
                     ref_offset: 0,
                     ref_end: alt_allele.len(),
-                    alt_allele,
+                    alt_allele: Rc::clone(alt_allele),
                     read_emission: Rc::clone(&read_emission_params),
-                }
-            })
-            .collect())
+                });
+            }
+        }
+
+        Ok(emission_params)
     }
 }
 
@@ -619,13 +691,17 @@ impl<'a> Realignable<'a> for BreakendGroup {
 pub(crate) struct AltAllele {
     #[deref]
     seq: VecDeque<u8>,
+    alt_len: u64,
 }
 
 impl AltAllele {
-    pub(crate) fn push_seq<'a, S>(&mut self, seq: S, front: bool)
+    pub(crate) fn push_seq<'a, S>(&mut self, seq: S, front: bool, is_alt: bool)
     where
-        S: Iterator<Item = &'a u8> + DoubleEndedIterator,
+        S: Iterator<Item = &'a u8> + DoubleEndedIterator + ExactSizeIterator,
     {
+        if is_alt {
+            self.alt_len += seq.len() as u64;
+        }
         if front {
             for c in seq.rev() {
                 self.seq.push_front(*c);
