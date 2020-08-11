@@ -94,6 +94,10 @@ impl ContaminatedSampleLikelihoodModel {
         // Case 2: read comes from secondary sample and is correctly mapped
         let prob_secondary = self.impurity
             + likelihood_mapping(allele_freq_secondary, strand_bias_secondary, observation);
+        if strand_bias_primary == StrandBias::None && strand_bias_secondary == StrandBias::None && ((allele_freq_primary.exp() == 1.0 && allele_freq_secondary.exp() == 0.0) || (allele_freq_primary.exp() == 1.0 && allele_freq_secondary.exp() == 1.0)) {
+            dbg!((allele_freq_primary.exp(), allele_freq_secondary.exp()));
+            dbg!((prob_primary, prob_secondary));
+        }
 
         // Step 4: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
@@ -127,7 +131,7 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
             let ln_af_primary = LogProb(events.primary.allele_freq.ln());
             let ln_af_secondary = LogProb(events.secondary.allele_freq.ln());
 
-            // calculate product of per-oservation likelihoods in log space
+            // calculate product of per-observation likelihoods in log space
             let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
                 let lh = self.likelihood_observation(
                     ln_af_primary,
