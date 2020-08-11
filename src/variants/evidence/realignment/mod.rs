@@ -361,7 +361,6 @@ impl Realigner {
                 best_params = Some(params);
             }
         }
-        dbg!(&best_hit);
 
         if let (Some(hit), Some(allele_params)) = (best_hit, best_params) {
             if hit.dist() == 0 {
