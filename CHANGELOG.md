@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.1.0] - 2020-08-11
+- Infer missing antisense breakends (sometimes callers only report one direction although the other is necessary as well).
+- Support for single breakends.
+- Support for arbitrary replacements.
+- Fixed a bug with posterior odds filtration leading to underestimation of the odds.
+
 ## [2.0.1] - 2020-08-06
 - Fixed allele frequency biases that occurred due to missed evidence when investigating breakends.
 - Fixed pattern-too-long error that occurred in some corner cases.
