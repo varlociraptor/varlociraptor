@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use bio::alphabets::dna;
-use bio::stats::pairhmm::EmissionParameters;
+use bio::stats::pairhmm::{Emission, EmissionParameters};
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use regex::Regex;
@@ -734,6 +734,16 @@ impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.alt_allele.len()
+    }
+}
+
+impl<'a> Emission for BreakendEmissionParams<'a> {
+    fn emission_x(&self, i: usize) -> u8 {
+        unimplemented!()
+    }
+
+    fn emission_y(&self, j: usize) -> u8 {
+        unimplemented!()
     }
 }
 

@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
-use bio::stats::pairhmm::EmissionParameters;
+use bio::stats::pairhmm::{Emission, EmissionParameters};
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
@@ -272,5 +272,15 @@ impl<'a> EmissionParameters for DeletionEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
+    }
+}
+
+impl<'a> Emission for DeletionEmissionParams<'a> {
+    fn emission_x(&self, i: usize) -> u8 {
+        unimplemented!()
+    }
+
+    fn emission_y(&self, j: usize) -> u8 {
+        unimplemented!()
     }
 }

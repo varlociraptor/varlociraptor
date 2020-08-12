@@ -25,6 +25,8 @@ pub(crate) mod edit_distance;
 pub(crate) mod pairhmm;
 
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
+use bio::stats::pairhmm::{Emission, EmissionParameters, HomopolyPairHMM, StartEndGapParameters};
+use std::collections::BTreeMap;
 
 pub(crate) struct CandidateRegion {
     overlap: bool,
@@ -33,7 +35,9 @@ pub(crate) struct CandidateRegion {
 }
 
 pub(crate) trait Realignable<'a> {
-    type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
+    type EmissionParams: stats::pairhmm::EmissionParameters
+        + stats::pairhmm::Emission
+        + pairhmm::RefBaseEmission;
 
     fn alt_emission_params(
         &self,
@@ -52,12 +56,68 @@ pub(crate) trait Realignable<'a> {
     }
 }
 
+#[derive(Debug, Clone)]
+enum PHMM {
+    Simple(PairHMM),
+    Homopolymer(HomopolyPairHMM),
+}
+
+// TODO: validate probabilities via `Prob::checked`
+#[derive(Deserialize, Getters)]
+#[get = "pub"]
+pub(crate) struct ErrorProfile {
+    gaps: BTreeMap<String, Prob>,
+    hops: Option<BTreeMap<String, Prob>>,
+}
+
+impl ErrorProfile {
+    pub(crate) fn gap_params(&self) -> pairhmm::GapParams {
+        pairhmm::GapParams {
+            prob_insertion_artifact: LogProb::from(self.gaps["spurious-ins-rate"]),
+            prob_deletion_artifact: LogProb::from(self.gaps["spurious-del-rate"]),
+            prob_insertion_extend_artifact: LogProb::from(self.gaps["spurious-insext-rate"]),
+            prob_deletion_extend_artifact: LogProb::from(self.gaps["spurious-delext-rate"]),
+        }
+    }
+
+    pub(crate) fn hop_params(&self) -> Option<pairhmm::HopParams> {
+        self.hops.as_ref().map(|hops| pairhmm::HopParams {
+            prob_hop_target_artifact: LogProb::from(hops["spurious-ins-rate"]),
+            prob_hop_query_artifact: LogProb::from(hops["spurious-del-rate"]),
+            prob_hop_target_extend_artifact: LogProb::from(hops["spurious-insext-rate"]),
+            prob_hop_query_extend_artifact: LogProb::from(hops["spurious-delext-rate"]),
+        })
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct Realigner {
     gap_params: pairhmm::GapParams,
-    pairhmm: PairHMM,
+    pairhmm: PHMM,
     max_window: u64,
     ref_buffer: Arc<reference::Buffer>,
+}
+
+impl PHMM {
+    pub fn prob_related<E, A>(
+        &mut self,
+        emission_params: &E,
+        alignment_mode: &A,
+        max_edit_dist: Option<usize>,
+    ) -> LogProb
+    where
+        E: EmissionParameters + Emission,
+        A: StartEndGapParameters,
+    {
+        match self {
+            PHMM::Simple(ref mut phmm) => {
+                phmm.prob_related(emission_params, alignment_mode, max_edit_dist)
+            }
+            PHMM::Homopolymer(ref hphmm) => {
+                hphmm.prob_related(emission_params, alignment_mode, max_edit_dist)
+            }
+        }
+    }
 }
 
 impl Realigner {
@@ -65,9 +125,14 @@ impl Realigner {
     pub(crate) fn new(
         ref_buffer: Arc<reference::Buffer>,
         gap_params: pairhmm::GapParams,
+        hop_params: Option<pairhmm::HopParams>,
         max_window: u64,
     ) -> Self {
-        let pairhmm = PairHMM::new(&gap_params);
+        let pairhmm = if let Some(hop_params) = hop_params {
+            PHMM::Homopolymer(HomopolyPairHMM::new(&gap_params, &hop_params))
+        } else {
+            PHMM::Simple(PairHMM::new(&gap_params))
+        };
         Realigner {
             gap_params,
             pairhmm,
@@ -346,7 +411,7 @@ impl Realigner {
         edit_dist: &edit_distance::EditDistanceCalculation,
     ) -> LogProb
     where
-        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
+        E: stats::pairhmm::EmissionParameters + stats::pairhmm::Emission + pairhmm::RefBaseEmission,
     {
         let mut best_hit = None;
         let mut best_params = None;

@@ -60,6 +60,7 @@ impl ObservationProcessorBuilder {
     pub(crate) fn realignment(
         self,
         gap_params: realignment::pairhmm::GapParams,
+        hop_params: Option<realignment::pairhmm::HopParams>,
         window: u64,
     ) -> Self {
         let ref_buffer = Arc::clone(
@@ -68,7 +69,9 @@ impl ObservationProcessorBuilder {
                 .expect("You need to set reference before setting realignment parameters"),
         );
 
-        self.realigner(realignment::Realigner::new(ref_buffer, gap_params, window))
+        self.realigner(realignment::Realigner::new(
+            ref_buffer, gap_params, hop_params, window,
+        ))
     }
 
     pub(crate) fn outbcf<P: AsRef<Path>>(

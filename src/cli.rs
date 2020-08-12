@@ -27,6 +27,7 @@ use crate::filtration;
 use crate::grammar;
 use crate::testcase;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
+use crate::variants::evidence::realignment::ErrorProfile;
 use crate::variants::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::variants::model::{Contamination, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
@@ -159,29 +160,12 @@ pub enum PreprocessKind {
         )]
         output: Option<PathBuf>,
         #[structopt(
-            long = "spurious-ins-rate",
-            default_value = "2.8e-6",
-            help = "Rate of spuriously inserted bases by the sequencer (Illumina: 2.8e-6, see Schirmer et al. BMC Bioinformatics 2016)."
+            parse(from_os_str),
+            long,
+            default_value = "resources/error_rates_illumina.yaml",
+            help = "Error rates of bases spuriously deleted/inserted by the sequencer."
         )]
-        spurious_ins_rate: f64,
-        #[structopt(
-            long = "spurious-del-rate",
-            default_value = "5.1e-6",
-            help = "Rate of spuriosly deleted bases by the sequencer (Illumina: 5.1e-6, see Schirmer et al. BMC Bioinformatics 2016)."
-        )]
-        spurious_del_rate: f64,
-        #[structopt(
-            long = "spurious-insext-rate",
-            default_value = "0.0",
-            help = "Extension rate of spurious insertions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
-        )]
-        spurious_insext_rate: f64,
-        #[structopt(
-            long = "spurious-delext-rate",
-            default_value = "0.0",
-            help = "Extension rate of spurious deletions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
-        )]
-        spurious_delext_rate: f64,
+        error_profile: PathBuf,
         #[structopt(
             long = "strandedness",
             default_value = "opposite",
@@ -455,10 +439,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     bam,
                     alignment_properties,
                     output,
-                    spurious_ins_rate,
-                    spurious_del_rate,
-                    spurious_insext_rate,
-                    spurious_delext_rate,
+                    error_profile,
                     protocol_strandedness,
                     realignment_window,
                     max_depth,
@@ -466,10 +447,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 } => {
                     // TODO: handle testcases
 
-                    let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
-                    let spurious_del_rate = Prob::checked(spurious_del_rate)?;
-                    let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
-                    let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
+                    let mut error_profile_content = String::new();
+                    File::open(error_profile)?.read_to_string(&mut error_profile_content)?;
+                    let error_profile: ErrorProfile = serde_yaml::from_str(&error_profile_content)?;
+
                     if realignment_window > (128 / 2) {
                         return Err(
                             structopt::clap::Error::with_description(
@@ -490,12 +471,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     let bam_reader = bam::IndexedReader::from_path(bam)
                         .context("Unable to read BAM/CRAM file.")?;
 
-                    let gap_params = GapParams {
-                        prob_insertion_artifact: LogProb::from(spurious_ins_rate),
-                        prob_deletion_artifact: LogProb::from(spurious_del_rate),
-                        prob_insertion_extend_artifact: LogProb::from(spurious_insext_rate),
-                        prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
-                    };
+                    let gap_params = error_profile.gap_params();
+                    let hop_params = error_profile.hop_params();
 
                     let sample = SampleBuilder::default()
                         .max_depth(max_depth)
@@ -512,7 +489,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 fasta::IndexedReader::from_file(&reference)
                                     .context("Unable to read genome reference.")?,
                             )
-                            .realignment(gap_params, realignment_window)
+                            .realignment(gap_params, hop_params, realignment_window)
                             .breakend_index(BreakendIndex::new(&candidates)?)
                             .inbcf(candidates)
                             .outbcf(output, &opt_clone)?

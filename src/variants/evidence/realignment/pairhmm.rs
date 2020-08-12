@@ -105,6 +105,12 @@ impl pairhmm::GapParameters for GapParams {
 }
 
 impl pairhmm::StartEndGapParameters for GapParams {
+    /// Semiglobal alignment: return 1.0.
+    #[inline]
+    fn prob_start_gap_x(&self, _: usize) -> LogProb {
+        LogProb::ln_one()
+    }
+
     /// Semiglobal alignment: return true.
     #[inline]
     fn free_start_gap_x(&self) -> bool {
@@ -116,11 +122,32 @@ impl pairhmm::StartEndGapParameters for GapParams {
     fn free_end_gap_x(&self) -> bool {
         true
     }
+}
 
-    /// Semiglobal alignment: return 1.0.
-    #[inline]
-    fn prob_start_gap_x(&self, _: usize) -> LogProb {
-        LogProb::ln_one()
+/// Hop parameters for HomopolyPairHMM.
+#[derive(Debug, Clone)]
+pub(crate) struct HopParams {
+    pub(crate) prob_hop_target_artifact: LogProb,
+    pub(crate) prob_hop_query_artifact: LogProb,
+    pub(crate) prob_hop_target_extend_artifact: LogProb,
+    pub(crate) prob_hop_query_extend_artifact: LogProb,
+}
+
+impl pairhmm::HopParameters for HopParams {
+    fn prob_hop_x(&self) -> LogProb {
+        self.prob_hop_target_artifact
+    }
+
+    fn prob_hop_y(&self) -> LogProb {
+        self.prob_hop_query_artifact
+    }
+
+    fn prob_hop_x_extend(&self) -> LogProb {
+        self.prob_hop_target_extend_artifact
+    }
+
+    fn prob_hop_y_extend(&self) -> LogProb {
+        self.prob_hop_query_extend_artifact
     }
 }
 
@@ -237,5 +264,17 @@ impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
+    }
+}
+
+impl<'a> pairhmm::Emission for ReferenceEmissionParams<'a> {
+    #[inline]
+    fn emission_x(&self, i: usize) -> u8 {
+        unimplemented!()
+    }
+
+    #[inline]
+    fn emission_y(&self, j: usize) -> u8 {
+        unimplemented!()
     }
 }
