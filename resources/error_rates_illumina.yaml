@@ -1,0 +1,16 @@
+kind: illumina
+# Error rates for insertions/deletions of arbitrary bases
+gap:
+
+  # Rate of spuriously inserted bases by the sequencer (Illumina: 2.8e-6, see Schirmer et al. BMC Bioinformatics 2016).
+  spurious-ins-rate: 2.8e-6
+
+  # Rate of spuriosly deleted bases by the sequencer (Illumina: 5.1e-6, see Schirmer et al. BMC Bioinformatics 2016).
+  spurious-del-rate: 5.1e-6
+
+  # Extension rate of spurious insertions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)
+  spurious-insext-rate: 0.0
+
+  # Extension rate of spurious deletions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)
+  spurious-delext-rate: 0.0
+
