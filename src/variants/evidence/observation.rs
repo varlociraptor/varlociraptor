@@ -7,6 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::rc::Rc;
 
+use rayon::iter::IntoParallelIterator;
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use rust_htslib::bam;
@@ -181,6 +182,9 @@ pub(crate) enum PairedEndEvidence {
 }
 
 impl Evidence for PairedEndEvidence {}
+
+// This is safe because we do not change the Rc's from other sources while parallelizing over PairedEndEvidence.
+unsafe impl Send for PairedEndEvidence {}
 
 impl PartialEq for PairedEndEvidence {
     fn eq(&self, other: &Self) -> bool {

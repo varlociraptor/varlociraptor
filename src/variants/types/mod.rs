@@ -5,7 +5,9 @@
 
 use std::collections::BTreeMap;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self, AbstractInterval};
@@ -263,16 +265,32 @@ where
         let subsample = locus_depth.values().all(|depth| *depth > max_depth);
         let mut subsampler = sample::SubsampleCandidates::new(max_depth, candidates.len());
 
-        let mut observations = Vec::new();
-        for evidence in &candidates {
-            if !subsample || subsampler.keep() {
-                if let Some(obs) = self.evidence_to_observation(evidence, alignment_properties)? {
-                    observations.push(obs);
-                }
-            }
-        }
+        // let mut observations = Vec::new();
+        // for evidence in &candidates {
+        //     if !subsample || subsampler.keep() {
+        //         if let Some(obs) = self.evidence_to_observation(evidence, alignment_properties)? {
+        //             observations.push(obs);
+        //         }
+        //     }
+        // }
 
-        Ok(observations)
+        let candidates = if subsample {
+            candidates.into_iter().filter(|_| subsampler.keep()).collect() 
+        } else {
+            candidates
+        };
+
+        let alignment_properties = Arc::new(alignment_properties.clone());
+
+        let result: Result<Vec<Observation>> = candidates.into_par_iter().filter_map(|evidence| {
+            match self.evidence_to_observation(&evidence, alignment_properties.as_ref()) {
+                Ok(Some(obs)) => Some(Ok(obs)),
+                Ok(None) => None,
+                Err(e) => Some(Err(e))
+            }
+        }).collect();
+
+        Ok(result?)
     }
 }
 
