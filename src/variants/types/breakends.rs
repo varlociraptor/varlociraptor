@@ -623,7 +623,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                 );
                             }
                             (ExtensionModification::None, true, true) => {
-                                alt_allele.push_seq(seq[..ref_window].iter(), false, true);
+                                alt_allele.push_seq(seq[..cmp::min(ref_window, seq.len())].iter(), false, true);
                             }
                             (ExtensionModification::ReverseComplement, true, true) => {
                                 alt_allele.push_seq(
