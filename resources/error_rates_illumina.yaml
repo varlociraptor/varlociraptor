@@ -1,6 +1,6 @@
 kind: illumina
 # Error rates for insertions/deletions of arbitrary bases
-gap:
+gaps:
 
   # Rate of spuriously inserted bases by the sequencer (Illumina: 2.8e-6, see Schirmer et al. BMC Bioinformatics 2016).
   spurious-ins-rate: 2.8e-6

@@ -4,9 +4,10 @@ use std::str;
 use serde_json;
 use yaml_rust::Yaml;
 
-use crate::common::Testcase;
 use varlociraptor::cli::{PreprocessKind, Varlociraptor};
 use varlociraptor::testcase::Mode;
+
+use crate::common::Testcase;
 
 #[derive(Debug)]
 pub(crate) struct TestcaseVersion0 {
@@ -74,10 +75,10 @@ impl Testcase for TestcaseVersion0 {
                 kind:
                     cli::CallKind::Variants {
                         reference,
-                        spurious_ins_rate,
-                        spurious_del_rate,
-                        spurious_insext_rate,
-                        spurious_delext_rate,
+                        spurious_ins_rate: _spurious_ins_rate,
+                        spurious_del_rate: _spurious_del_rate,
+                        spurious_insext_rate: _spurious_insext_rate,
+                        spurious_delext_rate: _spurious_delext_rate,
                         protocol_strandedness,
                         indel_window,
                         max_depth,
@@ -87,10 +88,7 @@ impl Testcase for TestcaseVersion0 {
                 let options = Varlociraptor::Preprocess {
                     kind: PreprocessKind::Variants {
                         reference,
-                        spurious_ins_rate,
-                        spurious_del_rate,
-                        spurious_insext_rate,
-                        spurious_delext_rate,
+                        error_profile: PathBuf::from("resources/error_rates_illumina.yaml"),
                         protocol_strandedness,
                         realignment_window: indel_window as u64,
                         max_depth,

@@ -206,11 +206,11 @@ impl<'a> EmissionParameters for InsertionEmissionParams<'a> {
 }
 
 impl<'a> Emission for InsertionEmissionParams<'a> {
-    fn emission_x(&self, i: usize) -> u8 {
+    fn emission_x(&self, _i: usize) -> u8 {
         unimplemented!()
     }
 
-    fn emission_y(&self, j: usize) -> u8 {
+    fn emission_y(&self, _j: usize) -> u8 {
         unimplemented!()
     }
 }

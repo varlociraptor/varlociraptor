@@ -50,8 +50,10 @@ impl Testcase for TestcaseVersion2 {
         let variants = options["Preprocess"]["kind"].get_mut("Variants").unwrap();
         variants["realignment_window"] = variants["indel_window"].clone();
         variants["candidates"] = json!("dummy.bcf");
-        variants.as_object_mut().unwrap().remove("omit_snvs");
-        variants.as_object_mut().unwrap().remove("omit_indels");
+
+        let v = variants.as_object_mut().unwrap();
+        v.remove("omit_snvs");
+        v.remove("omit_indels");
 
         options.to_string()
     }

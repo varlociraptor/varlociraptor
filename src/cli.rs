@@ -26,7 +26,6 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
 use crate::testcase;
-use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::variants::evidence::realignment::ErrorProfile;
 use crate::variants::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::variants::model::{Contamination, VariantType};
@@ -165,6 +164,7 @@ pub enum PreprocessKind {
             default_value = "resources/error_rates_illumina.yaml",
             help = "Error rates of bases spuriously deleted/inserted by the sequencer."
         )]
+        #[serde(default = "default_error_profile")]
         error_profile: PathBuf,
         #[structopt(
             long = "strandedness",
@@ -196,6 +196,10 @@ pub enum PreprocessKind {
         #[serde(default)]
         omit_insert_size: bool,
     },
+}
+
+fn default_error_profile() -> PathBuf {
+    PathBuf::from("resources/error_rates_illumina.yaml")
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -446,10 +450,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_insert_size,
                 } => {
                     // TODO: handle testcases
-
-                    let mut error_profile_content = String::new();
-                    File::open(error_profile)?.read_to_string(&mut error_profile_content)?;
-                    let error_profile: ErrorProfile = serde_yaml::from_str(&error_profile_content)?;
+                    let error_profile: ErrorProfile =
+                        serde_yaml::from_str(&std::fs::read_to_string(error_profile)?)?;
 
                     if realignment_window > (128 / 2) {
                         return Err(

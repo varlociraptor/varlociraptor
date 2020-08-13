@@ -63,9 +63,10 @@ enum PHMM {
 }
 
 // TODO: validate probabilities via `Prob::checked`
-#[derive(Deserialize, Getters)]
+#[derive(Debug, Deserialize, Serialize, Getters)]
 #[get = "pub"]
 pub(crate) struct ErrorProfile {
+    kind: String,
     gaps: BTreeMap<String, Prob>,
     hops: Option<BTreeMap<String, Prob>>,
 }

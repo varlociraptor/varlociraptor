@@ -1,6 +1,6 @@
 kind: nanopore
 # Error rates for insertions/deletions of arbitrary bases
-gap:
+gaps:
 
   # Rate of spuriously inserted bases by the sequencer (Illumina: 2.8e-6, see Schirmer et al. BMC Bioinformatics 2016).
   spurious-ins-rate: 2.8e-6
@@ -15,7 +15,7 @@ gap:
   spurious-delext-rate: 0.0
 
 # Error rates for starting and continuing homopolymer runs (as often encountered in oxford nanopore data)
-hop:
+hops:
   spurious-ins-rate: 0.0
   spurious-del-rate: 0.0
   spurious-insext-rate: 0.1
