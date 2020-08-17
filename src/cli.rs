@@ -29,7 +29,9 @@ use crate::testcase;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::variants::model::modes::generic::{FlatPrior, GenericModelBuilder};
 use crate::variants::model::{Contamination, VariantType};
-use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
+use crate::variants::sample::{
+    estimate_alignment_properties, ProtocolStrandedness, Sample, SampleBuilder,
+};
 use crate::variants::types::breakends::BreakendIndex;
 use crate::SimpleEvent;
 
@@ -115,6 +117,10 @@ impl Varlociraptor {
     }
 }
 
+fn default_threads() -> usize {
+    1
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -146,6 +152,9 @@ pub enum PreprocessKind {
             help = "BAM file with aligned reads from a single sample."
         )]
         bam: PathBuf,
+        #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
+        #[serde(default = "default_threads")]
+        threads: usize,
         #[structopt(
             long = "alignment-properties",
             help = "Alignment properties JSON file for sample. If not provided, properties \
@@ -283,6 +292,9 @@ pub enum CallKind {
             help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
         )]
         output: Option<PathBuf>,
+        #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
+        #[serde(default = "default_threads")]
+        threads: usize,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -463,6 +475,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     realignment_window,
                     max_depth,
                     omit_insert_size,
+                    threads,
                 } => {
                     // TODO: handle testcases
 
@@ -487,9 +500,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         allow_hardclips,
                     )?;
 
-                    let bam_reader = bam::IndexedReader::from_path(bam)
-                        .context("Unable to read BAM/CRAM file.")?;
-
                     let gap_params = GapParams {
                         prob_insertion_artifact: LogProb::from(spurious_ins_rate),
                         prob_deletion_artifact: LogProb::from(spurious_del_rate),
@@ -497,17 +507,26 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
                     };
 
-                    let sample = SampleBuilder::default()
-                        .max_depth(max_depth)
-                        .protocol_strandedness(protocol_strandedness)
-                        .alignments(bam_reader, alignment_properties)
-                        .use_fragment_evidence(!omit_insert_size)
-                        .build()
-                        .unwrap();
+                    // Generate as many copies of sample as we have threads.
+                    let sample_container: Result<Vec<_>> = (0..threads)
+                        .map(|_| -> Result<Sample> {
+                            let bam_reader = bam::IndexedReader::from_path(bam)
+                                .context("Unable to read BAM/CRAM file.")?;
+
+                            let sample = SampleBuilder::default()
+                                .max_depth(max_depth)
+                                .protocol_strandedness(protocol_strandedness)
+                                .alignments(bam_reader, alignment_properties)
+                                .use_fragment_evidence(!omit_insert_size)
+                                .build()
+                                .unwrap();
+                            Ok(sample)
+                        })
+                        .collect();
 
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
-                            .sample(sample)
+                            .sample_container(sample_container?)
                             .reference(
                                 fasta::IndexedReader::from_file(&reference)
                                     .context("Unable to read genome reference.")?,
@@ -530,6 +549,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     testcase_locus,
                     testcase_prefix,
                     output,
+                    threads,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
