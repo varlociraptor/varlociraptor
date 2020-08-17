@@ -47,7 +47,7 @@ pub(crate) struct BreakendGroup {
     // TODO consider making the right side a Vec<Breakend>!
     breakends: BTreeMap<genome::Locus, Breakend>,
     #[builder(default)]
-    alt_alleles: RefCell<VecMap<Vec<Rc<AltAllele>>>>,
+    alt_alleles: RefCell<VecMap<Vec<Arc<AltAllele>>>>,
     #[builder(private)]
     realigner: RefCell<Realigner>,
 }
@@ -664,7 +664,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
                 }
                 //dbg!(str::from_utf8(&alt_allele.iter().cloned().collect::<Vec<_>>()).unwrap());
 
-                let alt_allele = Rc::new(alt_allele);
+                let alt_allele = Arc::new(alt_allele);
 
                 candidate_alt_alleles.push(alt_allele);
 
@@ -677,7 +677,7 @@ impl<'a> Realignable<'a> for BreakendGroup {
                 emission_params.push(BreakendEmissionParams {
                     ref_offset: 0,
                     ref_end: alt_allele.len(),
-                    alt_allele: Rc::clone(alt_allele),
+                    alt_allele: Arc::clone(alt_allele),
                     read_emission: Rc::clone(&read_emission_params),
                 });
             }
@@ -713,7 +713,7 @@ impl AltAllele {
 }
 
 pub(crate) struct BreakendEmissionParams<'a> {
-    alt_allele: Rc<AltAllele>,
+    alt_allele: Arc<AltAllele>,
     ref_offset: usize,
     ref_end: usize,
     read_emission: Rc<ReadEmission<'a>>,

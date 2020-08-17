@@ -3,32 +3,24 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use crossbeam::channel::{bounded, Sender, Receiver};
+use crossbeam::thread::{Scope, ScopedJoinHandle, scope};
 
-#[derive(Getters)]
-pub(crate) struct WorkerPool<U> {
-    in_sender: Sender<U>,
-    workers: Vec<thread::JoinHandle<Result<()>>>,
-    postprocessor: thread::JoinHandle<Result<()>>
-}
 
-impl<U> WorkerPool<U> 
+pub(crate) fn worker_pool<P, W, WS, U, T>(threads: usize, out_capacity: usize, in_receiver: Receiver<U>, workers: WS, postprocessor: P) -> Result<()>
 where
-    U: Send + 'static,
+    P: FnOnce(Box<T>) -> Result<()>,
+    P: Send,
+    WS: Iterator<Item=W>,
+    W: FnOnce(Receiver<U>, Sender<Box<T>>) -> Result<()>,
+    W: Send,
+    T: Send + Orderable,
+    U: Send,
 {
-    pub(crate) fn new<P, W, WS, T>(threads: usize, in_capacity: usize, out_capacity: usize, workers: WS, postprocessor: P) -> Self 
-    where
-        P: FnOnce(Box<T>) -> Result<()>,
-        P: Send + 'static,
-        WS: Iterator<Item=W>,
-        W: FnOnce(Receiver<U>, Sender<Box<T>>) -> Result<()>,
-        W: Send + 'static,
-        T: Send + 'static + Orderable,
-    {
-        let (in_sender, in_receiver) = bounded(in_capacity);
+    scope(|scope| -> Result<()> {
         let (out_sender, out_receiver) = bounded(out_capacity);
 
-        let workers = workers.map(|worker: W| thread::spawn(move || worker(in_receiver, out_sender))).collect();
-        let postprocessor = thread::spawn(move || -> Result<()> {
+        let workers = workers.map(|worker: W| scope.spawn(move |_| worker(in_receiver, out_sender))).collect();
+        let postprocessor = scope.spawn(move |_| -> Result<()> {
             let mut items = OrderedContainer::new();
             let last_index = None;
 
@@ -44,19 +36,71 @@ where
             Ok(())
         });
 
-        WorkerPool {
-            in_sender,
-            workers,
-            postprocessor
+        for worker in workers {
+            worker.join()?;
         }
-    }
-
-    pub(crate) fn push(&self, item: U) -> Result<()> {
-        self.in_sender.send(item).unwrap();
+        postprocessor.join()?;
 
         Ok(())
-    }
+    })?;
+
+    Ok(())
 }
+
+
+// #[derive(Getters)]
+// pub(crate) struct WorkerPool<'a, U> {
+//     in_sender: Sender<U>,
+//     workers: Vec<ScopedJoinHandle<'a, Result<()>>>,
+//     postprocessor: ScopedJoinHandle<'a, Result<()>>,
+// }
+
+// impl<'a, U> WorkerPool<'a, U> 
+// where
+//     U: Send + 'a,
+// {
+//     pub(crate) fn new<P, W, WS, T>(threads: usize, in_capacity: usize, out_capacity: usize, workers: WS, postprocessor: P) -> Self
+//     where
+//         P: FnOnce(Box<T>) -> Result<()>,
+//         P: Send,
+//         WS: Iterator<Item=W>,
+//         W: FnOnce(Receiver<U>, Sender<Box<T>>) -> Result<()>,
+//         W: Send,
+//         T: Send + 'a + Orderable,
+//     {
+//         let (in_sender, in_receiver) = bounded(in_capacity);
+//         let (out_sender, out_receiver) = bounded(out_capacity);
+
+//         let workers = workers.map(|worker: W| scope.spawn(move |_| worker(in_receiver, out_sender))).collect();
+//         let postprocessor = scope.spawn(move |_| -> Result<()> {
+//             let mut items = OrderedContainer::new();
+//             let last_index = None;
+
+//             for item in out_receiver {
+//                 items.insert(item.index(), item);
+
+//                 // Find continuous prefix, postprocess in order.
+//                 for item in items.remove_continuous_prefix(&mut last_index) {
+//                     postprocessor(item)?;
+//                 }
+//             }
+
+//             Ok(())
+//         });
+
+//         WorkerPool {
+//             in_sender,
+//             workers,
+//             postprocessor
+//         }
+//     }
+
+//     pub(crate) fn push(&self, item: U) -> Result<()> {
+//         self.in_sender.send(item).unwrap();
+
+//         Ok(())
+//     }
+// }
 
 pub(crate) trait Orderable {
     fn index(&self) -> usize;
