@@ -173,8 +173,8 @@ impl ObservationProcessor {
 
                     let mut sample = SampleBuilder::default()
                         .max_depth(self.max_depth)
-                        .protocol_strandedness(self.protocol_strandedness.clone())
-                        .alignments(bam_reader, self.alignment_properties.clone())
+                        .protocol_strandedness(self.protocol_strandedness)
+                        .alignments(bam_reader, self.alignment_properties)
                         .build()
                         .unwrap();
                     for rec_info in receiver {
@@ -208,6 +208,7 @@ impl ObservationProcessor {
             loop {
                 let mut record = bcf_reader.empty_record();
                 if !bcf_reader.read(&mut record)? {
+                    drop(sender);
                     return Ok(());
                 }
 
@@ -222,7 +223,7 @@ impl ObservationProcessor {
                     record_index: i,
                 };
 
-                sender.send(rec_info);
+                sender.send(rec_info).unwrap();
 
                 i += 1;
             }
@@ -628,7 +629,7 @@ struct RecordInfo {
     record_index: usize,
 }
 
-#[derive(Derefable, new)]
+#[derive(Derefable, new, Debug)]
 struct Calls {
     index: usize,
     #[deref]
