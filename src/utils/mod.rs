@@ -25,7 +25,7 @@ use crate::Event;
 
 pub(crate) mod worker_pool;
 
-pub(crate) use worker_pool::WorkerPool;
+pub(crate) use worker_pool::worker_pool;
 
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 

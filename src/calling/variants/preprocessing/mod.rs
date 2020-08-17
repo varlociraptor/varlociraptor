@@ -36,7 +36,7 @@ use crate::variants::model;
 use crate::variants::sample::Sample;
 use crate::variants::types::breakends::{Breakend, BreakendIndex};
 use crate::variants::{self, types::Variant};
-use crate::utils::WorkerPool;
+use crate::utils::worker_pool;
 use crate::utils::worker_pool::Orderable;
 
 #[derive(Builder)]
@@ -191,38 +191,39 @@ impl ObservationProcessor {
             Ok(())
         };
 
-        let worker_pool = WorkerPool::new(
-            threads,
-            threads * 2,
-            threads * 2,
+        let preprocessor = move |sender: Sender<RecordInfo>| -> Result<()> {
+            let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+
+            let mut i = 0;
+            loop {
+                let mut record = bcf_reader.empty_record();
+                if !bcf_reader.read(&mut record)? {
+                    return Ok(());
+                }
+
+                // process record
+                let rec_info = RecordInfo {
+                    start: record.pos() as u64,
+                    chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
+                    variants: utils::collect_variants(&mut record)?,
+                    record_id: record.id(),
+                    record_mateid: utils::info_tag_mateid(&mut record).map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
+                    record_index: i,
+                };
+
+                sender.send(rec_info);
+
+                i += 1;
+            }
+        };
+
+        worker_pool(
+            preprocessor,
             workers.into_iter(),
             postprocessor,
-        );
-
-
-        let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
-
-        let mut i = 0;
-        loop {
-            let mut record = bcf_reader.empty_record();
-            if !bcf_reader.read(&mut record)? {
-                return Ok(());
-            }
-
-            // process record
-            let rec_info = RecordInfo {
-                start: record.pos() as u64,
-                chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
-                variants: utils::collect_variants(&mut record)?,
-                record_id: record.id(),
-                record_mateid: utils::info_tag_mateid(&mut record).map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
-                record_index: i,
-            };
-
-            worker_pool.push(rec_info)?;
-
-            i += 1;
-        }
+            threads * 2,
+            threads * 2,
+        )
     }
 
     fn process_record(
@@ -230,7 +231,7 @@ impl ObservationProcessor {
         rec_info: RecordInfo,
         sample: &mut Sample,
     ) -> Result<Box<Calls>> {
-        if variants.is_empty() {
+        if rec_info.variants.is_empty() {
             return Ok(vec![]);
         }
 
@@ -250,44 +251,42 @@ impl ObservationProcessor {
             builder
         };
 
-        if variants.iter().all(|variant| !variant.is_breakend()) {
+        if rec_info.variants.iter().all(|variant| !variant.is_breakend()) {
             let mut call = call_builder(
-                chrom.as_bytes().to_owned(),
-                start,
-                record_id.clone(),
+                rec_info.chrom.as_bytes().to_owned(),
+                rec_info.start,
+                rec_info.record_id.clone(),
             )
             .build()
             .unwrap();
 
-            for variant in variants
+            for variant in rec_info.variants
                 .into_iter()
                 .filter(|variant| !variant.is_breakend())
             {
-                let chrom_seq = self.reference_buffer.seq(&chrom)?;
+                let chrom_seq = self.reference_buffer.seq(&rec_info.chrom)?;
                 let pileup = self
-                    .process_variant(start, &chrom, &variant, &record_id, &record_mateid, record_index, thread_idx)?
-                    .unwrap()
-                    .await
-                    .unwrap();
-                let start = start as usize;
+                    .process_variant(&variant, &rec_info, sample)?
+                    .unwrap(); // only breakends can lead to None here
+                let start = rec_info.start as usize;
 
                 // add variant information
                 call.variants.push(
                     VariantBuilder::default()
-                        .variant(&variant, start, Some(chrom_seq.as_ref()))
+                        .variant(&variant, rec_info.start as usize, Some(chrom_seq.as_ref()))
                         .observations(Some(pileup))
                         .build()
                         .unwrap(),
                 );
             }
 
-            Ok(vec![call])
+            Ok(Box::new(Calls::new(rec_info.record_index, vec![call])))
         } else {
             let mut calls = Vec::new();
-            for variant in variants.into_iter() {
+            for variant in rec_info.variants.into_iter() {
                 if let model::Variant::Breakend { ref event, .. } = variant {
                     if let Some(pileup) =
-                        self.process_variant(start, &chrom, &variant, &record_id, &record_mateid, record_index, thread_idx)?
+                        self.process_variant(&variant, &rec_info, sample)?
                     {
                         let mut pileup = Some(pileup);
                         for breakend in self
@@ -327,76 +326,63 @@ impl ObservationProcessor {
                     }
                 }
             }
-            Ok(calls)
+            Ok(Box::new(Calls::new(rec_info.record_index, calls)))
         }
-    }
-
-    async fn extract_observations<V, E, L>(&mut self, variant: V, thread_idx: usize) -> Result<Vec<Observation>>
-    where
-        E: observation::Evidence + Eq + Hash,
-        L: variants::types::Loci,
-        V: Variant<Loci = L, Evidence = E> + Observable<E>,
-    {
-        self.sample_container[thread_idx].borrow_mut().extract_observations(&variant)
     }
 
     fn process_variant(
         &self,
-        start: u64,
-        chrom: &str,
         variant: &model::Variant,
-        record_id: &[u8],
-        record_mateid: &Option<Vec<u8>>,
-        record_index: usize,
-        thread_idx: usize,
+        rec_info: &RecordInfo,
+        sample: &mut Sample,
     ) -> Result<Option<Vec<Observation>>> {
-        let locus = || genome::Locus::new(chrom.to_owned(), start);
-        let interval = |len: u64| genome::Interval::new(chrom.to_owned(), start..start + len);
-        let start = start as usize;
+        let locus = || genome::Locus::new(rec_info.chrom.clone(), rec_info.start);
+        let interval = |len: u64| genome::Interval::new(rec_info.chrom.clone(), rec_info.start..rec_info.start + len);
+        let start = rec_info.start as usize;
 
         Ok(Some(match variant {
-            model::Variant::SNV(alt) => Box::new(self.extract_observations(variants::types::SNV::new(
+            model::Variant::SNV(alt) => sample.extract_observations(&variants::types::SNV::new(
                     locus(),
-                    self.reference_buffer.seq(chrom)?[start],
+                    self.reference_buffer.seq(&rec_info.chrom)?[start],
                     *alt,
-                ), thread_idx)),
-            model::Variant::MNV(alt) => Box::new(self.extract_observations(variants::types::MNV::new(
+                ))?,
+            model::Variant::MNV(alt) => sample.extract_observations(&variants::types::MNV::new(
                     locus(),
-                    self.reference_buffer.seq(chrom)?[start..start + alt.len()].to_owned(),
+                    self.reference_buffer.seq(&rec_info.chrom)?[start..start + alt.len()].to_owned(),
                     alt.to_owned(),
-                ), thread_idx)),
-            model::Variant::None => Box::new(self.extract_observations(variants::types::None::new(
+                ))?,
+            model::Variant::None => sample.extract_observations(&variants::types::None::new(
                     locus(),
-                    self.reference_buffer.seq(chrom)?[start],
-                ), thread_idx)),
-            model::Variant::Deletion(l) => Box::new(self.extract_observations(variants::types::Deletion::new(
+                    self.reference_buffer.seq(&rec_info.chrom)?[start],
+                ))?,
+            model::Variant::Deletion(l) => sample.extract_observations(&variants::types::Deletion::new(
                     interval(*l),
                     self.realigner.clone(),
-                ), thread_idx)),
-            model::Variant::Insertion(seq) => Box::new(self.extract_observations(variants::types::Insertion::new(
+                ))?,
+            model::Variant::Insertion(seq) => sample.extract_observations(&variants::types::Insertion::new(
                     locus(),
                     seq.to_owned(),
                     self.realigner.clone(),
-                ), thread_idx)),
-            model::Variant::Inversion(len) => Box::new(self.extract_observations(variants::types::Inversion::new(
+                ))?,
+            model::Variant::Inversion(len) => sample.extract_observations(&variants::types::Inversion::new(
                     interval(*len),
                     self.realigner.clone(),
-                    self.reference_buffer.seq(chrom)?.as_ref(),
-                ), thread_idx)),
-            model::Variant::Duplication(len) => Box::new(self.extract_observations(variants::types::Duplication::new(
+                    self.reference_buffer.seq(&rec_info.chrom)?.as_ref(),
+                ))?,
+            model::Variant::Duplication(len) => sample.extract_observations(&variants::types::Duplication::new(
                     interval(*len),
                     self.realigner.clone(),
-                    self.reference_buffer.seq(chrom)?.as_ref(),
-                ), thread_idx)),
+                    self.reference_buffer.seq(&rec_info.chrom)?.as_ref(),
+                ))?,
             model::Variant::Replacement {
                 ref_allele,
                 alt_allele,
-            } => Box::new(self.extract_observations(variants::types::Replacement::new(
+            } => sample.extract_observations(&variants::types::Replacement::new(
                     interval(ref_allele.len() as u64),
                     alt_allele.to_owned(),
                     self.realigner.clone(),
-                    self.reference_buffer.seq(chrom)?.as_ref(),
-                ), thread_idx)),
+                    self.reference_buffer.seq(&rec_info.chrom)?.as_ref(),
+                ))?,
             model::Variant::Breakend {
                 ref_allele,
                 spec,
@@ -413,18 +399,18 @@ impl ObservationProcessor {
                         locus(),
                         ref_allele,
                         spec,
-                        record_id,
-                        record_mateid.clone(),
+                        &rec_info.record_id,
+                        rec_info.record_mateid.clone(),
                     )? {
                         group.push_breakend(breakend);
 
-                        if self.breakend_index.last_record_index(event).unwrap() == record_index {
+                        if self.breakend_index.last_record_index(event).unwrap() == rec_info.record_index {
                             // METHOD: last record of the breakend event. Hence, we can extract observations.
                             let breakend_group =
                                 group.build(Arc::clone(&self.reference_buffer)).unwrap();
                             self.breakend_groups
                                 .insert(event.to_owned(), breakend_group);
-                            self.sample_container[thread_idx].borrow_mut().extract_observations(self.breakend_groups.get(event).unwrap())
+                            sample.extract_observations(self.breakend_groups.get(event).unwrap())?
                         } else {
                             return Ok(None);
                         }
@@ -604,7 +590,7 @@ struct RecordInfo {
     record_index: usize,
 }
 
-#[derive(Derefable)]
+#[derive(Derefable, new)]
 struct Calls {
     index: usize,
     #[deref]

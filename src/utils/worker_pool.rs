@@ -6,20 +6,44 @@ use crossbeam::channel::{bounded, Sender, Receiver};
 use crossbeam::thread::{Scope, ScopedJoinHandle, scope};
 
 
-pub(crate) fn worker_pool<P, W, WS, U, T>(threads: usize, out_capacity: usize, in_receiver: Receiver<U>, workers: WS, postprocessor: P) -> Result<()>
+pub(crate) enum WorkItem<T> {
+    Item(T),
+    Stop,
+}
+
+
+/// Create and execute a worker pool.
+/// # Arguments
+/// * `workers` - Closures that execute the work.
+pub(crate) fn worker_pool<Post, Pre, Workers, W, U, T>(preprocessor: Pre, workers: Workers, postprocessor: Post, in_capacity: usize, out_capacity: usize) -> Result<()>
 where
-    P: FnOnce(Box<T>) -> Result<()>,
-    P: Send,
-    WS: Iterator<Item=W>,
+    Post: FnOnce(Box<T>) -> Result<()>,
+    Post: Send,
+    Pre: FnOnce(Sender<U>) -> Result<()>,
+    Pre: Send,
+    Workers: Iterator<Item=W>,
     W: FnOnce(Receiver<U>, Sender<Box<T>>) -> Result<()>,
     W: Send,
     T: Send + Orderable,
     U: Send,
 {
     scope(|scope| -> Result<()> {
+        let (in_sender, in_receiver) = bounded(in_capacity);
         let (out_sender, out_receiver) = bounded(out_capacity);
 
-        let workers = workers.map(|worker: W| scope.spawn(move |_| worker(in_receiver, out_sender))).collect();
+        let preprocessor = scope.spawn(move |_| {
+            let ret = preprocessor(in_sender);
+            // tell consuming threads that we are done
+            drop(in_sender);
+            ret
+        });
+
+        let workers: Vec<_> = workers.map(|worker: W| scope.spawn(move |_| {
+            let ret = worker(in_receiver, out_sender);
+            // tell consuming threads that we are done
+            drop(out_sender);
+            ret
+        })).collect();
         let postprocessor = scope.spawn(move |_| -> Result<()> {
             let mut items = OrderedContainer::new();
             let last_index = None;
@@ -36,13 +60,33 @@ where
             Ok(())
         });
 
-        for worker in workers {
-            worker.join()?;
-        }
-        postprocessor.join()?;
 
-        Ok(())
-    })?;
+
+        let mut errors = Vec::new();
+
+        let ret = postprocessor.join().unwrap();
+        if ret.is_err() {
+            errors.push(ret);
+        }
+
+        for worker in workers {
+            let ret = worker.join().unwrap();
+            if ret.is_err() {
+                errors.push(ret);
+            }
+        }
+
+        let ret = preprocessor.join().unwrap();
+        if ret.is_err() {
+            errors.push(ret);
+        }
+
+        if !errors.is_empty() {
+            errors[0]
+        } else {
+            Ok(())
+        }
+    }).unwrap()?;
 
     Ok(())
 }

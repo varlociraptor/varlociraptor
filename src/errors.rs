@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
+use thiserror::Error;
+
 #[derive(Error, Debug, PartialEq)]
-#[snafu(visibility = "pub(crate)")]
 pub(crate) enum Error {
     #[error("formula refers to unknown sample {name}")]
     InvalidSampleName { name: String },
