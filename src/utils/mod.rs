@@ -23,6 +23,10 @@ use crate::utils;
 use crate::variants::model;
 use crate::Event;
 
+pub(crate) mod worker_pool;
+
+pub(crate) use worker_pool::WorkerPool;
+
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
 pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {

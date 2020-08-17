@@ -9,6 +9,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
+use std::cell::RefCell;
+use std::hash::Hash;
 
 use anyhow::Result;
 use bio::io::fasta;
@@ -19,6 +21,8 @@ use byteorder::{ByteOrder, LittleEndian};
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
+use futures::future::try_join_all;
+use crossbeam::channel::{Sender, Receiver};
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
@@ -26,17 +30,19 @@ use crate::errors;
 use crate::reference;
 use crate::utils;
 use crate::utils::MiniLogProb;
-use crate::variants;
-use crate::variants::evidence::observation::{Observation, ObservationBuilder};
+use crate::variants::evidence::observation::{Observation, ObservationBuilder, self, Observable};
 use crate::variants::evidence::realignment;
 use crate::variants::model;
 use crate::variants::sample::Sample;
 use crate::variants::types::breakends::{Breakend, BreakendIndex};
+use crate::variants::{self, types::Variant};
+use crate::utils::WorkerPool;
+use crate::utils::worker_pool::Orderable;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
 pub(crate) struct ObservationProcessor {
-    sample: Sample,
+    sample_container: Vec<Sample>,
     #[builder(private)]
     reference_buffer: Arc<reference::Buffer>,
     #[builder(private)]
@@ -158,7 +164,44 @@ impl ObservationProcessorBuilder {
 
 impl ObservationProcessor {
     pub(crate) fn process(&mut self) -> Result<()> {
+        // TODO make threads configurable
+        let threads = 2;
+
+        let mut workers = Vec::new();
+        for sample in self.sample_container.into_iter() {
+            let worker = move |receiver: Receiver<RecordInfo>, sender: Sender<Box<Calls>>| -> Result<()> {
+                for rec_info in receiver {
+                    let calls = self.process_record(rec_info, &mut sample)?;
+                    sender.send(calls).unwrap();
+                }
+                Ok(())
+            };
+            workers.push(worker);
+        }
+
+        let postprocessor = move |calls: Box<Calls>| -> Result<()> {
+            for call in calls.iter() {
+                call.write_preprocessed_record(&mut self.bcf_writer)?;
+
+                if calls.index() % 100 == 0 {
+                    info!("{} records processed.", calls.index());
+                }
+            }
+
+            Ok(())
+        };
+
+        let worker_pool = WorkerPool::new(
+            threads,
+            threads * 2,
+            threads * 2,
+            workers.into_iter(),
+            postprocessor,
+        );
+
+
         let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+
         let mut i = 0;
         loop {
             let mut record = bcf_reader.empty_record();
@@ -166,28 +209,27 @@ impl ObservationProcessor {
                 return Ok(());
             }
 
-            let calls = self.process_record(&mut record, &bcf_reader, i)?;
-            for call in calls {
-                call.write_preprocessed_record(&mut self.bcf_writer)?;
-            }
-            if (i + 1) % 100 == 0 {
-                info!("{} records processed.", i + 1);
-            }
+            // process record
+            let rec_info = RecordInfo {
+                start: record.pos() as u64,
+                chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
+                variants: utils::collect_variants(&mut record)?,
+                record_id: record.id(),
+                record_mateid: utils::info_tag_mateid(&mut record).map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
+                record_index: i,
+            };
+
+            worker_pool.push(rec_info)?;
 
             i += 1;
         }
     }
 
     fn process_record(
-        &mut self,
-        record: &mut bcf::Record,
-        bcf_reader: &bcf::Reader,
-        record_index: usize,
-    ) -> Result<Vec<Call>> {
-        let start = record.pos() as u64;
-        let chrom = String::from_utf8(chrom(bcf_reader, &record).to_owned()).unwrap();
-        let variants = utils::collect_variants(record)?;
-
+        &self,
+        rec_info: RecordInfo,
+        sample: &mut Sample,
+    ) -> Result<Box<Calls>> {
         if variants.is_empty() {
             return Ok(vec![]);
         }
@@ -211,8 +253,8 @@ impl ObservationProcessor {
         if variants.iter().all(|variant| !variant.is_breakend()) {
             let mut call = call_builder(
                 chrom.as_bytes().to_owned(),
-                record.pos() as u64,
-                record.id(),
+                start,
+                record_id.clone(),
             )
             .build()
             .unwrap();
@@ -223,7 +265,9 @@ impl ObservationProcessor {
             {
                 let chrom_seq = self.reference_buffer.seq(&chrom)?;
                 let pileup = self
-                    .extract_observations(start, &chrom, &variant, record_index, record)?
+                    .process_variant(start, &chrom, &variant, &record_id, &record_mateid, record_index, thread_idx)?
+                    .unwrap()
+                    .await
                     .unwrap();
                 let start = start as usize;
 
@@ -243,7 +287,7 @@ impl ObservationProcessor {
             for variant in variants.into_iter() {
                 if let model::Variant::Breakend { ref event, .. } = variant {
                     if let Some(pileup) =
-                        self.extract_observations(start, &chrom, &variant, record_index, record)?
+                        self.process_variant(start, &chrom, &variant, &record_id, &record_mateid, record_index, thread_idx)?
                     {
                         let mut pileup = Some(pileup);
                         for breakend in self
@@ -287,87 +331,72 @@ impl ObservationProcessor {
         }
     }
 
-    fn extract_observations(
-        &mut self,
+    async fn extract_observations<V, E, L>(&mut self, variant: V, thread_idx: usize) -> Result<Vec<Observation>>
+    where
+        E: observation::Evidence + Eq + Hash,
+        L: variants::types::Loci,
+        V: Variant<Loci = L, Evidence = E> + Observable<E>,
+    {
+        self.sample_container[thread_idx].borrow_mut().extract_observations(&variant)
+    }
+
+    fn process_variant(
+        &self,
         start: u64,
         chrom: &str,
         variant: &model::Variant,
+        record_id: &[u8],
+        record_mateid: &Option<Vec<u8>>,
         record_index: usize,
-        record: &mut bcf::Record,
+        thread_idx: usize,
     ) -> Result<Option<Vec<Observation>>> {
         let locus = || genome::Locus::new(chrom.to_owned(), start);
         let interval = |len: u64| genome::Interval::new(chrom.to_owned(), start..start + len);
         let start = start as usize;
 
-        let as_option = |obs| Some(obs);
-
-        match variant {
-            model::Variant::SNV(alt) => self
-                .sample
-                .extract_observations(&variants::types::SNV::new(
+        Ok(Some(match variant {
+            model::Variant::SNV(alt) => Box::new(self.extract_observations(variants::types::SNV::new(
                     locus(),
                     self.reference_buffer.seq(chrom)?[start],
                     *alt,
-                ))
-                .map(as_option),
-            model::Variant::MNV(alt) => self
-                .sample
-                .extract_observations(&variants::types::MNV::new(
+                ), thread_idx)),
+            model::Variant::MNV(alt) => Box::new(self.extract_observations(variants::types::MNV::new(
                     locus(),
                     self.reference_buffer.seq(chrom)?[start..start + alt.len()].to_owned(),
                     alt.to_owned(),
-                ))
-                .map(as_option),
-            model::Variant::None => self
-                .sample
-                .extract_observations(&variants::types::None::new(
+                ), thread_idx)),
+            model::Variant::None => Box::new(self.extract_observations(variants::types::None::new(
                     locus(),
                     self.reference_buffer.seq(chrom)?[start],
-                ))
-                .map(as_option),
-            model::Variant::Deletion(l) => self
-                .sample
-                .extract_observations(&variants::types::Deletion::new(
+                ), thread_idx)),
+            model::Variant::Deletion(l) => Box::new(self.extract_observations(variants::types::Deletion::new(
                     interval(*l),
                     self.realigner.clone(),
-                ))
-                .map(as_option),
-            model::Variant::Insertion(seq) => self
-                .sample
-                .extract_observations(&variants::types::Insertion::new(
+                ), thread_idx)),
+            model::Variant::Insertion(seq) => Box::new(self.extract_observations(variants::types::Insertion::new(
                     locus(),
                     seq.to_owned(),
                     self.realigner.clone(),
-                ))
-                .map(as_option),
-            model::Variant::Inversion(len) => self
-                .sample
-                .extract_observations(&variants::types::Inversion::new(
+                ), thread_idx)),
+            model::Variant::Inversion(len) => Box::new(self.extract_observations(variants::types::Inversion::new(
                     interval(*len),
                     self.realigner.clone(),
                     self.reference_buffer.seq(chrom)?.as_ref(),
-                ))
-                .map(as_option),
-            model::Variant::Duplication(len) => self
-                .sample
-                .extract_observations(&variants::types::Duplication::new(
+                ), thread_idx)),
+            model::Variant::Duplication(len) => Box::new(self.extract_observations(variants::types::Duplication::new(
                     interval(*len),
                     self.realigner.clone(),
                     self.reference_buffer.seq(chrom)?.as_ref(),
-                ))
-                .map(as_option),
+                ), thread_idx)),
             model::Variant::Replacement {
                 ref_allele,
                 alt_allele,
-            } => self
-                .sample
-                .extract_observations(&variants::types::Replacement::new(
+            } => Box::new(self.extract_observations(variants::types::Replacement::new(
                     interval(ref_allele.len() as u64),
                     alt_allele.to_owned(),
                     self.realigner.clone(),
                     self.reference_buffer.seq(chrom)?.as_ref(),
-                ))
-                .map(as_option),
+                ), thread_idx)),
             model::Variant::Breakend {
                 ref_allele,
                 spec,
@@ -384,8 +413,8 @@ impl ObservationProcessor {
                         locus(),
                         ref_allele,
                         spec,
-                        &record.id(),
-                        utils::info_tag_mateid(record)?.map(|mateid| mateid.to_owned()),
+                        record_id,
+                        record_mateid.clone(),
                     )? {
                         group.push_breakend(breakend);
 
@@ -395,23 +424,21 @@ impl ObservationProcessor {
                                 group.build(Arc::clone(&self.reference_buffer)).unwrap();
                             self.breakend_groups
                                 .insert(event.to_owned(), breakend_group);
-                            self.sample
-                                .extract_observations(self.breakend_groups.get(event).unwrap())
-                                .map(as_option)
+                            self.sample_container[thread_idx].borrow_mut().extract_observations(self.breakend_groups.get(event).unwrap())
                         } else {
-                            Ok(None)
+                            return Ok(None);
                         }
                     } else {
                         // Breakend type not supported, remove breakend group.
                         self.breakend_group_builders.insert(event.to_owned(), None);
-                        Ok(None)
+                        return Ok(None);
                     }
                 } else {
                     // Breakend group has been removed before because one breakend was invalid.
-                    Ok(None)
+                    return Ok(None);
                 }
             }
-        }
+        }))
     }
 }
 
@@ -565,4 +592,27 @@ pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli:
         path: bcfpath.as_ref().to_owned(),
     }
     .into())
+}
+
+
+struct RecordInfo {
+    start: u64,
+    chrom: String,
+    variants: Vec<model::Variant>,
+    record_id: Vec<u8>,
+    record_mateid: Option<Vec<u8>>,
+    record_index: usize,
+}
+
+#[derive(Derefable)]
+struct Calls {
+    index: usize,
+    #[deref]
+    inner: Vec<Call>,
+}
+
+impl utils::worker_pool::Orderable for Calls {
+    fn index(&self) -> usize {
+        self.index
+    }
 }
