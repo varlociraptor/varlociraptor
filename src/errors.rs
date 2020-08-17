@@ -10,9 +10,7 @@ pub(crate) enum Error {
     MissingSampleEvent { event_name: String },
     #[error("no BAM file given for sample {name}")]
     InvalidBAMSampleName { name: String },
-    #[error(
-        "contamination refers to unknown sample {name}; it is not defined in the scenario"
-    )]
+    #[error("contamination refers to unknown sample {name}; it is not defined in the scenario")]
     InvalidContaminationSampleName { name: String },
     #[error("observation files must be provided as samplename=path")]
     InvalidObservationsSpec,
@@ -34,13 +32,9 @@ pub(crate) enum Error {
     MissingBCFTag { name: String },
     #[error("invalid BCF record: {msg}")]
     InvalidBCFRecord { msg: String },
-    #[error(
-        "unable to estimate TMB because no valid records were found in the given BCF/VCF"
-    )]
+    #[error("unable to estimate TMB because no valid records were found in the given BCF/VCF")]
     NoRecordsFound,
-    #[error(
-        "contig {contig} not found in universe definition and no 'all' defined"
-    )]
+    #[error("contig {contig} not found in universe definition and no 'all' defined")]
     UniverseContigNotFound { contig: String },
     #[error("contig {contig} not found in the reference")]
     ReferenceContigNotFound { contig: String },

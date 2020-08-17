@@ -1,27 +1,31 @@
-use std::thread;
 use std::collections::BTreeMap;
+use std::thread;
 
 use anyhow::Result;
-use crossbeam::channel::{bounded, Sender, Receiver};
-use crossbeam::thread::{Scope, ScopedJoinHandle, scope};
-
+use crossbeam::channel::{bounded, Receiver, Sender};
+use crossbeam::thread::{scope, Scope, ScopedJoinHandle};
 
 pub(crate) enum WorkItem<T> {
     Item(T),
     Stop,
 }
 
-
 /// Create and execute a worker pool.
 /// # Arguments
 /// * `workers` - Closures that execute the work.
-pub(crate) fn worker_pool<Post, Pre, Workers, W, U, T>(preprocessor: Pre, workers: Workers, postprocessor: Post, in_capacity: usize, out_capacity: usize) -> Result<()>
+pub(crate) fn worker_pool<Post, Pre, Workers, W, U, T>(
+    preprocessor: Pre,
+    workers: Workers,
+    postprocessor: Post,
+    in_capacity: usize,
+    out_capacity: usize,
+) -> Result<()>
 where
     Post: FnOnce(Box<T>) -> Result<()>,
     Post: Send,
     Pre: FnOnce(Sender<U>) -> Result<()>,
     Pre: Send,
-    Workers: Iterator<Item=W>,
+    Workers: Iterator<Item = W>,
     W: FnOnce(Receiver<U>, Sender<Box<T>>) -> Result<()>,
     W: Send,
     T: Send + Orderable,
@@ -38,12 +42,16 @@ where
             ret
         });
 
-        let workers: Vec<_> = workers.map(|worker: W| scope.spawn(move |_| {
-            let ret = worker(in_receiver, out_sender);
-            // tell consuming threads that we are done
-            drop(out_sender);
-            ret
-        })).collect();
+        let workers: Vec<_> = workers
+            .map(|worker: W| {
+                scope.spawn(move |_| {
+                    let ret = worker(in_receiver, out_sender);
+                    // tell consuming threads that we are done
+                    drop(out_sender);
+                    ret
+                })
+            })
+            .collect();
         let postprocessor = scope.spawn(move |_| -> Result<()> {
             let mut items = OrderedContainer::new();
             let last_index = None;
@@ -59,8 +67,6 @@ where
 
             Ok(())
         });
-
-
 
         let mut errors = Vec::new();
 
@@ -86,11 +92,11 @@ where
         } else {
             Ok(())
         }
-    }).unwrap()?;
+    })
+    .unwrap()?;
 
     Ok(())
 }
-
 
 // #[derive(Getters)]
 // pub(crate) struct WorkerPool<'a, U> {
@@ -99,7 +105,7 @@ where
 //     postprocessor: ScopedJoinHandle<'a, Result<()>>,
 // }
 
-// impl<'a, U> WorkerPool<'a, U> 
+// impl<'a, U> WorkerPool<'a, U>
 // where
 //     U: Send + 'a,
 // {
@@ -150,14 +156,13 @@ pub(crate) trait Orderable {
     fn index(&self) -> usize;
 }
 
-
 struct OrderedContainer<T> {
-    inner: BTreeMap<usize, Box<T>>
+    inner: BTreeMap<usize, Box<T>>,
 }
 
 impl<T> OrderedContainer<T>
-where 
-    T: Orderable
+where
+    T: Orderable,
 {
     fn new() -> Self {
         OrderedContainer {
@@ -167,7 +172,7 @@ where
 
     fn insert(&self, key: usize, value: Box<T>) {
         self.inner.insert(key, value);
-    } 
+    }
 
     fn remove_continuous_prefix(&mut self, last_idx: &mut Option<usize>) -> Vec<Box<T>> {
         // TODO replace with drain_filter once stable.
