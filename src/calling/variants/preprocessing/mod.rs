@@ -208,7 +208,6 @@ impl ObservationProcessor {
             loop {
                 let mut record = bcf_reader.empty_record();
                 if !bcf_reader.read(&mut record)? {
-                    drop(sender);
                     return Ok(());
                 }
 
