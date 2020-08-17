@@ -3,16 +3,16 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fs;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::str;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, RwLock};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bio::io::fasta;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
@@ -22,11 +22,13 @@ use crossbeam::channel::{Receiver, Sender};
 use derive_builder::Builder;
 use futures::future::try_join_all;
 use itertools::Itertools;
+use rust_htslib::bam;
 use rust_htslib::bcf::{self, Read};
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
+use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::utils::worker_pool;
@@ -36,26 +38,31 @@ use crate::variants::evidence::observation::{self, Observable, Observation, Obse
 use crate::variants::evidence::realignment;
 use crate::variants::model;
 use crate::variants::sample::Sample;
+use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::breakends::{Breakend, BreakendIndex};
 use crate::variants::{self, types::Variant};
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
 pub(crate) struct ObservationProcessor {
-    sample_container: Vec<Sample>,
+    threads: usize,
+    alignment_properties: AlignmentProperties,
+    max_depth: usize,
+    protocol_strandedness: ProtocolStrandedness,
     #[builder(private)]
     reference_buffer: Arc<reference::Buffer>,
     #[builder(private)]
     realigner: realignment::Realigner,
     inbcf: PathBuf,
-    #[builder(private)]
-    bcf_writer: bcf::Writer,
+    outbcf: Option<PathBuf>,
+    inbam: PathBuf,
+    options: cli::Varlociraptor,
     breakend_index: BreakendIndex,
     #[builder(default)]
     breakend_group_builders:
-        HashMap<Vec<u8>, Option<variants::types::breakends::BreakendGroupBuilder>>,
+        RwLock<HashMap<Vec<u8>, Mutex<Option<variants::types::breakends::BreakendGroupBuilder>>>>,
     #[builder(default)]
-    breakend_groups: HashMap<Vec<u8>, variants::types::breakends::BreakendGroup>,
+    breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup>>>,
 }
 
 impl ObservationProcessorBuilder {
@@ -76,12 +83,10 @@ impl ObservationProcessorBuilder {
 
         self.realigner(realignment::Realigner::new(ref_buffer, gap_params, window))
     }
+}
 
-    pub(crate) fn outbcf<P: AsRef<Path>>(
-        self,
-        path: Option<P>,
-        options: &cli::Varlociraptor,
-    ) -> Result<Self> {
+impl ObservationProcessor {
+    fn writer(&self) -> Result<bcf::Writer> {
         let mut header = bcf::Header::new();
 
         // register tags
@@ -107,12 +112,7 @@ impl ObservationProcessorBuilder {
         );
 
         // register sequences
-        for sequence in self
-            .reference_buffer
-            .as_ref()
-            .expect(".reference() has to be called before .outbcf()")
-            .sequences()
-        {
+        for sequence in self.reference_buffer.sequences() {
             header.push_record(
                 format!("##contig=<ID={},length={}>", sequence.name, sequence.len).as_bytes(),
             );
@@ -139,7 +139,7 @@ impl ObservationProcessorBuilder {
         header.push_record(
             format!(
                 "##varlociraptor_preprocess_args={}",
-                serde_json::to_string(options)?
+                serde_json::to_string(&self.options)?
             )
             .as_bytes(),
         );
@@ -153,24 +153,30 @@ impl ObservationProcessorBuilder {
             .as_bytes(),
         );
 
-        let writer = if let Some(path) = path {
-            bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)?
+        Ok(if let Some(ref path) = self.outbcf {
+            bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)
+                .context(format!("Unable to write BCF to {}.", path.display()))?
         } else {
-            bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?
-        };
-        Ok(self.bcf_writer(writer))
+            bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)
+                .context("Unable to write BCF to STDOUT.")?
+        })
     }
-}
 
-impl ObservationProcessor {
     pub(crate) fn process(&mut self) -> Result<()> {
-        // TODO make threads configurable
-        let threads = 2;
-
         let mut workers = Vec::new();
-        for sample in self.sample_container.into_iter() {
+
+        for _ in 0..self.threads {
             let worker =
-                move |receiver: Receiver<RecordInfo>, sender: Sender<Box<Calls>>| -> Result<()> {
+                |receiver: Receiver<RecordInfo>, sender: Sender<Box<Calls>>| -> Result<()> {
+                    let bam_reader = bam::IndexedReader::from_path(&self.inbam)
+                        .context("Unable to read BAM/CRAM file.")?;
+
+                    let mut sample = SampleBuilder::default()
+                        .max_depth(self.max_depth)
+                        .protocol_strandedness(self.protocol_strandedness.clone())
+                        .alignments(bam_reader, self.alignment_properties.clone())
+                        .build()
+                        .unwrap();
                     for rec_info in receiver {
                         let calls = self.process_record(rec_info, &mut sample)?;
                         sender.send(calls).unwrap();
@@ -180,19 +186,22 @@ impl ObservationProcessor {
             workers.push(worker);
         }
 
-        let postprocessor = move |calls: Box<Calls>| -> Result<()> {
-            for call in calls.iter() {
-                call.write_preprocessed_record(&mut self.bcf_writer)?;
+        let postprocessor = |receiver: Receiver<Box<Calls>>| -> Result<()> {
+            let mut bcf_writer = self.writer()?;
+            for calls in receiver {
+                for call in calls.iter() {
+                    call.write_preprocessed_record(&mut bcf_writer)?;
 
-                if calls.index() % 100 == 0 {
-                    info!("{} records processed.", calls.index());
+                    if calls.index() % 100 == 0 {
+                        info!("{} records processed.", calls.index());
+                    }
                 }
             }
 
             Ok(())
         };
 
-        let preprocessor = move |sender: Sender<RecordInfo>| -> Result<()> {
+        let preprocessor = |sender: Sender<RecordInfo>| -> Result<()> {
             let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
 
             let mut i = 0;
@@ -219,18 +228,12 @@ impl ObservationProcessor {
             }
         };
 
-        worker_pool(
-            preprocessor,
-            workers.into_iter(),
-            postprocessor,
-            threads * 2,
-            threads * 2,
-        )
+        worker_pool(preprocessor, workers.into_iter(), postprocessor, 1, 1)
     }
 
     fn process_record(&self, rec_info: RecordInfo, sample: &mut Sample) -> Result<Box<Calls>> {
         if rec_info.variants.is_empty() {
-            return Ok(vec![]);
+            return Ok(Box::new(Calls::new(rec_info.record_index, vec![])));
         }
 
         let call_builder = |chrom, start, id| {
@@ -264,12 +267,11 @@ impl ObservationProcessor {
 
             for variant in rec_info
                 .variants
-                .into_iter()
+                .iter()
                 .filter(|variant| !variant.is_breakend())
             {
                 let chrom_seq = self.reference_buffer.seq(&rec_info.chrom)?;
-                let pileup = self.process_variant(&variant, &rec_info, sample)?.unwrap(); // only breakends can lead to None here
-                let start = rec_info.start as usize;
+                let pileup = self.process_variant(&variant, &rec_info, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
                 // add variant information
                 call.variants.push(
@@ -284,14 +286,18 @@ impl ObservationProcessor {
             Ok(Box::new(Calls::new(rec_info.record_index, vec![call])))
         } else {
             let mut calls = Vec::new();
-            for variant in rec_info.variants.into_iter() {
-                if let model::Variant::Breakend { ref event, .. } = variant {
-                    if let Some(pileup) = self.process_variant(&variant, &rec_info, sample)? {
+            for variant in rec_info.variants.iter() {
+                if let model::Variant::Breakend { event, .. } = variant {
+                    if let Some(pileup) = self.process_variant(variant, &rec_info, sample)? {
                         let mut pileup = Some(pileup);
                         for breakend in self
                             .breakend_groups
+                            .read()
+                            .unwrap()
                             .get(event)
                             .as_ref()
+                            .unwrap()
+                            .lock()
                             .unwrap()
                             .breakends()
                         {
@@ -321,7 +327,7 @@ impl ObservationProcessor {
                             pileup = None;
                         }
                         // As all records a written, the breakend group can be discarded.
-                        self.breakend_groups.remove(event);
+                        self.breakend_groups.write().unwrap().remove(event);
                     }
                 }
             }
@@ -390,13 +396,27 @@ impl ObservationProcessor {
                 spec,
                 event,
             } => {
-                if !self.breakend_group_builders.contains_key(event) {
-                    let mut builder = variants::types::breakends::BreakendGroupBuilder::default();
-                    builder.set_realigner(self.realigner.clone());
-                    self.breakend_group_builders
-                        .insert(event.to_owned(), Some(builder));
+                {
+                    if !self
+                        .breakend_group_builders
+                        .read()
+                        .unwrap()
+                        .contains_key(event)
+                    {
+                        let mut builder =
+                            variants::types::breakends::BreakendGroupBuilder::default();
+                        builder.set_realigner(self.realigner.clone());
+                        self.breakend_group_builders
+                            .write()
+                            .unwrap()
+                            .insert(event.to_owned(), Mutex::new(Some(builder)));
+                    }
                 }
-                if let Some(group) = self.breakend_group_builders.get_mut(event).unwrap() {
+                let group_builders = self.breakend_group_builders.read().unwrap();
+
+                let mut group = group_builders.get(event).unwrap().lock().unwrap();
+
+                if let Some(group) = group.as_mut() {
                     if let Some(breakend) = Breakend::new(
                         locus(),
                         ref_allele,
@@ -410,17 +430,32 @@ impl ObservationProcessor {
                             == rec_info.record_index
                         {
                             // METHOD: last record of the breakend event. Hence, we can extract observations.
-                            let breakend_group =
-                                group.build(Arc::clone(&self.reference_buffer)).unwrap();
+                            let breakend_group = Mutex::new(
+                                group.build(Arc::clone(&self.reference_buffer)).unwrap(),
+                            );
                             self.breakend_groups
+                                .write()
+                                .unwrap()
                                 .insert(event.to_owned(), breakend_group);
-                            sample.extract_observations(self.breakend_groups.get(event).unwrap())?
+                            sample.extract_observations(
+                                &*self
+                                    .breakend_groups
+                                    .read()
+                                    .unwrap()
+                                    .get(event)
+                                    .unwrap()
+                                    .lock()
+                                    .unwrap(),
+                            )?
                         } else {
                             return Ok(None);
                         }
                     } else {
                         // Breakend type not supported, remove breakend group.
-                        self.breakend_group_builders.insert(event.to_owned(), None);
+                        self.breakend_group_builders
+                            .write()
+                            .unwrap()
+                            .insert(event.to_owned(), Mutex::new(None));
                         return Ok(None);
                     }
                 } else {

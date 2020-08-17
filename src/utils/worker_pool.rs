@@ -21,7 +21,7 @@ pub(crate) fn worker_pool<Post, Pre, Workers, W, U, T>(
     out_capacity: usize,
 ) -> Result<()>
 where
-    Post: FnOnce(Box<T>) -> Result<()>,
+    Post: FnOnce(Receiver<Box<T>>) -> Result<()>,
     Post: Send,
     Pre: FnOnce(Sender<U>) -> Result<()>,
     Pre: Send,
@@ -33,40 +33,33 @@ where
 {
     scope(|scope| -> Result<()> {
         let (in_sender, in_receiver) = bounded(in_capacity);
+        let (buffer_sender, buffer_receiver) = bounded(out_capacity);
         let (out_sender, out_receiver) = bounded(out_capacity);
 
-        let preprocessor = scope.spawn(move |_| {
-            let ret = preprocessor(in_sender);
-            // tell consuming threads that we are done
-            drop(in_sender);
-            ret
-        });
+        let preprocessor = scope.spawn(move |_| preprocessor(in_sender.clone()));
 
         let workers: Vec<_> = workers
             .map(|worker: W| {
-                scope.spawn(move |_| {
-                    let ret = worker(in_receiver, out_sender);
-                    // tell consuming threads that we are done
-                    drop(out_sender);
-                    ret
-                })
+                let in_receiver = in_receiver.clone();
+                let buffer_sender = buffer_sender.clone();
+                scope.spawn(move |_| worker(in_receiver, buffer_sender))
             })
             .collect();
-        let postprocessor = scope.spawn(move |_| -> Result<()> {
+        let buffer_processor = scope.spawn(move |_| {
             let mut items = OrderedContainer::new();
-            let last_index = None;
+            let mut last_index = None;
 
-            for item in out_receiver {
+            for item in buffer_receiver {
                 items.insert(item.index(), item);
 
                 // Find continuous prefix, postprocess in order.
                 for item in items.remove_continuous_prefix(&mut last_index) {
-                    postprocessor(item)?;
+                    out_sender.send(item);
                 }
             }
-
-            Ok(())
         });
+
+        let postprocessor = scope.spawn(move |_| -> Result<()> { postprocessor(out_receiver) });
 
         let mut errors = Vec::new();
 
@@ -82,13 +75,15 @@ where
             }
         }
 
+        buffer_processor.join().unwrap();
+
         let ret = preprocessor.join().unwrap();
         if ret.is_err() {
             errors.push(ret);
         }
 
         if !errors.is_empty() {
-            errors[0]
+            errors.remove(0)
         } else {
             Ok(())
         }
@@ -170,13 +165,13 @@ where
         }
     }
 
-    fn insert(&self, key: usize, value: Box<T>) {
+    fn insert(&mut self, key: usize, value: Box<T>) {
         self.inner.insert(key, value);
     }
 
     fn remove_continuous_prefix(&mut self, last_idx: &mut Option<usize>) -> Vec<Box<T>> {
         // TODO replace with drain_filter once stable.
-        let items = Vec::new();
+        let mut items = Vec::new();
 
         for i in self.inner.keys().cloned().collect::<Vec<_>>() {
             if let Some(last_idx) = last_idx {

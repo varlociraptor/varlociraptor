@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::fs::File;
@@ -507,26 +508,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
                     };
 
-                    // Generate as many copies of sample as we have threads.
-                    let sample_container: Result<Vec<_>> = (0..threads)
-                        .map(|_| -> Result<Sample> {
-                            let bam_reader = bam::IndexedReader::from_path(bam)
-                                .context("Unable to read BAM/CRAM file.")?;
-
-                            let sample = SampleBuilder::default()
-                                .max_depth(max_depth)
-                                .protocol_strandedness(protocol_strandedness)
-                                .alignments(bam_reader, alignment_properties)
-                                .use_fragment_evidence(!omit_insert_size)
-                                .build()
-                                .unwrap();
-                            Ok(sample)
-                        })
-                        .collect();
-
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
-                            .sample_container(sample_container?)
+                            .threads(threads)
+                            .alignment_properties(alignment_properties)
+                            .protocol_strandedness(protocol_strandedness)
+                            .max_depth(max_depth)
+                            .inbam(bam)
                             .reference(
                                 fasta::IndexedReader::from_file(&reference)
                                     .context("Unable to read genome reference.")?,
@@ -534,7 +522,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .realignment(gap_params, realignment_window)
                             .breakend_index(BreakendIndex::new(&candidates)?)
                             .inbcf(candidates)
-                            .outbcf(output, &opt_clone)?
+                            .options(opt_clone)
+                            .outbcf(output)
                             .build()
                             .unwrap();
 
