@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::str;
+use std::sync::Arc;
 
 use anyhow::Result;
 use bio::stats::{bayesian, LogProb};
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
+use crossbeam::channel::{Sender, Receiver};
 
 use crate::calling::variants::preprocessing::{
     read_observations, remove_observation_header_entries, OBSERVATION_FORMAT_VERSION,
@@ -19,6 +21,9 @@ use crate::grammar;
 use crate::utils;
 use crate::variants::model;
 use crate::variants::model::{AlleleFreq, StrandBias};
+use crate::variants::evidence::observation::Observation;
+use crate::utils::worker_pool;
+use crate::utils::worker_pool::Orderable;
 
 pub(crate) type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
@@ -39,6 +44,7 @@ where
     model: bayesian::Model<L, Pr, Po, ModelPayload>,
     #[builder(default, private)]
     breakend_result: Option<BreakendResult>,
+    threads: usize,
 }
 
 impl<L, Pr, Po, ModelPayload> CallerBuilder<L, Pr, Po, ModelPayload>
@@ -134,17 +140,21 @@ where
         ModelPayload,
         Event = AlleleFreqCombination,
         Data = model::modes::generic::Data,
-    >,
-    Pr: bayesian::model::Prior<Event = AlleleFreqCombination> + model::modes::UniverseDrivenPrior,
+    > + Clone,
+    Pr: bayesian::model::Prior<Event = AlleleFreqCombination> + model::modes::UniverseDrivenPrior + Clone,
     Po: bayesian::model::Posterior<
         BaseEvent = AlleleFreqCombination,
         Event = model::Event,
         Data = model::modes::generic::Data,
-    >,
-    ModelPayload: Default,
+    > + Clone,
+    ModelPayload: Default + Clone,
 {
     pub(crate) fn n_samples(&self) -> usize {
         self.samplenames.len()
+    }
+
+    fn model(&self) -> bayesian::Model<L, Pr, Po, ModelPayload> {
+        self.model.clone()
     }
 
     pub(crate) fn call(&mut self) -> Result<()> {
@@ -162,6 +172,63 @@ where
             if !valid {
                 return Err(errors::Error::InvalidObservationFormat.into());
             }
+        }
+
+        let preprocessor = |sender: Sender<CallInfo>| -> Result<()> {
+            let mut rid = None;
+            let mut events = Vec::new();
+            let mut i = 0;
+            loop {
+                let mut records = self.observations.map(|reader| reader.empty_record());
+                let mut eof = Vec::new();
+                for (reader, record) in self.observations.iter_mut().zip(records.iter_mut()) {
+                    eof.push(!reader.read(record)?);
+                }
+
+                if eof.iter().all(|v| *v) {
+                    return Ok(());
+                } else if !eof.iter().all(|v| !v) {
+                    // only some are EOF, this is an error
+                    return Err(errors::Error::InconsistentObservations.into());
+                }
+
+                i += 1;
+
+                // ensure that all observation BCFs contain exactly the same calls
+                let first_record = records.first().unwrap();
+                let current_rid = first_record.rid();
+                let current_pos = first_record.pos();
+                let current_alleles = first_record.alleles();
+                for record in &records[1..] {
+                    if record.rid() != current_rid
+                        || record.pos() != current_pos
+                        || record.alleles() != current_alleles
+                    {
+                        return Err(errors::Error::InconsistentObservations.into());
+                    }
+                }
+
+                // rid must not be missing
+                let current_rid =
+                    current_rid.ok_or_else(|| errors::Error::RecordMissingChrom { i: i + 1 })?;
+
+                let call_info = self.preprocess_record(&mut records, i)?;
+
+                sender.send(call_info).unwrap();
+            }
+        };
+
+        let mut workers = Vec::new();
+        for _ in 0..self.threads {
+            
+            workers.push(|receiver: Receiver<CallInfo>, sender: Sender<Box<Call>>| -> Result<()> {
+                let model = self.model();
+                for call_info in receiver {
+                    let call = Box::new(self.call_record(call_info)?);
+                    sender.send(call).unwrap();
+                }
+                Ok(())
+            });
         }
 
         let mut rid = None;
@@ -197,7 +264,7 @@ where
                 }
             }
 
-            // rid must not be missind
+            // rid must not be missing
             let current_rid =
                 current_rid.ok_or_else(|| errors::Error::RecordMissingChrom { i: i + 1 })?;
 
@@ -265,11 +332,11 @@ where
         }
     }
 
-    fn call_record(
+    fn preprocess_record(
         &mut self,
         records: &mut grammar::SampleInfo<bcf::Record>,
-        event_universe: &[Po::Event],
-    ) -> Result<Option<Call>> {
+        index: usize,
+    ) -> Result<CallInfo> {
         let (mut call, snv, bnd_event) = {
             let first_record = records
                 .first_mut()
@@ -321,114 +388,152 @@ where
             (call, snv, bnd_event)
         };
 
-        if let Some(ref event) = bnd_event {
+        let pileups = if let Some(ref event) = bnd_event {
             if let Some(ref mut result) = self.breakend_result {
                 if &result.event == event {
                     // METHOD: Another breakend in the same event was already processed, hence, we just copy the
                     // results. This works because preprocessing ensures that all breakends of one event appear
                     // "en block".
-                    result
-                        .variant_builder
-                        .record(records.first_mut().unwrap())?;
-                    call.variants.push(result.variant_builder.build().unwrap());
+                    let variant_builder = result.variant_builder.clone();
+                    variant_builder.record(records.first_mut().unwrap())?;
+                    
 
-                    return Ok(Some(call));
+                    return Ok(CallInfo {
+                        pileups: None,
+                        snv,
+                        bnd_event,
+                        variant_builder,
+                        index,
+                    });
                 } else {
                     // new breakend event, clear old result.
                     self.breakend_result = None;
                 }
             }
         }
+
         // obtain pileups
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
             pileups.push(read_observations(record)?);
         }
-        let data = model::modes::generic::Data::new(pileups, snv);
-
-        // Compute probabilities for given events.
-        let m = self.model.compute(event_universe.iter().cloned(), &data);
 
         let mut variant_builder = VariantBuilder::default();
-
-        // add calling results
-        let mut event_probs: HashMap<String, LogProb> = event_universe
-            .iter()
-            .filter_map(|event| {
-                if event.is_artifact() {
-                    None
-                } else {
-                    Some((event.name.clone(), m.posterior(event).unwrap()))
-                }
-            })
-            .collect();
-        // generate artifact event
-        event_probs.insert(
-            "artifact".to_owned(),
-            LogProb::ln_sum_exp(
-                &event_universe
-                    .iter()
-                    .filter_map(|event| {
-                        if event.is_artifact() {
-                            Some(m.posterior(event).unwrap())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect_vec(),
-            ),
-        );
-        variant_builder.event_probs(Some(event_probs));
-
-        // add sample specific information
-        variant_builder.sample_info(if let Some(map_estimates) = m.maximum_posterior() {
-            Some(
-                data.into_pileups()
-                    .into_iter()
-                    .zip(map_estimates.iter())
-                    .map(|(pileup, estimate)| {
-                        let mut sample_builder = SampleInfoBuilder::default();
-                        sample_builder.observations(pileup);
-                        match estimate {
-                            model::likelihood::Event { strand_bias, .. }
-                                if strand_bias.is_some() =>
-                            {
-                                sample_builder
-                                    .allelefreq_estimate(AlleleFreq(0.0))
-                                    .strand_bias(*strand_bias);
-                            }
-                            model::likelihood::Event { allele_freq, .. } => {
-                                sample_builder
-                                    .allelefreq_estimate(*allele_freq)
-                                    .strand_bias(StrandBias::None);
-                            }
-                        };
-                        sample_builder.build().unwrap()
-                    })
-                    .collect_vec(),
-            )
-        } else {
-            // no observations
-            Some(Vec::new())
-        });
-
-        // Store breakend results for next breakend of the same event.
-        if let Some(event) = bnd_event {
-            self.breakend_result = Some(BreakendResult {
-                event,
-                variant_builder: variant_builder.clone(),
-            });
-        }
-
         variant_builder.record(records.first_mut().unwrap())?;
 
-        call.variants.push(variant_builder.build().unwrap());
+        Ok(CallInfo {
+            call,
+            pileups: Some(pileups),
+            snv,
+            bnd_event,
+            variant_builder,
+            index,
+        })
+    }
 
-        Ok(Some(call))
+    fn call_record(&self, mut call_info: CallInfo, model: bayesian::Model<L, Pr, Po, ModelPayload>, event_universe: &[Po::Event]) -> Result<Call> {
+
+        // In the else case, the variant builder has been pre-filled with info from a previous breakend.
+        if let Some(pileups) = call_info.pileups {
+
+            let data = model::modes::generic::Data::new(pileups, call_info.snv);
+
+            // Compute probabilities for given events.
+            let m = model.compute(event_universe.iter().cloned(), &data);
+
+            // add calling results
+            let mut event_probs: HashMap<String, LogProb> = event_universe
+                .iter()
+                .filter_map(|event| {
+                    if event.is_artifact() {
+                        None
+                    } else {
+                        Some((event.name.clone(), m.posterior(event).unwrap()))
+                    }
+                })
+                .collect();
+            // generate artifact event
+            event_probs.insert(
+                "artifact".to_owned(),
+                LogProb::ln_sum_exp(
+                    &event_universe
+                        .iter()
+                        .filter_map(|event| {
+                            if event.is_artifact() {
+                                Some(m.posterior(event).unwrap())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec(),
+                ),
+            );
+            call_info.variant_builder.event_probs(Some(event_probs));
+
+            // add sample specific information
+            call_info.variant_builder.sample_info(if let Some(map_estimates) = m.maximum_posterior() {
+                Some(
+                    data.into_pileups()
+                        .into_iter()
+                        .zip(map_estimates.iter())
+                        .map(|(pileup, estimate)| {
+                            let mut sample_builder = SampleInfoBuilder::default();
+                            sample_builder.observations(pileup);
+                            match estimate {
+                                model::likelihood::Event { strand_bias, .. }
+                                    if strand_bias.is_some() =>
+                                {
+                                    sample_builder
+                                        .allelefreq_estimate(AlleleFreq(0.0))
+                                        .strand_bias(*strand_bias);
+                                }
+                                model::likelihood::Event { allele_freq, .. } => {
+                                    sample_builder
+                                        .allelefreq_estimate(*allele_freq)
+                                        .strand_bias(StrandBias::None);
+                                }
+                            };
+                            sample_builder.build().unwrap()
+                        })
+                        .collect_vec(),
+                )
+            } else {
+                // no observations
+                Some(Vec::new())
+            });
+
+            // Store breakend results for next breakend of the same event.
+            if let Some(event) = call_info.bnd_event {
+                self.breakend_result = Some(BreakendResult {
+                    event,
+                    variant_builder: call_info.variant_builder.clone(),
+                });
+            }
+        }
+
+        call_info.call.variants.push(call_info.variant_builder.build().unwrap());
+
+        Ok(call_info.call)
     }
 }
 
 struct BreakendResult {
     event: Vec<u8>,
     variant_builder: VariantBuilder,
+}
+
+
+struct CallInfo {
+    call: Call,
+    variant_builder: VariantBuilder, 
+    pileups: Option<Vec<Vec<Observation>>>, 
+    snv: Option<model::modes::generic::SNV>, 
+    bnd_event: Option<Vec<u8>>,
+    index: usize,
+}
+
+impl Orderable for CallInfo {
+    fn index(&self) -> usize {
+        self.index
+    }
 }
