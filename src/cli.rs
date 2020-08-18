@@ -601,6 +601,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .contaminations(contaminations.build())
                             .resolutions(resolutions.build())
                             .outbcf(output)
+                            .threads(threads)
                             .build()
                             .unwrap();
 
