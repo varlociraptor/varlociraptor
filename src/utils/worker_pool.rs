@@ -28,7 +28,7 @@ where
     Workers: Iterator<Item = W>,
     W: FnOnce(Receiver<U>, Sender<Box<T>>) -> Result<()>,
     W: Send,
-    T: Send + Orderable + Debug,
+    T: Send + Orderable,
     U: Send,
 {
     scope(|scope| -> Result<()> {
@@ -108,7 +108,7 @@ struct OrderedContainer<T> {
 
 impl<T> OrderedContainer<T>
 where
-    T: Orderable + Debug,
+    T: Orderable,
 {
     fn new() -> Self {
         OrderedContainer {

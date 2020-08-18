@@ -27,7 +27,8 @@ use crate::variants::model::{AlleleFreq, StrandBias};
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
 
-#[derive(Default, Clone, Debug, Builder)]
+#[derive(Default, Clone, Debug, Builder, Getters)]
+#[getset(get = "pub(crate)")]
 pub(crate) struct Call {
     chrom: Vec<u8>,
     pos: u64,
@@ -265,7 +266,7 @@ impl Call {
     }
 }
 
-#[derive(Default, Clone, Debug, Builder)]
+#[derive(Default, Clone, Debug, Builder, Getters)]
 pub(crate) struct Variant {
     #[builder(private)]
     ref_allele: Vec<u8>,
@@ -280,10 +281,12 @@ pub(crate) struct Variant {
     #[builder(private, default = "None")]
     end: Option<u64>,
     #[builder(private, default = "None")]
+    #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
     observations: Option<Vec<Observation>>,
     #[builder(default = "None")]
+    #[getset(get = "pub(crate)")]
     sample_info: Option<Vec<SampleInfo>>,
 }
 

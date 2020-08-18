@@ -588,35 +588,19 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 },
                             )?;
                             sample_observations =
-                                sample_observations.push(sample_name, bcf::Reader::from_path(obs)?);
+                                sample_observations.push(sample_name, obs.to_owned());
                             sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
-
-                        // register groups
-                        // for (sample_name, sample) in scenario.samples().iter() {
-                        //     if let Some(group) = sample.group() {
-                        //         sample_idx.insert(
-                        //             group,
-                        //             *sample_idx.get(sample_name).unwrap(),
-                        //         );
-                        //     }
-                        // }
-
-                        let model = GenericModelBuilder::default()
-                            // TODO allow to define prior in the grammar
-                            .prior(FlatPrior::new())
-                            .contaminations(contaminations.build())
-                            .resolutions(resolutions.build())
-                            .build()
-                            .unwrap();
 
                         // setup caller
                         let mut caller = calling::variants::CallerBuilder::default()
                             .samplenames(sample_names.build())
                             .observations(sample_observations.build())
                             .scenario(scenario)
-                            .model(model)
-                            .outbcf(output.as_ref())?
+                            .prior(FlatPrior::new()) // TODO allow to define prior in the grammar
+                            .contaminations(contaminations.build())
+                            .resolutions(resolutions.build())
+                            .outbcf(output)
                             .build()
                             .unwrap();
 
