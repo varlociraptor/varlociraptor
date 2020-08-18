@@ -429,9 +429,7 @@ impl ObservationProcessor {
                             == work_item.record_index
                         {
                             // METHOD: last record of the breakend event. Hence, we can extract observations.
-                            let breakend_group = Mutex::new(
-                                group.build().unwrap(),
-                            );
+                            let breakend_group = Mutex::new(group.build().unwrap());
                             self.breakend_groups
                                 .write()
                                 .unwrap()
