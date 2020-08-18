@@ -141,7 +141,6 @@ where
             }
             last_idx.replace(i);
         }
-
         items
     }
 }
@@ -160,7 +159,7 @@ impl BufferGuard {
     #[allow(clippy::mutex_atomic)]
     pub(crate) fn wait_for_free(&self) {
         let mut size = self.size.lock().unwrap();
-        while *size < self.max_capacity {
+        while *size > self.max_capacity {
             size = self.condvar.wait(size).unwrap();
         }
     }
@@ -171,8 +170,8 @@ impl BufferGuard {
             let mut s = self.size.lock().unwrap();
             *s = size;
         }
-        if size < self.max_capacity {
-            self.condvar.notify_one();
+        if size <= self.max_capacity {
+            self.condvar.notify_all();
         }
     }
 }
