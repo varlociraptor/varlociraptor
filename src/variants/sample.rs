@@ -175,8 +175,6 @@ pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
 pub(crate) struct Sample {
     #[builder(private)]
     record_buffer: RecordBuffer,
-    #[builder(default = "true")]
-    use_fragment_evidence: bool,
     #[builder(private)]
     alignment_properties: alignment_properties::AlignmentProperties,
     #[builder(default = "200")]

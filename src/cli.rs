@@ -14,7 +14,6 @@ use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
-use rust_htslib::{bam, bcf};
 use structopt::StructOpt;
 use strum::IntoEnumIterator;
 
@@ -27,9 +26,9 @@ use crate::filtration;
 use crate::grammar;
 use crate::testcase;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
-use crate::variants::model::modes::generic::{FlatPrior, GenericModelBuilder};
+use crate::variants::model::modes::generic::FlatPrior;
 use crate::variants::model::{Contamination, VariantType};
-use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness, SampleBuilder};
+use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
 use crate::variants::types::breakends::BreakendIndex;
 use crate::SimpleEvent;
 
@@ -115,6 +114,10 @@ impl Varlociraptor {
     }
 }
 
+fn default_threads() -> usize {
+    1
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -146,6 +149,9 @@ pub enum PreprocessKind {
             help = "BAM file with aligned reads from a single sample."
         )]
         bam: PathBuf,
+        #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
+        #[serde(default = "default_threads")]
+        threads: usize,
         #[structopt(
             long = "alignment-properties",
             help = "Alignment properties JSON file for sample. If not provided, properties \
@@ -283,6 +289,9 @@ pub enum CallKind {
             help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
         )]
         output: Option<PathBuf>,
+        #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
+        #[serde(default = "default_threads")]
+        threads: usize,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -463,6 +472,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     realignment_window,
                     max_depth,
                     omit_insert_size,
+                    threads,
                 } => {
                     // TODO: handle testcases
 
@@ -487,9 +497,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         allow_hardclips,
                     )?;
 
-                    let bam_reader = bam::IndexedReader::from_path(bam)
-                        .context("Unable to read BAM/CRAM file.")?;
-
                     let gap_params = GapParams {
                         prob_insertion_artifact: LogProb::from(spurious_ins_rate),
                         prob_deletion_artifact: LogProb::from(spurious_del_rate),
@@ -497,17 +504,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
                     };
 
-                    let sample = SampleBuilder::default()
-                        .max_depth(max_depth)
-                        .protocol_strandedness(protocol_strandedness)
-                        .alignments(bam_reader, alignment_properties)
-                        .use_fragment_evidence(!omit_insert_size)
-                        .build()
-                        .unwrap();
-
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
-                            .sample(sample)
+                            .threads(threads)
+                            .alignment_properties(alignment_properties)
+                            .protocol_strandedness(protocol_strandedness)
+                            .max_depth(max_depth)
+                            .inbam(bam)
                             .reference(
                                 fasta::IndexedReader::from_file(&reference)
                                     .context("Unable to read genome reference.")?,
@@ -515,7 +518,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .realignment(gap_params, realignment_window)
                             .breakend_index(BreakendIndex::new(&candidates)?)
                             .inbcf(candidates)
-                            .outbcf(output, &opt_clone)?
+                            .options(opt_clone)
+                            .outbcf(output)
                             .build()
                             .unwrap();
 
@@ -530,6 +534,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     testcase_locus,
                     testcase_prefix,
                     output,
+                    threads,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -579,35 +584,20 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 },
                             )?;
                             sample_observations =
-                                sample_observations.push(sample_name, bcf::Reader::from_path(obs)?);
+                                sample_observations.push(sample_name, obs.to_owned());
                             sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
 
-                        // register groups
-                        // for (sample_name, sample) in scenario.samples().iter() {
-                        //     if let Some(group) = sample.group() {
-                        //         sample_idx.insert(
-                        //             group,
-                        //             *sample_idx.get(sample_name).unwrap(),
-                        //         );
-                        //     }
-                        // }
-
-                        let model = GenericModelBuilder::default()
-                            // TODO allow to define prior in the grammar
-                            .prior(FlatPrior::new())
-                            .contaminations(contaminations.build())
-                            .resolutions(resolutions.build())
-                            .build()
-                            .unwrap();
-
                         // setup caller
-                        let mut caller = calling::variants::CallerBuilder::default()
+                        let caller = calling::variants::CallerBuilder::default()
                             .samplenames(sample_names.build())
                             .observations(sample_observations.build())
                             .scenario(scenario)
-                            .model(model)
-                            .outbcf(output.as_ref())?
+                            .prior(FlatPrior::new()) // TODO allow to define prior in the grammar
+                            .contaminations(contaminations.build())
+                            .resolutions(resolutions.build())
+                            .outbcf(output)
+                            .threads(threads)
                             .build()
                             .unwrap();
 
