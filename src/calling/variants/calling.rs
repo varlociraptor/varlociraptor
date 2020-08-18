@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
@@ -153,7 +154,9 @@ where
 
     pub(crate) fn call(&self) -> Result<()> {
         // Configure worker pool:
-        let preprocessor = |sender: Sender<Vec<WorkItem>>| -> Result<()> {
+        let preprocessor = |sender: Sender<Vec<WorkItem>>,
+                            buffer_guard: Arc<utils::worker_pool::BufferGuard>|
+         -> Result<()> {
             let mut observations = self.observations()?;
 
             // Check observation format.
@@ -234,6 +237,8 @@ where
                     // clear vector
                     work_items = Vec::new();
                 }
+
+                buffer_guard.wait_for_free();
             }
         };
 

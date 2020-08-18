@@ -197,7 +197,9 @@ impl ObservationProcessor {
             Ok(())
         };
 
-        let preprocessor = |sender: Sender<WorkItem>| -> Result<()> {
+        let preprocessor = |sender: Sender<WorkItem>,
+                            buffer_guard: Arc<utils::worker_pool::BufferGuard>|
+         -> Result<()> {
             let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
 
             let mut i = 0;
@@ -221,6 +223,8 @@ impl ObservationProcessor {
                 sender.send(work_item).unwrap();
 
                 i += 1;
+
+                buffer_guard.wait_for_free();
             }
         };
 

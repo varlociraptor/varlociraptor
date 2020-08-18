@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::sync::{Arc, Condvar, Mutex};
 
 use anyhow::Result;
 use crossbeam::channel::{bounded, Receiver, Sender};
@@ -17,9 +18,9 @@ pub(crate) fn worker_pool<Post, Pre, Workers, W, U, T>(
 where
     Post: FnOnce(Receiver<Box<T>>) -> Result<()>,
     Post: Send,
-    Pre: FnOnce(Sender<U>) -> Result<()>,
+    Pre: FnOnce(Sender<U>, Arc<BufferGuard>) -> Result<()>,
     Pre: Send,
-    Workers: Iterator<Item = W>,
+    Workers: Iterator<Item = W> + ExactSizeIterator,
     W: FnOnce(Receiver<U>, Sender<Box<T>>) -> Result<()>,
     W: Send,
     T: Send + Orderable,
@@ -29,8 +30,10 @@ where
         let (in_sender, in_receiver) = bounded(in_capacity);
         let (buffer_sender, buffer_receiver) = bounded(out_capacity);
         let (out_sender, out_receiver) = bounded(out_capacity);
+        let buffer_guard = Arc::new(BufferGuard::new(workers.len() * 2));
+        let buffer_guard_preprocessor = Arc::clone(&buffer_guard);
 
-        let preprocessor = scope.spawn(move |_| preprocessor(in_sender));
+        let preprocessor = scope.spawn(move |_| preprocessor(in_sender, buffer_guard_preprocessor));
 
         let workers: Vec<_> = workers
             .map(|worker: W| {
@@ -47,6 +50,7 @@ where
         let buffer_processor = scope.spawn(move |_| {
             let mut items = OrderedContainer::new();
             let mut last_index = None;
+            buffer_guard.set_size(items.len());
 
             for item in buffer_receiver {
                 items.insert(item.index(), item);
@@ -55,6 +59,7 @@ where
                 for item in items.remove_continuous_prefix(&mut last_index) {
                     out_sender.send(item).unwrap();
                 }
+                buffer_guard.set_size(items.len());
             }
         });
 
@@ -114,6 +119,10 @@ where
         self.inner.insert(key, value);
     }
 
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
     fn remove_continuous_prefix(&mut self, last_idx: &mut Option<usize>) -> Vec<Box<T>> {
         // TODO replace with drain_filter once stable.
         let mut items = Vec::new();
@@ -134,5 +143,36 @@ where
         }
 
         items
+    }
+}
+
+#[derive(new)]
+#[allow(clippy::mutex_atomic)]
+pub(crate) struct BufferGuard {
+    #[new(default)]
+    size: Mutex<usize>,
+    #[new(default)]
+    condvar: Condvar,
+    max_capacity: usize,
+}
+
+impl BufferGuard {
+    #[allow(clippy::mutex_atomic)]
+    pub(crate) fn wait_for_free(&self) {
+        let mut size = self.size.lock().unwrap();
+        while *size < self.max_capacity {
+            size = self.condvar.wait(size).unwrap();
+        }
+    }
+
+    #[allow(clippy::mutex_atomic)]
+    pub(crate) fn set_size(&self, size: usize) {
+        {
+            let mut s = self.size.lock().unwrap();
+            *s = size;
+        }
+        if size < self.max_capacity {
+            self.condvar.notify_one();
+        }
     }
 }
