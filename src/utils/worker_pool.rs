@@ -122,9 +122,13 @@ where
             if let Some(last_idx) = last_idx {
                 if i == *last_idx + 1 {
                     items.push(self.inner.remove(&i).unwrap());
+                } else {
+                    break;
                 }
-            } else {
+            } else if i == 0 {
                 items.push(self.inner.remove(&i).unwrap());
+            } else {
+                break;
             }
             last_idx.replace(i);
         }
