@@ -19,7 +19,6 @@ impl Replacement {
         realigner: Realigner,
         chrom_seq: &[u8],
     ) -> Self {
-        let reference_buffer = realigner.ref_buffer();
         let mut breakend_group_builder = BreakendGroupBuilder::default();
         breakend_group_builder.set_realigner(realigner);
 
@@ -60,7 +59,7 @@ impl Replacement {
             b"u",
         ));
 
-        Replacement(breakend_group_builder.build(reference_buffer).unwrap())
+        Replacement(breakend_group_builder.build().unwrap())
     }
 }
 

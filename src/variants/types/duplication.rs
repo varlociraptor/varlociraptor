@@ -14,7 +14,6 @@ pub(crate) struct Duplication(#[deref] BreakendGroup);
 
 impl Duplication {
     pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
-        let reference_buffer = realigner.ref_buffer();
         let mut breakend_group_builder = BreakendGroupBuilder::default();
         breakend_group_builder.set_realigner(realigner);
 
@@ -53,7 +52,7 @@ impl Duplication {
             b"u",
         ));
 
-        Duplication(breakend_group_builder.build(reference_buffer).unwrap())
+        Duplication(breakend_group_builder.build().unwrap())
     }
 }
 

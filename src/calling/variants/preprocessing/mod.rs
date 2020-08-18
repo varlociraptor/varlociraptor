@@ -430,7 +430,7 @@ impl ObservationProcessor {
                         {
                             // METHOD: last record of the breakend event. Hence, we can extract observations.
                             let breakend_group = Mutex::new(
-                                group.build(Arc::clone(&self.reference_buffer)).unwrap(),
+                                group.build().unwrap(),
                             );
                             self.breakend_groups
                                 .write()
