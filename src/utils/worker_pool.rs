@@ -1,14 +1,8 @@
 use std::collections::BTreeMap;
-use std::fmt::Debug;
 
 use anyhow::Result;
 use crossbeam::channel::{bounded, Receiver, Sender};
-use crossbeam::thread::{scope, Scope, ScopedJoinHandle};
-
-pub(crate) enum WorkItem<T> {
-    Item(T),
-    Stop,
-}
+use crossbeam::thread::scope;
 
 /// Create and execute a worker pool.
 /// # Arguments

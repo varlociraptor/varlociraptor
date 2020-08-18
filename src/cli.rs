@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cell::Cell;
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::fs::File;
@@ -15,7 +14,6 @@ use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
-use rust_htslib::{bam, bcf};
 use structopt::StructOpt;
 use strum::IntoEnumIterator;
 
@@ -28,11 +26,9 @@ use crate::filtration;
 use crate::grammar;
 use crate::testcase;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
-use crate::variants::model::modes::generic::{FlatPrior, GenericModelBuilder};
+use crate::variants::model::modes::generic::FlatPrior;
 use crate::variants::model::{Contamination, VariantType};
-use crate::variants::sample::{
-    estimate_alignment_properties, ProtocolStrandedness, Sample, SampleBuilder,
-};
+use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
 use crate::variants::types::breakends::BreakendIndex;
 use crate::SimpleEvent;
 
@@ -593,7 +589,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         }
 
                         // setup caller
-                        let mut caller = calling::variants::CallerBuilder::default()
+                        let caller = calling::variants::CallerBuilder::default()
                             .samplenames(sample_names.build())
                             .observations(sample_observations.build())
                             .scenario(scenario)
