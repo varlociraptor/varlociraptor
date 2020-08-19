@@ -148,6 +148,8 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
         _ => None,
     };
 
+    let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false);
+
     let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
         alt_allele == b"<INS>"
             || (ref_allele.len() < alt_allele.len()
@@ -162,7 +164,9 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
 
     let mut variants = Vec::new();
 
-    if let Some(svtype) = svtype {
+    if imprecise {
+        info!("Skipping imprecise variant.");
+    } else if let Some(svtype) = svtype {
         if svtype == b"INV" {
             let alleles = record.alleles();
             if alleles.len() != 2 {
