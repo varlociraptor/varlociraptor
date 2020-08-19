@@ -188,6 +188,7 @@ pub(crate) trait Testcase {
                         testcase_prefix: None,
                         output: Some(self.output()),
                         threads: 1,
+                        buffer_capacity: 1,
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
                             sample_observations: self
@@ -219,6 +220,7 @@ pub(crate) trait Testcase {
                         testcase_prefix: None,
                         output: Some(self.output()),
                         threads: 1,
+                        buffer_capacity: 1,
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self
                                 .sample_preprocessed_path("tumor", &temp_preprocess),

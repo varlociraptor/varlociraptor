@@ -43,6 +43,7 @@ use crate::variants::types::breakends::{Breakend, BreakendIndex};
 #[builder(pattern = "owned")]
 pub(crate) struct ObservationProcessor {
     threads: usize,
+    buffer_capacity: usize,
     alignment_properties: AlignmentProperties,
     max_depth: usize,
     protocol_strandedness: ProtocolStrandedness,
@@ -228,7 +229,12 @@ impl ObservationProcessor {
             }
         };
 
-        worker_pool(preprocessor, workers.into_iter(), postprocessor, 1, 1)
+        worker_pool(
+            preprocessor,
+            workers.into_iter(),
+            postprocessor,
+            self.buffer_capacity,
+        )
     }
 
     fn process_record(&self, work_item: WorkItem, sample: &mut Sample) -> Result<Box<Calls>> {

@@ -13,8 +13,7 @@ pub(crate) fn worker_pool<Post, Pre, Workers, W, U, T>(
     preprocessor: Pre,
     workers: Workers,
     postprocessor: Post,
-    in_capacity: usize,
-    out_capacity: usize,
+    buffer_capacity: usize,
 ) -> Result<()>
 where
     Post: FnOnce(Receiver<Box<T>>) -> Result<()>,
@@ -28,10 +27,10 @@ where
     U: Send,
 {
     scope(|scope| -> Result<()> {
-        let (in_sender, in_receiver) = bounded(in_capacity);
-        let (buffer_sender, buffer_receiver) = bounded(out_capacity);
-        let (out_sender, out_receiver) = bounded(out_capacity);
-        let buffer_guard = Arc::new(BufferGuard::new(cmp::max(workers.len() * 2, 20)));
+        let (in_sender, in_receiver) = bounded(1);
+        let (buffer_sender, buffer_receiver) = bounded(1);
+        let (out_sender, out_receiver) = bounded(1);
+        let buffer_guard = Arc::new(BufferGuard::new(buffer_capacity));
         let buffer_guard_preprocessor = Arc::clone(&buffer_guard);
 
         let preprocessor = scope.spawn(move |_| preprocessor(in_sender, buffer_guard_preprocessor));

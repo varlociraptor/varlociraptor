@@ -49,6 +49,7 @@ where
     resolutions: grammar::SampleInfo<usize>,
     prior: Pr,
     threads: usize,
+    buffer_capacity: usize,
 }
 
 impl<Pr> Caller<Pr>
@@ -282,7 +283,12 @@ where
             Ok(())
         };
 
-        worker_pool(preprocessor, workers.iter(), postprocessor, 1, 1)
+        worker_pool(
+            preprocessor,
+            workers.iter(),
+            postprocessor,
+            self.buffer_capacity,
+        )
     }
 
     fn preprocess_record(
