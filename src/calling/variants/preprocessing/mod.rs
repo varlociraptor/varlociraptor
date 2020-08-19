@@ -210,22 +210,25 @@ impl ObservationProcessor {
                     return Ok(());
                 }
 
-                // process record
-                let work_item = WorkItem {
-                    start: record.pos() as u64,
-                    chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
-                    variants: utils::collect_variants(&mut record, true)?,
-                    record_id: record.id(),
-                    record_mateid: utils::info_tag_mateid(&mut record)
-                        .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
-                    record_index: i,
-                };
+                let variants = utils::collect_variants(&mut record, true)?;
+                if !variants.is_empty() {
+                    // process record
+                    let work_item = WorkItem {
+                        start: record.pos() as u64,
+                        chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
+                        variants,
+                        record_id: record.id(),
+                        record_mateid: utils::info_tag_mateid(&mut record)
+                            .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
+                        record_index: i,
+                    };
 
-                sender.send(work_item).unwrap();
+                    sender.send(work_item).unwrap();
 
-                i += 1;
+                    i += 1;
 
-                buffer_guard.wait_for_free();
+                    buffer_guard.wait_for_free();
+                }
             }
         };
 
