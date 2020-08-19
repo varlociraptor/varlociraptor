@@ -29,7 +29,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::utils::worker_pool;
-use crate::utils::worker_pool::Orderable;
+use crate::utils::worker_pool::BufferItem;
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{Observation, ObservationBuilder};
@@ -642,8 +642,12 @@ struct Calls {
     inner: Vec<Call>,
 }
 
-impl utils::worker_pool::Orderable for Calls {
+impl utils::worker_pool::BufferItem for Calls {
     fn index(&self) -> usize {
         self.index
+    }
+
+    fn skip_capacity(&self) -> bool {
+        self.inner.is_empty()
     }
 }

@@ -23,7 +23,7 @@ where
     Workers: Iterator<Item = W> + ExactSizeIterator,
     W: FnOnce(Receiver<U>, Sender<Box<T>>) -> Result<()>,
     W: Send,
-    T: Send + Orderable,
+    T: Send + BufferItem,
     U: Send,
 {
     scope(|scope| -> Result<()> {
@@ -48,18 +48,23 @@ where
         drop(buffer_sender);
 
         let buffer_processor = scope.spawn(move |_| {
-            let mut items = OrderedContainer::new();
+            let mut items = Buffer::new();
             let mut last_index = None;
             buffer_guard.set_size(items.len());
+            let size = 0;
 
             for item in buffer_receiver {
                 items.insert(item.index(), item);
+                if !item.skip_capacity() {
+                    size += 1;
+                }
 
                 // Find continuous prefix, postprocess in order.
                 for item in items.remove_continuous_prefix(&mut last_index) {
                     out_sender.send(item).unwrap();
+                    size -= 1;
                 }
-                buffer_guard.set_size(items.len());
+                buffer_guard.set_size(size);
             }
         });
 
@@ -97,20 +102,24 @@ where
     Ok(())
 }
 
-pub(crate) trait Orderable {
+pub(crate) trait BufferItem {
+    /// Index for buffer.
     fn index(&self) -> usize;
+
+    /// Skip item when calculating buffer capacity.
+    fn skip_capacity(&self) -> bool;
 }
 
-struct OrderedContainer<T> {
+struct Buffer<T> {
     inner: BTreeMap<usize, Box<T>>,
 }
 
-impl<T> OrderedContainer<T>
+impl<T> Buffer<T>
 where
-    T: Orderable,
+    T: BufferItem,
 {
     fn new() -> Self {
-        OrderedContainer {
+        Buffer {
             inner: BTreeMap::new(),
         }
     }

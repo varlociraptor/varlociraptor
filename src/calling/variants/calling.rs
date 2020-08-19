@@ -21,7 +21,7 @@ use crate::errors;
 use crate::grammar;
 use crate::utils;
 use crate::utils::worker_pool;
-use crate::utils::worker_pool::Orderable;
+use crate::utils::worker_pool::BufferItem;
 use crate::variants::evidence::observation::Observation;
 use crate::variants::model;
 use crate::variants::model::modes::generic::{
@@ -568,8 +568,12 @@ struct WorkItem {
     index: usize,
 }
 
-impl Orderable for WorkItem {
+impl BufferItem for WorkItem {
     fn index(&self) -> usize {
         self.index
+    }
+
+    fn skip_capacity(&self) -> bool {
+        self.call.variants.is_empty()
     }
 }
