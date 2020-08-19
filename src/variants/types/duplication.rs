@@ -37,6 +37,24 @@ impl Duplication {
             b"w",
         ));
 
+        // Dummy antisense breakend. At the breakend position, we have basically two alleles:
+        // The one with the break (representing the middle of the duplication), and one
+        // that looks exactly like the reference.
+        let ref_allele = get_ref_allele(interval.range().start - 1);
+        breakend_group_builder.push_breakend(Breakend::from_operations(
+            get_locus(interval.range().start - 1),
+            ref_allele,
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().start),
+                Side::RightOfPos,
+                ExtensionModification::None,
+            ),
+            true,
+            b"v",
+            b".",
+        ));
+
         let ref_allele = get_ref_allele(interval.range().end - 1);
         breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().end - 1),
@@ -50,6 +68,21 @@ impl Duplication {
             true,
             b"w",
             b"u",
+        ));
+
+        let ref_allele = get_ref_allele(interval.range().end);
+        breakend_group_builder.push_breakend(Breakend::from_operations(
+            get_locus(interval.range().end),
+            ref_allele,
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().end - 1),
+                Side::LeftOfPos,
+                ExtensionModification::None,
+            ),
+            false,
+            b"x",
+            b".",
         ));
 
         Duplication(breakend_group_builder.build().unwrap())

@@ -149,27 +149,6 @@ impl BreakendGroup {
         None
     }
 
-    fn contained_breakends<'a, 'b: 'a>(
-        &'b self,
-        ref_interval: &'a genome::Interval,
-    ) -> impl Iterator<Item = (usize, &'b Breakend)> + 'a {
-        self.breakends
-            .values()
-            .enumerate()
-            .filter_map(move |(i, bnd)| {
-                // TODO add genome::Interval::contains(genome::Locus) method to genome::Interval in bio-types.
-                // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9).
-                if ref_interval.contig() == bnd.locus.contig()
-                    && bnd.locus.pos() >= ref_interval.range().start
-                    && bnd.locus.pos() < ref_interval.range().end
-                {
-                    Some((i, bnd))
-                } else {
-                    None
-                }
-            })
-    }
-
     fn breakend_pair(&self) -> Option<(&Breakend, &Breakend)> {
         if self.breakends.len() == 2 {
             let left = self.breakends.values().next().unwrap();
@@ -387,13 +366,16 @@ impl<'a> Realignable<'a> for BreakendGroup {
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
-        ref_interval: &genome::Interval,
+        _: &genome::Interval,
         ref_window: usize,
     ) -> Result<Vec<BreakendEmissionParams<'a>>> {
         // Step 1: fetch contained breakends
         let mut emission_params = Vec::new();
 
-        for (bnd_idx, first) in self.contained_breakends(ref_interval) {
+        // METHOD: we consider all breakends, even if they don't overlap.
+        // The reason is that the mapper may put reads at the wrong end of a breakend pair.
+        for (bnd_idx, first) in self.breakends.values().enumerate() {
+            //for (bnd_idx, first) in self.contained_breakends(ref_interval) {
             if !self.alt_alleles.borrow().contains_key(bnd_idx) {
                 let mut candidate_alt_alleles = Vec::new();
                 // Compute alt allele sequence once.
@@ -506,6 +488,12 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
                         //alt_allele.push_seq(b"|".iter(), !left_to_right); // dbg
 
+                        if next_bnd.is_some() && alt_allele.len() + seq.len() > ref_window {
+                            // METHOD: sequence addition will already exceed ref window, hence
+                            // we can stop afterwards.
+                            next_bnd = None;
+                        }
+
                         // Push sequence to alt allele.
                         match (extension_modification, next_bnd.is_none(), left_to_right) {
                             (ExtensionModification::None, false, is_left_to_right) => {
@@ -562,7 +550,6 @@ impl<'a> Realignable<'a> for BreakendGroup {
                         // Nothing else to do, the replacement sequence has already been added in the step before.
                     }
                 }
-                //dbg!(str::from_utf8(&alt_allele.iter().cloned().collect::<Vec<_>>()).unwrap());
 
                 let alt_allele = Arc::new(alt_allele);
 
@@ -582,6 +569,8 @@ impl<'a> Realignable<'a> for BreakendGroup {
                 });
             }
         }
+
+        //dbg!(emission_params.iter().map(|p| std::str::from_utf8(&p.alt_allele.iter().cloned().collect::<Vec<u8>>()).unwrap().to_owned()).collect::<Vec<_>>());
 
         Ok(emission_params)
     }

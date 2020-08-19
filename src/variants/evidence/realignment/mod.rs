@@ -4,6 +4,7 @@
 // except according to those terms.
 
 use std::cmp;
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::str;
@@ -344,40 +345,45 @@ impl Realigner {
     where
         E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
     {
-        let mut best_hit = None;
-        let mut best_params = None;
-        for params in candidate_allele_params {
+        let mut hits: BTreeMap<usize, Vec<(EditDistanceHit, &mut E)>> = BTreeMap::new();
+        for params in candidate_allele_params.iter_mut() {
             let hit = edit_dist.calc_best_hit(params);
-            if hit.dist()
-                < best_hit
-                    .as_ref()
-                    .map_or(usize::max_value(), |h: &EditDistanceHit| h.dist())
-            {
-                best_hit = Some(hit);
-                best_params = Some(params);
-            }
+            let entry = hits.entry(hit.dist()).or_insert_with(Vec::new);
+            entry.push((hit, params));
         }
 
-        if let (Some(hit), Some(allele_params)) = (best_hit, best_params) {
+        let mut last_hit: Option<&EditDistanceHit> = None;
+        let mut prob = None;
+        // METHOD: for equal best edit dists, we have to compare the probabilities and take the best.
+        for (hit, allele_params) in hits.values_mut().next().unwrap() {
+            if last_hit.map_or(false, |last_hit| last_hit.dist() < hit.dist()) {
+                break;
+            }
+            last_hit = Some(hit);
+
             if hit.dist() == 0 {
                 // METHOD: In case of a perfect match, we just take the base quality product.
                 // All alternative paths in the HMM will anyway be much worse.
-                allele_params.read_emission().certainty_est()
+                prob = Some(allele_params.read_emission().certainty_est());
             } else {
                 // METHOD: We shrink the area to run the HMM against to an environment around the best
                 // edit distance hits.
                 allele_params.shrink_to_hit(&hit);
 
                 // METHOD: Further, we run the HMM on a band around the best edit distance.
-                self.pairhmm.prob_related(
-                    allele_params,
+                let p = self.pairhmm.prob_related(
+                    *allele_params,
                     &self.gap_params,
                     Some(hit.dist_upper_bound()),
-                )
+                );
+
+                if prob.map_or(true, |prob| p > prob) {
+                    prob.replace(p);
+                }
             }
-        } else {
-            unreachable!();
         }
+
+        prob.unwrap()
     }
 }
 

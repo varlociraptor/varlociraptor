@@ -193,8 +193,6 @@ where
                     return Err(errors::Error::InconsistentObservations.into());
                 }
 
-                i += 1;
-
                 // ensure that all observation BCFs contain exactly the same calls
                 let first_record = records.first().unwrap();
                 let current_rid = first_record.rid();
@@ -227,7 +225,6 @@ where
                         true
                     }
                 };
-
                 work_items.push(work_item);
 
                 if do_call {
@@ -237,8 +234,9 @@ where
                     // clear vector
                     work_items = Vec::new();
                 }
-
                 buffer_guard.wait_for_free();
+
+                i += 1;
             }
         };
 

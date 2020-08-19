@@ -1,3 +1,4 @@
+use std::cmp;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -30,7 +31,7 @@ where
         let (in_sender, in_receiver) = bounded(in_capacity);
         let (buffer_sender, buffer_receiver) = bounded(out_capacity);
         let (out_sender, out_receiver) = bounded(out_capacity);
-        let buffer_guard = Arc::new(BufferGuard::new(workers.len() * 2));
+        let buffer_guard = Arc::new(BufferGuard::new(cmp::max(workers.len() * 2, 20)));
         let buffer_guard_preprocessor = Arc::clone(&buffer_guard);
 
         let preprocessor = scope.spawn(move |_| preprocessor(in_sender, buffer_guard_preprocessor));
@@ -171,7 +172,7 @@ impl BufferGuard {
             *s = size;
         }
         if size <= self.max_capacity {
-            self.condvar.notify_all();
+            self.condvar.notify_one();
         }
     }
 }
