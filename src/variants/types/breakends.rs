@@ -514,8 +514,9 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                 );
                             }
                             (ExtensionModification::ReverseComplement, true, true) => {
+                                let revcomp = dna::revcomp(seq);
                                 alt_allele.push_seq(
-                                    dna::revcomp(seq)[..ref_window].iter(),
+                                    revcomp[..cmp::min(ref_window, revcomp.len())].iter(),
                                     false,
                                     true,
                                 );
