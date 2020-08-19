@@ -221,7 +221,7 @@ impl Testcase {
         // get and write candidate
         let mut candidate = None;
         for (i, mut record) in (self.variants()?).into_iter().enumerate() {
-            let variants = utils::collect_variants(&mut record)?;
+            let variants = utils::collect_variants(&mut record, false)?;
             for variant in variants {
                 if i == self.idx {
                     // if no chromosome was specified, we infer the locus from the matching

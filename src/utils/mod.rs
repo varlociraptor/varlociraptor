@@ -113,7 +113,10 @@ pub(crate) fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
 }
 
 /// Collect variants from a given ´bcf::Record`.
-pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Variant>> {
+pub(crate) fn collect_variants(
+    record: &mut bcf::Record,
+    skip_imprecise: bool,
+) -> Result<Vec<model::Variant>> {
     let pos = record.pos() as u64;
     let svlens = match record.info(b"SVLEN").integer() {
         Ok(Some(svlens)) => Some(
@@ -164,7 +167,7 @@ pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Va
 
     let mut variants = Vec::new();
 
-    if imprecise {
+    if skip_imprecise && imprecise {
         info!("Skipping imprecise variant.");
     } else if let Some(svtype) = svtype {
         if svtype == b"INV" {
@@ -312,7 +315,7 @@ pub(crate) fn tags_prob_sum(
     tags: &[String],
     vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>> {
-    let variants = utils::collect_variants(record)?;
+    let variants = utils::collect_variants(record, false)?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
     for tag in tags {

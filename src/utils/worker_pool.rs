@@ -1,4 +1,3 @@
-use std::cmp;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -51,18 +50,20 @@ where
             let mut items = Buffer::new();
             let mut last_index = None;
             buffer_guard.set_size(items.len());
-            let size = 0;
+            let mut size = 0;
 
             for item in buffer_receiver {
-                items.insert(item.index(), item);
                 if !item.skip_capacity() {
                     size += 1;
                 }
+                items.insert(item.index(), item);
 
                 // Find continuous prefix, postprocess in order.
                 for item in items.remove_continuous_prefix(&mut last_index) {
+                    if !item.skip_capacity() {
+                        size -= 1;
+                    }
                     out_sender.send(item).unwrap();
-                    size -= 1;
                 }
                 buffer_guard.set_size(size);
             }

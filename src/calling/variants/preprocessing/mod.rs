@@ -214,7 +214,7 @@ impl ObservationProcessor {
                 let work_item = WorkItem {
                     start: record.pos() as u64,
                     chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
-                    variants: utils::collect_variants(&mut record)?,
+                    variants: utils::collect_variants(&mut record, true)?,
                     record_id: record.id(),
                     record_mateid: utils::info_tag_mateid(&mut record)
                         .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
