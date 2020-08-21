@@ -1,7 +1,7 @@
 use std::fs;
 use std::str;
 use std::sync::Arc;
-use std::sync::{RwLock, Mutex};
+use std::sync::{Mutex, RwLock};
 
 use anyhow::Result;
 use bio::io::fasta;
