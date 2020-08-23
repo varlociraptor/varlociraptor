@@ -250,7 +250,7 @@ impl ContigLogLikelihoodsLOH {
         contig_length: &usize,
     ) -> Result<ContigLogLikelihoodsLOH> {
         let mut record = bcf_reader.empty_record();
-        let resolution = 25;
+        let resolution = 3;
         let freqs: Vec<LogProb> = (0..resolution).map(|i|
             LogProb::from(
                 Prob::checked( i as f64 / resolution as f64 ).unwrap()
@@ -274,6 +274,7 @@ impl ContigLogLikelihoodsLOH {
                         .ln_add_exp(previous_posterior_hom);
             }
             cum_log_likelihood_loh_by_freq.push(freq_likelihoods.clone());
+            println!("{:?}: {:?}", record.pos(), freq_likelihoods);
             positions.push(record.pos() as u64);
         }
         // cumulatively add the following LOH probabilities
@@ -500,46 +501,48 @@ mod tests {
 
     #[test]
     fn test_contig_loh_probs() {
-        let test_input = "tests/resources/test_loh/loh.bcf";
+        let test_input = "tests/resources/test_loh/loh_no_loh.bcf";
         let mut loh_calls = bcf::IndexedReader::from_path(test_input).unwrap();
         let contig_id = loh_calls.header().name2rid(b"chr8").unwrap();
         let contig_length = 145138636;
-        let alpha = Prob(0.5);
+        let alpha = Prob(0.1);
         let loh_log_likelihoods = ContigLogLikelihoodsLOH::new(&mut loh_calls, &contig_id, &contig_length).unwrap();
 
         assert_eq!(loh_log_likelihoods.contig_length, 145138636);
         assert_eq!(loh_log_likelihoods.contig_id, 0);
-        for log_prob in loh_log_likelihoods.cum_loh_by_freq.clone() {
+        for log_prob_pos_vec in loh_log_likelihoods.cum_loh_by_freq.clone() {
             println!(
                 "contig '{:?}' (length '{:?}'), cum_log_prob_loh: '{:?}'",
-                loh_log_likelihoods.contig_id, loh_log_likelihoods.contig_length, log_prob
+                loh_log_likelihoods.contig_id, loh_log_likelihoods.contig_length, log_prob_pos_vec
             );
         }
+        // The two records in loh_no_loh.bcf are mirrored regarding PROB_LOH and PROB_NO_LOH, thus
+        // the Prob(LOH = 1) ( .last() in the vector) and Prob(LOH  = 0) ( .first() in the vector)
+        // should be equal cumulative sums at the second ( .last() ) position.
         assert_eq!(
             loh_log_likelihoods.cum_loh_by_freq.last().unwrap().last().unwrap(),
-            &LogProb(-23.492805404428065)
+            loh_log_likelihoods.cum_loh_by_freq.last().unwrap().first().unwrap(),
         );
 
         let intervals = loh_log_likelihoods.create_all_intervals(alpha, &false, &false).unwrap();
         println!("intervals: {:?}", intervals);
+        assert_eq!(
+            intervals.get(&(1..=1)).unwrap(),
+            &LogProb(-18.260858550758684)
+        );
+        assert_eq!(
+            intervals.get(&(0..=1)).unwrap(),
+            &LogProb(-17.119686863494554)
+        );
+        assert_eq!(
+            intervals.get(&(0..=0)).unwrap(),
+            &LogProb(-2.525729561061719)
+        );
 
-        assert_eq!(
-            intervals.get(&(0..=4)).unwrap(),
-            &LogProb(-15.735208703937852)
-        );
-        assert_eq!(
-            intervals.get(&(2..=2)).unwrap(),
-            &LogProb(-10.549053988645685)
-        );
-        assert_relative_eq!(
-            f64::from(*intervals.get(&(4..=4)).unwrap()),
-            (-0.000026218615627557916 as f64),
-            epsilon = 0.000000000000001
-        );
-        assert_relative_eq!(
-            f64::from(*intervals.get(&(1..=4)).unwrap()),
-            (-15.73520870382648 as f64),
-            epsilon = 0.0000000000001
-        );
+        let intervals_filter_bayes_factor = loh_log_likelihoods.create_all_intervals(alpha, &false, &true).unwrap();
+        assert!( intervals_filter_bayes_factor.get(&(0..=0)).is_none() );
+
+        let intervals_control_local_fdr = loh_log_likelihoods.create_all_intervals(alpha, &true, &false).unwrap();
+        assert!( intervals_control_local_fdr.get(&(0..=0)).is_none() );
     }
 }
