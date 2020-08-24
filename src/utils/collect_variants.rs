@@ -30,6 +30,13 @@ pub(crate) fn collect_variants(
     skip_imprecise: bool,
     skips: &mut SimpleCounter<SkipReason>,
 ) -> Result<Vec<model::Variant>> {
+    let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false);
+
+    if skip_imprecise && imprecise {
+        skips.incr(SkipReason::Imprecise);
+        return Ok(Vec::with_capacity(1));
+    }
+
     let pos = record.pos() as u64;
     let svlens = match record.info(b"SVLEN").integer() {
         Ok(Some(svlens)) => Some(
@@ -64,8 +71,6 @@ pub(crate) fn collect_variants(
         _ => None,
     };
 
-    let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false);
-
     let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
         alt_allele == b"<INS>"
             || (ref_allele.len() < alt_allele.len()
@@ -80,9 +85,7 @@ pub(crate) fn collect_variants(
 
     let mut variants = Vec::new();
 
-    if skip_imprecise && imprecise {
-        skips.incr(SkipReason::Imprecise);
-    } else if let Some(svtype) = svtype {
+    if let Some(svtype) = svtype {
         if svtype == b"INV" {
             let alleles = record.alleles();
             if alleles.len() != 2 {
