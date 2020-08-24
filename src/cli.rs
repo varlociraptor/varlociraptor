@@ -118,6 +118,10 @@ fn default_threads() -> usize {
     1
 }
 
+fn default_reference_buffer_size() -> usize {
+    10
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -152,6 +156,15 @@ pub enum PreprocessKind {
         #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
         #[serde(default = "default_threads")]
         threads: usize,
+        #[structopt(
+            long = "reference-buffer-size",
+            short = "b",
+            default_value = "10",
+            help = "Number of reference sequences to keep in buffer. Use a smaller value \
+                    to save memory at the expense of sometimes reduced parallelization."
+        )]
+        #[serde(default = "default_reference_buffer_size")]
+        reference_buffer_size: usize,
         #[structopt(
             long = "alignment-properties",
             help = "Alignment properties JSON file for sample. If not provided, properties \
@@ -473,6 +486,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     max_depth,
                     omit_insert_size,
                     threads,
+                    reference_buffer_size,
                 } => {
                     // TODO: handle testcases
 
@@ -514,6 +528,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .reference(
                                 fasta::IndexedReader::from_file(&reference)
                                     .context("Unable to read genome reference.")?,
+                                reference_buffer_size,
                             )
                             .realignment(gap_params, realignment_window)
                             .breakend_index(BreakendIndex::new(&candidates)?)
@@ -588,14 +603,23 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
 
+                        let sample_observations = sample_observations.build();
+
+                        let breakend_index = BreakendIndex::new(
+                            sample_observations
+                                .first()
+                                .expect("at least one sample must be given"),
+                        )?;
+
                         // setup caller
                         let caller = calling::variants::CallerBuilder::default()
                             .samplenames(sample_names.build())
-                            .observations(sample_observations.build())
+                            .observations(sample_observations)
                             .scenario(scenario)
                             .prior(FlatPrior::new()) // TODO allow to define prior in the grammar
                             .contaminations(contaminations.build())
                             .resolutions(resolutions.build())
+                            .breakend_index(breakend_index)
                             .outbcf(output)
                             .threads(threads)
                             .build()

@@ -32,7 +32,7 @@ pub(crate) enum Error {
     RecordMissingChrom { i: usize },
     #[error("inconsistent observations: input observation BCF files do not contain exactly the same records")]
     InconsistentObservations,
-    #[error("No observations given for sample {name}.")]
+    #[error("no observations given for sample {name}")]
     InvalidObservationSampleName { name: String },
     #[error("invalid observations: varlociraptor cannot be parsed from given observations ({path}); either the file has not been preprocessed with varlociraptor or with a too old version")]
     InvalidObservations { path: PathBuf },

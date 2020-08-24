@@ -49,7 +49,8 @@ where
     resolutions: grammar::SampleInfo<usize>,
     prior: Pr,
     breakend_index: BreakendIndex,
-    breakend_results: RwLock<HashMap<Vec<u8>, Mutex<BreakendResult>>>,
+    #[builder(default)]
+    breakend_results: RwLock<HashMap<Vec<u8>, BreakendResult>>,
     threads: usize,
 }
 
@@ -331,7 +332,7 @@ where
         };
 
         if let Some(ref event) = work_item.bnd_event {
-            if self.breakend_result.read().unwrap().contains(event) {
+            if self.breakend_results.read().unwrap().contains_key(event) {
                 // METHOD: Another breakend in the same event was already processed, hence, we will just copy the
                 // results (no pileup needed).
                 return Ok(work_item);
@@ -507,14 +508,14 @@ where
                 self.breakend_results.write().unwrap().remove(event);
             } else {
                 // METHOD: store breakend group result for next breakend of this group
-                self.breakend_results
-                    .write()
-                    .unwrap()
-                    .insert(BreakendResult {
+                self.breakend_results.write().unwrap().insert(
+                    event.to_owned(),
+                    BreakendResult {
                         event: event.to_owned(),
                         event_probs: variant.event_probs().as_ref().unwrap().clone(),
                         sample_info: variant.sample_info().as_ref().unwrap().clone(),
-                    });
+                    },
+                );
             }
         }
 
@@ -522,7 +523,8 @@ where
     }
 }
 
-struct BreakendResult {
+#[derive(Default)]
+pub(crate) struct BreakendResult {
     event: Vec<u8>,
     event_probs: HashMap<String, LogProb>,
     sample_info: Vec<SampleInfo>,

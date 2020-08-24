@@ -62,8 +62,12 @@ pub(crate) struct ObservationProcessor {
 }
 
 impl ObservationProcessorBuilder {
-    pub(crate) fn reference(self, reader: fasta::IndexedReader<fs::File>) -> Self {
-        self.reference_buffer(Arc::new(reference::Buffer::new(reader, 3)))
+    pub(crate) fn reference(
+        self,
+        reader: fasta::IndexedReader<fs::File>,
+        buffer_size: usize,
+    ) -> Self {
+        self.reference_buffer(Arc::new(reference::Buffer::new(reader, buffer_size)))
     }
 
     pub(crate) fn realignment(
@@ -303,7 +307,7 @@ impl ObservationProcessor {
             for variant in work_item.variants.iter() {
                 if let model::Variant::Breakend { event, .. } = variant {
                     if let Some(pileup) = self.process_variant(variant, &work_item, sample)? {
-                        let mut pileup = Some(pileup);
+                        let pileup = Some(pileup);
                         for breakend in self
                             .breakend_groups
                             .read()
@@ -332,13 +336,11 @@ impl ObservationProcessor {
                                         breakend.locus().pos() as usize,
                                         None,
                                     )
-                                    .observations(pileup)
+                                    .observations(pileup.clone())
                                     .build()
                                     .unwrap(),
                             );
                             calls.push(call);
-                            // Subsequent calls should not contain the pileup again (saving space).
-                            pileup = None;
                         }
                         // As all records a written, the breakend group can be discarded.
                         self.breakend_groups.write().unwrap().remove(event);
@@ -482,7 +484,7 @@ impl ObservationProcessor {
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "2";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "3";
 
 /// Read observations from BCF record.
 pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observation>> {
