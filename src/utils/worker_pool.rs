@@ -22,7 +22,7 @@ where
     U: Send,
 {
     scope(|scope| -> Result<()> {
-        let (in_sender, in_receiver) = bounded(1);
+        let (in_sender, in_receiver) = bounded(workers.len());
         let (out_sender, out_receiver) = bounded(1);
 
         let preprocessor = scope.spawn(move |_| preprocessor(in_sender));
