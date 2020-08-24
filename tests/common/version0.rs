@@ -101,7 +101,6 @@ impl Testcase for TestcaseVersion0 {
                         output: None,
                         omit_insert_size: false,
                         threads: 1,
-                        buffer_capacity: 1,
                     },
                 };
 

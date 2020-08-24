@@ -29,7 +29,6 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::utils::worker_pool;
-use crate::utils::worker_pool::BufferItem;
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{Observation, ObservationBuilder};
@@ -43,7 +42,6 @@ use crate::variants::types::breakends::{Breakend, BreakendIndex};
 #[builder(pattern = "owned")]
 pub(crate) struct ObservationProcessor {
     threads: usize,
-    buffer_capacity: usize,
     alignment_properties: AlignmentProperties,
     max_depth: usize,
     protocol_strandedness: ProtocolStrandedness,
@@ -164,7 +162,7 @@ impl ObservationProcessor {
         let mut workers = Vec::new();
 
         for _ in 0..self.threads {
-            let worker = |receiver: Receiver<WorkItem>, sender: Sender<Box<Calls>>| -> Result<()> {
+            let worker = |receiver: Receiver<WorkItem>, sender: Sender<Calls>| -> Result<()> {
                 let bam_reader = bam::IndexedReader::from_path(&self.inbam)
                     .context("Unable to read BAM/CRAM file.")?;
 
@@ -183,14 +181,16 @@ impl ObservationProcessor {
             workers.push(worker);
         }
 
-        let postprocessor = |receiver: Receiver<Box<Calls>>| -> Result<()> {
+        let postprocessor = |receiver: Receiver<Calls>| -> Result<()> {
             let mut bcf_writer = self.writer()?;
+            let mut processed = 0;
             for calls in receiver {
                 for call in calls.iter() {
                     call.write_preprocessed_record(&mut bcf_writer)?;
+                    processed += 1;
 
-                    if calls.index() % 100 == 0 {
-                        info!("{} records processed.", calls.index());
+                    if processed % 100 == 0 {
+                        info!("{} records processed.", processed);
                     }
                 }
             }
@@ -198,19 +198,28 @@ impl ObservationProcessor {
             Ok(())
         };
 
-        let preprocessor = |sender: Sender<WorkItem>,
-                            buffer_guard: Arc<utils::worker_pool::BufferGuard>|
-         -> Result<()> {
+        let preprocessor = |sender: Sender<WorkItem>| -> Result<()> {
             let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+            let mut skips = utils::SimpleCounter::default();
+
+            let display_skips =
+                |skips: &utils::SimpleCounter<utils::collect_variants::SkipReason>| {
+                    for (reason, &count) in skips.iter() {
+                        if count > 0 && count % 100 == 0 {
+                            info!("Skipped {} {}.", count, reason);
+                        }
+                    }
+                };
 
             let mut i = 0;
             loop {
                 let mut record = bcf_reader.empty_record();
                 if !bcf_reader.read(&mut record)? {
+                    display_skips(&skips);
                     return Ok(());
                 }
 
-                let variants = utils::collect_variants(&mut record, true)?;
+                let variants = utils::collect_variants(&mut record, true, &mut skips)?;
                 if !variants.is_empty() {
                     // process record
                     let work_item = WorkItem {
@@ -226,23 +235,19 @@ impl ObservationProcessor {
                     sender.send(work_item).unwrap();
 
                     i += 1;
-
-                    buffer_guard.wait_for_free();
+                }
+                if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
+                    display_skips(&skips);
                 }
             }
         };
 
-        worker_pool(
-            preprocessor,
-            workers.into_iter(),
-            postprocessor,
-            self.buffer_capacity,
-        )
+        worker_pool(preprocessor, workers.into_iter(), postprocessor)
     }
 
-    fn process_record(&self, work_item: WorkItem, sample: &mut Sample) -> Result<Box<Calls>> {
+    fn process_record(&self, work_item: WorkItem, sample: &mut Sample) -> Result<Calls> {
         if work_item.variants.is_empty() {
-            return Ok(Box::new(Calls::new(work_item.record_index, vec![])));
+            return Ok(Calls::new(work_item.record_index, vec![]));
         }
 
         let call_builder = |chrom, start, id| {
@@ -292,7 +297,7 @@ impl ObservationProcessor {
                 );
             }
 
-            Ok(Box::new(Calls::new(work_item.record_index, vec![call])))
+            Ok(Calls::new(work_item.record_index, vec![call]))
         } else {
             let mut calls = Vec::new();
             for variant in work_item.variants.iter() {
@@ -340,7 +345,7 @@ impl ObservationProcessor {
                     }
                 }
             }
-            Ok(Box::new(Calls::new(work_item.record_index, calls)))
+            Ok(Calls::new(work_item.record_index, calls))
         }
     }
 
@@ -643,14 +648,4 @@ struct Calls {
     index: usize,
     #[deref]
     inner: Vec<Call>,
-}
-
-impl utils::worker_pool::BufferItem for Calls {
-    fn index(&self) -> usize {
-        self.index
-    }
-
-    fn skip_capacity(&self) -> bool {
-        self.inner.is_empty()
-    }
 }

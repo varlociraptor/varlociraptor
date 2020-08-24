@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str;
-use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
@@ -21,7 +20,6 @@ use crate::errors;
 use crate::grammar;
 use crate::utils;
 use crate::utils::worker_pool;
-use crate::utils::worker_pool::BufferItem;
 use crate::variants::evidence::observation::Observation;
 use crate::variants::model;
 use crate::variants::model::modes::generic::{
@@ -49,7 +47,6 @@ where
     resolutions: grammar::SampleInfo<usize>,
     prior: Pr,
     threads: usize,
-    buffer_capacity: usize,
 }
 
 impl<Pr> Caller<Pr>
@@ -155,9 +152,7 @@ where
 
     pub(crate) fn call(&self) -> Result<()> {
         // Configure worker pool:
-        let preprocessor = |sender: Sender<Vec<WorkItem>>,
-                            buffer_guard: Arc<utils::worker_pool::BufferGuard>|
-         -> Result<()> {
+        let preprocessor = |sender: Sender<Vec<WorkItem>>| -> Result<()> {
             let mut observations = self.observations()?;
 
             // Check observation format.
@@ -235,7 +230,6 @@ where
                     // clear vector
                     work_items = Vec::new();
                 }
-                buffer_guard.wait_for_free();
 
                 i += 1;
             }
@@ -244,7 +238,7 @@ where
         let mut workers = Vec::new();
         for _ in 0..self.threads {
             workers.push(
-                |receiver: Receiver<Vec<WorkItem>>, sender: Sender<Box<WorkItem>>| -> Result<()> {
+                |receiver: Receiver<Vec<WorkItem>>, sender: Sender<WorkItem>| -> Result<()> {
                     let mut model = self.model();
                     let mut events = Vec::new();
                     let mut last_rid = None;
@@ -262,7 +256,7 @@ where
                             last_rid = Some(work_item.rid);
 
                             self.call_record(&mut work_item, &model, &events, &mut breakend_result);
-                            sender.send(Box::new(work_item)).unwrap();
+                            sender.send(work_item).unwrap();
                         }
                     }
                     Ok(())
@@ -270,25 +264,22 @@ where
             );
         }
 
-        let postprocessor = |receiver: Receiver<Box<WorkItem>>| -> Result<()> {
+        let postprocessor = |receiver: Receiver<WorkItem>| -> Result<()> {
             let mut bcf_writer = self.writer()?;
+            let mut processed = 0;
             for work_item in receiver {
                 work_item.call.write_final_record(&mut bcf_writer)?;
+                processed += 1;
 
-                if work_item.index % 100 == 0 {
-                    info!("{} records processed.", work_item.index);
+                if processed % 100 == 0 {
+                    info!("{} records processed.", processed);
                 }
             }
 
             Ok(())
         };
 
-        worker_pool(
-            preprocessor,
-            workers.iter(),
-            postprocessor,
-            self.buffer_capacity,
-        )
+        worker_pool(preprocessor, workers.iter(), postprocessor)
     }
 
     fn preprocess_record(
@@ -566,14 +557,4 @@ struct WorkItem {
     snv: Option<model::modes::generic::SNV>,
     bnd_event: Option<Vec<u8>>,
     index: usize,
-}
-
-impl BufferItem for WorkItem {
-    fn index(&self) -> usize {
-        self.index
-    }
-
-    fn skip_capacity(&self) -> bool {
-        self.call.variants.is_empty()
-    }
 }

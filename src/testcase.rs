@@ -217,11 +217,12 @@ impl Testcase {
         fs::create_dir_all(&self.prefix)?;
 
         let candidate_filename = Path::new("candidates.vcf");
+        let mut skips = utils::SimpleCounter::default();
 
         // get and write candidate
         let mut candidate = None;
         for (i, mut record) in (self.variants()?).into_iter().enumerate() {
-            let variants = utils::collect_variants(&mut record, false)?;
+            let variants = utils::collect_variants(&mut record, false, &mut skips)?;
             for variant in variants {
                 if i == self.idx {
                     // if no chromosome was specified, we infer the locus from the matching
