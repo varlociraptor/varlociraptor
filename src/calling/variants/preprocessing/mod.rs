@@ -183,12 +183,14 @@ impl ObservationProcessor {
 
         let postprocessor = |receiver: Receiver<Calls>| -> Result<()> {
             let mut bcf_writer = self.writer()?;
+            let mut processed = 0;
             for calls in receiver {
                 for call in calls.iter() {
                     call.write_preprocessed_record(&mut bcf_writer)?;
+                    processed += 1;
 
-                    if calls.index % 100 == 0 {
-                        info!("{} records processed.", calls.index);
+                    if processed % 100 == 0 {
+                        info!("{} records processed.", processed);
                     }
                 }
             }

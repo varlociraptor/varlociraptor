@@ -266,11 +266,13 @@ where
 
         let postprocessor = |receiver: Receiver<WorkItem>| -> Result<()> {
             let mut bcf_writer = self.writer()?;
+            let mut processed = 0;
             for work_item in receiver {
                 work_item.call.write_final_record(&mut bcf_writer)?;
+                processed += 1;
 
-                if work_item.index % 100 == 0 {
-                    info!("{} records processed.", work_item.index);
+                if processed % 100 == 0 {
+                    info!("{} records processed.", processed);
                 }
             }
 
