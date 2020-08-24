@@ -1,6 +1,3 @@
-use std::collections::BTreeMap;
-use std::sync::{Arc, Condvar, Mutex};
-
 use anyhow::Result;
 use crossbeam::channel::{bounded, Receiver, Sender};
 use crossbeam::thread::scope;

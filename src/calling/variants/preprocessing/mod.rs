@@ -42,7 +42,6 @@ use crate::variants::types::breakends::{Breakend, BreakendIndex};
 #[builder(pattern = "owned")]
 pub(crate) struct ObservationProcessor {
     threads: usize,
-    buffer_capacity: usize,
     alignment_properties: AlignmentProperties,
     max_depth: usize,
     protocol_strandedness: ProtocolStrandedness,
@@ -199,15 +198,26 @@ impl ObservationProcessor {
 
         let preprocessor = |sender: Sender<WorkItem>| -> Result<()> {
             let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+            let mut skips = utils::SimpleCounter::default();
+
+            let display_skips =
+                |skips: &utils::SimpleCounter<utils::collect_variants::SkipReason>| {
+                    for (reason, &count) in skips.iter() {
+                        if count > 0 && count % 100 == 0 {
+                            info!("Skipped {} {}.", count, reason);
+                        }
+                    }
+                };
 
             let mut i = 0;
             loop {
                 let mut record = bcf_reader.empty_record();
                 if !bcf_reader.read(&mut record)? {
+                    display_skips(&skips);
                     return Ok(());
                 }
 
-                let variants = utils::collect_variants(&mut record, true)?;
+                let variants = utils::collect_variants(&mut record, true, &mut skips)?;
                 if !variants.is_empty() {
                     // process record
                     let work_item = WorkItem {
@@ -223,6 +233,9 @@ impl ObservationProcessor {
                     sender.send(work_item).unwrap();
 
                     i += 1;
+                }
+                if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
+                    display_skips(&skips);
                 }
             }
         };

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str;
-use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
@@ -48,7 +47,6 @@ where
     resolutions: grammar::SampleInfo<usize>,
     prior: Pr,
     threads: usize,
-    buffer_capacity: usize,
 }
 
 impl<Pr> Caller<Pr>

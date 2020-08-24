@@ -118,10 +118,6 @@ fn default_threads() -> usize {
     1
 }
 
-fn default_buffer_capacity() -> usize {
-    100
-}
-
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -156,14 +152,6 @@ pub enum PreprocessKind {
         #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
         #[serde(default = "default_threads")]
         threads: usize,
-        #[structopt(
-            long,
-            short = "b",
-            default_value = "100",
-            help = "Number of variants in the buffer (the more, the better can varlociraptor saturate the given threads)."
-        )]
-        #[serde(default = "default_buffer_capacity")]
-        buffer_capacity: usize,
         #[structopt(
             long = "alignment-properties",
             help = "Alignment properties JSON file for sample. If not provided, properties \
@@ -304,14 +292,6 @@ pub enum CallKind {
         #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
         #[serde(default = "default_threads")]
         threads: usize,
-        #[structopt(
-            long,
-            short = "b",
-            default_value = "100",
-            help = "Number of variants in the buffer (the more, the better can varlociraptor saturate the given threads)."
-        )]
-        #[serde(default = "default_buffer_capacity")]
-        buffer_capacity: usize,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -493,7 +473,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     max_depth,
                     omit_insert_size,
                     threads,
-                    buffer_capacity,
                 } => {
                     // TODO: handle testcases
 
@@ -528,7 +507,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessorBuilder::default()
                             .threads(threads)
-                            .buffer_capacity(buffer_capacity)
                             .alignment_properties(alignment_properties)
                             .protocol_strandedness(protocol_strandedness)
                             .max_depth(max_depth)
@@ -557,7 +535,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     testcase_prefix,
                     output,
                     threads,
-                    buffer_capacity,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -621,7 +598,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .resolutions(resolutions.build())
                             .outbcf(output)
                             .threads(threads)
-                            .buffer_capacity(buffer_capacity)
                             .build()
                             .unwrap();
 
