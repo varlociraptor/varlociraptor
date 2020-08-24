@@ -233,12 +233,12 @@ impl ObservationProcessor {
                     };
 
                     sender.send(work_item).unwrap();
-
-                    i += 1;
                 }
                 if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
                     display_skips(&skips);
                 }
+
+                i += 1;
             }
         };
 

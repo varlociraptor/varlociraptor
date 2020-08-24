@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str;
+use std::sync::{Mutex, RwLock};
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
@@ -27,6 +28,7 @@ use crate::variants::model::modes::generic::{
 };
 use crate::variants::model::Contamination;
 use crate::variants::model::{AlleleFreq, StrandBias};
+use crate::variants::types::breakends::BreakendIndex;
 
 pub(crate) type AlleleFreqCombination = Vec<model::likelihood::Event>;
 
@@ -46,6 +48,8 @@ where
     contaminations: grammar::SampleInfo<Option<Contamination>>,
     resolutions: grammar::SampleInfo<usize>,
     prior: Pr,
+    breakend_index: BreakendIndex,
+    breakend_results: RwLock<HashMap<Vec<u8>, Mutex<BreakendResult>>>,
     threads: usize,
 }
 
@@ -152,7 +156,7 @@ where
 
     pub(crate) fn call(&self) -> Result<()> {
         // Configure worker pool:
-        let preprocessor = |sender: Sender<Vec<WorkItem>>| -> Result<()> {
+        let preprocessor = |sender: Sender<WorkItem>| -> Result<()> {
             let mut observations = self.observations()?;
 
             // Check observation format.
@@ -172,8 +176,6 @@ where
                 }
             }
 
-            let mut work_items = Vec::new();
-            let mut last_bnd_event = None;
             let mut i = 0;
             loop {
                 let mut records = observations.map(|reader| reader.empty_record());
@@ -203,33 +205,9 @@ where
                     }
                 }
 
-                let work_item =
-                    self.preprocess_record(&mut records, i, &observations, &last_bnd_event)?;
-                let do_call = match (&work_item.bnd_event, &last_bnd_event) {
-                    (Some(current), Some(last)) if current == last => {
-                        // Same breakend event, do not call yet.
-                        false
-                    }
-                    (Some(current), _) => {
-                        // Other or no breakend event in current record, hence call.
-                        last_bnd_event = Some(current.to_owned());
-                        true
-                    }
-                    (None, _) => {
-                        // No breakend event at all, hence call.
-                        last_bnd_event = None;
-                        true
-                    }
-                };
-                work_items.push(work_item);
+                let work_item = self.preprocess_record(&mut records, i, &observations)?;
 
-                if do_call {
-                    // send vector of call infos
-                    let tosend = work_items;
-                    sender.send(tosend).unwrap();
-                    // clear vector
-                    work_items = Vec::new();
-                }
+                sender.send(work_item).unwrap();
 
                 i += 1;
             }
@@ -238,26 +216,23 @@ where
         let mut workers = Vec::new();
         for _ in 0..self.threads {
             workers.push(
-                |receiver: Receiver<Vec<WorkItem>>, sender: Sender<WorkItem>| -> Result<()> {
+                |receiver: Receiver<WorkItem>, sender: Sender<WorkItem>| -> Result<()> {
                     let mut model = self.model();
                     let mut events = Vec::new();
                     let mut last_rid = None;
-                    let mut breakend_result = None;
-                    for work_items in receiver {
-                        for mut work_item in work_items {
-                            let contig = str::from_utf8(work_item.call.chrom()).unwrap();
-                            self.configure_model(
-                                work_item.rid,
-                                last_rid,
-                                &mut model,
-                                &mut events,
-                                contig,
-                            )?;
-                            last_rid = Some(work_item.rid);
+                    for mut work_item in receiver {
+                        let contig = str::from_utf8(work_item.call.chrom()).unwrap();
+                        self.configure_model(
+                            work_item.rid,
+                            last_rid,
+                            &mut model,
+                            &mut events,
+                            contig,
+                        )?;
+                        last_rid = Some(work_item.rid);
 
-                            self.call_record(&mut work_item, &model, &events, &mut breakend_result);
-                            sender.send(work_item).unwrap();
-                        }
+                        self.call_record(&mut work_item, &model, &events);
+                        sender.send(work_item).unwrap();
                     }
                     Ok(())
                 },
@@ -287,7 +262,6 @@ where
         records: &mut grammar::SampleInfo<bcf::Record>,
         index: usize,
         observations: &grammar::SampleInfo<bcf::Reader>,
-        last_breakend_event: &Option<Vec<u8>>,
     ) -> Result<WorkItem> {
         let (call, snv, bnd_event, rid) = {
             let first_record = records
@@ -357,13 +331,10 @@ where
         };
 
         if let Some(ref event) = work_item.bnd_event {
-            if let Some(ref last_event) = last_breakend_event {
-                if last_event == event {
-                    // METHOD: Another breakend in the same event was already processed, hence, we will just copy the
-                    // results (no pileup needed). This works because preprocessing ensures that all breakends of one event appear
-                    // "en block".
-                    return Ok(work_item);
-                }
+            if self.breakend_result.read().unwrap().contains(event) {
+                // METHOD: Another breakend in the same event was already processed, hence, we will just copy the
+                // results (no pileup needed).
+                return Ok(work_item);
             }
         }
 
@@ -435,9 +406,24 @@ where
         work_item: &mut WorkItem,
         model: &Model<Pr>,
         event_universe: &[model::Event],
-        breakend_result: &mut Option<BreakendResult>,
     ) {
-        // In the else case, the variant builder can be filled with info from a previous breakend.
+        if let Some(ref bnd_event) = work_item.bnd_event {
+            if let Some(result) = self.breakend_results.read().unwrap().get(bnd_event) {
+                // Take sample info and event probs from previous breakend.
+                work_item
+                    .variant_builder
+                    .event_probs(Some(result.event_probs.clone()));
+                work_item
+                    .variant_builder
+                    .sample_info(Some(result.sample_info.clone()));
+
+                let variant = work_item.variant_builder.build().unwrap();
+                work_item.call.variants.push(variant);
+
+                return;
+            }
+        }
+
         if work_item.pileups.is_some() {
             let data = model::modes::generic::Data::new(
                 work_item.pileups.take().unwrap(),
@@ -509,14 +495,6 @@ where
                     Some(Vec::new())
                 },
             );
-        } else if let Some(result) = breakend_result {
-            // Take sample info and event probs from previous breakend.
-            work_item
-                .variant_builder
-                .event_probs(Some(result.event_probs.clone()));
-            work_item
-                .variant_builder
-                .sample_info(Some(result.sample_info.clone()));
         } else {
             unreachable!();
         }
@@ -524,19 +502,20 @@ where
         let variant = work_item.variant_builder.build().unwrap();
 
         if let Some(ref event) = work_item.bnd_event {
-            if breakend_result
-                .as_ref()
-                .map_or(false, |result| &result.event != event)
-            {
-                // Store breakend results for next breakend of the same event.
-                breakend_result.replace(BreakendResult {
-                    event: event.to_owned(),
-                    event_probs: variant.event_probs().as_ref().unwrap().clone(),
-                    sample_info: variant.sample_info().as_ref().unwrap().clone(),
-                });
+            if self.breakend_index.last_record_index(event).unwrap() == work_item.index {
+                // METHOD: last index, hence clear result
+                self.breakend_results.write().unwrap().remove(event);
+            } else {
+                // METHOD: store breakend group result for next breakend of this group
+                self.breakend_results
+                    .write()
+                    .unwrap()
+                    .insert(BreakendResult {
+                        event: event.to_owned(),
+                        event_probs: variant.event_probs().as_ref().unwrap().clone(),
+                        sample_info: variant.sample_info().as_ref().unwrap().clone(),
+                    });
             }
-        } else {
-            breakend_result.take();
         }
 
         work_item.call.variants.push(variant);
