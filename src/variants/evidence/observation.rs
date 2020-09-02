@@ -27,6 +27,35 @@ pub(crate) fn expected_depth(obs: &[Observation]) -> u32 {
         .round() as u32
 }
 
+/// Strand support for observation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum Strand {
+    Forward,
+    Reverse,
+    Both,
+    None,
+}
+
+impl Default for Strand {
+    fn default() -> Self {
+        Strand::None
+    }
+}
+
+/// Read orientation support for observation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum ReadOrientation {
+    F1R2,
+    F2R1,
+    Other,
+}
+
+impl Default for ReadOrientation {
+    fn default() -> Self {
+        ReadOrientation::Other
+    }
+}
+
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default)]
 pub(crate) struct Observation {
@@ -52,12 +81,8 @@ pub(crate) struct Observation {
     /// Probability to overlap with one strand only (1-prob_double_overlap)
     #[builder(private)]
     pub(crate) prob_single_overlap: LogProb,
-    /// Probability to observe any overlapping strand combination (when not associated with alt allele)
-    pub(crate) prob_any_strand: LogProb,
-    /// Observation relies on forward strand evidence
-    pub(crate) forward_strand: bool,
-    /// Observation relies on reverse strand evidence
-    pub(crate) reverse_strand: bool,
+    /// Strand evidence this observation relies on
+    pub(crate) strand: Strand,
 }
 
 impl ObservationBuilder {
@@ -119,9 +144,7 @@ where
             // METHOD: only consider allele support if it comes either from forward or reverse strand.
             // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
             // any information (e.g. no overlap).
-            Some(allele_support)
-                if allele_support.forward_strand() || allele_support.reverse_strand() =>
-            {
+            Some(allele_support) if allele_support.strand() != Strand::None => {
                 Some(
                     ObservationBuilder::default()
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
@@ -130,9 +153,7 @@ where
                         .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
                         .prob_missed_allele(allele_support.prob_missed_allele())
                         .prob_overlap(LogProb::ln_zero()) // no double overlap possible
-                        .prob_any_strand(LogProb::from(Prob(0.5)))
-                        .forward_strand(allele_support.forward_strand())
-                        .reverse_strand(allele_support.reverse_strand())
+                        .strand(allele_support.strand())
                         .build()
                         .unwrap(),
                 )

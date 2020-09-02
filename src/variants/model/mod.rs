@@ -244,7 +244,7 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::variants::evidence::observation::{Observation, ObservationBuilder};
+    use crate::variants::evidence::observation::{Observation, ObservationBuilder, Strand};
 
     use bio::stats::LogProb;
 
@@ -260,9 +260,7 @@ mod tests {
             .prob_missed_allele(prob_ref.ln_add_exp(prob_alt) - LogProb(2.0_f64.ln()))
             .prob_sample_alt(LogProb::ln_one())
             .prob_overlap(LogProb::ln_one())
-            .prob_any_strand(LogProb::ln_one())
-            .forward_strand(true)
-            .reverse_strand(true)
+            .strand(Strand::Both)
             .build()
             .unwrap()
     }

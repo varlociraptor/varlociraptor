@@ -21,7 +21,7 @@ use vec_map::VecMap;
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
 use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::Observation;
+use crate::variants::evidence::observation::{Observation, Strand};
 use crate::variants::model;
 use crate::variants::model::{bias::Biases, bias::StrandBias, AlleleFreq};
 
@@ -174,10 +174,10 @@ impl Call {
                                     } else {
                                         score.to_ascii_uppercase()
                                     },
-                                    match (obs.forward_strand, obs.reverse_strand) {
-                                        (true, true) => '*',
-                                        (false, true) => '-',
-                                        (true, false) => '+',
+                                    match obs.strand {
+                                        Strand::Both => '*',
+                                        Strand::Reverse => '-',
+                                        Strand::Forward => '+',
                                         _ => panic!("bug: unknown strandedness"),
                                     }
                                 )

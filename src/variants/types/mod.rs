@@ -15,7 +15,7 @@ use vec_map::VecMap;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::is_reverse_strand;
 use crate::variants::evidence::observation::{
-    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence,
+    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
 };
 use crate::variants::sample;
 
@@ -43,8 +43,8 @@ pub(crate) use snv::SNV;
 pub(crate) struct AlleleSupport {
     prob_ref_allele: LogProb,
     prob_alt_allele: LogProb,
-    forward_strand: bool,
-    reverse_strand: bool,
+    #[builder(private)]
+    strand: Strand,
 }
 
 impl AlleleSupport {
@@ -60,8 +60,11 @@ impl AlleleSupport {
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
-        self.forward_strand |= other.forward_strand;
-        self.reverse_strand |= other.reverse_strand;
+        if self.strand == Strand::None {
+            self.strand = other.strand;
+        } else if other.strand != Strand::None && self.strand != other.strand {
+            self.strand = Strand::Both;
+        }
 
         self
     }
@@ -70,13 +73,15 @@ impl AlleleSupport {
 impl AlleleSupportBuilder {
     pub(crate) fn register_record(&mut self, record: &bam::Record) -> &mut Self {
         let reverse_strand = is_reverse_strand(record);
-
-        self.forward_strand(!reverse_strand)
-            .reverse_strand(reverse_strand)
+        self.strand(if reverse_strand {
+            Strand::Reverse
+        } else {
+            Strand::Forward
+        })
     }
 
     pub(crate) fn no_strand_info(&mut self) -> &mut Self {
-        self.forward_strand(false).reverse_strand(false)
+        self.strand(Strand::None)
     }
 }
 
