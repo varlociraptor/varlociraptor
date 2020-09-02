@@ -31,7 +31,9 @@ use crate::utils;
 use crate::utils::worker_pool;
 use crate::utils::MiniLogProb;
 use crate::variants;
-use crate::variants::evidence::observation::{Observation, ObservationBuilder, Strand};
+use crate::variants::evidence::observation::{
+    Observation, ObservationBuilder, ReadOrientation, Strand,
+};
 use crate::variants::evidence::realignment;
 use crate::variants::model;
 use crate::variants::sample::Sample;
@@ -127,6 +129,7 @@ impl ObservationProcessor {
             "PROB_SAMPLE_ALT",
             "PROB_DOUBLE_OVERLAP",
             "STRAND",
+            "READ_ORIENTATION",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant internal use only).\"", name).as_bytes()
@@ -519,6 +522,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
     let prob_sample_alt: Vec<MiniLogProb> = read_values(record, b"PROB_SAMPLE_ALT")?;
     let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP")?;
     let strand: Vec<Strand> = read_values(record, b"STRAND")?;
+    let read_orientation: Vec<ReadOrientation> = read_values(record, b"READ_ORIENTATION")?;
 
     let obs = (0..prob_mapping.len())
         .map(|i| {
@@ -530,6 +534,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
                 .prob_sample_alt(prob_sample_alt[i].to_logprob())
                 .prob_overlap(prob_double_overlap[i].to_logprob())
                 .strand(strand[i])
+                .read_orientation(read_orientation[i])
                 .build()
                 .unwrap()
         })
@@ -550,6 +555,7 @@ pub(crate) fn write_observations(
     let mut prob_sample_alt = vec();
     let mut prob_double_overlap = vec();
     let mut strand = Vec::with_capacity(observations.len());
+    let mut read_orientation = Vec::with_capacity(observations.len());
     let mut forward_strand: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut reverse_strand: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
@@ -562,6 +568,7 @@ pub(crate) fn write_observations(
         prob_sample_alt.push(encode_logprob(obs.prob_sample_alt));
         prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));
         strand.push(obs.strand);
+        read_orientation.push(obs.read_orientation);
     }
 
     fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
@@ -595,6 +602,7 @@ pub(crate) fn write_observations(
     push_values(record, b"PROB_SAMPLE_ALT", &prob_sample_alt)?;
     push_values(record, b"PROB_DOUBLE_OVERLAP", &prob_double_overlap)?;
     push_values(record, b"STRAND", &strand)?;
+    push_values(record, b"READ_ORIENTATION", &read_orientation)?;
 
     Ok(())
 }
@@ -607,6 +615,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PROB_SAMPLE_ALT");
     header.remove_info(b"PROB_DOUBLE_OVERLAP");
     header.remove_info(b"STRAND");
+    header.remove_info(b"READ_ORIENTATION");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

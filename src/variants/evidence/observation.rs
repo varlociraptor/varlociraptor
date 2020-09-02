@@ -47,12 +47,18 @@ impl Default for Strand {
 pub(crate) enum ReadOrientation {
     F1R2,
     F2R1,
-    Other,
+    R1F2,
+    R2F1,
+    F1F2,
+    R1R2,
+    F2F1,
+    R2R1,
+    None,
 }
 
 impl Default for ReadOrientation {
     fn default() -> Self {
-        ReadOrientation::Other
+        ReadOrientation::None
     }
 }
 
@@ -83,6 +89,8 @@ pub(crate) struct Observation {
     pub(crate) prob_single_overlap: LogProb,
     /// Strand evidence this observation relies on
     pub(crate) strand: Strand,
+    /// Read orientation support this observation relies on
+    pub(crate) read_orientation: ReadOrientation,
 }
 
 impl ObservationBuilder {
@@ -154,6 +162,7 @@ where
                         .prob_missed_allele(allele_support.prob_missed_allele())
                         .prob_overlap(LogProb::ln_zero()) // no double overlap possible
                         .strand(allele_support.strand())
+                        .read_orientation(evidence.read_orientation())
                         .build()
                         .unwrap(),
                 )
@@ -163,7 +172,9 @@ where
     }
 }
 
-pub(crate) trait Evidence {}
+pub(crate) trait Evidence {
+    fn read_orientation(&self) -> ReadOrientation;
+}
 
 #[derive(new, Clone, Eq, Debug)]
 pub(crate) struct SingleEndEvidence {
@@ -178,7 +189,11 @@ impl Deref for SingleEndEvidence {
     }
 }
 
-impl Evidence for SingleEndEvidence {}
+impl Evidence for SingleEndEvidence {
+    fn read_orientation(&self) -> ReadOrientation {
+        ReadOrientation::None
+    }
+}
 
 impl PartialEq for SingleEndEvidence {
     fn eq(&self, other: &Self) -> bool {
@@ -201,7 +216,29 @@ pub(crate) enum PairedEndEvidence {
     },
 }
 
-impl Evidence for PairedEndEvidence {}
+impl Evidence for PairedEndEvidence {
+    fn read_orientation(&self) -> ReadOrientation {
+        match self {
+            PairedEndEvidence::SingleEnd(_) => ReadOrientation::None,
+            PairedEndEvidence::PairedEnd { left, right } => {
+                match (
+                    left.is_reverse(),
+                    left.is_first_in_template(),
+                    right.is_reverse(),
+                ) {
+                    (false, false, false) => ReadOrientation::F2F1,
+                    (false, false, true) => ReadOrientation::F2R1,
+                    (false, true, false) => ReadOrientation::F1F2,
+                    (true, false, false) => ReadOrientation::R2F1,
+                    (false, true, true) => ReadOrientation::F1R2,
+                    (true, false, true) => ReadOrientation::R2R1,
+                    (true, true, false) => ReadOrientation::R1F2,
+                    (true, true, true) => ReadOrientation::R1R2,
+                }
+            }
+        }
+    }
+}
 
 impl PartialEq for PairedEndEvidence {
     fn eq(&self, other: &Self) -> bool {
