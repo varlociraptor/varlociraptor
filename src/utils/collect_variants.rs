@@ -20,7 +20,7 @@ pub(crate) enum SkipReason {
     InversionInvalidAlt,
     #[strum(serialize = "duplication with more than a single <DUP> allele")]
     DuplicationInvalidAlt,
-    #[strum(serialize = "breakend without EVENT tag (will be supported in a future release")]
+    #[strum(serialize = "breakend without EVENT tag (will be supported in a future release)")]
     BreakendNoEvent,
 }
 
