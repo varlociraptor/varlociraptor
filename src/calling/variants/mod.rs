@@ -23,7 +23,7 @@ use crate::utils;
 use crate::variants::evidence::observation::expected_depth;
 use crate::variants::evidence::observation::Observation;
 use crate::variants::model;
-use crate::variants::model::{AlleleFreq, StrandBias};
+use crate::variants::model::{bias::Biases, bias::StrandBias, AlleleFreq};
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
 
@@ -142,8 +142,9 @@ impl Call {
                     .iter()
                     .enumerate()
                 {
+                    // TODO add other biases once implemented
                     strand_bias.entry(i).or_insert_with(Vec::new).push(
-                        match sample_info.strand_bias {
+                        match sample_info.biases.strand_bias() {
                             StrandBias::None => '.',
                             StrandBias::Forward => '+',
                             StrandBias::Reverse => '-',
@@ -374,12 +375,12 @@ impl VariantBuilder {
     }
 }
 
-#[derive(Default, Clone, Debug, Builder)]
+#[derive(Clone, Debug, Builder)]
 pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     #[builder(default = "Vec::new()")]
     observations: Vec<Observation>,
-    strand_bias: StrandBias,
+    biases: Biases,
 }
 
 /// Wrapper for comparing alleles for compatibility in BCF files.

@@ -27,7 +27,9 @@ use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
 use crate::variants::model::Contamination;
-use crate::variants::model::{AlleleFreq, StrandBias};
+use crate::variants::model::{
+    bias::strand_bias::StrandBias, bias::Biases, bias::BiasesBuilder, AlleleFreq,
+};
 use crate::variants::types::breakends::BreakendIndex;
 
 pub(crate) type AlleleFreqCombination = Vec<model::likelihood::Event>;
@@ -367,7 +369,7 @@ where
             events.push(model::Event {
                 name: "absent".to_owned(),
                 vafs: grammar::VAFTree::absent(self.n_samples()),
-                strand_bias: StrandBias::None,
+                biases: Biases::none(),
             });
 
             // add events from scenario
@@ -375,17 +377,23 @@ where
                 events.push(model::Event {
                     name: event_name.clone(),
                     vafs: vaftree.clone(),
-                    strand_bias: StrandBias::None,
+                    biases: Biases::none(),
                 });
                 events.push(model::Event {
                     name: event_name.clone(),
                     vafs: vaftree.clone(),
-                    strand_bias: StrandBias::Forward,
+                    biases: BiasesBuilder::default()
+                        .strand_bias(StrandBias::Forward)
+                        .build()
+                        .unwrap(),
                 });
                 events.push(model::Event {
                     name: event_name,
                     vafs: vaftree,
-                    strand_bias: StrandBias::Reverse,
+                    biases: BiasesBuilder::default()
+                        .strand_bias(StrandBias::Reverse)
+                        .build()
+                        .unwrap(),
                 });
             }
 
@@ -474,17 +482,17 @@ where
                                 let mut sample_builder = SampleInfoBuilder::default();
                                 sample_builder.observations(pileup);
                                 match estimate {
-                                    model::likelihood::Event { strand_bias, .. }
-                                        if strand_bias.is_some() =>
+                                    model::likelihood::Event { biases, .. }
+                                        if biases.is_artifact() =>
                                     {
                                         sample_builder
                                             .allelefreq_estimate(AlleleFreq(0.0))
-                                            .strand_bias(*strand_bias);
+                                            .biases(biases.clone());
                                     }
                                     model::likelihood::Event { allele_freq, .. } => {
                                         sample_builder
                                             .allelefreq_estimate(*allele_freq)
-                                            .strand_bias(StrandBias::None);
+                                            .biases(Biases::none());
                                     }
                                 };
                                 sample_builder.build().unwrap()

@@ -12,7 +12,9 @@ use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::grammar;
+use crate::variants::model::bias::Biases;
 
+pub(crate) mod bias;
 pub(crate) mod likelihood;
 pub(crate) mod modes;
 
@@ -26,39 +28,16 @@ pub(crate) struct Contamination {
 pub(crate) struct Event {
     pub(crate) name: String,
     pub(crate) vafs: grammar::VAFTree,
-    pub(crate) strand_bias: StrandBias,
+    pub(crate) biases: Biases,
 }
 
 impl Event {
     pub(crate) fn is_artifact(&self) -> bool {
-        self.strand_bias != StrandBias::None
+        self.biases.is_artifact()
     }
 }
 
 pub(crate) type AlleleFreq = NotNan<f64>;
-
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord)]
-pub(crate) enum StrandBias {
-    None,
-    Forward,
-    Reverse,
-}
-
-impl Default for StrandBias {
-    fn default() -> Self {
-        StrandBias::None
-    }
-}
-
-impl StrandBias {
-    pub(crate) fn is_some(&self) -> bool {
-        if let StrandBias::None = self {
-            false
-        } else {
-            true
-        }
-    }
-}
 
 #[allow(non_snake_case)]
 pub(crate) fn AlleleFreq(af: f64) -> AlleleFreq {
