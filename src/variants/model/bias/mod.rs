@@ -5,8 +5,10 @@ use bio::stats::probs::LogProb;
 use crate::variants::evidence::observation::Observation;
 
 pub(crate) mod strand_bias;
+pub(crate) mod read_orientation_bias;
 
 pub(crate) use strand_bias::StrandBias;
+pub(crate) use read_orientation_bias::ReadOrientationBias;
 
 pub(crate) trait Bias {
     fn prob(&self, observation: &Observation) -> LogProb;

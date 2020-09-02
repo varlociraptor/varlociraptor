@@ -28,7 +28,7 @@ use crate::variants::model::modes::generic::{
 };
 use crate::variants::model::Contamination;
 use crate::variants::model::{
-    bias::strand_bias::StrandBias, bias::Biases, bias::BiasesBuilder, AlleleFreq,
+    bias::strand_bias::StrandBias, bias::read_orientation_bias::ReadOrientationBias, bias::Biases, bias::BiasesBuilder, AlleleFreq,
 };
 use crate::variants::types::breakends::BreakendIndex;
 
