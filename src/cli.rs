@@ -327,6 +327,13 @@ pub enum CallKind {
                     'barely' refers to the Bayes Factor classification of Kass and Raftery."
         )]
         filter_bayes_factor_minimum_barely: bool,
+        #[structopt(
+        parse(from_os_str),
+        long,
+        help = "Folder to output linear programming problem formulations. One file per input \
+                    contig will be produced, as each contig is handled separately."
+        )]
+        problems_folder: Option<PathBuf>,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -783,7 +790,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     output,
                     alpha,
                     control_local_fdr,
-                    filter_bayes_factor_minimum_barely
+                    filter_bayes_factor_minimum_barely,
+                    problems_folder
                 } => {
                     let mut caller = calling::loh::CallerBuilder::default()
                         .bcf(&calls)?
@@ -791,6 +799,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         .add_and_check_alpha(alpha)?
                         .control_local_fdr(control_local_fdr)
                         .filter_bayes_factor_minimum_barely(filter_bayes_factor_minimum_barely)
+                        .problems_folder(problems_folder)
                         .build()
                         .unwrap();
                     caller.call()?;
