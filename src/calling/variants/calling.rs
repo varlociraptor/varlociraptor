@@ -110,7 +110,11 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Posterior odds for alt allele of each fragment as Kass Raftery \
+              Description=\"Summary of observations. Each entry is encoded as CBTSO, with C being a count, \
+              B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
+              as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
+              and O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2). \
+              Posterior odds for alt allele of each fragment are given as Kass Raftery \
               scores: N=none, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%)\">",
         );
