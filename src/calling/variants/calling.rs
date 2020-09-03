@@ -28,7 +28,8 @@ use crate::variants::model::modes::generic::{
 };
 use crate::variants::model::Contamination;
 use crate::variants::model::{
-    bias::strand_bias::StrandBias, bias::read_orientation_bias::ReadOrientationBias, bias::Biases, bias::BiasesBuilder, AlleleFreq,
+    bias::read_orientation_bias::ReadOrientationBias, bias::strand_bias::StrandBias, bias::Biases,
+    bias::BiasesBuilder, AlleleFreq,
 };
 use crate::variants::types::breakends::BreakendIndex;
 
@@ -121,7 +122,16 @@ where
             b"##FORMAT=<ID=SB,Number=A,Type=String,\
               Description=\"Strand bias estimate: + indicates that ALT allele is associated with \
               forward strand, - indicates that ALT allele is associated with reverse strand, \
-              - indicates no strand bias.\">",
+              - indicates no strand bias. Strand bias is indicative for systematic sequencing \
+              errors. Probability for strand bias is captured by the ARTIFACT event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=ROB,Number=A,Type=String,\
+              Description=\"Read orientation bias estimate: > indicates that ALT allele is associated with \
+              F1R2 orientation, < indicates that ALT allele is associated with F2R1 orientation, \
+              - indicates no read orientation bias. Read orientation bias is indicative of Guanin \
+              oxidation artifacts. Probability for read orientation bias is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">",
         );
 
         Ok(header)
@@ -221,16 +231,24 @@ where
             workers.push(
                 |receiver: Receiver<WorkItem>, sender: Sender<WorkItem>| -> Result<()> {
                     let mut model = self.model();
+                    // For SNVs and MNVs we need a special model as here read orientation bias needs to be considered.
+                    let mut read_orientation_bias_model = self.model();
                     let mut events = Vec::new();
                     let mut last_rid = None;
                     for mut work_item in receiver {
                         let contig = str::from_utf8(work_item.call.chrom()).unwrap();
+                        let model = if work_item.check_read_orientation_bias {
+                            &mut read_orientation_bias_model
+                        } else {
+                            &mut model
+                        };
                         self.configure_model(
                             work_item.rid,
                             last_rid,
-                            &mut model,
+                            model,
                             &mut events,
                             contig,
+                            work_item.check_read_orientation_bias,
                         )?;
                         last_rid = Some(work_item.rid);
 
@@ -266,7 +284,7 @@ where
         index: usize,
         observations: &grammar::SampleInfo<bcf::Reader>,
     ) -> Result<WorkItem> {
-        let (call, snv, bnd_event, rid) = {
+        let (call, snv, bnd_event, rid, is_snv_or_mnv) = {
             let first_record = records
                 .first_mut()
                 .expect("bug: there must be at least one record");
@@ -295,15 +313,22 @@ where
                 .unwrap();
 
             // store information about SNV for special handling in posterior computation (variant selection operations)
-            let snv = {
+            let snv;
+            let is_snv_or_mnv;
+            {
                 let alleles = first_record.alleles();
                 if alleles[0].len() == 1 && alleles[1].len() == 1 {
-                    Some(model::modes::generic::SNV::new(
+                    is_snv_or_mnv = true;
+                    snv = Some(model::modes::generic::SNV::new(
                         alleles[0][0],
                         alleles[1][0],
-                    ))
+                    ));
+                } else if alleles[0].len() == alleles[1].len() {
+                    is_snv_or_mnv = true;
+                    snv = None;
                 } else {
-                    None
+                    is_snv_or_mnv = false;
+                    snv = None;
                 }
             };
 
@@ -317,7 +342,7 @@ where
                 .rid()
                 .ok_or_else(|| errors::Error::RecordMissingChrom { i: index + 1 })?;
 
-            (call, snv, bnd_event, rid)
+            (call, snv, bnd_event, rid, is_snv_or_mnv)
         };
 
         let mut variant_builder = VariantBuilder::default();
@@ -331,6 +356,7 @@ where
             bnd_event,
             variant_builder,
             index,
+            check_read_orientation_bias: is_snv_or_mnv,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -341,13 +367,18 @@ where
             }
         }
 
+        // obtain pileups
+        let mut paired_end = false;
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
-            pileups.push(read_observations(record)?);
+            let pileup = read_observations(record)?;
+            paired_end |= pileup.iter().any(|obs| obs.is_paired());
+            pileups.push(pileup);
         }
 
-        // obtain pileups
         work_item.pileups = Some(pileups);
+        // Only check for read orientation bias if there is at least one paired end read.
+        work_item.check_read_orientation_bias &= paired_end;
 
         Ok(work_item)
     }
@@ -359,6 +390,7 @@ where
         model: &mut Model<Pr>,
         events: &mut Vec<model::Event>,
         contig: &str,
+        consider_read_orientation_bias: bool,
     ) -> Result<()> {
         if !rid.map_or(false, |rid: u32| current_rid == rid) {
             // rid is not the same as before, obtain event universe
@@ -379,22 +411,14 @@ where
                     vafs: vaftree.clone(),
                     biases: Biases::none(),
                 });
-                events.push(model::Event {
-                    name: event_name.clone(),
-                    vafs: vaftree.clone(),
-                    biases: BiasesBuilder::default()
-                        .strand_bias(StrandBias::Forward)
-                        .build()
-                        .unwrap(),
-                });
-                events.push(model::Event {
-                    name: event_name,
-                    vafs: vaftree,
-                    biases: BiasesBuilder::default()
-                        .strand_bias(StrandBias::Reverse)
-                        .build()
-                        .unwrap(),
-                });
+                // Corresponding biased events.
+                for biases in Biases::all_artifact_combinations(consider_read_orientation_bias) {
+                    events.push(model::Event {
+                        name: event_name.clone(),
+                        vafs: vaftree.clone(),
+                        biases,
+                    });
+                }
             }
 
             // update prior to the VAF universe of the current chromosome
@@ -546,4 +570,5 @@ struct WorkItem {
     snv: Option<model::modes::generic::SNV>,
     bnd_event: Option<Vec<u8>>,
     index: usize,
+    check_read_orientation_bias: bool,
 }

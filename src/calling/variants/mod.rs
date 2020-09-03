@@ -21,9 +21,11 @@ use vec_map::VecMap;
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
 use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::{Observation, Strand};
+use crate::variants::evidence::observation::{Observation, ReadOrientation, Strand};
 use crate::variants::model;
-use crate::variants::model::{bias::Biases, bias::StrandBias, AlleleFreq};
+use crate::variants::model::{
+    bias::Biases, bias::ReadOrientationBias, bias::StrandBias, AlleleFreq,
+};
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
 
@@ -114,6 +116,7 @@ impl Call {
             let mut observations = VecMap::new();
             let mut obs_counts = VecMap::new();
             let mut strand_bias = VecMap::new();
+            let mut read_orientation_bias = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
             let mut events = Vec::new();
@@ -142,7 +145,6 @@ impl Call {
                     .iter()
                     .enumerate()
                 {
-                    // TODO add other biases once implemented
                     strand_bias.entry(i).or_insert_with(Vec::new).push(
                         match sample_info.biases.strand_bias() {
                             StrandBias::None => '.',
@@ -150,6 +152,14 @@ impl Call {
                             StrandBias::Reverse => '-',
                         },
                     );
+                    read_orientation_bias
+                        .entry(i)
+                        .or_insert_with(Vec::new)
+                        .push(match sample_info.biases.read_orientation_bias() {
+                            ReadOrientationBias::None => '.',
+                            ReadOrientationBias::F1R2 => '>',
+                            ReadOrientationBias::F2R1 => '<',
+                        });
 
                     allelefreq_estimates
                         .entry(i)
@@ -168,17 +178,24 @@ impl Call {
                                     obs.bayes_factor_alt().evidence_kass_raftery(),
                                 );
                                 format!(
-                                    "{}{}",
+                                    "{}{}{}{}",
                                     if obs.prob_mapping < LogProb(0.95_f64.ln()) {
                                         score.to_ascii_lowercase()
                                     } else {
                                         score.to_ascii_uppercase()
                                     },
+                                    if obs.is_paired() { 'p' } else { 's' },
                                     match obs.strand {
                                         Strand::Both => '*',
                                         Strand::Reverse => '-',
                                         Strand::Forward => '+',
                                         _ => panic!("bug: unknown strandedness"),
+                                    },
+                                    match obs.read_orientation {
+                                        ReadOrientation::F1R2 => '>',
+                                        ReadOrientation::F2R1 => '<',
+                                        ReadOrientation::None => '*',
+                                        _ => '!',
                                     }
                                 )
                             }),
@@ -259,6 +276,13 @@ impl Call {
                 .collect_vec();
 
             record.push_format_string(b"SB", &sb)?;
+
+            let rob = read_orientation_bias
+                .values()
+                .map(|rob| join(rob.iter(), ",").into_bytes())
+                .collect_vec();
+
+            record.push_format_string(b"ROB", &rob)?;
 
             bcf_writer.write(&record)?;
         }

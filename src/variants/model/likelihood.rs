@@ -233,17 +233,14 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 mod tests {
     use super::*;
     use crate::variants::model::bias::strand_bias::StrandBias;
-    use crate::variants::model::bias::{Biases, BiasesBuilder};
+    use crate::variants::model::bias::Biases;
     use crate::variants::model::likelihood;
     use crate::variants::model::tests::observation;
     use bio::stats::LogProb;
     use itertools_num::linspace;
 
     fn biases() -> Biases {
-        let mut biases = BiasesBuilder::default()
-            .strand_bias(StrandBias::None)
-            .build()
-            .unwrap();
+        let mut biases = Biases::none();
         // ignore prob_any
         biases.prob_any = LogProb::ln_one();
         biases

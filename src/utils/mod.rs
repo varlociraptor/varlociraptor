@@ -31,7 +31,8 @@ pub(crate) use worker_pool::worker_pool;
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
 lazy_static! {
-    pub(crate) static ref PROB05: LogProb = LogProb::from(Prob(0.5f64));
+    pub(crate) static ref PROB_HALF: LogProb = LogProb::from(Prob(0.5f64));
+    pub(crate) static ref PROB_ONE_THIRD: LogProb = LogProb::from(Prob(1.0 / 3.0));
 }
 
 pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {

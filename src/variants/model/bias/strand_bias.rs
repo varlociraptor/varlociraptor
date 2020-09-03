@@ -1,10 +1,10 @@
 use bio::stats::probs::LogProb;
 
-use crate::utils::PROB05;
+use crate::utils::PROB_HALF;
 use crate::variants::evidence::observation::{Observation, Strand};
 use crate::variants::model::bias::Bias;
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord)]
+#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter)]
 pub(crate) enum StrandBias {
     None,
     Forward,
@@ -27,13 +27,13 @@ impl Bias for StrandBias {
             (StrandBias::Forward, Strand::Both) => LogProb::ln_zero(),
             (StrandBias::Reverse, Strand::Both) => LogProb::ln_zero(),
             (StrandBias::None, Strand::Both) => observation.prob_double_overlap,
-            (StrandBias::None, _) => *PROB05 + observation.prob_single_overlap,
+            (StrandBias::None, _) => *PROB_HALF + observation.prob_single_overlap,
             (_, Strand::None) => unreachable!(),
         }
     }
 
     fn prob_any(&self) -> LogProb {
-        *PROB05
+        *PROB_HALF
     }
 
     fn is_artifact(&self) -> bool {
