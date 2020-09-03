@@ -60,13 +60,19 @@ jobs:
         run: |
             sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools coinor-cbc
 
-      - name: Run cargo-tarpaulin
-        uses: actions-rs/tarpaulin@v0.1
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
         with:
-          args: '--features gslv2 -- --test-threads 1'
+          command: test
 
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v1.0.2
-        with:
-          token: ${{secrets.CODECOV_TOKEN}}
+#      - name: Run cargo-tarpaulin
+#        uses: actions-rs/tarpaulin@v0.1
+#        with:
+#          args: '--features gslv2 -- --test-threads 1'
+
+#      - name: Upload to codecov.io
+#        if: ${{ success() }}
+#        uses: codecov/codecov-action@v1.0.2
+#        with:
+#          token: ${{secrets.CODECOV_TOKEN}}
 

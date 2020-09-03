@@ -21,8 +21,6 @@ extern crate pest_derive;
 #[macro_use]
 extern crate getset;
 #[macro_use]
-extern crate snafu;
-#[macro_use]
 extern crate strum_macros;
 #[macro_use]
 extern crate derive_builder;

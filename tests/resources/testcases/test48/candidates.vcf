@@ -41,5 +41,4 @@
 ##bcftools_viewVersion=1.3.1+htslib-1.3.1
 ##bcftools_viewCommand=view external-fixed/simulated-pindel.bcf chr1:887344
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT
-chr1	1001	bnd1	T	TAAAAC[chr1:1002[	.	PASS	SVTYPE=BND;MATEID=bnd2;EVENT=ins1	GT:AD
-chr1	1002	bnd2	G	]chr1:1001]AAAACG	.	PASS	SVTYPE=BND;MATEID=bnd2;EVENT=ins1	GT:AD
+chr1	1001	.	TG	TAAAACG	.	PASS		GT:AD

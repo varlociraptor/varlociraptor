@@ -6,6 +6,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
+use std::ops::Deref;
 use std::str;
 
 use anyhow::Result;
@@ -16,12 +17,17 @@ use itertools::join;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
-use rust_htslib::{bam, bcf, bcf::record::Numeric};
+use rust_htslib::bcf::record::Numeric;
+use rust_htslib::{bam, bcf};
 
-use crate::errors;
-use crate::utils;
 use crate::variants::model;
 use crate::Event;
+
+pub(crate) mod collect_variants;
+pub(crate) mod worker_pool;
+
+pub(crate) use collect_variants::collect_variants;
+pub(crate) use worker_pool::worker_pool;
 
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
@@ -52,6 +58,7 @@ pub(crate) fn info_tag_event(record: &mut bcf::Record) -> Result<Option<&[u8]>> 
 }
 
 pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+    // TODO support multiple mateids (in case of uncertainty, see spec)
     Ok(record.info(b"MATEID").string()?.map(|v| v[0]))
 }
 
@@ -105,183 +112,6 @@ pub(crate) fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
         KassRaftery::Strong => 'S',
         KassRaftery::VeryStrong => 'V',
     }
-}
-
-/// Collect variants from a given ´bcf::Record`.
-pub(crate) fn collect_variants(record: &mut bcf::Record) -> Result<Vec<model::Variant>> {
-    let pos = record.pos() as u64;
-    let svlens = match record.info(b"SVLEN").integer() {
-        Ok(Some(svlens)) => Some(
-            svlens
-                .iter()
-                .map(|l| {
-                    if !l.is_missing() {
-                        Some(l.abs() as u64)
-                    } else {
-                        None
-                    }
-                })
-                .collect_vec(),
-        ),
-        _ => None,
-    };
-    let end = match record.info(b"END").integer() {
-        Ok(Some(end)) => {
-            let end = end[0] as u64 - 1;
-            Some(end)
-        }
-        _ => None,
-    };
-    // TODO avoid cloning svtype
-    let svtype = match record.info(b"SVTYPE").string() {
-        Ok(Some(svtype)) => Some(svtype[0].to_owned()),
-        _ => None,
-    };
-
-    let event = match record.info(b"EVENT").string() {
-        Ok(Some(event)) => Some(event[0].to_owned()),
-        _ => None,
-    };
-
-    let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
-        alt_allele == b"<INS>"
-            || (ref_allele.len() < alt_allele.len()
-                && ref_allele == &alt_allele[..ref_allele.len()])
-    };
-
-    let is_valid_deletion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
-        alt_allele == b"<DEL>"
-            || (ref_allele.len() > alt_allele.len()
-                && &ref_allele[..alt_allele.len()] == alt_allele)
-    };
-
-    let mut variants = Vec::new();
-
-    if let Some(svtype) = svtype {
-        if svtype == b"INV" {
-            let alleles = record.alleles();
-            if alleles.len() != 2 {
-                info!("Skipping inversion with invalid number of ALT alleles (must be 1)");
-            } else if let Some(end) = end {
-                let len = end - (pos + 1); // pos is pointing to the allele before the INV
-                variants.push(model::Variant::Inversion(len));
-            } else {
-                info!("Skipping inversion without END tag.");
-            }
-        } else if svtype == b"DUP" {
-            let alleles = record.alleles();
-            if alleles.len() != 2 {
-                info!("Skipping duplication with invalid number of ALT alleles (must be 1)");
-            } else if let Some(end) = end {
-                let len = end - (pos + 1); // pos is pointing to the allele before the INV
-                variants.push(model::Variant::Duplication(len));
-            } else {
-                info!("Skipping duplication without END tag.");
-            }
-        } else if svtype == b"BND" {
-            let alleles = record.alleles();
-            if let Some(ref event) = event {
-                for spec in &alleles[1..] {
-                    variants.push(model::Variant::Breakend {
-                        event: event.clone(),
-                        ref_allele: alleles[0].to_owned(),
-                        spec: spec.to_vec(),
-                    })
-                }
-            } else {
-                info!("Skipping breakend without EVENT definition.");
-            }
-        } else if svtype == b"INS" {
-            // get sequence
-            let alleles = record.alleles();
-            if alleles.len() > 2 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
-                }
-                .into());
-            }
-            let ref_allele = alleles[0];
-            let alt_allele = alleles[1];
-
-            if alt_allele != b"<INS>" {
-                // don't support insertions without exact sequence
-                if is_valid_insertion_alleles(ref_allele, alt_allele) {
-                    variants.push(model::Variant::Insertion(
-                        alt_allele[ref_allele.len()..].to_owned(),
-                    ));
-                }
-            }
-        } else if svtype == b"DEL" {
-            let svlen = match (svlens, end) {
-                (Some(ref svlens), _) if svlens[0].is_some() => svlens[0].unwrap(),
-                (None, Some(end)) => end - (pos + 1), // pos is pointing to the allele before the DEL
-                _ => {
-                    return Err(errors::Error::MissingBCFTag {
-                        name: "SVLEN or END".to_owned(),
-                    }
-                    .into());
-                }
-            };
-            if svlen == 0 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "Absolute value of SVLEN or END - POS must be greater than zero."
-                        .to_owned(),
-                }
-                .into());
-            }
-            let alleles = record.alleles();
-            if alleles.len() > 2 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
-                }
-                .into());
-            }
-            let ref_allele = alleles[0];
-            let alt_allele = alleles[1];
-
-            if alt_allele == b"<DEL>" || is_valid_deletion_alleles(ref_allele, alt_allele) {
-                variants.push(model::Variant::Deletion(svlen));
-            }
-        }
-    } else {
-        let alleles = record.alleles();
-        let ref_allele = alleles[0];
-
-        for (i, alt_allele) in alleles.iter().skip(1).enumerate() {
-            if alt_allele == b"<*>" {
-                // dummy non-ref allele, signifying potential homozygous reference site
-                variants.push(model::Variant::None);
-            } else if alt_allele == b"<DEL>" {
-                if let Some(ref svlens) = svlens {
-                    if let Some(svlen) = svlens[i] {
-                        variants.push(model::Variant::Deletion(svlen));
-                    }
-                    // TODO fail with an error in else case
-                }
-            } else if alt_allele[0] == b'<' {
-                // skip any other special alleles
-            } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
-                // SNV
-                variants.push(model::Variant::SNV(alt_allele[0]));
-            } else if alt_allele.len() == ref_allele.len() {
-                // MNV
-                variants.push(model::Variant::MNV(alt_allele.to_vec()));
-            } else {
-                // TODO fix position if variant is like this: cttt -> ct
-                if is_valid_deletion_alleles(ref_allele, alt_allele) {
-                    variants.push(model::Variant::Deletion(
-                        (ref_allele.len() - alt_allele.len()) as u64,
-                    ));
-                } else if is_valid_insertion_alleles(ref_allele, alt_allele) {
-                    variants.push(model::Variant::Insertion(
-                        alt_allele[ref_allele.len()..].to_owned(),
-                    ));
-                }
-            }
-        }
-    }
-
-    Ok(variants)
 }
 
 /// Get a log probability from a PHRED encoded BCF INFO field. Tests for a valid `LogProb`.
@@ -340,7 +170,8 @@ pub(crate) fn tags_prob_sum(
     tags: &[String],
     vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>> {
-    let variants = utils::collect_variants(record)?;
+    let mut skips = SimpleCounter::default();
+    let variants = collect_variants(record, false, &mut skips)?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
     for tag in tags {
@@ -408,7 +239,7 @@ where
             }
         }
 
-        for p in utils::tags_prob_sum(&mut record, &tags, Some(&vartype))? {
+        for p in tags_prob_sum(&mut record, &tags, Some(&vartype))? {
             if let Some(p) = p {
                 prob_dist.push(NotNan::new(*p)?);
             }
@@ -453,7 +284,7 @@ pub(crate) fn filter_by_threshold<E: Event>(
             None
         };
 
-        let probs = utils::tags_prob_sum(record, &tags, Some(vartype))?;
+        let probs = tags_prob_sum(record, &tags, Some(vartype))?;
 
         assert!(
             bnd_event.is_none() || probs.len() == 1,
@@ -740,5 +571,48 @@ mod tests {
 
         panic!("Just checking");
         */
+    }
+}
+
+#[derive(CopyGetters)]
+pub(crate) struct SimpleCounter<T>
+where
+    T: Eq + Hash,
+{
+    inner: HashMap<T, usize>,
+    #[getset(get_copy = "pub(crate)")]
+    total_count: usize,
+}
+
+impl<T> SimpleCounter<T>
+where
+    T: Eq + Hash,
+{
+    pub(crate) fn incr(&mut self, event: T) {
+        self.total_count += 1;
+        *self.inner.entry(event).or_insert(0) += 1;
+    }
+}
+
+impl<T> Default for SimpleCounter<T>
+where
+    T: Eq + Hash,
+{
+    fn default() -> Self {
+        SimpleCounter {
+            inner: HashMap::new(),
+            total_count: 0,
+        }
+    }
+}
+
+impl<T> Deref for SimpleCounter<T>
+where
+    T: Eq + Hash,
+{
+    type Target = HashMap<T, usize>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }

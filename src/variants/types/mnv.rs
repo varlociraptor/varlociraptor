@@ -26,7 +26,7 @@ impl MNV {
         alt_bases: Vec<u8>,
     ) -> Self {
         MNV {
-            locus: SingleLocus(genome::Interval::new(
+            locus: SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + alt_bases.len() as u64,
             )),

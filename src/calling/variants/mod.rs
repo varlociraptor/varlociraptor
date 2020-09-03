@@ -27,7 +27,8 @@ use crate::variants::model::{AlleleFreq, StrandBias};
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
 
-#[derive(Default, Clone, Debug, Builder)]
+#[derive(Default, Clone, Debug, Builder, Getters)]
+#[getset(get = "pub(crate)")]
 pub(crate) struct Call {
     chrom: Vec<u8>,
     pos: u64,
@@ -37,6 +38,12 @@ pub(crate) struct Call {
     mateid: Option<Vec<u8>>,
     #[builder(default = "Vec::new()")]
     variants: Vec<Variant>,
+}
+
+impl CallBuilder {
+    pub(crate) fn record(&mut self, record: &mut bcf::Record) -> Result<&mut Self> {
+        Ok(self.mateid(utils::info_tag_mateid(record)?.map(|e| e.to_vec())))
+    }
 }
 
 impl Call {
@@ -259,7 +266,7 @@ impl Call {
     }
 }
 
-#[derive(Default, Clone, Debug, Builder)]
+#[derive(Default, Clone, Debug, Builder, Getters)]
 pub(crate) struct Variant {
     #[builder(private)]
     ref_allele: Vec<u8>,
@@ -274,10 +281,12 @@ pub(crate) struct Variant {
     #[builder(private, default = "None")]
     end: Option<u64>,
     #[builder(private, default = "None")]
+    #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
     observations: Option<Vec<Observation>>,
     #[builder(default = "None")]
+    #[getset(get = "pub(crate)")]
     sample_info: Option<Vec<SampleInfo>>,
 }
 
@@ -352,6 +361,12 @@ impl VariantBuilder {
                 .alt_allele(b"<DUP>".to_vec())
                 .svtype(Some(b"DUP".to_vec()))
                 .end(Some(start as u64 + len)), // end tag is inclusive but one-based (hence - 1 + 1)
+            model::Variant::Replacement {
+                ref ref_allele,
+                ref alt_allele,
+            } => self
+                .ref_allele(ref_allele.to_owned())
+                .alt_allele(alt_allele.to_owned()),
             model::Variant::None => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(b"<REF>".to_ascii_uppercase()),

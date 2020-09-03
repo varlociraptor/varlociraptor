@@ -53,14 +53,14 @@ impl<'a> Realignable<'a> for Insertion {
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<InsertionEmissionParams<'a>> {
+    ) -> Result<Vec<InsertionEmissionParams<'a>>> {
         let l = self.ins_seq.len() as usize;
         let start = self.locus().range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus().contig())?;
 
         let ref_seq_len = ref_seq.len();
-        Ok(InsertionEmissionParams {
+        Ok(vec![InsertionEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + l + ref_window, ref_seq_len),
@@ -69,11 +69,20 @@ impl<'a> Realignable<'a> for Insertion {
             ins_end: start + l,
             ins_seq: Rc::clone(&self.ins_seq),
             read_emission: read_emission_params,
-        })
+        }])
     }
 }
 
 impl SamplingBias for Insertion {
+    fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
+        if let Some(len) = self.enclosable_len() {
+            if len < (alignment_properties.max_ins_cigar_len as u64) {
+                return read_len;
+            }
+        }
+        (read_len as f64 * alignment_properties.frac_max_softclip) as u64
+    }
+
     fn enclosable_len(&self) -> Option<u64> {
         Some(self.ins_seq.len() as u64)
     }
@@ -160,7 +169,6 @@ impl Variant for Insertion {
 }
 
 /// Emission parameters for PairHMM over insertion allele.
-#[derive(Debug)]
 pub(crate) struct InsertionEmissionParams<'a> {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
