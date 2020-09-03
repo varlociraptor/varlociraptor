@@ -4,9 +4,9 @@
 // except according to those terms.
 
 use std::collections::{BTreeMap, HashMap};
+use std::fs::create_dir_all;
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
-use std::fs::create_dir_all;
 
 use anyhow::Result;
 use bio::io::bed;
@@ -35,7 +35,7 @@ pub(crate) struct Caller<'a> {
     alpha: Prob,
     control_local_fdr: bool,
     filter_bayes_factor_minimum_barely: bool,
-    problems_folder: Option<PathBuf>
+    problems_folder: Option<PathBuf>,
 }
 
 impl CallerBuilder<'_> {
@@ -70,18 +70,16 @@ impl Caller<'_> {
     pub(crate) fn call(&mut self) -> Result<()> {
         let mut bed_writer = bed::Writer::to_file(self.bed_path)?;
         let write_problems = match &self.problems_folder {
-            Some(output_path) => {
-                match create_dir_all(output_path) {
-                    Ok(()) => true,
-                    Err(err) => {
-                        eprintln!("Could not create the directory specified via the --problems_folder. \
+            Some(output_path) => match create_dir_all(output_path) {
+                Ok(()) => true,
+                Err(err) => {
+                    eprintln!("Could not create the directory specified via the --problems_folder. \
                                     Will not output the per contig linear programming problem formulations. \
                                     Error is: '{}'", err);
-                        false
-                    }
+                    false
                 }
             },
-            None => false
+            None => false,
         };
         let contig_ids: Vec<u32> = self.contig_lens.keys().cloned().collect();
         let mut bed_record = bed::Record::new();
@@ -92,7 +90,8 @@ impl Caller<'_> {
             // Problem Data
             let contig: ContigLogPosteriorsLOH;
             if let Some(contig_length) = self.contig_lens.get(&contig_id) {
-                contig = ContigLogPosteriorsLOH::new(&mut self.bcf_reader, &contig_id, contig_length)?;
+                contig =
+                    ContigLogPosteriorsLOH::new(&mut self.bcf_reader, &contig_id, contig_length)?;
             } else {
                 panic!(
                     "This should not have happened: cannot find contig_id '{}'.",
@@ -102,7 +101,11 @@ impl Caller<'_> {
             if contig.positions.is_empty() {
                 continue;
             }
-            let intervals = contig.create_all_intervals(self.alpha, &self.control_local_fdr, &self.filter_bayes_factor_minimum_barely)?;
+            let intervals = contig.create_all_intervals(
+                self.alpha,
+                &self.control_local_fdr,
+                &self.filter_bayes_factor_minimum_barely,
+            )?;
             let mut intervals_overlap_or_adjacent: HashMap<
                 (&RangeInclusive<usize>, &RangeInclusive<usize>),
                 bool,
@@ -138,7 +141,7 @@ impl Caller<'_> {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
-                        let interval_length = (interval.end() - interval.start() + 1 ) as f32;
+                        let interval_length = (interval.end() - interval.start() + 1) as f32;
                         interval_length * loh_indicator
                     })
                     .collect()
@@ -187,9 +190,17 @@ impl Caller<'_> {
             };
             problem += selected_probs_vec.sum().le(0);
 
-
             if write_problems {
-                problem.write_lp(&*format!("{}/{}.problem.lp", self.problems_folder.as_ref().unwrap().as_os_str().to_str().unwrap(), contig_name))?;
+                problem.write_lp(&*format!(
+                    "{}/{}.problem.lp",
+                    self.problems_folder
+                        .as_ref()
+                        .unwrap()
+                        .as_os_str()
+                        .to_str()
+                        .unwrap(),
+                    contig_name
+                ))?;
             }
 
             // Specify solver
@@ -244,15 +255,14 @@ fn site_posterior_loh_or_hom(
     record: &mut bcf::Record,
     loh_field_name: &String,
     no_loh_field_name: &String,
-    hom_field_name: &String
+    hom_field_name: &String,
 ) -> LogProb {
     let site_likelihood_loh = info_phred_to_log_prob(record, loh_field_name);
     let site_likelihood_no_loh = info_phred_to_log_prob(record, no_loh_field_name);
     let site_likelihood_hom = info_phred_to_log_prob(record, hom_field_name);
     let site_likelihood_loh_or_hom = site_likelihood_loh.ln_add_exp(site_likelihood_hom);
-    site_likelihood_loh_or_hom - ( site_likelihood_loh_or_hom.ln_add_exp(site_likelihood_no_loh) )
+    site_likelihood_loh_or_hom - (site_likelihood_loh_or_hom.ln_add_exp(site_likelihood_no_loh))
 }
-
 
 impl ContigLogPosteriorsLOH {
     pub(crate) fn new(
@@ -266,26 +276,25 @@ impl ContigLogPosteriorsLOH {
         bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
         if bcf_reader.read(&mut record)? {
-            cum_loh_posteriors.push(
-                site_posterior_loh_or_hom(
-                    &mut record,
-                    &String::from("PROB_LOH"),
-                    &String::from("PROB_NO_LOH"),
-                    &String::from("PROB_UNINTERESTING")
-                )
-            );
+            cum_loh_posteriors.push(site_posterior_loh_or_hom(
+                &mut record,
+                &String::from("PROB_LOH"),
+                &String::from("PROB_NO_LOH"),
+                &String::from("PROB_UNINTERESTING"),
+            ));
             positions.push(record.pos() as u64);
-        } else {}
+        } else {
+        }
         // cumulatively add the following LOH probabilities
         while bcf_reader.read(&mut record)? {
             cum_loh_posteriors.push(
-                cum_loh_posteriors.last().unwrap() +
-                site_posterior_loh_or_hom(
-                    &mut record,
-                    &String::from("PROB_LOH"),
-                    &String::from("PROB_NO_LOH"),
-                    &String::from("PROB_UNINTERESTING")
-                )
+                cum_loh_posteriors.last().unwrap()
+                    + site_posterior_loh_or_hom(
+                        &mut record,
+                        &String::from("PROB_LOH"),
+                        &String::from("PROB_NO_LOH"),
+                        &String::from("PROB_UNINTERESTING"),
+                    ),
             );
             positions.push(record.pos() as u64);
         }
@@ -301,15 +310,13 @@ impl ContigLogPosteriorsLOH {
         &self,
         alpha: Prob,
         control_local_fdr: &bool,
-        filter_bayes_factor_minimum_barely: &bool
+        filter_bayes_factor_minimum_barely: &bool,
     ) -> Result<HashMap<RangeInclusive<usize>, LogProb>> {
         let log_one_minus_alpha = LogProb::from(alpha).ln_one_minus_exp();
         let mut intervals = HashMap::new();
         for start in 0..self.cum_loh_posteriors.len() {
             for end in start..self.cum_loh_posteriors.len() {
-                if start > 0 {
-
-                }
+                if start > 0 {}
                 let posterior_probability = if start > 0 {
                     self.cum_loh_posteriors[end] - self.cum_loh_posteriors[start - 1]
                 } else {
@@ -322,8 +329,11 @@ impl ContigLogPosteriorsLOH {
                 if *filter_bayes_factor_minimum_barely
                     && BayesFactor::new(
                         posterior_probability,
-                        posterior_probability.ln_one_minus_exp()
-                ).evidence_kass_raftery() == evidence::KassRaftery::None {
+                        posterior_probability.ln_one_minus_exp(),
+                    )
+                    .evidence_kass_raftery()
+                        == evidence::KassRaftery::None
+                {
                     continue;
                 }
                 intervals.insert(start..=end, posterior_probability);
@@ -348,10 +358,13 @@ mod tests {
             .bcf(&test_input)
             .unwrap()
             .bed_path(&test_output)
-            .add_and_check_alpha(alpha).unwrap()
+            .add_and_check_alpha(alpha)
+            .unwrap()
             .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
-            .problems_folder(Some(PathBuf::from("tests/resources/test_loh/test_loh_caller")))
+            .problems_folder(Some(PathBuf::from(
+                "tests/resources/test_loh/test_loh_caller",
+            )))
             .build()
             .unwrap();
 
@@ -366,13 +379,15 @@ mod tests {
             PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_loh.bcf");
         let test_output =
             PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_loh.out.bed");
-        let expected_bed: Vec<u8> = Vec::from("chr8\t7999999\t8002000\t\t0.0000006369920776719376\n");
+        let expected_bed: Vec<u8> =
+            Vec::from("chr8\t7999999\t8002000\t\t0.0000006369920776719376\n");
         let alpha = 0.01;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
             .unwrap()
             .bed_path(&test_output)
-            .add_and_check_alpha(alpha).unwrap()
+            .add_and_check_alpha(alpha)
+            .unwrap()
             .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
@@ -390,13 +405,15 @@ mod tests {
             PathBuf::from("tests/resources/test_loh/slightly_loh_artifact_between_loh.bcf");
         let test_output =
             PathBuf::from("tests/resources/test_loh/slightly_loh_artifact_between_loh.out.bed");
-        let expected_bed: Vec<u8> = Vec::from("chr8\t7999999\t8002000\t\t0.0000013527459286120604\n");
+        let expected_bed: Vec<u8> =
+            Vec::from("chr8\t7999999\t8002000\t\t0.0000013527459286120604\n");
         let alpha = 0.01;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
             .unwrap()
             .bed_path(&test_output)
-            .add_and_check_alpha(alpha).unwrap()
+            .add_and_check_alpha(alpha)
+            .unwrap()
             .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
@@ -485,9 +502,9 @@ mod tests {
             PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.bcf");
         let test_output =
             PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.out.bed");
-        let expected_bed : Vec<u8> = Vec::from(
+        let expected_bed: Vec<u8> = Vec::from(
             "chr8\t7999999\t8000000\t\t0.000000000023626283759240104\n\
-            chr8\t8001999\t8002000\t\t0.0000006369496848258405\n"
+            chr8\t8001999\t8002000\t\t0.0000006369496848258405\n",
         );
         let alpha = 0.05;
         let mut caller = CallerBuilder::default()
@@ -539,7 +556,8 @@ mod tests {
         let contig_id = loh_calls.header().name2rid(b"chr8").unwrap();
         let contig_length = 145138636;
         let alpha = Prob(0.01);
-        let loh_log_posteriors = ContigLogPosteriorsLOH::new(&mut loh_calls, &contig_id, &contig_length).unwrap();
+        let loh_log_posteriors =
+            ContigLogPosteriorsLOH::new(&mut loh_calls, &contig_id, &contig_length).unwrap();
 
         assert_eq!(loh_log_posteriors.contig_length, 145138636);
         assert_eq!(loh_log_posteriors.contig_id, 0);
@@ -555,7 +573,9 @@ mod tests {
             LogProb(-15.735129302014165)
         );
 
-        let intervals = loh_log_posteriors.create_all_intervals(alpha, &false, &false).unwrap();
+        let intervals = loh_log_posteriors
+            .create_all_intervals(alpha, &false, &false)
+            .unwrap();
         println!("intervals: {:?}", intervals);
         assert_eq!(
             intervals.get(&(1..=1)).unwrap(),
@@ -570,14 +590,18 @@ mod tests {
             &LogProb(-0.0000001466630849268762)
         );
 
-        let intervals_filter_bayes_factor = loh_log_posteriors.create_all_intervals(alpha, &false, &true).unwrap();
+        let intervals_filter_bayes_factor = loh_log_posteriors
+            .create_all_intervals(alpha, &false, &true)
+            .unwrap();
         let bayes_filtered = intervals_filter_bayes_factor.get(&(1..=1));
         println!("bayes_filtered: {:?}", bayes_filtered);
-        assert!( bayes_filtered.is_none() );
+        assert!(bayes_filtered.is_none());
 
-        let intervals_control_local_fdr = loh_log_posteriors.create_all_intervals(alpha, &true, &false).unwrap();
+        let intervals_control_local_fdr = loh_log_posteriors
+            .create_all_intervals(alpha, &true, &false)
+            .unwrap();
         let local_fdr_filtered = intervals_control_local_fdr.get(&(1..=1));
         println!("local_fdr_filtered: {:?}", local_fdr_filtered);
-        assert!( local_fdr_filtered.is_none() );
+        assert!(local_fdr_filtered.is_none());
     }
 }

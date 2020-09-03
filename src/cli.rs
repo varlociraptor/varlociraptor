@@ -350,9 +350,9 @@ pub enum CallKind {
         )]
         filter_bayes_factor_minimum_barely: bool,
         #[structopt(
-        parse(from_os_str),
-        long,
-        help = "Folder to output linear programming problem formulations. One file per input \
+            parse(from_os_str),
+            long,
+            help = "Folder to output linear programming problem formulations. One file per input \
                     contig will be produced, as each contig is handled separately."
         )]
         problems_folder: Option<PathBuf>,
@@ -805,7 +805,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     alpha,
                     control_local_fdr,
                     filter_bayes_factor_minimum_barely,
-                    problems_folder
+                    problems_folder,
                 } => {
                     let mut caller = calling::loh::CallerBuilder::default()
                         .bcf(&calls)?

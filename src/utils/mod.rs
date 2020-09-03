@@ -16,8 +16,8 @@ use half::f16;
 use itertools::join;
 use itertools::Itertools;
 use ordered_float::NotNan;
-use rust_htslib::bcf::Read;
 use rust_htslib::bcf::record::Numeric;
+use rust_htslib::bcf::Read;
 use rust_htslib::{bam, bcf};
 
 use crate::variants::model;
