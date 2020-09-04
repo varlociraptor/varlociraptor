@@ -239,24 +239,32 @@ where
                     let mut read_orientation_bias_model = self.model();
                     let mut events = Vec::new();
                     let mut last_rid = None;
+                    let mut last_read_orientation_bias_rid = None;
                     for mut work_item in receiver {
                         let contig = str::from_utf8(work_item.call.chrom()).unwrap();
-                        let model = if work_item.check_read_orientation_bias {
-                            &mut read_orientation_bias_model
+                        let _model;
+                        let _last_rid;
+
+                        if work_item.check_read_orientation_bias {
+                            _model = &mut read_orientation_bias_model;
+                            _last_rid = last_read_orientation_bias_rid;
+                            last_read_orientation_bias_rid = Some(work_item.rid);
                         } else {
-                            &mut model
-                        };
+                            _model = &mut model;
+                            _last_rid = last_rid;
+                            last_rid = Some(work_item.rid);
+                        }
+
                         self.configure_model(
                             work_item.rid,
-                            last_rid,
-                            model,
+                            _last_rid,
+                            _model,
                             &mut events,
                             contig,
                             work_item.check_read_orientation_bias,
                         )?;
-                        last_rid = Some(work_item.rid);
 
-                        self.call_record(&mut work_item, &model, &events);
+                        self.call_record(&mut work_item, _model, &events);
                         sender.send(work_item).unwrap();
                     }
                     Ok(())
