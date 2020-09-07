@@ -179,7 +179,7 @@ impl Call {
                                 );
                                 format!(
                                     "{}{}{}{}",
-                                    if obs.prob_mapping < LogProb(0.95_f64.ln()) {
+                                    if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
                                         score.to_ascii_lowercase()
                                     } else {
                                         score.to_ascii_uppercase()

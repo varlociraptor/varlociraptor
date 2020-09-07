@@ -1,0 +1,31 @@
+# a false positive from syndip benchmark. Likely an artifact caused by homology.
+
+expected:
+  allelefreqs:
+    - chm == 0.0
+  posteriors:
+    - PROB_PRESENT > 2.0
+
+# necessary bam files
+samples:
+  chm:
+    path: 'chm.bam'
+    properties: '{"insert_size":{"mean":348.0445049954587,"sd":79.35613247296988},"max_del_cigar_len":21,"max_ins_cigar_len":16,"frac_max_softclip":0.8741721854304636,"max_read_len":151}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.fasta","candidates":"results/candidate-calls/chm.freebayes.bcf","bam":"results/recal/chm.sorted.bam","threads":72,"reference_buffer_size":10,"alignment_properties":null,"output":"results/observations/chm/chm.freebayes.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'

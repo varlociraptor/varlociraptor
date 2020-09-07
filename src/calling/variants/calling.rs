@@ -383,7 +383,11 @@ where
         let mut paired_end = false;
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
-            let pileup = read_observations(record)?;
+            let mut pileup = read_observations(record)?;
+            if is_snv_or_mnv {
+                Observation::adjust_prob_mapping(&mut pileup);
+            }
+
             paired_end |= pileup.iter().any(|obs| obs.is_paired());
             pileups.push(pileup);
         }

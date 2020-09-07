@@ -101,9 +101,9 @@ impl ContaminatedSampleLikelihoodModel {
         // in the mismapping case. Otherwise, it can happen that mismapping dominates subtle
         // differences in the likelihood for alt and ref allele with low probabilities and very
         // low allele frequencies, such that we loose sensitivity for those.
-        let total = (observation.prob_mapping + prob_secondary.ln_add_exp(prob_primary))
+        let total = (observation.prob_mapping() + prob_secondary.ln_add_exp(prob_primary))
             .ln_add_exp(
-                observation.prob_mismapping
+                observation.prob_mismapping()
                     + observation.prob_missed_allele
                     + biases_primary.prob_any(),
             );
@@ -173,8 +173,8 @@ impl SampleLikelihoodModel {
         // in the mismapping case. Otherwise, it can happen that mismapping dominates subtle
         // differences in the likelihood for alt and ref allele with low probabilities and very
         // low allele frequencies, such that we loose sensitivity for those.
-        let total = (observation.prob_mapping + prob).ln_add_exp(
-            observation.prob_mismapping + observation.prob_missed_allele + biases.prob_any(),
+        let total = (observation.prob_mapping() + prob).ln_add_exp(
+            observation.prob_mismapping() + observation.prob_missed_allele + biases.prob_any(),
         );
         assert!(!total.is_nan());
         total
