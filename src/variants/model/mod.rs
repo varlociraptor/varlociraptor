@@ -264,6 +264,7 @@ mod tests {
             .prob_overlap(LogProb::ln_one())
             .read_orientation(ReadOrientation::None)
             .strand(Strand::Both)
+            .softclipped(false)
             .build()
             .unwrap()
     }

@@ -130,9 +130,10 @@ impl ObservationProcessor {
             "PROB_DOUBLE_OVERLAP",
             "STRAND",
             "READ_ORIENTATION",
+            "SOFTCLIPPED",
         ] {
             header.push_record(
-                format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant internal use only).\"", name).as_bytes()
+                format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\"", name).as_bytes()
             );
         }
 
@@ -485,7 +486,7 @@ impl ObservationProcessor {
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "4";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "5";
 
 /// Read observations from BCF record.
 pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observation>> {
@@ -523,6 +524,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
     let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP")?;
     let strand: Vec<Strand> = read_values(record, b"STRAND")?;
     let read_orientation: Vec<ReadOrientation> = read_values(record, b"READ_ORIENTATION")?;
+    let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED")?;
 
     let obs = (0..prob_mapping.len())
         .map(|i| {
@@ -535,6 +537,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
                 .prob_overlap(prob_double_overlap[i].to_logprob())
                 .strand(strand[i])
                 .read_orientation(read_orientation[i])
+                .softclipped(softclipped[i as u64])
                 .build()
                 .unwrap()
         })
@@ -556,8 +559,7 @@ pub(crate) fn write_observations(
     let mut prob_double_overlap = vec();
     let mut strand = Vec::with_capacity(observations.len());
     let mut read_orientation = Vec::with_capacity(observations.len());
-    let mut forward_strand: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
-    let mut reverse_strand: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
+    let mut softclipped: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
 
     for obs in observations {
@@ -569,6 +571,7 @@ pub(crate) fn write_observations(
         prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));
         strand.push(obs.strand);
         read_orientation.push(obs.read_orientation);
+        softclipped.push(obs.softclipped);
     }
 
     fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
@@ -603,6 +606,7 @@ pub(crate) fn write_observations(
     push_values(record, b"PROB_DOUBLE_OVERLAP", &prob_double_overlap)?;
     push_values(record, b"STRAND", &strand)?;
     push_values(record, b"READ_ORIENTATION", &read_orientation)?;
+    push_values(record, b"SOFTCLIPPED", &softclipped)?;
 
     Ok(())
 }
@@ -616,6 +620,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PROB_DOUBLE_OVERLAP");
     header.remove_info(b"STRAND");
     header.remove_info(b"READ_ORIENTATION");
+    header.remove_info(b"SOFTCLIPPED");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

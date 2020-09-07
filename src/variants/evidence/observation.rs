@@ -130,6 +130,8 @@ pub(crate) struct Observation {
     pub(crate) strand: Strand,
     /// Read orientation support this observation relies on
     pub(crate) read_orientation: ReadOrientation,
+    /// True if obervation contains softclips
+    pub(crate) softclipped: bool,
 }
 
 impl ObservationBuilder {
@@ -173,7 +175,7 @@ impl Observation {
         // By taking the average MAPQ over the pileup, we make a conservative choice, justified by the fact
         // that MAPQ choice of the mapper is influenced by (a) the locus ambiguity and (b) stochastic noise 
         // driven by sequencing errors and variants at homologous loci. By averaging, we eliminate
-        // the stochastic noise. This assumptions are only valid for SNV and MNV loci.
+        // the stochastic noise. These assumptions are only valid for SNV and MNV loci.
         let adj_mapq = LogProb((LogProb::ln_sum_exp(&pileup.iter().map(|obs| obs.prob_mapping).collect::<Vec<_>>()).exp() / pileup.len() as f64).ln());
         for obs in pileup {
             if obs.prob_mapping > adj_mapq {
@@ -181,6 +183,14 @@ impl Observation {
                 obs.prob_mismapping_adj = Some(adj_mapq.ln_one_minus_exp());
             }
         }
+    }
+
+    /// Remove all non-standard alignments from pileup (softclipped observations, non-standard read orientations).
+    pub(crate) fn remove_nonstandard_alignments(pileup: Vec<Self>) -> Vec<Self> {
+        /// METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be 
+        /// solely driven by standard alignments, that are not clipped and in expected orientation.
+        /// Otherwise called SNVs can be artifacts of near SVs.
+        pileup.into_iter().filter(|obs| !obs.softclipped && !(obs.read_orientation == ReadOrientation::F1R2 || obs.read_orientation == ReadOrientation::F2R1 || obs.read_orientation == ReadOrientation::None)).collect()
     }
 }
 
@@ -235,6 +245,7 @@ where
                     .prob_overlap(LogProb::ln_zero()) // no double overlap possible (TODO: check this!)
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation())
+                    .softclipped(evidence.softclipped())
                     .build()
                     .unwrap();
                 Some(obs)
@@ -246,6 +257,8 @@ where
 
 pub(crate) trait Evidence {
     fn read_orientation(&self) -> ReadOrientation;
+
+    fn softclipped(&self) -> bool;
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -266,6 +279,11 @@ impl Evidence for SingleEndEvidence {
         // Single end evidence can just mean that we only need to consider each read alone,
         // although they are paired. Hence we can still check for read orientation.
         ReadOrientation::new(self.inner.as_ref())
+    }
+
+    fn softclipped(&self) -> bool {
+        let cigar = self.cigar_cached().unwrap();
+        cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
     }
 }
 
@@ -296,6 +314,21 @@ impl Evidence for PairedEndEvidence {
             PairedEndEvidence::SingleEnd(_) => ReadOrientation::None,
             PairedEndEvidence::PairedEnd { left, .. } => ReadOrientation::new(left.as_ref()),
         }
+    }
+
+    fn softclipped(&self) -> bool {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => {
+                let cigar = rec.cigar_cached().unwrap();
+                cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
+            },
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let cigar_left = left.cigar_cached().unwrap();
+                let cigar_right = right.cigar_cached().unwrap();
+                cigar_left.leading_softclips() > 0 || cigar_left.trailing_softclips() > 0 || cigar_right.leading_softclips() > 0 || cigar_right.trailing_softclips() > 0
+            },
+        }
+        
     }
 }
 

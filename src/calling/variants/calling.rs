@@ -385,7 +385,13 @@ where
         for record in records.iter_mut() {
             let mut pileup = read_observations(record)?;
             if is_snv_or_mnv {
+                // METHOD: adjust MAPQ to get rid of stochastically inflated ones
                 Observation::adjust_prob_mapping(&mut pileup);
+                // METHOD: remove non-standard alignments. They might come from near
+                // SVs and can induce artifactual SNVs or MNVs. By removing them,
+                // we just conservatively reduce the coverage to those which are 
+                // clearly not influenced by a close SV.
+                pileup = Observation::remove_nonstandard_alignments(pileup);
             }
 
             paired_end |= pileup.iter().any(|obs| obs.is_paired());
