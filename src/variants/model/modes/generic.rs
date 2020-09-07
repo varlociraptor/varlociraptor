@@ -9,7 +9,7 @@ use vec_map::VecMap;
 use crate::grammar;
 use crate::variants::model;
 use crate::variants::model::likelihood;
-use crate::variants::model::{AlleleFreq, Contamination, StrandBias};
+use crate::variants::model::{bias::Biases, AlleleFreq, Contamination};
 use crate::variants::sample::Pileup;
 
 #[derive(new, Clone, Debug)]
@@ -126,7 +126,7 @@ impl GenericPosterior {
         base_events: &mut VecMap<likelihood::Event>,
         sample_grid_points: &[usize],
         data: &<Self as Posterior>::Data,
-        strand_bias: StrandBias,
+        biases: &Biases,
         joint_prob: &mut F,
     ) -> LogProb {
         let mut subdensity = |base_events: &mut VecMap<likelihood::Event>| {
@@ -143,7 +143,7 @@ impl GenericPosterior {
                                 &mut base_events.clone(),
                                 sample_grid_points,
                                 data,
-                                strand_bias,
+                                biases,
                                 joint_prob,
                             )
                         })
@@ -155,7 +155,7 @@ impl GenericPosterior {
                     base_events,
                     sample_grid_points,
                     data,
-                    strand_bias,
+                    biases,
                     joint_prob,
                 )
             }
@@ -168,7 +168,7 @@ impl GenericPosterior {
                         *sample,
                         likelihood::Event {
                             allele_freq,
-                            strand_bias,
+                            biases: biases.clone(),
                         },
                     );
                 };
@@ -253,7 +253,7 @@ impl Posterior for GenericPosterior {
                         &mut base_events,
                         &grid_points,
                         data,
-                        event.strand_bias,
+                        &event.biases,
                         joint_prob,
                     )
                 })

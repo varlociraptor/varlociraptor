@@ -31,7 +31,9 @@ use crate::utils;
 use crate::utils::worker_pool;
 use crate::utils::MiniLogProb;
 use crate::variants;
-use crate::variants::evidence::observation::{Observation, ObservationBuilder};
+use crate::variants::evidence::observation::{
+    Observation, ObservationBuilder, ReadOrientation, Strand,
+};
 use crate::variants::evidence::realignment;
 use crate::variants::model;
 use crate::variants::sample::Sample;
@@ -126,9 +128,8 @@ impl ObservationProcessor {
             "PROB_MISSED_ALLELE",
             "PROB_SAMPLE_ALT",
             "PROB_DOUBLE_OVERLAP",
-            "PROB_ANY_STRAND",
-            "FORWARD_STRAND",
-            "REVERSE_STRAND",
+            "STRAND",
+            "READ_ORIENTATION",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant internal use only).\"", name).as_bytes()
@@ -484,7 +485,7 @@ impl ObservationProcessor {
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "3";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "4";
 
 /// Read observations from BCF record.
 pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observation>> {
@@ -520,9 +521,8 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
     let prob_missed_allele: Vec<MiniLogProb> = read_values(record, b"PROB_MISSED_ALLELE")?;
     let prob_sample_alt: Vec<MiniLogProb> = read_values(record, b"PROB_SAMPLE_ALT")?;
     let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP")?;
-    let prob_any_strand: Vec<MiniLogProb> = read_values(record, b"PROB_ANY_STRAND")?;
-    let forward_strand: BitVec<u8> = read_values(record, b"FORWARD_STRAND")?;
-    let reverse_strand: BitVec<u8> = read_values(record, b"REVERSE_STRAND")?;
+    let strand: Vec<Strand> = read_values(record, b"STRAND")?;
+    let read_orientation: Vec<ReadOrientation> = read_values(record, b"READ_ORIENTATION")?;
 
     let obs = (0..prob_mapping.len())
         .map(|i| {
@@ -533,9 +533,8 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
                 .prob_missed_allele(prob_missed_allele[i].to_logprob())
                 .prob_sample_alt(prob_sample_alt[i].to_logprob())
                 .prob_overlap(prob_double_overlap[i].to_logprob())
-                .prob_any_strand(prob_any_strand[i].to_logprob())
-                .forward_strand(forward_strand[i as u64])
-                .reverse_strand(reverse_strand[i as u64])
+                .strand(strand[i])
+                .read_orientation(read_orientation[i])
                 .build()
                 .unwrap()
         })
@@ -555,7 +554,8 @@ pub(crate) fn write_observations(
     let mut prob_missed_allele = vec();
     let mut prob_sample_alt = vec();
     let mut prob_double_overlap = vec();
-    let mut prob_any_strand = vec();
+    let mut strand = Vec::with_capacity(observations.len());
+    let mut read_orientation = Vec::with_capacity(observations.len());
     let mut forward_strand: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut reverse_strand: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
@@ -567,9 +567,8 @@ pub(crate) fn write_observations(
         prob_missed_allele.push(encode_logprob(obs.prob_missed_allele));
         prob_sample_alt.push(encode_logprob(obs.prob_sample_alt));
         prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));
-        prob_any_strand.push(encode_logprob(obs.prob_any_strand));
-        forward_strand.push(obs.forward_strand);
-        reverse_strand.push(obs.reverse_strand);
+        strand.push(obs.strand);
+        read_orientation.push(obs.read_orientation);
     }
 
     fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
@@ -602,9 +601,8 @@ pub(crate) fn write_observations(
     push_values(record, b"PROB_MISSED_ALLELE", &prob_missed_allele)?;
     push_values(record, b"PROB_SAMPLE_ALT", &prob_sample_alt)?;
     push_values(record, b"PROB_DOUBLE_OVERLAP", &prob_double_overlap)?;
-    push_values(record, b"PROB_ANY_STRAND", &prob_any_strand)?;
-    push_values(record, b"FORWARD_STRAND", &forward_strand)?;
-    push_values(record, b"REVERSE_STRAND", &reverse_strand)?;
+    push_values(record, b"STRAND", &strand)?;
+    push_values(record, b"READ_ORIENTATION", &read_orientation)?;
 
     Ok(())
 }
@@ -616,9 +614,8 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PROB_MISSED_ALLELE");
     header.remove_info(b"PROB_SAMPLE_ALT");
     header.remove_info(b"PROB_DOUBLE_OVERLAP");
-    header.remove_info(b"PROB_ANY_STRAND");
-    header.remove_info(b"FORWARD_STRAND");
-    header.remove_info(b"REVERSE_STRAND");
+    header.remove_info(b"STRAND");
+    header.remove_info(b"READ_ORIENTATION");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

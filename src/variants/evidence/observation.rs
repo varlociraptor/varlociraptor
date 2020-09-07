@@ -27,6 +27,76 @@ pub(crate) fn expected_depth(obs: &[Observation]) -> u32 {
         .round() as u32
 }
 
+/// Strand support for observation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum Strand {
+    Forward,
+    Reverse,
+    Both,
+    None,
+}
+
+impl Default for Strand {
+    fn default() -> Self {
+        Strand::None
+    }
+}
+
+/// Read orientation support for observation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum ReadOrientation {
+    F1R2,
+    F2R1,
+    R1F2,
+    R2F1,
+    F1F2,
+    R1R2,
+    F2F1,
+    R2R1,
+    None,
+}
+
+impl ReadOrientation {
+    pub(crate) fn new(record: &bam::Record) -> Self {
+        if record.is_paired() && record.is_proper_pair() && record.tid() == record.mtid() {
+            let (is_reverse, is_first_in_template, is_mate_reverse) =
+                if record.pos() < record.mpos() {
+                    // given record is the left one
+                    (
+                        record.is_reverse(),
+                        record.is_first_in_template(),
+                        record.is_mate_reverse(),
+                    )
+                } else {
+                    // given record is the right one
+                    (
+                        record.is_mate_reverse(),
+                        record.is_last_in_template(),
+                        record.is_reverse(),
+                    )
+                };
+            match (is_reverse, is_first_in_template, is_mate_reverse) {
+                (false, false, false) => ReadOrientation::F2F1,
+                (false, false, true) => ReadOrientation::F2R1,
+                (false, true, false) => ReadOrientation::F1F2,
+                (true, false, false) => ReadOrientation::R2F1,
+                (false, true, true) => ReadOrientation::F1R2,
+                (true, false, true) => ReadOrientation::R2R1,
+                (true, true, false) => ReadOrientation::R1F2,
+                (true, true, true) => ReadOrientation::R1R2,
+            }
+        } else {
+            ReadOrientation::None
+        }
+    }
+}
+
+impl Default for ReadOrientation {
+    fn default() -> Self {
+        ReadOrientation::None
+    }
+}
+
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default)]
 pub(crate) struct Observation {
@@ -52,12 +122,10 @@ pub(crate) struct Observation {
     /// Probability to overlap with one strand only (1-prob_double_overlap)
     #[builder(private)]
     pub(crate) prob_single_overlap: LogProb,
-    /// Probability to observe any overlapping strand combination (when not associated with alt allele)
-    pub(crate) prob_any_strand: LogProb,
-    /// Observation relies on forward strand evidence
-    pub(crate) forward_strand: bool,
-    /// Observation relies on reverse strand evidence
-    pub(crate) reverse_strand: bool,
+    /// Strand evidence this observation relies on
+    pub(crate) strand: Strand,
+    /// Read orientation support this observation relies on
+    pub(crate) read_orientation: ReadOrientation,
 }
 
 impl ObservationBuilder {
@@ -75,6 +143,10 @@ impl ObservationBuilder {
 impl Observation {
     pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
+    }
+
+    pub(crate) fn is_paired(&self) -> bool {
+        self.read_orientation != ReadOrientation::None
     }
 }
 
@@ -119,30 +191,28 @@ where
             // METHOD: only consider allele support if it comes either from forward or reverse strand.
             // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
             // any information (e.g. no overlap).
-            Some(allele_support)
-                if allele_support.forward_strand() || allele_support.reverse_strand() =>
-            {
-                Some(
-                    ObservationBuilder::default()
-                        .prob_mapping_mismapping(self.prob_mapping(evidence))
-                        .prob_alt(allele_support.prob_alt_allele())
-                        .prob_ref(allele_support.prob_ref_allele())
-                        .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
-                        .prob_missed_allele(allele_support.prob_missed_allele())
-                        .prob_overlap(LogProb::ln_zero()) // no double overlap possible
-                        .prob_any_strand(LogProb::from(Prob(0.5)))
-                        .forward_strand(allele_support.forward_strand())
-                        .reverse_strand(allele_support.reverse_strand())
-                        .build()
-                        .unwrap(),
-                )
+            Some(allele_support) if allele_support.strand() != Strand::None => {
+                let obs = ObservationBuilder::default()
+                    .prob_mapping_mismapping(self.prob_mapping(evidence))
+                    .prob_alt(allele_support.prob_alt_allele())
+                    .prob_ref(allele_support.prob_ref_allele())
+                    .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
+                    .prob_missed_allele(allele_support.prob_missed_allele())
+                    .prob_overlap(LogProb::ln_zero()) // no double overlap possible (TODO: check this!)
+                    .strand(allele_support.strand())
+                    .read_orientation(evidence.read_orientation())
+                    .build()
+                    .unwrap();
+                Some(obs)
             }
             _ => None,
         })
     }
 }
 
-pub(crate) trait Evidence {}
+pub(crate) trait Evidence {
+    fn read_orientation(&self) -> ReadOrientation;
+}
 
 #[derive(new, Clone, Eq, Debug)]
 pub(crate) struct SingleEndEvidence {
@@ -157,7 +227,13 @@ impl Deref for SingleEndEvidence {
     }
 }
 
-impl Evidence for SingleEndEvidence {}
+impl Evidence for SingleEndEvidence {
+    fn read_orientation(&self) -> ReadOrientation {
+        // Single end evidence can just mean that we only need to consider each read alone,
+        // although they are paired. Hence we can still check for read orientation.
+        ReadOrientation::new(self.inner.as_ref())
+    }
+}
 
 impl PartialEq for SingleEndEvidence {
     fn eq(&self, other: &Self) -> bool {
@@ -180,7 +256,14 @@ pub(crate) enum PairedEndEvidence {
     },
 }
 
-impl Evidence for PairedEndEvidence {}
+impl Evidence for PairedEndEvidence {
+    fn read_orientation(&self) -> ReadOrientation {
+        match self {
+            PairedEndEvidence::SingleEnd(_) => ReadOrientation::None,
+            PairedEndEvidence::PairedEnd { left, .. } => ReadOrientation::new(left.as_ref()),
+        }
+    }
+}
 
 impl PartialEq for PairedEndEvidence {
     fn eq(&self, other: &Self) -> bool {
