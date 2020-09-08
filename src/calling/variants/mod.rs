@@ -121,6 +121,7 @@ impl Call {
             let mut svlens = Vec::new();
             let mut events = Vec::new();
             let mut svtypes = Vec::new();
+            let mut ends = Vec::new();
             alleles.push(&ref_allele[..]);
 
             // collect per group information
@@ -206,8 +207,6 @@ impl Call {
 
                 if let Some(svlen) = variant.svlen {
                     svlens.push(svlen);
-                } else {
-                    svlens.push(i32::missing());
                 }
 
                 if let Some(ref event) = variant.event {
@@ -216,14 +215,27 @@ impl Call {
                 if let Some(ref svtype) = variant.svtype {
                     svtypes.push(svtype.as_slice());
                 }
+
+                if let Some(end) = variant.end {
+                    ends.push(end);
+                }
             }
 
             // set alleles
             record.set_alleles(&alleles)?;
 
-            record.push_info_integer(b"SVLEN", &svlens)?;
-            record.push_info_string(b"SVTYPE", &svtypes)?;
-            record.push_info_string(b"EVENT", &events)?;
+            if !svlens.is_empty() {
+                record.push_info_integer(b"SVLEN", &svlens)?;
+            }
+            if !svtype.is_empty() {
+                record.push_info_string(b"SVTYPE", &svtypes)?;
+            }
+            if !events.is_empty() {
+                record.push_info_string(b"EVENT", &events)?;
+            }
+            if !ends.is_empty() {
+                record.push_info_integer(b"END", &ends)?;
+            }
 
             if let Some(ref mateid) = self.mateid {
                 record.push_info_string(b"MATEID", &[mateid])?;
@@ -325,6 +337,8 @@ impl VariantBuilder {
             .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0]))
             .event(utils::info_tag_event(record)?.map(|e| e.to_vec()))
             .svtype(utils::info_tag_svtype(record)?.map(|s| s.to_vec())))
+            .end(record.info(b"END").integer()?.map(|v| v[0]))
+        )
     }
 
     pub(crate) fn variant(
