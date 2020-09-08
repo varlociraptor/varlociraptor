@@ -336,7 +336,7 @@ impl VariantBuilder {
             .alt_allele(alleles[1].to_owned())
             .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0]))
             .event(utils::info_tag_event(record)?.map(|e| e.to_vec()))
-            .svtype(utils::info_tag_svtype(record)?.map(|s| s.to_vec())))
+            .svtype(utils::info_tag_svtype(record)?.map(|s| s.to_vec()))
             .end(record.info(b"END").integer()?.map(|v| v[0]))
         )
     }
