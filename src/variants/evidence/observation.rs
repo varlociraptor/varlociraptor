@@ -190,7 +190,7 @@ impl Observation {
         /// METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be 
         /// solely driven by standard alignments, that are not clipped and in expected orientation.
         /// Otherwise called SNVs can be artifacts of near SVs.
-        pileup.into_iter().filter(|obs| !obs.softclipped && !(obs.read_orientation == ReadOrientation::F1R2 || obs.read_orientation == ReadOrientation::F2R1 || obs.read_orientation == ReadOrientation::None)).collect()
+        pileup.into_iter().filter(|obs| !obs.softclipped && (obs.read_orientation == ReadOrientation::F1R2 || obs.read_orientation == ReadOrientation::F2R1 || obs.read_orientation == ReadOrientation::None)).collect()
     }
 }
 
