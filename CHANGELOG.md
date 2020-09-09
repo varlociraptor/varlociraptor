@@ -2,6 +2,10 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.3.0] - 2020-09-09
+- Include read orientation bias into the model.
+- Exlcude softclipped and non-standard orientation reads from SNV and MNV calling as they are indicative of SVs and often cause artifact substitutions while sometimes not being reflected via a higher uncertainty in the MAPQ. Not considering them is the conservative choice.
+
 ## [2.2.1] - 2020-08-24
 - Allow to set reference buffer size (--reference-buffer-size), for improved parallelization when calling SVs.
 - Fix breakend handling getting confused between events when calling BCF with multiple breakends and more than a single thread.
