@@ -66,7 +66,6 @@ testcase!(test31);
 testcase!(test32);
 testcase!(test33);
 testcase!(test34);
-testcase!(test35);
 testcase!(test36);
 testcase!(test37);
 testcase!(test38);
@@ -84,7 +83,6 @@ testcase!(test52);
 testcase!(test53);
 testcase!(test54);
 testcase!(pattern_too_long);
-testcase!(test_wgbs01);
 testcase!(test_long_pattern);
 testcase!(test_contig_universe);
 

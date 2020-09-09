@@ -3,7 +3,7 @@
 # its opinion
 expected:
   posteriors:
-    - PROB_FFPE_ARTIFACT <= 1.0
+    - PROB_ARTIFACT <= 1.0
 
 # necessary bam files
 samples:
