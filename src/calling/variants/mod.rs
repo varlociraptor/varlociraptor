@@ -217,7 +217,7 @@ impl Call {
                 }
 
                 if let Some(end) = variant.end {
-                    ends.push(end);
+                    ends.push(end as i32);
                 }
             }
 
@@ -227,7 +227,7 @@ impl Call {
             if !svlens.is_empty() {
                 record.push_info_integer(b"SVLEN", &svlens)?;
             }
-            if !svtype.is_empty() {
+            if !svtypes.is_empty() {
                 record.push_info_string(b"SVTYPE", &svtypes)?;
             }
             if !events.is_empty() {
@@ -337,7 +337,7 @@ impl VariantBuilder {
             .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0]))
             .event(utils::info_tag_event(record)?.map(|e| e.to_vec()))
             .svtype(utils::info_tag_svtype(record)?.map(|s| s.to_vec()))
-            .end(record.info(b"END").integer()?.map(|v| v[0]))
+            .end(record.info(b"END").integer()?.map(|v| v[0] as u64))
         )
     }
 
