@@ -452,6 +452,31 @@ mod tests {
     }
 
     #[test]
+    fn test_slightly_loh_no_het_between_no_loh() {
+        let test_input =
+            PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_no_loh.bcf");
+        let test_output =
+            PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_no_loh.out.bed");
+        let expected_bed: Vec<u8> = vec![];
+        let alpha = 0.01;
+        let mut caller = CallerBuilder::default()
+            .bcf(&test_input)
+            .unwrap()
+            .bed_path(&test_output)
+            .add_and_check_alpha(alpha)
+            .unwrap()
+            .control_local_fdr(false)
+            .filter_bayes_factor_minimum_barely(false)
+            .problems_folder(None)
+            .build()
+            .unwrap();
+
+        caller.call().unwrap();
+        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
+        assert_eq!(expected_bed, produced_bed);
+    }
+
+    #[test]
     fn test_slightly_loh_artifact_between_no_loh() {
         let test_input =
             PathBuf::from("tests/resources/test_loh/slightly_loh_artifact_between_no_loh.bcf");
