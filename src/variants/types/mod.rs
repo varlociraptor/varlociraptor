@@ -169,7 +169,16 @@ where
         match evidence {
             PairedEndEvidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
             PairedEndEvidence::PairedEnd { left, right } => {
-                (prob(left) + prob(right)).ln_one_minus_exp()
+                // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
+                // In BWA, MAPQ is influenced by the mate, hence they are not independent
+                // and we can therefore not multiply them. By taking the maximum, we
+                // make a conservative choice (since 1-mapq is the mapping probability).
+                let mut p = prob(left);
+                let mut q = prob(right);
+                if p < q {
+                    std::mem::swap(&mut p, &mut q);
+                }
+                p.ln_one_minus_exp()
             }
         }
     }

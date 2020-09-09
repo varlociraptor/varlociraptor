@@ -299,6 +299,7 @@ where
     II: IntoIterator<Item = bool, IntoIter = I>,
 {
     let mut record = calls.empty_record();
+    let mut i = 1;
     loop {
         if !calls.read(&mut record)? {
             return Ok(());
@@ -310,7 +311,8 @@ where
         assert_eq!(
             remove.len(),
             record.allele_count() as usize,
-            "bug: filter passed to filter_calls has to return a bool for each alt allele."
+            "bug: filter passed to filter_calls has to return a bool for each alt allele at record {}.",
+            i,
         );
 
         // Write trimmed record if any allele remains. Otherwise skip the record.
@@ -318,6 +320,8 @@ where
             record.remove_alleles(&remove)?;
             out.write(&record)?;
         }
+
+        i += 1;
     }
 }
 

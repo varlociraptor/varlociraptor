@@ -101,11 +101,15 @@ impl Default for ReadOrientation {
 #[derive(Clone, Debug, Builder, Default)]
 pub(crate) struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
-    #[builder(private)]
-    pub(crate) prob_mapping: LogProb,
+    prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
-    #[builder(private)]
-    pub(crate) prob_mismapping: LogProb,
+    prob_mismapping: LogProb,
+    /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ), adjusted form.
+    #[builder(private, default = "None")]
+    prob_mapping_adj: Option<LogProb>,
+    /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ), adjusted form.
+    #[builder(private, default = "None")]
+    prob_mismapping_adj: Option<LogProb>,
     /// Probability that the read/read-pair comes from the alternative allele.
     pub(crate) prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
@@ -126,6 +130,8 @@ pub(crate) struct Observation {
     pub(crate) strand: Strand,
     /// Read orientation support this observation relies on
     pub(crate) read_orientation: ReadOrientation,
+    /// True if obervation contains softclips
+    pub(crate) softclipped: bool,
 }
 
 impl ObservationBuilder {
@@ -147,6 +153,62 @@ impl Observation {
 
     pub(crate) fn is_paired(&self) -> bool {
         self.read_orientation != ReadOrientation::None
+    }
+
+    pub(crate) fn prob_mapping_orig(&self) -> LogProb {
+        self.prob_mapping
+    }
+
+    pub(crate) fn prob_mapping(&self) -> LogProb {
+        self.prob_mapping_adj.unwrap_or(self.prob_mapping)
+    }
+
+    pub(crate) fn prob_mismapping(&self) -> LogProb {
+        self.prob_mismapping_adj.unwrap_or(self.prob_mismapping)
+    }
+
+    /// Adjust prob_mapping in the given pileup to its average (arithmetic mean of the regular probabilities).
+    pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
+        // METHOD: a pileup can, although consisting largely of uncertain mappers, contain
+        // some reads that by accident are certain mappers (although they don't belong here). If those
+        // support the variant, they can lead to an artifact.
+        // By taking the average MAPQ over the pileup, we make a conservative choice, justified by the fact
+        // that MAPQ choice of the mapper is influenced by (a) the locus ambiguity and (b) stochastic noise
+        // driven by sequencing errors and variants at homologous loci. By averaging, we eliminate
+        // the stochastic noise. These assumptions are only valid for SNV and MNV loci.
+        let adj_mapq = LogProb(
+            (LogProb::ln_sum_exp(
+                &pileup
+                    .iter()
+                    .map(|obs| obs.prob_mapping)
+                    .collect::<Vec<_>>(),
+            )
+            .exp()
+                / pileup.len() as f64)
+                .ln(),
+        );
+        for obs in pileup {
+            if obs.prob_mapping > adj_mapq {
+                obs.prob_mapping_adj = Some(adj_mapq);
+                obs.prob_mismapping_adj = Some(adj_mapq.ln_one_minus_exp());
+            }
+        }
+    }
+
+    /// Remove all non-standard alignments from pileup (softclipped observations, non-standard read orientations).
+    pub(crate) fn remove_nonstandard_alignments(pileup: Vec<Self>) -> Vec<Self> {
+        /// METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
+        /// solely driven by standard alignments, that are not clipped and in expected orientation.
+        /// Otherwise called SNVs can be artifacts of near SVs.
+        pileup
+            .into_iter()
+            .filter(|obs| {
+                !obs.softclipped
+                    && (obs.read_orientation == ReadOrientation::F1R2
+                        || obs.read_orientation == ReadOrientation::F2R1
+                        || obs.read_orientation == ReadOrientation::None)
+            })
+            .collect()
     }
 }
 
@@ -201,6 +263,7 @@ where
                     .prob_overlap(LogProb::ln_zero()) // no double overlap possible (TODO: check this!)
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation())
+                    .softclipped(evidence.softclipped())
                     .build()
                     .unwrap();
                 Some(obs)
@@ -212,6 +275,8 @@ where
 
 pub(crate) trait Evidence {
     fn read_orientation(&self) -> ReadOrientation;
+
+    fn softclipped(&self) -> bool;
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -232,6 +297,11 @@ impl Evidence for SingleEndEvidence {
         // Single end evidence can just mean that we only need to consider each read alone,
         // although they are paired. Hence we can still check for read orientation.
         ReadOrientation::new(self.inner.as_ref())
+    }
+
+    fn softclipped(&self) -> bool {
+        let cigar = self.cigar_cached().unwrap();
+        cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
     }
 }
 
@@ -261,6 +331,23 @@ impl Evidence for PairedEndEvidence {
         match self {
             PairedEndEvidence::SingleEnd(_) => ReadOrientation::None,
             PairedEndEvidence::PairedEnd { left, .. } => ReadOrientation::new(left.as_ref()),
+        }
+    }
+
+    fn softclipped(&self) -> bool {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => {
+                let cigar = rec.cigar_cached().unwrap();
+                cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
+            }
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let cigar_left = left.cigar_cached().unwrap();
+                let cigar_right = right.cigar_cached().unwrap();
+                cigar_left.leading_softclips() > 0
+                    || cigar_left.trailing_softclips() > 0
+                    || cigar_right.leading_softclips() > 0
+                    || cigar_right.trailing_softclips() > 0
+            }
         }
     }
 }
