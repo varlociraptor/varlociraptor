@@ -63,7 +63,11 @@ impl AlignmentProperties {
 
     /// Estimate `AlignmentProperties` from first 10000 fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
-    pub(crate) fn estimate<R: bam::Read>(bam: &mut R, omit_insert_size: bool, allow_hardclips: bool) -> Result<Self> {
+    pub(crate) fn estimate<R: bam::Read>(
+        bam: &mut R,
+        omit_insert_size: bool,
+        allow_hardclips: bool,
+    ) -> Result<Self> {
         let mut properties = AlignmentProperties {
             insert_size: None,
             max_del_cigar_len: 0,
@@ -187,7 +191,6 @@ impl AlignmentProperties {
             Ok(properties)
         }
     }
-
 }
 
 /// Expected insert size in terms of mean and standard deviation.

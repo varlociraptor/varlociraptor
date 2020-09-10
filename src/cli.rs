@@ -509,7 +509,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         &alignment_properties,
                         &bam,
                         omit_insert_size,
-                        allow_hardclips
+                        allow_hardclips,
                     )?;
 
                     let gap_params = GapParams {

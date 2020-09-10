@@ -167,7 +167,7 @@ pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     Ok(alignment_properties::AlignmentProperties::estimate(
         &mut bam,
         omit_insert_size,
-        allow_hardclips
+        allow_hardclips,
     )?)
 }
 
@@ -198,12 +198,8 @@ impl SampleBuilder {
     ) -> Self {
         let single_read_window = alignment_properties.max_read_len as u64;
         let read_pair_window = match alignment_properties.insert_size {
-            Some(isize) => {
-                 (isize.mean + isize.sd * 6.0) as u64
-            },
-            None => {
-                single_read_window
-            }
+            Some(isize) => (isize.mean + isize.sd * 6.0) as u64,
+            None => single_read_window,
         };
         self.alignment_properties(alignment_properties)
             .record_buffer(RecordBuffer::new(

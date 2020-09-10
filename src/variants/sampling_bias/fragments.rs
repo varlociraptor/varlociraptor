@@ -36,14 +36,10 @@ pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match alignment_properties.insert_size {
-            Some(isize) => {
-                isize_pmf(
-                    insert_size as f64,
-                    isize.mean + shift,
-                    isize.sd,
-                )
-            },
-            None => panic!("Bug: Tried to get an isize_pmf(), but alignment_properties.insert_size was None.")
+            Some(isize) => isize_pmf(insert_size as f64, isize.mean + shift, isize.sd),
+            None => panic!(
+                "Bug: Tried to get an isize_pmf(), but alignment_properties.insert_size was None."
+            ),
         }
     }
 
