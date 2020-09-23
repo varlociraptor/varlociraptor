@@ -21,9 +21,11 @@ use vec_map::VecMap;
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
 use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::Observation;
+use crate::variants::evidence::observation::{Observation, ReadOrientation, Strand};
 use crate::variants::model;
-use crate::variants::model::{AlleleFreq, StrandBias};
+use crate::variants::model::{
+    bias::Biases, bias::ReadOrientationBias, bias::StrandBias, AlleleFreq,
+};
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
 
@@ -114,10 +116,12 @@ impl Call {
             let mut observations = VecMap::new();
             let mut obs_counts = VecMap::new();
             let mut strand_bias = VecMap::new();
+            let mut read_orientation_bias = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
             let mut events = Vec::new();
             let mut svtypes = Vec::new();
+            let mut ends = Vec::new();
             alleles.push(&ref_allele[..]);
 
             // collect per group information
@@ -143,12 +147,20 @@ impl Call {
                     .enumerate()
                 {
                     strand_bias.entry(i).or_insert_with(Vec::new).push(
-                        match sample_info.strand_bias {
+                        match sample_info.biases.strand_bias() {
                             StrandBias::None => '.',
                             StrandBias::Forward => '+',
                             StrandBias::Reverse => '-',
                         },
                     );
+                    read_orientation_bias
+                        .entry(i)
+                        .or_insert_with(Vec::new)
+                        .push(match sample_info.biases.read_orientation_bias() {
+                            ReadOrientationBias::None => '.',
+                            ReadOrientationBias::F1R2 => '>',
+                            ReadOrientationBias::F2R1 => '<',
+                        });
 
                     allelefreq_estimates
                         .entry(i)
@@ -167,17 +179,24 @@ impl Call {
                                     obs.bayes_factor_alt().evidence_kass_raftery(),
                                 );
                                 format!(
-                                    "{}{}",
-                                    if obs.prob_mapping < LogProb(0.95_f64.ln()) {
+                                    "{}{}{}{}",
+                                    if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
                                         score.to_ascii_lowercase()
                                     } else {
                                         score.to_ascii_uppercase()
                                     },
-                                    match (obs.forward_strand, obs.reverse_strand) {
-                                        (true, true) => '*',
-                                        (false, true) => '-',
-                                        (true, false) => '+',
+                                    if obs.is_paired() { 'p' } else { 's' },
+                                    match obs.strand {
+                                        Strand::Both => '*',
+                                        Strand::Reverse => '-',
+                                        Strand::Forward => '+',
                                         _ => panic!("bug: unknown strandedness"),
+                                    },
+                                    match obs.read_orientation {
+                                        ReadOrientation::F1R2 => '>',
+                                        ReadOrientation::F2R1 => '<',
+                                        ReadOrientation::None => '*',
+                                        _ => '!',
                                     }
                                 )
                             }),
@@ -188,8 +207,6 @@ impl Call {
 
                 if let Some(svlen) = variant.svlen {
                     svlens.push(svlen);
-                } else {
-                    svlens.push(i32::missing());
                 }
 
                 if let Some(ref event) = variant.event {
@@ -198,14 +215,27 @@ impl Call {
                 if let Some(ref svtype) = variant.svtype {
                     svtypes.push(svtype.as_slice());
                 }
+
+                if let Some(end) = variant.end {
+                    ends.push(end as i32);
+                }
             }
 
             // set alleles
             record.set_alleles(&alleles)?;
 
-            record.push_info_integer(b"SVLEN", &svlens)?;
-            record.push_info_string(b"SVTYPE", &svtypes)?;
-            record.push_info_string(b"EVENT", &events)?;
+            if !svlens.is_empty() {
+                record.push_info_integer(b"SVLEN", &svlens)?;
+            }
+            if !svtypes.is_empty() {
+                record.push_info_string(b"SVTYPE", &svtypes)?;
+            }
+            if !events.is_empty() {
+                record.push_info_string(b"EVENT", &events)?;
+            }
+            if !ends.is_empty() {
+                record.push_info_integer(b"END", &ends)?;
+            }
 
             if let Some(ref mateid) = self.mateid {
                 record.push_info_string(b"MATEID", &[mateid])?;
@@ -259,6 +289,13 @@ impl Call {
 
             record.push_format_string(b"SB", &sb)?;
 
+            let rob = read_orientation_bias
+                .values()
+                .map(|rob| join(rob.iter(), ",").into_bytes())
+                .collect_vec();
+
+            record.push_format_string(b"ROB", &rob)?;
+
             bcf_writer.write(&record)?;
         }
 
@@ -299,7 +336,8 @@ impl VariantBuilder {
             .alt_allele(alleles[1].to_owned())
             .svlen(record.info(b"SVLEN").integer()?.map(|v| v[0]))
             .event(utils::info_tag_event(record)?.map(|e| e.to_vec()))
-            .svtype(utils::info_tag_svtype(record)?.map(|s| s.to_vec())))
+            .svtype(utils::info_tag_svtype(record)?.map(|s| s.to_vec()))
+            .end(record.info(b"END").integer()?.map(|v| v[0] as u64)))
     }
 
     pub(crate) fn variant(
@@ -374,12 +412,12 @@ impl VariantBuilder {
     }
 }
 
-#[derive(Default, Clone, Debug, Builder)]
+#[derive(Clone, Debug, Builder)]
 pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     #[builder(default = "Vec::new()")]
     observations: Vec<Observation>,
-    strand_bias: StrandBias,
+    biases: Biases,
 }
 
 /// Wrapper for comparing alleles for compatibility in BCF files.

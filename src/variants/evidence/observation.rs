@@ -27,15 +27,89 @@ pub(crate) fn expected_depth(obs: &[Observation]) -> u32 {
         .round() as u32
 }
 
+/// Strand support for observation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum Strand {
+    Forward,
+    Reverse,
+    Both,
+    None,
+}
+
+impl Default for Strand {
+    fn default() -> Self {
+        Strand::None
+    }
+}
+
+/// Read orientation support for observation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum ReadOrientation {
+    F1R2,
+    F2R1,
+    R1F2,
+    R2F1,
+    F1F2,
+    R1R2,
+    F2F1,
+    R2R1,
+    None,
+}
+
+impl ReadOrientation {
+    pub(crate) fn new(record: &bam::Record) -> Self {
+        if record.is_paired() && record.is_proper_pair() && record.tid() == record.mtid() {
+            let (is_reverse, is_first_in_template, is_mate_reverse) =
+                if record.pos() < record.mpos() {
+                    // given record is the left one
+                    (
+                        record.is_reverse(),
+                        record.is_first_in_template(),
+                        record.is_mate_reverse(),
+                    )
+                } else {
+                    // given record is the right one
+                    (
+                        record.is_mate_reverse(),
+                        record.is_last_in_template(),
+                        record.is_reverse(),
+                    )
+                };
+            match (is_reverse, is_first_in_template, is_mate_reverse) {
+                (false, false, false) => ReadOrientation::F2F1,
+                (false, false, true) => ReadOrientation::F2R1,
+                (false, true, false) => ReadOrientation::F1F2,
+                (true, false, false) => ReadOrientation::R2F1,
+                (false, true, true) => ReadOrientation::F1R2,
+                (true, false, true) => ReadOrientation::R2R1,
+                (true, true, false) => ReadOrientation::R1F2,
+                (true, true, true) => ReadOrientation::R1R2,
+            }
+        } else {
+            ReadOrientation::None
+        }
+    }
+}
+
+impl Default for ReadOrientation {
+    fn default() -> Self {
+        ReadOrientation::None
+    }
+}
+
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default)]
 pub(crate) struct Observation {
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
-    #[builder(private)]
-    pub(crate) prob_mapping: LogProb,
+    prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
-    #[builder(private)]
-    pub(crate) prob_mismapping: LogProb,
+    prob_mismapping: LogProb,
+    /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ), adjusted form.
+    #[builder(private, default = "None")]
+    prob_mapping_adj: Option<LogProb>,
+    /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ), adjusted form.
+    #[builder(private, default = "None")]
+    prob_mismapping_adj: Option<LogProb>,
     /// Probability that the read/read-pair comes from the alternative allele.
     pub(crate) prob_alt: LogProb,
     /// Probability that the read/read-pair comes from the reference allele.
@@ -52,12 +126,12 @@ pub(crate) struct Observation {
     /// Probability to overlap with one strand only (1-prob_double_overlap)
     #[builder(private)]
     pub(crate) prob_single_overlap: LogProb,
-    /// Probability to observe any overlapping strand combination (when not associated with alt allele)
-    pub(crate) prob_any_strand: LogProb,
-    /// Observation relies on forward strand evidence
-    pub(crate) forward_strand: bool,
-    /// Observation relies on reverse strand evidence
-    pub(crate) reverse_strand: bool,
+    /// Strand evidence this observation relies on
+    pub(crate) strand: Strand,
+    /// Read orientation support this observation relies on
+    pub(crate) read_orientation: ReadOrientation,
+    /// True if obervation contains softclips
+    pub(crate) softclipped: bool,
 }
 
 impl ObservationBuilder {
@@ -75,6 +149,66 @@ impl ObservationBuilder {
 impl Observation {
     pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
+    }
+
+    pub(crate) fn is_paired(&self) -> bool {
+        self.read_orientation != ReadOrientation::None
+    }
+
+    pub(crate) fn prob_mapping_orig(&self) -> LogProb {
+        self.prob_mapping
+    }
+
+    pub(crate) fn prob_mapping(&self) -> LogProb {
+        self.prob_mapping_adj.unwrap_or(self.prob_mapping)
+    }
+
+    pub(crate) fn prob_mismapping(&self) -> LogProb {
+        self.prob_mismapping_adj.unwrap_or(self.prob_mismapping)
+    }
+
+    /// Adjust prob_mapping in the given pileup to its average (arithmetic mean of the regular probabilities).
+    pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
+        // METHOD: a pileup can, although consisting largely of uncertain mappers, contain
+        // some reads that by accident are certain mappers (although they don't belong here). If those
+        // support the variant, they can lead to an artifact.
+        // By taking the average MAPQ over the pileup, we make a conservative choice, justified by the fact
+        // that MAPQ choice of the mapper is influenced by (a) the locus ambiguity and (b) stochastic noise
+        // driven by sequencing errors and variants at homologous loci. By averaging, we eliminate
+        // the stochastic noise. These assumptions are only valid for SNV and MNV loci.
+        let adj_mapq = LogProb(
+            (LogProb::ln_sum_exp(
+                &pileup
+                    .iter()
+                    .map(|obs| obs.prob_mapping)
+                    .collect::<Vec<_>>(),
+            )
+            .exp()
+                / pileup.len() as f64)
+                .ln(),
+        );
+        for obs in pileup {
+            if obs.prob_mapping > adj_mapq {
+                obs.prob_mapping_adj = Some(adj_mapq);
+                obs.prob_mismapping_adj = Some(adj_mapq.ln_one_minus_exp());
+            }
+        }
+    }
+
+    /// Remove all non-standard alignments from pileup (softclipped observations, non-standard read orientations).
+    pub(crate) fn remove_nonstandard_alignments(pileup: Vec<Self>) -> Vec<Self> {
+        /// METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
+        /// solely driven by standard alignments, that are not clipped and in expected orientation.
+        /// Otherwise called SNVs can be artifacts of near SVs.
+        pileup
+            .into_iter()
+            .filter(|obs| {
+                !obs.softclipped
+                    && (obs.read_orientation == ReadOrientation::F1R2
+                        || obs.read_orientation == ReadOrientation::F2R1
+                        || obs.read_orientation == ReadOrientation::None)
+            })
+            .collect()
     }
 }
 
@@ -119,30 +253,31 @@ where
             // METHOD: only consider allele support if it comes either from forward or reverse strand.
             // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
             // any information (e.g. no overlap).
-            Some(allele_support)
-                if allele_support.forward_strand() || allele_support.reverse_strand() =>
-            {
-                Some(
-                    ObservationBuilder::default()
-                        .prob_mapping_mismapping(self.prob_mapping(evidence))
-                        .prob_alt(allele_support.prob_alt_allele())
-                        .prob_ref(allele_support.prob_ref_allele())
-                        .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
-                        .prob_missed_allele(allele_support.prob_missed_allele())
-                        .prob_overlap(LogProb::ln_zero()) // no double overlap possible
-                        .prob_any_strand(LogProb::from(Prob(0.5)))
-                        .forward_strand(allele_support.forward_strand())
-                        .reverse_strand(allele_support.reverse_strand())
-                        .build()
-                        .unwrap(),
-                )
+            Some(allele_support) if allele_support.strand() != Strand::None => {
+                let obs = ObservationBuilder::default()
+                    .prob_mapping_mismapping(self.prob_mapping(evidence))
+                    .prob_alt(allele_support.prob_alt_allele())
+                    .prob_ref(allele_support.prob_ref_allele())
+                    .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
+                    .prob_missed_allele(allele_support.prob_missed_allele())
+                    .prob_overlap(LogProb::ln_zero()) // no double overlap possible (TODO: check this!)
+                    .strand(allele_support.strand())
+                    .read_orientation(evidence.read_orientation())
+                    .softclipped(evidence.softclipped())
+                    .build()
+                    .unwrap();
+                Some(obs)
             }
             _ => None,
         })
     }
 }
 
-pub(crate) trait Evidence {}
+pub(crate) trait Evidence {
+    fn read_orientation(&self) -> ReadOrientation;
+
+    fn softclipped(&self) -> bool;
+}
 
 #[derive(new, Clone, Eq, Debug)]
 pub(crate) struct SingleEndEvidence {
@@ -157,7 +292,18 @@ impl Deref for SingleEndEvidence {
     }
 }
 
-impl Evidence for SingleEndEvidence {}
+impl Evidence for SingleEndEvidence {
+    fn read_orientation(&self) -> ReadOrientation {
+        // Single end evidence can just mean that we only need to consider each read alone,
+        // although they are paired. Hence we can still check for read orientation.
+        ReadOrientation::new(self.inner.as_ref())
+    }
+
+    fn softclipped(&self) -> bool {
+        let cigar = self.cigar_cached().unwrap();
+        cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
+    }
+}
 
 impl PartialEq for SingleEndEvidence {
     fn eq(&self, other: &Self) -> bool {
@@ -180,7 +326,31 @@ pub(crate) enum PairedEndEvidence {
     },
 }
 
-impl Evidence for PairedEndEvidence {}
+impl Evidence for PairedEndEvidence {
+    fn read_orientation(&self) -> ReadOrientation {
+        match self {
+            PairedEndEvidence::SingleEnd(_) => ReadOrientation::None,
+            PairedEndEvidence::PairedEnd { left, .. } => ReadOrientation::new(left.as_ref()),
+        }
+    }
+
+    fn softclipped(&self) -> bool {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => {
+                let cigar = rec.cigar_cached().unwrap();
+                cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
+            }
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let cigar_left = left.cigar_cached().unwrap();
+                let cigar_right = right.cigar_cached().unwrap();
+                cigar_left.leading_softclips() > 0
+                    || cigar_left.trailing_softclips() > 0
+                    || cigar_right.leading_softclips() > 0
+                    || cigar_right.trailing_softclips() > 0
+            }
+        }
+    }
+}
 
 impl PartialEq for PairedEndEvidence {
     fn eq(&self, other: &Self) -> bool {

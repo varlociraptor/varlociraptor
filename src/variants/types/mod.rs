@@ -15,7 +15,7 @@ use vec_map::VecMap;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::is_reverse_strand;
 use crate::variants::evidence::observation::{
-    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence,
+    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
 };
 use crate::variants::sample;
 
@@ -43,8 +43,8 @@ pub(crate) use snv::SNV;
 pub(crate) struct AlleleSupport {
     prob_ref_allele: LogProb,
     prob_alt_allele: LogProb,
-    forward_strand: bool,
-    reverse_strand: bool,
+    #[builder(private)]
+    strand: Strand,
 }
 
 impl AlleleSupport {
@@ -60,8 +60,11 @@ impl AlleleSupport {
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
-        self.forward_strand |= other.forward_strand;
-        self.reverse_strand |= other.reverse_strand;
+        if self.strand == Strand::None {
+            self.strand = other.strand;
+        } else if other.strand != Strand::None && self.strand != other.strand {
+            self.strand = Strand::Both;
+        }
 
         self
     }
@@ -70,13 +73,15 @@ impl AlleleSupport {
 impl AlleleSupportBuilder {
     pub(crate) fn register_record(&mut self, record: &bam::Record) -> &mut Self {
         let reverse_strand = is_reverse_strand(record);
-
-        self.forward_strand(!reverse_strand)
-            .reverse_strand(reverse_strand)
+        self.strand(if reverse_strand {
+            Strand::Reverse
+        } else {
+            Strand::Forward
+        })
     }
 
     pub(crate) fn no_strand_info(&mut self) -> &mut Self {
-        self.forward_strand(false).reverse_strand(false)
+        self.strand(Strand::None)
     }
 }
 
@@ -164,7 +169,16 @@ where
         match evidence {
             PairedEndEvidence::SingleEnd(record) => prob(record).ln_one_minus_exp(),
             PairedEndEvidence::PairedEnd { left, right } => {
-                (prob(left) + prob(right)).ln_one_minus_exp()
+                // METHOD: take maximum of the (log-spaced) mapping quality of the left and the right read.
+                // In BWA, MAPQ is influenced by the mate, hence they are not independent
+                // and we can therefore not multiply them. By taking the maximum, we
+                // make a conservative choice (since 1-mapq is the mapping probability).
+                let mut p = prob(left);
+                let mut q = prob(right);
+                if p < q {
+                    std::mem::swap(&mut p, &mut q);
+                }
+                p.ln_one_minus_exp()
             }
         }
     }

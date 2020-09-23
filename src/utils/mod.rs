@@ -10,7 +10,7 @@ use std::ops::Deref;
 use std::str;
 
 use anyhow::Result;
-use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb};
+use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb, Prob};
 use counter::Counter;
 use half::f16;
 use itertools::join;
@@ -30,6 +30,11 @@ pub(crate) use collect_variants::collect_variants;
 pub(crate) use worker_pool::worker_pool;
 
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
+
+lazy_static! {
+    pub(crate) static ref PROB_HALF: LogProb = LogProb::from(Prob(0.5f64));
+    pub(crate) static ref PROB_ONE_THIRD: LogProb = LogProb::from(Prob(1.0 / 3.0));
+}
 
 pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {
     for rec in reader.header().header_records() {
@@ -338,6 +343,7 @@ where
     II: IntoIterator<Item = bool, IntoIter = I>,
 {
     let mut record = calls.empty_record();
+    let mut i = 1;
     loop {
         if !calls.read(&mut record)? {
             return Ok(());
@@ -349,7 +355,8 @@ where
         assert_eq!(
             remove.len(),
             record.allele_count() as usize,
-            "bug: filter passed to filter_calls has to return a bool for each alt allele."
+            "bug: filter passed to filter_calls has to return a bool for each alt allele at record {}.",
+            i,
         );
 
         // Write trimmed record if any allele remains. Otherwise skip the record.
@@ -357,6 +364,8 @@ where
             record.remove_alleles(&remove)?;
             out.write(&record)?;
         }
+
+        i += 1;
     }
 }
 
