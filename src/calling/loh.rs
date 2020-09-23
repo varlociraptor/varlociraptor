@@ -418,7 +418,7 @@ mod tests {
         let test_output =
             PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_loh.out.bed");
         let expected_bed: Vec<u8> =
-            Vec::from("chr8\t7999999\t8002000\t\t0.0000006369920776719376\n");
+            Vec::from("chr8\t7999999\t8002000\t\t0.0000006369733111102624\n");
         let alpha = 0.01;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
@@ -566,8 +566,7 @@ mod tests {
         let test_output =
             PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.out.bed");
         let expected_bed: Vec<u8> = Vec::from(
-            "chr8\t7999999\t8000000\t\t0.000000000023626283759240104\n\
-            chr8\t8001999\t8002000\t\t0.0000006369496848258405\n",
+            "chr8\t7999999\t8002000\t\t0.0000006369733111102624\n"
         );
         let alpha = 0.05;
         let mut caller = CallerBuilder::default()
@@ -593,7 +592,7 @@ mod tests {
             PathBuf::from("tests/resources/test_loh/medium_loh_no_het_between_no_loh.bcf");
         let test_output =
             PathBuf::from("tests/resources/test_loh/medium_loh_no_het_between_no_loh.out.bed");
-        let expected_bed: Vec<u8> = Vec::from("chr8\t8000999\t8001000\t\t0.1773643935463057\n");
+        let expected_bed: Vec<u8> = vec![];
         let alpha = 0.05;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
