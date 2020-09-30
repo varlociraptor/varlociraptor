@@ -24,6 +24,7 @@ use crate::Event;
 
 pub(crate) mod collect_variants;
 pub(crate) mod worker_pool;
+pub(crate) mod record_index;
 
 pub(crate) use collect_variants::collect_variants;
 pub(crate) use worker_pool::worker_pool;
