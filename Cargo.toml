@@ -75,3 +75,6 @@ serde_json = "1"
 default = []
 gslv2 = ["GSL/v2"]
 use-intrinsics = ["half/use-intrinsics"]
+
+[profile.release]
+debug = true

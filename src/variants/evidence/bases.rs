@@ -31,8 +31,18 @@ fn _prob_read_base_miscall(base_qual: u8) -> LogProb {
 }
 
 lazy_static! {
-    pub(crate) static ref BASEQUAL_TO_PROB_MISCALL: [LogProb; 256] =
-        (0u8..256u8).map(|qual| _prob_read_base_miscall(qual));
-    pub(crate) static ref BASEQUAL_TO_PROB_CALL: [LogProb; 256] =
-        (0u8..256u8).map(|qual| _prob_read_base_miscall(qual).ln_one_minus_exp());
+    pub(crate) static ref BASEQUAL_TO_PROB_MISCALL: [LogProb; 256] = {
+        let mut probs = [LogProb::ln_zero(); 256];
+        for (qual, prob) in (0u8..=255u8).map(|qual| (qual, _prob_read_base_miscall(qual))) {
+            probs[qual as usize] = prob;
+        }
+        probs
+    };
+    pub(crate) static ref BASEQUAL_TO_PROB_CALL: [LogProb; 256] = {
+        let mut probs = [LogProb::ln_zero(); 256];
+        for (qual, prob) in BASEQUAL_TO_PROB_MISCALL.iter().enumerate() {
+            probs[qual] = *prob;
+        }
+        probs
+    };
 }
