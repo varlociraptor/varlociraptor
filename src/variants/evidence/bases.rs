@@ -41,7 +41,7 @@ lazy_static! {
     pub(crate) static ref BASEQUAL_TO_PROB_CALL: [LogProb; 256] = {
         let mut probs = [LogProb::ln_zero(); 256];
         for (qual, prob) in BASEQUAL_TO_PROB_MISCALL.iter().enumerate() {
-            probs[qual] = *prob;
+            probs[qual] = prob.ln_one_minus_exp();
         }
         probs
     };
