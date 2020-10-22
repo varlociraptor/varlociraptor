@@ -8,6 +8,7 @@ use std::convert::{From, TryFrom};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bio::io::fasta;
@@ -31,6 +32,8 @@ use crate::variants::model::{Contamination, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
 use crate::variants::types::breakends::BreakendIndex;
 use crate::SimpleEvent;
+use crate::reference;
+use crate::variants::evidence::realignment;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
@@ -518,25 +521,27 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
                     };
 
+                    let reference_buffer = Arc::new(reference::Buffer::new(
+                        fasta::IndexedReader::from_file(&reference)
+                            .context("Unable to read genome reference.")?, 
+                        reference_buffer_size
+                    ));
+                    let realigner = realignment::PairHMMRealigner::new(Arc::clone(&reference_buffer), gap_params, realignment_window);
+
                     let mut processor =
-                        calling::variants::preprocessing::ObservationProcessorBuilder::default()
+                        calling::variants::preprocessing::ObservationProcessor::builder()
                             .threads(threads)
                             .alignment_properties(alignment_properties)
                             .protocol_strandedness(protocol_strandedness)
                             .max_depth(max_depth)
                             .inbam(bam)
-                            .reference(
-                                fasta::IndexedReader::from_file(&reference)
-                                    .context("Unable to read genome reference.")?,
-                                reference_buffer_size,
-                            )
-                            .realignment(gap_params, realignment_window)
+                            .reference_buffer(reference_buffer)
+                            .realigner(realigner)
                             .breakend_index(BreakendIndex::new(&candidates)?)
                             .inbcf(candidates)
                             .options(opt_clone)
                             .outbcf(output)
-                            .build()
-                            .unwrap();
+                            .build();
 
                     processor.process()?
                 }

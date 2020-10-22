@@ -40,17 +40,14 @@ use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::breakends::{Breakend, BreakendIndex};
 
-#[derive(Builder)]
-#[builder(pattern = "owned")]
-pub(crate) struct ObservationProcessor {
+#[derive(TypedBuilder)]
+pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
     threads: usize,
     alignment_properties: AlignmentProperties,
     max_depth: usize,
     protocol_strandedness: ProtocolStrandedness,
-    #[builder(private)]
     reference_buffer: Arc<reference::Buffer>,
-    #[builder(private)]
-    realigner: realignment::Realigner,
+    realigner: R,
     inbcf: PathBuf,
     outbcf: Option<PathBuf>,
     inbam: PathBuf,
@@ -58,36 +55,12 @@ pub(crate) struct ObservationProcessor {
     breakend_index: BreakendIndex,
     #[builder(default)]
     breakend_group_builders:
-        RwLock<HashMap<Vec<u8>, Mutex<Option<variants::types::breakends::BreakendGroupBuilder>>>>,
+        RwLock<HashMap<Vec<u8>, Mutex<Option<variants::types::breakends::BreakendGroupBuilder<R>>>>>,
     #[builder(default)]
-    breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup>>>,
+    breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
 }
 
-impl ObservationProcessorBuilder {
-    pub(crate) fn reference(
-        self,
-        reader: fasta::IndexedReader<fs::File>,
-        buffer_size: usize,
-    ) -> Self {
-        self.reference_buffer(Arc::new(reference::Buffer::new(reader, buffer_size)))
-    }
-
-    pub(crate) fn realignment(
-        self,
-        gap_params: realignment::pairhmm::GapParams,
-        window: u64,
-    ) -> Self {
-        let ref_buffer = Arc::clone(
-            self.reference_buffer
-                .as_ref()
-                .expect("You need to set reference before setting realignment parameters"),
-        );
-
-        self.realigner(realignment::Realigner::new(ref_buffer, gap_params, window))
-    }
-}
-
-impl ObservationProcessor {
+impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> ObservationProcessor<R> {
     fn writer(&self) -> Result<bcf::Writer> {
         let mut header = bcf::Header::new();
 
@@ -425,8 +398,8 @@ impl ObservationProcessor {
                         .contains_key(event)
                     {
                         let mut builder =
-                            variants::types::breakends::BreakendGroupBuilder::default();
-                        builder.set_realigner(self.realigner.clone());
+                            variants::types::breakends::BreakendGroupBuilder::new();
+                        builder.realigner(self.realigner.clone());
                         self.breakend_group_builders
                             .write()
                             .unwrap()
@@ -451,7 +424,7 @@ impl ObservationProcessor {
                             == work_item.record_index
                         {
                             // METHOD: last record of the breakend event. Hence, we can extract observations.
-                            let breakend_group = Mutex::new(group.build().unwrap());
+                            let breakend_group = Mutex::new(group.build());
                             self.breakend_groups
                                 .write()
                                 .unwrap()

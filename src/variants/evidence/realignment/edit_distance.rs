@@ -7,6 +7,7 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
+use bio::alignment::Alignment;
 use bio::pattern_matching::myers::{self, long};
 use bio::stats::pairhmm;
 
@@ -54,12 +55,15 @@ impl EditDistanceCalculation {
     pub(crate) fn calc_best_hit<E: pairhmm::EmissionParameters + RefBaseEmission>(
         &self,
         emission_params: &E,
+        max_dist: Option<usize>,
     ) -> EditDistanceHit {
         let ref_seq = (0..emission_params.len_x())
             .rev()
             .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
         let mut best_dist = usize::max_value();
         let mut positions = Vec::new();
+        let mut alignments: Vec<Alignment>;
+        let max_dist = max_dist.unwrap_or(self.read_seq_len);
 
         let mut handle_match = |pos, dist: usize| match dist.cmp(&best_dist) {
             Ordering::Less => {
@@ -75,14 +79,30 @@ impl EditDistanceCalculation {
 
         match &self.myers {
             Myers::Short(myers) => {
-                for (pos, dist) in myers.find_all_end(ref_seq, self.read_seq_len as u8) {
+                let matches = myers.find_all_lazy(ref_seq, max_dist as u8);
+                for (pos, dist) in matches {
                     handle_match(pos, dist as usize);
                 }
+
+                // collect alignments
+                alignments = positions.iter().cloned().map(|pos|{
+                    let mut alignment = Alignment::default();
+                    matches.alignment_at(pos, &mut alignment);
+                    alignment
+                }).collect();
             }
             Myers::Long(myers) => {
-                for (pos, dist) in myers.find_all_end(ref_seq, usize::max_value() - 64) {
+                let matches = myers.find_all_lazy(ref_seq, max_dist);
+                for (pos, dist) in matches {
                     handle_match(pos, dist);
                 }
+
+                // collect alignments
+                alignments = positions.iter().cloned().map(|pos|{
+                    let mut alignment = Alignment::default();
+                    matches.alignment_at(pos, &mut alignment);
+                    alignment
+                }).collect();
             }
         }
         let ambiguous = positions.len() > 1;
@@ -99,8 +119,8 @@ impl EditDistanceCalculation {
         EditDistanceHit {
             start,
             end,
-            ambiguous,
             dist: best_dist,
+            alignments,
         }
     }
 }
@@ -111,11 +131,15 @@ pub(crate) struct EditDistanceHit {
     start: usize,
     end: usize,
     dist: usize,
-    ambiguous: bool,
+    alignments: Vec<Alignment>,
 }
 
 impl EditDistanceHit {
     pub(crate) fn dist_upper_bound(&self) -> usize {
         self.dist as usize + EDIT_BAND
+    }
+
+    pub(crate) fn ambiguous(&self) -> bool {
+        self.alignments.len() > 1
     }
 }

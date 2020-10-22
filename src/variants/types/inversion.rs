@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
@@ -9,13 +11,20 @@ use crate::variants::types::breakends::{
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
-#[derive(Derefable)]
-pub(crate) struct Inversion(#[deref] BreakendGroup);
+pub(crate) struct Inversion<R: Realigner>(BreakendGroup<R>);
 
-impl Inversion {
-    pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
-        let mut breakend_group_builder = BreakendGroupBuilder::default();
-        breakend_group_builder.set_realigner(realigner);
+impl<R: Realigner> Deref for Inversion<R> {
+    type Target = BreakendGroup<R>;
+    
+    fn deref(&self) -> &BreakendGroup<R> {
+        &self.0
+    }
+}
+
+impl<R: Realigner> Inversion<R> {
+    pub(crate) fn new(interval: genome::Interval, realigner: R, chrom_seq: &[u8]) -> Self {
+        let mut breakend_group_builder = BreakendGroupBuilder::new();
+        breakend_group_builder.realigner(realigner);
 
         let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..(pos + 1) as usize];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
@@ -81,13 +90,11 @@ impl Inversion {
             b"v",
         ));
 
-        let breakend_group = breakend_group_builder.build().unwrap();
-
-        Inversion(breakend_group)
+        Inversion(breakend_group_builder.build())
     }
 }
 
-impl Variant for Inversion {
+impl<R: Realigner> Variant for Inversion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 

@@ -63,6 +63,7 @@ lru_time_cache = "0.10"
 format-bytes = "0.1"
 futures = "0.3"
 crossbeam = "0.7"
+typed-builder = "0.7"
 
 [dev-dependencies]
 env_logger = "0.3"
