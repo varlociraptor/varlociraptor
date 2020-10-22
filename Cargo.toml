@@ -76,5 +76,5 @@ default = []
 gslv2 = ["GSL/v2"]
 use-intrinsics = ["half/use-intrinsics"]
 
-[profile.release]
-debug = true
+#[profile.release]
+#debug = true
