@@ -11,17 +11,38 @@ lazy_static! {
 
 /// Calculate probability of read_base given ref_base.
 pub(crate) fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
-    let prob_miscall = prob_read_base_miscall(base_qual);
-
     if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
-        prob_miscall.ln_one_minus_exp()
+        BASEQUAL_TO_PROB_CALL[base_qual as usize]
     } else {
+        let prob_miscall = prob_read_base_miscall(base_qual);
         // TODO replace the second term with technology specific confusion matrix
         prob_miscall + *PROB_CONFUSION
     }
 }
 
-/// unpack miscall probability of read_base.
+/// Unpack miscall probability of read_base.
 pub(crate) fn prob_read_base_miscall(base_qual: u8) -> LogProb {
+    BASEQUAL_TO_PROB_MISCALL[base_qual as usize]
+}
+
+/// unpack miscall probability of read_base.
+fn _prob_read_base_miscall(base_qual: u8) -> LogProb {
     LogProb::from(PHREDProb::from((base_qual) as f64))
+}
+
+lazy_static! {
+    pub(crate) static ref BASEQUAL_TO_PROB_MISCALL: [LogProb; 256] = {
+        let mut probs = [LogProb::ln_zero(); 256];
+        for (qual, prob) in (0u8..=255u8).map(|qual| (qual, _prob_read_base_miscall(qual))) {
+            probs[qual as usize] = prob;
+        }
+        probs
+    };
+    pub(crate) static ref BASEQUAL_TO_PROB_CALL: [LogProb; 256] = {
+        let mut probs = [LogProb::ln_zero(); 256];
+        for (qual, prob) in BASEQUAL_TO_PROB_MISCALL.iter().enumerate() {
+            probs[qual] = prob.ln_one_minus_exp();
+        }
+        probs
+    };
 }

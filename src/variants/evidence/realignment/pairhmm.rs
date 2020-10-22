@@ -12,6 +12,7 @@ use std::sync::Arc;
 use bio::stats::pairhmm;
 use bio::stats::{LogProb, PHREDProb, Prob};
 
+use crate::variants::evidence::bases::prob_read_base_miscall;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
 /// Width of band around alignment with optimal edit distance.
@@ -19,11 +20,6 @@ pub(crate) const EDIT_BAND: usize = 2;
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
-}
-
-/// unpack miscall probability of read_base.
-pub(crate) fn prob_read_base_miscall(base_qual: u8) -> LogProb {
-    LogProb::from(PHREDProb::from((base_qual) as f64))
 }
 
 pub(crate) trait RefBaseEmission {
