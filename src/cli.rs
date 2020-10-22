@@ -25,15 +25,15 @@ use crate::estimation;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
+use crate::reference;
 use crate::testcase;
+use crate::variants::evidence::realignment;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::variants::model::modes::generic::FlatPrior;
 use crate::variants::model::{Contamination, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
 use crate::variants::types::breakends::BreakendIndex;
 use crate::SimpleEvent;
-use crate::reference;
-use crate::variants::evidence::realignment;
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 #[structopt(
@@ -523,10 +523,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     let reference_buffer = Arc::new(reference::Buffer::new(
                         fasta::IndexedReader::from_file(&reference)
-                            .context("Unable to read genome reference.")?, 
-                        reference_buffer_size
+                            .context("Unable to read genome reference.")?,
+                        reference_buffer_size,
                     ));
-                    let realigner = realignment::PairHMMRealigner::new(Arc::clone(&reference_buffer), gap_params, realignment_window);
+                    let realigner = realignment::PairHMMRealigner::new(
+                        Arc::clone(&reference_buffer),
+                        gap_params,
+                        realignment_window,
+                    );
 
                     let mut processor =
                         calling::variants::preprocessing::ObservationProcessor::builder()

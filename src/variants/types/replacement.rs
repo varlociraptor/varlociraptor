@@ -15,12 +15,11 @@ pub(crate) struct Replacement<R: Realigner>(BreakendGroup<R>);
 
 impl<R: Realigner> Deref for Replacement<R> {
     type Target = BreakendGroup<R>;
-    
+
     fn deref(&self) -> &BreakendGroup<R> {
         &self.0
     }
 }
-
 
 impl<R: Realigner> Replacement<R> {
     pub(crate) fn new(

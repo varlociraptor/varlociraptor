@@ -15,7 +15,7 @@ pub(crate) struct Inversion<R: Realigner>(BreakendGroup<R>);
 
 impl<R: Realigner> Deref for Inversion<R> {
     type Target = BreakendGroup<R>;
-    
+
     fn deref(&self) -> &BreakendGroup<R> {
         &self.0
     }

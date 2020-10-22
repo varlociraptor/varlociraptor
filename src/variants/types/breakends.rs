@@ -46,38 +46,40 @@ pub(crate) struct BreakendGroup<R: Realigner> {
 }
 
 pub(crate) struct BreakendGroupBuilder<R: Realigner> {
-    loci: MultiLocus,
+    loci: Option<MultiLocus>,
     enclosable_ref_interval: Option<genome::Interval>,
-    breakends: BTreeMap<genome::Locus, Breakend>,
-    realigner: Option<R>
+    breakends: Option<BTreeMap<genome::Locus, Breakend>>,
+    realigner: Option<R>,
 }
 
 impl<R: Realigner> BreakendGroupBuilder<R> {
     pub(crate) fn new() -> Self {
         BreakendGroupBuilder {
-            loci: MultiLocus::default(),
+            loci: Some(MultiLocus::default()),
             enclosable_ref_interval: None,
-            breakends: BTreeMap::default(),
+            breakends: Some(BTreeMap::default()),
             realigner: None,
         }
     }
 
-    pub(crate) fn realigner(mut self, realigner: R) -> Self {
+    pub(crate) fn realigner(&mut self, realigner: R) -> &mut Self {
         self.realigner = Some(realigner);
 
         self
     }
 
-    pub(crate) fn push_breakend(mut self, breakend: Breakend) -> Self {
+    pub(crate) fn push_breakend(&mut self, breakend: Breakend) -> &mut Self {
         let interval = genome::Interval::new(
             breakend.locus.contig().to_owned(),
             breakend.locus.pos()..breakend.locus.pos() + breakend.ref_allele.len() as u64,
         );
 
         self.breakends
+            .as_mut()
+            .unwrap()
             .insert(breakend.locus.clone(), breakend);
 
-        self.loci.push(
+        self.loci.as_mut().unwrap().push(
             SingleLocusBuilder::default()
                 .interval(interval)
                 .build()
@@ -87,17 +89,19 @@ impl<R: Realigner> BreakendGroupBuilder<R> {
         self
     }
 
-    pub(crate) fn build(mut self) -> BreakendGroup<R> {
+    pub(crate) fn build(&mut self) -> BreakendGroup<R> {
         // Calculate enclosable reference interval.
-        let first = self.breakends.keys().next().unwrap();
+        let first = self.breakends.as_ref().unwrap().keys().next().unwrap();
         if self
             .breakends
+            .as_ref()
+            .unwrap()
             .values()
             .skip(1)
             .all(|bnd| bnd.locus.contig() == first.contig())
         {
             let interval = {
-                let last = self.breakends.values().last().unwrap();
+                let last = self.breakends.as_ref().unwrap().values().last().unwrap();
                 genome::Interval::new(
                     last.locus.contig().to_owned(),
                     first.pos()
@@ -113,11 +117,15 @@ impl<R: Realigner> BreakendGroupBuilder<R> {
         }
 
         BreakendGroup {
-            loci: self.loci,
-            enclosable_ref_interval: self.enclosable_ref_interval,
-            breakends: self.breakends,
+            loci: self.loci.take().unwrap(),
+            enclosable_ref_interval: self.enclosable_ref_interval.clone(),
+            breakends: self.breakends.take().unwrap(),
             alt_alleles: RefCell::new(VecMap::new()),
-            realigner: RefCell::new(self.realigner.expect("bug: realigner() needs to be called before build()")),
+            realigner: RefCell::new(
+                self.realigner
+                    .take()
+                    .expect("bug: realigner() needs to be called before build()"),
+            ),
         }
     }
 }

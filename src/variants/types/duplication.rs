@@ -15,7 +15,7 @@ pub(crate) struct Duplication<R: Realigner>(BreakendGroup<R>);
 
 impl<R: Realigner> Deref for Duplication<R> {
     type Target = BreakendGroup<R>;
-    
+
     fn deref(&self) -> &BreakendGroup<R> {
         &self.0
     }

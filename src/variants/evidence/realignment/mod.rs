@@ -4,13 +4,13 @@
 // except according to those terms.
 
 use std::cmp;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
 use std::usize;
-use std::cmp::Ordering;
 
 use anyhow::Result;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
@@ -54,7 +54,6 @@ pub(crate) trait Realignable<'a> {
     }
 }
 
-
 pub(crate) trait Realigner {
     fn candidate_region(
         &self,
@@ -85,7 +84,8 @@ pub(crate) trait Realigner {
                     let qend = qend as usize;
                     // ensure that distance between qstart and qend does not make the window too
                     // large
-                    let max_window = (self.max_window() as usize).saturating_sub((qend - qstart) / 2);
+                    let max_window =
+                        (self.max_window() as usize).saturating_sub((qend - qstart) / 2);
                     let mut read_offset = qstart.saturating_sub(max_window);
                     let mut read_end = cmp::min(qend + max_window as usize, record.seq_len());
 
@@ -235,7 +235,7 @@ pub(crate) trait Realigner {
                 region.read_interval.start,
                 region.read_interval.end,
             ));
-            let edit_dist =
+            let mut edit_dist =
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
 
             // ref allele
@@ -246,7 +246,7 @@ pub(crate) trait Realigner {
                     ref_end: region.ref_interval.end,
                     read_emission: Rc::clone(&read_emission),
                 }],
-                &edit_dist,
+                &mut edit_dist,
             );
 
             let mut prob_alt = self.prob_allele(
@@ -259,7 +259,7 @@ pub(crate) trait Realigner {
                     ),
                     self.ref_window(),
                 )?,
-                &edit_dist,
+                &mut edit_dist,
             );
 
             assert!(!prob_ref.is_nan());
@@ -319,7 +319,7 @@ pub(crate) trait Realigner {
     fn prob_allele<E>(
         &mut self,
         candidate_allele_params: &mut [E],
-        edit_dist: &edit_distance::EditDistanceCalculation,
+        edit_dist: &mut edit_distance::EditDistanceCalculation,
     ) -> LogProb
     where
         E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
@@ -327,31 +327,30 @@ pub(crate) trait Realigner {
         let mut hits = Vec::new();
         let mut best_dist = None;
         for params in candidate_allele_params.iter_mut() {
-            let hit = edit_dist.calc_best_hit(params, best_dist);
-
-            match best_dist.map_or(Ordering::Less, |best_dist| best_dist.cmp(&hit.dist())) {
-                Ordering::Less => {
-                    hits.clear();
-                    best_dist = Some(hit.dist());
-                    hits.push((hit, params));
-                },
-                Ordering::Equal => {
-                    hits.push((hit, params));
-                },
-                Ordering::Greater => (),
+            if let Some(hit) = edit_dist.calc_best_hit(params, best_dist) {
+                match best_dist.map_or(Ordering::Less, |best_dist| best_dist.cmp(&hit.dist())) {
+                    Ordering::Less => {
+                        hits.clear();
+                        best_dist = Some(hit.dist());
+                        hits.push((hit, params));
+                    }
+                    Ordering::Equal => {
+                        hits.push((hit, params));
+                    }
+                    Ordering::Greater => (),
+                }
             }
         }
 
         let mut prob = None;
         // METHOD: for equal best edit dists, we have to compare the probabilities and take the best.
         for (hit, allele_params) in hits {
-
             if hit.dist() == 0 {
                 // METHOD: In case of a perfect match, we just take the base quality product.
                 // All alternative paths in the HMM will anyway be much worse.
                 prob = Some(allele_params.read_emission().certainty_est());
             } else {
-                let p = self.calculate_prob_allele(hit, allele_params);
+                let p = self.calculate_prob_allele(&hit, allele_params);
 
                 if prob.map_or(true, |prob| p > prob) {
                     prob.replace(p);
@@ -363,10 +362,10 @@ pub(crate) trait Realigner {
         prob.unwrap()
     }
 
-    fn calculate_prob_allele(&self, hit: &EditDistanceHit, allele_params: &E) -> LogProb
+    fn calculate_prob_allele<E>(&mut self, hit: &EditDistanceHit, allele_params: &mut E) -> LogProb
     where
         E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
-    
+
     fn ref_buffer(&self) -> &Arc<reference::Buffer>;
 
     fn max_window(&self) -> u64;
@@ -388,7 +387,7 @@ impl PairHMMRealigner {
         max_window: u64,
     ) -> Self {
         let pairhmm = PairHMM::new(&gap_params);
-        Realigner {
+        PairHMMRealigner {
             gap_params,
             pairhmm,
             max_window,
@@ -406,9 +405,9 @@ impl Realigner for PairHMMRealigner {
         self.max_window
     }
 
-    fn calculate_prob_allele(&self, hit: &EditDistanceHit, allele_params: &E) -> LogProb
+    fn calculate_prob_allele<E>(&mut self, hit: &EditDistanceHit, allele_params: &mut E) -> LogProb
     where
-        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission 
+        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
     {
         // METHOD: We shrink the area to run the HMM against to an environment around the best
         // edit distance hits.
@@ -416,7 +415,7 @@ impl Realigner for PairHMMRealigner {
 
         // METHOD: Further, we run the HMM on a band around the best edit distance.
         self.pairhmm.prob_related(
-            *allele_params,
+            allele_params,
             &self.gap_params,
             Some(hit.dist_upper_bound()),
         )

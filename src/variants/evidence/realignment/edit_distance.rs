@@ -53,10 +53,10 @@ impl EditDistanceCalculation {
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
     /// We use the best edit distance and add 5.
     pub(crate) fn calc_best_hit<E: pairhmm::EmissionParameters + RefBaseEmission>(
-        &self,
+        &mut self,
         emission_params: &E,
         max_dist: Option<usize>,
-    ) -> EditDistanceHit {
+    ) -> Option<EditDistanceHit> {
         let ref_seq = (0..emission_params.len_x())
             .rev()
             .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
@@ -77,60 +77,73 @@ impl EditDistanceCalculation {
             Ordering::Greater => (),
         };
 
-        match &self.myers {
+        match &mut self.myers {
             Myers::Short(myers) => {
-                let matches = myers.find_all_lazy(ref_seq, max_dist as u8);
-                for (pos, dist) in matches {
+                let mut matches = myers.find_all_lazy(ref_seq, max_dist as u8);
+                for (pos, dist) in &mut matches {
                     handle_match(pos, dist as usize);
                 }
 
                 // collect alignments
-                alignments = positions.iter().cloned().map(|pos|{
-                    let mut alignment = Alignment::default();
-                    matches.alignment_at(pos, &mut alignment);
-                    alignment
-                }).collect();
+                alignments = positions
+                    .iter()
+                    .cloned()
+                    .map(|pos| {
+                        let mut alignment = Alignment::default();
+                        matches.alignment_at(pos, &mut alignment);
+                        alignment
+                    })
+                    .collect();
             }
             Myers::Long(myers) => {
-                let matches = myers.find_all_lazy(ref_seq, max_dist);
-                for (pos, dist) in matches {
+                let mut matches = myers.find_all_lazy(ref_seq, max_dist);
+                for (pos, dist) in &mut matches {
                     handle_match(pos, dist);
                 }
 
                 // collect alignments
-                alignments = positions.iter().cloned().map(|pos|{
-                    let mut alignment = Alignment::default();
-                    matches.alignment_at(pos, &mut alignment);
-                    alignment
-                }).collect();
+                alignments = positions
+                    .iter()
+                    .cloned()
+                    .map(|pos| {
+                        let mut alignment = Alignment::default();
+                        matches.alignment_at(pos, &mut alignment);
+                        alignment
+                    })
+                    .collect();
             }
         }
-        let ambiguous = positions.len() > 1;
-
-        // We find a pos relative to ref end, hence we have to project it to a position relative to
-        // the start.
-        let project = |pos| emission_params.len_x() - pos;
-        let start = project(*positions.last().unwrap()).saturating_sub(best_dist as usize);
-        // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
-        let end = cmp::min(
-            project(positions[0]) + self.read_seq_len + best_dist as usize,
-            emission_params.len_x(),
-        );
-        EditDistanceHit {
-            start,
-            end,
-            dist: best_dist,
-            alignments,
+        if positions.is_empty() {
+            None
+        } else {
+            // We find a pos relative to ref end, hence we have to project it to a position relative to
+            // the start.
+            let project = |pos| emission_params.len_x() - pos;
+            let start = project(*positions.last().unwrap()).saturating_sub(best_dist as usize);
+            // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
+            let end = cmp::min(
+                project(positions[0]) + self.read_seq_len + best_dist as usize,
+                emission_params.len_x(),
+            );
+            Some(EditDistanceHit {
+                start,
+                end,
+                dist: best_dist,
+                alignments,
+            })
         }
     }
 }
 
-#[derive(Debug, Clone, CopyGetters)]
-#[getset(get_copy = "pub")]
+#[derive(Debug, Clone, Getters, CopyGetters)]
 pub(crate) struct EditDistanceHit {
+    #[getset(get_copy = "pub(crate)")]
     start: usize,
+    #[getset(get_copy = "pub(crate)")]
     end: usize,
+    #[getset(get_copy = "pub(crate)")]
     dist: usize,
+    #[getset(get = "pub(crate)")]
     alignments: Vec<Alignment>,
 }
 

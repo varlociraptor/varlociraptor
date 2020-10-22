@@ -54,13 +54,16 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
     options: cli::Varlociraptor,
     breakend_index: BreakendIndex,
     #[builder(default)]
-    breakend_group_builders:
-        RwLock<HashMap<Vec<u8>, Mutex<Option<variants::types::breakends::BreakendGroupBuilder<R>>>>>,
+    breakend_group_builders: RwLock<
+        HashMap<Vec<u8>, Mutex<Option<variants::types::breakends::BreakendGroupBuilder<R>>>>,
+    >,
     #[builder(default)]
     breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
 }
 
-impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> ObservationProcessor<R> {
+impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
+    ObservationProcessor<R>
+{
     fn writer(&self) -> Result<bcf::Writer> {
         let mut header = bcf::Header::new();
 
@@ -397,8 +400,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync> 
                         .unwrap()
                         .contains_key(event)
                     {
-                        let mut builder =
-                            variants::types::breakends::BreakendGroupBuilder::new();
+                        let mut builder = variants::types::breakends::BreakendGroupBuilder::new();
                         builder.realigner(self.realigner.clone());
                         self.breakend_group_builders
                             .write()
