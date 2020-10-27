@@ -191,7 +191,6 @@ impl Realigner {
         L: IntoIterator,
         L::Item: AsRef<SingleLocus>,
     {
-        dbg!(std::str::from_utf8(record.qname()).unwrap());
         // Obtain candidate regions from matching loci.
         let candidate_regions: Result<Vec<_>> = loci
             .into_iter()
@@ -353,8 +352,6 @@ impl Realigner {
             let entry = hits.entry(hit.dist()).or_insert_with(Vec::new);
             entry.push((hit, params));
         }
-
-        dbg!(hits.values().next().unwrap().iter().map(|(hit, _)| hit.dist()).collect_vec());
 
         let mut last_hit: Option<&EditDistanceHit> = None;
         let mut prob = None;
