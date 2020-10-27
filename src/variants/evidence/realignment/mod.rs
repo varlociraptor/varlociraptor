@@ -3,7 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::cmp;
+use std::{fmt::Debug, cmp};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -12,6 +12,7 @@ use std::str;
 use std::sync::Arc;
 use std::usize;
 
+use itertools::Itertools;
 use anyhow::Result;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
@@ -341,6 +342,7 @@ pub(crate) trait Realigner {
                 }
             }
         }
+        dbg!(hits.iter().map(|(hit, _)| hit.dist()).collect_vec());
 
         let mut prob = None;
         // METHOD: for equal best edit dists, we have to compare the probabilities and take the best.
@@ -421,6 +423,7 @@ impl Realigner for PairHMMRealigner {
         )
     }
 }
+
 
 pub(crate) trait AltAlleleEmissionBuilder {
     type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
