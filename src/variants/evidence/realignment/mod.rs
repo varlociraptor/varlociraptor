@@ -3,7 +3,6 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::{fmt::Debug, cmp};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::ops::Range;
@@ -11,12 +10,13 @@ use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
 use std::usize;
+use std::{cmp, fmt::Debug};
 
-use itertools::Itertools;
 use anyhow::Result;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractInterval;
+use itertools::Itertools;
 use rust_htslib::bam;
 
 use crate::reference;
@@ -329,7 +329,7 @@ pub(crate) trait Realigner {
         let mut best_dist = None;
         for params in candidate_allele_params.iter_mut() {
             if let Some(hit) = edit_dist.calc_best_hit(params, best_dist) {
-                match best_dist.map_or(Ordering::Less, |best_dist| best_dist.cmp(&hit.dist())) {
+                match best_dist.map_or(Ordering::Less, |best_dist| hit.dist().cmp(&best_dist)) {
                     Ordering::Less => {
                         hits.clear();
                         best_dist = Some(hit.dist());
@@ -342,7 +342,6 @@ pub(crate) trait Realigner {
                 }
             }
         }
-        dbg!(hits.iter().map(|(hit, _)| hit.dist()).collect_vec());
 
         let mut prob = None;
         // METHOD: for equal best edit dists, we have to compare the probabilities and take the best.
@@ -423,7 +422,6 @@ impl Realigner for PairHMMRealigner {
         )
     }
 }
-
 
 pub(crate) trait AltAlleleEmissionBuilder {
     type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
