@@ -125,6 +125,10 @@ fn default_reference_buffer_size() -> usize {
     10
 }
 
+fn default_pairhmm_mode() -> String {
+    "fast".to_owned()
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -233,6 +237,14 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         omit_insert_size: bool,
+        #[structopt(
+            long = "pairhmm-mode",
+            possible_values = &["fast", "exact"],
+            default_value = "fast",
+            help = "PairHMM computation mode (either fast or exact)."
+        )]
+        #[serde(default = "default_pairhmm_mode")]
+        pairhmm_mode: String,
     },
 }
 
@@ -490,6 +502,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_insert_size,
                     threads,
                     reference_buffer_size,
+                    pairhmm_mode,
                 } => {
                     // TODO: handle testcases
 
@@ -526,28 +539,50 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .context("Unable to read genome reference.")?,
                         reference_buffer_size,
                     ));
-                    let realigner = realignment::PairHMMRealigner::new(
-                        Arc::clone(&reference_buffer),
-                        gap_params,
-                        realignment_window,
-                    );
 
-                    let mut processor =
-                        calling::variants::preprocessing::ObservationProcessor::builder()
-                            .threads(threads)
-                            .alignment_properties(alignment_properties)
-                            .protocol_strandedness(protocol_strandedness)
-                            .max_depth(max_depth)
-                            .inbam(bam)
-                            .reference_buffer(reference_buffer)
-                            .realigner(realigner)
-                            .breakend_index(BreakendIndex::new(&candidates)?)
-                            .inbcf(candidates)
-                            .options(opt_clone)
-                            .outbcf(output)
-                            .build();
+                    if pairhmm_mode == "fast" {
+                        let mut processor =
+                            calling::variants::preprocessing::ObservationProcessor::builder()
+                                .threads(threads)
+                                .alignment_properties(alignment_properties)
+                                .protocol_strandedness(protocol_strandedness)
+                                .max_depth(max_depth)
+                                .inbam(bam)
+                                .reference_buffer(Arc::clone(&reference_buffer))
+                                .breakend_index(BreakendIndex::new(&candidates)?)
+                                .inbcf(candidates)
+                                .options(opt_clone)
+                                .outbcf(output)
+                                .realigner(realignment::PathHMMRealigner::new(
+                                    gap_params,
+                                    realignment_window,
+                                    reference_buffer,
+                                ))
+                                .build();
 
-                    processor.process()?
+                        processor.process()?;
+                    } else {
+                        let mut processor =
+                            calling::variants::preprocessing::ObservationProcessor::builder()
+                                .threads(threads)
+                                .alignment_properties(alignment_properties)
+                                .protocol_strandedness(protocol_strandedness)
+                                .max_depth(max_depth)
+                                .inbam(bam)
+                                .reference_buffer(Arc::clone(&reference_buffer))
+                                .breakend_index(BreakendIndex::new(&candidates)?)
+                                .inbcf(candidates)
+                                .options(opt_clone)
+                                .outbcf(output)
+                                .realigner(realignment::PairHMMRealigner::new(
+                                    reference_buffer,
+                                    gap_params,
+                                    realignment_window,
+                                ))
+                                .build();
+
+                        processor.process()?;
+                    }
                 }
             }
         }

@@ -13,6 +13,7 @@ use std::usize;
 use std::{cmp, fmt::Debug};
 
 use anyhow::Result;
+use bio::alignment::AlignmentOperation;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractInterval;
@@ -170,6 +171,7 @@ pub(crate) trait Realigner {
         L: IntoIterator,
         L::Item: AsRef<SingleLocus>,
     {
+        dbg!(std::str::from_utf8(record.qname()).unwrap());
         // Obtain candidate regions from matching loci.
         let candidate_regions: Result<Vec<_>> = loci
             .into_iter()
@@ -262,6 +264,8 @@ pub(crate) trait Realigner {
                 )?,
                 &mut edit_dist,
             );
+
+            dbg!((prob_ref, prob_alt));
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
@@ -420,6 +424,59 @@ impl Realigner for PairHMMRealigner {
             &self.gap_params,
             Some(hit.dist_upper_bound()),
         )
+    }
+}
+
+#[derive(Clone, new)]
+pub(crate) struct PathHMMRealigner {
+    gap_params: pairhmm::GapParams,
+    max_window: u64,
+    ref_buffer: Arc<reference::Buffer>,
+}
+
+impl Realigner for PathHMMRealigner {
+    fn ref_buffer(&self) -> &Arc<reference::Buffer> {
+        &self.ref_buffer
+    }
+
+    fn max_window(&self) -> u64 {
+        self.max_window
+    }
+
+    fn calculate_prob_allele<E>(&mut self, hit: &EditDistanceHit, allele_params: &mut E) -> LogProb
+    where
+        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
+    {
+        let mut best_prob = None;
+        for alignment in hit.alignments() {
+            let mut prob = LogProb::ln_one();
+            let mut pos_ref = alignment.ystart;
+            let mut pos_read = 0;
+            for operation in &alignment.operations {
+                match operation {
+                    AlignmentOperation::Match | AlignmentOperation::Subst => {
+                        prob += allele_params.prob_emit_xy(pos_ref, pos_read).prob();
+                        pos_ref += 1;
+                        pos_read += 1;
+                    },
+                    AlignmentOperation::Del => {
+                        prob += allele_params.prob_emit_x(pos_ref);
+                        pos_ref += 1;
+                    },
+                    AlignmentOperation::Ins => {
+                        prob += allele_params.prob_emit_y(pos_read);
+                        pos_read += 1;
+                    },
+                    _ => panic!("bug: unsupported alignment operation (Myers algorithm should create a semiglobal alignment)")
+                }
+            }
+            // If better than best probability, keep this.
+            if best_prob.map_or(true, |best| prob > best) {
+                best_prob = Some(prob);
+            }
+        }
+
+        best_prob.unwrap()
     }
 }
 
