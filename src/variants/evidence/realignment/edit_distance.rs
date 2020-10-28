@@ -61,7 +61,7 @@ impl EditDistanceCalculation {
             (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase());
         let mut best_dist = usize::max_value();
         let mut positions = Vec::new();
-        let mut alignments: Vec<Alignment>;
+        let alignments: Vec<Alignment>;
         let max_dist = max_dist.unwrap_or(self.read_seq_len);
 
         let mut handle_match = |pos, dist: usize| match dist.cmp(&best_dist) {
@@ -158,9 +158,5 @@ pub(crate) struct EditDistanceHit {
 impl EditDistanceHit {
     pub(crate) fn dist_upper_bound(&self) -> usize {
         self.dist as usize + EDIT_BAND
-    }
-
-    pub(crate) fn ambiguous(&self) -> bool {
-        self.alignments.len() > 1
     }
 }

@@ -5,19 +5,16 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
 use anyhow::{Context, Result};
-use bio::io::fasta;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
 use crossbeam::channel::{Receiver, Sender};
-use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bam;
 use rust_htslib::bcf::{self, Read};

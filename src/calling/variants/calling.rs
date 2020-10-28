@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str;
-use std::sync::{Mutex, RwLock};
+use std::sync::RwLock;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
@@ -27,10 +27,7 @@ use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
 use crate::variants::model::Contamination;
-use crate::variants::model::{
-    bias::read_orientation_bias::ReadOrientationBias, bias::strand_bias::StrandBias, bias::Biases,
-    bias::BiasesBuilder, AlleleFreq,
-};
+use crate::variants::model::{bias::Biases, AlleleFreq};
 use crate::variants::types::breakends::BreakendIndex;
 
 pub(crate) type AlleleFreqCombination = Vec<model::likelihood::Event>;
@@ -565,7 +562,6 @@ where
                 self.breakend_results.write().unwrap().insert(
                     event.to_owned(),
                     BreakendResult {
-                        event: event.to_owned(),
                         event_probs: variant.event_probs().as_ref().unwrap().clone(),
                         sample_info: variant.sample_info().as_ref().unwrap().clone(),
                     },
@@ -579,7 +575,6 @@ where
 
 #[derive(Default)]
 pub(crate) struct BreakendResult {
-    event: Vec<u8>,
     event_probs: HashMap<String, LogProb>,
     sample_info: Vec<SampleInfo>,
 }

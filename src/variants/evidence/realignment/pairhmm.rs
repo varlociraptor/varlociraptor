@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use bio::stats::pairhmm;
-use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::stats::{LogProb, Prob};
 
 use crate::variants::evidence::bases::prob_read_base_miscall;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;

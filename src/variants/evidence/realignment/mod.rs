@@ -3,21 +3,19 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::cmp;
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
 use std::usize;
-use std::{cmp, fmt::Debug};
 
 use anyhow::Result;
 use bio::alignment::AlignmentOperation;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractInterval;
-use itertools::Itertools;
 use rust_htslib::bam;
 
 use crate::reference;
