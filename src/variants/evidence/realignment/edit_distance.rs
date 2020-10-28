@@ -7,7 +7,7 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
-use bio::alignment::Alignment;
+use bio::alignment::AlignmentOperation;
 use bio::pattern_matching::myers::{self, long};
 use bio::stats::pairhmm;
 
@@ -39,9 +39,9 @@ impl EditDistanceCalculation {
         let l = read_seq.len();
 
         let myers = if l <= 128 {
-            Myers::Short(myers::Myers::new(read_seq.rev()))
+            Myers::Short(myers::Myers::new(read_seq))
         } else {
-            Myers::Long(long::Myers::new(read_seq.rev()))
+            Myers::Long(long::Myers::new(read_seq))
         };
 
         EditDistanceCalculation {
@@ -57,9 +57,8 @@ impl EditDistanceCalculation {
         emission_params: &E,
         max_dist: Option<usize>,
     ) -> Option<EditDistanceHit> {
-        let ref_seq = (0..emission_params.len_x())
-            .rev()
-            .map(|i| emission_params.ref_base(i).to_ascii_uppercase());
+        let ref_seq =
+            (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase());
         let mut best_dist = usize::max_value();
         let mut positions = Vec::new();
         let mut alignments: Vec<Alignment>;
@@ -90,7 +89,8 @@ impl EditDistanceCalculation {
                     .cloned()
                     .map(|pos| {
                         let mut alignment = Alignment::default();
-                        matches.alignment_at(pos, &mut alignment);
+                        let (start, _) = matches.path_at(pos, &mut alignment.operations).unwrap();
+                        alignment.start = start;
                         alignment
                     })
                     .collect();
@@ -107,7 +107,10 @@ impl EditDistanceCalculation {
                     .cloned()
                     .map(|pos| {
                         let mut alignment = Alignment::default();
-                        matches.alignment_at(pos, &mut alignment);
+                        let (start, _) = matches.path_at(pos, &mut alignment.operations).unwrap();
+                        // We find a pos relative to ref end, hence we have to project it to a position relative to
+                        // the start.
+                        alignment.start = start;
                         alignment
                     })
                     .collect();
@@ -116,13 +119,10 @@ impl EditDistanceCalculation {
         if positions.is_empty() {
             None
         } else {
-            // We find a pos relative to ref end, hence we have to project it to a position relative to
-            // the start.
-            let project = |pos| emission_params.len_x() - pos;
-            let start = project(*positions.last().unwrap()).saturating_sub(best_dist as usize);
+            let start = alignments[0].start();
             // take the last (aka first because we are mapping backwards) position for an upper bound of the putative end
             let end = cmp::min(
-                project(positions[0]) + self.read_seq_len + best_dist as usize,
+                alignments.last().unwrap().start() + self.read_seq_len + best_dist as usize,
                 emission_params.len_x(),
             );
             Some(EditDistanceHit {
@@ -133,6 +133,14 @@ impl EditDistanceCalculation {
             })
         }
     }
+}
+
+#[derive(Debug, Clone, Getters, CopyGetters, Default)]
+pub(crate) struct Alignment {
+    #[getset(get = "pub(crate)")]
+    operations: Vec<AlignmentOperation>,
+    #[getset(get_copy = "pub(crate)")]
+    start: usize,
 }
 
 #[derive(Debug, Clone, Getters, CopyGetters)]

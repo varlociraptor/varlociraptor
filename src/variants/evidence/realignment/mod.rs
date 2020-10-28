@@ -171,7 +171,6 @@ pub(crate) trait Realigner {
         L: IntoIterator,
         L::Item: AsRef<SingleLocus>,
     {
-        dbg!(std::str::from_utf8(record.qname()).unwrap());
         // Obtain candidate regions from matching loci.
         let candidate_regions: Result<Vec<_>> = loci
             .into_iter()
@@ -264,8 +263,6 @@ pub(crate) trait Realigner {
                 )?,
                 &mut edit_dist,
             );
-
-            dbg!((prob_ref, prob_alt));
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
@@ -450,12 +447,13 @@ impl Realigner for PathHMMRealigner {
         let mut best_prob = None;
         for alignment in hit.alignments() {
             let mut prob = LogProb::ln_one();
-            let mut pos_ref = alignment.ystart;
+            let mut pos_ref = alignment.start();
             let mut pos_read = 0;
-            for operation in &alignment.operations {
+            for operation in alignment.operations() {
                 match operation {
                     AlignmentOperation::Match | AlignmentOperation::Subst => {
-                        prob += allele_params.prob_emit_xy(pos_ref, pos_read).prob();
+                        let emission = allele_params.prob_emit_xy(pos_ref, pos_read);
+                        prob += emission.prob();
                         pos_ref += 1;
                         pos_read += 1;
                     },
