@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use bio::stats::{bayesian::model::Likelihood, LogProb, Prob};
+use bio::stats::{bayesian::model::Likelihood, LogProb};
 
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::evidence::observation::Observation;
@@ -232,7 +232,6 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::variants::model::bias::strand_bias::StrandBias;
     use crate::variants::model::bias::Biases;
     use crate::variants::model::likelihood;
     use crate::variants::model::tests::observation;

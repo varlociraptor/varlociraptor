@@ -36,25 +36,34 @@ use crate::{default_emission, default_ref_base_emission};
 
 const MIN_REF_BASES: u64 = 10;
 
-#[derive(Builder)]
-#[builder(build_fn(name = "build_inner"))]
-pub(crate) struct BreakendGroup {
-    #[builder(default)]
+pub(crate) struct BreakendGroup<R: Realigner> {
     loci: MultiLocus,
-    #[builder(private, default)]
     enclosable_ref_interval: Option<genome::Interval>,
-    #[builder(default)]
     // TODO consider making the right side a Vec<Breakend>!
     breakends: BTreeMap<genome::Locus, Breakend>,
-    #[builder(default)]
     alt_alleles: RefCell<VecMap<Vec<Arc<AltAllele>>>>,
-    #[builder(private)]
-    realigner: RefCell<Realigner>,
+    realigner: RefCell<R>,
 }
 
-impl BreakendGroupBuilder {
-    pub(crate) fn set_realigner(&mut self, realigner: Realigner) -> &mut Self {
-        self.realigner = Some(RefCell::new(realigner));
+pub(crate) struct BreakendGroupBuilder<R: Realigner> {
+    loci: Option<MultiLocus>,
+    enclosable_ref_interval: Option<genome::Interval>,
+    breakends: Option<BTreeMap<genome::Locus, Breakend>>,
+    realigner: Option<R>,
+}
+
+impl<R: Realigner> BreakendGroupBuilder<R> {
+    pub(crate) fn new() -> Self {
+        BreakendGroupBuilder {
+            loci: Some(MultiLocus::default()),
+            enclosable_ref_interval: None,
+            breakends: Some(BTreeMap::default()),
+            realigner: None,
+        }
+    }
+
+    pub(crate) fn realigner(&mut self, realigner: R) -> &mut Self {
+        self.realigner = Some(realigner);
 
         self
     }
@@ -64,11 +73,6 @@ impl BreakendGroupBuilder {
             breakend.locus.contig().to_owned(),
             breakend.locus.pos()..breakend.locus.pos() + breakend.ref_allele.len() as u64,
         );
-
-        if self.breakends.is_none() {
-            self.breakends = Some(BTreeMap::default());
-            self.loci = Some(MultiLocus::default());
-        }
 
         self.breakends
             .as_mut()
@@ -85,7 +89,7 @@ impl BreakendGroupBuilder {
         self
     }
 
-    pub(crate) fn build(&mut self) -> Result<BreakendGroup, String> {
+    pub(crate) fn build(&mut self) -> BreakendGroup<R> {
         // Calculate enclosable reference interval.
         let first = self.breakends.as_ref().unwrap().keys().next().unwrap();
         if self
@@ -109,14 +113,24 @@ impl BreakendGroupBuilder {
                             },
                 )
             };
-            self.enclosable_ref_interval(Some(interval));
+            self.enclosable_ref_interval = Some(interval);
         }
 
-        self.build_inner()
+        BreakendGroup {
+            loci: self.loci.take().unwrap(),
+            enclosable_ref_interval: self.enclosable_ref_interval.clone(),
+            breakends: self.breakends.take().unwrap(),
+            alt_alleles: RefCell::new(VecMap::new()),
+            realigner: RefCell::new(
+                self.realigner
+                    .take()
+                    .expect("bug: realigner() needs to be called before build()"),
+            ),
+        }
     }
 }
 
-impl BreakendGroup {
+impl<R: Realigner> BreakendGroup<R> {
     pub(crate) fn breakends(&self) -> impl Iterator<Item = &Breakend> {
         self.breakends.values()
     }
@@ -193,7 +207,7 @@ impl BreakendGroup {
     }
 }
 
-impl Variant for BreakendGroup {
+impl<R: Realigner> Variant for BreakendGroup<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
@@ -323,7 +337,7 @@ impl Variant for BreakendGroup {
     }
 }
 
-impl SamplingBias for BreakendGroup {
+impl<R: Realigner> SamplingBias for BreakendGroup<R> {
     fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
         if self.is_deletion() {
             if let Some(len) = self.enclosable_len() {
@@ -353,9 +367,9 @@ impl SamplingBias for BreakendGroup {
     }
 }
 
-impl ReadSamplingBias for BreakendGroup {}
+impl<R: Realigner> ReadSamplingBias for BreakendGroup<R> {}
 
-impl<'a> Realignable<'a> for BreakendGroup {
+impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
     type EmissionParams = BreakendEmissionParams<'a>;
 
     fn maybe_revcomp(&self) -> bool {

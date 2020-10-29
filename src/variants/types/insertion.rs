@@ -21,14 +21,14 @@ use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
 use crate::{default_emission, default_ref_base_emission};
 
-pub(crate) struct Insertion {
+pub(crate) struct Insertion<R: Realigner> {
     locus: MultiLocus,
     ins_seq: Rc<Vec<u8>>,
-    realigner: RefCell<Realigner>,
+    realigner: RefCell<R>,
 }
 
-impl Insertion {
-    pub(crate) fn new(locus: genome::Locus, ins_seq: Vec<u8>, realigner: Realigner) -> Self {
+impl<R: Realigner> Insertion<R> {
+    pub(crate) fn new(locus: genome::Locus, ins_seq: Vec<u8>, realigner: R) -> Self {
         Insertion {
             locus: MultiLocus::new(vec![SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
@@ -44,7 +44,7 @@ impl Insertion {
     }
 }
 
-impl<'a> Realignable<'a> for Insertion {
+impl<'a, R: Realigner> Realignable<'a> for Insertion<R> {
     type EmissionParams = InsertionEmissionParams<'a>;
 
     fn alt_emission_params(
@@ -73,7 +73,7 @@ impl<'a> Realignable<'a> for Insertion {
     }
 }
 
-impl SamplingBias for Insertion {
+impl<R: Realigner> SamplingBias for Insertion<R> {
     fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
         if let Some(len) = self.enclosable_len() {
             if len < (alignment_properties.max_ins_cigar_len as u64) {
@@ -88,9 +88,9 @@ impl SamplingBias for Insertion {
     }
 }
 
-impl ReadSamplingBias for Insertion {}
+impl<R: Realigner> ReadSamplingBias for Insertion<R> {}
 
-impl Variant for Insertion {
+impl<R: Realigner> Variant for Insertion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 

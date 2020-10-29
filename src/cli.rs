@@ -8,6 +8,7 @@ use std::convert::{From, TryFrom};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bio::io::fasta;
@@ -24,7 +25,9 @@ use crate::estimation;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
+use crate::reference;
 use crate::testcase;
+use crate::variants::evidence::realignment;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::variants::model::modes::generic::FlatPrior;
 use crate::variants::model::{Contamination, VariantType};
@@ -120,6 +123,10 @@ fn default_threads() -> usize {
 
 fn default_reference_buffer_size() -> usize {
     10
+}
+
+fn default_pairhmm_mode() -> String {
+    "fast".to_owned()
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -230,6 +237,14 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         omit_insert_size: bool,
+        #[structopt(
+            long = "pairhmm-mode",
+            possible_values = &["fast", "exact"],
+            default_value = "fast",
+            help = "PairHMM computation mode (either fast or exact)."
+        )]
+        #[serde(default = "default_pairhmm_mode")]
+        pairhmm_mode: String,
     },
 }
 
@@ -487,6 +502,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_insert_size,
                     threads,
                     reference_buffer_size,
+                    pairhmm_mode,
                 } => {
                     // TODO: handle testcases
 
@@ -518,27 +534,55 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
                     };
 
-                    let mut processor =
-                        calling::variants::preprocessing::ObservationProcessorBuilder::default()
-                            .threads(threads)
-                            .alignment_properties(alignment_properties)
-                            .protocol_strandedness(protocol_strandedness)
-                            .max_depth(max_depth)
-                            .inbam(bam)
-                            .reference(
-                                fasta::IndexedReader::from_file(&reference)
-                                    .context("Unable to read genome reference.")?,
-                                reference_buffer_size,
-                            )
-                            .realignment(gap_params, realignment_window)
-                            .breakend_index(BreakendIndex::new(&candidates)?)
-                            .inbcf(candidates)
-                            .options(opt_clone)
-                            .outbcf(output)
-                            .build()
-                            .unwrap();
+                    let reference_buffer = Arc::new(reference::Buffer::new(
+                        fasta::IndexedReader::from_file(&reference)
+                            .context("Unable to read genome reference.")?,
+                        reference_buffer_size,
+                    ));
 
-                    processor.process()?
+                    if pairhmm_mode == "fast" {
+                        let mut processor =
+                            calling::variants::preprocessing::ObservationProcessor::builder()
+                                .threads(threads)
+                                .alignment_properties(alignment_properties)
+                                .protocol_strandedness(protocol_strandedness)
+                                .max_depth(max_depth)
+                                .inbam(bam)
+                                .reference_buffer(Arc::clone(&reference_buffer))
+                                .breakend_index(BreakendIndex::new(&candidates)?)
+                                .inbcf(candidates)
+                                .options(opt_clone)
+                                .outbcf(output)
+                                .realigner(realignment::PathHMMRealigner::new(
+                                    gap_params,
+                                    realignment_window,
+                                    reference_buffer,
+                                ))
+                                .build();
+
+                        processor.process()?;
+                    } else {
+                        let mut processor =
+                            calling::variants::preprocessing::ObservationProcessor::builder()
+                                .threads(threads)
+                                .alignment_properties(alignment_properties)
+                                .protocol_strandedness(protocol_strandedness)
+                                .max_depth(max_depth)
+                                .inbam(bam)
+                                .reference_buffer(Arc::clone(&reference_buffer))
+                                .breakend_index(BreakendIndex::new(&candidates)?)
+                                .inbcf(candidates)
+                                .options(opt_clone)
+                                .outbcf(output)
+                                .realigner(realignment::PairHMMRealigner::new(
+                                    reference_buffer,
+                                    gap_params,
+                                    realignment_window,
+                                ))
+                                .build();
+
+                        processor.process()?;
+                    }
                 }
             }
         }

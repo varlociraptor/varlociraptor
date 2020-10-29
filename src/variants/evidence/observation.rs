@@ -8,7 +8,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 
 use anyhow::Result;
-use bio::stats::{LogProb, Prob};
+use bio::stats::LogProb;
 use rust_htslib::bam;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
@@ -167,39 +167,11 @@ impl Observation {
         self.prob_mismapping_adj.unwrap_or(self.prob_mismapping)
     }
 
-    /// Adjust prob_mapping in the given pileup to its average (arithmetic mean of the regular probabilities).
-    pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
-        // METHOD: a pileup can, although consisting largely of uncertain mappers, contain
-        // some reads that by accident are certain mappers (although they don't belong here). If those
-        // support the variant, they can lead to an artifact.
-        // By taking the average MAPQ over the pileup, we make a conservative choice, justified by the fact
-        // that MAPQ choice of the mapper is influenced by (a) the locus ambiguity and (b) stochastic noise
-        // driven by sequencing errors and variants at homologous loci. By averaging, we eliminate
-        // the stochastic noise. These assumptions are only valid for SNV and MNV loci.
-        let adj_mapq = LogProb(
-            (LogProb::ln_sum_exp(
-                &pileup
-                    .iter()
-                    .map(|obs| obs.prob_mapping)
-                    .collect::<Vec<_>>(),
-            )
-            .exp()
-                / pileup.len() as f64)
-                .ln(),
-        );
-        for obs in pileup {
-            if obs.prob_mapping > adj_mapq {
-                obs.prob_mapping_adj = Some(adj_mapq);
-                obs.prob_mismapping_adj = Some(adj_mapq.ln_one_minus_exp());
-            }
-        }
-    }
-
     /// Remove all non-standard alignments from pileup (softclipped observations, non-standard read orientations).
     pub(crate) fn remove_nonstandard_alignments(pileup: Vec<Self>) -> Vec<Self> {
-        /// METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
-        /// solely driven by standard alignments, that are not clipped and in expected orientation.
-        /// Otherwise called SNVs can be artifacts of near SVs.
+        // METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
+        // solely driven by standard alignments, that are not clipped and in expected orientation.
+        // Otherwise called SNVs can be artifacts of near SVs.
         pileup
             .into_iter()
             .filter(|obs| {

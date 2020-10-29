@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
@@ -9,18 +11,25 @@ use crate::variants::types::breakends::{
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
-#[derive(Derefable)]
-pub(crate) struct Replacement(#[deref] BreakendGroup);
+pub(crate) struct Replacement<R: Realigner>(BreakendGroup<R>);
 
-impl Replacement {
+impl<R: Realigner> Deref for Replacement<R> {
+    type Target = BreakendGroup<R>;
+
+    fn deref(&self) -> &BreakendGroup<R> {
+        &self.0
+    }
+}
+
+impl<R: Realigner> Replacement<R> {
     pub(crate) fn new(
         interval: genome::Interval,
         replacement: Vec<u8>,
-        realigner: Realigner,
+        realigner: R,
         chrom_seq: &[u8],
     ) -> Self {
-        let mut breakend_group_builder = BreakendGroupBuilder::default();
-        breakend_group_builder.set_realigner(realigner);
+        let mut breakend_group_builder = BreakendGroupBuilder::new();
+        breakend_group_builder.realigner(realigner);
 
         let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..pos as usize + 1];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
@@ -59,11 +68,11 @@ impl Replacement {
             b"u",
         ));
 
-        Replacement(breakend_group_builder.build().unwrap())
+        Replacement(breakend_group_builder.build())
     }
 }
 
-impl Variant for Replacement {
+impl<R: Realigner> Variant for Replacement<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
