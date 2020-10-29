@@ -11,12 +11,12 @@ use std::str;
 use std::sync::Arc;
 use std::usize;
 
-use itertools::Itertools;
 use anyhow::Result;
 use bio::alignment::AlignmentOperation;
 use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractInterval;
+use itertools::Itertools;
 use rust_htslib::bam;
 
 use crate::reference;
