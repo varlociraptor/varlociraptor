@@ -13,7 +13,7 @@ use std::usize;
 
 use anyhow::Result;
 use bio::alignment::AlignmentOperation;
-use bio::stats::{self, pairhmm::PairHMM, pairhmm::GapParameters, LogProb, Prob};
+use bio::stats::{self, pairhmm::GapParameters, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractInterval;
 use rust_htslib::bam;
@@ -433,7 +433,11 @@ pub(crate) struct PathHMMRealigner {
 }
 
 impl PathHMMRealigner {
-    pub(crate) fn new(gap_params: pairhmm::GapParams, max_window: u64, ref_buffer: Arc<reference::Buffer>) -> Self {
+    pub(crate) fn new(
+        gap_params: pairhmm::GapParams,
+        max_window: u64,
+        ref_buffer: Arc<reference::Buffer>,
+    ) -> Self {
         let prob_no_gap = gap_params.prob_gap_x().ln_add_exp(gap_params.prob_gap_y());
         let prob_close_gap_x = gap_params.prob_gap_x_extend().ln_one_minus_exp();
         let prob_close_gap_y = gap_params.prob_gap_y_extend().ln_one_minus_exp();
@@ -461,7 +465,6 @@ impl Realigner for PathHMMRealigner {
     where
         E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
     {
-        
         let mut best_prob = None;
         for alignment in hit.alignments() {
             let mut prob = LogProb::ln_one();
