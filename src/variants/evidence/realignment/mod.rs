@@ -430,6 +430,8 @@ pub(crate) struct PathHMMRealigner {
     prob_no_gap: LogProb,
     prob_close_gap_x: LogProb,
     prob_close_gap_y: LogProb,
+    prob_extend_or_reopen_gap_x: LogProb,
+    prob_extend_or_reopen_gap_y: LogProb,
 }
 
 impl PathHMMRealigner {
@@ -441,6 +443,12 @@ impl PathHMMRealigner {
         let prob_no_gap = gap_params.prob_gap_x().ln_add_exp(gap_params.prob_gap_y());
         let prob_close_gap_x = gap_params.prob_gap_x_extend().ln_one_minus_exp();
         let prob_close_gap_y = gap_params.prob_gap_y_extend().ln_one_minus_exp();
+        let prob_extend_or_reopen_gap_x = gap_params
+            .prob_gap_x_extend()
+            .ln_add_exp(prob_close_gap_x + gap_params.prob_gap_x());
+        let prob_extend_or_reopen_gap_y = gap_params
+            .prob_gap_y_extend()
+            .ln_add_exp(prob_close_gap_y + gap_params.prob_gap_y());
         PathHMMRealigner {
             gap_params,
             max_window,
@@ -448,6 +456,8 @@ impl PathHMMRealigner {
             prob_no_gap,
             prob_close_gap_x,
             prob_close_gap_y,
+            prob_extend_or_reopen_gap_x,
+            prob_extend_or_reopen_gap_y,
         }
     }
 }
@@ -497,7 +507,7 @@ impl Realigner for PathHMMRealigner {
                         // transitions
                         match prev_operation {
                             Some(&AlignmentOperation::Del) => {
-                                prob += self.gap_params.prob_gap_y_extend();
+                                prob += self.prob_extend_or_reopen_gap_y;
                             },
                             Some(&AlignmentOperation::Ins) => {
                                 prob += self.prob_close_gap_x + self.gap_params.prob_gap_y();
@@ -514,7 +524,7 @@ impl Realigner for PathHMMRealigner {
                         // transitions
                         match prev_operation {
                             Some(&AlignmentOperation::Ins) => {
-                                prob += self.gap_params.prob_gap_x_extend();
+                                prob += self.prob_extend_or_reopen_gap_x;
                             },
                             Some(&AlignmentOperation::Del) => {
                                 prob += self.prob_close_gap_y + self.gap_params.prob_gap_x();
