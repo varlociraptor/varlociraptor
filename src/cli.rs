@@ -15,9 +15,9 @@ use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
+use rust_htslib::bcf;
 use structopt::StructOpt;
 use strum::IntoEnumIterator;
-use rust_htslib::bcf;
 
 use crate::calling;
 use crate::conversion;
@@ -646,8 +646,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             resolutions = resolutions.push(sample_name, *sample.resolution());
 
                             if let Some(obs) = observations.get(sample_name) {
-                                sample_observations = sample_observations
-                                    .push(sample_name, Some(obs.to_owned()));
+                                sample_observations =
+                                    sample_observations.push(sample_name, Some(obs.to_owned()));
                             } else {
                                 sample_observations = sample_observations.push(sample_name, None);
                             }
@@ -666,10 +666,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             }
                         }
 
-                        let breakend_index = BreakendIndex::new(
-                            sample_observations
-                                .first_not_none()?,
-                        )?;
+                        let breakend_index =
+                            BreakendIndex::new(sample_observations.first_not_none()?)?;
 
                         // setup caller
                         let caller = calling::variants::CallerBuilder::default()

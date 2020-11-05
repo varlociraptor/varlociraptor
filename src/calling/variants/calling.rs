@@ -197,7 +197,8 @@ where
 
             let mut i = 0;
             loop {
-                let mut records = observations.map(|reader| reader.as_ref().map(|reader| reader.empty_record()));
+                let mut records =
+                    observations.map(|reader| reader.as_ref().map(|reader| reader.empty_record()));
                 let mut eof = Vec::new();
                 for item in observations.iter_mut().zip(records.iter_mut()) {
                     if let (Some(reader), Some(record)) = item {
@@ -303,14 +304,9 @@ where
         observations: &grammar::SampleInfo<Option<bcf::Reader>>,
     ) -> Result<WorkItem> {
         let (call, snv, bnd_event, rid, is_snv_or_mnv) = {
-            let first_record = records
-                .first_not_none_mut()?;
+            let first_record = records.first_not_none_mut()?;
             let start = first_record.pos() as u64;
-            let chrom = chrom(
-                observations
-                    .first_not_none()?,
-                first_record,
-            );
+            let chrom = chrom(observations.first_not_none()?, first_record);
 
             let call = CallBuilder::default()
                 .chrom(chrom.to_owned())

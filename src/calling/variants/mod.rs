@@ -175,9 +175,7 @@ impl Call {
                     observations.entry(i).or_insert_with(Vec::new).push({
                         utils::generalized_cigar(
                             sample_info.observations.iter().map(|obs| {
-                                let score = utils::bayes_factor_to_letter(
-                                    obs.bayes_factor_alt(),
-                                );
+                                let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                                 format!(
                                     "{}{}{}{}",
                                     if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {

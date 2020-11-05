@@ -10,7 +10,10 @@ use std::ops::Deref;
 use std::str;
 
 use anyhow::Result;
-use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, bayesian::bayes_factors::BayesFactor, LogProb, PHREDProb, Prob};
+use bio::stats::{
+    bayesian::bayes_factors::evidence::KassRaftery, bayesian::bayes_factors::BayesFactor, LogProb,
+    PHREDProb, Prob,
+};
 use counter::Counter;
 use half::f16;
 use itertools::join;
