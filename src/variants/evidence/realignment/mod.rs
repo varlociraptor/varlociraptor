@@ -13,10 +13,9 @@ use std::usize;
 
 use anyhow::Result;
 use bio::alignment::AlignmentOperation;
-use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
+use bio::stats::{self, pairhmm::GapParameters, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractInterval;
-use itertools::Itertools;
 use rust_htslib::bam;
 
 use crate::reference;
@@ -170,6 +169,7 @@ pub(crate) trait Realigner {
         L: IntoIterator,
         L::Item: AsRef<SingleLocus>,
     {
+        //dbg!(std::str::from_utf8(record.qname()).unwrap());
         // Obtain candidate regions from matching loci.
         let candidate_regions: Result<Vec<_>> = loci
             .into_iter()
@@ -262,6 +262,7 @@ pub(crate) trait Realigner {
                 )?,
                 &mut edit_dist,
             );
+            //dbg!(prob_alt - prob_ref);
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
@@ -328,7 +329,7 @@ pub(crate) trait Realigner {
         let mut hits = Vec::new();
         let mut best_dist = None;
         for params in candidate_allele_params.iter_mut() {
-            if let Some(hit) = edit_dist.calc_best_hit(params, best_dist) {
+            if let Some(hit) = edit_dist.calc_best_hit(params, None) {
                 match best_dist.map_or(Ordering::Less, |best_dist| hit.dist().cmp(&best_dist)) {
                     Ordering::Less => {
                         hits.clear();
@@ -423,11 +424,47 @@ impl Realigner for PairHMMRealigner {
     }
 }
 
-#[derive(Clone, new)]
+#[derive(Clone)]
 pub(crate) struct PathHMMRealigner {
     gap_params: pairhmm::GapParams,
     max_window: u64,
     ref_buffer: Arc<reference::Buffer>,
+    prob_no_gap: LogProb,
+    prob_close_gap_x: LogProb,
+    prob_close_gap_y: LogProb,
+    prob_extend_or_reopen_gap_x: LogProb,
+    prob_extend_or_reopen_gap_y: LogProb,
+}
+
+impl PathHMMRealigner {
+    pub(crate) fn new(
+        gap_params: pairhmm::GapParams,
+        max_window: u64,
+        ref_buffer: Arc<reference::Buffer>,
+    ) -> Self {
+        let prob_no_gap = gap_params
+            .prob_gap_x()
+            .ln_add_exp(gap_params.prob_gap_y())
+            .ln_one_minus_exp();
+        let prob_close_gap_x = gap_params.prob_gap_x_extend().ln_one_minus_exp();
+        let prob_close_gap_y = gap_params.prob_gap_y_extend().ln_one_minus_exp();
+        let prob_extend_or_reopen_gap_x = gap_params
+            .prob_gap_x_extend()
+            .ln_add_exp(prob_close_gap_x + gap_params.prob_gap_x());
+        let prob_extend_or_reopen_gap_y = gap_params
+            .prob_gap_y_extend()
+            .ln_add_exp(prob_close_gap_y + gap_params.prob_gap_y());
+        PathHMMRealigner {
+            gap_params,
+            max_window,
+            ref_buffer,
+            prob_no_gap,
+            prob_close_gap_x,
+            prob_close_gap_y,
+            prob_extend_or_reopen_gap_x,
+            prob_extend_or_reopen_gap_y,
+        }
+    }
 }
 
 impl Realigner for PathHMMRealigner {
@@ -448,24 +485,66 @@ impl Realigner for PathHMMRealigner {
             let mut prob = LogProb::ln_one();
             let mut pos_ref = alignment.start();
             let mut pos_read = 0;
+            let mut prev_operation = None;
             for operation in alignment.operations() {
                 match operation {
                     AlignmentOperation::Match | AlignmentOperation::Subst => {
+                        // transitions
+                        match prev_operation {
+                            Some(&AlignmentOperation::Del) => {
+                                prob += self.prob_close_gap_y;
+                            },
+                            Some(&AlignmentOperation::Ins) => {
+                                prob += self.prob_close_gap_x;
+                            },
+                            Some(&AlignmentOperation::Match) | Some(&AlignmentOperation::Subst) => {
+                                prob += self.prob_no_gap;
+                            }
+                            _ => ()
+                        }
+
                         let emission = allele_params.prob_emit_xy(pos_ref, pos_read);
                         prob += emission.prob();
                         pos_ref += 1;
                         pos_read += 1;
                     },
                     AlignmentOperation::Del => {
+                        // transitions
+                        match prev_operation {
+                            Some(&AlignmentOperation::Del) => {
+                                prob += self.prob_extend_or_reopen_gap_y;
+                            },
+                            Some(&AlignmentOperation::Ins) => {
+                                prob += self.prob_close_gap_x + self.gap_params.prob_gap_y();
+                            },
+                            None | Some(&AlignmentOperation::Match) | Some(&AlignmentOperation::Subst) => {
+                                prob += self.gap_params.prob_gap_y();
+                            },
+                            _ => (),
+                        }
                         prob += allele_params.prob_emit_x(pos_ref);
                         pos_ref += 1;
                     },
                     AlignmentOperation::Ins => {
+                        // transitions
+                        match prev_operation {
+                            Some(&AlignmentOperation::Ins) => {
+                                prob += self.prob_extend_or_reopen_gap_x;
+                            },
+                            Some(&AlignmentOperation::Del) => {
+                                prob += self.prob_close_gap_y + self.gap_params.prob_gap_x();
+                            },
+                            None | Some(&AlignmentOperation::Match) | Some(&AlignmentOperation::Subst) => {
+                                prob += self.gap_params.prob_gap_x();
+                            },
+                            _ => (),
+                        }
                         prob += allele_params.prob_emit_y(pos_read);
                         pos_read += 1;
                     },
                     _ => panic!("bug: unsupported alignment operation (Myers algorithm should create a semiglobal alignment)")
                 }
+                prev_operation = Some(operation);
             }
             // If better than best probability, keep this.
             if best_prob.map_or(true, |best| prob > best) {

@@ -126,7 +126,7 @@ fn default_reference_buffer_size() -> usize {
 }
 
 fn default_pairhmm_mode() -> String {
-    "fast".to_owned()
+    "exact".to_owned()
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -240,8 +240,14 @@ pub enum PreprocessKind {
         #[structopt(
             long = "pairhmm-mode",
             possible_values = &["fast", "exact"],
-            default_value = "fast",
-            help = "PairHMM computation mode (either fast or exact)."
+            default_value = "exact",
+            help = "PairHMM computation mode (either fast or exact). Fast mode means that only the best \
+                    alignment path is considered for probability calculation. In rare cases, this can lead \
+                    to wrong results for single reads. Hence, we advice to not use it when \
+                    discrete allele frequences are of interest (0.5, 1.0). For continuous \
+                    allele frequencies, fast mode should cause almost no deviations from the \
+                    exact results. Also, if per sample allele frequencies are irrelevant (e.g. \
+                    in large cohorts), fast mode can be safely used."
         )]
         #[serde(default = "default_pairhmm_mode")]
         pairhmm_mode: String,

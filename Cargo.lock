@@ -1395,6 +1395,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "paste"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba7ae1a2180ed02ddfdb5ab70c70d596a26dd642e097bb6fe78b1bde8588ed97"
+
+[[package]]
 name = "percent-encoding"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2411,6 +2417,7 @@ dependencies = [
  "lru_time_cache",
  "ndarray",
  "ordered-float",
+ "paste",
  "pest",
  "pest_derive",
  "petgraph",
