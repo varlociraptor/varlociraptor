@@ -25,14 +25,14 @@ use crate::variants::types::{
 };
 use crate::{default_emission, default_ref_base_emission};
 
-pub(crate) struct Deletion {
+pub(crate) struct Deletion<R: Realigner> {
     locus: SingleLocus,
     fetch_loci: MultiLocus,
-    realigner: RefCell<Realigner>,
+    realigner: RefCell<R>,
 }
 
-impl Deletion {
-    pub(crate) fn new(locus: genome::Interval, realigner: Realigner) -> Self {
+impl<R: Realigner> Deletion<R> {
+    pub(crate) fn new(locus: genome::Interval, realigner: R) -> Self {
         let start = locus.range().start;
         let end = locus.range().end;
         let len = end - start;
@@ -99,7 +99,7 @@ impl Deletion {
     }
 }
 
-impl SamplingBias for Deletion {
+impl<R: Realigner> SamplingBias for Deletion<R> {
     fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
         if let Some(len) = self.enclosable_len() {
             if len < (alignment_properties.max_del_cigar_len as u64) {
@@ -114,10 +114,10 @@ impl SamplingBias for Deletion {
     }
 }
 
-impl FragmentSamplingBias for Deletion {}
-impl ReadSamplingBias for Deletion {}
+impl<R: Realigner> FragmentSamplingBias for Deletion<R> {}
+impl<R: Realigner> ReadSamplingBias for Deletion<R> {}
 
-impl<'a> Realignable<'a> for Deletion {
+impl<'a, R: Realigner> Realignable<'a> for Deletion<R> {
     type EmissionParams = DeletionEmissionParams<'a>;
 
     fn alt_emission_params(
@@ -142,7 +142,7 @@ impl<'a> Realignable<'a> for Deletion {
     }
 }
 
-impl Variant for Deletion {
+impl<R: Realigner> Variant for Deletion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 

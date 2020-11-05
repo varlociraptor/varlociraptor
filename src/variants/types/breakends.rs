@@ -36,25 +36,34 @@ use crate::{default_emission, default_ref_base_emission};
 
 const MIN_REF_BASES: u64 = 10;
 
-#[derive(Builder)]
-#[builder(build_fn(name = "build_inner"))]
-pub(crate) struct BreakendGroup {
-    #[builder(default)]
+pub(crate) struct BreakendGroup<R: Realigner> {
     loci: MultiLocus,
-    #[builder(private, default)]
     enclosable_ref_interval: Option<genome::Interval>,
-    #[builder(default)]
     // TODO consider making the right side a Vec<Breakend>!
     breakends: BTreeMap<genome::Locus, Breakend>,
-    #[builder(default)]
-    alt_alleles: RefCell<VecMap<Vec<Rc<AltAllele>>>>,
-    #[builder(private)]
-    realigner: RefCell<Realigner>,
+    alt_alleles: RefCell<VecMap<Vec<Arc<AltAllele>>>>,
+    realigner: RefCell<R>,
 }
 
-impl BreakendGroupBuilder {
-    pub(crate) fn set_realigner(&mut self, realigner: Realigner) -> &mut Self {
-        self.realigner = Some(RefCell::new(realigner));
+pub(crate) struct BreakendGroupBuilder<R: Realigner> {
+    loci: Option<MultiLocus>,
+    enclosable_ref_interval: Option<genome::Interval>,
+    breakends: Option<BTreeMap<genome::Locus, Breakend>>,
+    realigner: Option<R>,
+}
+
+impl<R: Realigner> BreakendGroupBuilder<R> {
+    pub(crate) fn new() -> Self {
+        BreakendGroupBuilder {
+            loci: Some(MultiLocus::default()),
+            enclosable_ref_interval: None,
+            breakends: Some(BTreeMap::default()),
+            realigner: None,
+        }
+    }
+
+    pub(crate) fn realigner(&mut self, realigner: R) -> &mut Self {
+        self.realigner = Some(realigner);
 
         self
     }
@@ -64,11 +73,6 @@ impl BreakendGroupBuilder {
             breakend.locus.contig().to_owned(),
             breakend.locus.pos()..breakend.locus.pos() + breakend.ref_allele.len() as u64,
         );
-
-        if self.breakends.is_none() {
-            self.breakends = Some(BTreeMap::default());
-            self.loci = Some(MultiLocus::default());
-        }
 
         self.breakends
             .as_mut()
@@ -85,111 +89,7 @@ impl BreakendGroupBuilder {
         self
     }
 
-    pub(crate) fn build(
-        &mut self,
-        ref_buffer: Arc<reference::Buffer>,
-    ) -> Result<BreakendGroup, String> {
-        // Automatically infer eventually missing antisense breakends.
-        let to_add = {
-            let breakends = self.breakends.as_ref().unwrap();
-            let mut to_add = Vec::new();
-            for bnd in breakends.values() {
-                if let Some(ref bnd_join) = bnd.join() {
-                    if bnd.emits_revcomp() {
-                        if bnd.is_left_to_right() {
-                            if let Some(other) = breakends.get(&genome::Locus::new(
-                                bnd.locus.contig().to_owned(),
-                                bnd.locus.pos() + 1,
-                            )) {
-                                if let Some(Join {
-                                    locus,
-                                    side: Side::RightOfPos,
-                                    extension_modification: ExtensionModification::ReverseComplement,
-                                }) = other.join()
-                                {
-                                    if locus.pos() == bnd_join.locus.pos() + 1 {
-                                        // corresponding antisense breakend present
-                                        continue;
-                                    }
-                                }
-                            }
-                            // add antisense breakend
-                            let ref_allele = ref_buffer.seq(bnd.locus.contig()).unwrap()
-                                [bnd.locus.pos() as usize + 1];
-
-                            to_add.push(Breakend::from_operations(
-                                genome::Locus::new(
-                                    bnd.locus.contig().to_owned(),
-                                    bnd.locus.pos() + 1,
-                                ),
-                                &[ref_allele],
-                                vec![ref_allele],
-                                Join {
-                                    locus: genome::Locus::new(
-                                        bnd.locus.contig().to_owned(),
-                                        bnd_join.locus.pos() + 1,
-                                    ),
-                                    side: Side::RightOfPos,
-                                    extension_modification:
-                                        ExtensionModification::ReverseComplement,
-                                },
-                                false,
-                                b".",
-                                b".",
-                            ));
-                        } else {
-                            if let Some(other) = breakends.get(&genome::Locus::new(
-                                bnd.locus.contig().to_owned(),
-                                bnd.locus.pos() - 1,
-                            )) {
-                                if let Some(Join {
-                                    locus,
-                                    side: Side::LeftOfPos,
-                                    extension_modification: ExtensionModification::ReverseComplement,
-                                }) = other.join()
-                                {
-                                    if locus.pos() == bnd_join.locus.pos() - 1 {
-                                        // corresponding antisense breakend present
-                                        continue;
-                                    }
-                                }
-                            }
-
-                            // add antisense breakend
-                            let ref_allele = ref_buffer.seq(bnd.locus.contig()).unwrap()
-                                [bnd.locus.pos() as usize - 1];
-
-                            to_add.push(Breakend::from_operations(
-                                genome::Locus::new(
-                                    bnd.locus.contig().to_owned(),
-                                    bnd.locus.pos() - 1,
-                                ),
-                                &[ref_allele],
-                                vec![ref_allele],
-                                Join {
-                                    locus: genome::Locus::new(
-                                        bnd.locus.contig().to_owned(),
-                                        bnd_join.locus.pos() - 1,
-                                    ),
-                                    side: Side::LeftOfPos,
-                                    extension_modification:
-                                        ExtensionModification::ReverseComplement,
-                                },
-                                true,
-                                b".",
-                                b".",
-                            ));
-                        }
-                    }
-                }
-            }
-            to_add
-        };
-
-        for bnd in to_add {
-            self.push_breakend(bnd);
-        }
-
+    pub(crate) fn build(&mut self) -> BreakendGroup<R> {
         // Calculate enclosable reference interval.
         let first = self.breakends.as_ref().unwrap().keys().next().unwrap();
         if self
@@ -213,14 +113,24 @@ impl BreakendGroupBuilder {
                             },
                 )
             };
-            self.enclosable_ref_interval(Some(interval));
+            self.enclosable_ref_interval = Some(interval);
         }
 
-        self.build_inner()
+        BreakendGroup {
+            loci: self.loci.take().unwrap(),
+            enclosable_ref_interval: self.enclosable_ref_interval.clone(),
+            breakends: self.breakends.take().unwrap(),
+            alt_alleles: RefCell::new(VecMap::new()),
+            realigner: RefCell::new(
+                self.realigner
+                    .take()
+                    .expect("bug: realigner() needs to be called before build()"),
+            ),
+        }
     }
 }
 
-impl BreakendGroup {
+impl<R: Realigner> BreakendGroup<R> {
     pub(crate) fn breakends(&self) -> impl Iterator<Item = &Breakend> {
         self.breakends.values()
     }
@@ -251,27 +161,6 @@ impl BreakendGroup {
             }
         }
         None
-    }
-
-    fn contained_breakends<'a, 'b: 'a>(
-        &'b self,
-        ref_interval: &'a genome::Interval,
-    ) -> impl Iterator<Item = (usize, &'b Breakend)> + 'a {
-        self.breakends
-            .values()
-            .enumerate()
-            .filter_map(move |(i, bnd)| {
-                // TODO add genome::Interval::contains(genome::Locus) method to genome::Interval in bio-types.
-                // Then, simplify this here (see PR https://github.com/rust-bio/rust-bio-types/pull/9).
-                if ref_interval.contig() == bnd.locus.contig()
-                    && bnd.locus.pos() >= ref_interval.range().start
-                    && bnd.locus.pos() < ref_interval.range().end
-                {
-                    Some((i, bnd))
-                } else {
-                    None
-                }
-            })
     }
 
     fn breakend_pair(&self) -> Option<(&Breakend, &Breakend)> {
@@ -318,7 +207,7 @@ impl BreakendGroup {
     }
 }
 
-impl Variant for BreakendGroup {
+impl<R: Realigner> Variant for BreakendGroup<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
@@ -448,7 +337,7 @@ impl Variant for BreakendGroup {
     }
 }
 
-impl SamplingBias for BreakendGroup {
+impl<R: Realigner> SamplingBias for BreakendGroup<R> {
     fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
         if self.is_deletion() {
             if let Some(len) = self.enclosable_len() {
@@ -478,9 +367,9 @@ impl SamplingBias for BreakendGroup {
     }
 }
 
-impl ReadSamplingBias for BreakendGroup {}
+impl<R: Realigner> ReadSamplingBias for BreakendGroup<R> {}
 
-impl<'a> Realignable<'a> for BreakendGroup {
+impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
     type EmissionParams = BreakendEmissionParams<'a>;
 
     fn maybe_revcomp(&self) -> bool {
@@ -491,13 +380,16 @@ impl<'a> Realignable<'a> for BreakendGroup {
         &self,
         read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
-        ref_interval: &genome::Interval,
+        _: &genome::Interval,
         ref_window: usize,
     ) -> Result<Vec<BreakendEmissionParams<'a>>> {
         // Step 1: fetch contained breakends
         let mut emission_params = Vec::new();
 
-        for (bnd_idx, first) in self.contained_breakends(ref_interval) {
+        // METHOD: we consider all breakends, even if they don't overlap.
+        // The reason is that the mapper may put reads at the wrong end of a breakend pair.
+        for (bnd_idx, first) in self.breakends.values().enumerate() {
+            //for (bnd_idx, first) in self.contained_breakends(ref_interval) {
             if !self.alt_alleles.borrow().contains_key(bnd_idx) {
                 let mut candidate_alt_alleles = Vec::new();
                 // Compute alt allele sequence once.
@@ -610,6 +502,12 @@ impl<'a> Realignable<'a> for BreakendGroup {
 
                         //alt_allele.push_seq(b"|".iter(), !left_to_right); // dbg
 
+                        if next_bnd.is_some() && alt_allele.len() + seq.len() > ref_window {
+                            // METHOD: sequence addition will already exceed ref window, hence
+                            // we can stop afterwards.
+                            next_bnd = None;
+                        }
+
                         // Push sequence to alt allele.
                         match (extension_modification, next_bnd.is_none(), left_to_right) {
                             (ExtensionModification::None, false, is_left_to_right) => {
@@ -623,11 +521,16 @@ impl<'a> Realignable<'a> for BreakendGroup {
                                 );
                             }
                             (ExtensionModification::None, true, true) => {
-                                alt_allele.push_seq(seq[..ref_window].iter(), false, true);
+                                alt_allele.push_seq(
+                                    seq[..cmp::min(ref_window, seq.len())].iter(),
+                                    false,
+                                    true,
+                                );
                             }
                             (ExtensionModification::ReverseComplement, true, true) => {
+                                let revcomp = dna::revcomp(seq);
                                 alt_allele.push_seq(
-                                    dna::revcomp(seq)[..ref_window].iter(),
+                                    revcomp[..cmp::min(ref_window, revcomp.len())].iter(),
                                     false,
                                     true,
                                 );
@@ -662,9 +565,8 @@ impl<'a> Realignable<'a> for BreakendGroup {
                         // Nothing else to do, the replacement sequence has already been added in the step before.
                     }
                 }
-                //dbg!(str::from_utf8(&alt_allele.iter().cloned().collect::<Vec<_>>()).unwrap());
 
-                let alt_allele = Rc::new(alt_allele);
+                let alt_allele = Arc::new(alt_allele);
 
                 candidate_alt_alleles.push(alt_allele);
 
@@ -677,11 +579,13 @@ impl<'a> Realignable<'a> for BreakendGroup {
                 emission_params.push(BreakendEmissionParams {
                     ref_offset: 0,
                     ref_end: alt_allele.len(),
-                    alt_allele: Rc::clone(alt_allele),
+                    alt_allele: Arc::clone(alt_allele),
                     read_emission: Rc::clone(&read_emission_params),
                 });
             }
         }
+
+        //dbg!(emission_params.iter().map(|p| std::str::from_utf8(&p.alt_allele.iter().cloned().collect::<Vec<u8>>()).unwrap().to_owned()).collect::<Vec<_>>());
 
         Ok(emission_params)
     }
@@ -713,7 +617,7 @@ impl AltAllele {
 }
 
 pub(crate) struct BreakendEmissionParams<'a> {
-    alt_allele: Rc<AltAllele>,
+    alt_allele: Arc<AltAllele>,
     ref_offset: usize,
     ref_end: usize,
     read_emission: Rc<ReadEmission<'a>>,

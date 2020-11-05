@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
@@ -9,14 +11,20 @@ use crate::variants::types::breakends::{
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
-#[derive(Derefable)]
-pub(crate) struct Duplication(#[deref] BreakendGroup);
+pub(crate) struct Duplication<R: Realigner>(BreakendGroup<R>);
 
-impl Duplication {
-    pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
-        let reference_buffer = realigner.ref_buffer();
-        let mut breakend_group_builder = BreakendGroupBuilder::default();
-        breakend_group_builder.set_realigner(realigner);
+impl<R: Realigner> Deref for Duplication<R> {
+    type Target = BreakendGroup<R>;
+
+    fn deref(&self) -> &BreakendGroup<R> {
+        &self.0
+    }
+}
+
+impl<R: Realigner> Duplication<R> {
+    pub(crate) fn new(interval: genome::Interval, realigner: R, chrom_seq: &[u8]) -> Self {
+        let mut breakend_group_builder = BreakendGroupBuilder::new();
+        breakend_group_builder.realigner(realigner);
 
         let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..pos as usize + 1];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
@@ -38,6 +46,24 @@ impl Duplication {
             b"w",
         ));
 
+        // Dummy antisense breakend. At the breakend position, we have basically two alleles:
+        // The one with the break (representing the middle of the duplication), and one
+        // that looks exactly like the reference.
+        let ref_allele = get_ref_allele(interval.range().start - 1);
+        breakend_group_builder.push_breakend(Breakend::from_operations(
+            get_locus(interval.range().start - 1),
+            ref_allele,
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().start),
+                Side::RightOfPos,
+                ExtensionModification::None,
+            ),
+            true,
+            b"v",
+            b".",
+        ));
+
         let ref_allele = get_ref_allele(interval.range().end - 1);
         breakend_group_builder.push_breakend(Breakend::from_operations(
             get_locus(interval.range().end - 1),
@@ -53,11 +79,26 @@ impl Duplication {
             b"u",
         ));
 
-        Duplication(breakend_group_builder.build(reference_buffer).unwrap())
+        let ref_allele = get_ref_allele(interval.range().end);
+        breakend_group_builder.push_breakend(Breakend::from_operations(
+            get_locus(interval.range().end),
+            ref_allele,
+            ref_allele.to_owned(),
+            Join::new(
+                genome::Locus::new(interval.contig().to_owned(), interval.range().end - 1),
+                Side::LeftOfPos,
+                ExtensionModification::None,
+            ),
+            false,
+            b"x",
+            b".",
+        ));
+
+        Duplication(breakend_group_builder.build())
     }
 }
 
-impl Variant for Duplication {
+impl<R: Realigner> Variant for Duplication<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 

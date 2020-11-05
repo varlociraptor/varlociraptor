@@ -1,7 +1,7 @@
-use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ops::{Deref, DerefMut};
+use std::sync::Mutex;
 
 use anyhow::Result;
 use vec_map::VecMap;
@@ -111,13 +111,14 @@ pub(crate) struct Scenario {
     // map of samples
     samples: BTreeMap<String, Sample>,
     #[serde(skip)]
-    sample_idx: RefCell<Option<HashMap<String, usize>>>,
+    sample_idx: Mutex<Option<HashMap<String, usize>>>,
 }
 
 impl Scenario {
     pub(crate) fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
-        if self.sample_idx.borrow().is_none() {
-            self.sample_idx.borrow_mut().get_or_insert(
+        let mut sample_idx = self.sample_idx.lock().unwrap();
+        if sample_idx.is_none() {
+            sample_idx.get_or_insert(
                 self.samples()
                     .keys()
                     .enumerate()
@@ -125,12 +126,13 @@ impl Scenario {
                     .collect(),
             );
         }
-        SampleInfoBuilder::new(self.sample_idx.borrow().as_ref().unwrap().clone())
+        SampleInfoBuilder::new(sample_idx.as_ref().unwrap().clone())
     }
 
     pub(crate) fn idx(&self, sample: &str) -> Option<usize> {
-        if self.sample_idx.borrow().is_none() {
-            self.sample_idx.borrow_mut().get_or_insert(
+        let mut sample_idx = self.sample_idx.lock().unwrap();
+        if sample_idx.is_none() {
+            sample_idx.get_or_insert(
                 self.samples()
                     .keys()
                     .enumerate()
@@ -138,12 +140,7 @@ impl Scenario {
                     .collect(),
             );
         }
-        self.sample_idx
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .get(sample)
-            .copied()
+        sample_idx.as_ref().unwrap().get(sample).copied()
     }
 
     pub(crate) fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {

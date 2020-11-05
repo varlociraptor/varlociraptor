@@ -1,6 +1,6 @@
 expected:
   allelefreqs:
-    - sample0 == 1.0 && sample1 == 1.0
+    - sample0 == 0.0 && sample1 == 0.0
 
 # necessary bam files
 samples:

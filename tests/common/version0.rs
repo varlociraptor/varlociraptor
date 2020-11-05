@@ -100,6 +100,9 @@ impl Testcase for TestcaseVersion0 {
                         candidates: self.candidates(),
                         output: None,
                         omit_insert_size: false,
+                        threads: 1,
+                        reference_buffer_size: 10,
+                        pairhmm_mode: "exact".to_owned(),
                     },
                 };
 

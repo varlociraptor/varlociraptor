@@ -4,7 +4,7 @@
 
 expected:
   posteriors:
-  - PROB_SOMATIC_TUMOR >= 406.0
+  - PROB_SOMATIC_TUMOR >= 255.0
 
 # necessary bam files
 samples:

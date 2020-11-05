@@ -39,7 +39,15 @@ where
     let other_event_tags = get_event_tags(&inbcf_reader);
     let other_event_tags = other_event_tags
         .iter()
-        .map(|(tag, _desc)| tag)
+        .filter_map(|(tag, _desc)| {
+            for event in events {
+                // strip the prefix "PROB_" and compare with event name
+                if &tag[5..] == event.name() {
+                    return None;
+                }
+            }
+            Some(tag)
+        })
         .cloned()
         .collect_vec();
     let event_tags = utils::events_to_tags(events);
@@ -54,6 +62,7 @@ where
     let filter = |record: &mut bcf::Record| {
         let target_probs = utils::tags_prob_sum(record, &event_tags, None)?;
         let other_probs = utils::tags_prob_sum(record, &other_event_tags, None)?;
+
         Ok(target_probs
             .into_iter()
             .zip(other_probs.into_iter())
