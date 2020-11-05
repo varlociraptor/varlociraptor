@@ -169,6 +169,7 @@ pub(crate) trait Realigner {
         L: IntoIterator,
         L::Item: AsRef<SingleLocus>,
     {
+        //dbg!(std::str::from_utf8(record.qname()).unwrap());
         // Obtain candidate regions from matching loci.
         let candidate_regions: Result<Vec<_>> = loci
             .into_iter()
@@ -261,6 +262,7 @@ pub(crate) trait Realigner {
                 )?,
                 &mut edit_dist,
             );
+            //dbg!(prob_alt - prob_ref);
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
@@ -440,7 +442,10 @@ impl PathHMMRealigner {
         max_window: u64,
         ref_buffer: Arc<reference::Buffer>,
     ) -> Self {
-        let prob_no_gap = gap_params.prob_gap_x().ln_add_exp(gap_params.prob_gap_y());
+        let prob_no_gap = gap_params
+            .prob_gap_x()
+            .ln_add_exp(gap_params.prob_gap_y())
+            .ln_one_minus_exp();
         let prob_close_gap_x = gap_params.prob_gap_x_extend().ln_one_minus_exp();
         let prob_close_gap_y = gap_params.prob_gap_y_extend().ln_one_minus_exp();
         let prob_extend_or_reopen_gap_x = gap_params
