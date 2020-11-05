@@ -553,13 +553,10 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                         }
 
                         // Update revcomp marker for next iteration.
-                        revcomp = if let ExtensionModification::ReverseComplement =
-                            extension_modification
-                        {
-                            true
-                        } else {
-                            false
-                        };
+                        revcomp = matches!(
+                            extension_modification,
+                            ExtensionModification::ReverseComplement
+                        );
                     } else {
                         // Single breakend, assembly stops here.
                         // Nothing else to do, the replacement sequence has already been added in the step before.
@@ -862,15 +859,13 @@ impl Breakend {
     }
 
     fn emits_revcomp(&self) -> bool {
-        if let Some(Join {
-            extension_modification: ExtensionModification::ReverseComplement,
-            ..
-        }) = self.join()
-        {
-            true
-        } else {
-            false
-        }
+        matches!(
+            self.join(),
+            Some(Join {
+                extension_modification: ExtensionModification::ReverseComplement,
+                ..
+            })
+        )
     }
 
     pub(crate) fn to_variant(&self, event: &[u8]) -> model::Variant {

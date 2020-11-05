@@ -198,6 +198,6 @@ impl VAFTree {
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Node> {
-        self.inner.iter().map(|node| node)
+        self.inner.iter()
     }
 }

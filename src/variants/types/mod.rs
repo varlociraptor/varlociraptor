@@ -375,10 +375,6 @@ pub(crate) enum Overlap {
 
 impl Overlap {
     pub(crate) fn is_none(&self) -> bool {
-        if let Overlap::None = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Overlap::None)
     }
 }

@@ -114,7 +114,7 @@ pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
 pub(crate) fn bayes_factor_to_letter(bayes_factor: BayesFactor) -> char {
     match bayes_factor.evidence_kass_raftery() {
         KassRaftery::Barely => 'B',
-        KassRaftery::None if *bayes_factor == 1.0 => 'E',
+        KassRaftery::None if relative_eq!(*bayes_factor, 1.0) => 'E',
         KassRaftery::None => 'N',
         KassRaftery::Positive => 'P',
         KassRaftery::Strong => 'S',

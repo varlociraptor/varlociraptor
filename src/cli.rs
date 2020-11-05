@@ -15,7 +15,6 @@ use bio::io::fasta;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
-use rust_htslib::bcf;
 use structopt::StructOpt;
 use strum::IntoEnumIterator;
 

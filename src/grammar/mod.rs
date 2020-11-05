@@ -37,13 +37,13 @@ impl<T> SampleInfo<Option<T>> {
     pub(crate) fn first_not_none(&self) -> Result<&T> {
         self.iter_not_none()
             .next()
-            .ok_or(errors::Error::EmptyObservations.into())
+            .ok_or_else(errors::Error::EmptyObservations.into)
     }
 
     pub(crate) fn first_not_none_mut(&mut self) -> Result<&mut T> {
         self.iter_not_none_mut()
             .next()
-            .ok_or(errors::Error::EmptyObservations.into())
+            .ok_or_else(errors::Error::EmptyObservations.into)
     }
 
     pub(crate) fn iter_not_none(&self) -> impl Iterator<Item = &T> {
