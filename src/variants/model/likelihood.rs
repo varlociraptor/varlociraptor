@@ -128,7 +128,7 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
             let ln_af_primary = LogProb(events.primary.allele_freq.ln());
             let ln_af_secondary = LogProb(events.secondary.allele_freq.ln());
 
-            // calculate product of per-oservation likelihoods in log space
+            // calculate product of per-observation likelihoods in log space
             let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
                 let lh = self.likelihood_observation(
                     ln_af_primary,

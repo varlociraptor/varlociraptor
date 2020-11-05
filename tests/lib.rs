@@ -94,6 +94,9 @@ testcase!(test45, exact, fast);
 
 testcase!(test47, exact, fast);
 testcase!(test48, exact, fast);
+testcase!(test49, exact);
+testcase!(test50, exact);
+testcase!(test51, exact);
 testcase!(test52, exact, fast);
 testcase!(test53, exact, fast);
 testcase!(test54, exact, fast);

@@ -199,11 +199,7 @@ pub(crate) enum Variant {
 
 impl Variant {
     pub(crate) fn is_breakend(&self) -> bool {
-        if let Variant::Breakend { .. } = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Variant::Breakend { .. })
     }
 
     pub(crate) fn is_type(&self, vartype: &VariantType) -> bool {

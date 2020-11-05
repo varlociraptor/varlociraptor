@@ -33,6 +33,28 @@ impl<T> SampleInfo<T> {
     }
 }
 
+impl<T> SampleInfo<Option<T>> {
+    pub(crate) fn first_not_none(&self) -> Result<&T> {
+        self.iter_not_none()
+            .next()
+            .ok_or_else(|| errors::Error::EmptyObservations.into())
+    }
+
+    pub(crate) fn first_not_none_mut(&mut self) -> Result<&mut T> {
+        self.iter_not_none_mut()
+            .next()
+            .ok_or_else(|| errors::Error::EmptyObservations.into())
+    }
+
+    pub(crate) fn iter_not_none(&self) -> impl Iterator<Item = &T> {
+        self.inner.iter().filter_map(|item| item.as_ref())
+    }
+
+    pub(crate) fn iter_not_none_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.inner.iter_mut().filter_map(|item| item.as_mut())
+    }
+}
+
 impl<T> Default for SampleInfo<T> {
     fn default() -> Self {
         SampleInfo {

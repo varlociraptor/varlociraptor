@@ -414,7 +414,7 @@ pub enum VariantCallMode {
         #[structopt(
             long = "obs",
             required = true,
-            help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario (given as samplename=path/to/calls.bcf)."
+            help = "BCF file with varlociraptor preprocess results for samples defined in the given scenario (given as samplename=path/to/calls.bcf). It is possible to omit a sample here (e.g. model tumor/normal in the scenario, but only call on the tumor sample when there is no normal sequenced). In that case, the resulting probabilities will be accordingly uncertain, because observations of the omitted sample are missing (which is equivalent to having no coverage in the sample)."
         )]
         sample_observations: Vec<String>,
     },
@@ -644,27 +644,33 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             contaminations = contaminations.push(sample_name, contamination);
                             resolutions = resolutions.push(sample_name, *sample.resolution());
 
-                            let obs = observations.get(sample_name).ok_or(
-                                errors::Error::InvalidObservationSampleName {
-                                    name: sample_name.to_owned(),
-                                },
-                            )?;
-                            sample_observations =
-                                sample_observations.push(sample_name, obs.to_owned());
+                            if let Some(obs) = observations.get(sample_name) {
+                                sample_observations =
+                                    sample_observations.push(sample_name, Some(obs.to_owned()));
+                            } else {
+                                sample_observations = sample_observations.push(sample_name, None);
+                            }
                             sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
 
+                        let sample_names = sample_names.build();
                         let sample_observations = sample_observations.build();
 
-                        let breakend_index = BreakendIndex::new(
-                            sample_observations
-                                .first()
-                                .expect("at least one sample must be given"),
-                        )?;
+                        for obs_sample_name in observations.keys() {
+                            if !sample_names.as_slice().contains(obs_sample_name) {
+                                return Err(errors::Error::InvalidObservationSampleName {
+                                    name: obs_sample_name.to_owned(),
+                                }
+                                .into());
+                            }
+                        }
+
+                        let breakend_index =
+                            BreakendIndex::new(sample_observations.first_not_none()?)?;
 
                         // setup caller
                         let caller = calling::variants::CallerBuilder::default()
-                            .samplenames(sample_names.build())
+                            .samplenames(sample_names)
                             .observations(sample_observations)
                             .scenario(scenario)
                             .prior(FlatPrior::new()) // TODO allow to define prior in the grammar

@@ -10,7 +10,10 @@ use std::ops::Deref;
 use std::str;
 
 use anyhow::Result;
-use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb, Prob};
+use bio::stats::{
+    bayesian::bayes_factors::evidence::KassRaftery, bayesian::bayes_factors::BayesFactor, LogProb,
+    PHREDProb, Prob,
+};
 use counter::Counter;
 use half::f16;
 use itertools::join;
@@ -108,9 +111,10 @@ pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
     }
 }
 
-pub(crate) fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
-    match evidence {
+pub(crate) fn bayes_factor_to_letter(bayes_factor: BayesFactor) -> char {
+    match bayes_factor.evidence_kass_raftery() {
         KassRaftery::Barely => 'B',
+        KassRaftery::None if relative_eq!(*bayes_factor, 1.0) => 'E',
         KassRaftery::None => 'N',
         KassRaftery::Positive => 'P',
         KassRaftery::Strong => 'S',

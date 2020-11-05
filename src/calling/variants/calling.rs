@@ -42,7 +42,7 @@ where
     Pr: bayesian::model::Prior,
 {
     samplenames: grammar::SampleInfo<String>,
-    observations: grammar::SampleInfo<PathBuf>,
+    observations: grammar::SampleInfo<Option<PathBuf>>,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -69,7 +69,7 @@ where
 
     pub(crate) fn header(&self) -> Result<bcf::Header> {
         let mut header = bcf::Header::from_template(
-            bcf::Reader::from_path(self.observations.first().as_ref().unwrap())?.header(),
+            bcf::Reader::from_path(self.observations.first_not_none().as_ref().unwrap())?.header(),
         );
 
         remove_observation_header_entries(&mut header);
@@ -111,9 +111,10 @@ where
               B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
               as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
               and O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2). \
-              Posterior odds for alt allele of each fragment are given as Kass Raftery \
-              scores: N=none, B=barely, P=positive, S=strong, V=very strong (lower case if \
-              probability for correct mapping of fragment is <95%)\">",
+              Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
+              scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
+              probability for correct mapping of fragment is <95%). Thereby we extend Kass Raftery scores with \
+              a term for equality between the evidence of the two alleles (E=equal).\">",
         );
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
@@ -160,10 +161,14 @@ where
             .unwrap()
     }
 
-    fn observations(&self) -> Result<grammar::SampleInfo<bcf::Reader>> {
+    fn observations(&self) -> Result<grammar::SampleInfo<Option<bcf::Reader>>> {
         let mut observations = grammar::SampleInfo::default();
         for path in self.observations.iter() {
-            observations.push(bcf::Reader::from_path(path)?);
+            if let Some(path) = path {
+                observations.push(Some(bcf::Reader::from_path(path)?));
+            } else {
+                observations.push(None);
+            }
         }
         Ok(observations)
     }
@@ -174,7 +179,7 @@ where
             let mut observations = self.observations()?;
 
             // Check observation format.
-            for obs_reader in observations.iter() {
+            for obs_reader in observations.iter_not_none() {
                 let mut valid = false;
                 for record in obs_reader.header().header_records() {
                     if let bcf::HeaderRecord::Generic { key, value } = record {
@@ -192,10 +197,13 @@ where
 
             let mut i = 0;
             loop {
-                let mut records = observations.map(|reader| reader.empty_record());
+                let mut records =
+                    observations.map(|reader| reader.as_ref().map(|reader| reader.empty_record()));
                 let mut eof = Vec::new();
-                for (reader, record) in observations.iter_mut().zip(records.iter_mut()) {
-                    eof.push(!reader.read(record)?);
+                for item in observations.iter_mut().zip(records.iter_mut()) {
+                    if let (Some(reader), Some(record)) = item {
+                        eof.push(!reader.read(record)?);
+                    }
                 }
 
                 if eof.iter().all(|v| *v) {
@@ -206,16 +214,18 @@ where
                 }
 
                 // ensure that all observation BCFs contain exactly the same calls
-                let first_record = records.first().unwrap();
+                let first_record = records.first_not_none()?;
                 let current_rid = first_record.rid();
                 let current_pos = first_record.pos();
                 let current_alleles = first_record.alleles();
                 for record in &records[1..] {
-                    if record.rid() != current_rid
-                        || record.pos() != current_pos
-                        || record.alleles() != current_alleles
-                    {
-                        return Err(errors::Error::InconsistentObservations.into());
+                    if let Some(record) = record {
+                        if record.rid() != current_rid
+                            || record.pos() != current_pos
+                            || record.alleles() != current_alleles
+                        {
+                            return Err(errors::Error::InconsistentObservations.into());
+                        }
                     }
                 }
 
@@ -271,13 +281,11 @@ where
 
         let postprocessor = |receiver: Receiver<WorkItem>| -> Result<()> {
             let mut bcf_writer = self.writer()?;
-            let mut processed = 0;
-            for work_item in receiver {
+            for (processed, work_item) in receiver.into_iter().enumerate() {
                 work_item.call.write_final_record(&mut bcf_writer)?;
-                processed += 1;
 
-                if processed % 100 == 0 {
-                    info!("{} records processed.", processed);
+                if (processed + 1) % 100 == 0 {
+                    info!("{} records processed.", processed + 1);
                 }
             }
 
@@ -289,21 +297,14 @@ where
 
     fn preprocess_record(
         &self,
-        records: &mut grammar::SampleInfo<bcf::Record>,
+        records: &mut grammar::SampleInfo<Option<bcf::Record>>,
         index: usize,
-        observations: &grammar::SampleInfo<bcf::Reader>,
+        observations: &grammar::SampleInfo<Option<bcf::Reader>>,
     ) -> Result<WorkItem> {
         let (call, snv, bnd_event, rid, is_snv_or_mnv) = {
-            let first_record = records
-                .first_mut()
-                .expect("bug: there must be at least one record");
+            let first_record = records.first_not_none_mut()?;
             let start = first_record.pos() as u64;
-            let chrom = chrom(
-                &observations
-                    .first()
-                    .expect("bug: there must be at least one observation reader"),
-                first_record,
-            );
+            let chrom = chrom(observations.first_not_none()?, first_record);
 
             let call = CallBuilder::default()
                 .chrom(chrom.to_owned())
@@ -355,7 +356,7 @@ where
         };
 
         let mut variant_builder = VariantBuilder::default();
-        variant_builder.record(records.first_mut().unwrap())?;
+        variant_builder.record(records.first_not_none_mut()?)?;
 
         let mut work_item = WorkItem {
             rid,
@@ -380,18 +381,23 @@ where
         let mut paired_end = false;
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
-            let mut pileup = read_observations(record)?;
-            if is_snv_or_mnv {
-                // METHOD: adjust MAPQ to get rid of stochastically inflated ones
-                //Observation::adjust_prob_mapping(&mut pileup);
-                // METHOD: remove non-standard alignments. They might come from near
-                // SVs and can induce artifactual SNVs or MNVs. By removing them,
-                // we just conservatively reduce the coverage to those which are
-                // clearly not influenced by a close SV.
-                pileup = Observation::remove_nonstandard_alignments(pileup);
-            }
+            let pileup = if let Some(record) = record {
+                let mut pileup = read_observations(record)?;
+                if is_snv_or_mnv {
+                    // METHOD: adjust MAPQ to get rid of stochastically inflated ones
+                    //Observation::adjust_prob_mapping(&mut pileup);
+                    // METHOD: remove non-standard alignments. They might come from near
+                    // SVs and can induce artifactual SNVs or MNVs. By removing them,
+                    // we just conservatively reduce the coverage to those which are
+                    // clearly not influenced by a close SV.
+                    pileup = Observation::remove_nonstandard_alignments(pileup);
+                }
 
-            paired_end |= pileup.iter().any(|obs| obs.is_paired());
+                paired_end |= pileup.iter().any(|obs| obs.is_paired());
+                pileup
+            } else {
+                Vec::new()
+            };
             pileups.push(pileup);
         }
 

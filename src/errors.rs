@@ -40,4 +40,6 @@ pub(crate) enum Error {
     InvalidObservationFormat,
     #[error("invalid BND record: ALT {spec} does not follow BND spec")]
     InvalidBNDRecordAlt { spec: String },
+    #[error("at least one BCF with observations must be provided")]
+    EmptyObservations,
 }
