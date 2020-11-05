@@ -175,8 +175,8 @@ impl Call {
                     observations.entry(i).or_insert_with(Vec::new).push({
                         utils::generalized_cigar(
                             sample_info.observations.iter().map(|obs| {
-                                let score = utils::evidence_kass_raftery_to_letter(
-                                    obs.bayes_factor_alt().evidence_kass_raftery(),
+                                let score = utils::bayes_factor_to_letter(
+                                    obs.bayes_factor_alt(),
                                 );
                                 format!(
                                     "{}{}{}{}",

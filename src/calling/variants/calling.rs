@@ -111,9 +111,10 @@ where
               B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
               as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
               and O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2). \
-              Posterior odds for alt allele of each fragment are given as Kass Raftery \
-              scores: N=none, B=barely, P=positive, S=strong, V=very strong (lower case if \
-              probability for correct mapping of fragment is <95%)\">",
+              Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
+              scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
+              probability for correct mapping of fragment is <95%). Thereby we extend Kass Raftery scores with \
+              a term for equality between the evidence of the two alleles (E=equal).\">",
         );
         header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
