@@ -329,7 +329,7 @@ pub(crate) trait Realigner {
         let mut hits = Vec::new();
         let mut best_dist = None;
         for params in candidate_allele_params.iter_mut() {
-            if let Some(hit) = edit_dist.calc_best_hit(params, best_dist) {
+            if let Some(hit) = edit_dist.calc_best_hit(params, None) {
                 match best_dist.map_or(Ordering::Less, |best_dist| hit.dist().cmp(&best_dist)) {
                     Ordering::Less => {
                         hits.clear();

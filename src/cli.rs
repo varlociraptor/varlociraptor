@@ -126,7 +126,7 @@ fn default_reference_buffer_size() -> usize {
 }
 
 fn default_pairhmm_mode() -> String {
-    "fast".to_owned()
+    "exact".to_owned()
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]

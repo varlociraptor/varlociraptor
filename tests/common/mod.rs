@@ -138,7 +138,7 @@ pub(crate) trait Testcase {
         self.yaml()["purity"].as_f64()
     }
 
-    fn run(&self) -> Result<()> {
+    fn run(&self, pairhmm_mode_override: &str) -> Result<()> {
         let temp_ref = self.reference()?;
 
         let temp_preprocess = tempfile::tempdir()?;
@@ -155,6 +155,7 @@ pub(crate) trait Testcase {
                             ref mut output,
                             ref mut bam,
                             ref mut alignment_properties,
+                            ref mut pairhmm_mode,
                             ..
                         },
                 } => {
@@ -172,6 +173,7 @@ pub(crate) trait Testcase {
                     *candidates = self.candidates();
                     *output = Some(self.sample_preprocessed_path(sample_name, &temp_preprocess));
                     *alignment_properties = Some(props.path().to_owned());
+                    *pairhmm_mode = pairhmm_mode_override.to_owned();
 
                     run(options)?;
                 }
