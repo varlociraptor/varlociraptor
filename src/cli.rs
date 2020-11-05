@@ -521,9 +521,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     // If we omit the insert size information for calculating the evidence, we can savely allow hardclips here.
                     let allow_hardclips = omit_insert_size;
-                    let alignment_properties = est_or_load_alignment_properites(
+                    let alignment_properties = est_or_load_alignment_properties(
                         &alignment_properties,
                         &bam,
+                        omit_insert_size,
                         allow_hardclips,
                     )?;
 
@@ -882,16 +883,17 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn est_or_load_alignment_properites(
+pub(crate) fn est_or_load_alignment_properties(
     alignment_properties_file: &Option<impl AsRef<Path>>,
     bam_file: impl AsRef<Path>,
     omit_insert_size: bool,
+    allow_hardclips: bool,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(bam_file, omit_insert_size)
+        estimate_alignment_properties(bam_file, omit_insert_size, allow_hardclips)
     }
 }
