@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.4.0] - 2020-11-05
+- Allow scenarios to contain samples for which no BAM files are available. This allows to e.g. model tumor/normal from just the tumor sample with known contamination. Resulting probabilities will properly reflect the uncertainty about whether a variant is somatic or germline.
+- Speed up SNV and MNV computations by precomputed call and miscall likelihoods.
+- Add a flag --pairhmm-mode [exact|fast], that allows to instruct varlociraptor to only compute the optimal path in the pairHMM. This should be much faster in practice, but can come with some wrong likelihoods in rare extreme cases. Advice: only use on large cohorts or where exact allele frequencies do not matter.
+- Fix insert size handling on single end samples (@dlaehnemann).
+
 ## [2.3.0] - 2020-09-09
 - Include read orientation bias into the model.
 - Exlcude softclipped and non-standard orientation reads from SNV and MNV calling as they are indicative of SVs and often cause artifact substitutions while sometimes not being reflected via a higher uncertainty in the MAPQ. Not considering them is the conservative choice.
