@@ -90,6 +90,7 @@ impl Caller<'_> {
             // Problem Data
             let contig: ContigLogPosteriorsLOH;
             if let Some(contig_length) = self.contig_lens.get(&contig_id) {
+                eprintln!("Contig '{}' ({}): Reading BCF records.", contig_name, contig_length);
                 contig =
                     ContigLogPosteriorsLOH::new(&mut self.bcf_reader, &contig_id, contig_length)?;
             } else {
@@ -101,6 +102,7 @@ impl Caller<'_> {
             if contig.positions.is_empty() {
                 continue;
             }
+            eprintln!("Contig '{}' ({}): Creating all possible intervals.", contig_name, contig_length);
             let intervals = contig.create_all_intervals(
                 self.alpha,
                 &self.control_local_fdr,
@@ -110,6 +112,7 @@ impl Caller<'_> {
                 (&RangeInclusive<usize>, &RangeInclusive<usize>),
                 bool,
             > = HashMap::new();
+            eprintln!("Contig '{}' ({}): Creating interval overlap indicators.", contig_name, contig_length);
             for (interval1, interval2) in iproduct!(intervals.keys(), intervals.keys()) {
                 let key = (interval1, interval2);
                 let start2_minus_one = if interval2.start() >= &1 {
@@ -309,7 +312,7 @@ impl ContigLogPosteriorsLOH {
             }
         } else {
             // no records found
-            eprintln!("Found no records with at least barely heterozygous evidence on contig with ID: {}", contig_id);
+            eprintln!("Found no records on contig with ID: {}", contig_id);
         }
         // cumulatively add the following LOH probabilities
         while bcf_reader.read(&mut record)? {
