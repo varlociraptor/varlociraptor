@@ -89,6 +89,12 @@ testcase!(test40, exact, fast);
 testcase!(test41, exact, fast);
 testcase!(test42, exact, fast);
 testcase!(test43, exact, fast);
+// Fast mode fails here, because there is a read with two insertions against
+// the alt allele. This is very unlikely to happen, but it happens here.
+// In the exact mode, there are various paths around this alignment which rescue
+// the alt allele probability. With fast mode, these are missed, making the
+// probability artificially small. That leads to Varlociraptor evaluating the
+// locus to be heterozygous although it is homozygous in reality.
 testcase!(test44, exact);
 testcase!(test45, exact, fast);
 
