@@ -124,7 +124,7 @@ where
             b"##FORMAT=<ID=SB,Number=A,Type=String,\
               Description=\"Strand bias estimate: + indicates that ALT allele is associated with \
               forward strand, - indicates that ALT allele is associated with reverse strand, \
-              - indicates no strand bias. Strand bias is indicative for systematic sequencing \
+              . indicates no strand bias. Strand bias is indicative for systematic sequencing \
               errors. Probability for strand bias is captured by the ARTIFACT event (PROB_ARTIFACT).\">",
         );
         header.push_record(
