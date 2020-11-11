@@ -117,6 +117,7 @@ impl ToString for ExpressionIdentifier {
 #[get = "pub"]
 pub(crate) struct Scenario {
     // map of reusable expressions
+    #[serde(default)]
     expressions: HashMap<ExpressionIdentifier, Formula>,
     // map of events
     events: BTreeMap<String, Formula>,
