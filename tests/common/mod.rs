@@ -188,6 +188,8 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
+                        omit_strand_bias: false,
+                        omit_read_orientation_bias: false,
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -218,6 +220,8 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
+                        omit_strand_bias: false,
+                        omit_read_orientation_bias: false,
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self
