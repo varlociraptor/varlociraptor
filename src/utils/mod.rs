@@ -26,10 +26,8 @@ use crate::variants::model;
 use crate::Event;
 
 pub(crate) mod collect_variants;
-pub(crate) mod worker_pool;
 
 pub(crate) use collect_variants::collect_variants;
-pub(crate) use worker_pool::worker_pool;
 
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 

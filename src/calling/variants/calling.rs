@@ -5,7 +5,6 @@ use std::sync::RwLock;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
-use crossbeam::channel::{Receiver, Sender};
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, Read};
@@ -20,7 +19,6 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
-use crate::utils::worker_pool;
 use crate::variants::evidence::observation::Observation;
 use crate::variants::model;
 use crate::variants::model::modes::generic::{
@@ -51,7 +49,6 @@ where
     breakend_index: BreakendIndex,
     #[builder(default)]
     breakend_results: RwLock<HashMap<Vec<u8>, BreakendResult>>,
-    threads: usize,
 }
 
 impl<Pr> Caller<Pr>
@@ -174,125 +171,105 @@ where
     }
 
     pub(crate) fn call(&self) -> Result<()> {
-        // Configure worker pool:
-        let preprocessor = |sender: Sender<WorkItem>| -> Result<()> {
-            let mut observations = self.observations()?;
+        let mut observations = self.observations()?;
+        let mut bcf_writer = self.writer()?;
 
-            // Check observation format.
-            for obs_reader in observations.iter_not_none() {
-                let mut valid = false;
-                for record in obs_reader.header().header_records() {
-                    if let bcf::HeaderRecord::Generic { key, value } = record {
-                        if key == "varlociraptor_observation_format_version"
-                            && value == OBSERVATION_FORMAT_VERSION
-                        {
-                            valid = true;
-                        }
+        // Check observation format.
+        for obs_reader in observations.iter_not_none() {
+            let mut valid = false;
+            for record in obs_reader.header().header_records() {
+                if let bcf::HeaderRecord::Generic { key, value } = record {
+                    if key == "varlociraptor_observation_format_version"
+                        && value == OBSERVATION_FORMAT_VERSION
+                    {
+                        valid = true;
                     }
-                }
-                if !valid {
-                    return Err(errors::Error::InvalidObservationFormat.into());
                 }
             }
-
-            let mut i = 0;
-            loop {
-                let mut records =
-                    observations.map(|reader| reader.as_ref().map(|reader| reader.empty_record()));
-                let mut eof = Vec::new();
-                for item in observations.iter_mut().zip(records.iter_mut()) {
-                    if let (Some(reader), Some(record)) = item {
-                        eof.push(!reader.read(record)?);
-                    }
-                }
-
-                if eof.iter().all(|v| *v) {
-                    return Ok(());
-                } else if !eof.iter().all(|v| !v) {
-                    // only some are EOF, this is an error
-                    return Err(errors::Error::InconsistentObservations.into());
-                }
-
-                // ensure that all observation BCFs contain exactly the same calls
-                let first_record = records.first_not_none()?;
-                let current_rid = first_record.rid();
-                let current_pos = first_record.pos();
-                let current_alleles = first_record.alleles();
-                for record in &records[1..] {
-                    if let Some(record) = record {
-                        if record.rid() != current_rid
-                            || record.pos() != current_pos
-                            || record.alleles() != current_alleles
-                        {
-                            return Err(errors::Error::InconsistentObservations.into());
-                        }
-                    }
-                }
-
-                let work_item = self.preprocess_record(&mut records, i, &observations)?;
-
-                sender.send(work_item).unwrap();
-
-                i += 1;
+            if !valid {
+                return Err(errors::Error::InvalidObservationFormat.into());
             }
-        };
-
-        let mut workers = Vec::new();
-        for _ in 0..self.threads {
-            workers.push(
-                |receiver: Receiver<WorkItem>, sender: Sender<WorkItem>| -> Result<()> {
-                    let mut model = self.model();
-                    // For SNVs and MNVs we need a special model as here read orientation bias needs to be considered.
-                    let mut read_orientation_bias_model = self.model();
-                    let mut events = Vec::new();
-                    let mut last_rid = None;
-                    let mut last_read_orientation_bias_rid = None;
-                    for mut work_item in receiver {
-                        let contig = str::from_utf8(work_item.call.chrom()).unwrap();
-                        let _model;
-                        let _last_rid;
-
-                        if work_item.check_read_orientation_bias {
-                            _model = &mut read_orientation_bias_model;
-                            _last_rid = last_read_orientation_bias_rid;
-                            last_read_orientation_bias_rid = Some(work_item.rid);
-                        } else {
-                            _model = &mut model;
-                            _last_rid = last_rid;
-                            last_rid = Some(work_item.rid);
-                        }
-
-                        self.configure_model(
-                            work_item.rid,
-                            _last_rid,
-                            _model,
-                            &mut events,
-                            contig,
-                            work_item.check_read_orientation_bias,
-                        )?;
-
-                        self.call_record(&mut work_item, _model, &events);
-                        sender.send(work_item).unwrap();
-                    }
-                    Ok(())
-                },
-            );
         }
 
-        let postprocessor = |receiver: Receiver<WorkItem>| -> Result<()> {
-            let mut bcf_writer = self.writer()?;
-            for (processed, work_item) in receiver.into_iter().enumerate() {
-                work_item.call.write_final_record(&mut bcf_writer)?;
+        // data structures
+        let mut model = self.model();
+        // For SNVs and MNVs we need a special model as here read orientation bias needs to be considered.
+        let mut read_orientation_bias_model = self.model();
+        let mut events = Vec::new();
+        let mut last_rid = None;
+        let mut last_read_orientation_bias_rid = None;
 
-                if (processed + 1) % 100 == 0 {
-                    info!("{} records processed.", processed + 1);
+        // process calls
+        let mut i = 0;
+        loop {
+            let mut records =
+                observations.map(|reader| reader.as_ref().map(|reader| reader.empty_record()));
+            let mut eof = Vec::new();
+            for item in observations.iter_mut().zip(records.iter_mut()) {
+                if let (Some(reader), Some(record)) = item {
+                    eof.push(!reader.read(record)?);
                 }
             }
 
-            Ok(())
-        };
+            if eof.iter().all(|v| *v) {
+                return Ok(());
+            } else if !eof.iter().all(|v| !v) {
+                // only some are EOF, this is an error
+                return Err(errors::Error::InconsistentObservations.into());
+            }
 
-        worker_pool(preprocessor, workers.iter(), postprocessor)
+            // ensure that all observation BCFs contain exactly the same calls
+            let first_record = records.first_not_none()?;
+            let current_rid = first_record.rid();
+            let current_pos = first_record.pos();
+            let current_alleles = first_record.alleles();
+            for record in &records[1..] {
+                if let Some(record) = record {
+                    if record.rid() != current_rid
+                        || record.pos() != current_pos
+                        || record.alleles() != current_alleles
+                    {
+                        return Err(errors::Error::InconsistentObservations.into());
+                    }
+                }
+            }
+
+            let mut work_item = self.preprocess_record(&mut records, i, &observations)?;
+
+            // process work item
+            let contig = str::from_utf8(work_item.call.chrom()).unwrap();
+            let _model;
+            let _last_rid;
+
+            if work_item.check_read_orientation_bias {
+                _model = &mut read_orientation_bias_model;
+                _last_rid = last_read_orientation_bias_rid;
+                last_read_orientation_bias_rid = Some(work_item.rid);
+            } else {
+                _model = &mut model;
+                _last_rid = last_rid;
+                last_rid = Some(work_item.rid);
+            }
+
+            self.configure_model(
+                work_item.rid,
+                _last_rid,
+                _model,
+                &mut events,
+                contig,
+                work_item.check_read_orientation_bias,
+            )?;
+
+            self.call_record(&mut work_item, _model, &events);
+
+            work_item.call.write_final_record(&mut bcf_writer)?;
+
+            if (i + 1) % 100 == 0 {
+                info!("{} records processed.", i + 1);
+            }
+
+            i += 1;
+        }
     }
 
     fn preprocess_record(
