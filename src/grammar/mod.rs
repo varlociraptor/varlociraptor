@@ -176,12 +176,17 @@ impl<'a> TryFrom<&'a str> for Scenario {
     }
 }
 
+fn default_resolution() -> usize {
+    100
+}
+
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
 pub(crate) struct Sample {
     /// optional contamination
     contamination: Option<Contamination>,
     /// grid point resolution for integration over continuous allele frequency ranges
+    #[serde(default = "default_resolution")]
     resolution: usize,
     /// possible VAFs of given sample
     universe: UniverseDefinition,
