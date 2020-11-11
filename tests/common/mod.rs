@@ -80,6 +80,23 @@ pub(crate) trait Testcase {
         }
     }
 
+    fn omit_strand_bias(&self) -> bool {
+        if self.yaml()["omit_strand_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_strand_bias"].as_bool().unwrap()
+        }
+    }
+
+    fn omit_read_orientation_bias(&self) -> bool {
+        if self.yaml()["omit_read_orientation_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_read_orientation_bias"].as_bool().unwrap()
+        }
+    }
+
+
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
@@ -188,8 +205,8 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
-                        omit_strand_bias: false,
-                        omit_read_orientation_bias: false,
+                        omit_strand_bias: self.omit_strand_bias(),
+                        omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -220,8 +237,8 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
-                        omit_strand_bias: false,
-                        omit_read_orientation_bias: false,
+                        omit_strand_bias: self.omit_strand_bias(),
+                        omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self
