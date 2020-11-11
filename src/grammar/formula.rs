@@ -11,7 +11,7 @@ use serde::de;
 use serde::Deserialize;
 
 use crate::errors;
-use crate::grammar::Scenario;
+use crate::grammar::{ExpressionIdentifier, Scenario};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -63,6 +63,10 @@ pub(crate) enum Formula {
         refbase: IUPAC,
         altbase: IUPAC,
     },
+    Expression {
+        identifier: ExpressionIdentifier,
+        negated: bool,
+    },
 }
 
 #[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
@@ -109,6 +113,13 @@ impl Formula {
                 positive: !positive,
                 refbase,
                 altbase,
+            },
+            Formula::Expression {
+                identifier,
+                negated,
+            } => Formula::Expression {
+                identifier: identifier.clone(),
+                negated: !negated,
             },
             Formula::Atom { sample, vafs } => {
                 let universe = scenario
@@ -227,6 +238,25 @@ impl Formula {
                 refbase,
                 altbase,
             },
+            &Formula::Expression {
+                ref identifier,
+                negated,
+            } => {
+                if let Some(formula) = scenario.expressions().get(identifier) {
+                    if negated {
+                        formula
+                            .negate(scenario, contig)?
+                            .normalize(scenario, contig)?
+                    } else {
+                        formula.normalize(scenario, contig)?
+                    }
+                } else {
+                    Err(errors::Error::UndefinedExpression {
+                        identifier: identifier.to_string(),
+                    })?;
+                    unreachable!();
+                }
+            }
         })
     }
 }
@@ -528,6 +558,14 @@ where
     E: de::Error,
 {
     Ok(match pair.as_rule() {
+        Rule::expression => {
+            let mut inner = pair.into_inner();
+            let identifier = inner.next().unwrap().as_str();
+            Formula::Expression {
+                identifier: ExpressionIdentifier(identifier.to_owned()),
+                negated: false,
+            }
+        }
         Rule::variant => {
             let mut inner = pair.into_inner();
             let refbase = inner.next().unwrap().as_str().as_bytes()[0];

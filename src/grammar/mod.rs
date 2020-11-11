@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ops::{Deref, DerefMut};
+use std::string::ToString;
 use std::sync::Mutex;
 
 use anyhow::Result;
@@ -103,9 +104,20 @@ impl<T> SampleInfoBuilder<T> {
     }
 }
 
+#[derive(Derefable, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Hash, Deserialize)]
+pub(crate) struct ExpressionIdentifier(#[deref] String);
+
+impl ToString for ExpressionIdentifier {
+    fn to_string(&self) -> String {
+        self.0.clone()
+    }
+}
+
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
 pub(crate) struct Scenario {
+    // map of reusable expressions
+    expressions: HashMap<ExpressionIdentifier, Formula>,
     // map of events
     events: BTreeMap<String, Formula>,
     // map of samples

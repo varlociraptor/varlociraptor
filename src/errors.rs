@@ -42,4 +42,8 @@ pub(crate) enum Error {
     InvalidBNDRecordAlt { spec: String },
     #[error("at least one BCF with observations must be provided")]
     EmptyObservations,
+    #[error(
+        "undefined expression ${identifier}; please define under 'expressions:' in your scenario"
+    )]
+    UndefinedExpression { identifier: String },
 }

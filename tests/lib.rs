@@ -109,6 +109,7 @@ testcase!(test54, exact, fast);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);
 testcase!(test_contig_universe, exact, fast);
+testcase!(test_expressions, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
