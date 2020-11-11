@@ -1,10 +1,11 @@
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - test > 0.3
+    - test > 0.4
   posteriors:
     # write down a list of expressions of the form
-    - PROB_PRESENT <= 0.5
+    - PROB_PRESENT == 0.0
+    - PROB_ARTIFACT == inf
 
 # necessary bam files
 samples:
@@ -27,5 +28,7 @@ reference:
   path: 'ref.fa'
 
 mode: Generic
+omit_strand_bias: true
+omit_read_orientation_bias: true
 
 version: '4'

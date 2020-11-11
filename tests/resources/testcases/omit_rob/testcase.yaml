@@ -27,5 +27,6 @@ reference:
   path: 'ref.fa'
 
 mode: Generic
+omit_read_orientation_bias: true
 
 version: '4'
