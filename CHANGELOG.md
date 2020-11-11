@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.5.0] - 2020-11-11
+- Allow definition of re-usable expressions in scenarions (via a new key "expressions:", see https://varlociraptor.github.io).
+- Remove ability to parallelize Varlociraptor via --threads. This never properly saturated the given cores and caused some overhead. Instead, we recommend to parallelize in scatter/gather style via `rbt vcf-split`, see https://varlociraptor.github.io).
+- `resolution:` can now be skipped in scenarios. For continuous universes, this will then assume a resolution of 100, for discrete universes resolution isn't used anyway.
+
 ## [2.4.0] - 2020-11-05
 - Allow scenarios to contain samples for which no BAM files are available. This allows to e.g. model tumor/normal from just the tumor sample with known contamination. Resulting probabilities will properly reflect the uncertainty about whether a variant is somatic or germline.
 - Speed up SNV and MNV computations by precomputed call and miscall likelihoods.
