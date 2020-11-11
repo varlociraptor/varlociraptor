@@ -77,42 +77,32 @@ impl Biases {
         consider_strand_bias: bool,
     ) -> Option<Box<dyn Iterator<Item = Self>>> {
         match (consider_strand_bias, consider_read_orientation_bias) {
-            (true, true) => {
-                Some(Box::new(
-                    StrandBias::iter()
-                        .cartesian_product(ReadOrientationBias::iter())
-                        .map(|(sb, rob)| {
-                            BiasesBuilder::default()
-                                .strand_bias(sb)
-                                .read_orientation_bias(rob)
-                                .build()
-                                .unwrap()
-                        })
-                ))
-            },
-            (true, false) => {
-                Some(Box::new(
-                    StrandBias::iter().map(|sb| {
+            (true, true) => Some(Box::new(
+                StrandBias::iter()
+                    .cartesian_product(ReadOrientationBias::iter())
+                    .map(|(sb, rob)| {
                         BiasesBuilder::default()
                             .strand_bias(sb)
-                            .read_orientation_bias(ReadOrientationBias::None)
-                            .build()
-                            .unwrap()
-                        })
-                ))
-            },
-            (false, true) => {
-                Some(Box::new(
-                    ReadOrientationBias::iter().map(|rob| {
-                        BiasesBuilder::default()
-                            .strand_bias(StrandBias::None)
                             .read_orientation_bias(rob)
                             .build()
                             .unwrap()
-                        })
-                ))
-            },
-            (false, false) => None
+                    }),
+            )),
+            (true, false) => Some(Box::new(StrandBias::iter().map(|sb| {
+                BiasesBuilder::default()
+                    .strand_bias(sb)
+                    .read_orientation_bias(ReadOrientationBias::None)
+                    .build()
+                    .unwrap()
+            }))),
+            (false, true) => Some(Box::new(ReadOrientationBias::iter().map(|rob| {
+                BiasesBuilder::default()
+                    .strand_bias(StrandBias::None)
+                    .read_orientation_bias(rob)
+                    .build()
+                    .unwrap()
+            }))),
+            (false, false) => None,
         }
     }
 
