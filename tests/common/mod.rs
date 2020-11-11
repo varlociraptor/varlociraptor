@@ -96,7 +96,6 @@ pub(crate) trait Testcase {
         }
     }
 
-
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
