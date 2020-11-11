@@ -419,17 +419,15 @@ where
                     biases: Biases::none(),
                 });
                 // Corresponding biased events.
-                if let Some(bs) = Biases::all_artifact_combinations(
+                for biases in Biases::all_artifact_combinations(
                     consider_read_orientation_bias,
                     consider_strand_bias,
                 ) {
-                    for biases in bs {
-                        events.push(model::Event {
-                            name: event_name.clone(),
-                            vafs: vaftree.clone(),
-                            biases,
-                        });
-                    }
+                    events.push(model::Event {
+                        name: event_name.clone(),
+                        vafs: vaftree.clone(),
+                        biases,
+                    });
                 }
             }
 
