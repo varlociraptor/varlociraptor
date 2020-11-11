@@ -14,7 +14,6 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
-use crossbeam::channel::{Receiver, Sender};
 use itertools::Itertools;
 use rust_htslib::bam;
 use rust_htslib::bcf::{self, Read};
@@ -25,7 +24,6 @@ use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::utils::worker_pool;
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{
@@ -39,7 +37,6 @@ use crate::variants::types::breakends::{Breakend, BreakendIndex};
 
 #[derive(TypedBuilder)]
 pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
-    threads: usize,
     alignment_properties: AlignmentProperties,
     max_depth: usize,
     protocol_strandedness: ProtocolStrandedness,
@@ -138,32 +135,52 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 
     pub(crate) fn process(&mut self) -> Result<()> {
-        let mut workers = Vec::new();
+        let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+        let mut skips = utils::SimpleCounter::default();
+        let mut bcf_writer = self.writer()?;
+        let mut processed = 0;
 
-        for _ in 0..self.threads {
-            let worker = |receiver: Receiver<WorkItem>, sender: Sender<Calls>| -> Result<()> {
-                let bam_reader = bam::IndexedReader::from_path(&self.inbam)
-                    .context("Unable to read BAM/CRAM file.")?;
+        let bam_reader =
+            bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
 
-                let mut sample = SampleBuilder::default()
-                    .max_depth(self.max_depth)
-                    .protocol_strandedness(self.protocol_strandedness)
-                    .alignments(bam_reader, self.alignment_properties)
-                    .build()
-                    .unwrap();
-                for work_item in receiver {
-                    let calls = self.process_record(work_item, &mut sample)?;
-                    sender.send(calls).unwrap();
+        let mut sample = SampleBuilder::default()
+            .max_depth(self.max_depth)
+            .protocol_strandedness(self.protocol_strandedness)
+            .alignments(bam_reader, self.alignment_properties)
+            .build()
+            .unwrap();
+
+        let display_skips = |skips: &utils::SimpleCounter<utils::collect_variants::SkipReason>| {
+            for (reason, &count) in skips.iter() {
+                if count > 0 && count % 100 == 0 {
+                    info!("Skipped {} {}.", count, reason);
                 }
-                Ok(())
-            };
-            workers.push(worker);
-        }
+            }
+        };
 
-        let postprocessor = |receiver: Receiver<Calls>| -> Result<()> {
-            let mut bcf_writer = self.writer()?;
-            let mut processed = 0;
-            for calls in receiver {
+        let mut i = 0;
+        loop {
+            let mut record = bcf_reader.empty_record();
+            if !bcf_reader.read(&mut record)? {
+                display_skips(&skips);
+                return Ok(());
+            }
+
+            let variants = utils::collect_variants(&mut record, true, &mut skips)?;
+            if !variants.is_empty() {
+                // process record
+                let work_item = WorkItem {
+                    start: record.pos() as u64,
+                    chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
+                    variants,
+                    record_id: record.id(),
+                    record_mateid: utils::info_tag_mateid(&mut record)
+                        .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
+                    record_index: i,
+                };
+
+                let calls = self.process_record(work_item, &mut sample)?;
+
                 for call in calls.iter() {
                     call.write_preprocessed_record(&mut bcf_writer)?;
                     processed += 1;
@@ -174,54 +191,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 }
             }
 
-            Ok(())
-        };
-
-        let preprocessor = |sender: Sender<WorkItem>| -> Result<()> {
-            let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
-            let mut skips = utils::SimpleCounter::default();
-
-            let display_skips =
-                |skips: &utils::SimpleCounter<utils::collect_variants::SkipReason>| {
-                    for (reason, &count) in skips.iter() {
-                        if count > 0 && count % 100 == 0 {
-                            info!("Skipped {} {}.", count, reason);
-                        }
-                    }
-                };
-
-            let mut i = 0;
-            loop {
-                let mut record = bcf_reader.empty_record();
-                if !bcf_reader.read(&mut record)? {
-                    display_skips(&skips);
-                    return Ok(());
-                }
-
-                let variants = utils::collect_variants(&mut record, true, &mut skips)?;
-                if !variants.is_empty() {
-                    // process record
-                    let work_item = WorkItem {
-                        start: record.pos() as u64,
-                        chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
-                        variants,
-                        record_id: record.id(),
-                        record_mateid: utils::info_tag_mateid(&mut record)
-                            .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
-                        record_index: i,
-                    };
-
-                    sender.send(work_item).unwrap();
-                }
-                if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
-                    display_skips(&skips);
-                }
-
-                i += 1;
+            if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
+                display_skips(&skips);
             }
-        };
 
-        worker_pool(preprocessor, workers.into_iter(), postprocessor)
+            i += 1;
+        }
     }
 
     fn process_record(&self, work_item: WorkItem, sample: &mut Sample) -> Result<Calls> {

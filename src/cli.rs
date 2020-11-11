@@ -117,10 +117,6 @@ impl Varlociraptor {
     }
 }
 
-fn default_threads() -> usize {
-    1
-}
-
 fn default_reference_buffer_size() -> usize {
     10
 }
@@ -160,9 +156,6 @@ pub enum PreprocessKind {
             help = "BAM file with aligned reads from a single sample."
         )]
         bam: PathBuf,
-        #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
-        #[serde(default = "default_threads")]
-        threads: usize,
         #[structopt(
             long = "reference-buffer-size",
             short = "b",
@@ -323,9 +316,6 @@ pub enum CallKind {
             help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
         )]
         output: Option<PathBuf>,
-        #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
-        #[serde(default = "default_threads")]
-        threads: usize,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -506,7 +496,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     realignment_window,
                     max_depth,
                     omit_insert_size,
-                    threads,
                     reference_buffer_size,
                     pairhmm_mode,
                 } => {
@@ -550,7 +539,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     if pairhmm_mode == "fast" {
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
-                                .threads(threads)
                                 .alignment_properties(alignment_properties)
                                 .protocol_strandedness(protocol_strandedness)
                                 .max_depth(max_depth)
@@ -571,7 +559,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     } else {
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
-                                .threads(threads)
                                 .alignment_properties(alignment_properties)
                                 .protocol_strandedness(protocol_strandedness)
                                 .max_depth(max_depth)
@@ -600,7 +587,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     testcase_locus,
                     testcase_prefix,
                     output,
-                    threads,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -678,7 +664,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .resolutions(resolutions.build())
                             .breakend_index(breakend_index)
                             .outbcf(output)
-                            .threads(threads)
                             .build()
                             .unwrap();
 
