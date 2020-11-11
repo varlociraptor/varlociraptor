@@ -1,0 +1,31 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - test == 0.0
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_PRESENT > 90.0
+
+# necessary bam files
+samples:
+  test:
+    path: 'test.bam'
+    properties: '{"insert_size":{"mean":144.5324831983457,"sd":8.335049395011959},"max_del_cigar_len":3,"max_ins_cigar_len":4,"frac_max_softclip":0.6887417218543046,"max_read_len":151}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"resources/genome.fasta","candidates":"candidates.vcf","bam":"test.bam","reference_buffer_size":10,"alignment_properties":null,"output":"test.preprocessed.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":true,"pairhmm_mode":"exact"}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
