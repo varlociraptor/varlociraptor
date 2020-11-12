@@ -12,7 +12,7 @@ lazy_static! {
 /// Calculate probability of read_base given ref_base.
 pub(crate) fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogProb {
     if read_base.to_ascii_uppercase() == ref_base.to_ascii_uppercase() {
-        BASEQUAL_TO_PROB_CALL[base_qual as usize]
+        unsafe { *BASEQUAL_TO_PROB_CALL.get_unchecked(base_qual as usize) }
     } else {
         let prob_miscall = prob_read_base_miscall(base_qual);
         // TODO replace the second term with technology specific confusion matrix
@@ -22,7 +22,7 @@ pub(crate) fn prob_read_base(read_base: u8, ref_base: u8, base_qual: u8) -> LogP
 
 /// Unpack miscall probability of read_base.
 pub(crate) fn prob_read_base_miscall(base_qual: u8) -> LogProb {
-    BASEQUAL_TO_PROB_MISCALL[base_qual as usize]
+    unsafe { *BASEQUAL_TO_PROB_MISCALL.get_unchecked(base_qual as usize) }
 }
 
 /// unpack miscall probability of read_base.

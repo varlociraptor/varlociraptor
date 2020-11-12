@@ -60,7 +60,7 @@ impl Variant for SNV {
             .read_pos(self.locus.range().start as u32, false, false)?
         {
             let read_base = read.seq()[qpos as usize].to_ascii_uppercase();
-            let base_qual = read.qual()[qpos as usize];
+            let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
 
             // METHOD: instead of considering the actual REF base, we assume that REF is whatever
