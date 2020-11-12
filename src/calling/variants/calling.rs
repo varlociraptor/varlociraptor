@@ -164,7 +164,9 @@ where
         let mut observations = grammar::SampleInfo::default();
         for path in self.observations.iter() {
             if let Some(path) = path {
-                observations.push(Some(bcf::Reader::from_path(path)?));
+                let mut reader = bcf::Reader::from_path(path)?;
+                reader.set_threads(1);
+                observations.push(Some(reader));
             } else {
                 observations.push(None);
             }
@@ -175,6 +177,7 @@ where
     pub(crate) fn call(&self) -> Result<()> {
         let mut observations = self.observations()?;
         let mut bcf_writer = self.writer()?;
+        bcf_writer.set_threads(1);
 
         // Check observation format.
         for obs_reader in observations.iter_not_none() {

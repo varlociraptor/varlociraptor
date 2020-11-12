@@ -15,8 +15,8 @@ use bio_types::genome::{self, AbstractLocus};
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Itertools;
-use rust_htslib::bam;
-use rust_htslib::bcf::{self, Read};
+use rust_htslib::bam::{self, Read as BAMRead};
+use rust_htslib::bcf::{self, Read as BCFRead};
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
@@ -136,12 +136,15 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
     pub(crate) fn process(&mut self) -> Result<()> {
         let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+        bcf_reader.set_threads(1);
         let mut skips = utils::SimpleCounter::default();
         let mut bcf_writer = self.writer()?;
+        bcf_writer.set_threads(1);
         let mut processed = 0;
 
-        let bam_reader =
+        let mut bam_reader =
             bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
+        bam_reader.set_threads(1);
 
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
