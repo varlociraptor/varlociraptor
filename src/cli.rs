@@ -297,6 +297,22 @@ pub enum CallKind {
         #[structopt(subcommand)]
         mode: VariantCallMode,
         #[structopt(
+            long = "omit-strand-bias",
+            help = "Do not consider strand bias when calculating the probability of an artifact.\
+                    Use this flag when processing (panel) sequencing data, where the wet-lab \
+                    methodology leads to strand bias in the coverage of genuine variants."
+        )]
+        #[serde(default)]
+        omit_strand_bias: bool,
+        #[structopt(
+            long = "omit-read-orientation-bias",
+            help = "Do not consider read orientation bias when calculating the probability of an \
+                    artifact. Use this flag when processing (panel) sequencing data, where the \
+                    wet-lab methodology leads to strand bias in the coverage of genuine variants."
+        )]
+        #[serde(default)]
+        omit_read_orientation_bias: bool,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
@@ -584,6 +600,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             match kind {
                 CallKind::Variants {
                     mode,
+                    omit_strand_bias,
+                    omit_read_orientation_bias,
                     testcase_locus,
                     testcase_prefix,
                     output,
@@ -658,6 +676,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         let caller = calling::variants::CallerBuilder::default()
                             .samplenames(sample_names)
                             .observations(sample_observations)
+                            .omit_strand_bias(omit_strand_bias)
+                            .omit_read_orientation_bias(omit_read_orientation_bias)
                             .scenario(scenario)
                             .prior(FlatPrior::new()) // TODO allow to define prior in the grammar
                             .contaminations(contaminations.build())

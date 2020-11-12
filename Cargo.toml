@@ -14,7 +14,7 @@ bio = "0.32"
 bio-types = "0.7"
 rust-htslib = "0.32"
 log = "0.4"
-GSL = "1"
+GSL = "2.0.1"
 itertools = "0.8"
 itertools-num = "0.1"
 approx = "0.3"
@@ -75,7 +75,6 @@ paste = "1"
 
 [features]
 default = []
-gslv2 = ["GSL/v2"]
 use-intrinsics = ["half/use-intrinsics"]
 
 #[profile.release]

@@ -41,6 +41,8 @@ where
 {
     samplenames: grammar::SampleInfo<String>,
     observations: grammar::SampleInfo<Option<PathBuf>>,
+    omit_strand_bias: bool,
+    omit_read_orientation_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -121,7 +123,7 @@ where
             b"##FORMAT=<ID=SB,Number=A,Type=String,\
               Description=\"Strand bias estimate: + indicates that ALT allele is associated with \
               forward strand, - indicates that ALT allele is associated with reverse strand, \
-              - indicates no strand bias. Strand bias is indicative for systematic sequencing \
+              . indicates no strand bias. Strand bias is indicative for systematic sequencing \
               errors. Probability for strand bias is captured by the ARTIFACT event (PROB_ARTIFACT).\">",
         );
         header.push_record(
@@ -258,6 +260,7 @@ where
                 &mut events,
                 contig,
                 work_item.check_read_orientation_bias,
+                work_item.check_strand_bias,
             )?;
 
             self.call_record(&mut work_item, _model, &events);
@@ -343,7 +346,8 @@ where
             bnd_event,
             variant_builder,
             index,
-            check_read_orientation_bias: is_snv_or_mnv,
+            check_read_orientation_bias: is_snv_or_mnv && !self.omit_read_orientation_bias,
+            check_strand_bias: !self.omit_strand_bias,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -393,6 +397,7 @@ where
         events: &mut Vec<model::Event>,
         contig: &str,
         consider_read_orientation_bias: bool,
+        consider_strand_bias: bool,
     ) -> Result<()> {
         if !rid.map_or(false, |rid: u32| current_rid == rid) {
             // rid is not the same as before, obtain event universe
@@ -414,7 +419,10 @@ where
                     biases: Biases::none(),
                 });
                 // Corresponding biased events.
-                for biases in Biases::all_artifact_combinations(consider_read_orientation_bias) {
+                for biases in Biases::all_artifact_combinations(
+                    consider_read_orientation_bias,
+                    consider_strand_bias,
+                ) {
                     events.push(model::Event {
                         name: event_name.clone(),
                         vafs: vaftree.clone(),
@@ -571,4 +579,5 @@ struct WorkItem {
     bnd_event: Option<Vec<u8>>,
     index: usize,
     check_read_orientation_bias: bool,
+    check_strand_bias: bool,
 }

@@ -1,0 +1,14 @@
+# This scenario is templated with Jinja2 and rendered for each group (see sample sheet).
+# A variable `samples` is available, holding the dataframe of
+# the sample sheet, filtered to those samples contained in the group to be rendered.
+# For example, this can be used to pass arbitrary column values (like the purity below),
+# to the sample definitions.
+# Note that sample names here must correspond to the alias column in the sample sheet.
+
+samples:
+  test:
+    resolution: 25
+    universe: "[0.0,1.0]"
+
+events:
+  present: "test:]0.0,1.0]"
