@@ -77,5 +77,6 @@ paste = "1"
 default = []
 use-intrinsics = ["half/use-intrinsics"]
 
-#[profile.release]
-#debug = true
+[profile.release]
+lto = "fat"
+codegen-units = 1
