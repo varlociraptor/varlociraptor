@@ -32,11 +32,13 @@ pub(crate) struct RecordBuffer {
 }
 
 impl RecordBuffer {
-    pub(crate) fn window(&self, read_pair_mode: bool) -> u64 {
+    pub(crate) fn window(&self, read_pair_mode: bool, left: bool) -> u64 {
         if read_pair_mode {
             self.read_pair_window
-        } else {
+        } else if left {
             self.single_read_window
+        } else {
+            0
         }
     }
 
@@ -50,8 +52,8 @@ impl RecordBuffer {
             interval
                 .range()
                 .start
-                .saturating_sub(self.window(read_pair_mode)),
-            interval.range().end + self.window(read_pair_mode),
+                .saturating_sub(self.window(read_pair_mode, true)),
+            interval.range().end + self.window(read_pair_mode, false),
         )?;
 
         Ok(())
@@ -60,7 +62,7 @@ impl RecordBuffer {
     pub(crate) fn build_fetches(&self, read_pair_mode: bool) -> Fetches {
         Fetches {
             fetches: Vec::new(),
-            window: self.window(read_pair_mode),
+            window: self.window(read_pair_mode, true),
         }
     }
 
