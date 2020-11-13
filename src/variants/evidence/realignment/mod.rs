@@ -231,7 +231,7 @@ pub(crate) trait Realigner {
         for region in merged_regions {
             // read emission
             let read_emission = Rc::new(ReadEmission::new(
-                Box::new(read_seq),
+                read_seq,
                 read_qual,
                 region.read_interval.start,
                 region.read_interval.end,
