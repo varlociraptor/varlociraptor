@@ -95,8 +95,9 @@ impl AlignmentProperties {
 
                 break;
             }
-            if !bam.read(&mut record)? {
-                break;
+            match bam.read(&mut record) {
+                None => break,
+                Some(res) => res?,
             }
 
             // Records to skip without updating max_cigar_ops_len AND without incrementing the

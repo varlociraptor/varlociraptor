@@ -893,7 +893,7 @@ version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c554eb5bf48b2426c4771ab68c6b14468b6e76cc90996f528c3338d761a4d0d"
 dependencies = [
- "once_cell 1.5.1",
+ "once_cell 1.5.2",
 ]
 
 [[package]]
@@ -1010,8 +1010,7 @@ dependencies = [
 [[package]]
 name = "hts-sys"
 version = "1.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95b9321d012fe1bbfee89cd8c887bb23c5757419d9c70e91f5ab73ccde87da9e"
+source = "git+https://github.com/rust-bio/rust-htslib.git?branch=master#de703c3bb43a30b0ea783d36740ccd405b03de21"
 dependencies = [
  "bzip2-sys",
  "cc",
@@ -1081,12 +1080,6 @@ dependencies = [
  "unicode-bidi",
  "unicode-normalization",
 ]
-
-[[package]]
-name = "ieee754"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9007da9cacbd3e6343da136e98b0d2df013f553d35bdec8b518f07bea768e19c"
 
 [[package]]
 name = "indexmap"
@@ -1455,9 +1448,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.5.1"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f53cef67919d7d247eb9a2f128ca9e522789967ef1eb4ccd8c71a95a8aedf596"
+checksum = "13bd41f508810a131401606d54ac32a467c97172d74ba7662562ebba5ad07fa0"
 
 [[package]]
 name = "opaque-debug"
@@ -2012,14 +2005,12 @@ dependencies = [
 
 [[package]]
 name = "rust-htslib"
-version = "0.32.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0cc6875ef87204babb9a02918942d325a834bdd173d94187d0f38a487cba185"
+version = "0.33.1-alpha.0"
+source = "git+https://github.com/rust-bio/rust-htslib.git?branch=master#de703c3bb43a30b0ea783d36740ccd405b03de21"
 dependencies = [
  "bio-types",
  "custom_derive",
  "hts-sys",
- "ieee754",
  "lazy_static 1.4.0",
  "libc",
  "linear-map",

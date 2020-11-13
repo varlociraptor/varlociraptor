@@ -45,6 +45,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
     inbcf: PathBuf,
     outbcf: Option<PathBuf>,
     inbam: PathBuf,
+    min_bam_refetch_distance: u64,
     options: cli::Varlociraptor,
     breakend_index: BreakendIndex,
     #[builder(default)]
@@ -149,7 +150,11 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut sample = SampleBuilder::default()
             .max_depth(self.max_depth)
             .protocol_strandedness(self.protocol_strandedness)
-            .alignments(bam_reader, self.alignment_properties)
+            .alignments(
+                bam_reader,
+                self.alignment_properties,
+                self.min_bam_refetch_distance,
+            )
             .build()
             .unwrap();
 
@@ -164,9 +169,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut i = 0;
         loop {
             let mut record = bcf_reader.empty_record();
-            if !bcf_reader.read(&mut record)? {
-                display_skips(&skips);
-                return Ok(());
+            match bcf_reader.read(&mut record) {
+                None => {
+                    display_skips(&skips);
+                    return Ok(());
+                }
+                Some(res) => res?,
             }
 
             let variants = utils::collect_variants(&mut record, true, &mut skips)?;

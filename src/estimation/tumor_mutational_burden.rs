@@ -98,8 +98,9 @@ pub(crate) fn estimate(
     let mut tmb = BTreeMap::new();
     'records: loop {
         let mut rec = bcf.empty_record();
-        if !bcf.read(&mut rec)? {
-            break;
+        match bcf.read(&mut rec) {
+            None => break,
+            Some(res) => res?,
         }
 
         let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;

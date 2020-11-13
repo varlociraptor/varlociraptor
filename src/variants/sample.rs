@@ -197,15 +197,18 @@ impl SampleBuilder {
         self,
         bam: bam::IndexedReader,
         alignment_properties: alignment_properties::AlignmentProperties,
+        min_refetch_distance: u64,
     ) -> Self {
         let single_read_window = alignment_properties.max_read_len as u64;
         let read_pair_window = match alignment_properties.insert_size {
             Some(isize) => (isize.mean + isize.sd * 6.0) as u64,
             None => single_read_window,
         };
+        let mut record_buffer = bam::RecordBuffer::new(bam, true);
+        record_buffer.set_min_refetch_distance(min_refetch_distance);
         self.alignment_properties(alignment_properties)
             .record_buffer(RecordBuffer::new(
-                bam::RecordBuffer::new(bam, true),
+                record_buffer,
                 single_read_window,
                 read_pair_window,
             ))

@@ -212,7 +212,13 @@ where
             let mut eof = Vec::new();
             for item in observations.iter_mut().zip(records.iter_mut()) {
                 if let (Some(reader), Some(record)) = item {
-                    eof.push(!reader.read(record)?);
+                    eof.push(match reader.read(record) {
+                        None => true,
+                        Some(res) => {
+                            res?;
+                            false
+                        }
+                    });
                 }
             }
 

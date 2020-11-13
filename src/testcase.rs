@@ -280,7 +280,7 @@ impl Testcase {
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
 
             let tid = bam_reader.header().tid(chrom_name).unwrap();
-            bam_reader.fetch(tid, start, end)?;
+            bam_reader.fetch((tid, start, end))?;
             for res in bam_reader.records() {
                 let rec = res?;
                 let seq_len = rec.seq().len() as u64;
@@ -303,7 +303,7 @@ impl Testcase {
 
             let tid = bam_reader.header().tid(chrom_name).unwrap();
 
-            bam_reader.fetch(tid, start, end)?;
+            bam_reader.fetch((tid, start, end))?;
             for res in bam_reader.records() {
                 let mut rec = res?;
                 // update mapping position to interval

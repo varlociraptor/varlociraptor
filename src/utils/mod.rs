@@ -190,8 +190,9 @@ where
     let mut prob_dist = Vec::new();
     let tags = events_to_tags(events);
     loop {
-        if !calls.read(&mut record)? {
-            break;
+        match calls.read(&mut record) {
+            None => break,
+            Some(res) => res?,
         }
         if let Ok(Some(event)) = info_tag_event(&mut record) {
             if visited_breakend_events.contains(event) {
@@ -303,8 +304,9 @@ where
     let mut record = calls.empty_record();
     let mut i = 1;
     loop {
-        if !calls.read(&mut record)? {
-            return Ok(());
+        match calls.read(&mut record) {
+            None => return Ok(()),
+            Some(res) => res?,
         }
 
         let mut remove = vec![false]; // don't remove the reference allele
@@ -399,8 +401,9 @@ mod tests {
         let test_file = "tests/resources/test_tags_prob_sum/overshoot.vcf";
         let mut overshoot_calls = bcf::Reader::from_path(test_file).unwrap();
         let mut record = overshoot_calls.empty_record();
-        if let Err(e) = overshoot_calls.read(&mut record) {
-            panic!("BCF reading error: {}", e);
+        match overshoot_calls.read(&mut record) {
+            None => panic!("BCF reading error: seems empty"),
+            Some(res) => res.unwrap(),
         }
 
         // set up all alt events with names as in prosolo

@@ -922,8 +922,9 @@ impl BreakendIndex {
         let mut i = 0;
         loop {
             let mut record = bcf_reader.empty_record();
-            if !bcf_reader.read(&mut record)? {
-                return Ok(BreakendIndex { last_records });
+            match bcf_reader.read(&mut record) {
+                None => return Ok(BreakendIndex { last_records }),
+                Some(res) => res?,
             }
 
             if utils::is_bnd(&mut record)? {

@@ -125,6 +125,10 @@ fn default_pairhmm_mode() -> String {
     "exact".to_owned()
 }
 
+fn default_min_bam_refetch_distance() -> u64 {
+    1
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -165,6 +169,16 @@ pub enum PreprocessKind {
         )]
         #[serde(default = "default_reference_buffer_size")]
         reference_buffer_size: usize,
+        #[structopt(
+            long = "min-bam-refetch-distance",
+            default_value = "1",
+            help = "Base pair distance to last fetched BAM interval such that a refetching is performed \
+                  instead of reading through until the next interval is reached. Making this too small \
+                  can cause unnecessary random access. Making this too large can lead to unneccessary \
+                  iteration over irrelevant records."
+        )]
+        #[serde(default = "default_min_bam_refetch_distance")]
+        min_bam_refetch_distance: u64,
         #[structopt(
             long = "alignment-properties",
             help = "Alignment properties JSON file for sample. If not provided, properties \
@@ -513,6 +527,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     max_depth,
                     omit_insert_size,
                     reference_buffer_size,
+                    min_bam_refetch_distance,
                     pairhmm_mode,
                 } => {
                     // TODO: handle testcases
@@ -559,6 +574,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 .protocol_strandedness(protocol_strandedness)
                                 .max_depth(max_depth)
                                 .inbam(bam)
+                                .min_bam_refetch_distance(min_bam_refetch_distance)
                                 .reference_buffer(Arc::clone(&reference_buffer))
                                 .breakend_index(BreakendIndex::new(&candidates)?)
                                 .inbcf(candidates)
@@ -579,6 +595,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 .protocol_strandedness(protocol_strandedness)
                                 .max_depth(max_depth)
                                 .inbam(bam)
+                                .min_bam_refetch_distance(min_bam_refetch_distance)
                                 .reference_buffer(Arc::clone(&reference_buffer))
                                 .breakend_index(BreakendIndex::new(&candidates)?)
                                 .inbcf(candidates)
