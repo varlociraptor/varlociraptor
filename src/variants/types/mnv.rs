@@ -71,8 +71,8 @@ impl Variant for MNV {
                 .unwrap()
                 .read_pos(pos as u32, false, false)?
             {
-                let read_base = read.seq()[qpos as usize];
-                let base_qual = read.qual()[qpos as usize];
+                let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+                let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
 
                 // METHOD: instead of considering the actual REF base, we assume that REF is whatever
                 // base the read has at this position (if not the ALT base). This way, we avoid biased

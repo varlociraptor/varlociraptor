@@ -175,7 +175,9 @@ pub enum PreprocessKind {
             help = "Base pair distance to last fetched BAM interval such that a refetching is performed \
                   instead of reading through until the next interval is reached. Making this too small \
                   can cause unnecessary random access. Making this too large can lead to unneccessary \
-                  iteration over irrelevant records."
+                  iteration over irrelevant records. Benchmarking has shown that at least for short reads, \
+                  a value of 1 (e.g. always refetch) does not incur additional costs and is a reasonable \
+                  default."
         )]
         #[serde(default = "default_min_bam_refetch_distance")]
         min_bam_refetch_distance: u64,

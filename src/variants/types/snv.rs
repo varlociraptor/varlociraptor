@@ -59,7 +59,7 @@ impl Variant for SNV {
             // TODO expect u64 in read_pos
             .read_pos(self.locus.range().start as u32, false, false)?
         {
-            let read_base = read.seq()[qpos as usize].to_ascii_uppercase();
+            let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
             let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
 
