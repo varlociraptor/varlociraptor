@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.5.1] - 2020-11-17
+- Various performance improvements (using jemalloc, avoiding bound checks that cannot fail, enabling more compiler optimizations, avoid fetching irrelevant reads).
+
 ## [2.5.0] - 2020-11-11
 - Allow definition of re-usable expressions in scenarions (via a new key "expressions:", see https://varlociraptor.github.io).
 - Remove ability to parallelize Varlociraptor via --threads. This never properly saturated the given cores and caused some overhead. Instead, we recommend to parallelize in scatter/gather style via `rbt vcf-split`, see https://varlociraptor.github.io).
