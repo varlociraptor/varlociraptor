@@ -325,7 +325,7 @@ impl Testcase {
             self.prefix.join(candidate_filename),
             &bcf::Header::from_template(self.candidate_reader()?.header()),
             true,
-            bcf::Format::BCF,
+            bcf::Format::VCF,
         )?;
         let (_, mut candidate_record) = candidate;
         candidate_record.set_pos(candidate_record.pos() - ref_start as i64);

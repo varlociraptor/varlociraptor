@@ -138,7 +138,7 @@ pub enum PreprocessKind {
                  The obtained observations are printed to STDOUT in BCF format. Note that the resulting BCFs \
                  will be very large and are only intended for internal use (e.g. for piping into 'varlociraptor \
                  call variants generic').",
-        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam --output sample.observations.bcf",
+        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam > sample.observations.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Variants {
@@ -396,7 +396,7 @@ pub enum VariantCallMode {
     #[structopt(
         name = "tumor-normal",
         about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants --output calls.bcf tumor-normal --purity 0.75 --tumor tumor.bcf --normal normal.bcf",
+        usage = "varlociraptor call variants tumor-normal --purity 0.75 --tumor tumor.bcf --normal normal.bcf > calls.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     TumorNormal {
