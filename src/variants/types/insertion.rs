@@ -94,7 +94,11 @@ impl<R: Realigner> Variant for Insertion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
+    fn is_valid_evidence(
+        &self,
+        evidence: &Self::Evidence,
+        _: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
         if match evidence {
             PairedEndEvidence::SingleEnd(read) => !self.locus().overlap(read, true).is_none(),
             PairedEndEvidence::PairedEnd { left, right } => {

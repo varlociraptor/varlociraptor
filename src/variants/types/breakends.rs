@@ -211,7 +211,11 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
+    fn is_valid_evidence(
+        &self,
+        evidence: &Self::Evidence,
+        _: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
         let is_valid_overlap = |locus: &SingleLocus, read| !locus.overlap(read, true).is_none();
 
         let is_valid_ref_bases = |read: &bam::Record| {

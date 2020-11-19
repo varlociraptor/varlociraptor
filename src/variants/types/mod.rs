@@ -95,7 +95,11 @@ pub(crate) trait Variant {
     /// # Returns
     ///
     /// The index of the loci for which this evidence is valid, `None` if invalid.
-    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>>;
+    fn is_valid_evidence(
+        &self,
+        evidence: &Self::Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<Vec<usize>>;
 
     /// Return variant loci.
     fn loci(&self) -> &Self::Loci;
@@ -137,7 +141,10 @@ where
             .iter()
             .filter_map(|record| {
                 let evidence = SingleEndEvidence::new(record);
-                if self.is_valid_evidence(&evidence).is_some() {
+                if self
+                    .is_valid_evidence(&evidence, alignment_properties)
+                    .is_some()
+                {
                     Some(evidence)
                 } else {
                     None
@@ -259,14 +266,14 @@ where
                     left: Rc::clone(&candidate.left),
                     right: Rc::clone(right),
                 };
-                if let Some(idx) = self.is_valid_evidence(&evidence) {
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
-                if let Some(idx) = self.is_valid_evidence(&evidence) {
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
             }

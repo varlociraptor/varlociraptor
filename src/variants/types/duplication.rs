@@ -102,8 +102,12 @@ impl<R: Realigner> Variant for Duplication<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
-        (**self).is_valid_evidence(evidence)
+    fn is_valid_evidence(
+        &self,
+        evidence: &Self::Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
+        (**self).is_valid_evidence(evidence, alignment_properties)
     }
 
     fn loci(&self) -> &Self::Loci {

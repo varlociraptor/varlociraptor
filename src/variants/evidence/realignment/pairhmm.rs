@@ -5,7 +5,6 @@
 
 use std::cmp;
 use std::fmt::Debug;
-use std::ops::Index;
 use std::rc::Rc;
 use std::sync::Arc;
 

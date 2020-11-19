@@ -40,7 +40,11 @@ impl Variant for MNV {
     type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
-    fn is_valid_evidence(&self, evidence: &SingleEndEvidence) -> Option<Vec<usize>> {
+    fn is_valid_evidence(
+        &self,
+        evidence: &SingleEndEvidence,
+        _: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
         if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
             Some(vec![0])
         } else {
