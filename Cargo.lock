@@ -769,9 +769,9 @@ dependencies = [
 
 [[package]]
 name = "format-bytes"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6b7a4d38c56c0dddef1a3d5ed44766db80314f5785f06802142167f32fdca12"
+checksum = "5f716a11c28687ac3e9dadd8a5ff3a4c208eba71321eddc5ee371e50c2c70c11"
 dependencies = [
  "format-bytes-macros",
  "proc-macro-hack",
@@ -779,9 +779,9 @@ dependencies = [
 
 [[package]]
 name = "format-bytes-macros"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53ca4e02439f1557123963e0e5b4eb44dbad7d3eb387bee14ea18082081795f7"
+checksum = "70baa96634abf24f2ef5d0509fa14d08af4bf7425b043c1d653ad657153d9d3e"
 dependencies = [
  "proc-macro-hack",
  "proc-macro2 1.0.24",
@@ -1010,7 +1010,7 @@ dependencies = [
 [[package]]
 name = "hts-sys"
 version = "1.11.0"
-source = "git+file:///home/koester/scms/rust-htslib?branch=separate-buffers#f36bb67604a32205ee35de8777fa3e1a37f9f769"
+source = "git+https://github.com/rust-bio/rust-htslib?branch=separate-buffers#65fa252d8e79773c84806a921a8acc123e69ca60"
 dependencies = [
  "bzip2-sys",
  "cc",
@@ -2006,7 +2006,7 @@ dependencies = [
 [[package]]
 name = "rust-htslib"
 version = "0.34.1-alpha.0"
-source = "git+file:///home/koester/scms/rust-htslib?branch=separate-buffers#f36bb67604a32205ee35de8777fa3e1a37f9f769"
+source = "git+https://github.com/rust-bio/rust-htslib?branch=separate-buffers#65fa252d8e79773c84806a921a8acc123e69ca60"
 dependencies = [
  "bio-types",
  "custom_derive",
