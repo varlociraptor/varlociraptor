@@ -296,7 +296,6 @@ impl Call {
 
             bcf_writer.write(&record)?;
         }
-
         Ok(())
     }
 }

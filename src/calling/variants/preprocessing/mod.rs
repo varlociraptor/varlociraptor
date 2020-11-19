@@ -462,7 +462,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
 
         // decode from i32 to u16 to u8
         let mut values_u8 = Vec::new();
-        for v in raw_values {
+        for v in raw_values.iter() {
             let mut buf = [0; 2];
             LittleEndian::write_u16(&mut buf, *v as u16);
             values_u8.extend(&buf);

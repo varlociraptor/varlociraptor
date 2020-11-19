@@ -54,17 +54,17 @@ pub fn is_bnd(record: &mut bcf::Record) -> Result<bool> {
         .map_or(false, |entries| entries[0] == b"BND"))
 }
 
-pub(crate) fn info_tag_svtype(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
-    Ok(record.info(b"SVTYPE").string()?.map(|v| v[0]))
+pub(crate) fn info_tag_svtype(record: &mut bcf::Record) -> Result<Option<Vec<u8>>> {
+    Ok(record.info(b"SVTYPE").string()?.map(|v| v[0].to_owned()))
 }
 
-pub(crate) fn info_tag_event(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
-    Ok(record.info(b"EVENT").string()?.map(|v| v[0]))
+pub(crate) fn info_tag_event(record: &mut bcf::Record) -> Result<Option<Vec<u8>>> {
+    Ok(record.info(b"EVENT").string()?.map(|v| v[0].to_owned()))
 }
 
-pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<Vec<u8>>> {
     // TODO support multiple mateids (in case of uncertainty, see spec)
-    Ok(record.info(b"MATEID").string()?.map(|v| v[0]))
+    Ok(record.info(b"MATEID").string()?.map(|v| v[0].to_owned()))
 }
 
 pub(crate) fn is_reverse_strand(record: &bam::Record) -> bool {
@@ -195,7 +195,7 @@ where
             Some(res) => res?,
         }
         if let Ok(Some(event)) = info_tag_event(&mut record) {
-            if visited_breakend_events.contains(event) {
+            if visited_breakend_events.contains(&event) {
                 // Do not record probability of this event twice.
                 continue;
             } else {
