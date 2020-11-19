@@ -20,6 +20,7 @@ fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool> {
         .info(b"ANN")
         .string()?
         .expect("ANN field not found. Annotate VCF with e.g. snpEff.")
+        .iter()
     {
         let mut coding = false;
         for (i, entry) in ann.split(|c| *c == b'|').enumerate() {
