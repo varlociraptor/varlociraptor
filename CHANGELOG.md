@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.5.2] - 2020-11-20
+- Fixed handling of missing insert size information. This is now detected automatically.
+- CLI fixes.
+- Adapt to htslib 0.35, thereby fixing some potential memory issues previously caused by unsafe reuse of buffers.
+
 ## [2.5.1] - 2020-11-17
 - Various performance improvements (using jemalloc, avoiding bound checks that cannot fail, enabling more compiler optimizations, avoid fetching irrelevant reads).
 
