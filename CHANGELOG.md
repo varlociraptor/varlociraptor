@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.5.3] - 2020-11-23
+- Update to latest hts-sys, containing a fix for macOS.
+
 ## [2.5.2] - 2020-11-20
 - Fixed handling of missing insert size information. This is now detected automatically.
 - CLI fixes.
