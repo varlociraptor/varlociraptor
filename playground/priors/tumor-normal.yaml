@@ -1,0 +1,18 @@
+species: human
+
+samples:
+  tumor:
+    resolution: 100
+    variation:
+      - somatic:
+          mutation-rate: 1e-5
+    inheritance:
+      type: clonal
+      from: normal
+  normal:
+    resolution: 5
+    variation:
+      - germline
+      - somatic:
+          mutation-rate: 1e-10
+    
