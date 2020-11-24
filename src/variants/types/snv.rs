@@ -3,12 +3,17 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::iter;
+
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
+use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -83,12 +88,19 @@ impl Variant for SNV {
             };
 
             let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
+            let strand = if prob_ref != prob_alt {
+                Strand::from_record_and_pos(read, qpos as usize)?
+            } else {
+                // METHOD: if record is not informative, we don't want to
+                // retain its information (e.g. strand).
+                Strand::no_strand_info()
+            };
 
             Ok(Some(
                 AlleleSupportBuilder::default()
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
-                    .register_record(read)
+                    .strand(strand)
                     .build()
                     .unwrap(),
             ))
