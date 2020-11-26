@@ -56,7 +56,7 @@ where
 impl<Pr> Caller<Pr>
 where
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>
-        + model::modes::UpdatablePrior
+        + model::prior::UpdatablePrior
         + Clone
         + Default
         + Send

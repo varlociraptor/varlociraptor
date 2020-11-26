@@ -345,6 +345,8 @@ impl Likelihood<Cache> for GenericLikelihood {
     }
 }
 
+// TODO: remove the following in favor of the new universal prior.
+
 #[derive(Default, Clone, Debug)]
 pub(crate) struct FlatPrior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
@@ -372,7 +374,7 @@ impl Prior for FlatPrior {
     }
 }
 
-impl model::modes::UpdatablePrior for FlatPrior {
+impl model::prior::UpdatablePrior for FlatPrior {
     fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>) {
         self.universe = Some(universe);
     }

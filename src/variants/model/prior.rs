@@ -1,7 +1,18 @@
+use std::cell::RefCell;
+use std::collections::BTreeMap;
+
+use bio::stats::bayesian;
+use bio::stats::{LogProb, Prob};
+use itertools::Itertools;
 use statrs::function::factorial::ln_binomial;
 
-use crate::model::AlleleFreq;
-use crate::utils::{PROB_025, PROB_05};
+use crate::grammar;
+use crate::variants::model::{likelihood, AlleleFreq};
+
+pub(crate) trait UpdatablePrior {
+    fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>);
+    fn set_ploidies(&mut self, ploidies: grammar::SampleInfo<Option<u32>>);
+}
 
 pub(crate) enum Inheritance {
     Mendelian { from: (usize, usize) },
@@ -15,13 +26,14 @@ pub(crate) struct Prior {
     somatic_effective_mutation_rate: grammar::SampleInfo<Option<f64>>,
     heterozygosity: Option<LogProb>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
-    cache: RefCell<BTreeMap<likelihood::Event, LogProb>>,
+    genome_size: u64,
+    cache: RefCell<BTreeMap<Vec<likelihood::Event>, LogProb>>,
 }
 
 impl Prior {
     fn is_valid_germline_vaf(&self, sample: usize, vaf: AlleleFreq) -> bool {
-        if let Some(ploidy) = self.ploidies[sample] {
-            let n_alt = (ploidy as f64 * vaf);
+        if let Some(ploidy) = self.ploidies.as_ref().unwrap()[sample] {
+            let n_alt = ploidy as f64 * *vaf;
             relative_eq!(n_alt, n_alt.round())
         } else {
             true
@@ -37,9 +49,8 @@ impl Prior {
         event: &[likelihood::Event],
         somatic_vafs: Vec<AlleleFreq>,
         germline_vafs: Vec<AlleleFreq>,
-        prob_sum_cache: &mut Vec<LogProb>,
     ) -> LogProb {
-        if somatic_vaf.len() == event.len() {
+        if somatic_vafs.len() == event.len() {
             // recursion end
 
             // step 1: population
@@ -48,7 +59,7 @@ impl Prior {
                 let population_samples = self
                     .inheritance
                     .iter()
-                    .zip(self.ploidies.iter())
+                    .zip(self.ploidies.as_ref().unwrap().iter())
                     .enumerate()
                     .filter_map(|(sample, (inheritance, ploidy))| {
                         if inheritance.is_none() && ploidy.is_some() {
@@ -58,12 +69,7 @@ impl Prior {
                         }
                     })
                     .collect_vec();
-                self.prob_population_germline(
-                    &self,
-                    &population_samples,
-                    &germline_vafs,
-                    heterozygosity,
-                );
+                self.prob_population_germline(&population_samples, &germline_vafs, heterozygosity)
             } else {
                 LogProb::ln_one()
             };
@@ -73,19 +79,20 @@ impl Prior {
                 .inheritance
                 .iter()
                 .enumerate()
-                .map(|(sample, inheritance)| match inheritance {
+                .filter_map(|(sample, inheritance)| match inheritance {
                     Some(Inheritance::Mendelian { from: parents }) => {
-                        self.prob_mendelian_inheritance(sample, parents, &germline_vafs)
+                        Some(self.prob_mendelian_inheritance(sample, *parents, &germline_vafs))
                     }
                     Some(Inheritance::Clonal { from: parent }) => {
-                        self.prob_clonal_inheritance(sample, parent)
+                        Some(self.prob_clonal_inheritance(sample, *parent, &germline_vafs))
                     }
+                    None => None,
                 })
                 .sum(); // product in log space
 
             // step 3: somatic mutations
             prob += self
-                .somatic_mutation_rate
+                .somatic_effective_mutation_rate
                 .iter()
                 .enumerate()
                 .filter_map(|(sample, somatic_effective_mutation_rate)| {
@@ -99,8 +106,8 @@ impl Prior {
             // recursion
 
             let sample = somatic_vafs.len();
-            let sample_event = event[sample];
-            let sample_ploidy = self.ploidies[sample];
+            let sample_event = &event[sample];
+            let sample_ploidy = self.ploidies.as_ref().unwrap()[sample];
             let push_vafs = |somatic, germline| {
                 let mut somatic_vafs = somatic_vafs.clone();
                 let mut germline_vafs = germline_vafs.clone();
@@ -111,23 +118,22 @@ impl Prior {
             };
 
             if self.has_somatic_variation(sample) {
-                prob_sum_cache.clear();
-
-                if let Some(ploidy) = self.ploidies[sample] {
-                    for n_alt in 0..ploidy {
+                if let Some(ploidy) = self.ploidies.as_ref().unwrap()[sample] {
+                    let mut probs = Vec::with_capacity(ploidy as usize + 1);
+                    for n_alt in 0..ploidy + 1 {
                         // for each possible number of germline alt alleles, obtain necessary somatic VAF to get the event VAF.
                         let germline_vaf = AlleleFreq(n_alt as f64 / ploidy as f64);
-                        let somatic_vaf = (germline_vaf - sample_event.allele_freq).abs();
+                        let somatic_vaf =
+                            AlleleFreq((germline_vaf - sample_event.allele_freq).abs());
                         let (somatic_vafs, germline_vafs) = push_vafs(somatic_vaf, germline_vaf);
-                        prob_sum_cache.push(self.calc_prob(event, somatic_vafs, germline_vafs));
+                        probs.push(self.calc_prob(event, somatic_vafs, germline_vafs));
                     }
+                    LogProb::ln_sum_exp(&probs)
                 } else {
                     unreachable!("bug: sample with somatic mutation rate but no ploidy")
                 }
-
-                LogProb::ln_sum_exp(prob_sum_cache)
             } else if sample_ploidy.is_some() {
-                if self.is_valid_germline_vaf(sample_event.allele_freq) {
+                if self.is_valid_germline_vaf(sample, sample_event.allele_freq) {
                     let (somatic_vafs, germline_vafs) =
                         push_vafs(AlleleFreq(0.0), sample_event.allele_freq);
 
@@ -138,7 +144,7 @@ impl Prior {
                 }
             } else {
                 // sample has a uniform prior
-                if self.universe[sample].contains(sample_event.allele_freq) {
+                if self.universe.as_ref().unwrap()[sample].contains(sample_event.allele_freq) {
                     LogProb::ln_one()
                 } else {
                     LogProb::ln_zero()
@@ -153,8 +159,10 @@ impl Prior {
         somatic_effective_mutation_rate: f64,
         somatic_vafs: &[AlleleFreq],
     ) -> LogProb {
-        somatic_effective_mutation_rate.ln()
-            - (2.0 * somatic_vafs[sample].ln() + (self.genome_size as f64).ln())
+        LogProb(
+            somatic_effective_mutation_rate.ln()
+                - (2.0 * somatic_vafs[sample].ln() + (self.genome_size as f64).ln()),
+        )
     }
 
     fn prob_clonal_inheritance(
@@ -163,7 +171,7 @@ impl Prior {
         parent: usize,
         germline_vafs: &[AlleleFreq],
     ) -> LogProb {
-        if relative_eq!(germline_vafs[sample], germline_vafs[parent]) {
+        if relative_eq!(*germline_vafs[sample], *germline_vafs[parent]) {
             LogProb::ln_one()
         } else {
             LogProb::ln_zero()
@@ -180,22 +188,23 @@ impl Prior {
             .iter()
             .map(|sample| {
                 // we control above that the vafs are valid for the ploidy, but the rounding ensures that there are no numeric glitches
-                (self.ploidies[sample].unwrap() * germline_vafs[sample]).round() as u32
+                (self.ploidies.as_ref().unwrap()[*sample].unwrap() as f64 * *germline_vafs[*sample])
+                    .round() as u32
             })
             .sum();
 
-        let prob_m = |m| LogProb(heterozygosity - (m as f64).ln());
+        let prob_m = |m| LogProb(*heterozygosity - (m as f64).ln());
 
         if m > 0 {
             // m alt alleles
-            prob_m
+            prob_m(m)
         } else {
             // no alt alleles
-            let n = population_samples
+            let n: u32 = population_samples
                 .iter()
-                .map(|sample| self.ploidies[sample].unwrap())
+                .map(|sample| self.ploidies.as_ref().unwrap()[*sample].unwrap())
                 .sum();
-            LogProb::ln_sum_exp(&(1..n + 1).iter().map(prob_m).collect_vec())
+            LogProb::ln_sum_exp(&(1..n + 1).into_iter().map(prob_m).collect_vec())
         }
     }
 
@@ -204,46 +213,50 @@ impl Prior {
         ploidy: u32,
         source_alt: (u32, u32),
         target_alt: u32,
-        germline_mutation_rate: LogProb,
+        germline_mutation_rate: f64,
     ) -> LogProb {
         LogProb::ln_sum_exp(
             &(0..source_alt.0)
-                .iter()
-                .product(0..source_alt.1)
+                .into_iter()
+                .cartesian_product(0..source_alt.1)
                 .map(|(alt_from_first, alt_from_second)| {
-                    let choices_from_first = ln_binomial(source_alt.0, alt_from_first);
-                    let choices_from_second = ln_binomial(source_alt.1, alt_from_second);
+                    let choices_from_first =
+                        ln_binomial(source_alt.0 as u64, alt_from_first as u64);
+                    let choices_from_second =
+                        ln_binomial(source_alt.1 as u64, alt_from_second as u64);
 
-                    let prob = choices_from_first
-                        + LogProb::from(Prob(alt_from_first as f64 / ploidy as f64))
-                        + choices_from_second
-                        + LogProb::from(Prob(alt_from_second as f64 / ploidy as f64));
+                    let prob = LogProb(
+                        choices_from_first
+                            + *LogProb::from(Prob(alt_from_first as f64 / ploidy as f64))
+                            + choices_from_second
+                            + *LogProb::from(Prob(alt_from_second as f64 / ploidy as f64)),
+                    );
 
                     let missing = target_alt as i32 - (alt_from_first + alt_from_second) as i32;
-                    prob + LogProb(germline_mutation_rate * missing)
+                    prob + LogProb(germline_mutation_rate.ln() * missing as f64)
                 })
                 .collect_vec(),
-        );
+        )
     }
 
-    fn prob_mendelian(
+    fn prob_mendelian_inheritance(
         &self,
         child: usize,
         parents: (usize, usize),
         germline_vafs: &[AlleleFreq],
     ) -> LogProb {
-        let ploidy = self.ploidies[child];
-        for parent in parents {
-            assert_eq!(self.ploidies[parent], ploidy);
-        }
+        let ploidy = self.ploidies.as_ref().unwrap()[child].unwrap();
+        assert_eq!(self.ploidies.as_ref().unwrap()[parents.0].unwrap(), ploidy);
+        assert_eq!(self.ploidies.as_ref().unwrap()[parents.1].unwrap(), ploidy);
+
         // we control above that the vafs are valid for the ploidy, but the rounding ensures that there are no numeric glitches
-        let n_alt = |vaf| (vaf * ploidy as f64).round() as u32;
+        let n_alt = |vaf: AlleleFreq| (*vaf * ploidy as f64).round() as u32;
 
         self.prob_mendelian_alt_counts(
             ploidy,
             (
-                n_alt(germline_vafs[parent.0]),
-                n_alt(germline_vafs[parent.1]),
+                n_alt(germline_vafs[parents.0]),
+                n_alt(germline_vafs[parents.1]),
             ),
             n_alt(germline_vafs[child]),
             self.germline_mutation_rate[child].expect("bug: no germline VAF for child"),
@@ -251,25 +264,26 @@ impl Prior {
     }
 }
 
-impl Prior for Prior {
+impl bayesian::model::Prior for Prior {
+    type Event = Vec<likelihood::Event>;
+
     fn compute(&self, event: &Self::Event) -> LogProb {
-        if let Some(prob) = self.cache.get().get(event) {
-            prob
+        if let Some(prob) = self.cache.borrow().get(event) {
+            *prob
         } else {
             let prob = self.calc_prob(
                 event,
                 Vec::with_capacity(event.len()),
                 Vec::with_capacity(event.len()),
-                Vec::new(),
             );
-            self.cache.get_mut().insert(event.to_owned(), prob);
+            self.cache.borrow_mut().insert(event.to_owned(), prob);
 
             prob
         }
     }
 }
 
-impl model::modes::UpdatablePrior for Prior {
+impl UpdatablePrior for Prior {
     fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>) {
         self.universe = Some(universe);
     }
