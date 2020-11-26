@@ -8,6 +8,7 @@ pub(crate) mod tumor;
 
 use crate::grammar;
 
-pub(crate) trait UniverseDrivenPrior {
+pub(crate) trait UpdatablePrior {
     fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>);
+    fn set_ploidies(&mut self, ploidies: grammar::SampleInfo<Option<u32>>);
 }

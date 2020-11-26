@@ -32,8 +32,9 @@ pub(crate) use collect_variants::collect_variants;
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
 lazy_static! {
-    pub(crate) static ref PROB_HALF: LogProb = LogProb::from(Prob(0.5f64));
-    pub(crate) static ref PROB_ONE_THIRD: LogProb = LogProb::from(Prob(1.0 / 3.0));
+    pub(crate) static ref PROB_05: LogProb = LogProb::from(Prob(0.5f64));
+    pub(crate) static ref PROB_033: LogProb = LogProb::from(Prob(1.0 / 3.0));
+    pub(crate) static ref PROB_025: LogProb = LogProb::from(Prob(0.25));
 }
 
 pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {
