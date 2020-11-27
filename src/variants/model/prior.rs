@@ -1,13 +1,17 @@
 use std::cell::RefCell;
+use std::cmp;
 use std::collections::BTreeMap;
 
 use bio::stats::bayesian;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use statrs::function::factorial::ln_binomial;
+use itertools_num::linspace;
+use serde_json::json;
+use bio::stats::bayesian::model::Prior as PriorTrait;
 
 use crate::grammar;
-use crate::variants::model::{likelihood, AlleleFreq};
+use crate::variants::model::{likelihood, AlleleFreq, bias::Biases};
 
 pub(crate) trait UpdatablePrior {
     fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>);
@@ -31,6 +35,82 @@ pub(crate) struct Prior {
 }
 
 impl Prior {
+    fn collect_events(&self, event: Vec<likelihood::Event>, events: &mut Vec<Vec<likelihood::Event>>) {
+        if event.len() < self.universe.unwrap().len() {
+            let sample = event.len();
+            let new_event = |vaf| likelihood::Event { allele_freq: vaf, biases: Biases::none() };
+
+            for vaf_spectrum in self.universe.unwrap()[sample].iter() {
+                match vaf_spectrum {
+                    grammar::formula::VAFSpectrum::Set(vafs) => {
+                        for vaf in vafs {
+                            let mut next = event.clone();
+                            next.push(new_event(*vaf));
+                            self.collect_events(next, events);
+                        }
+                    }
+                    grammar::formula::VAFSpectrum::Range(range) => {
+                        for vaf in linspace(*range.start, *range.end, 10) {
+                            let mut next = event.clone();
+                            next.push(new_event(AlleleFreq(vaf)));
+                            self.collect_events(next, events);
+                        }
+                    }
+                }
+            }
+        } else {
+            events.push(event);
+        }
+    } 
+
+    pub(crate) fn plot(&self, sample_names: &grammar::SampleInfo<String>, ) -> String {
+        use vega_lite_4::*;
+        
+        let mut events = Vec::new();
+        self.collect_events(Vec::new(), &mut events);
+
+        let data = events.iter().map(|event| {
+            let mut record = json!({
+                "prob": self.compute(event),
+            });
+            for (e, sample) in event.iter().zip(sample_names.iter()) {
+                record.as_object_mut().unwrap().insert(sample.to_owned(), json!(*e.allele_freq));
+            }
+            record
+        }).collect_vec();
+
+        let mut encoding_builder = EncodingBuilder::default();
+        encoding_builder
+            .x(
+                XClassBuilder::default()
+                    .field(sample_names[0])
+                    .def_type(StandardType::Quantitative)
+                    .build().unwrap()
+            )
+            .y(
+                YClassBuilder::default()
+                    .field("prob")
+                    .def_type(StandardType::Quantitative)
+                    .build().unwrap()
+            );
+        
+
+        let chart = VegaliteBuilder::default()
+            .data(&data)
+            .mark(Mark::Line)
+            .encoding(
+                
+                    
+                    .color(
+                        DefWithConditionMarkPropFieldDefGradientStringNullBuilder::default()
+                            .field(sample_names[1])
+                    )
+            )
+            .build().unwrap();
+        
+        chart.to_string().unwrap()
+    }
+
     fn is_valid_germline_vaf(&self, sample: usize, vaf: AlleleFreq) -> bool {
         if let Some(ploidy) = self.ploidies.as_ref().unwrap()[sample] {
             let n_alt = ploidy as f64 * *vaf;
@@ -159,10 +239,18 @@ impl Prior {
         somatic_effective_mutation_rate: f64,
         somatic_vafs: &[AlleleFreq],
     ) -> LogProb {
-        LogProb(
-            somatic_effective_mutation_rate.ln()
-                - (2.0 * somatic_vafs[sample].ln() + (self.genome_size as f64).ln()),
-        )
+        let density = |vaf: f64| {
+            LogProb(
+                somatic_effective_mutation_rate.ln()
+                    - (2.0 * vaf.ln() + (self.genome_size as f64).ln()),
+            )
+        };
+        if *somatic_vafs[sample] == 0.0 {
+            LogProb::ln_simpsons_integrate_exp(|_, vaf| density(vaf), 0.0, 1.0, 5)
+                .ln_one_minus_exp()
+        } else {
+            density(*somatic_vafs[sample])
+        }
     }
 
     fn prob_clonal_inheritance(
@@ -208,35 +296,80 @@ impl Prior {
         }
     }
 
-    fn prob_mendelian_alt_counts(
+    fn prob_select_alleles(&self, ploidy: u32, source_n: u32, target_n: u32) -> LogProb {
+        let choices = ln_binomial(source_n as u64, target_n as u64);
+        LogProb(choices + *LogProb::from(Prob(target_n as f64 / source_n as f64)))
+    }
+
+    fn prob_select_ref_alt_alleles(
         &self,
         ploidy: u32,
+        source_alt: u32,
+        target_alt: u32,
+        target_ref: u32,
+    ) -> LogProb {
+        self.prob_select_alleles(ploidy, source_alt, target_alt)
+            + self.prob_select_alleles(ploidy, ploidy - source_alt, target_ref)
+    }
+
+    fn prob_mendelian_alt_counts(
+        &self,
+        source_ploidy: (u32, u32),
+        target_ploidy: u32,
         source_alt: (u32, u32),
         target_alt: u32,
         germline_mutation_rate: f64,
     ) -> LogProb {
-        LogProb::ln_sum_exp(
-            &(0..source_alt.0)
+        let prob_after_meiotic_split = |first_split_ploidy, second_split_ploidy| {
+            (0..cmp::min(source_alt.0, first_split_ploidy))
                 .into_iter()
-                .cartesian_product(0..source_alt.1)
+                .cartesian_product(0..cmp::min(source_alt.1, second_split_ploidy))
                 .map(|(alt_from_first, alt_from_second)| {
-                    let choices_from_first =
-                        ln_binomial(source_alt.0 as u64, alt_from_first as u64);
-                    let choices_from_second =
-                        ln_binomial(source_alt.1 as u64, alt_from_second as u64);
-
-                    let prob = LogProb(
-                        choices_from_first
-                            + *LogProb::from(Prob(alt_from_first as f64 / ploidy as f64))
-                            + choices_from_second
-                            + *LogProb::from(Prob(alt_from_second as f64 / ploidy as f64)),
+                    let ref_from_first = first_split_ploidy - alt_from_first;
+                    let ref_from_second = second_split_ploidy - alt_from_second;
+                    let prob = self.prob_select_ref_alt_alleles(
+                        source_ploidy.0,
+                        source_alt.0,
+                        alt_from_first,
+                        ref_from_first,
+                    ) + self.prob_select_ref_alt_alleles(
+                        source_ploidy.1,
+                        source_alt.1,
+                        alt_from_second,
+                        ref_from_second,
                     );
 
                     let missing = target_alt as i32 - (alt_from_first + alt_from_second) as i32;
                     prob + LogProb(germline_mutation_rate.ln() * missing as f64)
                 })
-                .collect_vec(),
-        )
+        };
+
+        let probs = match (source_ploidy.0, source_ploidy.1, target_ploidy) {
+            (p1, p2, c) if p1 % 2 == 0 && p2 % 2 == 0 && c == (p1 / 2 + p2 / 2) => {
+                // Default case, normal meiosis (child inherits one half from each parent).
+                prob_after_meiotic_split(p1 / 2, p2 / 2).collect_vec()
+            }
+            (0, p2, c) if p2 == c => {
+                // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
+                prob_after_meiotic_split(0, p2).collect_vec()
+            }
+            (p1, 0, c) if p1 == c => {
+                // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
+                prob_after_meiotic_split(p1, 0).collect_vec()
+            }
+            (p1, p2, c) => {
+                // something went wrong, there are more chromosomes in the child than in the parents
+                // case 1: no separation in the first meiotic split (choose from all chromosomes of that parent)
+                // case 2: no separation in the second meiotic split (duplicate a parental chromosome)
+                panic!(format!(
+                    "ploidies of child and parents do not match ({}, {} => {}) chromosome duplication events \
+                     (e.g. trisomy) are not yet supported by the mendelian inheritance model of varlociraptor", 
+                    p1, p2, c
+                ));
+            }
+        };
+
+        LogProb::ln_sum_exp(&probs)
     }
 
     fn prob_mendelian_inheritance(
@@ -245,20 +378,20 @@ impl Prior {
         parents: (usize, usize),
         germline_vafs: &[AlleleFreq],
     ) -> LogProb {
-        let ploidy = self.ploidies.as_ref().unwrap()[child].unwrap();
-        assert_eq!(self.ploidies.as_ref().unwrap()[parents.0].unwrap(), ploidy);
-        assert_eq!(self.ploidies.as_ref().unwrap()[parents.1].unwrap(), ploidy);
+        let ploidies = self.ploidies.as_ref().unwrap();
 
+        let ploidy = |sample: usize| ploidies[sample].unwrap();
         // we control above that the vafs are valid for the ploidy, but the rounding ensures that there are no numeric glitches
-        let n_alt = |vaf: AlleleFreq| (*vaf * ploidy as f64).round() as u32;
+        let n_alt = |sample: usize| (*germline_vafs[sample] * ploidy(sample) as f64).round() as u32;
 
         self.prob_mendelian_alt_counts(
-            ploidy,
+            (ploidy(parents.0), ploidy(parents.1)),
+            ploidy(child),
             (
-                n_alt(germline_vafs[parents.0]),
-                n_alt(germline_vafs[parents.1]),
+                n_alt(parents.0),
+                n_alt(parents.1),
             ),
-            n_alt(germline_vafs[child]),
+            n_alt(child),
             self.germline_mutation_rate[child].expect("bug: no germline VAF for child"),
         )
     }

@@ -146,6 +146,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "base64"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
+
+[[package]]
 name = "bincode"
 version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -639,6 +645,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_more"
+version = "0.99.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41cb0e6161ad61ed084a36ba71fbba9e3ac5aee3606fb607fe08da6acbcf3d8c"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote 1.0.7",
+ "syn 1.0.50",
+]
+
+[[package]]
 name = "digest"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1041,7 +1058,7 @@ version = "0.10.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a0652d9a2609a968c14be1a9ea00bf4b1d64e2e1f53a1b51b6fff3a6e829273"
 dependencies = [
- "base64",
+ "base64 0.9.3",
  "httparse",
  "language-tags",
  "log 0.3.9",
@@ -1362,6 +1379,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "rawpointer 0.2.1",
+ "serde",
 ]
 
 [[package]]
@@ -1464,6 +1482,15 @@ name = "opaque-debug"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
+
+[[package]]
+name = "opener"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13117407ca9d0caf3a0e74f97b490a7e64c0ae3aa90a8b7085544d0c37b6f3ae"
+dependencies = [
+ "winapi 0.3.9",
+]
 
 [[package]]
 name = "openssl-src"
@@ -2161,6 +2188,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "showata"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7df3ded8a3a149e5ffce5ebb91a2d77ba661647d954726f9d2a3366b10eedc9"
+dependencies = [
+ "anyhow",
+ "base64 0.11.0",
+ "opener",
+]
+
+[[package]]
 name = "shrinkwraprs"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2593,6 +2631,7 @@ dependencies = [
  "time",
  "typed-builder",
  "vec_map",
+ "vega_lite_4",
  "yaml-rust 0.4.4",
 ]
 
@@ -2609,6 +2648,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "vega_lite_4"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a767e61dc34c996cd8aafa6e32b56c4d67652ed12bfcdef5c251eb9e060395f2"
+dependencies = [
+ "anyhow",
+ "csv",
+ "derive_builder",
+ "derive_more",
+ "ndarray",
+ "serde",
+ "serde_json",
+ "showata",
 ]
 
 [[package]]

@@ -114,7 +114,7 @@ impl ToString for ExpressionIdentifier {
 }
 
 #[derive(Deserialize, Getters)]
-#[get = "pub"]
+#[get = "pub(crate)"]
 pub(crate) struct Scenario {
     // map of reusable expressions
     #[serde(default)]
@@ -125,6 +125,8 @@ pub(crate) struct Scenario {
     samples: BTreeMap<String, Sample>,
     #[serde(skip)]
     sample_idx: Mutex<Option<HashMap<String, usize>>>,
+    #[serde(default)]
+    species: Option<Species>,
 }
 
 impl Scenario {
@@ -176,20 +178,65 @@ impl<'a> TryFrom<&'a str> for Scenario {
     }
 }
 
+#[derive(Deserialize, Getters)]
+#[get = "pub(crate)"]
+pub(crate) struct Species {
+    heterozygosity: Option<f64>,
+    variant_type_fractions: VariantTypeFraction,
+}
+
+fn default_indel_fraction() -> f64 {
+    0.1
+}
+
+fn default_mnv_fraction() -> f64 {
+    0.001
+}
+
+fn default_sv_fraction() -> f64 {
+    0.01
+}
+
+#[derive(Deserialize, Getters)]
+#[get = "pub(crate)"]
+pub(crate) struct VariantTypeFraction {
+    #[serde(default = "default_indel_fraction")]
+    indel: f64,
+    #[serde(default = "default_mnv_fraction")]
+    mnv: f64,
+    #[serde(default = "default_sv_fraction")]
+    sv: f64,
+}
+
 fn default_resolution() -> usize {
     100
 }
 
+fn default_ploidy() -> u32 {
+    2
+}
+
 #[derive(Deserialize, Getters)]
-#[get = "pub"]
 pub(crate) struct Sample {
     /// optional contamination
+    #[get = "pub(crate)"]
     contamination: Option<Contamination>,
     /// grid point resolution for integration over continuous allele frequency ranges
     #[serde(default = "default_resolution")]
+    #[get = "pub(crate)"]
     resolution: usize,
     /// possible VAFs of given sample
-    universe: UniverseDefinition,
+    #[serde(default)]
+    universe: Option<UniverseDefinition>,
+    #[serde(default)]
+    somatic_effective_mutation_rate: Option<f64>,
+    #[serde(default)]
+    germline_mutation_rate: Option<f64>,
+    #[serde(default = "default_ploidy")]
+    ploidy: u32,
+    inheritance: Option<Inheritance>,
+    #[serde(default)]
+    sex: Option<Sex>,
 }
 
 impl Sample {
@@ -209,12 +256,24 @@ impl Sample {
 }
 
 #[derive(Deserialize, Getters)]
-#[get = "pub"]
+#[get = "pub(crate)"]
 pub(crate) struct Contamination {
     /// name of contaminating sample
     by: String,
     /// fraction of contamination
     fraction: f64,
+}
+
+#[derive(Deserialize)]
+pub(crate) enum Inheritance {
+    Mendelian { from: (String, String) },
+    Clonal { from: String },
+}
+
+#[derive(Deserialize)]
+pub(crate) enum Sex {
+    Male,
+    Female,
 }
 
 #[derive(Deserialize)]
