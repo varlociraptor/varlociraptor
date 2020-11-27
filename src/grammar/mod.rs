@@ -78,6 +78,12 @@ impl<T> DerefMut for SampleInfo<T> {
     }
 }
 
+impl<T> From<Vec<T>> for SampleInfo<T> {
+    fn from(vec: Vec<T>) -> Self {
+        SampleInfo { inner: vec }
+    }
+}
+
 /// Builder for `SampleInfo`.
 #[derive(new, Debug)]
 pub(crate) struct SampleInfoBuilder<T> {

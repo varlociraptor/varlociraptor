@@ -3,26 +3,28 @@ use std::cmp;
 use std::collections::BTreeMap;
 
 use bio::stats::bayesian;
+use bio::stats::bayesian::model::Prior as PriorTrait;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
-use statrs::function::factorial::ln_binomial;
 use itertools_num::linspace;
 use serde_json::json;
-use bio::stats::bayesian::model::Prior as PriorTrait;
+use statrs::function::factorial::ln_binomial;
 
 use crate::grammar;
-use crate::variants::model::{likelihood, AlleleFreq, bias::Biases};
+use crate::variants::model::{bias::Biases, likelihood, AlleleFreq};
 
 pub(crate) trait UpdatablePrior {
     fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>);
     fn set_ploidies(&mut self, ploidies: grammar::SampleInfo<Option<u32>>);
 }
 
+#[derive(Debug)]
 pub(crate) enum Inheritance {
     Mendelian { from: (usize, usize) },
     Clonal { from: usize },
 }
 
+#[derive(Debug, TypedBuilder)]
 pub(crate) struct Prior {
     ploidies: Option<grammar::SampleInfo<Option<u32>>>,
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
@@ -35,10 +37,17 @@ pub(crate) struct Prior {
 }
 
 impl Prior {
-    fn collect_events(&self, event: Vec<likelihood::Event>, events: &mut Vec<Vec<likelihood::Event>>) {
+    fn collect_events(
+        &self,
+        event: Vec<likelihood::Event>,
+        events: &mut Vec<Vec<likelihood::Event>>,
+    ) {
         if event.len() < self.universe.unwrap().len() {
             let sample = event.len();
-            let new_event = |vaf| likelihood::Event { allele_freq: vaf, biases: Biases::none() };
+            let new_event = |vaf| likelihood::Event {
+                allele_freq: vaf,
+                biases: Biases::none(),
+            };
 
             for vaf_spectrum in self.universe.unwrap()[sample].iter() {
                 match vaf_spectrum {
@@ -61,53 +70,73 @@ impl Prior {
         } else {
             events.push(event);
         }
-    } 
+    }
 
-    pub(crate) fn plot(&self, sample_names: &grammar::SampleInfo<String>, ) -> String {
+    pub(crate) fn plot(&self, sample_names: &grammar::SampleInfo<String>) -> String {
         use vega_lite_4::*;
-        
+
         let mut events = Vec::new();
         self.collect_events(Vec::new(), &mut events);
 
-        let data = events.iter().map(|event| {
-            let mut record = json!({
-                "prob": self.compute(event),
-            });
-            for (e, sample) in event.iter().zip(sample_names.iter()) {
-                record.as_object_mut().unwrap().insert(sample.to_owned(), json!(*e.allele_freq));
-            }
-            record
-        }).collect_vec();
+        let data = events
+            .iter()
+            .map(|event| {
+                let prob = self.compute(event);
 
-        let mut encoding_builder = EncodingBuilder::default();
-        encoding_builder
-            .x(
-                XClassBuilder::default()
-                    .field(sample_names[0])
-                    .def_type(StandardType::Quantitative)
-                    .build().unwrap()
-            )
-            .y(
-                YClassBuilder::default()
-                    .field("prob")
-                    .def_type(StandardType::Quantitative)
-                    .build().unwrap()
-            );
-        
+                event.iter().zip(sample_names.iter()).map(|(e, sample)| {
+                json!({
+                    "sample": sample.to_owned(),
+                    "prob": prob,
+                    "vaf": *e.allele_freq,
+                    "others": event.iter().zip(sample_names.iter()).filter_map(|(e, other_sample)| {
+                        if sample != other_sample {
+                            Some(format!("{}={}", other_sample, *e.allele_freq))
+                        } else {
+                            None
+                        }
+                    }).join(", ")
+                })
+            })
+            })
+            .flatten()
+            .collect_vec();
 
         let chart = VegaliteBuilder::default()
             .data(&data)
-            .mark(Mark::Line)
+            .mark({
+                let mut mark = MarkDefClass::default();
+                mark.def_type = Some(Mark::Line);
+                mark.point = Some(true.into());
+                mark
+            })
+            .facet({
+                let mut facet = Facet::default();
+                facet.field = Some("sample".into());
+                facet
+            })
             .encoding(
-                
-                    
-                    .color(
-                        DefWithConditionMarkPropFieldDefGradientStringNullBuilder::default()
-                            .field(sample_names[1])
-                    )
+                EncodingBuilder::default()
+                    .x(XClassBuilder::default()
+                        .field("vaf")
+                        .def_type(StandardType::Quantitative)
+                        .build()
+                        .unwrap())
+                    .y(YClassBuilder::default()
+                        .field("prob")
+                        .def_type(StandardType::Quantitative)
+                        .build()
+                        .unwrap())
+                    .color({
+                        let mut def = DefWithConditionMarkPropFieldDefGradientStringNull::default();
+                        def.field = Some("others".into());
+                        def
+                    })
+                    .build()
+                    .unwrap(),
             )
-            .build().unwrap();
-        
+            .build()
+            .unwrap();
+
         chart.to_string().unwrap()
     }
 
@@ -387,10 +416,7 @@ impl Prior {
         self.prob_mendelian_alt_counts(
             (ploidy(parents.0), ploidy(parents.1)),
             ploidy(child),
-            (
-                n_alt(parents.0),
-                n_alt(parents.1),
-            ),
+            (n_alt(parents.0), n_alt(parents.1)),
             n_alt(child),
             self.germline_mutation_rate[child].expect("bug: no germline VAF for child"),
         )
