@@ -232,8 +232,7 @@ impl Prior {
                     for n_alt in 0..ploidy + 1 {
                         // for each possible number of germline alt alleles, obtain necessary somatic VAF to get the event VAF.
                         let germline_vaf = AlleleFreq(n_alt as f64 / ploidy as f64);
-                        let somatic_vaf =
-                            AlleleFreq((germline_vaf - sample_event.allele_freq).abs());
+                        let somatic_vaf = germline_vaf - sample_event.allele_freq;
                         let (somatic_vafs, germline_vafs) = push_vafs(somatic_vaf, germline_vaf);
                         probs.push(self.calc_prob(event, somatic_vafs, germline_vafs));
                     }
@@ -274,11 +273,12 @@ impl Prior {
                     - (2.0 * vaf.ln() + (self.genome_size as f64).ln()),
             )
         };
+        // METHOD: we take the absolute of the vaf because it can be negative (indicating a back mutation).
         if *somatic_vafs[sample] == 0.0 {
-            LogProb::ln_simpsons_integrate_exp(|_, vaf| density(vaf), 0.0, 1.0, 5)
+            LogProb::ln_simpsons_integrate_exp(|_, vaf| density(vaf.abs()), 0.0, 1.0, 5)
                 .ln_one_minus_exp()
         } else {
-            density(*somatic_vafs[sample])
+            density(somatic_vafs[sample].abs())
         }
     }
 
@@ -286,13 +286,35 @@ impl Prior {
         &self,
         sample: usize,
         parent: usize,
+        somatic_vafs: &[AlleleFreq],
         germline_vafs: &[AlleleFreq],
+        germline_only: bool,
     ) -> LogProb {
-        if relative_eq!(*germline_vafs[sample], *germline_vafs[parent]) {
+        if germline_only {
+            if relative_eq!(*germline_vafs[sample], *germline_vafs[parent]) {
+                LogProb::ln_one()
+            } else {
+                LogProb::ln_zero()
+            }
+        } else if relative_eq!(*germline_vafs[sample], germline_vafs[parent] + somatic_vafs[parent]) {
             LogProb::ln_one()
         } else {
             LogProb::ln_zero()
         }
+    }
+
+    fn prob_subclonal_inheritance(
+        &self,
+        sample: usize,
+        parent: usize,
+        somatic_vafs: &[AlleleFreq],
+        germline_vafs: &[AlleleFreq],
+    ) -> LogProb {
+        let combined_vaf_parent = germline_vafs[parent] + somatic_vafs[parent];
+        assert!(*combined_vaf_parent >= 0.0 && *combined_vaf_parent <= 1.0);
+        if germline_vafs[sample] == 1 {
+            LogProb::from(Prob(*combined_vaf_parent))
+        } else 
     }
 
     fn prob_population_germline(
