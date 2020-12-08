@@ -272,8 +272,22 @@ pub(crate) struct Contamination {
 
 #[derive(Deserialize)]
 pub(crate) enum Inheritance {
-    Mendelian { from: (String, String) },
-    Clonal { from: String },
+    Mendelian {
+        from: (String, String),
+    },
+    Clonal {
+        from: String,
+    },
+    Subclonal {
+        from: String,
+        origin: SubcloneOrigin,
+    },
+}
+
+#[derive(Deserialize)]
+pub(crate) enum SubcloneOrigin {
+    SingleCell,
+    MultiCell,
 }
 
 #[derive(Deserialize)]
