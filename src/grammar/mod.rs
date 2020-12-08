@@ -11,7 +11,7 @@ pub(crate) mod formula;
 pub(crate) mod vaftree;
 
 use crate::errors;
-pub(crate) use crate::grammar::formula::{Formula, VAFSpectrum, VAFUniverse};
+pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
 
 /// Container for arbitrary sample information.
@@ -184,11 +184,71 @@ impl<'a> TryFrom<&'a str> for Scenario {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub(crate) enum PloidyDefinition {
+    Simple(u32),
+    Map(HashMap<String, u32>),
+}
+
+impl PloidyDefinition {
+    pub(crate) fn contig_ploidy(&self, contig: &str) -> Result<u32> {
+        match self {
+            PloidyDefinition::Simple(ploidy) => ploidy,
+            PloidyDefinition::Map(map) => match map.get(contig) {
+                Some(ploidy) => ploidy,
+                None => map
+                    .get("all")
+                    .ok_or_else(|| errors::Error::PloidyContigNotFound {
+                        contig: contig.to_owned(),
+                    })?,
+            },
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub(crate) enum SexPloidyDefinition {
+    Generic(PloidyDefinition),
+    Specific(HashMap<Sex, PloidyDefinition>),
+}
+
+impl SexPloidyDefinition {
+    pub(crate) fn contig_ploidy(&self, sex: Option<Sex>, contig: &str) -> Result<u32> {
+        match (self, sex) {
+            (SexPloidyDefinition::Generic(p), _) => p.contig_ploidy(contig),
+            (SexPloidyDefinition::Specific(p), Some(s)) => p.get(s).ok_or_else(
+                errors::Error::InvalidPriorConfiguration {
+                    msg: format!("ploidy definition for {} not found", s),
+                }
+                .into(),
+            ),
+            (SexPloidyDefinition::Specific(p), None) => {
+                Err(errors::Error::InvalidPriorConfiguration {
+                    msg: "sex specific ploidy definition found but no gender specified in sample"
+                        .to_owned(),
+                })
+            }
+        }
+    }
+}
+
 #[derive(Deserialize, Getters)]
 #[get = "pub(crate)"]
 pub(crate) struct Species {
+    #[serde(default)]
     heterozygosity: Option<f64>,
+    #[serde(flatten)]
     variant_type_fractions: VariantTypeFraction,
+    #[serde(default)]
+    ploidy: Option<SexPloidyDefinition>,
+}
+
+impl Species {
+    pub(crate) fn contig_ploidy(&self, sex: Sex, contig: &str) -> Option<Result<u32>> {
+        self.ploidy.map(|ploidy| ploidy.contig_ploidy(sex, contig))
+    }
 }
 
 fn default_indel_fraction() -> f64 {
@@ -218,10 +278,6 @@ fn default_resolution() -> usize {
     100
 }
 
-fn default_ploidy() -> u32 {
-    2
-}
-
 #[derive(Deserialize, Getters)]
 pub(crate) struct Sample {
     /// optional contamination
@@ -238,17 +294,21 @@ pub(crate) struct Sample {
     somatic_effective_mutation_rate: Option<f64>,
     #[serde(default)]
     germline_mutation_rate: Option<f64>,
-    #[serde(default = "default_ploidy")]
-    ploidy: u32,
+    #[serde(default)]
+    ploidy: Option<PloidyDefinition>,
     inheritance: Option<Inheritance>,
     #[serde(default)]
     sex: Option<Sex>,
 }
 
 impl Sample {
-    pub(crate) fn contig_universe(&self, contig: &str) -> Option<Result<&VAFUniverse>> {
-        self.universe.map(|universe| {
-            Ok(match universe {
+    pub(crate) fn contig_universe(
+        &self,
+        contig: &str,
+        species: &Option<Species>,
+    ) -> Result<&VAFUniverse> {
+        if let Some(universe) = self.universe {
+            Ok(match self.universe {
                 UniverseDefinition::Simple(ref universe) => universe,
                 UniverseDefinition::Map(ref map) => match map.get(contig) {
                     Some(universe) => universe,
@@ -260,7 +320,69 @@ impl Sample {
                     }
                 },
             })
-        })
+        } else {
+            let ploidy_derived_spectrum = |ploidy| {
+                VAFSpectrum::Set(
+                    (0..=ploidy)
+                        .map(|n_alt| AlleleFreq(n_alt as f64 / ploidy as f64))
+                        .collect(),
+                )
+            };
+            Ok(
+                match (
+                    self.contig_ploidy(contig, species),
+                    self.somatic_effective_mutation_rate,
+                ) {
+                    (Some(ploidy_res), None) => {
+                        let ploidy = ploidy_res?;
+                        let mut universe = VAFUniverse::default();
+                        universe.insert(ploidy_derived_spectrum(ploidy));
+                        universe
+                    }
+                    (Some(ploidy_res), Some(somatic_mutation_rate)) => {
+                        let ploidy_spectrum = ploidy_derived_spectrum(ploidy_res?);
+
+                        let mut universe = VAFUniverse::default();
+
+                        let mut last = ploidy_spectrum.first();
+                        for vaf in ploidy_spectrum.iter().skip(1) {
+                            universe.insert(VAFSpectrum::Range(VAFRange {
+                                inner: last..vaf,
+                                left_exclusive: true,
+                                right_exclusive: true,
+                            }));
+                            last = vaf;
+                        }
+                        universe.insert(ploidy_spectrum);
+                        universe
+                    }
+                    (None, Some(somatic_mutation_rate)) => {
+                        let mut universe = VAFUniverse::default();
+                        universe.insert(VAFSpectrum::Range(VAFRange {
+                            inner: AlleleFreq(0.0)..AlleleFreq(1.0),
+                            left_exclusive: false,
+                            right_exclusive: false,
+                        }));
+                        universe
+                    }
+                    (None, None) => return Err(errors::Error::InvalidPriorConfiguration(
+                        "sample needs to define either universe, ploidy or somatic_mutation_rate",
+                    )
+                    .into()),
+                },
+            )
+        }
+    }
+
+    pub(crate) fn contig_ploidy(
+        &self,
+        contig: &str,
+        species: &Option<Species>,
+    ) -> Option<Result<u32>> {
+        self.ploidy.map_or_else(
+            || species.map(|species| species.contig_ploidy(contig, self.sex)),
+            |ploidy| ploidy.contig_ploidy(contig),
+        )
     }
 }
 

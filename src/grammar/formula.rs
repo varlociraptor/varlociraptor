@@ -421,8 +421,8 @@ impl PartialOrd for VAFRange {
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct VAFUniverse(BTreeSet<VAFSpectrum>);
+#[derive(Debug, Clone, Default, Derefable)]
+pub(crate) struct VAFUniverse(#[deref] BTreeSet<VAFSpectrum>);
 
 impl VAFUniverse {
     pub(crate) fn contains(&self, vaf: AlleleFreq) -> bool {
@@ -432,14 +432,6 @@ impl VAFUniverse {
             }
         }
         false
-    }
-}
-
-impl ops::Deref for VAFUniverse {
-    type Target = BTreeSet<VAFSpectrum>;
-
-    fn deref(&self) -> &BTreeSet<VAFSpectrum> {
-        &self.0
     }
 }
 

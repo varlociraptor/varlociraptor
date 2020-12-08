@@ -28,6 +28,8 @@ pub(crate) enum Error {
     NoRecordsFound,
     #[error("contig {contig} not found in universe definition and no 'all' defined")]
     UniverseContigNotFound { contig: String },
+    #[error("contig {contig} not found in ploidy definition and no 'all' defined")]
+    PloidyContigNotFound { contig: String },
     #[error("record {i} in candidate BCF/VCF does not define a chromosome")]
     RecordMissingChrom { i: usize },
     #[error("inconsistent observations: input observation BCF files do not contain exactly the same records")]
@@ -46,4 +48,6 @@ pub(crate) enum Error {
         "undefined expression ${identifier}; please define under 'expressions:' in your scenario"
     )]
     UndefinedExpression { identifier: String },
+    #[error("invalid prior configuration: ${msg}")]
+    InvalidPriorConfiguration { msg: String },
 }
