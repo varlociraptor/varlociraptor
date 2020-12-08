@@ -128,7 +128,7 @@ impl Formula {
                     .ok_or_else(|| errors::Error::InvalidSampleName {
                         name: sample.to_owned(),
                     })?
-                    .contig_universe(contig)?;
+                    .contig_universe(contig, scenario.species())?;
 
                 let mut disjunction = Vec::new();
                 match vafs {

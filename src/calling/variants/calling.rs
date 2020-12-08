@@ -442,12 +442,17 @@ where
 
             // update prior to the VAF universe of the current chromosome
             let mut vaf_universes = self.scenario.sample_info();
+            let mut ploidies = self.scenario.sample_info();
             for (sample_name, sample) in self.scenario.samples().iter() {
-                let universe = sample.contig_universe(&contig)?;
+                let universe = sample.contig_universe(&contig, self.scenario.species())?;
                 vaf_universes = vaf_universes.push(sample_name, universe.to_owned());
+
+                let ploidy = sample.contig_ploidy(&contig, self.scenario.species())?;
+                ploidies = ploidies.push(sample_name, ploidy);
             }
 
             model.prior_mut().set_universe(vaf_universes.build());
+            model.prior_mut().set_ploidies(ploidies.build());
         }
 
         Ok(())

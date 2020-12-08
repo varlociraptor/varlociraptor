@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::TryFrom;
 use std::ops::{Deref, DerefMut};
 use std::string::ToString;
@@ -13,6 +13,7 @@ pub(crate) mod vaftree;
 use crate::errors;
 pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
+use crate::variants::model::AlleleFreq;
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -193,17 +194,17 @@ pub(crate) enum PloidyDefinition {
 
 impl PloidyDefinition {
     pub(crate) fn contig_ploidy(&self, contig: &str) -> Result<u32> {
-        match self {
-            PloidyDefinition::Simple(ploidy) => ploidy,
+        Ok(match self {
+            PloidyDefinition::Simple(ploidy) => *ploidy,
             PloidyDefinition::Map(map) => match map.get(contig) {
-                Some(ploidy) => ploidy,
-                None => map
-                    .get("all")
-                    .ok_or_else(|| errors::Error::PloidyContigNotFound {
+                Some(ploidy) => *ploidy,
+                None => map.get("all").map(|ploidy| *ploidy).ok_or_else(|| {
+                    errors::Error::PloidyContigNotFound {
                         contig: contig.to_owned(),
-                    })?,
+                    }
+                })?,
             },
-        }
+        })
     }
 }
 
@@ -218,17 +219,21 @@ impl SexPloidyDefinition {
     pub(crate) fn contig_ploidy(&self, sex: Option<Sex>, contig: &str) -> Result<u32> {
         match (self, sex) {
             (SexPloidyDefinition::Generic(p), _) => p.contig_ploidy(contig),
-            (SexPloidyDefinition::Specific(p), Some(s)) => p.get(s).ok_or_else(
-                errors::Error::InvalidPriorConfiguration {
-                    msg: format!("ploidy definition for {} not found", s),
-                }
-                .into(),
+            (SexPloidyDefinition::Specific(p), Some(s)) => p.get(&s).map_or_else(
+                || {
+                    Err(errors::Error::InvalidPriorConfiguration {
+                        msg: format!("ploidy definition for {} not found", s),
+                    }
+                    .into())
+                },
+                |p| p.contig_ploidy(contig),
             ),
             (SexPloidyDefinition::Specific(p), None) => {
                 Err(errors::Error::InvalidPriorConfiguration {
                     msg: "sex specific ploidy definition found but no gender specified in sample"
                         .to_owned(),
-                })
+                }
+                .into())
             }
         }
     }
@@ -246,8 +251,12 @@ pub(crate) struct Species {
 }
 
 impl Species {
-    pub(crate) fn contig_ploidy(&self, sex: Sex, contig: &str) -> Option<Result<u32>> {
-        self.ploidy.map(|ploidy| ploidy.contig_ploidy(sex, contig))
+    pub(crate) fn contig_ploidy(&self, contig: &str, sex: Option<Sex>) -> Result<Option<u32>> {
+        if let Some(ploidy) = self.ploidy {
+            Ok(Some(ploidy.contig_ploidy(sex, contig)?))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -306,54 +315,51 @@ impl Sample {
         &self,
         contig: &str,
         species: &Option<Species>,
-    ) -> Result<&VAFUniverse> {
+    ) -> Result<VAFUniverse> {
         if let Some(universe) = self.universe {
-            Ok(match self.universe {
-                UniverseDefinition::Simple(ref universe) => universe,
+            Ok(match universe {
+                UniverseDefinition::Simple(ref universe) => universe.clone(),
                 UniverseDefinition::Map(ref map) => match map.get(contig) {
-                    Some(universe) => universe,
-                    None => {
-                        map.get("all")
-                            .ok_or_else(|| errors::Error::UniverseContigNotFound {
-                                contig: contig.to_owned(),
-                            })?
-                    }
+                    Some(universe) => universe.clone(),
+                    None => map
+                        .get("all")
+                        .ok_or_else(|| errors::Error::UniverseContigNotFound {
+                            contig: contig.to_owned(),
+                        })?
+                        .clone(),
                 },
             })
         } else {
-            let ploidy_derived_spectrum = |ploidy| {
-                VAFSpectrum::Set(
-                    (0..=ploidy)
-                        .map(|n_alt| AlleleFreq(n_alt as f64 / ploidy as f64))
-                        .collect(),
-                )
+            let ploidy_derived_spectrum = |ploidy| -> BTreeSet<AlleleFreq> {
+                (0..=ploidy)
+                    .map(|n_alt| AlleleFreq(n_alt as f64 / ploidy as f64))
+                    .collect()
             };
             Ok(
                 match (
-                    self.contig_ploidy(contig, species),
+                    self.contig_ploidy(contig, species)?,
                     self.somatic_effective_mutation_rate,
                 ) {
-                    (Some(ploidy_res), None) => {
-                        let ploidy = ploidy_res?;
+                    (Some(ploidy), None) => {
                         let mut universe = VAFUniverse::default();
-                        universe.insert(ploidy_derived_spectrum(ploidy));
+                        universe.insert(VAFSpectrum::Set(ploidy_derived_spectrum(ploidy)));
                         universe
                     }
-                    (Some(ploidy_res), Some(somatic_mutation_rate)) => {
-                        let ploidy_spectrum = ploidy_derived_spectrum(ploidy_res?);
+                    (Some(ploidy), Some(somatic_mutation_rate)) => {
+                        let ploidy_spectrum = ploidy_derived_spectrum(ploidy);
 
                         let mut universe = VAFUniverse::default();
 
-                        let mut last = ploidy_spectrum.first();
+                        let mut last = ploidy_spectrum.iter().next().unwrap();
                         for vaf in ploidy_spectrum.iter().skip(1) {
                             universe.insert(VAFSpectrum::Range(VAFRange {
-                                inner: last..vaf,
+                                inner: *last..*vaf,
                                 left_exclusive: true,
                                 right_exclusive: true,
                             }));
                             last = vaf;
                         }
-                        universe.insert(ploidy_spectrum);
+                        universe.insert(VAFSpectrum::Set(ploidy_spectrum));
                         universe
                     }
                     (None, Some(somatic_mutation_rate)) => {
@@ -365,9 +371,9 @@ impl Sample {
                         }));
                         universe
                     }
-                    (None, None) => return Err(errors::Error::InvalidPriorConfiguration(
-                        "sample needs to define either universe, ploidy or somatic_mutation_rate",
-                    )
+                    (None, None) => return Err(errors::Error::InvalidPriorConfiguration{
+                        msg: "sample needs to define either universe, ploidy or somatic_mutation_rate".to_owned(),
+                    }
                     .into()),
                 },
             )
@@ -378,11 +384,12 @@ impl Sample {
         &self,
         contig: &str,
         species: &Option<Species>,
-    ) -> Option<Result<u32>> {
-        self.ploidy.map_or_else(
-            || species.map(|species| species.contig_ploidy(contig, self.sex)),
-            |ploidy| ploidy.contig_ploidy(contig),
-        )
+    ) -> Result<Option<u32>> {
+        if let Some(ploidy) = self.ploidy {
+            Ok(Some(ploidy.contig_ploidy(contig)?))
+        } else {
+            species.map_or(Ok(None), |species| species.contig_ploidy(contig, self.sex))
+        }
     }
 }
 
@@ -395,7 +402,19 @@ pub(crate) struct Contamination {
     fraction: f64,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    IntoStaticStr,
+    EnumVariantNames,
+    PartialEq,
+    Eq,
+    Hash,
+)]
+#[strum(serialize_all = "kebab_case")]
 pub(crate) enum Inheritance {
     Mendelian {
         from: (String, String),
@@ -409,13 +428,39 @@ pub(crate) enum Inheritance {
     },
 }
 
-#[derive(Deserialize, Clone, Copy, Debug)]
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    IntoStaticStr,
+    EnumVariantNames,
+    PartialEq,
+    Eq,
+    Hash,
+)]
+#[strum(serialize_all = "kebab_case")]
 pub(crate) enum SubcloneOrigin {
     SingleCell,
     MultiCell,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    IntoStaticStr,
+    EnumVariantNames,
+    PartialEq,
+    Eq,
+    Hash,
+)]
+#[strum(serialize_all = "kebab_case")]
 pub(crate) enum Sex {
     Male,
     Female,

@@ -163,7 +163,7 @@ impl VAFTree {
                         seen.insert(idx);
 
                         node.children = sample
-                            .contig_universe(contig)?
+                            .contig_universe(contig, scenario.species())?
                             .iter()
                             .map(|vafs| {
                                 Node::new(NodeKind::Sample {
