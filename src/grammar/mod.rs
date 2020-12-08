@@ -246,17 +246,20 @@ pub(crate) struct Sample {
 }
 
 impl Sample {
-    pub(crate) fn contig_universe(&self, contig: &str) -> Result<&VAFUniverse> {
-        Ok(match self.universe {
-            UniverseDefinition::Simple(ref universe) => universe,
-            UniverseDefinition::Map(ref map) => match map.get(contig) {
-                Some(universe) => universe,
-                None => map
-                    .get("all")
-                    .ok_or_else(|| errors::Error::UniverseContigNotFound {
-                        contig: contig.to_owned(),
-                    })?,
-            },
+    pub(crate) fn contig_universe(&self, contig: &str) -> Option<Result<&VAFUniverse>> {
+        self.universe.map(|universe| {
+            Ok(match universe {
+                UniverseDefinition::Simple(ref universe) => universe,
+                UniverseDefinition::Map(ref map) => match map.get(contig) {
+                    Some(universe) => universe,
+                    None => {
+                        map.get("all")
+                            .ok_or_else(|| errors::Error::UniverseContigNotFound {
+                                contig: contig.to_owned(),
+                            })?
+                    }
+                },
+            })
         })
     }
 }
@@ -270,7 +273,7 @@ pub(crate) struct Contamination {
     fraction: f64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub(crate) enum Inheritance {
     Mendelian {
         from: (String, String),
@@ -284,19 +287,19 @@ pub(crate) enum Inheritance {
     },
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Copy, Debug)]
 pub(crate) enum SubcloneOrigin {
     SingleCell,
     MultiCell,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub(crate) enum Sex {
     Male,
     Female,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(untagged)]
 pub(crate) enum UniverseDefinition {
     Map(BTreeMap<String, VAFUniverse>),

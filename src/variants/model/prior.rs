@@ -168,35 +168,6 @@ impl Prior {
         event[sample].allele_freq - germline_vafs[sample]
     }
 
-    fn somatic_vafs(
-        &self,
-        sample: usize,
-        germline_vaf: AlleleFreq,
-        somatic_vafs: &[AlleleFreq],
-    ) -> Box<dyn Iterator<Item = AlleleFreq>> {
-        let sample_vaf = event[sample].allele_freq;
-        match self.inheritance[sample] {
-            Some(Inheritance::Clonal {
-                from: parent,
-                somatic: true,
-                ..
-            }) => {
-                let parent_vaf = somatic_vafs[parent];
-                std::iter::once(sample_vaf - parent_vaf - germline_vaf)
-            }
-            Some(Inheritance::Subclonal {
-                from: parent,
-                origin: grammar::SubcloneOrigin::SingleCell,
-            }) => {
-                let parent_vaf = somatic_vafs[parent];
-                if *parent_vaf != 1.0 {
-                    vec![sample_vaf - germline_vaf, sample_vaf - parent_vaf]
-                }
-            }
-            _ => std::iter::once(sample_vaf - germline_vafs[sample]),
-        }
-    }
-
     fn calc_prob(&self, event: &[likelihood::Event], germline_vafs: Vec<AlleleFreq>) -> LogProb {
         if germline_vafs.len() == event.len() {
             // recursion end
@@ -228,24 +199,36 @@ impl Prior {
                 .iter()
                 .enumerate()
                 .filter_map(|(sample, inheritance)| match inheritance {
-                    Some(Inheritance::Mendelian { from: parents }) => {
-                        Some(self.prob_mendelian_inheritance(sample, *parents, &germline_vafs))
-                    }
-                    Some(Inheritance::Clonal { from: parent }) => {
-                        Some(self.prob_clonal_inheritance(sample, *parent, &germline_vafs))
-                    }
+                    Some(Inheritance::Mendelian { from: parents }) => Some(
+                        self.prob_mendelian_inheritance(sample, *parents, event, &germline_vafs),
+                    ),
+                    Some(Inheritance::Clonal {
+                        from: parent,
+                        somatic,
+                    }) => Some(self.prob_clonal_inheritance(
+                        sample,
+                        *parent,
+                        event,
+                        &germline_vafs,
+                        *somatic,
+                    )),
                     Some(Inheritance::Subclonal {
                         from: parent,
                         origin,
                     }) => {
                         // here, somatic variation is already included in the returned probability
-                        Some(self.prob_subclonal_inheritance(sample, *parent, &germline_vafs))
+                        Some(self.prob_subclonal_inheritance(
+                            sample,
+                            *parent,
+                            event,
+                            &germline_vafs,
+                            *origin,
+                        ))
                     }
                     None => {
                         // no inheritance pattern defined
                         if let Some(r) = self.somatic_effective_mutation_rate[sample] {
                             Some(self.prob_somatic_mutation(
-                                sample,
                                 r,
                                 self.effective_somatic_vaf(sample, event, &germline_vafs),
                             ))
@@ -260,7 +243,7 @@ impl Prior {
         } else {
             // recursion
 
-            let sample = somatic_vafs.len();
+            let sample = germline_vafs.len();
             let sample_event = &event[sample];
             let sample_ploidy = self.ploidies.as_ref().unwrap()[sample];
             let push_vafs = |germline| {
@@ -317,7 +300,7 @@ impl Prior {
         };
         // METHOD: we take the absolute of the vaf because it can be negative (indicating a back mutation).
         if *somatic_vaf == 0.0 {
-            LogProb::ln_simpsons_integrate_exp(|_, vaf| density(vaf.abs()), 0.0, 1.0, 5)
+            LogProb::ln_simpsons_integrate_exp(|_, vaf: f64| density(vaf.abs()), 0.0, 1.0, 5)
                 .ln_one_minus_exp()
         } else {
             density(somatic_vaf.abs())
@@ -393,8 +376,8 @@ impl Prior {
                         }
                     } else {
                         if self.is_valid_germline_vaf(sample, total_vaf) {
-                            let prob_alt = LogProb::from(Prob::from(parent_total_vaf));
-                            if total_vaf > 0.0 {
+                            let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
+                            if *total_vaf > 0.0 {
                                 // METHOD: alt present, hence the cell has to come from the subclone with the alt allele.
                                 prob_alt
                             } else {
@@ -425,7 +408,7 @@ impl Prior {
                     // METHOD: we may inherit any fraction of the parental effective somatic vaf
                     let density = |_, inherited_somatic_vaf| {
                         let somatic_vaf = total_vaf
-                            - if parent_somatic_vaf >= 0.0 {
+                            - if *parent_somatic_vaf >= 0.0 {
                                 germline_vaf + inherited_somatic_vaf
                             } else {
                                 germline_vaf - inherited_somatic_vaf
@@ -442,8 +425,8 @@ impl Prior {
                     } else {
                         let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
                         let somatic_vaf = total_vaf + parent_somatic_vaf - germline_vaf;
-                        let ploidy = self.ploidies[sample];
-                        if total_vaf > 0.0 {
+                        let ploidy = self.ploidies.as_ref().unwrap()[sample].unwrap();
+                        if *total_vaf > 0.0 {
                             // case 1: cell comes from the alt allele subclone
                             (prob_alt
                                 + LogProb::ln_sum_exp(
@@ -610,8 +593,10 @@ impl Prior {
         );
 
         if let Some(somatic_mutation_rate) = self.somatic_effective_mutation_rate[child] {
-            prob += self
-                .prob_somatic_mutation(r, self.effective_somatic_vaf(child, event, &germline_vafs));
+            prob += self.prob_somatic_mutation(
+                somatic_mutation_rate,
+                self.effective_somatic_vaf(child, event, &germline_vafs),
+            );
         }
 
         prob
@@ -625,11 +610,7 @@ impl bayesian::model::Prior for Prior {
         if let Some(prob) = self.cache.borrow().get(event) {
             *prob
         } else {
-            let prob = self.calc_prob(
-                event,
-                Vec::with_capacity(event.len()),
-                Vec::with_capacity(event.len()),
-            );
+            let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
             self.cache.borrow_mut().insert(event.to_owned(), prob);
 
             prob
