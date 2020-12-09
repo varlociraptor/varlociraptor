@@ -46,4 +46,8 @@ pub(crate) enum Error {
         "undefined expression ${identifier}; please define under 'expressions:' in your scenario"
     )]
     UndefinedExpression { identifier: String },
+    #[error("read position determined from cigar string exceeds record length")]
+    ReadPosOutOfBounds,
+    #[error("invalid strand information '{value}', must be '+', '-', or '*'")]
+    InvalidStrandInfo { value: char },
 }

@@ -18,7 +18,10 @@ use bio_types::genome;
 use bio_types::genome::AbstractInterval;
 use rust_htslib::bam;
 
+use crate::errors::Error;
 use crate::reference;
+use crate::utils;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
 use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, SingleLocus};
@@ -169,7 +172,6 @@ pub(crate) trait Realigner {
         L: IntoIterator,
         L::Item: AsRef<SingleLocus>,
     {
-        //dbg!(std::str::from_utf8(record.qname()).unwrap());
         // Obtain candidate regions from matching loci.
         let candidate_regions: Result<Vec<_>> = loci
             .into_iter()
@@ -191,7 +193,7 @@ pub(crate) trait Realigner {
             return Ok(AlleleSupportBuilder::default()
                 .prob_ref_allele(p)
                 .prob_alt_allele(p)
-                .no_strand_info()
+                .strand(Strand::None)
                 .build()
                 .unwrap());
         }
@@ -228,6 +230,9 @@ pub(crate) trait Realigner {
         let read_seq: bam::record::Seq<'a> = record.seq();
         let read_qual = record.qual();
 
+        let aux_strand_info = utils::aux_tag_strand_info(record);
+        let mut strand = Strand::None;
+
         for region in merged_regions {
             // read emission
             let read_emission = Rc::new(ReadEmission::new(
@@ -262,7 +267,6 @@ pub(crate) trait Realigner {
                 )?,
                 &mut edit_dist,
             );
-            //dbg!(prob_alt - prob_ref);
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
@@ -295,26 +299,35 @@ pub(crate) trait Realigner {
                 );
             }
 
+            if prob_ref != prob_alt {
+                // METHOD: if record is not informative, we don't want to
+                // retain its information (e.g. strand).
+                if let Some(strand_info) = aux_strand_info {
+                    if let Some(s) = strand_info.get(region.read_interval) {
+                        strand |= Strand::from_aux(s)?;
+                    } else {
+                        return Err(Error::ReadPosOutOfBounds.into());
+                    }
+                }
+            }
+
             // METHOD: probabilities of independent regions are combined here.
             prob_ref_all += prob_ref;
             prob_alt_all += prob_alt;
         }
 
-        let mut builder = AlleleSupportBuilder::default();
-
-        builder
-            .prob_ref_allele(prob_ref_all)
-            .prob_alt_allele(prob_alt_all);
-
-        if prob_ref_all != prob_alt_all {
-            builder.register_record(record);
-        } else {
+        if aux_strand_info.is_none() && prob_ref_all != prob_alt_all {
             // METHOD: if record is not informative, we don't want to
             // retain its information (e.g. strand).
-            builder.no_strand_info();
+            strand = Strand::from_record(record);
         }
 
-        Ok(builder.build().unwrap())
+        Ok(AlleleSupportBuilder::default()
+            .strand(strand)
+            .prob_ref_allele(prob_ref_all)
+            .prob_alt_allele(prob_alt_all)
+            .build()
+            .unwrap())
     }
 
     /// Calculate probability of a certain allele.

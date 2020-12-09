@@ -6,9 +6,13 @@
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
+use std::iter;
 
+use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -63,6 +67,9 @@ impl Variant for MNV {
     ) -> Result<Option<AlleleSupport>> {
         let mut prob_ref = LogProb::ln_one();
         let mut prob_alt = LogProb::ln_one();
+        let aux_strand_info = utils::aux_tag_strand_info(read);
+        let mut strand = Strand::None;
+
         for ((alt_base, ref_base), pos) in self
             .alt_bases
             .iter()
@@ -93,8 +100,21 @@ impl Variant for MNV {
                     *ref_base
                 };
 
-                prob_alt += prob_read_base(read_base, *alt_base, base_qual);
-                prob_ref += prob_read_base(read_base, non_alt_base, base_qual);
+                let base_prob_alt = prob_read_base(read_base, *alt_base, base_qual);
+                let base_prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
+
+                if base_prob_alt != base_prob_ref {
+                    if let Some(strand_info) = aux_strand_info {
+                        if let Some(s) = strand_info.get(qpos as usize) {
+                            strand |= Strand::from_aux_item(*s)?;
+                        } else {
+                            return Err(Error::ReadPosOutOfBounds.into());
+                        }
+                    }
+                }
+
+                prob_ref += base_prob_ref;
+                prob_alt += base_prob_alt;
             } else {
                 // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
                 // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
@@ -102,9 +122,17 @@ impl Variant for MNV {
                 return Ok(None);
             }
         }
+
+        if aux_strand_info.is_none() && prob_ref != prob_alt {
+            // record global strand information
+            // METHOD: if record is not informative, we don't want to
+            // retain its information (e.g. strand).
+            strand = Strand::from_record(read);
+        }
+
         Ok(Some(
             AlleleSupportBuilder::default()
-                .register_record(read)
+                .strand(strand)
                 .prob_ref_allele(prob_ref)
                 .prob_alt_allele(prob_alt)
                 .build()

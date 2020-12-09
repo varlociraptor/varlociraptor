@@ -36,6 +36,14 @@ lazy_static! {
     pub(crate) static ref PROB_ONE_THIRD: LogProb = LogProb::from(Prob(1.0 / 3.0));
 }
 
+pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
+    if let Some(bam::record::Aux::String(strand_info)) = record.aux(b"SI") {
+        Some(strand_info)
+    } else {
+        None
+    }
+}
+
 pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {
     for rec in reader.header().header_records() {
         if let bcf::header::HeaderRecord::Info { values, .. } = rec {

@@ -586,8 +586,6 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
             }
         }
 
-        //dbg!(emission_params.iter().map(|p| std::str::from_utf8(&p.alt_allele.iter().cloned().collect::<Vec<u8>>()).unwrap().to_owned()).collect::<Vec<_>>());
-
         Ok(emission_params)
     }
 }
