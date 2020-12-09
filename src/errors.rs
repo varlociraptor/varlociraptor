@@ -8,6 +8,10 @@ pub(crate) enum Error {
     InvalidSampleName { name: String },
     #[error("contamination refers to unknown sample {name}; it is not defined in the scenario")]
     InvalidContaminationSampleName { name: String },
+    #[error(
+        "inheritance definition refers to unknown sample {name}; it is not defined in the scenario"
+    )]
+    InvalidInheritanceSampleName { name: String },
     #[error("observation files must be provided as samplename=path")]
     InvalidObservationsSpec,
     #[error(

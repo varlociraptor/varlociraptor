@@ -30,6 +30,7 @@ use crate::testcase;
 use crate::variants::evidence::realignment;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::variants::model::modes::generic::FlatPrior;
+use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::{Contamination, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
 use crate::variants::types::breakends::BreakendIndex;
@@ -283,6 +284,12 @@ pub enum PlotKind {
             help = "Variant calling scenario that configures the prior."
         )]
         scenario: PathBuf,
+        #[structopt(
+            long = "contig",
+            required = true,
+            help = "Contig to consider for ploidy information."
+        )]
+        contig: String,
     },
 }
 
@@ -666,44 +673,22 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     let call_generic = |scenario: grammar::Scenario,
                                         observations: PathMap|
                      -> Result<()> {
-                        let mut contaminations = scenario.sample_info();
-                        let mut resolutions = scenario.sample_info();
-                        let mut sample_names = scenario.sample_info();
+                        let sample_infos = SampleInfos::try_from(&scenario)?;
+
+                        // record observation paths
                         let mut sample_observations = scenario.sample_info();
-
-                        // parse samples
                         for (sample_name, sample) in scenario.samples().iter() {
-                            let contamination = if let Some(contamination) = sample.contamination()
-                            {
-                                let contaminant = scenario.idx(contamination.by()).ok_or(
-                                    errors::Error::InvalidContaminationSampleName {
-                                        name: sample_name.to_owned(),
-                                    },
-                                )?;
-                                Some(Contamination {
-                                    by: contaminant,
-                                    fraction: *contamination.fraction(),
-                                })
-                            } else {
-                                None
-                            };
-                            contaminations = contaminations.push(sample_name, contamination);
-                            resolutions = resolutions.push(sample_name, *sample.resolution());
-
                             if let Some(obs) = observations.get(sample_name) {
                                 sample_observations =
                                     sample_observations.push(sample_name, Some(obs.to_owned()));
                             } else {
                                 sample_observations = sample_observations.push(sample_name, None);
                             }
-                            sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
-
-                        let sample_names = sample_names.build();
                         let sample_observations = sample_observations.build();
 
                         for obs_sample_name in observations.keys() {
-                            if !sample_names.as_slice().contains(obs_sample_name) {
+                            if !sample_infos.names.as_slice().contains(obs_sample_name) {
                                 return Err(errors::Error::InvalidObservationSampleName {
                                     name: obs_sample_name.to_owned(),
                                 }
@@ -716,14 +701,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                         // setup caller
                         let caller = calling::variants::CallerBuilder::default()
-                            .samplenames(sample_names)
+                            .samplenames(sample_infos.names)
                             .observations(sample_observations)
                             .omit_strand_bias(omit_strand_bias)
                             .omit_read_orientation_bias(omit_read_orientation_bias)
                             .scenario(scenario)
                             .prior(FlatPrior::new()) // TODO allow to define prior in the grammar
-                            .contaminations(contaminations.build())
-                            .resolutions(resolutions.build())
+                            .contaminations(sample_infos.contaminations)
+                            .resolutions(sample_infos.resolutions)
                             .breakend_index(breakend_index)
                             .outbcf(output)
                             .build()
@@ -935,8 +920,44 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             )?,
         },
         Varlociraptor::Plot { kind } => match kind {
-            PlotKind::VariantCallingPrior { scenario } => {
+            PlotKind::VariantCallingPrior { scenario, contig } => {
                 let scenario = grammar::Scenario::from_path(scenario)?;
+                let sample_infos = SampleInfos::try_from(&scenario)?;
+
+                let mut universes = scenario.sample_info();
+                let mut ploidies = scenario.sample_info();
+                for (sample_name, sample) in scenario.samples().iter() {
+                    universes = universes.push(
+                        sample_name,
+                        sample.contig_universe(&contig, scenario.species())?,
+                    );
+                    ploidies = ploidies.push(
+                        sample_name,
+                        sample.contig_ploidy(&contig, scenario.species())?,
+                    );
+                }
+                let universes = universes.build();
+                let ploidies = ploidies.build();
+
+                let prior = Prior::builder()
+                    .ploidies(Some(ploidies))
+                    .universe(Some(universes))
+                    .germline_mutation_rate(sample_infos.germline_mutation_rates)
+                    .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
+                    .inheritance(sample_infos.inheritance)
+                    .genome_size(
+                        scenario
+                            .species()
+                            .as_ref()
+                            .map_or(None, |species| *species.genome_size()),
+                    )
+                    .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
+                        species.heterozygosity().map(|het| LogProb::from(Prob(het)))
+                    }))
+                    .build();
+                prior.check()?;
+
+                println!("{}", prior.plot(&sample_infos.names));
             }
         },
     }
@@ -955,5 +976,94 @@ pub(crate) fn est_or_load_alignment_properties(
         )?)?)
     } else {
         estimate_alignment_properties(bam_file, omit_insert_size, allow_hardclips)
+    }
+}
+
+struct SampleInfos {
+    contaminations: grammar::SampleInfo<Option<Contamination>>,
+    resolutions: grammar::SampleInfo<usize>,
+    germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
+    somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
+    inheritance: grammar::SampleInfo<Option<Inheritance>>,
+    names: grammar::SampleInfo<String>,
+}
+
+impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
+    type Error = anyhow::Error;
+
+    fn try_from(scenario: &grammar::Scenario) -> Result<Self> {
+        let mut contaminations = scenario.sample_info();
+        let mut resolutions = scenario.sample_info();
+        let mut sample_names = scenario.sample_info();
+        let mut germline_mutation_rates = scenario.sample_info();
+        let mut somatic_effective_mutation_rates = scenario.sample_info();
+        let mut inheritance = scenario.sample_info();
+
+        for (sample_name, sample) in scenario.samples().iter() {
+            let contamination = if let Some(contamination) = sample.contamination() {
+                let contaminant = scenario.idx(contamination.by()).ok_or(
+                    errors::Error::InvalidContaminationSampleName {
+                        name: sample_name.to_owned(),
+                    },
+                )?;
+                Some(Contamination {
+                    by: contaminant,
+                    fraction: *contamination.fraction(),
+                })
+            } else {
+                None
+            };
+            contaminations = contaminations.push(sample_name, contamination);
+            resolutions = resolutions.push(sample_name, *sample.resolution());
+            sample_names = sample_names.push(sample_name, sample_name.to_owned());
+            germline_mutation_rates =
+                germline_mutation_rates.push(sample_name, *sample.germline_mutation_rate());
+            somatic_effective_mutation_rates = somatic_effective_mutation_rates
+                .push(sample_name, *sample.somatic_effective_mutation_rate());
+            inheritance = inheritance.push(
+                sample_name,
+                if let Some(inheritance) = sample.inheritance() {
+                    let parent_idx = |parent| {
+                        scenario
+                            .idx(parent)
+                            .ok_or(errors::Error::InvalidInheritanceSampleName {
+                                name: sample_name.to_owned(),
+                            })
+                    };
+                    Some(match inheritance {
+                        grammar::Inheritance::Mendelian { from: parents } => {
+                            Inheritance::Mendelian {
+                                from: (parent_idx(&parents.0)?, parent_idx(&parents.1)?),
+                            }
+                        }
+                        grammar::Inheritance::Clonal {
+                            from: parent,
+                            somatic,
+                        } => Inheritance::Clonal {
+                            from: parent_idx(parent)?,
+                            somatic: *somatic,
+                        },
+                        grammar::Inheritance::Subclonal {
+                            from: parent,
+                            origin,
+                        } => Inheritance::Subclonal {
+                            from: parent_idx(parent)?,
+                            origin: *origin,
+                        },
+                    })
+                } else {
+                    None
+                },
+            );
+        }
+
+        Ok(SampleInfos {
+            contaminations: contaminations.build(),
+            resolutions: resolutions.build(),
+            germline_mutation_rates: germline_mutation_rates.build(),
+            somatic_effective_mutation_rates: somatic_effective_mutation_rates.build(),
+            inheritance: inheritance.build(),
+            names: sample_names.build(),
+        })
     }
 }

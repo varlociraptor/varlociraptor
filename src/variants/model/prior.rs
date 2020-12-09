@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::cmp;
 use std::collections::BTreeMap;
 
+use anyhow::Result;
 use bio::stats::bayesian;
 use bio::stats::bayesian::model::Prior as PriorTrait;
 use bio::stats::{LogProb, Prob};
@@ -10,6 +11,7 @@ use itertools_num::linspace;
 use serde_json::json;
 use statrs::function::factorial::ln_binomial;
 
+use crate::errors;
 use crate::grammar;
 use crate::variants::model::{bias::Biases, likelihood, AlleleFreq};
 
@@ -41,11 +43,25 @@ pub(crate) struct Prior {
     somatic_effective_mutation_rate: grammar::SampleInfo<Option<f64>>,
     heterozygosity: Option<LogProb>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
-    genome_size: u64,
+    genome_size: Option<f64>,
+    #[builder(default)]
     cache: RefCell<BTreeMap<Vec<likelihood::Event>, LogProb>>,
 }
 
 impl Prior {
+    fn n_samples(&self) -> usize {
+        self.germline_mutation_rate.len()
+    }
+
+    pub(crate) fn check(&self) -> Result<()> {
+        for sample in 0..self.n_samples() {
+            if self.has_somatic_variation(sample) && self.genome_size.is_none() {
+                return Err(errors::Error::InvalidPriorConfiguration { msg: "somatic variation defined but unknown genome size: define genome size in the scenario".to_owned() }.into());
+            }
+        }
+        Ok(())
+    }
+
     fn collect_events(
         &self,
         event: Vec<likelihood::Event>,
@@ -295,7 +311,7 @@ impl Prior {
         let density = |vaf: f64| {
             LogProb(
                 somatic_effective_mutation_rate.ln()
-                    - (2.0 * vaf.ln() + (self.genome_size as f64).ln()),
+                    - (2.0 * vaf.ln() + (self.genome_size.unwrap()).ln()),
             )
         };
         // METHOD: we take the absolute of the vaf because it can be negative (indicating a back mutation).

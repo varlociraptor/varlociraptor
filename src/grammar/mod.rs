@@ -259,6 +259,8 @@ pub(crate) struct Species {
     variant_type_fractions: VariantTypeFraction,
     #[serde(default)]
     ploidy: Option<SexPloidyDefinition>,
+    #[serde(default)]
+    genome_size: Option<f64>,
 }
 
 impl Species {
@@ -309,13 +311,18 @@ pub(crate) struct Sample {
     resolution: usize,
     /// possible VAFs of given sample
     #[serde(default)]
+    #[get = "pub(crate)"]
     universe: Option<UniverseDefinition>,
     #[serde(default)]
+    #[get = "pub(crate)"]
     somatic_effective_mutation_rate: Option<f64>,
     #[serde(default)]
+    #[get = "pub(crate)"]
     germline_mutation_rate: Option<f64>,
     #[serde(default)]
+    #[get = "pub(crate)"]
     ploidy: Option<PloidyDefinition>,
+    #[get = "pub(crate)"]
     inheritance: Option<Inheritance>,
     #[serde(default)]
     sex: Option<Sex>,
@@ -436,6 +443,7 @@ pub(crate) enum Inheritance {
     },
     Clonal {
         from: String,
+        somatic: bool,
     },
     Subclonal {
         from: String,
