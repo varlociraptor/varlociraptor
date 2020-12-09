@@ -1,10 +1,14 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::TryFrom;
+use std::fs::File;
+use std::io::Read;
 use std::ops::{Deref, DerefMut};
+use std::path::Path;
 use std::string::ToString;
 use std::sync::Mutex;
 
 use anyhow::Result;
+use serde_yaml;
 use vec_map::VecMap;
 
 pub(crate) mod formula;
@@ -137,6 +141,13 @@ pub(crate) struct Scenario {
 }
 
 impl Scenario {
+    pub(crate) fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let mut scenario_content = String::new();
+        File::open(path)?.read_to_string(&mut scenario_content)?;
+
+        Ok(serde_yaml::from_str(&scenario_content)?)
+    }
+
     pub(crate) fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
         let mut sample_idx = self.sample_idx.lock().unwrap();
         if sample_idx.is_none() {

@@ -80,14 +80,18 @@ pub enum Varlociraptor {
         about = "Perform estimations.",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
-    #[structopt(
-        name = "estimate",
-        about = "Perform estimations.",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
     Estimate {
         #[structopt(subcommand)]
         kind: EstimateKind,
+    },
+    #[structopt(
+        name = "plot",
+        about = "Create plots",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Plot {
+        #[structopt(subcommand)]
+        kind: PlotKind,
     },
 }
 
@@ -260,6 +264,25 @@ pub enum PreprocessKind {
         )]
         #[serde(default = "default_pairhmm_mode")]
         pairhmm_mode: String,
+    },
+}
+
+#[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
+pub enum PlotKind {
+    #[structopt(
+        name = "variant-calling-prior",
+        about = "Plot variant calling prior given a scenario. Plot is printed to STDOUT in Vega-lite format.",
+        usage = "varlociraptor plot variant-calling-prior --scenario scenario.yaml > plot.vl.json",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    VariantCallingPrior {
+        #[structopt(
+            parse(from_os_str),
+            long = "scenario",
+            required = true,
+            help = "Variant calling scenario that configures the prior."
+        )]
+        scenario: PathBuf,
     },
 }
 
@@ -749,11 +772,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     return Ok(());
                                 }
 
-                                let mut scenario_content = String::new();
-                                File::open(scenario)?.read_to_string(&mut scenario_content)?;
-
-                                let scenario: grammar::Scenario =
-                                    serde_yaml::from_str(&scenario_content)?;
+                                let scenario = grammar::Scenario::from_path(scenario)?;
 
                                 call_generic(scenario, sample_observations)?;
                             } else {
@@ -914,6 +933,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 coding_genome_size as u64,
                 mode,
             )?,
+        },
+        Varlociraptor::Plot { kind } => match kind {
+            PlotKind::VariantCallingPrior { scenario } => {
+                let scenario = grammar::Scenario::from_path(scenario)?;
+            }
         },
     }
     Ok(())
