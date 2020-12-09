@@ -282,7 +282,7 @@ impl VAFSpectrum {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
 pub(crate) struct VAFRange {
     inner: ops::Range<AlleleFreq>,
     left_exclusive: bool,
@@ -422,7 +422,7 @@ impl PartialOrd for VAFRange {
 }
 
 #[derive(Debug, Clone, Default, Derefable)]
-pub(crate) struct VAFUniverse(#[deref] BTreeSet<VAFSpectrum>);
+pub(crate) struct VAFUniverse(#[deref(mutable)] BTreeSet<VAFSpectrum>);
 
 impl VAFUniverse {
     pub(crate) fn contains(&self, vaf: AlleleFreq) -> bool {

@@ -252,7 +252,7 @@ pub(crate) struct Species {
 
 impl Species {
     pub(crate) fn contig_ploidy(&self, contig: &str, sex: Option<Sex>) -> Result<Option<u32>> {
-        if let Some(ploidy) = self.ploidy {
+        if let Some(ploidy) = &self.ploidy {
             Ok(Some(ploidy.contig_ploidy(sex, contig)?))
         } else {
             Ok(None)
@@ -316,7 +316,7 @@ impl Sample {
         contig: &str,
         species: &Option<Species>,
     ) -> Result<VAFUniverse> {
-        if let Some(universe) = self.universe {
+        if let Some(universe) = &self.universe {
             Ok(match universe {
                 UniverseDefinition::Simple(ref universe) => universe.clone(),
                 UniverseDefinition::Map(ref map) => match map.get(contig) {
@@ -352,11 +352,12 @@ impl Sample {
 
                         let mut last = ploidy_spectrum.iter().next().unwrap();
                         for vaf in ploidy_spectrum.iter().skip(1) {
-                            universe.insert(VAFSpectrum::Range(VAFRange {
-                                inner: *last..*vaf,
-                                left_exclusive: true,
-                                right_exclusive: true,
-                            }));
+                            universe.insert(VAFSpectrum::Range(VAFRange::builder()
+                                .inner(*last..*vaf)
+                                .left_exclusive(true)
+                                .right_exclusive(true)
+                                .build()
+                            ));
                             last = vaf;
                         }
                         universe.insert(VAFSpectrum::Set(ploidy_spectrum));
@@ -364,11 +365,12 @@ impl Sample {
                     }
                     (None, Some(somatic_mutation_rate)) => {
                         let mut universe = VAFUniverse::default();
-                        universe.insert(VAFSpectrum::Range(VAFRange {
-                            inner: AlleleFreq(0.0)..AlleleFreq(1.0),
-                            left_exclusive: false,
-                            right_exclusive: false,
-                        }));
+                        universe.insert(VAFSpectrum::Range(VAFRange::builder()
+                            .inner(AlleleFreq(0.0)..AlleleFreq(1.0))
+                            .left_exclusive(false)
+                            .right_exclusive(false)
+                            .build()
+                        ));
                         universe
                     }
                     (None, None) => return Err(errors::Error::InvalidPriorConfiguration{
@@ -385,10 +387,12 @@ impl Sample {
         contig: &str,
         species: &Option<Species>,
     ) -> Result<Option<u32>> {
-        if let Some(ploidy) = self.ploidy {
+        if let Some(ploidy) = &self.ploidy {
             Ok(Some(ploidy.contig_ploidy(contig)?))
         } else {
-            species.map_or(Ok(None), |species| species.contig_ploidy(contig, self.sex))
+            species
+                .as_ref()
+                .map_or(Ok(None), |species| species.contig_ploidy(contig, self.sex))
         }
     }
 }

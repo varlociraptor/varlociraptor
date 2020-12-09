@@ -51,14 +51,14 @@ impl Prior {
         event: Vec<likelihood::Event>,
         events: &mut Vec<Vec<likelihood::Event>>,
     ) {
-        if event.len() < self.universe.unwrap().len() {
+        if event.len() < self.universe.as_ref().unwrap().len() {
             let sample = event.len();
             let new_event = |vaf| likelihood::Event {
                 allele_freq: vaf,
                 biases: Biases::none(),
             };
 
-            for vaf_spectrum in self.universe.unwrap()[sample].iter() {
+            for vaf_spectrum in self.universe.as_ref().unwrap()[sample].iter() {
                 match vaf_spectrum {
                     grammar::formula::VAFSpectrum::Set(vafs) => {
                         for vaf in vafs {
@@ -93,19 +93,19 @@ impl Prior {
                 let prob = self.compute(event);
 
                 event.iter().zip(sample_names.iter()).map(|(e, sample)| {
-                json!({
-                    "sample": sample.to_owned(),
-                    "prob": prob,
-                    "vaf": *e.allele_freq,
-                    "others": event.iter().zip(sample_names.iter()).filter_map(|(e, other_sample)| {
-                        if sample != other_sample {
-                            Some(format!("{}={}", other_sample, *e.allele_freq))
-                        } else {
-                            None
-                        }
-                    }).join(", ")
-                })
-            })
+                    json!({
+                        "sample": sample.to_owned(),
+                        "prob": prob,
+                        "vaf": *e.allele_freq,
+                        "others": event.iter().zip(sample_names.iter()).filter_map(|(e, other_sample)| {
+                            if sample != other_sample {
+                                Some(format!("{}={}", other_sample, *e.allele_freq))
+                            } else {
+                                None
+                            }
+                        }).join(", ")
+                    })
+                }).collect_vec()
             })
             .flatten()
             .collect_vec();
@@ -541,20 +541,21 @@ impl Prior {
                     let missing = target_alt as i32 - (alt_from_first + alt_from_second) as i32;
                     prob + LogProb(germline_mutation_rate.ln() * missing as f64)
                 })
+                .collect_vec()
         };
 
         let probs = match (source_ploidy.0, source_ploidy.1, target_ploidy) {
             (p1, p2, c) if p1 % 2 == 0 && p2 % 2 == 0 && c == (p1 / 2 + p2 / 2) => {
                 // Default case, normal meiosis (child inherits one half from each parent).
-                prob_after_meiotic_split(p1 / 2, p2 / 2).collect_vec()
+                prob_after_meiotic_split(p1 / 2, p2 / 2)
             }
             (0, p2, c) if p2 == c => {
                 // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
-                prob_after_meiotic_split(0, p2).collect_vec()
+                prob_after_meiotic_split(0, p2)
             }
             (p1, 0, c) if p1 == c => {
                 // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
-                prob_after_meiotic_split(p1, 0).collect_vec()
+                prob_after_meiotic_split(p1, 0)
             }
             (p1, p2, c) => {
                 // something went wrong, there are more chromosomes in the child than in the parents
