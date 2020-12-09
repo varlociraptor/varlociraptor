@@ -302,7 +302,11 @@ where
                     .prob_ref(allele_support.prob_ref_allele())
                     .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
                     .prob_missed_allele(allele_support.prob_missed_allele())
-                    .prob_overlap(LogProb::ln_zero()) // no double overlap possible (TODO: check this!)
+                    .prob_overlap(if allele_support.strand() == Strand::Both {
+                        LogProb::ln_one()
+                    } else {
+                        LogProb::ln_zero()
+                    })
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation())
                     .softclipped(evidence.softclipped())
