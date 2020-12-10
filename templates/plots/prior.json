@@ -1,0 +1,102 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v4.json",
+    "description": "A simple bar chart with embedded data.",
+    "data": {
+        "values": [
+            {
+                "hash": 1,
+                "prob": 0.5,
+                "vaf": 0.1,
+                "sample": "tumor"
+            },
+            {
+                "hash": 1,
+                "prob": 0.3,
+                "vaf": 0.6,
+                "sample": "tumor"
+            },
+            {
+                "hash": 1,
+                "prob": 0.2,
+                "vaf": 0.9,
+                "sample": "tumor"
+            },
+            {
+                "hash": 1,
+                "vaf": 0.5,
+                "sample": "normal"
+            }
+        ]
+    },
+    "facet": {
+        "row": {
+            "field": "hash",
+            "type": "nominal",
+            "header": {
+                "title": "",
+                "labelExpr": "''",
+                "labelFontSize": 0,
+                "labelColor": "white"
+            }
+        }
+    },
+    "spec": {
+        "layer": [
+            {
+                "mark": {
+                    "type": "line",
+                    "point": true
+                },
+                "transform": [
+                    {
+                        "filter": {
+                            "field": "sample",
+                            "equal": "tumor"
+                        }
+                    }
+                ],
+                "encoding": {
+                    "x": {
+                        "field": "vaf",
+                        "type": "quantitative"
+                    },
+                    "y": {
+                        "field": "prob",
+                        "type": "quantitative",
+                        "scale": {"type": "log"}
+                    },
+                    "color": {
+                        "field": "sample", "type": "nominal"
+                    }
+                }
+            },
+            {
+                "mark": "rule",
+                "transform": [
+                    {
+                        "filter": "datum.sample != 'tumor'"
+                    }
+                ],
+                "encoding": {
+                    "x": {
+                        "field": "vaf",
+                        "type": "quantitative"
+                    },
+                    "x2": {
+                        "field": "vaf",
+                        "type": "quantitative"
+                    },
+                    "y": {
+                        "value": 0
+                    },
+                    "y2": {
+                        "value": 200
+                    },
+                    "color": {
+                        "field": "sample", "type": "nominal"
+                    }
+                }
+            }
+        ]
+    }
+}
