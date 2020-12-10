@@ -241,7 +241,7 @@ impl SexPloidyDefinition {
             ),
             (SexPloidyDefinition::Specific(p), None) => {
                 Err(errors::Error::InvalidPriorConfiguration {
-                    msg: "sex specific ploidy definition found but no gender specified in sample"
+                    msg: "sex specific ploidy definition found but no sex specified in sample"
                         .to_owned(),
                 }
                 .into())
@@ -483,9 +483,10 @@ pub(crate) enum SubcloneOrigin {
     Eq,
     Hash,
 )]
-#[strum(serialize_all = "kebab_case")]
 pub(crate) enum Sex {
+    #[serde(rename = "male")]
     Male,
+    #[serde(rename = "female")]
     Female,
 }
 

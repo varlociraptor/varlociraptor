@@ -625,13 +625,13 @@ impl bayesian::model::Prior for Prior {
 
     fn compute(&self, event: &Self::Event) -> LogProb {
         if let Some(prob) = self.cache.borrow().get(event) {
-            *prob
-        } else {
-            let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
-            self.cache.borrow_mut().insert(event.to_owned(), prob);
-
-            prob
+            return *prob
         }
+        
+        let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
+        self.cache.borrow_mut().insert(event.to_owned(), prob);
+
+        prob
     }
 }
 
