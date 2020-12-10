@@ -1,15 +1,18 @@
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::BTreeMap;
+use std::str;
 
+use data_encoding::HEXUPPER;
 use anyhow::Result;
 use bio::stats::bayesian;
 use bio::stats::bayesian::model::Prior as PriorTrait;
 use bio::stats::{LogProb, Prob};
 use itertools::Itertools;
 use itertools_num::linspace;
-use serde_json::json;
+use serde_json::{self, json, Value};
 use statrs::function::factorial::ln_binomial;
+use ring::digest;
 
 use crate::errors;
 use crate::grammar;
@@ -97,8 +100,8 @@ impl Prior {
         }
     }
 
-    pub(crate) fn plot(&self, sample_names: &grammar::SampleInfo<String>) -> String {
-        use vega_lite_4::*;
+    pub(crate) fn plot(&self, target_sample: &str, sample_names: &grammar::SampleInfo<String>) -> Result<()> {
+        let mut blueprint = serde_json::from_str(include_str!("../../../templates/plots/prior.json"))?;
 
         let mut events = Vec::new();
         self.collect_events(Vec::new(), &mut events);
@@ -108,61 +111,47 @@ impl Prior {
             .map(|event| {
                 let prob = self.compute(event);
 
+                let hash = HEXUPPER.encode(digest::digest(&digest::SHA256, event.iter().zip(sample_names.iter()).filter_map(|(e, sample)| {
+                    if sample != target_sample {
+                        Some(json!({
+                            "sample": sample,
+                            "vaf": *e.allele_freq,
+                        }).to_string())
+                    } else {
+                        None
+                    }
+                }).join(",").as_bytes()).as_ref())[..8].to_owned();
+
                 event.iter().zip(sample_names.iter()).map(|(e, sample)| {
-                    json!({
-                        "sample": sample.to_owned(),
-                        "prob": prob,
-                        "vaf": *e.allele_freq,
-                        "others": event.iter().zip(sample_names.iter()).filter_map(|(e, other_sample)| {
-                            if sample != other_sample {
-                                Some(format!("{}={}", other_sample, *e.allele_freq))
-                            } else {
-                                None
-                            }
-                        }).join(", ")
-                    })
+                    if sample == target_sample {
+                        json!({
+                            "sample": sample.to_owned(),
+                            "prob": Prob::from(prob),
+                            "vaf": *e.allele_freq,
+                            "hash": hash.clone(),
+                        })
+                    } else {
+                        json!({
+                            "sample": sample.to_owned(),
+                            "vaf": *e.allele_freq,
+                            "hash": hash.clone(),
+                        })
+                    }
                 }).collect_vec()
             })
             .flatten()
             .collect_vec();
 
-        let chart = VegaliteBuilder::default()
-            .data(&data)
-            .mark({
-                let mut mark = MarkDefClass::default();
-                mark.def_type = Some(Mark::Line);
-                mark.point = Some(true.into());
-                mark
-            })
-            .facet({
-                let mut facet = Facet::default();
-                facet.field = Some("sample".into());
-                facet
-            })
-            .encoding(
-                EncodingBuilder::default()
-                    .x(XClassBuilder::default()
-                        .field("vaf")
-                        .def_type(StandardType::Quantitative)
-                        .build()
-                        .unwrap())
-                    .y(YClassBuilder::default()
-                        .field("prob")
-                        .def_type(StandardType::Quantitative)
-                        .build()
-                        .unwrap())
-                    .color({
-                        let mut def = DefWithConditionMarkPropFieldDefGradientStringNull::default();
-                        def.field = Some("others".into());
-                        def
-                    })
-                    .build()
-                    .unwrap(),
-            )
-            .build()
-            .unwrap();
-
-        chart.to_string().unwrap()
+        if let Value::Object(ref mut blueprint) = blueprint {
+            blueprint["data"]["values"] = json!(data);
+            blueprint["spec"]["layer"][0]["transform"][0]["filter"]["equal"] = json!(target_sample);
+            blueprint["spec"]["layer"][1]["transform"][0]["filter"] = json!(format!("datum.sample != '{}'", target_sample));
+            // print to STDOUT
+            println!("{}", serde_json::to_string_pretty(blueprint)?);
+            Ok(())
+        } else {
+            unreachable!();
+        }
     }
 
     fn is_valid_germline_vaf(&self, sample: usize, vaf: AlleleFreq) -> bool {
@@ -507,7 +496,7 @@ impl Prior {
                 .iter()
                 .map(|sample| self.ploidies.as_ref().unwrap()[*sample].unwrap())
                 .sum();
-            LogProb::ln_sum_exp(&(1..=n).into_iter().map(prob_m).collect_vec())
+            LogProb::ln_sum_exp(&(1..=n).into_iter().map(prob_m).collect_vec()).ln_one_minus_exp()
         }
     }
 

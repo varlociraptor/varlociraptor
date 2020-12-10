@@ -65,7 +65,8 @@ futures = "0.3"
 crossbeam = "0.7"
 typed-builder = "0.7"
 jemallocator = "0.3.2"
-vega_lite_4 = "0.4"
+ring = "0.16"
+data-encoding = "2.3"
 
 [dev-dependencies]
 env_logger = "0.3"
