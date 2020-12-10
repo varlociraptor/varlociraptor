@@ -290,11 +290,7 @@ pub enum PlotKind {
             help = "Contig to consider for ploidy information."
         )]
         contig: String,
-        #[structopt(
-            long = "sample",
-            required = true,
-            help = "Sample to plot."
-        )]
+        #[structopt(long = "sample", required = true, help = "Sample to plot.")]
         sample: String,
     },
 }
@@ -926,7 +922,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             )?,
         },
         Varlociraptor::Plot { kind } => match kind {
-            PlotKind::VariantCallingPrior { scenario, contig, sample } => {
+            PlotKind::VariantCallingPrior {
+                scenario,
+                contig,
+                sample,
+            } => {
                 let scenario = grammar::Scenario::from_path(scenario)?;
                 let sample_infos = SampleInfos::try_from(&scenario)?;
 

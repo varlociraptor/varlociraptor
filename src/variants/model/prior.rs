@@ -3,16 +3,16 @@ use std::cmp;
 use std::collections::BTreeMap;
 use std::str;
 
-use data_encoding::HEXUPPER;
 use anyhow::Result;
 use bio::stats::bayesian;
 use bio::stats::bayesian::model::Prior as PriorTrait;
 use bio::stats::{LogProb, Prob};
+use data_encoding::HEXUPPER;
 use itertools::Itertools;
 use itertools_num::linspace;
+use ring::digest;
 use serde_json::{self, json, Value};
 use statrs::function::factorial::ln_binomial;
-use ring::digest;
 
 use crate::errors;
 use crate::grammar;
@@ -100,8 +100,13 @@ impl Prior {
         }
     }
 
-    pub(crate) fn plot(&self, target_sample: &str, sample_names: &grammar::SampleInfo<String>) -> Result<()> {
-        let mut blueprint = serde_json::from_str(include_str!("../../../templates/plots/prior.json"))?;
+    pub(crate) fn plot(
+        &self,
+        target_sample: &str,
+        sample_names: &grammar::SampleInfo<String>,
+    ) -> Result<()> {
+        let mut blueprint =
+            serde_json::from_str(include_str!("../../../templates/plots/prior.json"))?;
 
         let mut events = Vec::new();
         self.collect_events(Vec::new(), &mut events);
@@ -111,33 +116,52 @@ impl Prior {
             .map(|event| {
                 let prob = self.compute(event);
 
-                let hash = HEXUPPER.encode(digest::digest(&digest::SHA256, event.iter().zip(sample_names.iter()).filter_map(|(e, sample)| {
-                    if sample != target_sample {
-                        Some(json!({
-                            "sample": sample,
-                            "vaf": *e.allele_freq,
-                        }).to_string())
-                    } else {
-                        None
-                    }
-                }).join(",").as_bytes()).as_ref())[..8].to_owned();
+                let hash = HEXUPPER.encode(
+                    digest::digest(
+                        &digest::SHA256,
+                        event
+                            .iter()
+                            .zip(sample_names.iter())
+                            .filter_map(|(e, sample)| {
+                                if sample != target_sample {
+                                    Some(
+                                        json!({
+                                            "sample": sample,
+                                            "vaf": *e.allele_freq,
+                                        })
+                                        .to_string(),
+                                    )
+                                } else {
+                                    None
+                                }
+                            })
+                            .join(",")
+                            .as_bytes(),
+                    )
+                    .as_ref(),
+                )[..8]
+                    .to_owned();
 
-                event.iter().zip(sample_names.iter()).map(|(e, sample)| {
-                    if sample == target_sample {
-                        json!({
-                            "sample": sample.to_owned(),
-                            "prob": Prob::from(prob),
-                            "vaf": *e.allele_freq,
-                            "hash": hash.clone(),
-                        })
-                    } else {
-                        json!({
-                            "sample": sample.to_owned(),
-                            "vaf": *e.allele_freq,
-                            "hash": hash.clone(),
-                        })
-                    }
-                }).collect_vec()
+                event
+                    .iter()
+                    .zip(sample_names.iter())
+                    .map(|(e, sample)| {
+                        if sample == target_sample {
+                            json!({
+                                "sample": sample.to_owned(),
+                                "prob": Prob::from(prob),
+                                "vaf": *e.allele_freq,
+                                "hash": hash.clone(),
+                            })
+                        } else {
+                            json!({
+                                "sample": sample.to_owned(),
+                                "vaf": *e.allele_freq,
+                                "hash": hash.clone(),
+                            })
+                        }
+                    })
+                    .collect_vec()
             })
             .flatten()
             .collect_vec();
@@ -145,7 +169,8 @@ impl Prior {
         if let Value::Object(ref mut blueprint) = blueprint {
             blueprint["data"]["values"] = json!(data);
             blueprint["spec"]["layer"][0]["transform"][0]["filter"]["equal"] = json!(target_sample);
-            blueprint["spec"]["layer"][1]["transform"][0]["filter"] = json!(format!("datum.sample != '{}'", target_sample));
+            blueprint["spec"]["layer"][1]["transform"][0]["filter"] =
+                json!(format!("datum.sample != '{}'", target_sample));
             // print to STDOUT
             println!("{}", serde_json::to_string_pretty(blueprint)?);
             Ok(())
@@ -614,9 +639,9 @@ impl bayesian::model::Prior for Prior {
 
     fn compute(&self, event: &Self::Event) -> LogProb {
         if let Some(prob) = self.cache.borrow().get(event) {
-            return *prob
+            return *prob;
         }
-        
+
         let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
         self.cache.borrow_mut().insert(event.to_owned(), prob);
 
