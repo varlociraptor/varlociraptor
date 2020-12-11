@@ -47,6 +47,8 @@ pub(crate) struct AlleleSupport {
     prob_ref_allele: LogProb,
     prob_alt_allele: LogProb,
     strand: Strand,
+    #[builder(default)]
+    read_position: Option<u32>,
 }
 
 impl AlleleSupport {

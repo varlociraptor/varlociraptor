@@ -101,6 +101,7 @@ impl Variant for SNV {
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
                     .strand(strand)
+                    .read_position(Some(qpos))
                     .build()
                     .unwrap(),
             ))

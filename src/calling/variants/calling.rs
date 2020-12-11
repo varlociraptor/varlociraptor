@@ -197,12 +197,10 @@ where
         }
 
         // data structures
-        let mut model = self.model();
-        // For SNVs and MNVs we need a special model as here read orientation bias needs to be considered.
-        let mut read_orientation_bias_model = self.model();
+        // For SNVs and MNVs we need a special model as here read orientation bias and read position bias needs to be considered.
+        let mut models = HashMap::new();
         let mut events = Vec::new();
-        let mut last_rid = None;
-        let mut last_read_orientation_bias_rid = None;
+        let mut last_rids = HashMap::new();
 
         // process calls
         let mut i = 0;
@@ -252,14 +250,15 @@ where
             let _model;
             let _last_rid;
 
-            if work_item.check_read_orientation_bias {
-                _model = &mut read_orientation_bias_model;
-                _last_rid = last_read_orientation_bias_rid;
-                last_read_orientation_bias_rid = Some(work_item.rid);
-            } else {
-                _model = &mut model;
-                _last_rid = last_rid;
-                last_rid = Some(work_item.rid);
+            let model_mode = (
+                work_item.check_read_orientation_bias,
+                work_item.check_read_position_bias,
+            );
+            _model = *models.entry(model_mode).or_insert(self.model());
+            {
+                let entry = last_rids.entry(model_mode).or_insert(None);
+                _last_rid = (*entry).clone();
+                *entry = Some(work_item.rid);
             }
 
             self.configure_model(
@@ -357,6 +356,7 @@ where
             index,
             check_read_orientation_bias: is_snv_or_mnv && !self.omit_read_orientation_bias,
             check_strand_bias: !self.omit_strand_bias,
+            check_read_position_bias: is_snv_or_mnv,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -592,4 +592,5 @@ struct WorkItem {
     index: usize,
     check_read_orientation_bias: bool,
     check_strand_bias: bool,
+    check_read_position_bias: bool,
 }

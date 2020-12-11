@@ -69,6 +69,7 @@ impl Variant for MNV {
         let mut prob_alt = LogProb::ln_one();
         let aux_strand_info = utils::aux_tag_strand_info(read);
         let mut strand = Strand::None;
+        let mut read_position = None;
 
         for ((alt_base, ref_base), pos) in self
             .alt_bases
@@ -82,6 +83,10 @@ impl Variant for MNV {
                 .unwrap()
                 .read_pos(pos as u32, false, false)?
             {
+                if read_position.is_none() {
+                    // set first MNV position as read position
+                    read_position = Some(qpos);
+                }
                 let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
                 let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
 
@@ -135,6 +140,7 @@ impl Variant for MNV {
                 .strand(strand)
                 .prob_ref_allele(prob_ref)
                 .prob_alt_allele(prob_alt)
+                .read_position(read_position)
                 .build()
                 .unwrap(),
         ))

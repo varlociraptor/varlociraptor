@@ -27,7 +27,7 @@ use crate::utils;
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{
-    Observation, ObservationBuilder, ReadOrientation, Strand,
+    Observation, ObservationBuilder, ReadOrientation, ReadPosition, Strand,
 };
 use crate::variants::evidence::realignment;
 use crate::variants::model;
@@ -444,10 +444,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "5";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "6";
 
 /// Read observations from BCF record.
-pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observation>> {
+pub(crate) fn read_observations(
+    record: &mut bcf::Record,
+) -> Result<Vec<Observation<ReadPosition>>> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug,
@@ -480,8 +482,10 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
     let prob_missed_allele: Vec<MiniLogProb> = read_values(record, b"PROB_MISSED_ALLELE")?;
     let prob_sample_alt: Vec<MiniLogProb> = read_values(record, b"PROB_SAMPLE_ALT")?;
     let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP")?;
+    let prob_hit_base: Vec<MiniLogProb> = read_values(record, b"PROB_HIT_BASE")?;
     let strand: Vec<Strand> = read_values(record, b"STRAND")?;
     let read_orientation: Vec<ReadOrientation> = read_values(record, b"READ_ORIENTATION")?;
+    let read_position: Vec<Option<ReadPosition>> = read_values(record, b"READ_POSITION")?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED")?;
 
     let obs = (0..prob_mapping.len())
@@ -493,8 +497,10 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
                 .prob_missed_allele(prob_missed_allele[i].to_logprob())
                 .prob_sample_alt(prob_sample_alt[i].to_logprob())
                 .prob_overlap(prob_double_overlap[i].to_logprob())
+                .prob_hit_base(prob_hit_base[i].to_logprob())
                 .strand(strand[i])
                 .read_orientation(read_orientation[i])
+                .read_position(read_position[i])
                 .softclipped(softclipped[i as u64])
                 .build()
                 .unwrap()
@@ -505,7 +511,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
 }
 
 pub(crate) fn write_observations(
-    observations: &[Observation],
+    observations: &[Observation<ReadPosition>],
     record: &mut bcf::Record,
 ) -> Result<()> {
     let vec = || Vec::with_capacity(observations.len());
@@ -518,6 +524,8 @@ pub(crate) fn write_observations(
     let mut strand = Vec::with_capacity(observations.len());
     let mut read_orientation = Vec::with_capacity(observations.len());
     let mut softclipped: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
+    let mut read_position = Vec::with_capacity(observations.len());
+    let mut prob_hit_base = vec();
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
     for obs in observations {
         prob_mapping.push(encode_logprob(obs.prob_mapping_orig()));
@@ -526,9 +534,11 @@ pub(crate) fn write_observations(
         prob_missed_allele.push(encode_logprob(obs.prob_missed_allele));
         prob_sample_alt.push(encode_logprob(obs.prob_sample_alt));
         prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));
+        prob_hit_base.push(encode_logprob(obs.prob_hit_base));
         strand.push(obs.strand);
         read_orientation.push(obs.read_orientation);
         softclipped.push(obs.softclipped);
+        read_position.push(obs.read_position);
     }
 
     fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
@@ -564,6 +574,8 @@ pub(crate) fn write_observations(
     push_values(record, b"STRAND", &strand)?;
     push_values(record, b"READ_ORIENTATION", &read_orientation)?;
     push_values(record, b"SOFTCLIPPED", &softclipped)?;
+    push_values(record, b"READ_POSITION", &read_position)?;
+    push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
 
     Ok(())
 }
@@ -578,6 +590,8 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"STRAND");
     header.remove_info(b"READ_ORIENTATION");
     header.remove_info(b"SOFTCLIPPED");
+    header.remove_info(b"PROB_HIT_BASE");
+    header.remove_info(b"READ_POSITION");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

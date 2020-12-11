@@ -10,6 +10,7 @@ pub(crate) mod read_orientation_bias;
 pub(crate) mod strand_bias;
 
 pub(crate) use read_orientation_bias::ReadOrientationBias;
+pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use strand_bias::StrandBias;
 
 pub(crate) trait Bias {
@@ -27,6 +28,8 @@ pub(crate) struct Biases {
     strand_bias: StrandBias,
     #[getset(get = "pub(crate)")]
     read_orientation_bias: ReadOrientationBias,
+    #[getset(get = "pub(crate)")]
+    read_position_bias: ReadPositionBias,
     #[getset(get_copy = "pub(crate)")]
     #[builder(private)]
     pub(crate) prob_any: LogProb,
@@ -75,35 +78,42 @@ impl Biases {
     pub(crate) fn all_artifact_combinations(
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
+        consider_read_position_bias: bool,
     ) -> Box<dyn Iterator<Item = Self>> {
-        match (consider_strand_bias, consider_read_orientation_bias) {
-            (true, true) => Box::new(
-                StrandBias::iter()
-                    .cartesian_product(ReadOrientationBias::iter())
-                    .map(|(sb, rob)| {
-                        BiasesBuilder::default()
-                            .strand_bias(sb)
-                            .read_orientation_bias(rob)
-                            .build()
-                            .unwrap()
-                    }),
-            ),
-            (true, false) => Box::new(StrandBias::iter().map(|sb| {
-                BiasesBuilder::default()
-                    .strand_bias(sb)
-                    .read_orientation_bias(ReadOrientationBias::None)
-                    .build()
-                    .unwrap()
-            })),
-            (false, true) => Box::new(ReadOrientationBias::iter().map(|rob| {
-                BiasesBuilder::default()
-                    .strand_bias(StrandBias::None)
-                    .read_orientation_bias(rob)
-                    .build()
-                    .unwrap()
-            })),
-            (false, false) => Box::new(std::iter::empty()),
+        if !consider_strand_bias && !consider_read_orientation_bias && consider_read_position_bias {
+            return Box::new(std::iter::empty());
         }
+
+        let strand_biases = if consider_strand_bias {
+            StrandBias::iter().collect_vec()
+        } else {
+            vec![StrandBias::None]
+        };
+        let read_position_biases = if consider_read_position_bias {
+            ReadPositionBias::iter().collect_vec()
+        } else {
+            vec![ReadPositionBias::None]
+        };
+        let read_orientation_biases = if consider_read_orientation_bias {
+            ReadOrientationBias::iter().collect_vec()
+        } else {
+            vec![ReadOrientationBias::None]
+        };
+
+        Box::new(
+            strand_bias
+                .into_iter()
+                .cartesian_product(read_orientation_biases.into_iter())
+                .cartesian_product(read_position_biases.into_iter())
+                .map(|((sb, rob), rpb)| {
+                    BiasesBuilder::default()
+                        .strand_bias(sb)
+                        .read_orientation_bias(rob)
+                        .read_position_bias(rpb)
+                        .build()
+                        .unwrap()
+                }),
+        )
     }
 
     pub(crate) fn none() -> Self {
