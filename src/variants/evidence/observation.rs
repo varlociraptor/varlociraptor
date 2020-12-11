@@ -238,7 +238,10 @@ impl Observation {
     }
 
     /// Remove all non-standard alignments from pileup (softclipped observations, non-standard read orientations).
-    pub(crate) fn remove_nonstandard_alignments(pileup: Vec<Self>) -> Vec<Self> {
+    pub(crate) fn remove_nonstandard_alignments(
+        pileup: Vec<Self>,
+        omit_read_orientation_bias: bool,
+    ) -> Vec<Self> {
         // METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
         // solely driven by standard alignments, that are not clipped and in expected orientation.
         // Otherwise called SNVs can be artifacts of near SVs.
@@ -246,9 +249,10 @@ impl Observation {
             .into_iter()
             .filter(|obs| {
                 !obs.softclipped
-                    && (obs.read_orientation == ReadOrientation::F1R2
-                        || obs.read_orientation == ReadOrientation::F2R1
-                        || obs.read_orientation == ReadOrientation::None)
+                    && (omit_read_orientation_bias
+                        || (obs.read_orientation == ReadOrientation::F1R2
+                            || obs.read_orientation == ReadOrientation::F2R1
+                            || obs.read_orientation == ReadOrientation::None))
             })
             .collect()
     }

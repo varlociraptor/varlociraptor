@@ -380,7 +380,10 @@ where
                     // SVs and can induce artifactual SNVs or MNVs. By removing them,
                     // we just conservatively reduce the coverage to those which are
                     // clearly not influenced by a close SV.
-                    pileup = Observation::remove_nonstandard_alignments(pileup);
+                    pileup = Observation::remove_nonstandard_alignments(
+                        pileup,
+                        self.omit_read_orientation_bias,
+                    );
                 }
 
                 paired_end |= pileup.iter().any(|obs| obs.is_paired());

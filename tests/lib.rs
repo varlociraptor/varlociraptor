@@ -107,6 +107,7 @@ testcase!(test52, exact, fast);
 testcase!(test53, exact, fast);
 testcase!(test54, exact, fast);
 testcase!(test55, exact, fast);
+//testcase!(test57, exact);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);
 testcase!(test_contig_universe, exact, fast);

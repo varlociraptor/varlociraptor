@@ -149,7 +149,6 @@ where
                 }
             }
         }
-
         Ok(observations)
     }
 }
