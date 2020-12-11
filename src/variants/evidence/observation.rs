@@ -129,6 +129,11 @@ pub(crate) enum ReadOrientation {
 impl ReadOrientation {
     pub(crate) fn new(record: &bam::Record) -> Self {
         if record.is_paired() && record.is_proper_pair() && record.tid() == record.mtid() {
+            if record.pos() == record.mpos() {
+                // both reads start at the same position, we cannot decide on the orientation.
+                return ReadOrientation::None;
+            }
+
             let (is_reverse, is_first_in_template, is_mate_reverse) =
                 if record.pos() < record.mpos() {
                     // given record is the left one

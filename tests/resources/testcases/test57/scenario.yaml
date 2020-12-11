@@ -6,9 +6,12 @@
 # Note that sample names here must correspond to the alias column in the sample sheet.
 
 samples:
-  test:
-    resolution: 25
+  tumor:
+    resolution: 100
     universe: "[0.0,1.0]"
+#    contamination:
+#      fraction: 0.0
 
 events:
-  present: "test:]0.0,1.0]"
+  ffpe_artifact: "(C>T | G>A) & tumor:]0.0,0.05["
+  present: "((C>T | G>A) & tumor:[0.05,1.0]) | (!(C>T | G>A) & tumor:]0.0,1.0])"
