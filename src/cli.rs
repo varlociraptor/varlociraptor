@@ -1023,9 +1023,9 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             resolutions = resolutions.push(sample_name, *sample.resolution());
             sample_names = sample_names.push(sample_name, sample_name.to_owned());
             germline_mutation_rates =
-                germline_mutation_rates.push(sample_name, *sample.germline_mutation_rate());
+                germline_mutation_rates.push(sample_name, sample.germline_mutation_rate(scenario.species()));
             somatic_effective_mutation_rates = somatic_effective_mutation_rates
-                .push(sample_name, *sample.somatic_effective_mutation_rate());
+                .push(sample_name, sample.somatic_effective_mutation_rate(scenario.species()));
             inheritance = inheritance.push(
                 sample_name,
                 if let Some(inheritance) = sample.inheritance() {

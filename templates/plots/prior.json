@@ -43,38 +43,10 @@
     "spec": {
         "layer": [
             {
-                "mark": {
-                    "type": "line",
-                    "point": true
-                },
-                "transform": [
-                    {
-                        "filter": {
-                            "field": "sample",
-                            "equal": "tumor"
-                        }
-                    }
-                ],
-                "encoding": {
-                    "x": {
-                        "field": "vaf",
-                        "type": "quantitative"
-                    },
-                    "y": {
-                        "field": "prob",
-                        "type": "quantitative",
-                        "scale": {"type": "log"}
-                    },
-                    "color": {
-                        "field": "sample", "type": "nominal"
-                    }
-                }
-            },
-            {
                 "mark": "rule",
                 "transform": [
                     {
-                        "filter": "datum.sample != 'tumor'"
+                        "filter": "datum.sample != 'samplename'"
                     }
                 ],
                 "encoding": {
@@ -93,7 +65,41 @@
                         "value": 200
                     },
                     "color": {
-                        "field": "sample", "type": "nominal"
+                        "field": "sample",
+                        "type": "nominal"
+                    }
+                }
+            },
+            {
+                "mark": {
+                    "type": "line",
+                    "point": true
+                },
+                "transform": [
+                    {
+                        "filter": {
+                            "field": "sample",
+                            "equal": "samplename"
+                        }
+                    }
+                ],
+                "encoding": {
+                    "x": {
+                        "field": "vaf",
+                        "type": "quantitative",
+                        "title": "VAF"
+                    },
+                    "y": {
+                        "field": "prob",
+                        "type": "quantitative",
+                        "scale": {
+                            "type": "log"
+                        },
+                        "title": "Prior probability"
+                    },
+                    "color": {
+                        "field": "sample",
+                        "type": "nominal"
                     }
                 }
             }

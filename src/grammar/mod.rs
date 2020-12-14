@@ -126,6 +126,7 @@ impl ToString for ExpressionIdentifier {
 
 #[derive(Deserialize, Getters)]
 #[get = "pub(crate)"]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Scenario {
     // map of reusable expressions
     #[serde(default)]
@@ -252,14 +253,20 @@ impl SexPloidyDefinition {
 
 #[derive(Deserialize, Getters)]
 #[get = "pub(crate)"]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Species {
     #[serde(default)]
     heterozygosity: Option<f64>,
-    #[serde(flatten)]
+    #[serde(default, rename = "germline-mutation-rate")]
+    germline_mutation_rate: Option<f64>,
+    #[serde(default, rename = "somatic-effective-mutation-rate")]
+    somatic_effective_mutation_rate: Option<f64>,
+    #[serde(default, rename = "variant-fractions")]
     variant_type_fractions: VariantTypeFraction,
     #[serde(default)]
     ploidy: Option<SexPloidyDefinition>,
     #[serde(default)]
+    #[serde(rename = "genome-size")]
     genome_size: Option<f64>,
 }
 
@@ -287,6 +294,7 @@ fn default_sv_fraction() -> f64 {
 
 #[derive(Deserialize, Getters)]
 #[get = "pub(crate)"]
+#[serde(deny_unknown_fields)]
 pub(crate) struct VariantTypeFraction {
     #[serde(default = "default_indel_fraction")]
     indel: f64,
@@ -296,11 +304,22 @@ pub(crate) struct VariantTypeFraction {
     sv: f64,
 }
 
+impl Default for VariantTypeFraction {
+    fn default() -> Self {
+        VariantTypeFraction {
+            indel: default_indel_fraction(),
+            mnv: default_mnv_fraction(),
+            sv: default_sv_fraction(),
+        }
+    }
+}
+
 fn default_resolution() -> usize {
     100
 }
 
 #[derive(Deserialize, Getters)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Sample {
     /// optional contamination
     #[get = "pub(crate)"]
@@ -313,11 +332,9 @@ pub(crate) struct Sample {
     #[serde(default)]
     #[get = "pub(crate)"]
     universe: Option<UniverseDefinition>,
-    #[serde(default)]
-    #[get = "pub(crate)"]
+    #[serde(default, rename = "somatic-effective-mutation-rate")]
     somatic_effective_mutation_rate: Option<f64>,
-    #[serde(default)]
-    #[get = "pub(crate)"]
+    #[serde(default, rename = "germline-mutation-rate")]
     germline_mutation_rate: Option<f64>,
     #[serde(default)]
     #[get = "pub(crate)"]
@@ -353,6 +370,7 @@ impl Sample {
                     .map(|n_alt| AlleleFreq(n_alt as f64 / ploidy as f64))
                     .collect()
             };
+            dbg!(self.somatic_effective_mutation_rate);
             Ok(
                 match (
                     self.contig_ploidy(contig, species)?,
@@ -413,10 +431,27 @@ impl Sample {
                 .map_or(Ok(None), |species| species.contig_ploidy(contig, self.sex))
         }
     }
+
+    pub(crate) fn germline_mutation_rate(&self, species: &Option<Species>) -> Option<f64> {
+        if let Some(rate) = self.germline_mutation_rate {
+            Some(rate)
+        } else {
+            species.as_ref().map_or(None, |species| species.germline_mutation_rate)
+        }
+    }
+
+    pub(crate) fn somatic_effective_mutation_rate(&self, species: &Option<Species>) -> Option<f64> {
+        if let Some(rate) = self.somatic_effective_mutation_rate {
+            Some(rate)
+        } else {
+            species.as_ref().map_or(None, |species| species.somatic_effective_mutation_rate)
+        }
+    }
 }
 
 #[derive(Deserialize, Getters)]
 #[get = "pub(crate)"]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Contamination {
     /// name of contaminating sample
     by: String,
@@ -438,13 +473,16 @@ pub(crate) struct Contamination {
 )]
 #[strum(serialize_all = "kebab_case")]
 pub(crate) enum Inheritance {
+    #[serde(rename = "mendelian")]
     Mendelian {
         from: (String, String),
     },
+    #[serde(rename = "clonal")]
     Clonal {
         from: String,
         somatic: bool,
     },
+    #[serde(rename = "subclonal")]
     Subclonal {
         from: String,
         origin: SubcloneOrigin,
@@ -466,7 +504,9 @@ pub(crate) enum Inheritance {
 )]
 #[strum(serialize_all = "kebab_case")]
 pub(crate) enum SubcloneOrigin {
+    #[serde(rename = "single-cell")]
     SingleCell,
+    #[serde(rename = "multi-cell")]
     MultiCell,
 }
 

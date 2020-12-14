@@ -12,7 +12,7 @@ use itertools::Itertools;
 use itertools_num::linspace;
 use ring::digest;
 use serde_json::{self, json, Value};
-use statrs::function::factorial::ln_binomial;
+use statrs::distribution::{self, Discrete};
 
 use crate::errors;
 use crate::grammar;
@@ -107,7 +107,7 @@ impl Prior {
     ) -> Result<()> {
         let mut blueprint =
             serde_json::from_str(include_str!("../../../templates/plots/prior.json"))?;
-
+        dbg!(&self.universe);
         let mut events = Vec::new();
         self.collect_events(Vec::new(), &mut events);
 
@@ -145,11 +145,14 @@ impl Prior {
                 event
                     .iter()
                     .zip(sample_names.iter())
-                    .map(|(e, sample)| {
-                        if sample == target_sample {
+                    .filter_map(|(e, sample)| {
+                        Some(if sample == target_sample {
+                            if prob == LogProb::ln_zero() {
+                                return None;
+                            }
                             json!({
                                 "sample": sample.to_owned(),
-                                "prob": Prob::from(prob),
+                                "prob": *Prob::from(prob),
                                 "vaf": *e.allele_freq,
                                 "hash": hash.clone(),
                             })
@@ -159,7 +162,7 @@ impl Prior {
                                 "vaf": *e.allele_freq,
                                 "hash": hash.clone(),
                             })
-                        }
+                        })
                     })
                     .collect_vec()
             })
@@ -168,8 +171,8 @@ impl Prior {
 
         if let Value::Object(ref mut blueprint) = blueprint {
             blueprint["data"]["values"] = json!(data);
-            blueprint["spec"]["layer"][0]["transform"][0]["filter"]["equal"] = json!(target_sample);
-            blueprint["spec"]["layer"][1]["transform"][0]["filter"] =
+            blueprint["spec"]["layer"][1]["transform"][0]["filter"]["equal"] = json!(target_sample);
+            blueprint["spec"]["layer"][0]["transform"][0]["filter"] =
                 json!(format!("datum.sample != '{}'", target_sample));
             // print to STDOUT
             println!("{}", serde_json::to_string_pretty(blueprint)?);
@@ -269,6 +272,7 @@ impl Prior {
                 })
                 .sum(); // product in log space
 
+            assert!(*prob <= 0.0);
             prob
         } else {
             // recursion
@@ -525,11 +529,6 @@ impl Prior {
         }
     }
 
-    fn prob_select_alleles(&self, ploidy: u32, source_n: u32, target_n: u32) -> LogProb {
-        let choices = ln_binomial(source_n as u64, target_n as u64);
-        LogProb(choices + *LogProb::from(Prob(target_n as f64 / source_n as f64)))
-    }
-
     fn prob_select_ref_alt_alleles(
         &self,
         ploidy: u32,
@@ -537,8 +536,8 @@ impl Prior {
         target_alt: u32,
         target_ref: u32,
     ) -> LogProb {
-        self.prob_select_alleles(ploidy, source_alt, target_alt)
-            + self.prob_select_alleles(ploidy, ploidy - source_alt, target_ref)
+        let urn = distribution::Hypergeometric::new(ploidy as u64, source_alt as u64, (target_alt + target_ref) as u64).unwrap();
+        LogProb::from(Prob(urn.pmf(target_alt as u64)))
     }
 
     fn prob_mendelian_alt_counts(
@@ -550,26 +549,30 @@ impl Prior {
         germline_mutation_rate: f64,
     ) -> LogProb {
         let prob_after_meiotic_split = |first_split_ploidy, second_split_ploidy| {
-            (0..cmp::min(source_alt.0, first_split_ploidy))
+            (0..=cmp::min(source_alt.0, first_split_ploidy))
                 .into_iter()
-                .cartesian_product(0..cmp::min(source_alt.1, second_split_ploidy))
-                .map(|(alt_from_first, alt_from_second)| {
-                    let ref_from_first = first_split_ploidy - alt_from_first;
-                    let ref_from_second = second_split_ploidy - alt_from_second;
-                    let prob = self.prob_select_ref_alt_alleles(
-                        source_ploidy.0,
-                        source_alt.0,
-                        alt_from_first,
-                        ref_from_first,
-                    ) + self.prob_select_ref_alt_alleles(
-                        source_ploidy.1,
-                        source_alt.1,
-                        alt_from_second,
-                        ref_from_second,
-                    );
+                .cartesian_product(0..=cmp::min(source_alt.1, second_split_ploidy))
+                .filter_map(|(alt_from_first, alt_from_second)| {
+                    if alt_from_first + alt_from_second == target_alt {
+                        let ref_from_first = first_split_ploidy - alt_from_first;
+                        let ref_from_second = second_split_ploidy - alt_from_second;
+                        let prob = self.prob_select_ref_alt_alleles(
+                            source_ploidy.0,
+                            source_alt.0,
+                            alt_from_first,
+                            ref_from_first,
+                        ) + self.prob_select_ref_alt_alleles(
+                            source_ploidy.1,
+                            source_alt.1,
+                            alt_from_second,
+                            ref_from_second,
+                        );
 
-                    let missing = target_alt as i32 - (alt_from_first + alt_from_second) as i32;
-                    prob + LogProb(germline_mutation_rate.ln() * missing as f64)
+                        let missing = target_alt as i32 - (alt_from_first + alt_from_second) as i32;
+                        Some(prob + LogProb(germline_mutation_rate.ln() * missing as f64))
+                    } else {
+                        None
+                    }
                 })
                 .collect_vec()
         };
@@ -613,7 +616,9 @@ impl Prior {
 
         let ploidy = |sample: usize| ploidies[sample].unwrap();
         // we control above that the vafs are valid for the ploidy, but the rounding ensures that there are no numeric glitches
-        let n_alt = |sample: usize| (*germline_vafs[sample] * ploidy(sample) as f64).round() as u32;
+        let n_alt = |sample: usize| {
+            (*germline_vafs[sample] * ploidy(sample) as f64).round() as u32
+        };
 
         let mut prob = self.prob_mendelian_alt_counts(
             (ploidy(parents.0), ploidy(parents.1)),
