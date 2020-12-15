@@ -1,0 +1,32 @@
+configfile: "config.yaml"
+
+rule all:
+    input:
+        expand(
+            "results/{item[scenario]}.{item[sample]}.svg", 
+            item=[
+                {"scenario": scenario, "sample": sample} 
+                for scenario, item in config["scenarios"].items() 
+                for sample in item["samples"]
+            ]
+        )
+
+
+rule plot:
+    input:
+        "scenarios/{scenario}.scenario.yaml"
+    output:
+        "results/{scenario}.{sample}.vl.json"
+    shell:
+        "cargo run plot variant-calling-prior --scenario {input} --contig 1 --sample {wildcards.sample} > {output}"
+
+
+rule render:
+    input:
+        "results/{scenario}.{sample}.vl.json"
+    output:
+        "results/{scenario}.{sample}.svg"
+    conda:
+        "envs/vega.yaml"
+    shell:
+        "vl2svg {input} > {output}"

@@ -1,0 +1,23 @@
+species:
+  heterozygosity: 0.001
+  ploidy: 2
+  genome-size: 3.5e9
+
+samples:
+  tumor:
+    somatic-effective-mutation-rate: 1e-6
+    ploidy: 2
+    inheritance:
+      clonal:
+        from: normal
+        somatic: false
+  relapse:
+    universe: "[0.0,1.0]"
+  normal:
+    somatic-effective-mutation-rate: 1e-10
+
+events:
+  somatic_tumor: "normal:0.0 & tumor:]0.0,1.0]"
+  somatic_relapse: "normal:0.0 & tumor:0.0 & relapse:]0.0,1.0]"
+  germline: "normal:0.5 | normal:1.0"
+  somatic_normal: "normal:]0.0,0.5[ | normal:]0.5,1.0["
