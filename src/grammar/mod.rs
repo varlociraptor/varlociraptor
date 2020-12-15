@@ -346,6 +346,10 @@ pub(crate) struct Sample {
 }
 
 impl Sample {
+    pub(crate) fn has_uniform_prior(&self) -> bool {
+        self.universe.is_some()
+    }
+
     pub(crate) fn contig_universe(
         &self,
         contig: &str,

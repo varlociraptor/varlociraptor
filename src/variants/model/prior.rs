@@ -23,6 +23,8 @@ pub(crate) trait UpdatablePrior {
     fn set_ploidies(&mut self, ploidies: grammar::SampleInfo<Option<u32>>);
 }
 
+const SOMATIC_EPSILON: f64 = 0.0001;
+
 #[derive(Debug)]
 pub(crate) enum Inheritance {
     Mendelian {
@@ -40,6 +42,7 @@ pub(crate) enum Inheritance {
 
 #[derive(Debug, TypedBuilder)]
 pub(crate) struct Prior {
+    uniform: grammar::SampleInfo<bool>,
     ploidies: Option<grammar::SampleInfo<Option<u32>>>,
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
     germline_mutation_rate: grammar::SampleInfo<Option<f64>>,
@@ -57,9 +60,27 @@ impl Prior {
     }
 
     pub(crate) fn check(&self) -> Result<()> {
+        let err = |msg: &str| {
+            Err(errors::Error::InvalidPriorConfiguration { msg: msg.to_owned() }.into())
+        };
         for sample in 0..self.n_samples() {
             if self.has_somatic_variation(sample) && self.genome_size.is_none() {
-                return Err(errors::Error::InvalidPriorConfiguration { msg: "somatic variation defined but unknown genome size: define genome size in the scenario".to_owned() }.into());
+                return err("somatic variation defined but unknown genome size: define genome size in the scenario");
+            }
+            if let Some(inheritance) = &self.inheritance[sample] {
+                if match inheritance {
+                    Inheritance::Mendelian { from: (p1, p2) } if !self.has_ploidy(*p1) || !self.has_ploidy(*p2) => true,
+                    Inheritance::Clonal { from, .. } if !self.has_ploidy(*from) => true,
+                    Inheritance::Subclonal { from, ..} if !self.has_ploidy(*from) => true,
+                    _ => false,
+                } {
+                    return err("inheritance defined but parental samples do not have a ploidy: define ploidy for each sample or the species");
+                }
+            }
+            if let Some(Inheritance::Subclonal { .. }) = &self.inheritance[sample] {
+                if !self.has_somatic_variation(sample) {
+                    return err("subclonal inheritance defined but no somatic mutation: define somatic effective mutation rate for sample that inherits");
+                }
             }
         }
         Ok(())
@@ -87,7 +108,7 @@ impl Prior {
                         }
                     }
                     grammar::formula::VAFSpectrum::Range(range) => {
-                        for vaf in linspace(*range.start, *range.end, 10) {
+                        for vaf in linspace(*range.start, *range.end, 5) {
                             let mut next = event.clone();
                             next.push(new_event(AlleleFreq(vaf)));
                             self.collect_events(next, events);
@@ -107,9 +128,20 @@ impl Prior {
     ) -> Result<()> {
         let mut blueprint =
             serde_json::from_str(include_str!("../../../templates/plots/prior.json"))?;
-        dbg!(&self.universe);
         let mut events = Vec::new();
         self.collect_events(Vec::new(), &mut events);
+
+        let hash_vaf = |sample: usize, vaf| {
+            for vaf_spectrum in self.universe.as_ref().unwrap()[sample].iter() {
+                if let grammar::formula::VAFSpectrum::Range(range) = vaf_spectrum {
+                    if range.contains(vaf) {
+                        // only hash each second VAF from the considered interval
+                        return relative_eq!(*((vaf - range.start) / ((range.end - range.start) / 10.0)) % 2.0, 0.0);
+                    }
+                }
+            }
+            true
+        };
 
         let data = events
             .iter()
@@ -147,12 +179,13 @@ impl Prior {
                     .zip(sample_names.iter())
                     .filter_map(|(e, sample)| {
                         Some(if sample == target_sample {
-                            if prob == LogProb::ln_zero() {
+                            let prob = *Prob::from(prob);
+                            if prob == 0.0 {
                                 return None;
                             }
                             json!({
                                 "sample": sample.to_owned(),
-                                "prob": *Prob::from(prob),
+                                "prob": prob,
                                 "vaf": *e.allele_freq,
                                 "hash": hash.clone(),
                             })
@@ -190,6 +223,14 @@ impl Prior {
 
     fn has_somatic_variation(&self, sample: usize) -> bool {
         self.somatic_effective_mutation_rate[sample].is_some()
+    }
+
+    fn has_ploidy(&self, sample: usize) -> bool {
+        self.ploidies.as_ref().unwrap()[sample].is_some()
+    }
+
+    fn has_uniform_prior(&self, sample: usize) -> bool {
+        self.uniform[sample]
     }
 
     fn effective_somatic_vaf(
@@ -287,7 +328,17 @@ impl Prior {
                 germline_vafs
             };
 
-            if self.has_somatic_variation(sample) {
+            if self.has_uniform_prior(sample) {
+                // sample has a uniform prior
+                if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq) {
+                    // no explicit info about germline VAF
+                    let germline_vafs = push_vafs(AlleleFreq(0.0));
+                    self.calc_prob(event, germline_vafs)
+                } else {
+                    LogProb::ln_zero()
+                }
+            }
+            else if self.has_somatic_variation(sample) {
                 if let Some(ploidy) = self.ploidies.as_ref().unwrap()[sample] {
                     let mut probs = Vec::with_capacity(ploidy as usize + 1);
                     for n_alt in 0..=ploidy {
@@ -301,7 +352,7 @@ impl Prior {
                 } else {
                     unreachable!("bug: sample with somatic mutation rate but no ploidy")
                 }
-            } else if sample_ploidy.is_some() {
+            } else if sample_ploidy.is_some() && self.heterozygosity.is_some() {
                 if self.is_valid_germline_vaf(sample, sample_event.allele_freq) {
                     let germline_vafs = push_vafs(sample_event.allele_freq);
 
@@ -311,12 +362,7 @@ impl Prior {
                     LogProb::ln_zero()
                 }
             } else {
-                // sample has a uniform prior
-                if self.universe.as_ref().unwrap()[sample].contains(sample_event.allele_freq) {
-                    LogProb::ln_one()
-                } else {
-                    LogProb::ln_zero()
-                }
+                unreachable!("bug: not enough info for prior but no universe specified");
             }
         }
     }
@@ -333,8 +379,8 @@ impl Prior {
             )
         };
         // METHOD: we take the absolute of the vaf because it can be negative (indicating a back mutation).
-        if *somatic_vaf == 0.0 {
-            LogProb::ln_simpsons_integrate_exp(|_, vaf: f64| density(vaf.abs()), 0.0, 1.0, 5)
+        if somatic_vaf.abs() <= SOMATIC_EPSILON {
+            LogProb::ln_simpsons_integrate_exp(|_, vaf: f64| density(vaf.abs()), SOMATIC_EPSILON, 1.0, 11)
                 .ln_one_minus_exp()
         } else {
             density(somatic_vaf.abs())
@@ -391,6 +437,7 @@ impl Prior {
         germline_vafs: &[AlleleFreq],
         origin: grammar::SubcloneOrigin,
     ) -> LogProb {
+        warn!("subclonal inheritance implementation is not yet completed and will likely yield wrong results");
         let total_vaf = event[sample].allele_freq;
         let germline_vaf = germline_vafs[sample];
         if !relative_eq!(*germline_vaf, *germline_vafs[parent]) {
@@ -439,17 +486,23 @@ impl Prior {
                     }
                 }
                 (grammar::SubcloneOrigin::MultiCell, Some(somatic_mutation_rate)) => {
+                    // METHOD: number of cells in the parent (this just needs to be high, the particular number is irrelevant)
+                    let n: f64 = 10000.0;
+                    let binom = distribution::Binomial::new(parent_somatic_vaf.abs(), n as u64).unwrap();
                     // METHOD: we may inherit any fraction of the parental effective somatic vaf
-                    let density = |_, inherited_somatic_vaf| {
-                        let somatic_vaf = total_vaf
-                            - if *parent_somatic_vaf >= 0.0 {
-                                germline_vaf + inherited_somatic_vaf
-                            } else {
-                                germline_vaf - inherited_somatic_vaf
-                            };
-                        self.prob_somatic_mutation(somatic_mutation_rate, somatic_vaf)
+                    let density = |_, somatic_vaf: f64| {
+                        let somatic_vaf = AlleleFreq(somatic_vaf);
+                        let inherited_somatic_vaf = if *parent_somatic_vaf >= 0.0 {
+                            total_vaf - germline_vaf - somatic_vaf
+                        } else {
+                            somatic_vaf - total_vaf + germline_vaf
+                        };
+                        let q = LogProb(binom.pmf((n * inherited_somatic_vaf.abs()).round() as u64).ln());
+                        let p = self.prob_somatic_mutation(somatic_mutation_rate, somatic_vaf);
+                        q + p
                     };
-                    LogProb::ln_simpsons_integrate_exp(density, 0.0, parent_somatic_vaf.abs(), 5)
+
+                    LogProb::ln_simpsons_integrate_exp(density, 0.0, 1.0, 5)
                 }
                 (grammar::SubcloneOrigin::SingleCell, Some(somatic_mutation_rate)) => {
                     if *parent_total_vaf == 1.0 {

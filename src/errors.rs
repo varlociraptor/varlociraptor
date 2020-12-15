@@ -49,9 +49,9 @@ pub(crate) enum Error {
     #[error("at least one BCF with observations must be provided")]
     EmptyObservations,
     #[error(
-        "undefined expression ${identifier}; please define under 'expressions:' in your scenario"
+        "undefined expression {identifier}; please define under 'expressions:' in your scenario"
     )]
     UndefinedExpression { identifier: String },
-    #[error("invalid prior configuration: ${msg}")]
+    #[error("invalid prior configuration: {msg}")]
     InvalidPriorConfiguration { msg: String },
 }

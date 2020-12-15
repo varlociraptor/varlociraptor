@@ -948,6 +948,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 let prior = Prior::builder()
                     .ploidies(Some(ploidies))
                     .universe(Some(universes))
+                    .uniform(sample_infos.uniform_prior)
                     .germline_mutation_rate(sample_infos.germline_mutation_rates)
                     .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
                     .inheritance(sample_infos.inheritance)
@@ -986,6 +987,7 @@ pub(crate) fn est_or_load_alignment_properties(
 }
 
 struct SampleInfos {
+    uniform_prior: grammar::SampleInfo<bool>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
     resolutions: grammar::SampleInfo<usize>,
     germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
@@ -1004,6 +1006,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
         let mut germline_mutation_rates = scenario.sample_info();
         let mut somatic_effective_mutation_rates = scenario.sample_info();
         let mut inheritance = scenario.sample_info();
+        let mut uniform_prior = scenario.sample_info();
 
         for (sample_name, sample) in scenario.samples().iter() {
             let contamination = if let Some(contamination) = sample.contamination() {
@@ -1019,6 +1022,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             } else {
                 None
             };
+            uniform_prior = uniform_prior.push(sample_name, sample.has_uniform_prior());
             contaminations = contaminations.push(sample_name, contamination);
             resolutions = resolutions.push(sample_name, *sample.resolution());
             sample_names = sample_names.push(sample_name, sample_name.to_owned());
@@ -1064,6 +1068,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
         }
 
         Ok(SampleInfos {
+            uniform_prior: uniform_prior.build(),
             contaminations: contaminations.build(),
             resolutions: resolutions.build(),
             germline_mutation_rates: germline_mutation_rates.build(),
