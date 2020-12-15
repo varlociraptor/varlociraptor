@@ -19,7 +19,7 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
-use crate::variants::evidence::observation::Observation;
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
@@ -106,10 +106,11 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBTSO, with C being a count, \
+              Description=\"Summary of observations. Each entry is encoded as CBTSOP, with C being a count, \
               B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
               as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
-              and O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2). \
+              O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
+              and P being the read position (^ = most found read position, * = any other position or position is irrelevant). \
               Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Thereby we extend Kass Raftery scores with \
@@ -130,8 +131,16 @@ where
             b"##FORMAT=<ID=ROB,Number=A,Type=String,\
               Description=\"Read orientation bias estimate: > indicates that ALT allele is associated with \
               F1R2 orientation, < indicates that ALT allele is associated with F2R1 orientation, \
-              - indicates no read orientation bias. Read orientation bias is indicative of Guanin \
+              . indicates no read orientation bias. Read orientation bias is indicative of Guanin \
               oxidation artifacts. Probability for read orientation bias is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=RPB,Number=A,Type=String,\
+              Description=\"Read position bias estimate: ^ indicates that ALT allele is associated with \
+              the most found read position, . indicates that there is no read position bias.
+              Read position bias is indicative of systematic sequencing errors, e.g. in a specific cycle. \
+              Probability for read orientation bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
         );
 
@@ -254,7 +263,7 @@ where
                 work_item.check_read_orientation_bias,
                 work_item.check_read_position_bias,
             );
-            _model = *models.entry(model_mode).or_insert(self.model());
+            _model = models.entry(model_mode).or_insert(self.model());
             {
                 let entry = last_rids.entry(model_mode).or_insert(None);
                 _last_rid = (*entry).clone();
@@ -269,6 +278,7 @@ where
                 contig,
                 work_item.check_read_orientation_bias,
                 work_item.check_strand_bias,
+                work_item.check_read_position_bias,
             )?;
 
             self.call_record(&mut work_item, _model, &events);
@@ -410,6 +420,7 @@ where
         contig: &str,
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
+        consider_read_position_bias: bool,
     ) -> Result<()> {
         if !rid.map_or(false, |rid: u32| current_rid == rid) {
             // rid is not the same as before, obtain event universe
@@ -434,7 +445,9 @@ where
                 for biases in Biases::all_artifact_combinations(
                     consider_read_orientation_bias,
                     consider_strand_bias,
+                    consider_read_position_bias,
                 ) {
+                    dbg!(&biases);
                     events.push(model::Event {
                         name: event_name.clone(),
                         vafs: vaftree.clone(),
@@ -586,7 +599,7 @@ struct WorkItem {
     rid: u32,
     call: Call,
     variant_builder: VariantBuilder,
-    pileups: Option<Vec<Vec<Observation>>>,
+    pileups: Option<Vec<Vec<Observation<ReadPosition>>>>,
     snv: Option<model::modes::generic::SNV>,
     bnd_event: Option<Vec<u8>>,
     index: usize,

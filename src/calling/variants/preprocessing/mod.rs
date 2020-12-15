@@ -99,8 +99,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "PROB_MISSED_ALLELE",
             "PROB_SAMPLE_ALT",
             "PROB_DOUBLE_OVERLAP",
+            "PROB_HIT_BASE",
             "STRAND",
             "READ_ORIENTATION",
+            "READ_POSITION",
             "SOFTCLIPPED",
         ] {
             header.push_record(
@@ -317,7 +319,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         variant: &model::Variant,
         work_item: &WorkItem,
         sample: &mut Sample,
-    ) -> Result<Option<Vec<Observation>>> {
+    ) -> Result<Option<Vec<Observation<ReadPosition>>>> {
         let locus = || genome::Locus::new(work_item.chrom.clone(), work_item.start);
         let interval = |len: u64| {
             genome::Interval::new(
@@ -485,7 +487,7 @@ pub(crate) fn read_observations(
     let prob_hit_base: Vec<MiniLogProb> = read_values(record, b"PROB_HIT_BASE")?;
     let strand: Vec<Strand> = read_values(record, b"STRAND")?;
     let read_orientation: Vec<ReadOrientation> = read_values(record, b"READ_ORIENTATION")?;
-    let read_position: Vec<Option<ReadPosition>> = read_values(record, b"READ_POSITION")?;
+    let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION")?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED")?;
 
     let obs = (0..prob_mapping.len())

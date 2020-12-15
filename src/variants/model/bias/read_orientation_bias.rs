@@ -1,7 +1,7 @@
 use bio::stats::probs::LogProb;
 
 use crate::utils::PROB_HALF;
-use crate::variants::evidence::observation::{Observation, ReadOrientation};
+use crate::variants::evidence::observation::{Observation, ReadOrientation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter)]
@@ -18,7 +18,7 @@ impl Default for ReadOrientationBias {
 }
 
 impl Bias for ReadOrientationBias {
-    fn prob(&self, observation: &Observation) -> LogProb {
+    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.read_orientation) {
             (ReadOrientationBias::None, ReadOrientation::F1R2) => *PROB_HALF, // normal
             (ReadOrientationBias::None, ReadOrientation::F2R1) => *PROB_HALF, // normal

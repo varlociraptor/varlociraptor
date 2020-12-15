@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use bio::stats::{bayesian::model::Likelihood, LogProb};
 
 use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::evidence::observation::Observation;
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Biases;
 use crate::variants::model::bias::{ReadOrientationBias, StrandBias};
 use crate::variants::model::AlleleFreq;
@@ -24,7 +24,7 @@ pub(crate) struct Event {
     pub(crate) biases: Biases,
 }
 
-fn prob_sample_alt(observation: &Observation, allele_freq: LogProb) -> LogProb {
+fn prob_sample_alt(observation: &Observation<ReadPosition>, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
         // The effective sample probability for the alt allele is the allele frequency times
         // the probability to obtain a feasible fragment (prob_sample_alt).
@@ -88,7 +88,7 @@ impl ContaminatedSampleLikelihoodModel {
         allele_freq_secondary: LogProb,
         biases_primary: &Biases,
         biases_secondary: &Biases,
-        observation: &Observation,
+        observation: &Observation<ReadPosition>,
     ) -> LogProb {
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
@@ -165,7 +165,7 @@ impl SampleLikelihoodModel {
         &self,
         allele_freq: LogProb,
         biases: &Biases,
-        observation: &Observation,
+        observation: &Observation<ReadPosition>,
     ) -> LogProb {
         // Step 1: likelihood for the mapping case.
         let prob = likelihood_mapping(allele_freq, biases, observation);
@@ -185,7 +185,11 @@ impl SampleLikelihoodModel {
 
 /// Calculate likelihood of allele freq given observation in a single sample assuming that the
 /// underlying fragment/read is mapped correctly.
-fn likelihood_mapping(allele_freq: LogProb, biases: &Biases, observation: &Observation) -> LogProb {
+fn likelihood_mapping(
+    allele_freq: LogProb,
+    biases: &Biases,
+    observation: &Observation<ReadPosition>,
+) -> LogProb {
     // Step 1: calculate probability to sample from alt allele
     let prob_sample_alt = prob_sample_alt(observation, allele_freq);
     let prob_sample_ref = prob_sample_alt.ln_one_minus_exp();

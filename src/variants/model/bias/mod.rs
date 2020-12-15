@@ -4,9 +4,10 @@ use bio::stats::probs::LogProb;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-use crate::variants::evidence::observation::Observation;
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 
 pub(crate) mod read_orientation_bias;
+pub(crate) mod read_position_bias;
 pub(crate) mod strand_bias;
 
 pub(crate) use read_orientation_bias::ReadOrientationBias;
@@ -14,7 +15,7 @@ pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use strand_bias::StrandBias;
 
 pub(crate) trait Bias {
-    fn prob(&self, observation: &Observation) -> LogProb;
+    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;
 
     fn prob_any(&self) -> LogProb;
 
@@ -80,7 +81,8 @@ impl Biases {
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
     ) -> Box<dyn Iterator<Item = Self>> {
-        if !consider_strand_bias && !consider_read_orientation_bias && consider_read_position_bias {
+        if !consider_strand_bias && !consider_read_orientation_bias && !consider_read_position_bias
+        {
             return Box::new(std::iter::empty());
         }
 
@@ -101,17 +103,23 @@ impl Biases {
         };
 
         Box::new(
-            strand_bias
+            strand_biases
                 .into_iter()
                 .cartesian_product(read_orientation_biases.into_iter())
                 .cartesian_product(read_position_biases.into_iter())
-                .map(|((sb, rob), rpb)| {
-                    BiasesBuilder::default()
-                        .strand_bias(sb)
-                        .read_orientation_bias(rob)
-                        .read_position_bias(rpb)
-                        .build()
-                        .unwrap()
+                .filter_map(|((sb, rob), rpb)| {
+                    if sb.is_artifact() || rob.is_artifact() || rpb.is_artifact() {
+                        Some(
+                            BiasesBuilder::default()
+                                .strand_bias(sb)
+                                .read_orientation_bias(rob)
+                                .read_position_bias(rpb)
+                                .build()
+                                .unwrap(),
+                        )
+                    } else {
+                        None
+                    }
                 }),
         )
     }
@@ -120,11 +128,12 @@ impl Biases {
         BiasesBuilder::default()
             .strand_bias(StrandBias::None)
             .read_orientation_bias(ReadOrientationBias::None)
+            .read_position_bias(ReadPositionBias::None)
             .build()
             .unwrap()
     }
 
-    pub(crate) fn prob(&self, observation: &Observation) -> LogProb {
+    pub(crate) fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         self.strand_bias.prob(observation) + self.read_orientation_bias.prob(observation)
     }
 

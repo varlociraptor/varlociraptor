@@ -18,7 +18,9 @@ use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
-use crate::variants::evidence::observation::{self, Observable, Observation, ReadPosition};
+use crate::variants::evidence::observation::{
+    self, major_read_position, Observable, Observation, ReadPosition,
+};
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 

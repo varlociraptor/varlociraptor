@@ -387,9 +387,9 @@ checksum = "c478836e029dcef17fb47c89023448c64f781a046e0300e257ad8225ae59afab"
 
 [[package]]
 name = "counter"
-version = "0.4.3"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d84b66ce02c964fa8047286289b36797ce48a52a44034e013ce3e5219b6cb360"
+checksum = "698f7363cfc52779c375902ea6bc8b407f4b0b43be34e83cfdc8231a0e7545fe"
 dependencies = [
  "num-traits",
 ]

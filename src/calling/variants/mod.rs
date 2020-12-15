@@ -21,10 +21,10 @@ use vec_map::VecMap;
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
 use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::{Observation, ReadOrientation, Strand};
+use crate::variants::evidence::observation::{Observation, ReadOrientation, ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::{
-    bias::Biases, bias::ReadOrientationBias, bias::StrandBias, AlleleFreq,
+    bias::Biases, bias::ReadOrientationBias, bias::ReadPositionBias, bias::StrandBias, AlleleFreq,
 };
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
@@ -117,6 +117,7 @@ impl Call {
             let mut obs_counts = VecMap::new();
             let mut strand_bias = VecMap::new();
             let mut read_orientation_bias = VecMap::new();
+            let mut read_position_bias = VecMap::new();
             let mut alleles = Vec::new();
             let mut svlens = Vec::new();
             let mut events = Vec::new();
@@ -161,6 +162,12 @@ impl Call {
                             ReadOrientationBias::F1R2 => '>',
                             ReadOrientationBias::F2R1 => '<',
                         });
+                    read_position_bias.entry(i).or_insert_with(Vec::new).push(
+                        match sample_info.biases.read_position_bias() {
+                            ReadPositionBias::None => '.',
+                            ReadPositionBias::Some => '^',
+                        },
+                    );
 
                     allelefreq_estimates
                         .entry(i)
@@ -177,7 +184,7 @@ impl Call {
                             sample_info.observations.iter().map(|obs| {
                                 let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                                 format!(
-                                    "{}{}{}{}",
+                                    "{}{}{}{}{}",
                                     if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
                                         score.to_ascii_lowercase()
                                     } else {
@@ -195,7 +202,11 @@ impl Call {
                                         ReadOrientation::F2R1 => '<',
                                         ReadOrientation::None => '*',
                                         _ => '!',
-                                    }
+                                    },
+                                    match obs.read_position {
+                                        ReadPosition::Major => '^',
+                                        ReadPosition::Some => '*',
+                                    },
                                 )
                             }),
                             false,
@@ -294,6 +305,13 @@ impl Call {
 
             record.push_format_string(b"ROB", &rob)?;
 
+            let rpb = read_position_bias
+                .values()
+                .map(|rpb| join(rpb.iter(), ",").into_bytes())
+                .collect_vec();
+
+            record.push_format_string(b"RPB", &rpb)?;
+
             bcf_writer.write(&record)?;
         }
         Ok(())
@@ -318,7 +336,7 @@ pub(crate) struct Variant {
     #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
-    observations: Option<Vec<Observation>>,
+    observations: Option<Vec<Observation<ReadPosition>>>,
     #[builder(default = "None")]
     #[getset(get = "pub(crate)")]
     sample_info: Option<Vec<SampleInfo>>,
@@ -413,7 +431,7 @@ impl VariantBuilder {
 pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     #[builder(default = "Vec::new()")]
-    observations: Vec<Observation>,
+    observations: Vec<Observation<ReadPosition>>,
     biases: Biases,
 }
 
