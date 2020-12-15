@@ -519,7 +519,6 @@ pub(crate) fn write_observations(
     let mut read_orientation = Vec::with_capacity(observations.len());
     let mut softclipped: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
-
     for obs in observations {
         prob_mapping.push(encode_logprob(obs.prob_mapping_orig()));
         prob_ref.push(encode_logprob(obs.prob_ref));

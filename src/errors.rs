@@ -54,4 +54,8 @@ pub(crate) enum Error {
     UndefinedExpression { identifier: String },
     #[error("invalid prior configuration: {msg}")]
     InvalidPriorConfiguration { msg: String },
+    #[error("read position determined from cigar string exceeds record length")]
+    ReadPosOutOfBounds,
+    #[error("invalid strand information '{value}', must be '+', '-', or '*'")]
+    InvalidStrandInfo { value: char },
 }

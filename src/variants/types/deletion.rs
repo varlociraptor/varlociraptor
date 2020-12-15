@@ -17,6 +17,7 @@ use rust_htslib::bam;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::variants::evidence::insert_size::estimate_insert_size;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
@@ -81,14 +82,14 @@ impl<R: Realigner> Deletion<R> {
             Ok(AlleleSupportBuilder::default()
                 .prob_ref_allele(LogProb::ln_one())
                 .prob_alt_allele(LogProb::ln_one())
-                .no_strand_info()
+                .strand(Strand::None)
                 .build()
                 .unwrap())
         } else {
             Ok(AlleleSupportBuilder::default()
                 .prob_ref_allele(p_ref)
                 .prob_alt_allele(p_alt)
-                .no_strand_info()
+                .strand(Strand::None)
                 .build()
                 .unwrap())
         }

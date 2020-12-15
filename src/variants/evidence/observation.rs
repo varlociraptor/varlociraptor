@@ -3,8 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::char;
 use std::hash::{Hash, Hasher};
+use std::ops;
 use std::ops::Deref;
+use std::ops::Range;
 use std::rc::Rc;
 
 use anyhow::Result;
@@ -16,7 +19,9 @@ use serde::Serialize;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
 
+use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::utils;
 use crate::variants::sample;
 use crate::variants::types::Variant;
 
@@ -36,9 +41,74 @@ pub(crate) enum Strand {
     None,
 }
 
+impl Strand {
+    pub(crate) fn from_record_and_pos(record: &bam::Record, pos: usize) -> Result<Self> {
+        Ok(
+            if let Some(strand_info) = utils::aux_tag_strand_info(record) {
+                if let Some(s) = strand_info.get(pos) {
+                    Self::from_aux_item(*s)?
+                } else {
+                    return Err(Error::ReadPosOutOfBounds.into());
+                }
+            } else {
+                Self::from_record(record)
+            },
+        )
+    }
+
+    pub(crate) fn from_record(record: &bam::Record) -> Self {
+        // just record global strand information of record
+        let reverse_strand = utils::is_reverse_strand(record);
+        if reverse_strand {
+            Strand::Reverse
+        } else {
+            Strand::Forward
+        }
+    }
+
+    pub(crate) fn from_aux(strand_info_aux: &[u8]) -> Result<Self> {
+        let mut strand = Strand::None;
+        for s in strand_info_aux {
+            strand |= Self::from_aux_item(*s)?;
+        }
+        Ok(strand)
+    }
+
+    pub(crate) fn from_aux_item(item: u8) -> Result<Self> {
+        Ok(match item {
+            b'+' => Strand::Forward,
+            b'-' => Strand::Reverse,
+            b'*' => Strand::Both,
+            _ => {
+                return Err(Error::InvalidStrandInfo {
+                    value: char::from_u32(item as u32).unwrap(),
+                }
+                .into())
+            }
+        })
+    }
+
+    pub(crate) fn no_strand_info() -> Self {
+        Self::None
+    }
+}
+
 impl Default for Strand {
     fn default() -> Self {
         Strand::None
+    }
+}
+
+impl ops::BitOrAssign for Strand {
+    fn bitor_assign(&mut self, rhs: Self) {
+        if let Strand::None = self {
+            *self = rhs;
+        } else if let Strand::None = rhs {
+            // no new information
+            return;
+        } else if *self != rhs {
+            *self = Strand::Both;
+        }
     }
 }
 
@@ -59,6 +129,11 @@ pub(crate) enum ReadOrientation {
 impl ReadOrientation {
     pub(crate) fn new(record: &bam::Record) -> Self {
         if record.is_paired() && record.is_proper_pair() && record.tid() == record.mtid() {
+            if record.pos() == record.mpos() {
+                // both reads start at the same position, we cannot decide on the orientation.
+                return ReadOrientation::None;
+            }
+
             let (is_reverse, is_first_in_template, is_mate_reverse) =
                 if record.pos() < record.mpos() {
                     // given record is the left one
@@ -168,7 +243,10 @@ impl Observation {
     }
 
     /// Remove all non-standard alignments from pileup (softclipped observations, non-standard read orientations).
-    pub(crate) fn remove_nonstandard_alignments(pileup: Vec<Self>) -> Vec<Self> {
+    pub(crate) fn remove_nonstandard_alignments(
+        pileup: Vec<Self>,
+        omit_read_orientation_bias: bool,
+    ) -> Vec<Self> {
         // METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
         // solely driven by standard alignments, that are not clipped and in expected orientation.
         // Otherwise called SNVs can be artifacts of near SVs.
@@ -176,9 +254,10 @@ impl Observation {
             .into_iter()
             .filter(|obs| {
                 !obs.softclipped
-                    && (obs.read_orientation == ReadOrientation::F1R2
-                        || obs.read_orientation == ReadOrientation::F2R1
-                        || obs.read_orientation == ReadOrientation::None)
+                    && (omit_read_orientation_bias
+                        || (obs.read_orientation == ReadOrientation::F1R2
+                            || obs.read_orientation == ReadOrientation::F2R1
+                            || obs.read_orientation == ReadOrientation::None))
             })
             .collect()
     }
@@ -232,7 +311,11 @@ where
                     .prob_ref(allele_support.prob_ref_allele())
                     .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
                     .prob_missed_allele(allele_support.prob_missed_allele())
-                    .prob_overlap(LogProb::ln_zero()) // no double overlap possible (TODO: check this!)
+                    .prob_overlap(if allele_support.strand() == Strand::Both {
+                        LogProb::ln_one()
+                    } else {
+                        LogProb::ln_zero()
+                    })
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation())
                     .softclipped(evidence.softclipped())

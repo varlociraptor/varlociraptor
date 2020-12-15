@@ -308,6 +308,7 @@ impl Testcase {
                 let mut rec = res?;
                 // update mapping position to interval
                 rec.set_pos(rec.pos() - ref_start as i64);
+                rec.set_mpos(rec.mpos() - ref_start as i64);
                 bam_writer.write(&rec)?;
             }
             samples.insert(

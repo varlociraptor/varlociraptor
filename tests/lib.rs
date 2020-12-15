@@ -106,13 +106,14 @@ testcase!(test51, exact);
 testcase!(test52, exact, fast);
 testcase!(test53, exact, fast);
 testcase!(test54, exact, fast);
+testcase!(test55, exact, fast);
+testcase!(test57, exact);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);
 testcase!(test_contig_universe, exact, fast);
 testcase!(test_expressions, exact);
 testcase!(omit_sb, exact);
-testcase!(omit_rob, exact);
-testcase!(omit_rob_sb, exact);
+testcase!(test_panel_overlap, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

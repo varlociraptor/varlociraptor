@@ -3,8 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::char;
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::rc::Rc;
+use std::str;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
@@ -12,8 +15,8 @@ use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 use vec_map::VecMap;
 
+use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::utils::is_reverse_strand;
 use crate::variants::evidence::observation::{
     Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
 };
@@ -43,7 +46,6 @@ pub(crate) use snv::SNV;
 pub(crate) struct AlleleSupport {
     prob_ref_allele: LogProb,
     prob_alt_allele: LogProb,
-    #[builder(private)]
     strand: Strand,
 }
 
@@ -67,21 +69,6 @@ impl AlleleSupport {
         }
 
         self
-    }
-}
-
-impl AlleleSupportBuilder {
-    pub(crate) fn register_record(&mut self, record: &bam::Record) -> &mut Self {
-        let reverse_strand = is_reverse_strand(record);
-        self.strand(if reverse_strand {
-            Strand::Reverse
-        } else {
-            Strand::Forward
-        })
-    }
-
-    pub(crate) fn no_strand_info(&mut self) -> &mut Self {
-        self.strand(Strand::None)
     }
 }
 
@@ -162,7 +149,6 @@ where
                 }
             }
         }
-
         Ok(observations)
     }
 }

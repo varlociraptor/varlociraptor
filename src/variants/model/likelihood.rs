@@ -10,8 +10,10 @@ use bio::stats::{bayesian::model::Likelihood, LogProb};
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::evidence::observation::Observation;
 use crate::variants::model::bias::Biases;
+use crate::variants::model::bias::{ReadOrientationBias, StrandBias};
 use crate::variants::model::AlleleFreq;
 use crate::variants::sample::Pileup;
+use itertools::Itertools;
 
 pub(crate) type ContaminatedSampleCache = BTreeMap<ContaminatedSampleEvent, LogProb>;
 pub(crate) type SingleSampleCache = BTreeMap<Event, LogProb>;
