@@ -1,4 +1,4 @@
-use bio::stats::probs::LogProb;
+use bio::stats::probs::{LogProb, Prob};
 
 use crate::utils::PROB_HALF;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
@@ -18,15 +18,16 @@ impl Default for ReadPositionBias {
 
 impl Bias for ReadPositionBias {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
-        match (self, observation.read_position) {
+        let p = match (self, observation.read_position) {
             (ReadPositionBias::None, _) => observation.prob_hit_base, // normal
             (ReadPositionBias::Some, ReadPosition::Major) => LogProb::ln_one(), // bias
             (ReadPositionBias::Some, ReadPosition::Some) => LogProb::ln_zero(), // no bias
-        }
+        };
+        p
     }
 
-    fn prob_any(&self) -> LogProb {
-        *PROB_HALF
+    fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb {
+        observation.prob_hit_base
     }
 
     fn is_artifact(&self) -> bool {

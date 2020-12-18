@@ -431,7 +431,7 @@ where
             events.push(model::Event {
                 name: "absent".to_owned(),
                 vafs: grammar::VAFTree::absent(self.n_samples()),
-                biases: Biases::none(),
+                biases: vec![Biases::none()],
             });
 
             // add events from scenario
@@ -439,21 +439,19 @@ where
                 events.push(model::Event {
                     name: event_name.clone(),
                     vafs: vaftree.clone(),
-                    biases: Biases::none(),
+                    biases: vec![Biases::none()],
                 });
-                // Corresponding biased events.
-                for biases in Biases::all_artifact_combinations(
-                    consider_read_orientation_bias,
-                    consider_strand_bias,
-                    consider_read_position_bias,
-                ) {
-                    dbg!(&biases);
-                    events.push(model::Event {
-                        name: event_name.clone(),
-                        vafs: vaftree.clone(),
-                        biases,
-                    });
-                }
+                // Corresponding biased event.
+                events.push(model::Event {
+                    name: event_name.clone(),
+                    vafs: vaftree.clone(),
+                    biases: Biases::all_artifact_combinations(
+                        consider_read_orientation_bias,
+                        consider_strand_bias,
+                        consider_read_position_bias,
+                    )
+                    .collect(),
+                });
             }
 
             // update prior to the VAF universe of the current chromosome
@@ -520,7 +518,8 @@ where
                         .iter()
                         .filter_map(|event| {
                             if event.is_artifact() {
-                                Some(m.posterior(event).unwrap())
+                                let p = m.posterior(event).unwrap();
+                                Some(p)
                             } else {
                                 None
                             }

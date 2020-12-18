@@ -244,16 +244,18 @@ impl Posterior for GenericPosterior {
         let grid_points = self.grid_points(&data.pileups);
         let vaf_tree = &event.vafs;
         LogProb::ln_sum_exp(
-            &vaf_tree
+            &event
+                .biases
                 .iter()
-                .map(|node| {
+                .cartesian_product(vaf_tree)
+                .map(|(biases, node)| {
                     let mut base_events = VecMap::with_capacity(data.pileups.len());
                     self.density(
                         node,
                         &mut base_events,
                         &grid_points,
                         data,
-                        &event.biases,
+                        biases,
                         joint_prob,
                     )
                 })

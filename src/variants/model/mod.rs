@@ -28,12 +28,12 @@ pub(crate) struct Contamination {
 pub(crate) struct Event {
     pub(crate) name: String,
     pub(crate) vafs: grammar::VAFTree,
-    pub(crate) biases: Biases,
+    pub(crate) biases: Vec<Biases>,
 }
 
 impl Event {
     pub(crate) fn is_artifact(&self) -> bool {
-        self.biases.is_artifact()
+        self.biases.iter().any(|biases| biases.is_artifact())
     }
 }
 

@@ -32,7 +32,7 @@ impl Bias for ReadOrientationBias {
         }
     }
 
-    fn prob_any(&self) -> LogProb {
+    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
         *PROB_HALF
     }
 

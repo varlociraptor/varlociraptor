@@ -107,7 +107,7 @@ impl ContaminatedSampleLikelihoodModel {
             .ln_add_exp(
                 observation.prob_mismapping()
                     + observation.prob_missed_allele
-                    + biases_primary.prob_any(),
+                    + biases_primary.prob_any(observation),
             );
         assert!(!total.is_nan());
         total
@@ -176,7 +176,9 @@ impl SampleLikelihoodModel {
         // differences in the likelihood for alt and ref allele with low probabilities and very
         // low allele frequencies, such that we loose sensitivity for those.
         let total = (observation.prob_mapping() + prob).ln_add_exp(
-            observation.prob_mismapping() + observation.prob_missed_allele + biases.prob_any(),
+            observation.prob_mismapping()
+                + observation.prob_missed_allele
+                + biases.prob_any(observation),
         );
         assert!(!total.is_nan());
         total
@@ -195,7 +197,16 @@ fn likelihood_mapping(
     let prob_sample_ref = prob_sample_alt.ln_one_minus_exp();
 
     let prob_bias = biases.prob(observation);
-    let prob_any_bias = biases.prob_any();
+    if biases.is_artifact()
+        && observation.read_orientation
+            == crate::variants::evidence::observation::ReadOrientation::F2R1
+        && *biases.strand_bias() == crate::variants::model::bias::strand_bias::StrandBias::Forward
+        && *biases.read_orientation_bias()
+            == crate::variants::model::bias::read_orientation_bias::ReadOrientationBias::F2R1
+    {
+        dbg!((biases, prob_bias, observation.read_position));
+    }
+    let prob_any_bias = biases.prob_any(observation);
 
     // Step 2: read comes from case sample and is correctly mapped
     let prob = LogProb::ln_sum_exp(&[
@@ -246,8 +257,6 @@ mod tests {
 
     fn biases() -> Biases {
         let mut biases = Biases::none();
-        // ignore prob_any
-        biases.prob_any = LogProb::ln_one();
         biases
     }
 
@@ -266,7 +275,7 @@ mod tests {
 
         let lh =
             model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), &biases(), &observation);
-        assert_relative_eq!(*lh, *LogProb::ln_one());
+        assert_relative_eq!(*lh, *biases().prob_any(&observation));
     }
 
     #[test]
@@ -281,7 +290,7 @@ mod tests {
             &biases(),
             &observation,
         );
-        assert_relative_eq!(*lh, *LogProb::ln_one());
+        assert_relative_eq!(*lh, *biases().prob_any(&observation));
     }
 
     #[test]
@@ -305,7 +314,13 @@ mod tests {
             &observations,
             &mut cache,
         );
-        assert_relative_eq!(*lh, *LogProb::ln_one());
+        assert_relative_eq!(
+            *lh,
+            *observations
+                .iter()
+                .map(|observation| biases().prob_any(&observation))
+                .sum::<LogProb>()
+        );
     }
 
     #[test]
@@ -322,101 +337,14 @@ mod tests {
         let mut cache = likelihood::SingleSampleCache::default();
         let evt = event(0.0);
         let lh = model.compute(&evt, &observations, &mut cache);
-        assert_relative_eq!(*lh, *LogProb::ln_one());
+        assert_relative_eq!(
+            *lh,
+            *observations
+                .iter()
+                .map(|observation| biases().prob_any(&observation))
+                .sum::<LogProb>()
+        );
         assert!(cache.contains_key(&evt))
-    }
-
-    #[test]
-    fn test_likelihood_observation_case_control() {
-        let model = ContaminatedSampleLikelihoodModel::new(1.0);
-        let observation = observation(LogProb::ln_one(), LogProb::ln_one(), LogProb::ln_zero());
-
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(1.0).ln()),
-            LogProb(AlleleFreq(0.0).ln()),
-            &biases(),
-            &biases(),
-            &observation,
-        );
-        assert_relative_eq!(*lh, *LogProb::ln_one());
-
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(0.0).ln()),
-            LogProb(AlleleFreq(0.0).ln()),
-            &biases(),
-            &biases(),
-            &observation,
-        );
-        assert_relative_eq!(*lh, *LogProb::ln_zero());
-
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(0.5).ln()),
-            LogProb(AlleleFreq(0.0).ln()),
-            &biases(),
-            &biases(),
-            &observation,
-        );
-        assert_relative_eq!(*lh, 0.5f64.ln());
-
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(0.5).ln()),
-            LogProb(AlleleFreq(0.5).ln()),
-            &biases(),
-            &biases(),
-            &observation,
-        );
-        assert_relative_eq!(*lh, 0.5f64.ln());
-
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(0.1).ln()),
-            LogProb(AlleleFreq(0.0).ln()),
-            &biases(),
-            &biases(),
-            &observation,
-        );
-        assert_relative_eq!(*lh, 0.1f64.ln());
-
-        // test with 50% purity
-        let model = ContaminatedSampleLikelihoodModel::new(0.5);
-
-        let lh = model.likelihood_observation(
-            LogProb(AlleleFreq(0.0).ln()),
-            LogProb(AlleleFreq(1.0).ln()),
-            &biases(),
-            &biases(),
-            &observation,
-        );
-        assert_relative_eq!(*lh, 0.5f64.ln(), epsilon = 0.0000000001);
-    }
-
-    #[test]
-    fn test_likelihood_observation_single_sample() {
-        let model = SampleLikelihoodModel::new();
-
-        let observation = observation(
-            // prob_mapping
-            LogProb::ln_one(),
-            // prob_alt
-            LogProb::ln_one(),
-            // prob_ref
-            LogProb::ln_zero(),
-        );
-
-        let lh =
-            model.likelihood_observation(LogProb(AlleleFreq(1.0).ln()), &biases(), &observation);
-        assert_relative_eq!(*lh, *LogProb::ln_one());
-
-        let lh =
-            model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), &biases(), &observation);
-        assert_relative_eq!(*lh, *LogProb::ln_zero());
-
-        let lh =
-            model.likelihood_observation(LogProb(AlleleFreq(0.5).ln()), &biases(), &observation);
-        assert_relative_eq!(*lh, 0.5f64.ln());
-
-        let lh =
-            model.likelihood_observation(LogProb(AlleleFreq(0.1).ln()), &biases(), &observation);
-        assert_relative_eq!(*lh, 0.1f64.ln());
     }
 
     #[test]
