@@ -506,7 +506,8 @@ where
                     if event.is_artifact() {
                         None
                     } else {
-                        Some((event.name.clone(), m.posterior(event).unwrap()))
+                        let p = m.posterior(event).unwrap();
+                        Some((event.name.clone(), p))
                     }
                 })
                 .collect();
@@ -519,6 +520,7 @@ where
                         .filter_map(|event| {
                             if event.is_artifact() {
                                 let p = m.posterior(event).unwrap();
+                                dbg!((event, p));
                                 Some(p)
                             } else {
                                 None

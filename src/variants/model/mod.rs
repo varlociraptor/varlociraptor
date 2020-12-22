@@ -33,6 +33,7 @@ pub(crate) struct Event {
 
 impl Event {
     pub(crate) fn is_artifact(&self) -> bool {
+        assert!(self.biases.iter().all(|biases| biases.is_artifact()) || self.biases.iter().all(|biases| !biases.is_artifact()));
         self.biases.iter().any(|biases| biases.is_artifact())
     }
 }
