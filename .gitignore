@@ -20,6 +20,4 @@ tests/resources/testcases/*/*
 !tests/resources/testcases/*/*.bam
 !tests/resources/testcases/*/scenario.yaml
 !tests/resources/testcases/*/*.fa
-tests/resources/prior/*
-tests/resources/prior/.snakemake
-tests/resources/prior/.snakemake/*
+tests/resources/prior/**
