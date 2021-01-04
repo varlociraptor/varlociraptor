@@ -1,0 +1,26 @@
+# This scenario is templated with Jinja2 and rendered for each group (see sample sheet).
+# A variable `samples` is available, holding the dataframe of
+# the sample sheet, filtered to those samples contained in the group to be rendered.
+# For example, this can be used to pass arbitrary column values (like the purity below),
+# to the sample definitions.
+# Note that sample names here must correspond to the alias column in the sample sheet.
+
+samples:
+  germline:
+    universe: "[0.0,0.1] | 0.5 | 1.0"
+  18_D:
+    universe: "[0.0,1.0]"
+    contamination:
+      by: germline
+      fraction: 0.8
+
+expressions:
+  ffpe_artifact: "(C>T | G>A ) & ( ( 18_D:]0.0,0.1] & germline:[0.0,0.1] ) | ( 18_D:[0.0,0.1] & germline:]0.0,0.1] ) )"
+
+events:
+#  ffpe_artifact: "$ffpe_artifact"
+#  somatic: "germline:0.0 & 18_D:]0.0,1.0] & !$ffpe_artifact"
+#  germline: "( germline:]0.0,0.1] | germline:0.5 | germline:1.0 ) & !$ffpe_artifact"
+  ffpe_artifact: "(C>T | G>A ) & ( ( 18_D:]0.0,0.1] & germline:[0.0,0.1] ) | ( 18_D:[0.0,0.1] & germline:]0.0,0.1] ) )"
+  somatic: "germline:0.0 & 18_D:]0.0,1.0] & !( (C>T | G>A ) & ( ( 18_D:]0.0,0.1] & germline:[0.0,0.1] ) | ( 18_D:[0.0,0.1] & germline:]0.0,0.1] ) ) )"
+  germline: "( germline:]0.0,0.1] | germline:0.5 | germline:1.0 ) & !( (C>T | G>A ) & ( ( 18_D:]0.0,0.1] & germline:[0.0,0.1] ) | ( 18_D:[0.0,0.1] & germline:]0.0,0.1] ) ) )"
