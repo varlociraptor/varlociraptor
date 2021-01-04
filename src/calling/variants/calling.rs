@@ -41,8 +41,7 @@ where
 {
     samplenames: grammar::SampleInfo<String>,
     observations: grammar::SampleInfo<Option<PathBuf>>,
-    omit_strand_bias: bool,
-    omit_read_orientation_bias: bool,
+    samples: grammar::SampleInfo<grammar::Sample>, // TODO add this, access for omitting biases
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,

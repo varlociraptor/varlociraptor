@@ -185,9 +185,24 @@ impl Default for ReadPosition {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Derefable, Hash)]
+pub(crate) struct NumericReadPosition(#[deref] u32);
+
+impl NumericReadPosition {
+    pub(crate) fn from_record(qpos: u32, record: &bam::Record) -> Self {
+        let qpos = if record.is_reverse() {
+            record.seq_len() as u32 - qpos
+        } else {
+            qpos
+        };
+
+        NumericReadPosition(qpos)
+    }
+}
+
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default)]
-pub(crate) struct Observation<P = Option<u32>>
+pub(crate) struct Observation<P = Option<NumericReadPosition>>
 where
     P: Clone,
 {
@@ -240,10 +255,10 @@ impl<P: Clone> ObservationBuilder<P> {
     }
 }
 
-impl Observation<Option<u32>> {
+impl Observation<Option<NumericReadPosition>> {
     pub(crate) fn process_read_position(
         &self,
-        major_read_position: Option<u32>,
+        major_read_position: Option<NumericReadPosition>,
     ) -> Observation<ReadPosition> {
         Observation {
             prob_mapping: self.prob_mapping,
@@ -317,7 +332,9 @@ impl<P: Clone> Observation<P> {
     }
 }
 
-pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option<u32> {
+pub(crate) fn major_read_position(
+    pileup: &[Observation<Option<NumericReadPosition>>],
+) -> Option<NumericReadPosition> {
     let counter: Counter<_> = pileup.iter().filter_map(|obs| obs.read_position).collect();
     let most_common = counter.most_common();
     if most_common.is_empty() {

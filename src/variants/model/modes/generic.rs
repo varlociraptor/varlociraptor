@@ -7,11 +7,11 @@ use itertools::Itertools;
 use vec_map::VecMap;
 
 use crate::grammar;
+use crate::utils::PROB_HALF;
 use crate::variants::model;
 use crate::variants::model::likelihood;
 use crate::variants::model::{bias::Biases, AlleleFreq, Contamination};
 use crate::variants::sample::Pileup;
-use crate::utils::PROB_HALF;
 
 #[derive(new, Clone, Debug)]
 pub(crate) struct SNV {
@@ -244,7 +244,11 @@ impl Posterior for GenericPosterior {
     ) -> LogProb {
         let grid_points = self.grid_points(&data.pileups);
         let vaf_tree = &event.vafs;
-        let bias_prior = if event.is_artifact() { *PROB_HALF + LogProb((1.0 / event.biases.len() as f64).ln()) } else { *PROB_HALF };
+        let bias_prior = if event.is_artifact() {
+            *PROB_HALF + LogProb((1.0 / event.biases.len() as f64).ln())
+        } else {
+            *PROB_HALF
+        };
         LogProb::ln_sum_exp(
             &event
                 .biases
@@ -252,15 +256,15 @@ impl Posterior for GenericPosterior {
                 .cartesian_product(vaf_tree)
                 .map(|(biases, node)| {
                     let mut base_events = VecMap::with_capacity(data.pileups.len());
-                    bias_prior + 
-                    self.density(
-                        node,
-                        &mut base_events,
-                        &grid_points,
-                        data,
-                        biases,
-                        joint_prob,
-                    )
+                    bias_prior
+                        + self.density(
+                            node,
+                            &mut base_events,
+                            &grid_points,
+                            data,
+                            biases,
+                            joint_prob,
+                        )
                 })
                 .collect_vec(),
         )

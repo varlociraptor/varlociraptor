@@ -17,7 +17,7 @@ pub(crate) use strand_bias::StrandBias;
 pub(crate) trait Bias {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;
 
-    fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb;
+    fn prob_any(observation: &Observation<ReadPosition>) -> LogProb;
 
     fn is_artifact(&self) -> bool;
 }
@@ -88,7 +88,16 @@ impl Biases {
                 .cartesian_product(read_orientation_biases.into_iter())
                 .cartesian_product(read_position_biases.into_iter())
                 .filter_map(|((sb, rob), rpb)| {
-                    if sb.is_artifact() || rob.is_artifact() || rpb.is_artifact() {
+                    // METHOD: only consider one bias at a time, and don't care about the other biases then.
+                    // This greatly reduces the complexity of the formula to evaluate and improves the numerical stability.
+                    // Otherwise, it so many alternative solutions for all bias combinations would in sum weaken the probability for presence too much
+                    // because each of them would also allow to escape the biases by mapping uncertainty.
+                    let n_artifact: usize =
+                        [sb.is_artifact(), rob.is_artifact(), rpb.is_artifact()]
+                            .iter()
+                            .map(|artifact| if *artifact { 1 } else { 0 })
+                            .sum();
+                    if n_artifact == 1 {
                         Some(
                             BiasesBuilder::default()
                                 .strand_bias(sb)
@@ -115,15 +124,39 @@ impl Biases {
 
     pub(crate) fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         //dbg!(self.strand_bias.prob(observation), self.read_orientation_bias.prob(observation), self.read_position_bias.prob(observation));
-        self.strand_bias.prob(observation)
-            + self.read_orientation_bias.prob(observation)
-            + self.read_position_bias.prob(observation)
+        match (
+            self.strand_bias.is_artifact(),
+            self.read_orientation_bias.is_artifact(),
+            self.read_position_bias.is_artifact(),
+        ) {
+            (true, false, false) => {
+                self.strand_bias.prob(observation)
+                    + ReadOrientationBias::prob_any(observation)
+                    + ReadPositionBias::prob_any(observation)
+            }
+            (false, true, false) => {
+                self.read_orientation_bias.prob(observation)
+                    + StrandBias::prob_any(observation)
+                    + ReadPositionBias::prob_any(observation)
+            }
+            (false, false, true) => {
+                self.read_position_bias.prob(observation)
+                    + ReadOrientationBias::prob_any(observation)
+                    + StrandBias::prob_any(observation)
+            }
+            (false, false, false) => {
+                self.strand_bias.prob(observation)
+                    + self.read_orientation_bias.prob(observation)
+                    + self.read_position_bias.prob(observation)
+            }
+            _ => unreachable!("only one bias at a time is allowed"),
+        }
     }
 
     pub(crate) fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb {
-        self.strand_bias.prob_any(observation)
-            + self.read_orientation_bias.prob_any(observation)
-            + self.read_position_bias.prob_any(observation)
+        StrandBias::prob_any(observation)
+            + ReadOrientationBias::prob_any(observation)
+            + ReadPositionBias::prob_any(observation)
     }
 
     pub(crate) fn is_artifact(&self) -> bool {

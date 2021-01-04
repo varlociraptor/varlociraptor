@@ -26,7 +26,7 @@ impl Bias for ReadPositionBias {
         p
     }
 
-    fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_any(observation: &Observation<ReadPosition>) -> LogProb {
         observation.prob_hit_base
     }
 

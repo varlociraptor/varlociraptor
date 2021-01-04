@@ -12,7 +12,7 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
-use crate::variants::evidence::observation::Strand;
+use crate::variants::evidence::observation::{NumericReadPosition, Strand};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -140,7 +140,9 @@ impl Variant for MNV {
                 .strand(strand)
                 .prob_ref_allele(prob_ref)
                 .prob_alt_allele(prob_alt)
-                .read_position(read_position)
+                .read_position(
+                    read_position.map(|qpos| NumericReadPosition::from_record(qpos, &**read)),
+                )
                 .build()
                 .unwrap(),
         ))

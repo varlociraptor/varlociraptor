@@ -32,7 +32,7 @@ impl Bias for StrandBias {
         }
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_any(_observation: &Observation<ReadPosition>) -> LogProb {
         *PROB_HALF
     }
 

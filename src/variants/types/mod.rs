@@ -18,7 +18,8 @@ use vec_map::VecMap;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::observation::{
-    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
+    Evidence, NumericReadPosition, Observable, Observation, PairedEndEvidence, SingleEndEvidence,
+    Strand,
 };
 use crate::variants::sample;
 
@@ -48,7 +49,7 @@ pub(crate) struct AlleleSupport {
     prob_alt_allele: LogProb,
     strand: Strand,
     #[builder(default)]
-    read_position: Option<u32>,
+    read_position: Option<NumericReadPosition>,
 }
 
 impl AlleleSupport {
