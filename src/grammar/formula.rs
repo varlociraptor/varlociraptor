@@ -521,14 +521,15 @@ impl<'de> de::Visitor<'de> for FormulaVisitor {
         E: de::Error,
     {
         let res = FormulaParser::parse(Rule::formula, v);
-        if let Ok(mut pairs) = res {
-            let pair = pairs.next().expect("bug: expecting formula");
-            parse_formula(pair)
-        } else {
-            Err(de::Error::invalid_value(
-                serde::de::Unexpected::Other("invalid VAF formula"),
+        match res {
+            Ok(mut pairs) => {
+                let pair = pairs.next().expect("bug: expecting formula");
+                parse_formula(pair)
+            }
+            Err(e) => Err(de::Error::invalid_value(
+                serde::de::Unexpected::Other(&format!("invalid VAF formula:\n{}", e)),
                 &self,
-            ))
+            )),
         }
     }
 }
