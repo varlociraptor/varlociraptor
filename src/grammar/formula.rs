@@ -185,8 +185,7 @@ impl Formula {
                                     }
                                     VAFRangeOverlap::End => {
                                         if let Some(spec) = urange.split_at(range.end).1 {
-                                            disjunction
-                                                .push(spec);
+                                            disjunction.push(spec);
                                         }
                                     }
                                     VAFRangeOverlap::Start => {
@@ -342,7 +341,7 @@ impl VAFRange {
                 Some(VAFSpectrum::Range(range))
             }
         };
-        
+
         (to_spectrum(left), to_spectrum(right))
     }
 
