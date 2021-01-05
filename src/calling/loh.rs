@@ -205,14 +205,13 @@ impl Caller<'_> {
 
             // Specify solver
             let solver = CbcSolver::new();
-            let result = solver.run(&problem);
 
             // (terminate if error, or assign status & variable values)
-            match result {
-                Ok((status, results)) => {
-                    debug!("Status: {:?}", status);
+            match solver.run(&problem) {
+                Ok(solution) => {
+                    debug!("Status: {:?}", solution.status);
                     let mut sorted_records: BTreeMap<u64, bed::Record> = BTreeMap::new();
-                    for (var_name, var_value) in &results {
+                    for (var_name, var_value) in solution.results.iter() {
                         let split: Vec<_> = var_name.split('_').collect();
                         let start_index: usize = split[1].parse()?;
                         let end_index: usize = split[2].parse()?;
