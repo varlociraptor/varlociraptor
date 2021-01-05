@@ -250,7 +250,7 @@ impl Posterior for GenericPosterior {
             *PROB_HALF
         };
 
-        // METHOD: filter out biases that are impossible to observe, (e.g. + without and + observation).
+        // METHOD: filter out biases that are impossible to observe, (e.g. + without any + observation).
         let possible_biases = event
             .biases
             .iter()

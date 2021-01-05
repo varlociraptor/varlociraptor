@@ -96,17 +96,16 @@ impl Biases {
                 .cartesian_product(read_orientation_biases.into_iter())
                 .cartesian_product(read_position_biases.into_iter())
                 .filter_map(|((sb, rob), rpb)| {
-                    if sb.is_artifact() || rob.is_artifact() || rpb.is_artifact() {
-                        Some(
+                    match (sb.is_artifact(), rob.is_artifact(), rpb.is_artifact()) {
+                        (true, false, false) | (false, true, false) | (false, false, true) => Some(
                             BiasesBuilder::default()
                                 .strand_bias(sb)
                                 .read_orientation_bias(rob)
                                 .read_position_bias(rpb)
                                 .build()
                                 .unwrap(),
-                        )
-                    } else {
-                        None
+                        ),
+                        _ => None,
                     }
                 }),
         )
