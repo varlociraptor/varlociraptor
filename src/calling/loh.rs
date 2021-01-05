@@ -265,7 +265,10 @@ fn site_posterior_loh_or_hom(
         None
     } else {
         let site_likelihood_loh_or_hom = site_likelihood_loh.ln_add_exp(site_likelihood_hom);
-        Some(site_likelihood_loh_or_hom - (site_likelihood_loh_or_hom.ln_add_exp(site_likelihood_no_loh)))
+        Some(
+            site_likelihood_loh_or_hom
+                - (site_likelihood_loh_or_hom.ln_add_exp(site_likelihood_no_loh)),
+        )
     }
 }
 
@@ -564,9 +567,8 @@ mod tests {
             PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.bcf");
         let test_output =
             PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.out.bed");
-        let expected_bed: Vec<u8> = Vec::from(
-            "chr8\t7999999\t8002000\t\t0.0000006369733111102624\n"
-        );
+        let expected_bed: Vec<u8> =
+            Vec::from("chr8\t7999999\t8002000\t\t0.0000006369733111102624\n");
         let alpha = 0.05;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
