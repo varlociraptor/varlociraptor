@@ -20,6 +20,14 @@ pub(crate) trait Bias {
     fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb;
 
     fn is_artifact(&self) -> bool;
+
+    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        pileups.iter().any(|pileup| {
+            pileup
+                .iter()
+                .any(|observation| self.prob(observation) != LogProb::ln_zero())
+        })
+    }
 }
 
 #[derive(Builder, CopyGetters, Getters, Debug, Clone)]
@@ -111,6 +119,12 @@ impl Biases {
             .read_position_bias(ReadPositionBias::None)
             .build()
             .unwrap()
+    }
+
+    pub(crate) fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        self.strand_bias.is_possible(pileups)
+            && self.read_orientation_bias.is_possible(pileups)
+            && self.read_position_bias.is_possible(pileups)
     }
 
     pub(crate) fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {

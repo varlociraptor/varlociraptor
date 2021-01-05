@@ -43,6 +43,7 @@ where
     observations: grammar::SampleInfo<Option<PathBuf>>,
     omit_strand_bias: bool,
     omit_read_orientation_bias: bool,
+    omit_read_position_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -366,7 +367,7 @@ where
             index,
             check_read_orientation_bias: is_snv_or_mnv && !self.omit_read_orientation_bias,
             check_strand_bias: !self.omit_strand_bias,
-            check_read_position_bias: is_snv_or_mnv,
+            check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
         };
 
         if let Some(ref event) = work_item.bnd_event {
