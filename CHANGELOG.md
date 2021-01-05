@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.5.4] - 2021-01-04
+- Added support for aux per base strand information as provided by rust-bio-tools.
+- Fixed read orientation detection for overlapping reads.
+- Better error messages for formulas.
+- Fixed parsing of expression usage in formulas.
+
 ## [2.5.3] - 2020-11-23
 - Update to latest hts-sys, containing a fix for macOS.
 
