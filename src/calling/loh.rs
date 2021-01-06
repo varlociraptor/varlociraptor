@@ -106,23 +106,7 @@ impl Caller<'_> {
                 &self.control_local_fdr,
                 &self.filter_bayes_factor_minimum_barely,
             )?;
-            let mut intervals_overlap_or_adjacent: HashMap<
-                (&RangeInclusive<usize>, &RangeInclusive<usize>),
-                bool,
-            > = HashMap::new();
-            for (interval1, interval2) in iproduct!(intervals.keys(), intervals.keys()) {
-                let key = (interval1, interval2);
-                let start2_minus_one = if interval2.start() >= &1 {
-                    interval2.start() - 1
-                } else {
-                    *interval2.start()
-                };
-                let overlap_indicator = interval1.contains(interval2.start())
-                    || interval1.contains(&start2_minus_one)
-                    || interval1.contains(interval2.end())
-                    || interval1.contains(&(interval2.end() + 1));
-                intervals_overlap_or_adjacent.insert(key, overlap_indicator);
-            }
+
             // Define problem and objective sense
             let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
 
@@ -151,20 +135,23 @@ impl Caller<'_> {
             // Constraint: no overlapping intervals for selected intervals
             for current_interval in intervals.keys() {
                 let n_overlapping_selected: Vec<LpExpression> = {
-                    let mut interval_loh_indicator_without_ci = interval_loh_indicator.clone();
-                    interval_loh_indicator_without_ci.remove(current_interval);
-                    interval_loh_indicator_without_ci
+                    interval_loh_indicator
                         .iter()
                         .map(|(&interval, loh_indicator)| {
-                            let interval_overlaps: i32 = if *intervals_overlap_or_adjacent
-                                .get(&(current_interval, interval))
-                                .unwrap()
+                            // current interval will overlap itself, but should not add to the constraint
+                            if current_interval != interval && (
+                                current_interval.contains(interval.start())
+                                    // adjacency is equivalent to an overlap
+                                    || current_interval.contains(&(interval.start().saturating_sub(1)))
+                                    || current_interval.contains(interval.end())
+                                    // adjacency is equivalent to an overlap
+                                    || current_interval.contains(&(interval.end() + 1))
+                                )
                             {
-                                1
+                                1 * loh_indicator
                             } else {
-                                0
-                            };
-                            interval_overlaps * loh_indicator
+                                0 * loh_indicator
+                            }
                         })
                         .collect()
                 };
@@ -356,27 +343,26 @@ impl ContigLogPosteriorsLOH {
         let mut intervals = HashMap::new();
         for start in 0..self.cum_loh_posteriors.len() {
             for end in start..self.cum_loh_posteriors.len() {
-                if start > 0 {}
-                let posterior_probability = if start > 0 {
+                let posterior_log_probability = if start > 0 {
                     self.cum_loh_posteriors[end] - self.cum_loh_posteriors[start - 1]
                 } else {
                     self.cum_loh_posteriors[end]
                 };
                 // skipping stuff can make the problem formulation much smaller to start with
-                if *control_local_fdr && posterior_probability < log_one_minus_alpha {
+                if *control_local_fdr && posterior_log_probability < log_one_minus_alpha {
                     continue;
                 }
                 if *filter_bayes_factor_minimum_barely
                     && BayesFactor::new(
-                        posterior_probability,
-                        posterior_probability.ln_one_minus_exp(),
+                        posterior_log_probability,
+                        posterior_log_probability.ln_one_minus_exp(),
                     )
                     .evidence_kass_raftery()
                         == evidence::KassRaftery::None
                 {
                     continue;
                 }
-                intervals.insert(start..=end, posterior_probability);
+                intervals.insert(start..=end, posterior_log_probability);
             }
         }
         Ok(intervals)
