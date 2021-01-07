@@ -251,6 +251,7 @@ impl Call {
             } else {
                 PHREDProb::from(*prob).abs() as f32
             };
+            dbg!((event, prob));
             record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob])?;
         }
 
