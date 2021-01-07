@@ -242,16 +242,14 @@ impl Call {
 
         // set qual
         record.set_qual(f32::missing());
-        dbg!(&event_probs);
 
         // set event probabilities
         for (event, prob) in event_probs {
             let prob = if prob.is_nan() {
                 f32::missing()
             } else {
-                PHREDProb::from(*prob).abs() as f32
+                PHREDProb::from(prob).abs() as f32
             };
-            dbg!((event, prob));
             record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob])?;
         }
 
