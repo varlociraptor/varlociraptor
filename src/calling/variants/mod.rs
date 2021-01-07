@@ -242,6 +242,7 @@ impl Call {
 
         // set qual
         record.set_qual(f32::missing());
+        dbg!(&event_probs);
 
         // set event probabilities
         for (event, prob) in event_probs {
