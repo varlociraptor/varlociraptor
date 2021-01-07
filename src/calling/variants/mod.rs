@@ -13,7 +13,6 @@ use std::u8;
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
 use derive_builder::Builder;
-use itertools::join;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;

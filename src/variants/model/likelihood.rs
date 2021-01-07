@@ -10,10 +10,8 @@ use bio::stats::{bayesian::model::Likelihood, LogProb};
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Biases;
-use crate::variants::model::bias::{ReadOrientationBias, StrandBias};
 use crate::variants::model::AlleleFreq;
 use crate::variants::sample::Pileup;
-use itertools::Itertools;
 
 pub(crate) type ContaminatedSampleCache = BTreeMap<ContaminatedSampleEvent, LogProb>;
 pub(crate) type SingleSampleCache = BTreeMap<Event, LogProb>;
@@ -256,8 +254,7 @@ mod tests {
     use itertools_num::linspace;
 
     fn biases() -> Biases {
-        let mut biases = Biases::none();
-        biases
+        Biases::none()
     }
 
     fn event(allele_freq: f64) -> Event {

@@ -7,7 +7,6 @@ use std::char;
 use std::hash::{Hash, Hasher};
 use std::ops;
 use std::ops::Deref;
-use std::ops::Range;
 use std::rc::Rc;
 
 use anyhow::Result;

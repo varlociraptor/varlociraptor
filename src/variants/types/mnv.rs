@@ -6,7 +6,6 @@
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
-use std::iter;
 
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;

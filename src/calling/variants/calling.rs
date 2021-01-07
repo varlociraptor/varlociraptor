@@ -264,7 +264,7 @@ where
                 work_item.check_read_orientation_bias,
                 work_item.check_read_position_bias,
             );
-            _model = models.entry(model_mode).or_insert(self.model());
+            _model = models.entry(model_mode).or_insert_with(|| self.model());
             {
                 let entry = last_rids.entry(model_mode).or_insert(None);
                 _last_rid = (*entry).clone();

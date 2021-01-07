@@ -1,6 +1,5 @@
-use bio::stats::probs::{LogProb, Prob};
+use bio::stats::probs::LogProb;
 
-use crate::utils::PROB_HALF;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
