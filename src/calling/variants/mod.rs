@@ -38,8 +38,8 @@ pub(crate) struct Call {
     id: Option<Vec<u8>>,
     #[builder(default = "None")]
     mateid: Option<Vec<u8>>,
-    #[builder(default = "Vec::new()")]
-    variants: Vec<Variant>,
+    #[builder(default)]
+    variant: Option<Variant>,
 }
 
 impl CallBuilder {
@@ -51,269 +51,252 @@ impl CallBuilder {
 impl Call {
     pub(crate) fn write_preprocessed_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
-        for variant in self.variants.iter() {
-            let mut record = bcf_writer.empty_record();
-            record.set_rid(Some(rid));
-            record.set_pos(self.pos as i64);
-            // set ID if present
-            if let Some(ref id) = self.id {
-                record.set_id(id)?;
-            }
 
-            // set alleles
-            record.set_alleles(&[&variant.ref_allele[..], &variant.alt_allele[..]])?;
+        let variant = self.variant.as_ref().unwrap();
 
-            // set tags
-            if let Some(svlen) = variant.svlen {
-                record.push_info_integer(b"SVLEN", &[svlen])?;
-            }
-            if let Some(end) = variant.end {
-                record.push_info_integer(b"END", &[end as i32])?;
-            }
-            if let Some(ref event) = variant.event {
-                record.push_info_string(b"EVENT", &[event])?;
-            }
-            if let Some(ref svtype) = variant.svtype {
-                record.push_info_string(b"SVTYPE", &[svtype])?;
-            }
-            if let Some(ref mateid) = self.mateid {
-                record.push_info_string(b"MATEID", &[mateid])?;
-            }
-
-            // set qual
-            record.set_qual(f32::missing());
-
-            // add raw observations
-            if let Some(ref obs) = variant.observations {
-                write_observations(obs, &mut record)?;
-            }
-
-            bcf_writer.write(&record)?;
+        let mut record = bcf_writer.empty_record();
+        record.set_rid(Some(rid));
+        record.set_pos(self.pos as i64);
+        // set ID if present
+        if let Some(ref id) = self.id {
+            record.set_id(id)?;
         }
+
+        // set alleles
+        record.set_alleles(&[&variant.ref_allele[..], &variant.alt_allele[..]])?;
+
+        // set tags
+        if let Some(svlen) = variant.svlen {
+            record.push_info_integer(b"SVLEN", &[svlen])?;
+        }
+        if let Some(end) = variant.end {
+            record.push_info_integer(b"END", &[end as i32])?;
+        }
+        if let Some(ref event) = variant.event {
+            record.push_info_string(b"EVENT", &[event])?;
+        }
+        if let Some(ref svtype) = variant.svtype {
+            record.push_info_string(b"SVTYPE", &[svtype])?;
+        }
+        if let Some(ref mateid) = self.mateid {
+            record.push_info_string(b"MATEID", &[mateid])?;
+        }
+
+        // set qual
+        record.set_qual(f32::missing());
+
+        // add raw observations
+        if let Some(ref obs) = variant.observations {
+            write_observations(obs, &mut record)?;
+        }
+
+        bcf_writer.write(&record)?;
 
         Ok(())
     }
 
     pub(crate) fn write_final_record(&self, bcf_writer: &mut bcf::Writer) -> Result<()> {
         let rid = bcf_writer.header().name2rid(&self.chrom)?;
-        for (first_grouper, group) in self
-            .variants
-            .iter()
-            .group_by(|variant| BCFGrouper(&variant))
-            .into_iter()
+
+        let variant = self.variant.as_ref().unwrap();
+
+        let ref_allele = &variant.ref_allele;
+        let mut record = bcf_writer.empty_record();
+        record.set_rid(Some(rid));
+        record.set_pos(self.pos as i64);
+        // set ID if present
+        if let Some(ref id) = self.id {
+            record.set_id(id)?;
+        }
+
+        let mut event_probs = HashMap::new();
+        let mut allelefreq_estimates = VecMap::new();
+        let mut observations = VecMap::new();
+        let mut obs_counts = VecMap::new();
+        let mut strand_bias = VecMap::new();
+        let mut read_orientation_bias = VecMap::new();
+        let mut read_position_bias = VecMap::new();
+        let mut alleles = Vec::new();
+        let mut svlens = Vec::new();
+        let mut events = Vec::new();
+        let mut svtypes = Vec::new();
+        let mut ends = Vec::new();
+        alleles.push(&ref_allele[..]);
+
+        alleles.push(&variant.alt_allele[..]);
+
+        for (event, prob) in variant
+            .event_probs
+            .as_ref()
+            .expect("bug: event probs must be set")
         {
-            let ref_allele = &first_grouper.0.ref_allele;
-            let mut record = bcf_writer.empty_record();
-            record.set_rid(Some(rid));
-            record.set_pos(self.pos as i64);
-            // set ID if present
-            if let Some(ref id) = self.id {
-                record.set_id(id)?;
+            event_probs.insert(event, *prob);
+        }
+
+        let no_obs = variant
+            .sample_info
+            .iter()
+            .all(|sample_info| sample_info.is_none());
+
+        for (i, sample_info) in variant.sample_info.iter().enumerate() {
+            if let Some(ref sample_info) = sample_info {
+                strand_bias.insert(
+                    i,
+                    match sample_info.biases.strand_bias() {
+                        StrandBias::None => b'.',
+                        StrandBias::Forward => b'+',
+                        StrandBias::Reverse => b'-',
+                    },
+                );
+                read_orientation_bias.insert(
+                    i,
+                    match sample_info.biases.read_orientation_bias() {
+                        ReadOrientationBias::None => b'.',
+                        ReadOrientationBias::F1R2 => b'>',
+                        ReadOrientationBias::F2R1 => b'<',
+                    },
+                );
+                read_position_bias.insert(
+                    i,
+                    match sample_info.biases.read_position_bias() {
+                        ReadPositionBias::None => b'.',
+                        ReadPositionBias::Some => b'^',
+                    },
+                );
+
+                allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
+
+                obs_counts.insert(i, expected_depth(&sample_info.observations) as i32);
+
+                observations.insert(
+                    i,
+                    utils::generalized_cigar(
+                        sample_info.observations.iter().map(|obs| {
+                            let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
+                            format!(
+                                "{}{}{}{}{}",
+                                if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
+                                    score.to_ascii_lowercase()
+                                } else {
+                                    score.to_ascii_uppercase()
+                                },
+                                if obs.is_paired() { 'p' } else { 's' },
+                                match obs.strand {
+                                    Strand::Both => '*',
+                                    Strand::Reverse => '-',
+                                    Strand::Forward => '+',
+                                    _ => panic!("bug: unknown strandedness"),
+                                },
+                                match obs.read_orientation {
+                                    ReadOrientation::F1R2 => '>',
+                                    ReadOrientation::F2R1 => '<',
+                                    ReadOrientation::None => '*',
+                                    _ => '!',
+                                },
+                                match obs.read_position {
+                                    ReadPosition::Major => '^',
+                                    ReadPosition::Some => '*',
+                                },
+                            )
+                        }),
+                        false,
+                    ),
+                );
             }
+        }
 
-            let mut event_probs = HashMap::new();
-            let mut allelefreq_estimates = VecMap::new();
-            let mut observations = VecMap::new();
-            let mut obs_counts = VecMap::new();
-            let mut strand_bias = VecMap::new();
-            let mut read_orientation_bias = VecMap::new();
-            let mut read_position_bias = VecMap::new();
-            let mut alleles = Vec::new();
-            let mut svlens = Vec::new();
-            let mut events = Vec::new();
-            let mut svtypes = Vec::new();
-            let mut ends = Vec::new();
-            alleles.push(&ref_allele[..]);
+        if let Some(svlen) = variant.svlen {
+            svlens.push(svlen);
+        }
 
-            // collect per group information
-            for variant in group {
-                alleles.push(&variant.alt_allele[..]);
+        if let Some(ref event) = variant.event {
+            events.push(event.as_slice());
+        }
+        if let Some(ref svtype) = variant.svtype {
+            svtypes.push(svtype.as_slice());
+        }
 
-                for (event, prob) in variant
-                    .event_probs
-                    .as_ref()
-                    .expect("bug: event probs must be set")
-                {
-                    event_probs
-                        .entry(event)
-                        .or_insert_with(Vec::new)
-                        .push(*prob);
-                }
+        if let Some(end) = variant.end {
+            ends.push(end as i32);
+        }
 
-                for (i, sample_info) in variant
-                    .sample_info
-                    .as_ref()
-                    .expect("bug: sample_info must be set")
-                    .iter()
-                    .enumerate()
-                {
-                    strand_bias.entry(i).or_insert_with(Vec::new).push(
-                        match sample_info.biases.strand_bias() {
-                            StrandBias::None => '.',
-                            StrandBias::Forward => '+',
-                            StrandBias::Reverse => '-',
-                        },
-                    );
-                    read_orientation_bias
-                        .entry(i)
-                        .or_insert_with(Vec::new)
-                        .push(match sample_info.biases.read_orientation_bias() {
-                            ReadOrientationBias::None => '.',
-                            ReadOrientationBias::F1R2 => '>',
-                            ReadOrientationBias::F2R1 => '<',
-                        });
-                    read_position_bias.entry(i).or_insert_with(Vec::new).push(
-                        match sample_info.biases.read_position_bias() {
-                            ReadPositionBias::None => '.',
-                            ReadPositionBias::Some => '^',
-                        },
-                    );
+        // set alleles
+        record.set_alleles(&alleles)?;
 
-                    allelefreq_estimates
-                        .entry(i)
-                        .or_insert_with(Vec::new)
-                        .push(*sample_info.allelefreq_estimate as f32);
+        if !svlens.is_empty() {
+            record.push_info_integer(b"SVLEN", &svlens)?;
+        }
+        if !svtypes.is_empty() {
+            record.push_info_string(b"SVTYPE", &svtypes)?;
+        }
+        if !events.is_empty() {
+            record.push_info_string(b"EVENT", &events)?;
+        }
+        if !ends.is_empty() {
+            record.push_info_integer(b"END", &ends)?;
+        }
 
-                    obs_counts
-                        .entry(i)
-                        .or_insert_with(Vec::new)
-                        .push(expected_depth(&sample_info.observations) as i32);
+        if let Some(ref mateid) = self.mateid {
+            record.push_info_string(b"MATEID", &[mateid])?;
+        }
 
-                    observations.entry(i).or_insert_with(Vec::new).push({
-                        utils::generalized_cigar(
-                            sample_info.observations.iter().map(|obs| {
-                                let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
-                                format!(
-                                    "{}{}{}{}{}",
-                                    if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
-                                        score.to_ascii_lowercase()
-                                    } else {
-                                        score.to_ascii_uppercase()
-                                    },
-                                    if obs.is_paired() { 'p' } else { 's' },
-                                    match obs.strand {
-                                        Strand::Both => '*',
-                                        Strand::Reverse => '-',
-                                        Strand::Forward => '+',
-                                        _ => panic!("bug: unknown strandedness"),
-                                    },
-                                    match obs.read_orientation {
-                                        ReadOrientation::F1R2 => '>',
-                                        ReadOrientation::F2R1 => '<',
-                                        ReadOrientation::None => '*',
-                                        _ => '!',
-                                    },
-                                    match obs.read_position {
-                                        ReadPosition::Major => '^',
-                                        ReadPosition::Some => '*',
-                                    },
-                                )
-                            }),
-                            false,
-                        )
-                    })
-                }
+        // set qual
+        record.set_qual(f32::missing());
 
-                if let Some(svlen) = variant.svlen {
-                    svlens.push(svlen);
-                }
+        // set event probabilities
+        for (event, prob) in event_probs {
+            let prob = if prob.is_nan() {
+                f32::missing()
+            } else {
+                PHREDProb::from(*prob).abs() as f32
+            };
+            record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob])?;
+        }
 
-                if let Some(ref event) = variant.event {
-                    events.push(event.as_slice());
-                }
-                if let Some(ref svtype) = variant.svtype {
-                    svtypes.push(svtype.as_slice());
-                }
-
-                if let Some(end) = variant.end {
-                    ends.push(end as i32);
-                }
-            }
-
-            // set alleles
-            record.set_alleles(&alleles)?;
-
-            if !svlens.is_empty() {
-                record.push_info_integer(b"SVLEN", &svlens)?;
-            }
-            if !svtypes.is_empty() {
-                record.push_info_string(b"SVTYPE", &svtypes)?;
-            }
-            if !events.is_empty() {
-                record.push_info_string(b"EVENT", &events)?;
-            }
-            if !ends.is_empty() {
-                record.push_info_integer(b"END", &ends)?;
-            }
-
-            if let Some(ref mateid) = self.mateid {
-                record.push_info_string(b"MATEID", &[mateid])?;
-            }
-
-            // set qual
-            record.set_qual(f32::missing());
-
-            // set event probabilities
-            for (event, probs) in event_probs {
-                let probs = probs
-                    .iter()
-                    .map(|p| PHREDProb::from(*p).abs() as f32)
-                    .collect_vec();
-                record.push_info_float(event_tag_name(event).as_bytes(), &probs)?;
-            }
-
-            // set sample info
-            let dp = obs_counts.values().flatten().cloned().collect_vec();
+        // set sample info
+        if !no_obs {
+            let dp = obs_counts.values().cloned().collect_vec();
             record.push_format_integer(b"DP", &dp)?;
 
-            let afs = allelefreq_estimates
-                .values()
-                .flatten()
-                .cloned()
-                .collect_vec();
+            let afs = allelefreq_estimates.values().cloned().collect_vec();
             record.push_format_float(b"AF", &afs)?;
 
-            let obs = if observations.values().any(|obs| !obs.is_empty()) {
-                observations
-                    .values()
-                    .map(|allele_obs| {
-                        join(
-                            allele_obs
-                                .iter()
-                                .map(|o| if o.is_empty() { "." } else { o }),
-                            ",",
-                        )
-                        .into_bytes()
-                    })
-                    .collect_vec()
-            } else {
-                vec![b".".to_vec()]
-            };
+            let obs = observations
+                .values()
+                .map(|sample_obs| {
+                    if sample_obs.is_empty() {
+                        b"."
+                    } else {
+                        sample_obs.as_bytes()
+                    }
+                })
+                .collect_vec();
             record.push_format_string(b"OBS", &obs)?;
 
-            let sb = strand_bias
-                .values()
-                .map(|sb| join(sb.iter(), ",").into_bytes())
-                .collect_vec();
-
+            let sb = strand_bias.values().map(|sb| vec![*sb]).collect_vec();
             record.push_format_string(b"SB", &sb)?;
 
             let rob = read_orientation_bias
                 .values()
-                .map(|rob| join(rob.iter(), ",").into_bytes())
+                .map(|rob| vec![*rob])
                 .collect_vec();
-
             record.push_format_string(b"ROB", &rob)?;
 
             let rpb = read_position_bias
                 .values()
-                .map(|rpb| join(rpb.iter(), ",").into_bytes())
+                .map(|rpb| vec![*rpb])
                 .collect_vec();
-
             record.push_format_string(b"RPB", &rpb)?;
-
-            bcf_writer.write(&record)?;
+        } else {
+            record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
+            record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
+            record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"SB", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"ROB", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;
         }
+
+        bcf_writer.write(&record)?;
         Ok(())
     }
 }
@@ -337,9 +320,9 @@ pub(crate) struct Variant {
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
     observations: Option<Vec<Observation<ReadPosition>>>,
-    #[builder(default = "None")]
+    #[builder(default)]
     #[getset(get = "pub(crate)")]
-    sample_info: Option<Vec<SampleInfo>>,
+    sample_info: Vec<Option<SampleInfo>>,
 }
 
 impl VariantBuilder {

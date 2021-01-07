@@ -219,17 +219,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
         let call_builder = |chrom, start, id| {
             let mut builder = CallBuilder::default();
-            builder
-                .chrom(chrom)
-                .pos(start)
-                .id({
-                    if id == b"." {
-                        None
-                    } else {
-                        Some(id)
-                    }
-                })
-                .variants(Vec::new());
+            builder.chrom(chrom).pos(start).id({
+                if id == b"." {
+                    None
+                } else {
+                    Some(id)
+                }
+            });
             builder
         };
 
@@ -255,7 +251,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 let pileup = self.process_variant(&variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
                 // add variant information
-                call.variants.push(
+                call.variant = Some(
                     VariantBuilder::default()
                         .variant(&variant, work_item.start as usize, Some(chrom_seq.as_ref()))
                         .observations(Some(pileup))
@@ -292,7 +288,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                             .unwrap();
 
                             // add variant information
-                            call.variants.push(
+                            call.variant = Some(
                                 VariantBuilder::default()
                                     .variant(
                                         &breakend.to_variant(event),

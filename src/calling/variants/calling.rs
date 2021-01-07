@@ -316,7 +316,6 @@ where
                         Some(id)
                     }
                 })
-                .variants(Vec::new())
                 .record(first_record)?
                 .build()
                 .unwrap();
@@ -482,10 +481,10 @@ where
                     .event_probs(Some(result.event_probs.clone()));
                 work_item
                     .variant_builder
-                    .sample_info(Some(result.sample_info.clone()));
+                    .sample_info(result.sample_info.clone());
 
                 let variant = work_item.variant_builder.build().unwrap();
-                work_item.call.variants.push(variant);
+                work_item.call.variant = Some(variant);
 
                 return;
             }
@@ -521,7 +520,6 @@ where
                         .filter_map(|event| {
                             if event.is_artifact() {
                                 let p = m.posterior(event).unwrap();
-                                dbg!((event, p));
                                 Some(p)
                             } else {
                                 None
@@ -535,34 +533,30 @@ where
             // add sample specific information
             work_item.variant_builder.sample_info(
                 if let Some(map_estimates) = m.maximum_posterior() {
-                    Some(
-                        data.into_pileups()
-                            .into_iter()
-                            .zip(map_estimates.iter())
-                            .map(|(pileup, estimate)| {
-                                let mut sample_builder = SampleInfoBuilder::default();
-                                sample_builder.observations(pileup);
-                                match estimate {
-                                    model::likelihood::Event { biases, .. }
-                                        if biases.is_artifact() =>
-                                    {
-                                        sample_builder
-                                            .allelefreq_estimate(AlleleFreq(0.0))
-                                            .biases(biases.clone());
-                                    }
-                                    model::likelihood::Event { allele_freq, .. } => {
-                                        sample_builder
-                                            .allelefreq_estimate(*allele_freq)
-                                            .biases(Biases::none());
-                                    }
-                                };
-                                sample_builder.build().unwrap()
-                            })
-                            .collect_vec(),
-                    )
+                    data.into_pileups()
+                        .into_iter()
+                        .zip(map_estimates.iter())
+                        .map(|(pileup, estimate)| {
+                            let mut sample_builder = SampleInfoBuilder::default();
+                            sample_builder.observations(pileup);
+                            match estimate {
+                                model::likelihood::Event { biases, .. } if biases.is_artifact() => {
+                                    sample_builder
+                                        .allelefreq_estimate(AlleleFreq(0.0))
+                                        .biases(biases.clone());
+                                }
+                                model::likelihood::Event { allele_freq, .. } => {
+                                    sample_builder
+                                        .allelefreq_estimate(*allele_freq)
+                                        .biases(Biases::none());
+                                }
+                            };
+                            Some(sample_builder.build().unwrap())
+                        })
+                        .collect_vec()
                 } else {
                     // no observations
-                    Some(Vec::new())
+                    vec![None; data.into_pileups().len()]
                 },
             );
         } else {
@@ -581,20 +575,20 @@ where
                     event.to_owned(),
                     BreakendResult {
                         event_probs: variant.event_probs().as_ref().unwrap().clone(),
-                        sample_info: variant.sample_info().as_ref().unwrap().clone(),
+                        sample_info: variant.sample_info().clone(),
                     },
                 );
             }
         }
 
-        work_item.call.variants.push(variant);
+        work_item.call.variant = Some(variant);
     }
 }
 
 #[derive(Default)]
 pub(crate) struct BreakendResult {
     event_probs: HashMap<String, LogProb>,
-    sample_info: Vec<SampleInfo>,
+    sample_info: Vec<Option<SampleInfo>>,
 }
 
 struct WorkItem {
