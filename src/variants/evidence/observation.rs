@@ -8,6 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::ops;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::str;
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -20,7 +21,7 @@ use serde::Serialize;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
 
-use crate::errors::Error;
+use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils;
 use crate::variants::sample;
@@ -122,6 +123,31 @@ pub(crate) enum ReadPosition {
 impl Default for ReadPosition {
     fn default() -> Self {
         ReadPosition::Some
+    }
+}
+
+pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
+    if let Some(ro) = record.aux(b"RO") {
+        let orientations = ro.string().split(|e| *e == b',').collect_vec();
+        Ok(if orientations.len() != 1 {
+            // more than one orientation, return None
+            SequenceReadPairOrientation::None
+        } else {
+            match orientations[0] {
+                b"F1R2" => SequenceReadPairOrientation::F1R2,
+                b"F2R1" => SequenceReadPairOrientation::F2R1,
+                b"F1F2" => SequenceReadPairOrientation::F1F2,
+                b"R1R2" => SequenceReadPairOrientation::F1F2,
+                b"R1F2" => SequenceReadPairOrientation::R1F2,
+                b"R2F1" => SequenceReadPairOrientation::R2F1,
+                b"None" => SequenceReadPairOrientation::None,
+                _ => {
+                    return Err(errors::Error::InvalidReadOrientationInfo{ value: str::from_utf8(orientations[0]).unwrap().to_owned() }.into())
+                },
+            }
+        })
+    } else {
+        Ok(record.read_pair_orientation())
     }
 }
 
@@ -321,7 +347,7 @@ where
                         LogProb::ln_zero()
                     })
                     .strand(allele_support.strand())
-                    .read_orientation(evidence.read_orientation())
+                    .read_orientation(evidence.read_orientation()?)
                     .softclipped(evidence.softclipped())
                     .read_position(allele_support.read_position())
                     .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
@@ -335,7 +361,7 @@ where
 }
 
 pub(crate) trait Evidence {
-    fn read_orientation(&self) -> SequenceReadPairOrientation;
+    fn read_orientation(&self) -> Result<SequenceReadPairOrientation>;
 
     fn softclipped(&self) -> bool;
 
@@ -356,10 +382,10 @@ impl Deref for SingleEndEvidence {
 }
 
 impl Evidence for SingleEndEvidence {
-    fn read_orientation(&self) -> SequenceReadPairOrientation {
+    fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         // Single end evidence can just mean that we only need to consider each read alone,
         // although they are paired. Hence we can still check for read orientation.
-        self.inner.read_pair_orientation()
+        read_orientation(self.inner.as_ref())
     }
 
     fn softclipped(&self) -> bool {
@@ -394,10 +420,10 @@ pub(crate) enum PairedEndEvidence {
 }
 
 impl Evidence for PairedEndEvidence {
-    fn read_orientation(&self) -> SequenceReadPairOrientation {
+    fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         match self {
-            PairedEndEvidence::SingleEnd(_) => SequenceReadPairOrientation::None,
-            PairedEndEvidence::PairedEnd { left, .. } => left.read_pair_orientation(),
+            PairedEndEvidence::SingleEnd(_) => Ok(SequenceReadPairOrientation::None),
+            PairedEndEvidence::PairedEnd { left, .. } => read_orientation(left.as_ref()),
         }
     }
 

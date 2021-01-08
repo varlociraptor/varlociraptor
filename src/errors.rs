@@ -50,4 +50,6 @@ pub(crate) enum Error {
     ReadPosOutOfBounds,
     #[error("invalid strand information '{value}', must be '+', '-', or '*'")]
     InvalidStrandInfo { value: char },
+    #[error("invalid read orientation information '{value}', must be 'F1R2', 'F2R1', etc.")]
+    InvalidReadOrientationInfo { value: String }
 }
