@@ -3,15 +3,11 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::iter;
-
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
-use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observation::Strand;
 use crate::variants::types::{
@@ -101,6 +97,7 @@ impl Variant for SNV {
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
                     .strand(strand)
+                    .read_position(Some(qpos))
                     .build()
                     .unwrap(),
             ))

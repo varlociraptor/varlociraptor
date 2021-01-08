@@ -38,6 +38,15 @@ impl VAFTree {
     }
 }
 
+impl<'a> IntoIterator for &'a VAFTree {
+    type Item = &'a Node;
+    type IntoIter = std::slice::Iter<'a, Node>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        (&self.inner).into_iter()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum NodeKind {
     Variant {
@@ -195,9 +204,5 @@ impl VAFTree {
         }
 
         Ok(VAFTree { inner })
-    }
-
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Node> {
-        self.inner.iter()
     }
 }

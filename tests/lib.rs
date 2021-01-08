@@ -115,6 +115,7 @@ testcase!(test_contig_universe, exact, fast);
 testcase!(test_expressions, exact);
 testcase!(omit_sb, exact);
 testcase!(test_panel_overlap, exact);
+testcase!(test_panel_unknown_orientation_bias, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

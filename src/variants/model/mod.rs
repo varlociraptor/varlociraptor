@@ -28,12 +28,16 @@ pub(crate) struct Contamination {
 pub(crate) struct Event {
     pub(crate) name: String,
     pub(crate) vafs: grammar::VAFTree,
-    pub(crate) biases: Biases,
+    pub(crate) biases: Vec<Biases>,
 }
 
 impl Event {
     pub(crate) fn is_artifact(&self) -> bool {
-        self.biases.is_artifact()
+        assert!(
+            self.biases.iter().all(|biases| biases.is_artifact())
+                || self.biases.iter().all(|biases| !biases.is_artifact())
+        );
+        self.biases.iter().any(|biases| biases.is_artifact())
     }
 }
 
@@ -241,7 +245,7 @@ impl Variant {
 #[cfg(test)]
 mod tests {
     use crate::variants::evidence::observation::{
-        Observation, ObservationBuilder, ReadOrientation, Strand,
+        Observation, ObservationBuilder, ReadOrientation, ReadPosition, Strand,
     };
 
     use bio::stats::LogProb;
@@ -250,7 +254,7 @@ mod tests {
         prob_mapping: LogProb,
         prob_alt: LogProb,
         prob_ref: LogProb,
-    ) -> Observation {
+    ) -> Observation<ReadPosition> {
         ObservationBuilder::default()
             .prob_mapping_mismapping(prob_mapping)
             .prob_alt(prob_alt)
@@ -259,8 +263,10 @@ mod tests {
             .prob_sample_alt(LogProb::ln_one())
             .prob_overlap(LogProb::ln_one())
             .read_orientation(ReadOrientation::None)
+            .read_position(ReadPosition::Some)
             .strand(Strand::Both)
             .softclipped(false)
+            .prob_hit_base(LogProb::from(0.01f64.ln()))
             .build()
             .unwrap()
     }

@@ -323,11 +323,18 @@ pub enum CallKind {
         #[structopt(
             long = "omit-read-orientation-bias",
             help = "Do not consider read orientation bias when calculating the probability of an \
-                    artifact. Use this flag when processing (panel) sequencing data, where the \
-                    wet-lab methodology leads to strand bias in the coverage of genuine variants."
+                    artifact."
         )]
         #[serde(default)]
         omit_read_orientation_bias: bool,
+        #[structopt(
+            long = "omit-read-position-bias",
+            help = "Do not consider read position bias when calculating the probability of an \
+                    artifact. Use this flag when processing (panel) sequencing data, where the \
+                    wet-lab methodology leads to stacks of reads starting at the same position."
+        )]
+        #[serde(default)]
+        omit_read_position_bias: bool,
         #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
@@ -621,6 +628,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     mode,
                     omit_strand_bias,
                     omit_read_orientation_bias,
+                    omit_read_position_bias,
                     testcase_locus,
                     testcase_prefix,
                     output,
@@ -697,6 +705,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .observations(sample_observations)
                             .omit_strand_bias(omit_strand_bias)
                             .omit_read_orientation_bias(omit_read_orientation_bias)
+                            .omit_read_position_bias(omit_read_position_bias)
                             .scenario(scenario)
                             .prior(FlatPrior::new()) // TODO allow to define prior in the grammar
                             .contaminations(contaminations.build())

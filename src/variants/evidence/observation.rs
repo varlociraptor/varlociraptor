@@ -7,11 +7,11 @@ use std::char;
 use std::hash::{Hash, Hasher};
 use std::ops;
 use std::ops::Deref;
-use std::ops::Range;
 use std::rc::Rc;
 
 use anyhow::Result;
 use bio::stats::LogProb;
+use counter::Counter;
 use rust_htslib::bam;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
@@ -26,7 +26,7 @@ use crate::variants::sample;
 use crate::variants::types::Variant;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
-pub(crate) fn expected_depth(obs: &[Observation]) -> u32 {
+pub(crate) fn expected_depth(obs: &[Observation<ReadPosition>]) -> u32 {
     LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec())
         .exp()
         .round() as u32
@@ -172,9 +172,24 @@ impl Default for ReadOrientation {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum ReadPosition {
+    Major,
+    Some,
+}
+
+impl Default for ReadPosition {
+    fn default() -> Self {
+        ReadPosition::Some
+    }
+}
+
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default)]
-pub(crate) struct Observation {
+pub(crate) struct Observation<P = Option<u32>>
+where
+    P: Clone,
+{
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
@@ -201,15 +216,18 @@ pub(crate) struct Observation {
     /// Probability to overlap with one strand only (1-prob_double_overlap)
     #[builder(private)]
     pub(crate) prob_single_overlap: LogProb,
+    pub(crate) prob_hit_base: LogProb,
     /// Strand evidence this observation relies on
     pub(crate) strand: Strand,
     /// Read orientation support this observation relies on
     pub(crate) read_orientation: ReadOrientation,
     /// True if obervation contains softclips
     pub(crate) softclipped: bool,
+    /// Read position of the variant in the read (for SNV and MNV)
+    pub(crate) read_position: P,
 }
 
-impl ObservationBuilder {
+impl<P: Clone> ObservationBuilder<P> {
     pub(crate) fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self.prob_mapping(prob_mapping)
             .prob_mismapping(prob_mapping.ln_one_minus_exp())
@@ -221,7 +239,42 @@ impl ObservationBuilder {
     }
 }
 
-impl Observation {
+impl Observation<Option<u32>> {
+    pub(crate) fn process_read_position(
+        &self,
+        major_read_position: Option<u32>,
+    ) -> Observation<ReadPosition> {
+        Observation {
+            prob_mapping: self.prob_mapping,
+            prob_mismapping: self.prob_mismapping,
+            prob_mapping_adj: self.prob_mapping_adj,
+            prob_mismapping_adj: self.prob_mismapping_adj,
+            prob_alt: self.prob_alt,
+            prob_ref: self.prob_ref,
+            prob_missed_allele: self.prob_missed_allele,
+            prob_sample_alt: self.prob_sample_alt,
+            prob_double_overlap: self.prob_double_overlap,
+            prob_single_overlap: self.prob_single_overlap,
+            prob_hit_base: self.prob_hit_base,
+            strand: self.strand,
+            read_orientation: self.read_orientation,
+            softclipped: self.softclipped,
+            read_position: self.read_position.map_or(ReadPosition::Some, |pos| {
+                if let Some(major_pos) = major_read_position {
+                    if pos == major_pos {
+                        ReadPosition::Major
+                    } else {
+                        ReadPosition::Some
+                    }
+                } else {
+                    ReadPosition::Some
+                }
+            }),
+        }
+    }
+}
+
+impl<P: Clone> Observation<P> {
     pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
@@ -260,6 +313,16 @@ impl Observation {
                             || obs.read_orientation == ReadOrientation::None))
             })
             .collect()
+    }
+}
+
+pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option<u32> {
+    let counter: Counter<_> = pileup.iter().filter_map(|obs| obs.read_position).collect();
+    let most_common = counter.most_common();
+    if most_common.is_empty() {
+        None
+    } else {
+        Some(most_common[0].0)
     }
 }
 
@@ -319,6 +382,8 @@ where
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation())
                     .softclipped(evidence.softclipped())
+                    .read_position(allele_support.read_position())
+                    .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
                     .build()
                     .unwrap();
                 Some(obs)
@@ -332,6 +397,8 @@ pub(crate) trait Evidence {
     fn read_orientation(&self) -> ReadOrientation;
 
     fn softclipped(&self) -> bool;
+
+    fn len(&self) -> usize;
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -357,6 +424,10 @@ impl Evidence for SingleEndEvidence {
     fn softclipped(&self) -> bool {
         let cigar = self.cigar_cached().unwrap();
         cigar.leading_softclips() > 0 || cigar.trailing_softclips() > 0
+    }
+
+    fn len(&self) -> usize {
+        self.inner.seq_len()
     }
 }
 
@@ -403,6 +474,13 @@ impl Evidence for PairedEndEvidence {
                     || cigar_right.leading_softclips() > 0
                     || cigar_right.trailing_softclips() > 0
             }
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => rec.seq_len(),
+            PairedEndEvidence::PairedEnd { left, right } => left.seq_len() + right.seq_len(),
         }
     }
 }
