@@ -8,9 +8,11 @@ use std::hash::{Hash, Hasher};
 use std::ops;
 use std::ops::Deref;
 use std::rc::Rc;
+use std::str;
 
 use anyhow::Result;
 use bio::stats::LogProb;
+use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 use rust_htslib::bam;
 use serde::ser::{SerializeStruct, Serializer};
@@ -19,7 +21,7 @@ use serde::Serialize;
 use bio::stats::bayesian::BayesFactor;
 use itertools::Itertools;
 
-use crate::errors::Error;
+use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils;
 use crate::variants::sample;
@@ -112,66 +114,6 @@ impl ops::BitOrAssign for Strand {
     }
 }
 
-/// Read orientation support for observation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum ReadOrientation {
-    F1R2,
-    F2R1,
-    R1F2,
-    R2F1,
-    F1F2,
-    R1R2,
-    F2F1,
-    R2R1,
-    None,
-}
-
-impl ReadOrientation {
-    pub(crate) fn new(record: &bam::Record) -> Self {
-        if record.is_paired() && record.is_proper_pair() && record.tid() == record.mtid() {
-            if record.pos() == record.mpos() {
-                // both reads start at the same position, we cannot decide on the orientation.
-                return ReadOrientation::None;
-            }
-
-            let (is_reverse, is_first_in_template, is_mate_reverse) =
-                if record.pos() < record.mpos() {
-                    // given record is the left one
-                    (
-                        record.is_reverse(),
-                        record.is_first_in_template(),
-                        record.is_mate_reverse(),
-                    )
-                } else {
-                    // given record is the right one
-                    (
-                        record.is_mate_reverse(),
-                        record.is_last_in_template(),
-                        record.is_reverse(),
-                    )
-                };
-            match (is_reverse, is_first_in_template, is_mate_reverse) {
-                (false, false, false) => ReadOrientation::F2F1,
-                (false, false, true) => ReadOrientation::F2R1,
-                (false, true, false) => ReadOrientation::F1F2,
-                (true, false, false) => ReadOrientation::R2F1,
-                (false, true, true) => ReadOrientation::F1R2,
-                (true, false, true) => ReadOrientation::R2R1,
-                (true, true, false) => ReadOrientation::R1F2,
-                (true, true, true) => ReadOrientation::R1R2,
-            }
-        } else {
-            ReadOrientation::None
-        }
-    }
-}
-
-impl Default for ReadOrientation {
-    fn default() -> Self {
-        ReadOrientation::None
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum ReadPosition {
     Major,
@@ -181,6 +123,36 @@ pub(crate) enum ReadPosition {
 impl Default for ReadPosition {
     fn default() -> Self {
         ReadPosition::Some
+    }
+}
+
+pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
+    if let Some(ro) = record.aux(b"RO") {
+        let orientations = ro.string().split(|e| *e == b',').collect_vec();
+        Ok(if orientations.len() != 1 {
+            // more than one orientation, return None
+            SequenceReadPairOrientation::None
+        } else {
+            match orientations[0] {
+                b"F1R2" => SequenceReadPairOrientation::F1R2,
+                b"F2R1" => SequenceReadPairOrientation::F2R1,
+                b"F1F2" => SequenceReadPairOrientation::F1F2,
+                b"F2F1" => SequenceReadPairOrientation::F2F1,
+                b"R1R2" => SequenceReadPairOrientation::R1R2,
+                b"R2R1" => SequenceReadPairOrientation::R2R1,
+                b"R1F2" => SequenceReadPairOrientation::R1F2,
+                b"R2F1" => SequenceReadPairOrientation::R2F1,
+                b"None" => SequenceReadPairOrientation::None,
+                _ => {
+                    return Err(errors::Error::InvalidReadOrientationInfo {
+                        value: str::from_utf8(orientations[0]).unwrap().to_owned(),
+                    }
+                    .into())
+                }
+            }
+        })
+    } else {
+        Ok(record.read_pair_orientation())
     }
 }
 
@@ -220,9 +192,10 @@ where
     /// Strand evidence this observation relies on
     pub(crate) strand: Strand,
     /// Read orientation support this observation relies on
-    pub(crate) read_orientation: ReadOrientation,
+    pub(crate) read_orientation: SequenceReadPairOrientation,
     /// True if obervation contains softclips
     pub(crate) softclipped: bool,
+    pub(crate) paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub(crate) read_position: P,
 }
@@ -259,6 +232,7 @@ impl Observation<Option<u32>> {
             strand: self.strand,
             read_orientation: self.read_orientation,
             softclipped: self.softclipped,
+            paired: self.paired,
             read_position: self.read_position.map_or(ReadPosition::Some, |pos| {
                 if let Some(major_pos) = major_read_position {
                     if pos == major_pos {
@@ -277,10 +251,6 @@ impl Observation<Option<u32>> {
 impl<P: Clone> Observation<P> {
     pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
-    }
-
-    pub(crate) fn is_paired(&self) -> bool {
-        self.read_orientation != ReadOrientation::None
     }
 
     pub(crate) fn prob_mapping_orig(&self) -> LogProb {
@@ -308,9 +278,9 @@ impl<P: Clone> Observation<P> {
             .filter(|obs| {
                 !obs.softclipped
                     && (omit_read_orientation_bias
-                        || (obs.read_orientation == ReadOrientation::F1R2
-                            || obs.read_orientation == ReadOrientation::F2R1
-                            || obs.read_orientation == ReadOrientation::None))
+                        || (obs.read_orientation == SequenceReadPairOrientation::F1R2
+                            || obs.read_orientation == SequenceReadPairOrientation::F2R1
+                            || obs.read_orientation == SequenceReadPairOrientation::None))
             })
             .collect()
     }
@@ -380,9 +350,10 @@ where
                         LogProb::ln_zero()
                     })
                     .strand(allele_support.strand())
-                    .read_orientation(evidence.read_orientation())
+                    .read_orientation(evidence.read_orientation()?)
                     .softclipped(evidence.softclipped())
                     .read_position(allele_support.read_position())
+                    .paired(evidence.is_paired())
                     .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
                     .build()
                     .unwrap();
@@ -394,9 +365,11 @@ where
 }
 
 pub(crate) trait Evidence {
-    fn read_orientation(&self) -> ReadOrientation;
+    fn read_orientation(&self) -> Result<SequenceReadPairOrientation>;
 
     fn softclipped(&self) -> bool;
+
+    fn is_paired(&self) -> bool;
 
     fn len(&self) -> usize;
 }
@@ -415,10 +388,14 @@ impl Deref for SingleEndEvidence {
 }
 
 impl Evidence for SingleEndEvidence {
-    fn read_orientation(&self) -> ReadOrientation {
+    fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         // Single end evidence can just mean that we only need to consider each read alone,
         // although they are paired. Hence we can still check for read orientation.
-        ReadOrientation::new(self.inner.as_ref())
+        read_orientation(self.inner.as_ref())
+    }
+
+    fn is_paired(&self) -> bool {
+        self.inner.is_paired()
     }
 
     fn softclipped(&self) -> bool {
@@ -453,10 +430,17 @@ pub(crate) enum PairedEndEvidence {
 }
 
 impl Evidence for PairedEndEvidence {
-    fn read_orientation(&self) -> ReadOrientation {
+    fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         match self {
-            PairedEndEvidence::SingleEnd(_) => ReadOrientation::None,
-            PairedEndEvidence::PairedEnd { left, .. } => ReadOrientation::new(left.as_ref()),
+            PairedEndEvidence::SingleEnd(read) => read_orientation(read.as_ref()),
+            PairedEndEvidence::PairedEnd { left, .. } => read_orientation(left.as_ref()),
+        }
+    }
+
+    fn is_paired(&self) -> bool {
+        match self {
+            PairedEndEvidence::SingleEnd(read) => read.is_paired(),
+            PairedEndEvidence::PairedEnd { left, .. } => left.is_paired(),
         }
     }
 
