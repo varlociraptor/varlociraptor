@@ -10,14 +10,14 @@ Varlociraptor implements a novel, unified fully uncertainty-aware approach to ge
 
 ### Key features
 
-* Calls SNVs and indels in all length ranges (from small to structural) with a unified statistical model.
-* The statistical model entails all possible sources of uncertainty.
+* Calls SNVs, MNVs, indels, inversions, duplications, replacements and breakends in all length ranges (from small to structural) with a unified statistical model.
+* The statistical model encompasses all possible sources of uncertainty and biases.
 * Resulting variant calls can be filtered by false discovery rate. No parameter tuning necessary.
 * Unbiased, maximum a posteriori allele frequency estimates are provided with each call.
 
 ### Calling modes
 
 * Tumor-normal-calling, classifying variants as somatic in tumor, somatic in normal, germline, or absent.
-* Generic, grammar based calling, allowing to classify arbitrary scenarios.
+* Generic, grammar based configuration of the statistical model, allowing to classify arbitrary scenarios, from poplation genetics, to pedigrees, complex tumor scenarios and arbitrary combinations thereof.
 
 **For details, see the homepage: https://varlociraptor.github.io**
