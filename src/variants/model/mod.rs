@@ -244,8 +244,9 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
+    use bio_types::sequence::SequenceReadPairOrientation;
     use crate::variants::evidence::observation::{
-        Observation, ObservationBuilder, ReadOrientation, ReadPosition, Strand,
+        Observation, ObservationBuilder, ReadPosition, Strand,
     };
 
     use bio::stats::LogProb;
@@ -262,7 +263,7 @@ mod tests {
             .prob_missed_allele(prob_ref.ln_add_exp(prob_alt) - LogProb(2.0_f64.ln()))
             .prob_sample_alt(LogProb::ln_one())
             .prob_overlap(LogProb::ln_one())
-            .read_orientation(ReadOrientation::None)
+            .read_orientation(SequenceReadPairOrientation::None)
             .read_position(ReadPosition::Some)
             .strand(Strand::Both)
             .softclipped(false)

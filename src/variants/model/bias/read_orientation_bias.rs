@@ -1,7 +1,8 @@
 use bio::stats::probs::LogProb;
+use bio_types::sequence::SequenceReadPairOrientation;
 
 use crate::utils::PROB_HALF;
-use crate::variants::evidence::observation::{Observation, ReadOrientation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter)]
@@ -20,12 +21,12 @@ impl Default for ReadOrientationBias {
 impl Bias for ReadOrientationBias {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.read_orientation) {
-            (ReadOrientationBias::None, ReadOrientation::F1R2) => *PROB_HALF, // normal
-            (ReadOrientationBias::None, ReadOrientation::F2R1) => *PROB_HALF, // normal
-            (ReadOrientationBias::F1R2, ReadOrientation::F1R2) => LogProb::ln_one(), // bias
-            (ReadOrientationBias::F2R1, ReadOrientation::F2R1) => LogProb::ln_one(), // bias
-            (ReadOrientationBias::F1R2, ReadOrientation::F2R1) => LogProb::ln_zero(), // no bias
-            (ReadOrientationBias::F2R1, ReadOrientation::F1R2) => LogProb::ln_zero(), // no bias
+            (ReadOrientationBias::None, SequenceReadPairOrientation::F1R2) => *PROB_HALF, // normal
+            (ReadOrientationBias::None, SequenceReadPairOrientation::F2R1) => *PROB_HALF, // normal
+            (ReadOrientationBias::F1R2, SequenceReadPairOrientation::F1R2) => LogProb::ln_one(), // bias
+            (ReadOrientationBias::F2R1, SequenceReadPairOrientation::F2R1) => LogProb::ln_one(), // bias
+            (ReadOrientationBias::F1R2, SequenceReadPairOrientation::F2R1) => LogProb::ln_zero(), // no bias
+            (ReadOrientationBias::F2R1, SequenceReadPairOrientation::F1R2) => LogProb::ln_zero(), // no bias
             _ => *PROB_HALF, // For None and nonstandard orientations, the true one can be either F1R2 or F2R1, hence 0.5.
         }
     }

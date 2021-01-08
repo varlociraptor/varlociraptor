@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use anyhow::{Context, Result};
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
+use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Itertools;
@@ -27,7 +28,7 @@ use crate::utils;
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{
-    Observation, ObservationBuilder, ReadOrientation, ReadPosition, Strand,
+    Observation, ObservationBuilder, ReadPosition, Strand,
 };
 use crate::variants::evidence::realignment;
 use crate::variants::model;
@@ -482,7 +483,7 @@ pub(crate) fn read_observations(
     let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP")?;
     let prob_hit_base: Vec<MiniLogProb> = read_values(record, b"PROB_HIT_BASE")?;
     let strand: Vec<Strand> = read_values(record, b"STRAND")?;
-    let read_orientation: Vec<ReadOrientation> = read_values(record, b"READ_ORIENTATION")?;
+    let read_orientation: Vec<SequenceReadPairOrientation> = read_values(record, b"READ_ORIENTATION")?;
     let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION")?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED")?;
 

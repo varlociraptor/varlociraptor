@@ -12,6 +12,7 @@ use std::u8;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
+use bio_types::sequence::SequenceReadPairOrientation;
 use derive_builder::Builder;
 use itertools::Itertools;
 use rust_htslib::bcf::{self, record::Numeric, Read};
@@ -20,7 +21,7 @@ use vec_map::VecMap;
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
 use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::{Observation, ReadOrientation, ReadPosition, Strand};
+use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::{
     bias::Biases, bias::ReadOrientationBias, bias::ReadPositionBias, bias::StrandBias, AlleleFreq,
@@ -187,9 +188,9 @@ impl Call {
                                     _ => panic!("bug: unknown strandedness"),
                                 },
                                 match obs.read_orientation {
-                                    ReadOrientation::F1R2 => '>',
-                                    ReadOrientation::F2R1 => '<',
-                                    ReadOrientation::None => '*',
+                                    SequenceReadPairOrientation::F1R2 => '>',
+                                    SequenceReadPairOrientation::F2R1 => '<',
+                                    SequenceReadPairOrientation::None => '*',
                                     _ => '!',
                                 },
                                 match obs.read_position {
