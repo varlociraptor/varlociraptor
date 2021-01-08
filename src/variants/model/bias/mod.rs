@@ -28,6 +28,10 @@ pub(crate) trait Bias {
                 .any(|observation| self.prob(observation) != LogProb::ln_zero())
         })
     }
+
+    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        true
+    }
 }
 
 #[derive(Builder, CopyGetters, Getters, Debug, Clone)]
@@ -124,6 +128,12 @@ impl Biases {
         self.strand_bias.is_possible(pileups)
             && self.read_orientation_bias.is_possible(pileups)
             && self.read_position_bias.is_possible(pileups)
+    }
+
+    pub(crate) fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        self.strand_bias.is_informative(pileups)
+            && self.read_orientation_bias.is_informative(pileups)
+            && self.read_position_bias.is_informative(pileups)
     }
 
     pub(crate) fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {

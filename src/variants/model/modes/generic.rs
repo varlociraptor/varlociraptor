@@ -254,7 +254,7 @@ impl Posterior for GenericPosterior {
         let possible_biases = event
             .biases
             .iter()
-            .filter(|bias| bias.is_possible(&data.pileups));
+            .filter(|bias| bias.is_possible(&data.pileups) && bias.is_informative(&data.pileups));
         LogProb::ln_sum_exp(
             &possible_biases
                 .cartesian_product(vaf_tree)

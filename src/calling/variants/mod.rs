@@ -180,7 +180,7 @@ impl Call {
                                 } else {
                                     score.to_ascii_uppercase()
                                 },
-                                if obs.is_paired() { 'p' } else { 's' },
+                                if obs.paired { 'p' } else { 's' },
                                 match obs.strand {
                                     Strand::Both => '*',
                                     Strand::Reverse => '-',

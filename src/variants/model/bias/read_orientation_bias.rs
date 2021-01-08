@@ -39,23 +39,31 @@ impl Bias for ReadOrientationBias {
         *self != ReadOrientationBias::None
     }
 
-    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
-        pileups.iter().any(|pileup| {
-            pileup.iter().any(|observation| {
-                if let ReadOrientationBias::None = *self {
-                    true
+    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        if let ReadOrientationBias::None = *self {
+            return true;
+        }
+        // METHOD: read orientation bias is only informative if the majority of the reads
+        // provide orientation information. This way, we omit bias estimation in totally
+        // uncertain cases, where the bias is actually not observed.
+        // This behavior is important, because otherwise pathological cases like
+        // 98Ns**^68Ns***18Vs**^4Vs***2Ns-*^1Np+<*1Np+>*1Ns-**, would weakly vote for a bias,
+        // although almost all reads do not provide orientation info and the only that do are
+        // reference reads.
+        let n_uncertain: usize = pileups
+            .iter()
+            .flatten()
+            .map(|observation| {
+                if !(observation.read_orientation == SequenceReadPairOrientation::F1R2
+                    || observation.read_orientation == SequenceReadPairOrientation::F2R1)
+                {
+                    1
                 } else {
-                    // METHOD: we only statistically consider a bias if there is at least one ALT observation
-                    // that votes for it without uncertainty. This way, we omit bias estimation in totally
-                    // uncertain cases, where the bias is actually not observed.
-                    // This behavior is important, because otherwise pathological cases like
-                    // 98Ns**^68Ns***18Vs**^4Vs***2Ns-*^1Np+<*1Np+>*1Ns-**, would weakly vote for a bias,
-                    // although 90% of the reads do not provide orientation info and the only that do are
-                    // reference reads.
-                    self.prob(observation) == LogProb::ln_one()
-                        && *observation.bayes_factor_alt() > 1.0
+                    0
                 }
             })
-        })
+            .sum();
+        let n: usize = pileups.iter().map(|pileup| pileup.len()).sum();
+        (n_uncertain as f64) < (n as f64 / 2.0)
     }
 }

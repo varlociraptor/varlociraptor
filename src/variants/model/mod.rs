@@ -244,10 +244,10 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use bio_types::sequence::SequenceReadPairOrientation;
     use crate::variants::evidence::observation::{
         Observation, ObservationBuilder, ReadPosition, Strand,
     };
+    use bio_types::sequence::SequenceReadPairOrientation;
 
     use bio::stats::LogProb;
 
@@ -267,6 +267,7 @@ mod tests {
             .read_position(ReadPosition::Some)
             .strand(Strand::Both)
             .softclipped(false)
+            .paired(true)
             .prob_hit_base(LogProb::from(0.01f64.ln()))
             .build()
             .unwrap()
