@@ -26,9 +26,7 @@ impl Bias for ReadOrientationBias {
             (ReadOrientationBias::F2R1, ReadOrientation::F2R1) => LogProb::ln_one(), // bias
             (ReadOrientationBias::F1R2, ReadOrientation::F2R1) => LogProb::ln_zero(), // no bias
             (ReadOrientationBias::F2R1, ReadOrientation::F1R2) => LogProb::ln_zero(), // no bias
-            (_, ReadOrientation::None) => LogProb::ln_one(), // If we have no information, everything is equally possible.
-            (ReadOrientationBias::None, _) => LogProb::ln_one(), // no bias and "other" observations
-            _ => LogProb::ln_zero(), // other observations make any bias impossible
+            _ => *PROB_HALF, // For None and nonstandard orientations, the true one can be either F1R2 or F2R1, hence 0.5.
         }
     }
 
@@ -38,5 +36,26 @@ impl Bias for ReadOrientationBias {
 
     fn is_artifact(&self) -> bool {
         *self != ReadOrientationBias::None
+    }
+
+    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        pileups.iter().any(|pileup| {
+            pileup
+                .iter()
+                .any(|observation| {
+                    if let ReadOrientationBias::None = *self {
+                        true
+                    } else {
+                        // METHOD: we only statistically consider a bias if there is at least one ALT observation 
+                        // that votes for it without uncertainty. This way, we omit bias estimation in totally 
+                        // uncertain cases, where the bias is actually not observed.
+                        // This behavior is important, because otherwise pathological cases like
+                        // 98Ns**^68Ns***18Vs**^4Vs***2Ns-*^1Np+<*1Np+>*1Ns-**, would weakly vote for a bias,
+                        // although 90% of the reads do not provide orientation info and the only that do are
+                        // reference reads.
+                        self.prob(observation) == LogProb::ln_one() && *observation.bayes_factor_alt() > 1.0
+                    }
+                })
+        })
     }
 }
