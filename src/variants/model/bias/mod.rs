@@ -29,6 +29,7 @@ pub(crate) trait Bias {
         })
     }
 
+    #[allow(unused_variables)]
     fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         true
     }
