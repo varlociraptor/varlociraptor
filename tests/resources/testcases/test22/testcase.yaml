@@ -3,7 +3,7 @@
 
 expected:
   posteriors:
-  - PROB_SOMATIC_TUMOR >= 46.0
+  - PROB_SOMATIC_TUMOR >= 42.0
 
 # necessary bam files
 samples:
