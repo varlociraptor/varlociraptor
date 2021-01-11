@@ -19,7 +19,7 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
-use crate::variants::evidence::observation::Observation;
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
@@ -43,6 +43,7 @@ where
     observations: grammar::SampleInfo<Option<PathBuf>>,
     omit_strand_bias: bool,
     omit_read_orientation_bias: bool,
+    omit_read_position_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -106,10 +107,11 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBTSO, with C being a count, \
+              Description=\"Summary of observations. Each entry is encoded as CBTSOP, with C being a count, \
               B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
               as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
-              and O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2). \
+              O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
+              and P being the read position (^ = most found read position, * = any other position or position is irrelevant). \
               Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Thereby we extend Kass Raftery scores with \
@@ -130,8 +132,16 @@ where
             b"##FORMAT=<ID=ROB,Number=A,Type=String,\
               Description=\"Read orientation bias estimate: > indicates that ALT allele is associated with \
               F1R2 orientation, < indicates that ALT allele is associated with F2R1 orientation, \
-              - indicates no read orientation bias. Read orientation bias is indicative of Guanin \
+              . indicates no read orientation bias. Read orientation bias is indicative of Guanin \
               oxidation artifacts. Probability for read orientation bias is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=RPB,Number=A,Type=String,\
+              Description=\"Read position bias estimate: ^ indicates that ALT allele is associated with \
+              the most found read position, . indicates that there is no read position bias.
+              Read position bias is indicative of systematic sequencing errors, e.g. in a specific cycle. \
+              Probability for read orientation bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
         );
 
@@ -197,12 +207,10 @@ where
         }
 
         // data structures
-        let mut model = self.model();
-        // For SNVs and MNVs we need a special model as here read orientation bias needs to be considered.
-        let mut read_orientation_bias_model = self.model();
+        // For SNVs and MNVs we need a special model as here read orientation bias and read position bias needs to be considered.
+        let mut models = HashMap::new();
         let mut events = Vec::new();
-        let mut last_rid = None;
-        let mut last_read_orientation_bias_rid = None;
+        let mut last_rids = HashMap::new();
 
         // process calls
         let mut i = 0;
@@ -252,14 +260,15 @@ where
             let _model;
             let _last_rid;
 
-            if work_item.check_read_orientation_bias {
-                _model = &mut read_orientation_bias_model;
-                _last_rid = last_read_orientation_bias_rid;
-                last_read_orientation_bias_rid = Some(work_item.rid);
-            } else {
-                _model = &mut model;
-                _last_rid = last_rid;
-                last_rid = Some(work_item.rid);
+            let model_mode = (
+                work_item.check_read_orientation_bias,
+                work_item.check_read_position_bias,
+            );
+            _model = models.entry(model_mode).or_insert_with(|| self.model());
+            {
+                let entry = last_rids.entry(model_mode).or_insert(None);
+                _last_rid = (*entry).clone();
+                *entry = Some(work_item.rid);
             }
 
             self.configure_model(
@@ -270,6 +279,7 @@ where
                 contig,
                 work_item.check_read_orientation_bias,
                 work_item.check_strand_bias,
+                work_item.check_read_position_bias,
             )?;
 
             self.call_record(&mut work_item, _model, &events);
@@ -306,7 +316,6 @@ where
                         Some(id)
                     }
                 })
-                .variants(Vec::new())
                 .record(first_record)?
                 .build()
                 .unwrap();
@@ -357,6 +366,7 @@ where
             index,
             check_read_orientation_bias: is_snv_or_mnv && !self.omit_read_orientation_bias,
             check_strand_bias: !self.omit_strand_bias,
+            check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -368,7 +378,6 @@ where
         }
 
         // obtain pileups
-        let mut paired_end = false;
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
             let pileup = if let Some(record) = record {
@@ -386,7 +395,6 @@ where
                     );
                 }
 
-                paired_end |= pileup.iter().any(|obs| obs.is_paired());
                 pileup
             } else {
                 Vec::new()
@@ -395,8 +403,6 @@ where
         }
 
         work_item.pileups = Some(pileups);
-        // Only check for read orientation bias if there is at least one paired end read.
-        work_item.check_read_orientation_bias &= paired_end;
 
         Ok(work_item)
     }
@@ -410,6 +416,7 @@ where
         contig: &str,
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
+        consider_read_position_bias: bool,
     ) -> Result<()> {
         if !rid.map_or(false, |rid: u32| current_rid == rid) {
             // rid is not the same as before, obtain event universe
@@ -420,7 +427,7 @@ where
             events.push(model::Event {
                 name: "absent".to_owned(),
                 vafs: grammar::VAFTree::absent(self.n_samples()),
-                biases: Biases::none(),
+                biases: vec![Biases::none()],
             });
 
             // add events from scenario
@@ -428,19 +435,19 @@ where
                 events.push(model::Event {
                     name: event_name.clone(),
                     vafs: vaftree.clone(),
-                    biases: Biases::none(),
+                    biases: vec![Biases::none()],
                 });
-                // Corresponding biased events.
-                for biases in Biases::all_artifact_combinations(
-                    consider_read_orientation_bias,
-                    consider_strand_bias,
-                ) {
-                    events.push(model::Event {
-                        name: event_name.clone(),
-                        vafs: vaftree.clone(),
-                        biases,
-                    });
-                }
+                // Corresponding biased event.
+                events.push(model::Event {
+                    name: event_name.clone(),
+                    vafs: vaftree.clone(),
+                    biases: Biases::all_artifact_combinations(
+                        consider_read_orientation_bias,
+                        consider_strand_bias,
+                        consider_read_position_bias,
+                    )
+                    .collect(),
+                });
             }
 
             // update prior to the VAF universe of the current chromosome
@@ -475,10 +482,10 @@ where
                     .event_probs(Some(result.event_probs.clone()));
                 work_item
                     .variant_builder
-                    .sample_info(Some(result.sample_info.clone()));
+                    .sample_info(result.sample_info.clone());
 
                 let variant = work_item.variant_builder.build().unwrap();
-                work_item.call.variants.push(variant);
+                work_item.call.variant = Some(variant);
 
                 return;
             }
@@ -500,7 +507,8 @@ where
                     if event.is_artifact() {
                         None
                     } else {
-                        Some((event.name.clone(), m.posterior(event).unwrap()))
+                        let p = m.posterior(event).unwrap();
+                        Some((event.name.clone(), p))
                     }
                 })
                 .collect();
@@ -512,7 +520,8 @@ where
                         .iter()
                         .filter_map(|event| {
                             if event.is_artifact() {
-                                Some(m.posterior(event).unwrap())
+                                let p = m.posterior(event).unwrap();
+                                Some(p)
                             } else {
                                 None
                             }
@@ -525,34 +534,30 @@ where
             // add sample specific information
             work_item.variant_builder.sample_info(
                 if let Some(map_estimates) = m.maximum_posterior() {
-                    Some(
-                        data.into_pileups()
-                            .into_iter()
-                            .zip(map_estimates.iter())
-                            .map(|(pileup, estimate)| {
-                                let mut sample_builder = SampleInfoBuilder::default();
-                                sample_builder.observations(pileup);
-                                match estimate {
-                                    model::likelihood::Event { biases, .. }
-                                        if biases.is_artifact() =>
-                                    {
-                                        sample_builder
-                                            .allelefreq_estimate(AlleleFreq(0.0))
-                                            .biases(biases.clone());
-                                    }
-                                    model::likelihood::Event { allele_freq, .. } => {
-                                        sample_builder
-                                            .allelefreq_estimate(*allele_freq)
-                                            .biases(Biases::none());
-                                    }
-                                };
-                                sample_builder.build().unwrap()
-                            })
-                            .collect_vec(),
-                    )
+                    data.into_pileups()
+                        .into_iter()
+                        .zip(map_estimates.iter())
+                        .map(|(pileup, estimate)| {
+                            let mut sample_builder = SampleInfoBuilder::default();
+                            sample_builder.observations(pileup);
+                            match estimate {
+                                model::likelihood::Event { biases, .. } if biases.is_artifact() => {
+                                    sample_builder
+                                        .allelefreq_estimate(AlleleFreq(0.0))
+                                        .biases(biases.clone());
+                                }
+                                model::likelihood::Event { allele_freq, .. } => {
+                                    sample_builder
+                                        .allelefreq_estimate(*allele_freq)
+                                        .biases(Biases::none());
+                                }
+                            };
+                            Some(sample_builder.build().unwrap())
+                        })
+                        .collect_vec()
                 } else {
                     // no observations
-                    Some(Vec::new())
+                    vec![None; data.into_pileups().len()]
                 },
             );
         } else {
@@ -571,30 +576,31 @@ where
                     event.to_owned(),
                     BreakendResult {
                         event_probs: variant.event_probs().as_ref().unwrap().clone(),
-                        sample_info: variant.sample_info().as_ref().unwrap().clone(),
+                        sample_info: variant.sample_info().clone(),
                     },
                 );
             }
         }
 
-        work_item.call.variants.push(variant);
+        work_item.call.variant = Some(variant);
     }
 }
 
 #[derive(Default)]
 pub(crate) struct BreakendResult {
     event_probs: HashMap<String, LogProb>,
-    sample_info: Vec<SampleInfo>,
+    sample_info: Vec<Option<SampleInfo>>,
 }
 
 struct WorkItem {
     rid: u32,
     call: Call,
     variant_builder: VariantBuilder,
-    pileups: Option<Vec<Vec<Observation>>>,
+    pileups: Option<Vec<Vec<Observation<ReadPosition>>>>,
     snv: Option<model::modes::generic::SNV>,
     bnd_event: Option<Vec<u8>>,
     index: usize,
     check_read_orientation_bias: bool,
     check_strand_bias: bool,
+    check_read_position_bias: bool,
 }

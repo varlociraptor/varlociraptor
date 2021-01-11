@@ -147,8 +147,12 @@ impl Formula {
                                     for &vaf in vafs {
                                         if urange.contains(vaf) {
                                             let (left_urange, right_urange) = urange.split_at(vaf);
-                                            uvaf_stack.push_back(VAFSpectrum::Range(right_urange));
-                                            disjunction.push(VAFSpectrum::Range(left_urange));
+                                            if let Some(right_urange) = right_urange {
+                                                uvaf_stack.push_back(right_urange);
+                                            }
+                                            if let Some(left_urange) = left_urange {
+                                                disjunction.push(left_urange);
+                                            }
                                         } else {
                                             disjunction.push(VAFSpectrum::Range(urange.clone()));
                                         }
@@ -172,19 +176,22 @@ impl Formula {
                                 }
                                 VAFSpectrum::Range(urange) => match range.overlap(urange) {
                                     VAFRangeOverlap::Contained => {
-                                        let left = urange.split_at(range.start).0;
-                                        let right = urange.split_at(range.end).1;
-                                        disjunction.push(VAFSpectrum::Range(left));
-                                        disjunction.push(VAFSpectrum::Range(right));
+                                        if let Some(left) = urange.split_at(range.start).0 {
+                                            disjunction.push(left);
+                                        }
+                                        if let Some(right) = urange.split_at(range.end).1 {
+                                            disjunction.push(right);
+                                        }
                                     }
                                     VAFRangeOverlap::End => {
-                                        disjunction
-                                            .push(VAFSpectrum::Range(urange.split_at(range.end).1));
+                                        if let Some(spec) = urange.split_at(range.end).1 {
+                                            disjunction.push(spec);
+                                        }
                                     }
                                     VAFRangeOverlap::Start => {
-                                        disjunction.push(VAFSpectrum::Range(
-                                            urange.split_at(range.start).0,
-                                        ));
+                                        if let Some(spec) = urange.split_at(range.start).0 {
+                                            disjunction.push(spec);
+                                        }
                                     }
                                     VAFRangeOverlap::None => {
                                         disjunction.push(VAFSpectrum::Range(urange.clone()))
@@ -307,7 +314,7 @@ impl VAFRange {
         }
     }
 
-    pub(crate) fn split_at(&self, vaf: AlleleFreq) -> (VAFRange, VAFRange) {
+    pub(crate) fn split_at(&self, vaf: AlleleFreq) -> (Option<VAFSpectrum>, Option<VAFSpectrum>) {
         assert!(
             self.contains(vaf),
             "bug: split_at is only defined if given VAF is contained in range"
@@ -322,7 +329,20 @@ impl VAFRange {
             left_exclusive: true,
             right_exclusive: self.right_exclusive,
         };
-        (left, right)
+
+        let to_spectrum = |range: VAFRange| {
+            if range.start == range.end {
+                if !(range.left_exclusive && self.right_exclusive) {
+                    Some(VAFSpectrum::singleton(range.start))
+                } else {
+                    None
+                }
+            } else {
+                Some(VAFSpectrum::Range(range))
+            }
+        };
+
+        (to_spectrum(left), to_spectrum(right))
     }
 
     pub(crate) fn overlap(&self, vafs: &VAFRange) -> VAFRangeOverlap {
@@ -513,14 +533,15 @@ impl<'de> de::Visitor<'de> for FormulaVisitor {
         E: de::Error,
     {
         let res = FormulaParser::parse(Rule::formula, v);
-        if let Ok(mut pairs) = res {
-            let pair = pairs.next().expect("bug: expecting formula");
-            parse_formula(pair)
-        } else {
-            Err(de::Error::invalid_value(
-                serde::de::Unexpected::Other("invalid VAF formula"),
+        match res {
+            Ok(mut pairs) => {
+                let pair = pairs.next().expect("bug: expecting formula");
+                parse_formula(pair)
+            }
+            Err(e) => Err(de::Error::invalid_value(
+                serde::de::Unexpected::Other(&format!("invalid VAF formula:\n{}", e)),
                 &self,
-            ))
+            )),
         }
     }
 }

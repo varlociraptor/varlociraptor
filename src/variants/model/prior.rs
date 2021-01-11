@@ -61,7 +61,10 @@ impl Prior {
 
     pub(crate) fn check(&self) -> Result<()> {
         let err = |msg: &str| {
-            Err(errors::Error::InvalidPriorConfiguration { msg: msg.to_owned() }.into())
+            Err(errors::Error::InvalidPriorConfiguration {
+                msg: msg.to_owned(),
+            }
+            .into())
         };
         for sample in 0..self.n_samples() {
             if self.has_somatic_variation(sample) && self.genome_size.is_none() {
@@ -69,9 +72,13 @@ impl Prior {
             }
             if let Some(inheritance) = &self.inheritance[sample] {
                 if match inheritance {
-                    Inheritance::Mendelian { from: (p1, p2) } if !self.has_ploidy(*p1) || !self.has_ploidy(*p2) => true,
+                    Inheritance::Mendelian { from: (p1, p2) }
+                        if !self.has_ploidy(*p1) || !self.has_ploidy(*p2) =>
+                    {
+                        true
+                    }
                     Inheritance::Clonal { from, .. } if !self.has_ploidy(*from) => true,
-                    Inheritance::Subclonal { from, ..} if !self.has_ploidy(*from) => true,
+                    Inheritance::Subclonal { from, .. } if !self.has_ploidy(*from) => true,
                     _ => false,
                 } {
                     return err("inheritance defined but parental samples do not have a ploidy: define ploidy for each sample or the species");
@@ -136,7 +143,10 @@ impl Prior {
                 if let grammar::formula::VAFSpectrum::Range(range) = vaf_spectrum {
                     if range.contains(vaf) {
                         // only hash each second VAF from the considered interval
-                        return relative_eq!(*((vaf - range.start) / ((range.end - range.start) / 10.0)) % 2.0, 0.0);
+                        return relative_eq!(
+                            *((vaf - range.start) / ((range.end - range.start) / 10.0)) % 2.0,
+                            0.0
+                        );
                     }
                 }
             }
@@ -337,8 +347,7 @@ impl Prior {
                 } else {
                     LogProb::ln_zero()
                 }
-            }
-            else if self.has_somatic_variation(sample) {
+            } else if self.has_somatic_variation(sample) {
                 if let Some(ploidy) = self.ploidies.as_ref().unwrap()[sample] {
                     let mut probs = Vec::with_capacity(ploidy as usize + 1);
                     for n_alt in 0..=ploidy {
@@ -380,8 +389,13 @@ impl Prior {
         };
         // METHOD: we take the absolute of the vaf because it can be negative (indicating a back mutation).
         if somatic_vaf.abs() <= SOMATIC_EPSILON {
-            LogProb::ln_simpsons_integrate_exp(|_, vaf: f64| density(vaf.abs()), SOMATIC_EPSILON, 1.0, 11)
-                .ln_one_minus_exp()
+            LogProb::ln_simpsons_integrate_exp(
+                |_, vaf: f64| density(vaf.abs()),
+                SOMATIC_EPSILON,
+                1.0,
+                11,
+            )
+            .ln_one_minus_exp()
         } else {
             density(somatic_vaf.abs())
         }
@@ -488,7 +502,8 @@ impl Prior {
                 (grammar::SubcloneOrigin::MultiCell, Some(somatic_mutation_rate)) => {
                     // METHOD: number of cells in the parent (this just needs to be high, the particular number is irrelevant)
                     let n: f64 = 10000.0;
-                    let binom = distribution::Binomial::new(parent_somatic_vaf.abs(), n as u64).unwrap();
+                    let binom =
+                        distribution::Binomial::new(parent_somatic_vaf.abs(), n as u64).unwrap();
                     // METHOD: we may inherit any fraction of the parental effective somatic vaf
                     let density = |_, somatic_vaf: f64| {
                         let somatic_vaf = AlleleFreq(somatic_vaf);
@@ -497,7 +512,11 @@ impl Prior {
                         } else {
                             somatic_vaf - total_vaf + germline_vaf
                         };
-                        let q = LogProb(binom.pmf((n * inherited_somatic_vaf.abs()).round() as u64).ln());
+                        let q = LogProb(
+                            binom
+                                .pmf((n * inherited_somatic_vaf.abs()).round() as u64)
+                                .ln(),
+                        );
                         let p = self.prob_somatic_mutation(somatic_mutation_rate, somatic_vaf);
                         q + p
                     };
@@ -589,7 +608,12 @@ impl Prior {
         target_alt: u32,
         target_ref: u32,
     ) -> LogProb {
-        let urn = distribution::Hypergeometric::new(ploidy as u64, source_alt as u64, (target_alt + target_ref) as u64).unwrap();
+        let urn = distribution::Hypergeometric::new(
+            ploidy as u64,
+            source_alt as u64,
+            (target_alt + target_ref) as u64,
+        )
+        .unwrap();
         LogProb::from(Prob(urn.pmf(target_alt as u64)))
     }
 
@@ -669,9 +693,7 @@ impl Prior {
 
         let ploidy = |sample: usize| ploidies[sample].unwrap();
         // we control above that the vafs are valid for the ploidy, but the rounding ensures that there are no numeric glitches
-        let n_alt = |sample: usize| {
-            (*germline_vafs[sample] * ploidy(sample) as f64).round() as u32
-        };
+        let n_alt = |sample: usize| (*germline_vafs[sample] * ploidy(sample) as f64).round() as u32;
 
         let mut prob = self.prob_mendelian_alt_counts(
             (ploidy(parents.0), ploidy(parents.1)),

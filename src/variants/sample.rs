@@ -18,7 +18,9 @@ use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
-use crate::variants::evidence::observation::{self, Observable, Observation};
+use crate::variants::evidence::observation::{
+    self, major_read_position, Observable, Observation, ReadPosition,
+};
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 
@@ -124,7 +126,7 @@ impl Default for ProtocolStrandedness {
     }
 }
 
-pub(crate) type Pileup = Vec<Observation>;
+pub(crate) type Pileup = Vec<Observation<ReadPosition>>;
 
 pub(crate) enum SubsampleCandidates {
     Necessary {
@@ -230,10 +232,16 @@ impl Sample {
         L: variants::types::Loci,
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
-        variant.extract_observations(
+        let observations = variant.extract_observations(
             &mut self.record_buffer,
             &mut self.alignment_properties,
             self.max_depth,
-        )
+        )?;
+        // Process for each observation whether it is from the major read position or not.
+        let major_pos = major_read_position(&observations);
+        Ok(observations
+            .iter()
+            .map(|obs| obs.process_read_position(major_pos))
+            .collect())
     }
 }

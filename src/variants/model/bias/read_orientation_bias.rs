@@ -1,7 +1,8 @@
 use bio::stats::probs::LogProb;
+use bio_types::sequence::SequenceReadPairOrientation;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{Observation, ReadOrientation};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter)]
@@ -18,25 +19,51 @@ impl Default for ReadOrientationBias {
 }
 
 impl Bias for ReadOrientationBias {
-    fn prob(&self, observation: &Observation) -> LogProb {
+    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.read_orientation) {
-            (ReadOrientationBias::None, ReadOrientation::F1R2) => *PROB_05, // normal
-            (ReadOrientationBias::None, ReadOrientation::F2R1) => *PROB_05, // normal
-            (ReadOrientationBias::F1R2, ReadOrientation::F1R2) => LogProb::ln_one(), // bias
-            (ReadOrientationBias::F2R1, ReadOrientation::F2R1) => LogProb::ln_one(), // bias
-            (ReadOrientationBias::F1R2, ReadOrientation::F2R1) => LogProb::ln_zero(), // no bias
-            (ReadOrientationBias::F2R1, ReadOrientation::F1R2) => LogProb::ln_zero(), // no bias
-            (_, ReadOrientation::None) => LogProb::ln_one(), // If we have no information, everything is equally possible.
-            (ReadOrientationBias::None, _) => LogProb::ln_one(), // no bias and "other" observations
-            _ => LogProb::ln_zero(), // other observations make any bias impossible
+            (ReadOrientationBias::None, SequenceReadPairOrientation::F1R2) => *PROB_05, // normal
+            (ReadOrientationBias::None, SequenceReadPairOrientation::F2R1) => *PROB_05, // normal
+            (ReadOrientationBias::F1R2, SequenceReadPairOrientation::F1R2) => LogProb::ln_one(), // bias
+            (ReadOrientationBias::F2R1, SequenceReadPairOrientation::F2R1) => LogProb::ln_one(), // bias
+            (ReadOrientationBias::F1R2, SequenceReadPairOrientation::F2R1) => LogProb::ln_zero(), // no bias
+            (ReadOrientationBias::F2R1, SequenceReadPairOrientation::F1R2) => LogProb::ln_zero(), // no bias
+            _ => *PROB_05, // For None and nonstandard orientations, the true one can be either F1R2 or F2R1, hence 0.5.
         }
     }
 
-    fn prob_any(&self) -> LogProb {
+    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
         *PROB_05
     }
 
     fn is_artifact(&self) -> bool {
         *self != ReadOrientationBias::None
+    }
+
+    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        if let ReadOrientationBias::None = *self {
+            return true;
+        }
+        // METHOD: read orientation bias is only informative if the majority of the reads
+        // provide orientation information. This way, we omit bias estimation in totally
+        // uncertain cases, where the bias is actually not observed.
+        // This behavior is important, because otherwise pathological cases like
+        // 98Ns**^68Ns***18Vs**^4Vs***2Ns-*^1Np+<*1Np+>*1Ns-**, would weakly vote for a bias,
+        // although almost all reads do not provide orientation info and the only that do are
+        // reference reads.
+        let n_uncertain: usize = pileups
+            .iter()
+            .flatten()
+            .map(|observation| {
+                if !(observation.read_orientation == SequenceReadPairOrientation::F1R2
+                    || observation.read_orientation == SequenceReadPairOrientation::F2R1)
+                {
+                    1
+                } else {
+                    0
+                }
+            })
+            .sum();
+        let n: usize = pileups.iter().map(|pileup| pileup.len()).sum();
+        (n_uncertain as f64) < (n as f64 / 2.0)
     }
 }

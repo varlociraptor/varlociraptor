@@ -3,11 +3,8 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::char;
 use std::collections::BTreeMap;
-use std::ops::Range;
 use std::rc::Rc;
-use std::str;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
@@ -15,7 +12,6 @@ use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 use vec_map::VecMap;
 
-use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::observation::{
     Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
@@ -47,6 +43,8 @@ pub(crate) struct AlleleSupport {
     prob_ref_allele: LogProb,
     prob_alt_allele: LogProb,
     strand: Strand,
+    #[builder(default)]
+    read_position: Option<u32>,
 }
 
 impl AlleleSupport {

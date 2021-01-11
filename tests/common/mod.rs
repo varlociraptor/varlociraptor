@@ -96,6 +96,14 @@ pub(crate) trait Testcase {
         }
     }
 
+    fn omit_read_position_bias(&self) -> bool {
+        if self.yaml()["omit_read_position_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_read_position_bias"].as_bool().unwrap()
+        }
+    }
+
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
@@ -206,6 +214,7 @@ pub(crate) trait Testcase {
                         testcase_prefix: None,
                         omit_strand_bias: self.omit_strand_bias(),
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
+                        omit_read_position_bias: self.omit_read_position_bias(),
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -238,6 +247,7 @@ pub(crate) trait Testcase {
                         testcase_prefix: None,
                         omit_strand_bias: self.omit_strand_bias(),
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
+                        omit_read_position_bias: self.omit_read_position_bias(),
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self

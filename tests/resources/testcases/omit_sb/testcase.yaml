@@ -29,5 +29,6 @@ reference:
 
 mode: Generic
 omit_strand_bias: true
+omit_read_position_bias: true
 
 version: '4'

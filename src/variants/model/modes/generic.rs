@@ -7,6 +7,7 @@ use itertools::Itertools;
 use vec_map::VecMap;
 
 use crate::grammar;
+use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
 use crate::variants::model::{bias::Biases, AlleleFreq, Contamination};
@@ -243,19 +244,31 @@ impl Posterior for GenericPosterior {
     ) -> LogProb {
         let grid_points = self.grid_points(&data.pileups);
         let vaf_tree = &event.vafs;
+        let bias_prior = if event.is_artifact() {
+            *PROB_05 + LogProb((1.0 / event.biases.len() as f64).ln())
+        } else {
+            *PROB_05
+        };
+
+        // METHOD: filter out biases that are impossible to observe, (e.g. + without any + observation).
+        let possible_biases = event
+            .biases
+            .iter()
+            .filter(|bias| bias.is_possible(&data.pileups) && bias.is_informative(&data.pileups));
         LogProb::ln_sum_exp(
-            &vaf_tree
-                .iter()
-                .map(|node| {
+            &possible_biases
+                .cartesian_product(vaf_tree)
+                .map(|(biases, node)| {
                     let mut base_events = VecMap::with_capacity(data.pileups.len());
-                    self.density(
-                        node,
-                        &mut base_events,
-                        &grid_points,
-                        data,
-                        &event.biases,
-                        joint_prob,
-                    )
+                    bias_prior
+                        + self.density(
+                            node,
+                            &mut base_events,
+                            &grid_points,
+                            data,
+                            biases,
+                            joint_prob,
+                        )
                 })
                 .collect_vec(),
         )
@@ -379,7 +392,7 @@ impl model::prior::UpdatablePrior for FlatPrior {
         self.universe = Some(universe);
     }
 
-    fn set_ploidies(&mut self, ploidies: grammar::SampleInfo<Option<u32>>) {
+    fn set_ploidies(&mut self, _ploidies: grammar::SampleInfo<Option<u32>>) {
         // ploidy is ignored here
     }
 }

@@ -440,7 +440,9 @@ impl Sample {
         if let Some(rate) = self.germline_mutation_rate {
             Some(rate)
         } else {
-            species.as_ref().map_or(None, |species| species.germline_mutation_rate)
+            species
+                .as_ref()
+                .map_or(None, |species| species.germline_mutation_rate)
         }
     }
 
@@ -448,7 +450,9 @@ impl Sample {
         if let Some(rate) = self.somatic_effective_mutation_rate {
             Some(rate)
         } else {
-            species.as_ref().map_or(None, |species| species.somatic_effective_mutation_rate)
+            species
+                .as_ref()
+                .map_or(None, |species| species.somatic_effective_mutation_rate)
         }
     }
 }
@@ -478,14 +482,9 @@ pub(crate) struct Contamination {
 #[strum(serialize_all = "kebab_case")]
 pub(crate) enum Inheritance {
     #[serde(rename = "mendelian")]
-    Mendelian {
-        from: (String, String),
-    },
+    Mendelian { from: (String, String) },
     #[serde(rename = "clonal")]
-    Clonal {
-        from: String,
-        somatic: bool,
-    },
+    Clonal { from: String, somatic: bool },
     #[serde(rename = "subclonal")]
     Subclonal {
         from: String,
