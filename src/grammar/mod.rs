@@ -240,7 +240,7 @@ impl SexPloidyDefinition {
                 },
                 |p| p.contig_ploidy(contig),
             ),
-            (SexPloidyDefinition::Specific(p), None) => {
+            (SexPloidyDefinition::Specific(_), None) => {
                 Err(errors::Error::InvalidPriorConfiguration {
                     msg: "sex specific ploidy definition found but no sex specified in sample"
                         .to_owned(),
@@ -374,18 +374,17 @@ impl Sample {
                     .map(|n_alt| AlleleFreq(n_alt as f64 / ploidy as f64))
                     .collect()
             };
-            dbg!(self.somatic_effective_mutation_rate);
             Ok(
                 match (
                     self.contig_ploidy(contig, species)?,
-                    self.somatic_effective_mutation_rate,
+                    self.somatic_effective_mutation_rate.is_some(),
                 ) {
-                    (Some(ploidy), None) => {
+                    (Some(ploidy), false) => {
                         let mut universe = VAFUniverse::default();
                         universe.insert(VAFSpectrum::Set(ploidy_derived_spectrum(ploidy)));
                         universe
                     }
-                    (Some(ploidy), Some(somatic_mutation_rate)) => {
+                    (Some(ploidy), true) => {
                         let ploidy_spectrum = ploidy_derived_spectrum(ploidy);
 
                         let mut universe = VAFUniverse::default();
@@ -403,7 +402,7 @@ impl Sample {
                         universe.insert(VAFSpectrum::Set(ploidy_spectrum));
                         universe
                     }
-                    (None, Some(somatic_mutation_rate)) => {
+                    (None, true) => {
                         let mut universe = VAFUniverse::default();
                         universe.insert(VAFSpectrum::Range(VAFRange::builder()
                             .inner(AlleleFreq(0.0)..AlleleFreq(1.0))
@@ -413,7 +412,7 @@ impl Sample {
                         ));
                         universe
                     }
-                    (None, None) => return Err(errors::Error::InvalidPriorConfiguration{
+                    (None, false) => return Err(errors::Error::InvalidPriorConfiguration{
                         msg: "sample needs to define either universe, ploidy or somatic_mutation_rate".to_owned(),
                     }
                     .into()),

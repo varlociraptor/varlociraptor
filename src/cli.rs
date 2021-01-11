@@ -6,7 +6,6 @@
 use std::collections::HashMap;
 use std::convert::{From, TryFrom};
 use std::fs::File;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -687,7 +686,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                         // record observation paths
                         let mut sample_observations = scenario.sample_info();
-                        for (sample_name, sample) in scenario.samples().iter() {
+                        for (sample_name, _) in scenario.samples().iter() {
                             if let Some(obs) = observations.get(sample_name) {
                                 sample_observations =
                                     sample_observations.push(sample_name, Some(obs.to_owned()));

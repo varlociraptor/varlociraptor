@@ -6,12 +6,10 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::hash::Hash;
-use std::io;
 use std::ops::Deref;
 use std::str;
 
 use anyhow::Result;
-use bio::io::fasta;
 use bio::stats::{
     bayesian::bayes_factors::evidence::KassRaftery, bayesian::bayes_factors::BayesFactor, LogProb,
     PHREDProb, Prob,

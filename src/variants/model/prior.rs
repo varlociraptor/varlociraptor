@@ -138,21 +138,6 @@ impl Prior {
         let mut events = Vec::new();
         self.collect_events(Vec::new(), &mut events);
 
-        let hash_vaf = |sample: usize, vaf| {
-            for vaf_spectrum in self.universe.as_ref().unwrap()[sample].iter() {
-                if let grammar::formula::VAFSpectrum::Range(range) = vaf_spectrum {
-                    if range.contains(vaf) {
-                        // only hash each second VAF from the considered interval
-                        return relative_eq!(
-                            *((vaf - range.start) / ((range.end - range.start) / 10.0)) % 2.0,
-                            0.0
-                        );
-                    }
-                }
-            }
-            true
-        };
-
         let data = events
             .iter()
             .map(|event| {
@@ -530,7 +515,6 @@ impl Prior {
                         self.prob_somatic_mutation(somatic_mutation_rate, somatic_vaf)
                     } else {
                         let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
-                        let somatic_vaf = total_vaf + parent_somatic_vaf - germline_vaf;
                         let ploidy = self.ploidies.as_ref().unwrap()[sample].unwrap();
                         if *total_vaf > 0.0 {
                             // case 1: cell comes from the alt allele subclone
