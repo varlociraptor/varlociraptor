@@ -236,19 +236,21 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .iter()
             .all(|variant| !variant.is_breakend())
         {
-            let mut call = call_builder(
-                work_item.chrom.as_bytes().to_owned(),
-                work_item.start,
-                work_item.record_id.clone(),
-            )
-            .build()
-            .unwrap();
+            let mut calls = Vec::new();
 
             for variant in work_item
                 .variants
                 .iter()
                 .filter(|variant| !variant.is_breakend())
             {
+                let mut call = call_builder(
+                    work_item.chrom.as_bytes().to_owned(),
+                    work_item.start,
+                    work_item.record_id.clone(),
+                )
+                .build()
+                .unwrap();
+
                 let chrom_seq = self.reference_buffer.seq(&work_item.chrom)?;
                 let pileup = self.process_variant(&variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
@@ -260,9 +262,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         .build()
                         .unwrap(),
                 );
+                calls.push(call);
             }
 
-            Ok(Calls::new(work_item.record_index, vec![call]))
+            Ok(Calls::new(work_item.record_index, calls))
         } else {
             let mut calls = Vec::new();
             for variant in work_item.variants.iter() {
