@@ -222,8 +222,11 @@ impl GenericPosterior {
                         // skip this node
                         subdensity(base_events)
                     }
+                } else if *positive {
+                    // no SNV but branch requires the defined SNV, hence abort with prob 0
+                    LogProb::ln_zero()
                 } else {
-                    // skip this node
+                    // skip this node, as we don't have the defined SNV but it is negated
                     subdensity(base_events)
                 }
             }
