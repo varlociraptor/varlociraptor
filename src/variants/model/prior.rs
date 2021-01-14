@@ -142,7 +142,7 @@ impl Prior {
 
         let data = events
             .iter()
-            .map(|event| {
+            .filter_map(|event| {
                 let prob = self.compute(event);
 
                 let hash = HEXUPPER.encode(
@@ -171,6 +171,7 @@ impl Prior {
                 )[..8]
                     .to_owned();
 
+                let mut any_prob = false;
                 let records = event
                     .iter()
                     .zip(sample_names.iter())
@@ -180,6 +181,7 @@ impl Prior {
                             if prob == 0.0 {
                                 return None;
                             }
+                            any_prob = true;
                             Some(json!({
                                 "sample": sample.to_owned(),
                                 "prob": prob,
@@ -197,8 +199,12 @@ impl Prior {
                         }
                     })
                     .collect_vec();
-                visited.insert(hash);
-                records
+                if any_prob {
+                    visited.insert(hash);
+                    Some(records)
+                } else {
+                    None
+                }
             })
             .flatten()
             .collect_vec();
