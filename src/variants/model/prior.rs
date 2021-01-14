@@ -25,7 +25,7 @@ pub(crate) trait UpdatablePrior {
 
 const SOMATIC_EPSILON: f64 = 0.0001;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum Inheritance {
     Mendelian {
         from: (usize, usize),
@@ -40,7 +40,7 @@ pub(crate) enum Inheritance {
     },
 }
 
-#[derive(Debug, TypedBuilder)]
+#[derive(Debug, TypedBuilder, Default, Clone)]
 pub(crate) struct Prior {
     uniform: grammar::SampleInfo<bool>,
     ploidies: Option<grammar::SampleInfo<Option<u32>>>,

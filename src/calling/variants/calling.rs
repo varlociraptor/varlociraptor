@@ -59,9 +59,7 @@ where
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>
         + model::prior::UpdatablePrior
         + Clone
-        + Default
-        + Send
-        + Sync,
+        + Default,
 {
     pub(crate) fn n_samples(&self) -> usize {
         self.samplenames.len()

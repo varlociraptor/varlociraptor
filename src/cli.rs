@@ -707,6 +707,25 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                         let breakend_index =
                             BreakendIndex::new(sample_observations.first_not_none()?)?;
+                        
+                        let prior = Prior::builder()
+                            .ploidies(None)
+                            .universe(None)
+                            .uniform(sample_infos.uniform_prior)
+                            .germline_mutation_rate(sample_infos.germline_mutation_rates)
+                            .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
+                            .inheritance(sample_infos.inheritance)
+                            .genome_size(
+                                scenario
+                                    .species()
+                                    .as_ref()
+                                    .map_or(None, |species| *species.genome_size()),
+                            )
+                            .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
+                                species.heterozygosity().map(|het| LogProb::from(Prob(het)))
+                            }))
+                            .build();
+                        prior.check()?;
 
                         // setup caller
                         let caller = calling::variants::CallerBuilder::default()
@@ -716,7 +735,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .omit_read_orientation_bias(omit_read_orientation_bias)
                             .omit_read_position_bias(omit_read_position_bias)
                             .scenario(scenario)
-                            .prior(FlatPrior::new()) // TODO allow to define prior in the grammar
+                            .prior(prior)
                             .contaminations(sample_infos.contaminations)
                             .resolutions(sample_infos.resolutions)
                             .breakend_index(breakend_index)
