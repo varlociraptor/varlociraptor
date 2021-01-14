@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::cmp;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::str;
 
 use anyhow::Result;
@@ -138,6 +138,8 @@ impl Prior {
         let mut events = Vec::new();
         self.collect_events(Vec::new(), &mut events);
 
+        let mut visited = HashSet::new();
+
         let data = events
             .iter()
             .map(|event| {
@@ -169,30 +171,34 @@ impl Prior {
                 )[..8]
                     .to_owned();
 
-                event
+                let records = event
                     .iter()
                     .zip(sample_names.iter())
                     .filter_map(|(e, sample)| {
-                        Some(if sample == target_sample {
+                        if sample == target_sample {
                             let prob = *Prob::from(prob);
                             if prob == 0.0 {
                                 return None;
                             }
-                            json!({
+                            Some(json!({
                                 "sample": sample.to_owned(),
                                 "prob": prob,
                                 "vaf": *e.allele_freq,
                                 "hash": hash.clone(),
-                            })
-                        } else {
-                            json!({
+                            }))
+                        } else if !visited.contains(&hash) {
+                            Some(json!({
                                 "sample": sample.to_owned(),
                                 "vaf": *e.allele_freq,
                                 "hash": hash.clone(),
-                            })
-                        })
+                            }))
+                        } else {
+                            None
+                        }
                     })
-                    .collect_vec()
+                    .collect_vec();
+                visited.insert(hash);
+                records
             })
             .flatten()
             .collect_vec();
