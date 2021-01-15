@@ -17,7 +17,6 @@ use bio::alphabets::dna;
 use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
-use itertools::Itertools;
 use regex::Regex;
 use rust_htslib::bam;
 use rust_htslib::bcf::{self, Read};
