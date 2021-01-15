@@ -42,7 +42,7 @@ impl<R: Realigner> Replacement<R> {
             ref_allele,
             replacement.clone(),
             Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().end - 1),
+                genome::Locus::new(interval.contig().to_owned(), interval.range().end),
                 Side::RightOfPos,
                 ExtensionModification::None,
             ),
@@ -52,14 +52,14 @@ impl<R: Realigner> Replacement<R> {
         ));
 
         let ref_allele = get_ref_allele(interval.range().end);
-        let mut replacement = replacement[1..].to_owned();
+        let mut replacement = replacement.clone();
         replacement.push(ref_allele[0]);
         breakend_group_builder.push_breakend(Breakend::from_operations(
-            get_locus(interval.range().end - 1),
+            get_locus(interval.range().end),
             ref_allele,
             replacement,
             Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().start),
+                genome::Locus::new(interval.contig().to_owned(), interval.range().start - 1),
                 Side::LeftOfPos,
                 ExtensionModification::None,
             ),

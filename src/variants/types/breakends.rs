@@ -6,6 +6,7 @@
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::fmt;
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
@@ -43,6 +44,14 @@ pub(crate) struct BreakendGroup<R: Realigner> {
     breakends: BTreeMap<genome::Locus, Breakend>,
     alt_alleles: RefCell<VecMap<Vec<Arc<AltAllele>>>>,
     realigner: RefCell<R>,
+}
+
+impl<R: Realigner> fmt::Debug for BreakendGroup<R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BreakendGroup")
+            .field("breakends", &self.breakends)
+            .finish()
+    }
 }
 
 pub(crate) struct BreakendGroupBuilder<R: Realigner> {
@@ -566,6 +575,8 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                         // Nothing else to do, the replacement sequence has already been added in the step before.
                     }
                 }
+
+                //dbg!(std::str::from_utf8(&alt_allele.seq.iter().cloned().collect_vec()).unwrap());
 
                 let alt_allele = Arc::new(alt_allele);
 
