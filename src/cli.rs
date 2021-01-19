@@ -707,13 +707,15 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                         let breakend_index =
                             BreakendIndex::new(sample_observations.first_not_none()?)?;
-                        
+
                         let prior = Prior::builder()
                             .ploidies(None)
                             .universe(None)
                             .uniform(sample_infos.uniform_prior)
                             .germline_mutation_rate(sample_infos.germline_mutation_rates)
-                            .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
+                            .somatic_effective_mutation_rate(
+                                sample_infos.somatic_effective_mutation_rates,
+                            )
                             .inheritance(sample_infos.inheritance)
                             .genome_size(
                                 scenario
