@@ -391,11 +391,11 @@ impl Prior for FlatPrior {
 }
 
 impl model::prior::UpdatablePrior for FlatPrior {
-    fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>) {
+    fn set_universe_and_ploidies(
+        &mut self,
+        universe: grammar::SampleInfo<grammar::VAFUniverse>,
+        _ploidies: grammar::SampleInfo<Option<u32>>,
+    ) {
         self.universe = Some(universe);
-    }
-
-    fn set_ploidies(&mut self, _ploidies: grammar::SampleInfo<Option<u32>>) {
-        // ploidy is ignored here
     }
 }

@@ -459,8 +459,9 @@ where
                 ploidies = ploidies.push(sample_name, ploidy);
             }
 
-            model.prior_mut().set_universe(vaf_universes.build());
-            model.prior_mut().set_ploidies(ploidies.build());
+            model
+                .prior_mut()
+                .set_universe_and_ploidies(vaf_universes.build(), ploidies.build());
         }
 
         Ok(())

@@ -19,7 +19,11 @@ use crate::grammar;
 use crate::variants::model::{bias::Biases, likelihood, AlleleFreq};
 
 pub(crate) trait UpdatablePrior {
-    fn set_universe_and_ploidies(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>, ploidies: grammar::SampleInfo<Option<u32>>);
+    fn set_universe_and_ploidies(
+        &mut self,
+        universe: grammar::SampleInfo<grammar::VAFUniverse>,
+        ploidies: grammar::SampleInfo<Option<u32>>,
+    );
 }
 
 const SOMATIC_EPSILON: f64 = 0.0001;
@@ -725,10 +729,12 @@ impl bayesian::model::Prior for Prior {
 }
 
 impl UpdatablePrior for Prior {
-    fn set_universe_and_ploidies(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>, ploidies: grammar::SampleInfo<Option<u32>>) {
-        match (self.universe, self.ploidies) {
-            (Some(universe), Some(ploidies))
-        }
+    fn set_universe_and_ploidies(
+        &mut self,
+        universe: grammar::SampleInfo<grammar::VAFUniverse>,
+        ploidies: grammar::SampleInfo<Option<u32>>,
+    ) {
+        self.cache.borrow_mut().clear();
         self.universe = Some(universe);
         self.ploidies = Some(ploidies);
     }
