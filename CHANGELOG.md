@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.6.0] - 2021-01-20
+- Added read position bias into model.
+- Performance improvements for exploration of bias events.
+- Fixed accidental reporting of only the last variant in multi-allelic records.
+- Fixed node-selector evaluation (e.g. G>A in scenario) for non SNV alleles.
+- Fixed bug in replacement evaluation that could lead to artificially small probabilities due to incorrectly assembled alt alleles.
+
 ## [2.5.4] - 2021-01-04
 - Added support for aux per base strand information as provided by rust-bio-tools.
 - Fixed read orientation detection for overlapping reads.
