@@ -222,8 +222,11 @@ impl GenericPosterior {
                         // skip this node
                         subdensity(base_events)
                     }
+                } else if *positive {
+                    // no SNV but branch requires the defined SNV, hence abort with prob 0
+                    LogProb::ln_zero()
                 } else {
-                    // skip this node
+                    // skip this node, as we don't have the defined SNV but it is negated
                     subdensity(base_events)
                 }
             }
@@ -254,7 +257,7 @@ impl Posterior for GenericPosterior {
         let possible_biases = event
             .biases
             .iter()
-            .filter(|bias| bias.is_possible(&data.pileups));
+            .filter(|bias| bias.is_possible(&data.pileups) && bias.is_informative(&data.pileups));
         LogProb::ln_sum_exp(
             &possible_biases
                 .cartesian_product(vaf_tree)

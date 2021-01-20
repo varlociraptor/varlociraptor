@@ -196,16 +196,16 @@ dependencies = [
 
 [[package]]
 name = "bio-types"
-version = "0.7.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d4011aaa9f8bfece367ef7d23f23279710eacf7df462d92c5135eabeb82799b"
+checksum = "58d64154e76eb7c0d369ad6d26b98bbb331c8968da16d063a3ea215e23bbb31c"
 dependencies = [
  "derive-new",
  "lazy_static 1.4.0",
  "quick-error",
  "regex 1.4.2",
  "serde",
- "serde_derive",
+ "strum_macros 0.20.1",
 ]
 
 [[package]]
@@ -2019,9 +2019,9 @@ dependencies = [
 
 [[package]]
 name = "rust-htslib"
-version = "0.35.2"
+version = "0.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32238e34bd0ef9111c345350092cefe81228dbb666b217597452241d5e18c945"
+checksum = "b6d2e5f7980deaf4f41366a5b0d51c2cadaf8639bb12d1258fdab87f37007bd9"
 dependencies = [
  "bio-types 0.9.1",
  "custom_derive",
@@ -2034,6 +2034,7 @@ dependencies = [
  "linear-map",
  "newtype_derive",
  "regex 1.4.2",
+ "strum_macros 0.20.1",
  "thiserror",
  "url 2.2.0",
 ]

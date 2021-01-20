@@ -378,7 +378,6 @@ where
         }
 
         // obtain pileups
-        let mut paired_end = false;
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
             let pileup = if let Some(record) = record {
@@ -396,7 +395,6 @@ where
                     );
                 }
 
-                paired_end |= pileup.iter().any(|obs| obs.is_paired());
                 pileup
             } else {
                 Vec::new()
@@ -405,8 +403,6 @@ where
         }
 
         work_item.pileups = Some(pileups);
-        // Only check for read orientation bias if there is at least one paired end read.
-        work_item.check_read_orientation_bias &= paired_end;
 
         Ok(work_item)
     }

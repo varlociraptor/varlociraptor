@@ -195,15 +195,6 @@ fn likelihood_mapping(
     let prob_sample_ref = prob_sample_alt.ln_one_minus_exp();
 
     let prob_bias = biases.prob(observation);
-    if biases.is_artifact()
-        && observation.read_orientation
-            == crate::variants::evidence::observation::ReadOrientation::F2R1
-        && *biases.strand_bias() == crate::variants::model::bias::strand_bias::StrandBias::Forward
-        && *biases.read_orientation_bias()
-            == crate::variants::model::bias::read_orientation_bias::ReadOrientationBias::F2R1
-    {
-        dbg!((biases, prob_bias, observation.read_position));
-    }
     let prob_any_bias = biases.prob_any(observation);
 
     // Step 2: read comes from case sample and is correctly mapped
