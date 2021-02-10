@@ -50,23 +50,25 @@ impl<R: Realigner> Replacement<R> {
             b"u",
             b"w",
         ));
-
-        let ref_allele = get_ref_allele(interval.range().end);
-        let mut replacement = replacement.clone();
-        replacement.push(ref_allele[0]);
-        breakend_group_builder.push_breakend(Breakend::from_operations(
-            get_locus(interval.range().end),
-            ref_allele,
-            replacement,
-            Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().start - 1),
-                Side::LeftOfPos,
-                ExtensionModification::None,
-            ),
-            false,
-            b"w",
-            b"u",
-        ));
+        // If replacement ends at the end of the contig, we do not need a right breakend.
+        if interval.range().end < chrom_seq.len() as u64 {
+            let ref_allele = get_ref_allele(interval.range().end);
+            let mut replacement = replacement.clone();
+            replacement.push(ref_allele[0]);
+            breakend_group_builder.push_breakend(Breakend::from_operations(
+                get_locus(interval.range().end),
+                ref_allele,
+                replacement,
+                Join::new(
+                    genome::Locus::new(interval.contig().to_owned(), interval.range().start - 1),
+                    Side::LeftOfPos,
+                    ExtensionModification::None,
+                ),
+                false,
+                b"w",
+                b"u",
+            ));
+        }
 
         Replacement(breakend_group_builder.build())
     }
