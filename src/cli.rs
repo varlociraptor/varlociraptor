@@ -29,6 +29,7 @@ use crate::testcase;
 use crate::variants::evidence::realignment;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::variants::model::modes::generic::FlatPrior;
+use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::{Contamination, VariantType};
 use crate::variants::sample::{estimate_alignment_properties, ProtocolStrandedness};
@@ -727,7 +728,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                             }))
                             .build();
-                        prior.check()?;
 
                         // setup caller
                         let caller = calling::variants::CallerBuilder::default()

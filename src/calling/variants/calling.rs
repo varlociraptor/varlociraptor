@@ -58,6 +58,7 @@ impl<Pr> Caller<Pr>
 where
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>
         + model::prior::UpdatablePrior
+        + model::prior::CheckablePrior
         + Clone
         + Default,
 {
@@ -462,6 +463,7 @@ where
             model
                 .prior_mut()
                 .set_universe_and_ploidies(vaf_universes.build(), ploidies.build());
+            model.prior().check()?;
         }
 
         Ok(())

@@ -26,6 +26,10 @@ pub(crate) trait UpdatablePrior {
     );
 }
 
+pub(crate) trait CheckablePrior {
+    fn check(&self) -> Result<()>;
+}
+
 const SOMATIC_EPSILON: f64 = 0.0001;
 
 #[derive(Debug, Clone)]
@@ -60,40 +64,6 @@ pub(crate) struct Prior {
 impl Prior {
     fn n_samples(&self) -> usize {
         self.germline_mutation_rate.len()
-    }
-
-    pub(crate) fn check(&self) -> Result<()> {
-        let err = |msg: &str| {
-            Err(errors::Error::InvalidPriorConfiguration {
-                msg: msg.to_owned(),
-            }
-            .into())
-        };
-        for sample in 0..self.n_samples() {
-            if self.has_somatic_variation(sample) && self.genome_size.is_none() {
-                return err("somatic variation defined but unknown genome size: define genome size in the scenario");
-            }
-            if let Some(inheritance) = &self.inheritance[sample] {
-                if match inheritance {
-                    Inheritance::Mendelian { from: (p1, p2) }
-                        if !self.has_ploidy(*p1) || !self.has_ploidy(*p2) =>
-                    {
-                        true
-                    }
-                    Inheritance::Clonal { from, .. } if !self.has_ploidy(*from) => true,
-                    Inheritance::Subclonal { from, .. } if !self.has_ploidy(*from) => true,
-                    _ => false,
-                } {
-                    return err("inheritance defined but parental samples do not have a ploidy: define ploidy for each sample or the species");
-                }
-            }
-            if let Some(Inheritance::Subclonal { .. }) = &self.inheritance[sample] {
-                if !self.has_somatic_variation(sample) {
-                    return err("subclonal inheritance defined but no somatic mutation: define somatic effective mutation rate for sample that inherits");
-                }
-            }
-        }
-        Ok(())
     }
 
     fn collect_events(
@@ -737,5 +707,41 @@ impl UpdatablePrior for Prior {
         self.cache.borrow_mut().clear();
         self.universe = Some(universe);
         self.ploidies = Some(ploidies);
+    }
+}
+
+impl CheckablePrior for Prior {
+    fn check(&self) -> Result<()> {
+        let err = |msg: &str| {
+            Err(errors::Error::InvalidPriorConfiguration {
+                msg: msg.to_owned(),
+            }
+            .into())
+        };
+        for sample in 0..self.n_samples() {
+            if self.has_somatic_variation(sample) && self.genome_size.is_none() {
+                return err("somatic variation defined but unknown genome size: define genome size in the scenario");
+            }
+            if let Some(inheritance) = &self.inheritance[sample] {
+                if match inheritance {
+                    Inheritance::Mendelian { from: (p1, p2) }
+                        if !self.has_ploidy(*p1) || !self.has_ploidy(*p2) =>
+                    {
+                        true
+                    }
+                    Inheritance::Clonal { from, .. } if !self.has_ploidy(*from) => true,
+                    Inheritance::Subclonal { from, .. } if !self.has_ploidy(*from) => true,
+                    _ => false,
+                } {
+                    return err("inheritance defined but parental samples do not have a ploidy: define ploidy for each sample or the species");
+                }
+            }
+            if let Some(Inheritance::Subclonal { .. }) = &self.inheritance[sample] {
+                if !self.has_somatic_variation(sample) {
+                    return err("subclonal inheritance defined but no somatic mutation: define somatic effective mutation rate for sample that inherits");
+                }
+            }
+        }
+        Ok(())
     }
 }
