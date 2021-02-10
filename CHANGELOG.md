@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.6.1] - 2021-02-10
+- Fix out of bounds error when replacement ends at the end of a contig.
+
 ## [2.6.0] - 2021-01-20
 - Added read position bias into model.
 - Performance improvements for exploration of bias events.
