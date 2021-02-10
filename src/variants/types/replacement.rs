@@ -51,7 +51,7 @@ impl<R: Realigner> Replacement<R> {
             b"w",
         ));
         // If replacement ends at the end of the contig, we do not need a right breakend.
-        if interval.range().end < chrom_seq.len() {
+        if interval.range().end < chrom_seq.len() as u64 {
             let ref_allele = get_ref_allele(interval.range().end);
             let mut replacement = replacement.clone();
             replacement.push(ref_allele[0]);
