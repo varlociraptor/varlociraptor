@@ -138,18 +138,17 @@ impl Caller<'_> {
                 let mut n_overlapping_selected: Vec<&LpBinary> = Vec::new();
                 for (&interval, loh_indicator) in interval_loh_indicator.iter() {
                     // current interval will overlap itself, but should not add to the constraint
-                    if current_interval != interval && (
-                        current_interval.contains(interval.start())
+                    if current_interval != interval
+                        && (current_interval.contains(interval.start())
                         // adjacency is equivalent to an overlap
                         || current_interval.contains(&(interval.start().saturating_sub(1)))
                         || current_interval.contains(interval.end())
                         // adjacency is equivalent to an overlap
-                        || current_interval.contains(&(interval.end() + 1))
-                    )
+                        || current_interval.contains(&(interval.end() + 1)))
                     {
                         n_overlapping_selected.push(loh_indicator);
                     }
-                };
+                }
                 problem += n_overlapping_selected.sum().le(intervals.len() as f32
                     * (1 - interval_loh_indicator.get(&current_interval).unwrap()));
             }
@@ -159,10 +158,14 @@ impl Caller<'_> {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
-                        let index: usize = loh_indicator.name.strip_prefix('x').unwrap().parse().unwrap();
-                        let interval_prob_no_loh = f64::from(Prob::from(
-                            log_probs[index].ln_one_minus_exp(),
-                        )) as f32;
+                        let index: usize = loh_indicator
+                            .name
+                            .strip_prefix('x')
+                            .unwrap()
+                            .parse()
+                            .unwrap();
+                        let interval_prob_no_loh =
+                            f64::from(Prob::from(log_probs[index].ln_one_minus_exp())) as f32;
                         println!(
                             "index: {}, interval: {:?}, interval_prob_no_loh: {}",
                             index, interval, interval_prob_no_loh
@@ -338,7 +341,7 @@ impl ContigLogPosteriorsLOH {
         alpha: Prob,
         control_local_fdr: &bool,
         filter_bayes_factor_minimum_barely: &bool,
-    ) -> Result<( Vec<RangeInclusive<usize>>, Vec<LogProb> )> {
+    ) -> Result<(Vec<RangeInclusive<usize>>, Vec<LogProb>)> {
         let log_one_minus_alpha = LogProb::from(alpha).ln_one_minus_exp();
         let mut intervals = Vec::new();
         let mut log_probs = Vec::new();
@@ -628,41 +631,29 @@ mod tests {
             .create_all_intervals(alpha, &false, &false)
             .unwrap();
         println!("intervals: {:?}", intervals);
-        assert_eq!(
-            intervals[2],
-            1..=1
-        );
-        assert_eq!(
-            log_probs[2],
-            LogProb(-15.73512915535108)
-        );
-        assert_eq!(
-            intervals[1],
-            0..=1
-        );
-        assert_eq!(
-            log_probs[1],
-            LogProb(-15.735129302014165)
-        );
-        assert_eq!(
-            intervals[0],
-            0..=0
-        );
-        assert_eq!(
-            log_probs[0],
-            LogProb(-0.0000001466630849268762)
-        );
+        assert_eq!(intervals[2], 1..=1);
+        assert_eq!(log_probs[2], LogProb(-15.73512915535108));
+        assert_eq!(intervals[1], 0..=1);
+        assert_eq!(log_probs[1], LogProb(-15.735129302014165));
+        assert_eq!(intervals[0], 0..=0);
+        assert_eq!(log_probs[0], LogProb(-0.0000001466630849268762));
 
-        let ( intervals_filter_bayes_factor, _ ) = loh_log_posteriors
+        let (intervals_filter_bayes_factor, _) = loh_log_posteriors
             .create_all_intervals(alpha, &false, &true)
             .unwrap();
-        println!("intervals after Bayes factor filtering: {:?}", intervals_filter_bayes_factor);
+        println!(
+            "intervals after Bayes factor filtering: {:?}",
+            intervals_filter_bayes_factor
+        );
         assert_eq!(intervals_filter_bayes_factor.len(), 1);
 
-        let ( intervals_control_local_fdr, _ ) = loh_log_posteriors
+        let (intervals_control_local_fdr, _) = loh_log_posteriors
             .create_all_intervals(alpha, &true, &false)
             .unwrap();
-        println!("intervals after local FDR filtering: {:?}", intervals_control_local_fdr);
+        println!(
+            "intervals after local FDR filtering: {:?}",
+            intervals_control_local_fdr
+        );
         assert_eq!(intervals_control_local_fdr.len(), 1);
     }
 }
