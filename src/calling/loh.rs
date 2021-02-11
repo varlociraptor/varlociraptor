@@ -13,7 +13,6 @@ use bio::io::bed;
 use bio::stats::bayesian::bayes_factors::{evidence, BayesFactor};
 use bio::stats::{LogProb, PHREDProb, Prob};
 use derive_builder::Builder;
-use itertools::iproduct;
 use rust_htslib::bcf;
 use rust_htslib::bcf::Read;
 
