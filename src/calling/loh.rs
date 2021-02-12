@@ -242,10 +242,11 @@ fn site_posterior_loh_or_hom(
     loh_field_name: &String,
     no_loh_field_name: &String,
     hom_field_name: &String,
+    absent_field_name: &String,
 ) -> Option<LogProb> {
     let site_likelihood_loh = info_phred_to_log_prob(record, loh_field_name);
     let site_likelihood_no_loh = info_phred_to_log_prob(record, no_loh_field_name);
-    let site_likelihood_hom = info_phred_to_log_prob(record, hom_field_name);
+    let site_likelihood_hom = info_phred_to_log_prob(record, hom_field_name).add_exp(info_phred_to_log_prob(record, absent_field_name));
     // Kass-Raftery evidence of at least barely for a heterozygous site
     // TODO: remove, once we have copy number estimation based on DP field
     if site_likelihood_hom > site_likelihood_loh.ln_add_exp(site_likelihood_no_loh) {
@@ -271,6 +272,7 @@ impl ContigLogPosteriorsLOH {
         let loh_field_name = &String::from("PROB_LOH");
         let no_loh_field_name = &String::from("PROB_NO_LOH");
         let hom_field_name = &String::from("PROB_UNINTERESTING");
+        let absent_field_name = &String::from("PROB_ABSENT");
         bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
         if bcf_reader.read(&mut record)? {
@@ -279,6 +281,7 @@ impl ContigLogPosteriorsLOH {
                 loh_field_name,
                 no_loh_field_name,
                 hom_field_name,
+                absent_field_name,
             );
             while posterior.is_none() {
                 bcf_reader.read(&mut record)?;
@@ -287,6 +290,7 @@ impl ContigLogPosteriorsLOH {
                     loh_field_name,
                     no_loh_field_name,
                     hom_field_name,
+                    absent_field_name,
                 );
             }
             match posterior {
@@ -307,6 +311,7 @@ impl ContigLogPosteriorsLOH {
                 loh_field_name,
                 no_loh_field_name,
                 hom_field_name,
+                absent_field_name,
             );
             while posterior.is_none() {
                 bcf_reader.read(&mut record)?;
@@ -315,6 +320,7 @@ impl ContigLogPosteriorsLOH {
                     loh_field_name,
                     no_loh_field_name,
                     hom_field_name,
+                    absent_field_name,
                 );
             }
             match posterior {
