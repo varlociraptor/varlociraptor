@@ -20,7 +20,7 @@ itertools-num = "0.1"
 approx = "0.3"
 rusty-machine="0.5"
 ordered-float = "1"
-lp-modeler = { git = "https://github.com/dlaehnemann/rust-lp-modeler", branch = "flatten-simplify" }
+lp-modeler = { git = "https://github.com/jcavat/rust-lp-modeler", rev = "b1d7e3e1e346cec74da9cea96e6e230e8e0ed8b2" }
 #lp-modeler = "0.4"
 ndarray = "0.13"
 vec_map = "0.8"
