@@ -119,7 +119,6 @@ impl Caller<'_> {
                     (key, loh_indicator)
                 })
                 .collect();
-            println!("Defined Variables: {:?}", interval_loh_indicator);
 
             // Define Objective Function: maximise length of selected LOH regions
             let lengths: Vec<LpExpression> = {
@@ -149,8 +148,10 @@ impl Caller<'_> {
                         n_overlapping_selected.push(loh_indicator);
                     }
                 }
-                problem += n_overlapping_selected.sum().le(intervals.len() as f32
-                    * (1 - interval_loh_indicator.get(&current_interval).unwrap()));
+                if n_overlapping_selected.len() > 0 {
+                    problem += n_overlapping_selected.sum().le(intervals.len() as f32
+                        * (1 - interval_loh_indicator.get(&current_interval).unwrap()));
+                }
             }
 
             // Constraint: control false discovery rate at alpha
@@ -166,10 +167,6 @@ impl Caller<'_> {
                             .unwrap();
                         let interval_prob_no_loh =
                             f64::from(Prob::from(log_probs[index].ln_one_minus_exp())) as f32;
-                        println!(
-                            "index: {}, interval: {:?}, interval_prob_no_loh: {}",
-                            index, interval, interval_prob_no_loh
-                        );
                         (interval_prob_no_loh - f64::from(self.alpha) as f32) * loh_indicator
                     })
                     .collect()
