@@ -453,7 +453,7 @@ mod tests {
         let test_file = "tests/resources/test_tags_prob_sum/overshoot.vcf";
         let mut overshoot_calls = bcf::Reader::from_path(test_file).unwrap();
         let mut record = overshoot_calls.empty_record();
-        if let Err(e) = overshoot_calls.read(&mut record) {
+        if let Some(Err(e)) = overshoot_calls.read(&mut record) {
             panic!("BCF reading error: {}", e);
         }
 
