@@ -100,7 +100,7 @@ impl Caller<'_> {
             if contig.positions.is_empty() {
                 continue;
             }
-            let (intervals, log_probs) = contig.create_all_intervals(
+            let intervals = contig.create_all_intervals(
                 self.alpha,
                 &self.control_local_fdr,
                 &self.filter_bayes_factor_minimum_barely,
@@ -112,10 +112,9 @@ impl Caller<'_> {
             // Define Variables
             let interval_loh_indicator: HashMap<&RangeInclusive<usize>, LpBinary> = intervals
                 .iter()
-                .enumerate()
-                .map(|(index, range)| {
+                .map(|(range, _)| {
                     let key = range;
-                    let loh_indicator = LpBinary::new(&format!("x{}", index));
+                    let loh_indicator = LpBinary::new(&format!("i_{}_{}", key.start(), key.end()));
                     (key, loh_indicator)
                 })
                 .collect();
@@ -133,7 +132,7 @@ impl Caller<'_> {
             problem += lengths.sum();
 
             // Constraint: no overlapping intervals for selected intervals
-            for current_interval in intervals.iter() {
+            for current_interval in intervals.keys() {
                 let mut n_overlapping_selected: Vec<&LpBinary> = Vec::new();
                 for (&interval, loh_indicator) in interval_loh_indicator.iter() {
                     // current interval will overlap itself, but should not add to the constraint
@@ -159,14 +158,9 @@ impl Caller<'_> {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
-                        let index: usize = loh_indicator
-                            .name
-                            .strip_prefix('x')
-                            .unwrap()
-                            .parse()
-                            .unwrap();
-                        let interval_prob_no_loh =
-                            f64::from(Prob::from(log_probs[index].ln_one_minus_exp())) as f32;
+                        let interval_prob_no_loh = f64::from(Prob::from(
+                            intervals.get(&interval).unwrap().ln_one_minus_exp(),
+                        )) as f32;
                         (interval_prob_no_loh - f64::from(self.alpha) as f32) * loh_indicator
                     })
                     .collect()
@@ -195,27 +189,23 @@ impl Caller<'_> {
                     debug!("Status: {:?}", solution.status);
                     let mut sorted_records: BTreeMap<u64, bed::Record> = BTreeMap::new();
                     for (var_name, var_value) in solution.results.iter() {
+                        let split: Vec<_> = var_name.split('_').collect();
+                        let start_index: usize = split[1].parse()?;
+                        let end_index: usize = split[2].parse()?;
                         let int_var_value = *var_value as u32;
                         if int_var_value == 1 {
                             debug!("{} is selected", var_name);
-                            if let Some(index_from_name) = var_name.strip_prefix('x') {
-                                let interval_index: usize = index_from_name.parse()?;
-                                let start_index = *intervals[interval_index].start();
-                                let end_index = *intervals[interval_index].end();
-                                let score = f64::from(
-                                    PHREDProb::from(
-                                        log_probs[interval_index],
-                                    )
+                            let score = f64::from(
+                                PHREDProb::from(
+                                    *intervals.get(&(start_index..=end_index)).unwrap(),
                                 )
-                                    .to_string();
-                                // Write result to bed
-                                bed_record.set_start(contig.positions[start_index]); // 0-based as in bcf::Record::pos()
-                                bed_record.set_end(contig.positions[end_index] + 1); // 1-based
-                                bed_record.set_score(score.as_str());
-                                sorted_records.insert(bed_record.start(), bed_record.clone());
-                            } else {
-                                panic!("The solver changed the variable names into something unexpected. They should start with an 'x'.");
-                            }
+                            )
+                                .to_string();
+                            // Write result to bed
+                            bed_record.set_start(contig.positions[start_index]); // 0-based as in bcf::Record::pos()
+                            bed_record.set_end(contig.positions[end_index] + 1); // 1-based
+                            bed_record.set_score(score.as_str());
+                            sorted_records.insert(bed_record.start(), bed_record.clone());
                         }
                     }
                     for (_, record) in sorted_records {
@@ -244,18 +234,18 @@ fn site_posterior_loh_or_hom(
     hom_field_name: &String,
     absent_field_name: &String,
 ) -> Option<LogProb> {
-    let site_likelihood_loh = info_phred_to_log_prob(record, loh_field_name);
-    let site_likelihood_no_loh = info_phred_to_log_prob(record, no_loh_field_name);
-    let site_likelihood_hom = info_phred_to_log_prob(record, hom_field_name).ln_add_exp(info_phred_to_log_prob(record, absent_field_name));
+    let site_log_likelihood_loh = info_phred_to_log_prob(record, loh_field_name);
+    let site_log_likelihood_no_loh = info_phred_to_log_prob(record, no_loh_field_name);
+    let site_log_likelihood_hom = info_phred_to_log_prob(record, hom_field_name).ln_add_exp(info_phred_to_log_prob(record, absent_field_name));
     // Kass-Raftery evidence of at least barely for a heterozygous site
     // TODO: remove, once we have copy number estimation based on DP field
-    if site_likelihood_hom > site_likelihood_loh.ln_add_exp(site_likelihood_no_loh) {
+    if site_log_likelihood_hom > site_log_likelihood_loh.ln_add_exp(site_log_likelihood_no_loh) {
         None
     } else {
-        let site_likelihood_loh_or_hom = site_likelihood_loh.ln_add_exp(site_likelihood_hom);
+        let site_log_likelihood_loh_or_hom = site_log_likelihood_loh.ln_add_exp(site_log_likelihood_hom);
         Some(
-            site_likelihood_loh_or_hom
-                - (site_likelihood_loh_or_hom.ln_add_exp(site_likelihood_no_loh)),
+            site_log_likelihood_loh_or_hom
+                - (site_log_likelihood_loh_or_hom.ln_add_exp(site_log_likelihood_no_loh)),
         )
     }
 }
@@ -344,10 +334,9 @@ impl ContigLogPosteriorsLOH {
         alpha: Prob,
         control_local_fdr: &bool,
         filter_bayes_factor_minimum_barely: &bool,
-    ) -> Result<(Vec<RangeInclusive<usize>>, Vec<LogProb>)> {
+    ) -> Result<HashMap<RangeInclusive<usize>, LogProb>> {
         let log_one_minus_alpha = LogProb::from(alpha).ln_one_minus_exp();
-        let mut intervals = Vec::new();
-        let mut log_probs = Vec::new();
+        let mut intervals = HashMap::new();
         for start in 0..self.cum_loh_posteriors.len() {
             for end in start..self.cum_loh_posteriors.len() {
                 let posterior_log_probability = if start > 0 {
@@ -369,11 +358,10 @@ impl ContigLogPosteriorsLOH {
                 {
                     continue;
                 }
-                intervals.push(start..=end);
-                log_probs.push(posterior_log_probability);
+                intervals.insert(start..=end, posterior_log_probability);
             }
         }
-        Ok((intervals, log_probs))
+        Ok(intervals)
     }
 }
 
@@ -630,33 +618,35 @@ mod tests {
             LogProb(-15.735129302014165)
         );
 
-        let (intervals, log_probs) = loh_log_posteriors
+        let intervals = loh_log_posteriors
             .create_all_intervals(alpha, &false, &false)
             .unwrap();
         println!("intervals: {:?}", intervals);
-        assert_eq!(intervals[2], 1..=1);
-        assert_eq!(log_probs[2], LogProb(-15.73512915535108));
-        assert_eq!(intervals[1], 0..=1);
-        assert_eq!(log_probs[1], LogProb(-15.735129302014165));
-        assert_eq!(intervals[0], 0..=0);
-        assert_eq!(log_probs[0], LogProb(-0.0000001466630849268762));
+        assert_eq!(
+            intervals.get(&(1..=1)).unwrap(),
+            &LogProb(-15.73512915535108)
+        );
+        assert_eq!(
+            intervals.get(&(0..=1)).unwrap(),
+            &LogProb(-15.735129302014165)
+        );
+        assert_eq!(
+            intervals.get(&(0..=0)).unwrap(),
+            &LogProb(-0.0000001466630849268762)
+        );
 
-        let (intervals_filter_bayes_factor, _) = loh_log_posteriors
+        let intervals_filter_bayes_factor = loh_log_posteriors
             .create_all_intervals(alpha, &false, &true)
             .unwrap();
-        println!(
-            "intervals after Bayes factor filtering: {:?}",
-            intervals_filter_bayes_factor
-        );
-        assert_eq!(intervals_filter_bayes_factor.len(), 1);
+        let bayes_filtered = intervals_filter_bayes_factor.get(&(1..=1));
+        println!("bayes_filtered: {:?}", bayes_filtered);
+        assert!(bayes_filtered.is_none());
 
-        let (intervals_control_local_fdr, _) = loh_log_posteriors
+        let intervals_control_local_fdr = loh_log_posteriors
             .create_all_intervals(alpha, &true, &false)
             .unwrap();
-        println!(
-            "intervals after local FDR filtering: {:?}",
-            intervals_control_local_fdr
-        );
-        assert_eq!(intervals_control_local_fdr.len(), 1);
+        let local_fdr_filtered = intervals_control_local_fdr.get(&(1..=1));
+        println!("local_fdr_filtered: {:?}", local_fdr_filtered);
+        assert!(local_fdr_filtered.is_none());
     }
 }
