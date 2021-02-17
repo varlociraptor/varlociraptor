@@ -8,6 +8,7 @@ use std::convert::{From, TryFrom};
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use bio::io::fasta;
@@ -24,7 +25,9 @@ use crate::estimation;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
+use crate::reference;
 use crate::testcase;
+use crate::variants::evidence::realignment;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
 use crate::variants::model::modes::generic::FlatPrior;
 use crate::variants::model::{Contamination, VariantType};
@@ -114,12 +117,16 @@ impl Varlociraptor {
     }
 }
 
-fn default_threads() -> usize {
-    1
-}
-
 fn default_reference_buffer_size() -> usize {
     10
+}
+
+fn default_pairhmm_mode() -> String {
+    "exact".to_owned()
+}
+
+fn default_min_bam_refetch_distance() -> u64 {
+    1
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -131,7 +138,7 @@ pub enum PreprocessKind {
                  The obtained observations are printed to STDOUT in BCF format. Note that the resulting BCFs \
                  will be very large and are only intended for internal use (e.g. for piping into 'varlociraptor \
                  call variants generic').",
-        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam --output sample.observations.bcf",
+        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam > sample.observations.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Variants {
@@ -153,9 +160,6 @@ pub enum PreprocessKind {
             help = "BAM file with aligned reads from a single sample."
         )]
         bam: PathBuf,
-        #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
-        #[serde(default = "default_threads")]
-        threads: usize,
         #[structopt(
             long = "reference-buffer-size",
             short = "b",
@@ -165,6 +169,18 @@ pub enum PreprocessKind {
         )]
         #[serde(default = "default_reference_buffer_size")]
         reference_buffer_size: usize,
+        #[structopt(
+            long = "min-bam-refetch-distance",
+            default_value = "1",
+            help = "Base pair distance to last fetched BAM interval such that a refetching is performed \
+                  instead of reading through until the next interval is reached. Making this too small \
+                  can cause unnecessary random access. Making this too large can lead to unneccessary \
+                  iteration over irrelevant records. Benchmarking has shown that at least for short reads, \
+                  a value of 1 (e.g. always refetch) does not incur additional costs and is a reasonable \
+                  default."
+        )]
+        #[serde(default = "default_min_bam_refetch_distance")]
+        min_bam_refetch_distance: u64,
         #[structopt(
             long = "alignment-properties",
             help = "Alignment properties JSON file for sample. If not provided, properties \
@@ -230,6 +246,20 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         omit_insert_size: bool,
+        #[structopt(
+            long = "pairhmm-mode",
+            possible_values = &["fast", "exact"],
+            default_value = "exact",
+            help = "PairHMM computation mode (either fast or exact). Fast mode means that only the best \
+                    alignment path is considered for probability calculation. In rare cases, this can lead \
+                    to wrong results for single reads. Hence, we advice to not use it when \
+                    discrete allele frequences are of interest (0.5, 1.0). For continuous \
+                    allele frequencies, fast mode should cause almost no deviations from the \
+                    exact results. Also, if per sample allele frequencies are irrelevant (e.g. \
+                    in large cohorts), fast mode can be safely used."
+        )]
+        #[serde(default = "default_pairhmm_mode")]
+        pairhmm_mode: String,
     },
 }
 
@@ -283,6 +313,29 @@ pub enum CallKind {
         #[structopt(subcommand)]
         mode: VariantCallMode,
         #[structopt(
+            long = "omit-strand-bias",
+            help = "Do not consider strand bias when calculating the probability of an artifact.\
+                    Use this flag when processing (panel) sequencing data, where the wet-lab \
+                    methodology leads to strand bias in the coverage of genuine variants."
+        )]
+        #[serde(default)]
+        omit_strand_bias: bool,
+        #[structopt(
+            long = "omit-read-orientation-bias",
+            help = "Do not consider read orientation bias when calculating the probability of an \
+                    artifact."
+        )]
+        #[serde(default)]
+        omit_read_orientation_bias: bool,
+        #[structopt(
+            long = "omit-read-position-bias",
+            help = "Do not consider read position bias when calculating the probability of an \
+                    artifact. Use this flag when processing (panel) sequencing data, where the \
+                    wet-lab methodology leads to stacks of reads starting at the same position."
+        )]
+        #[serde(default)]
+        omit_read_position_bias: bool,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
@@ -302,9 +355,6 @@ pub enum CallKind {
             help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
         )]
         output: Option<PathBuf>,
-        #[structopt(long, short = "t", default_value = "1", help = "Number of threads.")]
-        #[serde(default = "default_threads")]
-        threads: usize,
     },
     #[structopt(
         name = "loh",
@@ -404,7 +454,7 @@ pub enum VariantCallMode {
     #[structopt(
         name = "tumor-normal",
         about = "Call somatic and germline variants from a tumor-normal sample pair and a VCF/BCF with candidate variants.",
-        usage = "varlociraptor call variants --output calls.bcf tumor-normal --purity 0.75 --tumor tumor.bcf --normal normal.bcf",
+        usage = "varlociraptor call variants tumor-normal --purity 0.75 --tumor tumor.bcf --normal normal.bcf > calls.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     TumorNormal {
@@ -444,7 +494,7 @@ pub enum VariantCallMode {
         #[structopt(
             long = "obs",
             required = true,
-            help = "BCF file with varlociraptor preprocess results for each sample defined in the given scenario (given as samplename=path/to/calls.bcf)."
+            help = "BCF file with varlociraptor preprocess results for samples defined in the given scenario (given as samplename=path/to/calls.bcf). It is possible to omit a sample here (e.g. model tumor/normal in the scenario, but only call on the tumor sample when there is no normal sequenced). In that case, the resulting probabilities will be accordingly uncertain, because observations of the omitted sample are missing (which is equivalent to having no coverage in the sample)."
         )]
         sample_observations: Vec<String>,
     },
@@ -536,8 +586,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     realignment_window,
                     max_depth,
                     omit_insert_size,
-                    threads,
                     reference_buffer_size,
+                    min_bam_refetch_distance,
+                    pairhmm_mode,
                 } => {
                     // TODO: handle testcases
 
@@ -556,9 +607,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     // If we omit the insert size information for calculating the evidence, we can savely allow hardclips here.
                     let allow_hardclips = omit_insert_size;
-                    let alignment_properties = est_or_load_alignment_properites(
+                    let alignment_properties = est_or_load_alignment_properties(
                         &alignment_properties,
                         &bam,
+                        omit_insert_size,
                         allow_hardclips,
                     )?;
 
@@ -569,27 +621,55 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
                     };
 
-                    let mut processor =
-                        calling::variants::preprocessing::ObservationProcessorBuilder::default()
-                            .threads(threads)
-                            .alignment_properties(alignment_properties)
-                            .protocol_strandedness(protocol_strandedness)
-                            .max_depth(max_depth)
-                            .inbam(bam)
-                            .reference(
-                                fasta::IndexedReader::from_file(&reference)
-                                    .context("Unable to read genome reference.")?,
-                                reference_buffer_size,
-                            )
-                            .realignment(gap_params, realignment_window)
-                            .breakend_index(BreakendIndex::new(&candidates)?)
-                            .inbcf(candidates)
-                            .options(opt_clone)
-                            .outbcf(output)
-                            .build()
-                            .unwrap();
+                    let reference_buffer = Arc::new(reference::Buffer::new(
+                        fasta::IndexedReader::from_file(&reference)
+                            .context("Unable to read genome reference.")?,
+                        reference_buffer_size,
+                    ));
 
-                    processor.process()?
+                    if pairhmm_mode == "fast" {
+                        let mut processor =
+                            calling::variants::preprocessing::ObservationProcessor::builder()
+                                .alignment_properties(alignment_properties)
+                                .protocol_strandedness(protocol_strandedness)
+                                .max_depth(max_depth)
+                                .inbam(bam)
+                                .min_bam_refetch_distance(min_bam_refetch_distance)
+                                .reference_buffer(Arc::clone(&reference_buffer))
+                                .breakend_index(BreakendIndex::new(&candidates)?)
+                                .inbcf(candidates)
+                                .options(opt_clone)
+                                .outbcf(output)
+                                .realigner(realignment::PathHMMRealigner::new(
+                                    gap_params,
+                                    realignment_window,
+                                    reference_buffer,
+                                ))
+                                .build();
+
+                        processor.process()?;
+                    } else {
+                        let mut processor =
+                            calling::variants::preprocessing::ObservationProcessor::builder()
+                                .alignment_properties(alignment_properties)
+                                .protocol_strandedness(protocol_strandedness)
+                                .max_depth(max_depth)
+                                .inbam(bam)
+                                .min_bam_refetch_distance(min_bam_refetch_distance)
+                                .reference_buffer(Arc::clone(&reference_buffer))
+                                .breakend_index(BreakendIndex::new(&candidates)?)
+                                .inbcf(candidates)
+                                .options(opt_clone)
+                                .outbcf(output)
+                                .realigner(realignment::PairHMMRealigner::new(
+                                    reference_buffer,
+                                    gap_params,
+                                    realignment_window,
+                                ))
+                                .build();
+
+                        processor.process()?;
+                    }
                 }
             }
         }
@@ -597,10 +677,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             match kind {
                 CallKind::Variants {
                     mode,
+                    omit_strand_bias,
+                    omit_read_orientation_bias,
+                    omit_read_position_bias,
                     testcase_locus,
                     testcase_prefix,
                     output,
-                    threads,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -644,35 +726,43 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             contaminations = contaminations.push(sample_name, contamination);
                             resolutions = resolutions.push(sample_name, *sample.resolution());
 
-                            let obs = observations.get(sample_name).ok_or(
-                                errors::Error::InvalidObservationSampleName {
-                                    name: sample_name.to_owned(),
-                                },
-                            )?;
-                            sample_observations =
-                                sample_observations.push(sample_name, obs.to_owned());
+                            if let Some(obs) = observations.get(sample_name) {
+                                sample_observations =
+                                    sample_observations.push(sample_name, Some(obs.to_owned()));
+                            } else {
+                                sample_observations = sample_observations.push(sample_name, None);
+                            }
                             sample_names = sample_names.push(sample_name, sample_name.to_owned());
                         }
 
+                        let sample_names = sample_names.build();
                         let sample_observations = sample_observations.build();
 
-                        let breakend_index = BreakendIndex::new(
-                            sample_observations
-                                .first()
-                                .expect("at least one sample must be given"),
-                        )?;
+                        for obs_sample_name in observations.keys() {
+                            if !sample_names.as_slice().contains(obs_sample_name) {
+                                return Err(errors::Error::InvalidObservationSampleName {
+                                    name: obs_sample_name.to_owned(),
+                                }
+                                .into());
+                            }
+                        }
+
+                        let breakend_index =
+                            BreakendIndex::new(sample_observations.first_not_none()?)?;
 
                         // setup caller
                         let caller = calling::variants::CallerBuilder::default()
-                            .samplenames(sample_names.build())
+                            .samplenames(sample_names)
                             .observations(sample_observations)
+                            .omit_strand_bias(omit_strand_bias)
+                            .omit_read_orientation_bias(omit_read_orientation_bias)
+                            .omit_read_position_bias(omit_read_position_bias)
                             .scenario(scenario)
                             .prior(FlatPrior::new()) // TODO allow to define prior in the grammar
                             .contaminations(contaminations.build())
                             .resolutions(resolutions.build())
                             .breakend_index(breakend_index)
                             .outbcf(output)
-                            .threads(threads)
                             .build()
                             .unwrap();
 
@@ -908,16 +998,17 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn est_or_load_alignment_properites(
+pub(crate) fn est_or_load_alignment_properties(
     alignment_properties_file: &Option<impl AsRef<Path>>,
     bam_file: impl AsRef<Path>,
     omit_insert_size: bool,
+    allow_hardclips: bool,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(bam_file, omit_insert_size)
+        estimate_alignment_properties(bam_file, omit_insert_size, allow_hardclips)
     }
 }

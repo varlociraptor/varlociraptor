@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
@@ -9,13 +11,20 @@ use crate::variants::types::breakends::{
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
-#[derive(Derefable)]
-pub(crate) struct Duplication(#[deref] BreakendGroup);
+pub(crate) struct Duplication<R: Realigner>(BreakendGroup<R>);
 
-impl Duplication {
-    pub(crate) fn new(interval: genome::Interval, realigner: Realigner, chrom_seq: &[u8]) -> Self {
-        let mut breakend_group_builder = BreakendGroupBuilder::default();
-        breakend_group_builder.set_realigner(realigner);
+impl<R: Realigner> Deref for Duplication<R> {
+    type Target = BreakendGroup<R>;
+
+    fn deref(&self) -> &BreakendGroup<R> {
+        &self.0
+    }
+}
+
+impl<R: Realigner> Duplication<R> {
+    pub(crate) fn new(interval: genome::Interval, realigner: R, chrom_seq: &[u8]) -> Self {
+        let mut breakend_group_builder = BreakendGroupBuilder::new();
+        breakend_group_builder.realigner(realigner);
 
         let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..pos as usize + 1];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
@@ -85,16 +94,20 @@ impl Duplication {
             b".",
         ));
 
-        Duplication(breakend_group_builder.build().unwrap())
+        Duplication(breakend_group_builder.build())
     }
 }
 
-impl Variant for Duplication {
+impl<R: Realigner> Variant for Duplication<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
-        (**self).is_valid_evidence(evidence)
+    fn is_valid_evidence(
+        &self,
+        evidence: &Self::Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
+        (**self).is_valid_evidence(evidence, alignment_properties)
     }
 
     fn loci(&self) -> &Self::Loci {

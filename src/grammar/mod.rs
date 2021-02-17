@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::ops::{Deref, DerefMut};
+use std::string::ToString;
 use std::sync::Mutex;
 
 use anyhow::Result;
@@ -30,6 +31,28 @@ impl<T> SampleInfo<T> {
 
     pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.inner.iter_mut()
+    }
+}
+
+impl<T> SampleInfo<Option<T>> {
+    pub(crate) fn first_not_none(&self) -> Result<&T> {
+        self.iter_not_none()
+            .next()
+            .ok_or_else(|| errors::Error::EmptyObservations.into())
+    }
+
+    pub(crate) fn first_not_none_mut(&mut self) -> Result<&mut T> {
+        self.iter_not_none_mut()
+            .next()
+            .ok_or_else(|| errors::Error::EmptyObservations.into())
+    }
+
+    pub(crate) fn iter_not_none(&self) -> impl Iterator<Item = &T> {
+        self.inner.iter().filter_map(|item| item.as_ref())
+    }
+
+    pub(crate) fn iter_not_none_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.inner.iter_mut().filter_map(|item| item.as_mut())
     }
 }
 
@@ -81,9 +104,21 @@ impl<T> SampleInfoBuilder<T> {
     }
 }
 
+#[derive(Derefable, PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Hash, Deserialize)]
+pub(crate) struct ExpressionIdentifier(#[deref] String);
+
+impl ToString for ExpressionIdentifier {
+    fn to_string(&self) -> String {
+        self.0.clone()
+    }
+}
+
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
 pub(crate) struct Scenario {
+    // map of reusable expressions
+    #[serde(default)]
+    expressions: HashMap<ExpressionIdentifier, Formula>,
     // map of events
     events: BTreeMap<String, Formula>,
     // map of samples
@@ -141,12 +176,17 @@ impl<'a> TryFrom<&'a str> for Scenario {
     }
 }
 
+fn default_resolution() -> usize {
+    100
+}
+
 #[derive(Deserialize, Getters)]
 #[get = "pub"]
 pub(crate) struct Sample {
     /// optional contamination
     contamination: Option<Contamination>,
     /// grid point resolution for integration over continuous allele frequency ranges
+    #[serde(default = "default_resolution")]
     resolution: usize,
     /// possible VAFs of given sample
     universe: UniverseDefinition,

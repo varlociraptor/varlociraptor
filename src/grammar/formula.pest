@@ -2,14 +2,15 @@ universe = _{ SOI ~ ( vafdef ~ ( "|" ~ vafdef )* ) ~ EOI }
 vafdef = _{ vaf | vafrange }
 vafrange = { bound ~ vaf ~ "," ~ vaf ~ bound }
 
-formula = _{ SOI ~ (conjunction | disjunction | negation | sample_vafdef | variant) ~ EOI }
+formula = _{ SOI ~ (conjunction | disjunction | negation | sample_vafdef | variant | expression) ~ EOI }
 conjunction = { subformula ~ ( "&" ~ subformula )+ }
 disjunction = { subformula ~ ( "|" ~ subformula )+ }
 negation = { "!" ~ subformula }
-subformula = _{ variant | sample_vafdef | ("(" ~ conjunction ~ ")") | ("(" ~ disjunction ~ ")") | negation }
+subformula = _{ variant | sample_vafdef | ("(" ~ conjunction ~ ")") | ("(" ~ disjunction ~ ")") | negation | expression | ("(" ~ subformula ~ ")") }
 sample_vafdef = _{ sample_vaf | sample_vafrange }
 sample_vafrange = { identifier ~ ":" ~ vafrange }
 sample_vaf = { identifier ~ ":" ~ vaf }
+expression = { "$" ~ identifier }
 identifier = { (ASCII_ALPHANUMERIC | "_" | "-" | ".")+ }
 variant = { iupac ~ ">" ~ iupac }
 

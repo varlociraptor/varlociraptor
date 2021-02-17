@@ -7,8 +7,11 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
+use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -40,7 +43,11 @@ impl Variant for MNV {
     type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
-    fn is_valid_evidence(&self, evidence: &SingleEndEvidence) -> Option<Vec<usize>> {
+    fn is_valid_evidence(
+        &self,
+        evidence: &SingleEndEvidence,
+        _: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
         if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
             Some(vec![0])
         } else {
@@ -59,6 +66,10 @@ impl Variant for MNV {
     ) -> Result<Option<AlleleSupport>> {
         let mut prob_ref = LogProb::ln_one();
         let mut prob_alt = LogProb::ln_one();
+        let aux_strand_info = utils::aux_tag_strand_info(read);
+        let mut strand = Strand::None;
+        let mut read_position = None;
+
         for ((alt_base, ref_base), pos) in self
             .alt_bases
             .iter()
@@ -71,8 +82,12 @@ impl Variant for MNV {
                 .unwrap()
                 .read_pos(pos as u32, false, false)?
             {
-                let read_base = read.seq()[qpos as usize];
-                let base_qual = read.qual()[qpos as usize];
+                if read_position.is_none() {
+                    // set first MNV position as read position
+                    read_position = Some(qpos);
+                }
+                let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+                let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
 
                 // METHOD: instead of considering the actual REF base, we assume that REF is whatever
                 // base the read has at this position (if not the ALT base). This way, we avoid biased
@@ -89,8 +104,21 @@ impl Variant for MNV {
                     *ref_base
                 };
 
-                prob_alt += prob_read_base(read_base, *alt_base, base_qual);
-                prob_ref += prob_read_base(read_base, non_alt_base, base_qual);
+                let base_prob_alt = prob_read_base(read_base, *alt_base, base_qual);
+                let base_prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
+
+                if base_prob_alt != base_prob_ref {
+                    if let Some(strand_info) = aux_strand_info {
+                        if let Some(s) = strand_info.get(qpos as usize) {
+                            strand |= Strand::from_aux_item(*s)?;
+                        } else {
+                            return Err(Error::ReadPosOutOfBounds.into());
+                        }
+                    }
+                }
+
+                prob_ref += base_prob_ref;
+                prob_alt += base_prob_alt;
             } else {
                 // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
                 // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
@@ -98,11 +126,20 @@ impl Variant for MNV {
                 return Ok(None);
             }
         }
+
+        if aux_strand_info.is_none() && prob_ref != prob_alt {
+            // record global strand information
+            // METHOD: if record is not informative, we don't want to
+            // retain its information (e.g. strand).
+            strand = Strand::from_record(read);
+        }
+
         Ok(Some(
             AlleleSupportBuilder::default()
-                .register_record(read)
+                .strand(strand)
                 .prob_ref_allele(prob_ref)
                 .prob_alt_allele(prob_alt)
+                .read_position(read_position)
                 .build()
                 .unwrap(),
         ))

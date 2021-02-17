@@ -40,4 +40,16 @@ pub(crate) enum Error {
     InvalidObservationFormat,
     #[error("invalid BND record: ALT {spec} does not follow BND spec")]
     InvalidBNDRecordAlt { spec: String },
+    #[error("at least one BCF with observations must be provided")]
+    EmptyObservations,
+    #[error(
+        "undefined expression ${identifier}; please define under 'expressions:' in your scenario"
+    )]
+    UndefinedExpression { identifier: String },
+    #[error("read position determined from cigar string exceeds record length")]
+    ReadPosOutOfBounds,
+    #[error("invalid strand information '{value}', must be '+', '-', or '*'")]
+    InvalidStrandInfo { value: char },
+    #[error("invalid read orientation information '{value}', must be 'F1R2', 'F2R1', etc.")]
+    InvalidReadOrientationInfo { value: String },
 }

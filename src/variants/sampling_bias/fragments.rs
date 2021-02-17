@@ -18,9 +18,14 @@ pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
     /// Get range of insert sizes with probability above zero.
     /// We use 6 SDs around the mean.
     fn isize_pmf_range(&self, alignment_properties: &AlignmentProperties) -> Range<u64> {
-        let m = alignment_properties.insert_size().mean.round() as u64;
-        let s = alignment_properties.insert_size().sd.ceil() as u64 * 6;
-        m.saturating_sub(s)..m + s
+        match alignment_properties.insert_size {
+            Some(isize) => {
+                let m = isize.mean.round() as u64;
+                let s = isize.sd.ceil() as u64 * 6;
+                m.saturating_sub(s)..m + s
+            },
+            None => panic!("Bug: Tried to create an isize_pmf_range(), but alignment_properties.insert_size was None.")
+        }
     }
 
     /// Get probability of given insert size from distribution shifted by the given value.
@@ -30,11 +35,12 @@ pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
         shift: f64,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        isize_pmf(
-            insert_size as f64,
-            alignment_properties.insert_size().mean + shift,
-            alignment_properties.insert_size().sd,
-        )
+        match alignment_properties.insert_size {
+            Some(isize) => isize_pmf(insert_size as f64, isize.mean + shift, isize.sd),
+            None => panic!(
+                "Bug: Tried to get an isize_pmf(), but alignment_properties.insert_size was None."
+            ),
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -142,8 +148,13 @@ pub(crate) trait FragmentSamplingBias: Variant + SamplingBias {
         shift: f64,
         alignment_properties: &AlignmentProperties,
     ) -> bool {
-        let m = alignment_properties.insert_size().mean + shift;
-        (insert_size as f64 - m).abs() <= alignment_properties.insert_size().sd
+        match alignment_properties.insert_size {
+            Some(isize) => {
+                let m = isize.mean + shift;
+                (insert_size as f64 - m).abs() <= isize.sd
+            },
+            None => panic!("Bug: Tried to check whether is_within_sd(), but alignment_properties.insert_size was None.")
+        }
     }
 }
 

@@ -5,22 +5,19 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
 use anyhow::{Context, Result};
-use bio::io::fasta;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
+use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
-use crossbeam::channel::{Receiver, Sender};
-use derive_builder::Builder;
 use itertools::Itertools;
-use rust_htslib::bam;
-use rust_htslib::bcf::{self, Read};
+use rust_htslib::bam::{self, Read as BAMRead};
+use rust_htslib::bcf::{self, Read as BCFRead};
 
 use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
 use crate::cli;
@@ -28,11 +25,10 @@ use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::utils::worker_pool;
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{
-    Observation, ObservationBuilder, ReadOrientation, Strand,
+    Observation, ObservationBuilder, ReadPosition, Strand,
 };
 use crate::variants::evidence::realignment;
 use crate::variants::model;
@@ -40,54 +36,30 @@ use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::breakends::{Breakend, BreakendIndex};
 
-#[derive(Builder)]
-#[builder(pattern = "owned")]
-pub(crate) struct ObservationProcessor {
-    threads: usize,
+#[derive(TypedBuilder)]
+pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
     alignment_properties: AlignmentProperties,
     max_depth: usize,
     protocol_strandedness: ProtocolStrandedness,
-    #[builder(private)]
     reference_buffer: Arc<reference::Buffer>,
-    #[builder(private)]
-    realigner: realignment::Realigner,
+    realigner: R,
     inbcf: PathBuf,
     outbcf: Option<PathBuf>,
     inbam: PathBuf,
+    min_bam_refetch_distance: u64,
     options: cli::Varlociraptor,
     breakend_index: BreakendIndex,
     #[builder(default)]
-    breakend_group_builders:
-        RwLock<HashMap<Vec<u8>, Mutex<Option<variants::types::breakends::BreakendGroupBuilder>>>>,
+    breakend_group_builders: RwLock<
+        HashMap<Vec<u8>, Mutex<Option<variants::types::breakends::BreakendGroupBuilder<R>>>>,
+    >,
     #[builder(default)]
-    breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup>>>,
+    breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
 }
 
-impl ObservationProcessorBuilder {
-    pub(crate) fn reference(
-        self,
-        reader: fasta::IndexedReader<fs::File>,
-        buffer_size: usize,
-    ) -> Self {
-        self.reference_buffer(Arc::new(reference::Buffer::new(reader, buffer_size)))
-    }
-
-    pub(crate) fn realignment(
-        self,
-        gap_params: realignment::pairhmm::GapParams,
-        window: u64,
-    ) -> Self {
-        let ref_buffer = Arc::clone(
-            self.reference_buffer
-                .as_ref()
-                .expect("You need to set reference before setting realignment parameters"),
-        );
-
-        self.realigner(realignment::Realigner::new(ref_buffer, gap_params, window))
-    }
-}
-
-impl ObservationProcessor {
+impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
+    ObservationProcessor<R>
+{
     fn writer(&self) -> Result<bcf::Writer> {
         let mut header = bcf::Header::new();
 
@@ -128,9 +100,12 @@ impl ObservationProcessor {
             "PROB_MISSED_ALLELE",
             "PROB_SAMPLE_ALT",
             "PROB_DOUBLE_OVERLAP",
+            "PROB_HIT_BASE",
             "STRAND",
             "READ_ORIENTATION",
+            "READ_POSITION",
             "SOFTCLIPPED",
+            "PAIRED",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\"", name).as_bytes()
@@ -165,32 +140,62 @@ impl ObservationProcessor {
     }
 
     pub(crate) fn process(&mut self) -> Result<()> {
-        let mut workers = Vec::new();
+        let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
+        bcf_reader.set_threads(1)?;
+        let mut skips = utils::SimpleCounter::default();
+        let mut bcf_writer = self.writer()?;
+        bcf_writer.set_threads(1)?;
+        let mut processed = 0;
 
-        for _ in 0..self.threads {
-            let worker = |receiver: Receiver<WorkItem>, sender: Sender<Calls>| -> Result<()> {
-                let bam_reader = bam::IndexedReader::from_path(&self.inbam)
-                    .context("Unable to read BAM/CRAM file.")?;
+        let mut bam_reader =
+            bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
+        bam_reader.set_threads(1)?;
 
-                let mut sample = SampleBuilder::default()
-                    .max_depth(self.max_depth)
-                    .protocol_strandedness(self.protocol_strandedness)
-                    .alignments(bam_reader, self.alignment_properties)
-                    .build()
-                    .unwrap();
-                for work_item in receiver {
-                    let calls = self.process_record(work_item, &mut sample)?;
-                    sender.send(calls).unwrap();
+        let mut sample = SampleBuilder::default()
+            .max_depth(self.max_depth)
+            .protocol_strandedness(self.protocol_strandedness)
+            .alignments(
+                bam_reader,
+                self.alignment_properties,
+                self.min_bam_refetch_distance,
+            )
+            .build()
+            .unwrap();
+
+        let display_skips = |skips: &utils::SimpleCounter<utils::collect_variants::SkipReason>| {
+            for (reason, &count) in skips.iter() {
+                if count > 0 && count % 100 == 0 {
+                    info!("Skipped {} {}.", count, reason);
                 }
-                Ok(())
-            };
-            workers.push(worker);
-        }
+            }
+        };
 
-        let postprocessor = |receiver: Receiver<Calls>| -> Result<()> {
-            let mut bcf_writer = self.writer()?;
-            let mut processed = 0;
-            for calls in receiver {
+        let mut i = 0;
+        loop {
+            let mut record = bcf_reader.empty_record();
+            match bcf_reader.read(&mut record) {
+                None => {
+                    display_skips(&skips);
+                    return Ok(());
+                }
+                Some(res) => res?,
+            }
+
+            let variants = utils::collect_variants(&mut record, true, &mut skips)?;
+            if !variants.is_empty() {
+                // process record
+                let work_item = WorkItem {
+                    start: record.pos() as u64,
+                    chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
+                    variants,
+                    record_id: record.id(),
+                    record_mateid: utils::info_tag_mateid(&mut record)
+                        .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
+                    record_index: i,
+                };
+
+                let calls = self.process_record(work_item, &mut sample)?;
+
                 for call in calls.iter() {
                     call.write_preprocessed_record(&mut bcf_writer)?;
                     processed += 1;
@@ -201,54 +206,12 @@ impl ObservationProcessor {
                 }
             }
 
-            Ok(())
-        };
-
-        let preprocessor = |sender: Sender<WorkItem>| -> Result<()> {
-            let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
-            let mut skips = utils::SimpleCounter::default();
-
-            let display_skips =
-                |skips: &utils::SimpleCounter<utils::collect_variants::SkipReason>| {
-                    for (reason, &count) in skips.iter() {
-                        if count > 0 && count % 100 == 0 {
-                            info!("Skipped {} {}.", count, reason);
-                        }
-                    }
-                };
-
-            let mut i = 0;
-            loop {
-                let mut record = bcf_reader.empty_record();
-                if !bcf_reader.read(&mut record)? {
-                    display_skips(&skips);
-                    return Ok(());
-                }
-
-                let variants = utils::collect_variants(&mut record, true, &mut skips)?;
-                if !variants.is_empty() {
-                    // process record
-                    let work_item = WorkItem {
-                        start: record.pos() as u64,
-                        chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
-                        variants,
-                        record_id: record.id(),
-                        record_mateid: utils::info_tag_mateid(&mut record)
-                            .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
-                        record_index: i,
-                    };
-
-                    sender.send(work_item).unwrap();
-                }
-                if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
-                    display_skips(&skips);
-                }
-
-                i += 1;
+            if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
+                display_skips(&skips);
             }
-        };
 
-        worker_pool(preprocessor, workers.into_iter(), postprocessor)
+            i += 1;
+        }
     }
 
     fn process_record(&self, work_item: WorkItem, sample: &mut Sample) -> Result<Calls> {
@@ -258,17 +221,13 @@ impl ObservationProcessor {
 
         let call_builder = |chrom, start, id| {
             let mut builder = CallBuilder::default();
-            builder
-                .chrom(chrom)
-                .pos(start)
-                .id({
-                    if id == b"." {
-                        None
-                    } else {
-                        Some(id)
-                    }
-                })
-                .variants(Vec::new());
+            builder.chrom(chrom).pos(start).id({
+                if id == b"." {
+                    None
+                } else {
+                    Some(id)
+                }
+            });
             builder
         };
 
@@ -277,33 +236,36 @@ impl ObservationProcessor {
             .iter()
             .all(|variant| !variant.is_breakend())
         {
-            let mut call = call_builder(
-                work_item.chrom.as_bytes().to_owned(),
-                work_item.start,
-                work_item.record_id.clone(),
-            )
-            .build()
-            .unwrap();
+            let mut calls = Vec::new();
 
             for variant in work_item
                 .variants
                 .iter()
                 .filter(|variant| !variant.is_breakend())
             {
+                let mut call = call_builder(
+                    work_item.chrom.as_bytes().to_owned(),
+                    work_item.start,
+                    work_item.record_id.clone(),
+                )
+                .build()
+                .unwrap();
+
                 let chrom_seq = self.reference_buffer.seq(&work_item.chrom)?;
                 let pileup = self.process_variant(&variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
                 // add variant information
-                call.variants.push(
+                call.variant = Some(
                     VariantBuilder::default()
                         .variant(&variant, work_item.start as usize, Some(chrom_seq.as_ref()))
                         .observations(Some(pileup))
                         .build()
                         .unwrap(),
                 );
+                calls.push(call);
             }
 
-            Ok(Calls::new(work_item.record_index, vec![call]))
+            Ok(Calls::new(work_item.record_index, calls))
         } else {
             let mut calls = Vec::new();
             for variant in work_item.variants.iter() {
@@ -331,7 +293,7 @@ impl ObservationProcessor {
                             .unwrap();
 
                             // add variant information
-                            call.variants.push(
+                            call.variant = Some(
                                 VariantBuilder::default()
                                     .variant(
                                         &breakend.to_variant(event),
@@ -358,7 +320,7 @@ impl ObservationProcessor {
         variant: &model::Variant,
         work_item: &WorkItem,
         sample: &mut Sample,
-    ) -> Result<Option<Vec<Observation>>> {
+    ) -> Result<Option<Vec<Observation<ReadPosition>>>> {
         let locus = || genome::Locus::new(work_item.chrom.clone(), work_item.start);
         let interval = |len: u64| {
             genome::Interval::new(
@@ -424,9 +386,8 @@ impl ObservationProcessor {
                         .unwrap()
                         .contains_key(event)
                     {
-                        let mut builder =
-                            variants::types::breakends::BreakendGroupBuilder::default();
-                        builder.set_realigner(self.realigner.clone());
+                        let mut builder = variants::types::breakends::BreakendGroupBuilder::new();
+                        builder.realigner(self.realigner.clone());
                         self.breakend_group_builders
                             .write()
                             .unwrap()
@@ -451,7 +412,7 @@ impl ObservationProcessor {
                             == work_item.record_index
                         {
                             // METHOD: last record of the breakend event. Hence, we can extract observations.
-                            let breakend_group = Mutex::new(group.build().unwrap());
+                            let breakend_group = Mutex::new(group.build());
                             self.breakend_groups
                                 .write()
                                 .unwrap()
@@ -486,10 +447,12 @@ impl ObservationProcessor {
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "5";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "7";
 
 /// Read observations from BCF record.
-pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observation>> {
+pub(crate) fn read_observations(
+    record: &mut bcf::Record,
+) -> Result<Vec<Observation<ReadPosition>>> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug,
@@ -504,7 +467,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
 
         // decode from i32 to u16 to u8
         let mut values_u8 = Vec::new();
-        for v in raw_values {
+        for v in raw_values.iter() {
             let mut buf = [0; 2];
             LittleEndian::write_u16(&mut buf, *v as u16);
             values_u8.extend(&buf);
@@ -522,9 +485,13 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
     let prob_missed_allele: Vec<MiniLogProb> = read_values(record, b"PROB_MISSED_ALLELE")?;
     let prob_sample_alt: Vec<MiniLogProb> = read_values(record, b"PROB_SAMPLE_ALT")?;
     let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP")?;
+    let prob_hit_base: Vec<MiniLogProb> = read_values(record, b"PROB_HIT_BASE")?;
     let strand: Vec<Strand> = read_values(record, b"STRAND")?;
-    let read_orientation: Vec<ReadOrientation> = read_values(record, b"READ_ORIENTATION")?;
+    let read_orientation: Vec<SequenceReadPairOrientation> =
+        read_values(record, b"READ_ORIENTATION")?;
+    let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION")?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED")?;
+    let paired: BitVec<u8> = read_values(record, b"PAIRED")?;
 
     let obs = (0..prob_mapping.len())
         .map(|i| {
@@ -535,9 +502,12 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
                 .prob_missed_allele(prob_missed_allele[i].to_logprob())
                 .prob_sample_alt(prob_sample_alt[i].to_logprob())
                 .prob_overlap(prob_double_overlap[i].to_logprob())
+                .prob_hit_base(prob_hit_base[i].to_logprob())
                 .strand(strand[i])
                 .read_orientation(read_orientation[i])
+                .read_position(read_position[i])
                 .softclipped(softclipped[i as u64])
+                .paired(paired[i as u64])
                 .build()
                 .unwrap()
         })
@@ -547,7 +517,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Vec<Observat
 }
 
 pub(crate) fn write_observations(
-    observations: &[Observation],
+    observations: &[Observation<ReadPosition>],
     record: &mut bcf::Record,
 ) -> Result<()> {
     let vec = || Vec::with_capacity(observations.len());
@@ -560,8 +530,10 @@ pub(crate) fn write_observations(
     let mut strand = Vec::with_capacity(observations.len());
     let mut read_orientation = Vec::with_capacity(observations.len());
     let mut softclipped: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
+    let mut paired: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
+    let mut read_position = Vec::with_capacity(observations.len());
+    let mut prob_hit_base = vec();
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
-
     for obs in observations {
         prob_mapping.push(encode_logprob(obs.prob_mapping_orig()));
         prob_ref.push(encode_logprob(obs.prob_ref));
@@ -569,9 +541,12 @@ pub(crate) fn write_observations(
         prob_missed_allele.push(encode_logprob(obs.prob_missed_allele));
         prob_sample_alt.push(encode_logprob(obs.prob_sample_alt));
         prob_double_overlap.push(encode_logprob(obs.prob_double_overlap));
+        prob_hit_base.push(encode_logprob(obs.prob_hit_base));
         strand.push(obs.strand);
         read_orientation.push(obs.read_orientation);
         softclipped.push(obs.softclipped);
+        paired.push(obs.paired);
+        read_position.push(obs.read_position);
     }
 
     fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
@@ -607,6 +582,9 @@ pub(crate) fn write_observations(
     push_values(record, b"STRAND", &strand)?;
     push_values(record, b"READ_ORIENTATION", &read_orientation)?;
     push_values(record, b"SOFTCLIPPED", &softclipped)?;
+    push_values(record, b"PAIRED", &paired)?;
+    push_values(record, b"READ_POSITION", &read_position)?;
+    push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
 
     Ok(())
 }
@@ -621,6 +599,9 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"STRAND");
     header.remove_info(b"READ_ORIENTATION");
     header.remove_info(b"SOFTCLIPPED");
+    header.remove_info(b"PAIRED");
+    header.remove_info(b"PROB_HIT_BASE");
+    header.remove_info(b"READ_POSITION");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

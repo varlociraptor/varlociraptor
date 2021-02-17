@@ -9,6 +9,7 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::variants::evidence::bases::prob_read_base;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
@@ -36,7 +37,11 @@ impl Variant for SNV {
     type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
-    fn is_valid_evidence(&self, evidence: &SingleEndEvidence) -> Option<Vec<usize>> {
+    fn is_valid_evidence(
+        &self,
+        evidence: &SingleEndEvidence,
+        _: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
         if let Overlap::Enclosing = self.locus.overlap(evidence, false) {
             Some(vec![0])
         } else {
@@ -59,8 +64,8 @@ impl Variant for SNV {
             // TODO expect u64 in read_pos
             .read_pos(self.locus.range().start as u32, false, false)?
         {
-            let read_base = read.seq()[qpos as usize].to_ascii_uppercase();
-            let base_qual = read.qual()[qpos as usize];
+            let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+            let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
             let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
 
             // METHOD: instead of considering the actual REF base, we assume that REF is whatever
@@ -79,12 +84,20 @@ impl Variant for SNV {
             };
 
             let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
+            let strand = if prob_ref != prob_alt {
+                Strand::from_record_and_pos(read, qpos as usize)?
+            } else {
+                // METHOD: if record is not informative, we don't want to
+                // retain its information (e.g. strand).
+                Strand::no_strand_info()
+            };
 
             Ok(Some(
                 AlleleSupportBuilder::default()
                     .prob_ref_allele(prob_ref)
                     .prob_alt_allele(prob_alt)
-                    .register_record(read)
+                    .strand(strand)
+                    .read_position(Some(qpos))
                     .build()
                     .unwrap(),
             ))

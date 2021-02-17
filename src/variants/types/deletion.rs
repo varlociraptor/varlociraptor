@@ -17,6 +17,7 @@ use rust_htslib::bam;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::variants::evidence::insert_size::estimate_insert_size;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
@@ -25,14 +26,14 @@ use crate::variants::types::{
 };
 use crate::{default_emission, default_ref_base_emission};
 
-pub(crate) struct Deletion {
+pub(crate) struct Deletion<R: Realigner> {
     locus: SingleLocus,
     fetch_loci: MultiLocus,
-    realigner: RefCell<Realigner>,
+    realigner: RefCell<R>,
 }
 
-impl Deletion {
-    pub(crate) fn new(locus: genome::Interval, realigner: Realigner) -> Self {
+impl<R: Realigner> Deletion<R> {
+    pub(crate) fn new(locus: genome::Interval, realigner: R) -> Self {
         let start = locus.range().start;
         let end = locus.range().end;
         let len = end - start;
@@ -81,14 +82,14 @@ impl Deletion {
             Ok(AlleleSupportBuilder::default()
                 .prob_ref_allele(LogProb::ln_one())
                 .prob_alt_allele(LogProb::ln_one())
-                .no_strand_info()
+                .strand(Strand::None)
                 .build()
                 .unwrap())
         } else {
             Ok(AlleleSupportBuilder::default()
                 .prob_ref_allele(p_ref)
                 .prob_alt_allele(p_alt)
-                .no_strand_info()
+                .strand(Strand::None)
                 .build()
                 .unwrap())
         }
@@ -99,7 +100,7 @@ impl Deletion {
     }
 }
 
-impl SamplingBias for Deletion {
+impl<R: Realigner> SamplingBias for Deletion<R> {
     fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
         if let Some(len) = self.enclosable_len() {
             if len < (alignment_properties.max_del_cigar_len as u64) {
@@ -114,10 +115,10 @@ impl SamplingBias for Deletion {
     }
 }
 
-impl FragmentSamplingBias for Deletion {}
-impl ReadSamplingBias for Deletion {}
+impl<R: Realigner> FragmentSamplingBias for Deletion<R> {}
+impl<R: Realigner> ReadSamplingBias for Deletion<R> {}
 
-impl<'a> Realignable<'a> for Deletion {
+impl<'a, R: Realigner> Realignable<'a> for Deletion<R> {
     type EmissionParams = DeletionEmissionParams<'a>;
 
     fn alt_emission_params(
@@ -142,11 +143,15 @@ impl<'a> Realignable<'a> for Deletion {
     }
 }
 
-impl Variant for Deletion {
+impl<R: Realigner> Variant for Deletion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
+    fn is_valid_evidence(
+        &self,
+        evidence: &Self::Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
         match evidence {
             PairedEndEvidence::SingleEnd(read) => {
                 if !self.locus.overlap(read, true).is_none() {
@@ -156,20 +161,30 @@ impl Variant for Deletion {
                 }
             }
             PairedEndEvidence::PairedEnd { left, right } => {
-                let right_cigar = right.cigar_cached().unwrap();
-                let encloses_centerpoint = (left.pos() as u64) < self.centerpoint()
-                    && right_cigar.end_pos() as u64 > self.centerpoint();
-                // METHOD: only keep fragments that enclose the centerpoint and have at least one overlapping read.
-                // Importantly, enclosed reads have to be allowed as well. Otherwise, we bias against reference
-                // reads, since they are more unlikely to overlap a breakend and span the centerpoint at the same time,
-                // in particular for large deletions.
-                if encloses_centerpoint
-                    && (!self.locus.overlap(left, true).is_none()
-                        || !self.locus.overlap(right, true).is_none())
-                {
-                    Some(vec![0])
+                if alignment_properties.insert_size.is_some() {
+                    let right_cigar = right.cigar_cached().unwrap();
+                    let encloses_centerpoint = (left.pos() as u64) < self.centerpoint()
+                        && right_cigar.end_pos() as u64 > self.centerpoint();
+                    // METHOD: only keep fragments that enclose the centerpoint and have at least one overlapping read.
+                    // Importantly, enclosed reads have to be allowed as well. Otherwise, we bias against reference
+                    // reads, since they are more unlikely to overlap a breakend and span the centerpoint at the same time,
+                    // in particular for large deletions.
+                    if encloses_centerpoint
+                        && (!self.locus.overlap(left, true).is_none()
+                            || !self.locus.overlap(right, true).is_none())
+                    {
+                        Some(vec![0])
+                    } else {
+                        None
+                    }
                 } else {
-                    None
+                    if !self.locus.overlap(left, true).is_none()
+                        || !self.locus.overlap(right, true).is_none()
+                    {
+                        Some(vec![0])
+                    } else {
+                        None
+                    }
                 }
             }
         }
@@ -214,10 +229,15 @@ impl Variant for Deletion {
                     self.realigner
                         .borrow_mut()
                         .allele_support(right, &[&self.locus], self)?;
-                let isize_support = self.allele_support_isize(left, right, alignment_properties)?;
 
                 let mut support = left_support;
-                support.merge(&right_support).merge(&isize_support);
+                support.merge(&right_support);
+
+                if alignment_properties.insert_size.is_some() {
+                    let isize_support =
+                        self.allele_support_isize(left, right, alignment_properties)?;
+                    support.merge(&isize_support);
+                }
 
                 Ok(Some(support))
             }
@@ -230,11 +250,25 @@ impl Variant for Deletion {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         match evidence {
-            PairedEndEvidence::PairedEnd { left, right } => self.prob_sample_alt_fragment(
-                left.seq().len() as u64,
-                right.seq().len() as u64,
-                alignment_properties,
-            ),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                if alignment_properties.insert_size.is_some() {
+                    self.prob_sample_alt_fragment(
+                        left.seq().len() as u64,
+                        right.seq().len() as u64,
+                        alignment_properties,
+                    )
+                } else {
+                    // METHOD: we do not require the fragment to enclose the variant.
+                    // Hence, we treat both reads independently.
+                    (self
+                        .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
+                        .ln_one_minus_exp()
+                        + self
+                            .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
+                            .ln_one_minus_exp())
+                    .ln_one_minus_exp()
+                }
+            }
             PairedEndEvidence::SingleEnd(read) => {
                 self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
             }

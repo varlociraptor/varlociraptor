@@ -280,7 +280,7 @@ impl Testcase {
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
 
             let tid = bam_reader.header().tid(chrom_name).unwrap();
-            bam_reader.fetch(tid, start, end)?;
+            bam_reader.fetch((tid, start, end))?;
             for res in bam_reader.records() {
                 let rec = res?;
                 let seq_len = rec.seq().len() as u64;
@@ -292,7 +292,7 @@ impl Testcase {
         // second pass, write samples
         let mut samples = HashMap::new();
         for (name, path) in &self.bams {
-            let properties = sample::estimate_alignment_properties(path, false)?;
+            let properties = sample::estimate_alignment_properties(path, false, false)?;
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
             let filename = Path::new(name).with_extension("bam");
             let mut bam_writer = bam::Writer::from_path(
@@ -303,11 +303,12 @@ impl Testcase {
 
             let tid = bam_reader.header().tid(chrom_name).unwrap();
 
-            bam_reader.fetch(tid, start, end)?;
+            bam_reader.fetch((tid, start, end))?;
             for res in bam_reader.records() {
                 let mut rec = res?;
                 // update mapping position to interval
                 rec.set_pos(rec.pos() - ref_start as i64);
+                rec.set_mpos(rec.mpos() - ref_start as i64);
                 bam_writer.write(&rec)?;
             }
             samples.insert(
@@ -325,7 +326,7 @@ impl Testcase {
             self.prefix.join(candidate_filename),
             &bcf::Header::from_template(self.candidate_reader()?.header()),
             true,
-            bcf::Format::BCF,
+            bcf::Format::VCF,
         )?;
         let (_, mut candidate_record) = candidate;
         candidate_record.set_pos(candidate_record.pos() - ref_start as i64);

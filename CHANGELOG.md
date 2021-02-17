@@ -2,6 +2,44 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.6.1] - 2021-02-10
+- Fix out of bounds error when replacement ends at the end of a contig.
+
+## [2.6.0] - 2021-01-20
+- Added read position bias into model.
+- Performance improvements for exploration of bias events.
+- Fixed accidental reporting of only the last variant in multi-allelic records.
+- Fixed node-selector evaluation (e.g. G>A in scenario) for non SNV alleles.
+- Fixed bug in replacement evaluation that could lead to artificially small probabilities due to incorrectly assembled alt alleles.
+
+## [2.5.4] - 2021-01-04
+- Added support for aux per base strand information as provided by rust-bio-tools.
+- Fixed read orientation detection for overlapping reads.
+- Better error messages for formulas.
+- Fixed parsing of expression usage in formulas.
+
+## [2.5.3] - 2020-11-23
+- Update to latest hts-sys, containing a fix for macOS.
+
+## [2.5.2] - 2020-11-20
+- Fixed handling of missing insert size information. This is now detected automatically.
+- CLI fixes.
+- Adapt to htslib 0.35, thereby fixing some potential memory issues previously caused by unsafe reuse of buffers.
+
+## [2.5.1] - 2020-11-17
+- Various performance improvements (using jemalloc, avoiding bound checks that cannot fail, enabling more compiler optimizations, avoid fetching irrelevant reads).
+
+## [2.5.0] - 2020-11-11
+- Allow definition of re-usable expressions in scenarions (via a new key "expressions:", see https://varlociraptor.github.io).
+- Remove ability to parallelize Varlociraptor via --threads. This never properly saturated the given cores and caused some overhead. Instead, we recommend to parallelize in scatter/gather style via `rbt vcf-split`, see https://varlociraptor.github.io).
+- `resolution:` can now be skipped in scenarios. For continuous universes, this will then assume a resolution of 100, for discrete universes resolution isn't used anyway.
+
+## [2.4.0] - 2020-11-05
+- Allow scenarios to contain samples for which no BAM files are available. This allows to e.g. model tumor/normal from just the tumor sample with known contamination. Resulting probabilities will properly reflect the uncertainty about whether a variant is somatic or germline.
+- Speed up SNV and MNV computations by precomputed call and miscall likelihoods.
+- Add a flag --pairhmm-mode [exact|fast], that allows to instruct varlociraptor to only compute the optimal path in the pairHMM. This should be much faster in practice, but can come with some wrong likelihoods in rare extreme cases. Advice: only use on large cohorts or where exact allele frequencies do not matter.
+- Fix insert size handling on single end samples (@dlaehnemann).
+
 ## [2.3.0] - 2020-09-09
 - Include read orientation bias into the model.
 - Exlcude softclipped and non-standard orientation reads from SNV and MNV calling as they are indicative of SVs and often cause artifact substitutions while sometimes not being reflected via a higher uncertainty in the MAPQ. Not considering them is the conservative choice.

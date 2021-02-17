@@ -20,6 +20,7 @@ fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool> {
         .info(b"ANN")
         .string()?
         .expect("ANN field not found. Annotate VCF with e.g. snpEff.")
+        .iter()
     {
         let mut coding = false;
         for (i, entry) in ann.split(|c| *c == b'|').enumerate() {
@@ -98,8 +99,9 @@ pub(crate) fn estimate(
     let mut tmb = BTreeMap::new();
     'records: loop {
         let mut rec = bcf.empty_record();
-        if !bcf.read(&mut rec)? {
-            break;
+        match bcf.read(&mut rec) {
+            None => break,
+            Some(res) => res?,
         }
 
         let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;

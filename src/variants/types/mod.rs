@@ -13,7 +13,6 @@ use rust_htslib::bam;
 use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::utils::is_reverse_strand;
 use crate::variants::evidence::observation::{
     Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
 };
@@ -43,8 +42,9 @@ pub(crate) use snv::SNV;
 pub(crate) struct AlleleSupport {
     prob_ref_allele: LogProb,
     prob_alt_allele: LogProb,
-    #[builder(private)]
     strand: Strand,
+    #[builder(default)]
+    read_position: Option<u32>,
 }
 
 impl AlleleSupport {
@@ -70,21 +70,6 @@ impl AlleleSupport {
     }
 }
 
-impl AlleleSupportBuilder {
-    pub(crate) fn register_record(&mut self, record: &bam::Record) -> &mut Self {
-        let reverse_strand = is_reverse_strand(record);
-        self.strand(if reverse_strand {
-            Strand::Reverse
-        } else {
-            Strand::Forward
-        })
-    }
-
-    pub(crate) fn no_strand_info(&mut self) -> &mut Self {
-        self.strand(Strand::None)
-    }
-}
-
 pub(crate) trait Variant {
     type Evidence: Evidence;
     type Loci: Loci;
@@ -95,7 +80,11 @@ pub(crate) trait Variant {
     /// # Returns
     ///
     /// The index of the loci for which this evidence is valid, `None` if invalid.
-    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>>;
+    fn is_valid_evidence(
+        &self,
+        evidence: &Self::Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<Vec<usize>>;
 
     /// Return variant loci.
     fn loci(&self) -> &Self::Loci;
@@ -137,7 +126,10 @@ where
             .iter()
             .filter_map(|record| {
                 let evidence = SingleEndEvidence::new(record);
-                if self.is_valid_evidence(&evidence).is_some() {
+                if self
+                    .is_valid_evidence(&evidence, alignment_properties)
+                    .is_some()
+                {
                     Some(evidence)
                 } else {
                     None
@@ -155,7 +147,6 @@ where
                 }
             }
         }
-
         Ok(observations)
     }
 }
@@ -259,14 +250,14 @@ where
                     left: Rc::clone(&candidate.left),
                     right: Rc::clone(right),
                 };
-                if let Some(idx) = self.is_valid_evidence(&evidence) {
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
             } else {
                 // this is a single alignment with unmapped mate or mate outside of the
                 // region of interest
                 let evidence = PairedEndEvidence::SingleEnd(Rc::clone(&candidate.left));
-                if let Some(idx) = self.is_valid_evidence(&evidence) {
+                if let Some(idx) = self.is_valid_evidence(&evidence, alignment_properties) {
                     push_evidence(evidence, idx);
                 }
             }
@@ -375,10 +366,6 @@ pub(crate) enum Overlap {
 
 impl Overlap {
     pub(crate) fn is_none(&self) -> bool {
-        if let Overlap::None = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Overlap::None)
     }
 }

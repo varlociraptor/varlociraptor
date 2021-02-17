@@ -1,7 +1,3 @@
-expected:
-  allelefreqs:
-    - sample0 == 0.0 && sample1 == 0.0
-
 # necessary bam files
 samples:
   sample1:

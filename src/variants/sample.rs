@@ -18,7 +18,9 @@ use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
-use crate::variants::evidence::observation::{self, Observable, Observation};
+use crate::variants::evidence::observation::{
+    self, major_read_position, Observable, Observation, ReadPosition,
+};
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 
@@ -32,11 +34,13 @@ pub(crate) struct RecordBuffer {
 }
 
 impl RecordBuffer {
-    pub(crate) fn window(&self, read_pair_mode: bool) -> u64 {
+    pub(crate) fn window(&self, read_pair_mode: bool, left: bool) -> u64 {
         if read_pair_mode {
             self.read_pair_window
-        } else {
+        } else if left {
             self.single_read_window
+        } else {
+            0
         }
     }
 
@@ -50,8 +54,8 @@ impl RecordBuffer {
             interval
                 .range()
                 .start
-                .saturating_sub(self.window(read_pair_mode)),
-            interval.range().end + self.window(read_pair_mode),
+                .saturating_sub(self.window(read_pair_mode, true)),
+            interval.range().end + self.window(read_pair_mode, false),
         )?;
 
         Ok(())
@@ -60,7 +64,7 @@ impl RecordBuffer {
     pub(crate) fn build_fetches(&self, read_pair_mode: bool) -> Fetches {
         Fetches {
             fetches: Vec::new(),
-            window: self.window(read_pair_mode),
+            window: self.window(read_pair_mode, true),
         }
     }
 
@@ -122,7 +126,7 @@ impl Default for ProtocolStrandedness {
     }
 }
 
-pub(crate) type Pileup = Vec<Observation>;
+pub(crate) type Pileup = Vec<Observation<ReadPosition>>;
 
 pub(crate) enum SubsampleCandidates {
     Necessary {
@@ -161,11 +165,13 @@ impl SubsampleCandidates {
 pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
     omit_insert_size: bool,
+    allow_hardclips: bool,
 ) -> Result<alignment_properties::AlignmentProperties> {
     let mut bam = bam::Reader::from_path(path)?;
     Ok(alignment_properties::AlignmentProperties::estimate(
         &mut bam,
         omit_insert_size,
+        allow_hardclips,
     )?)
 }
 
@@ -193,13 +199,18 @@ impl SampleBuilder {
         self,
         bam: bam::IndexedReader,
         alignment_properties: alignment_properties::AlignmentProperties,
+        min_refetch_distance: u64,
     ) -> Self {
-        let read_pair_window = (alignment_properties.insert_size().mean
-            + alignment_properties.insert_size().sd * 6.0) as u64;
         let single_read_window = alignment_properties.max_read_len as u64;
+        let read_pair_window = match alignment_properties.insert_size {
+            Some(isize) => (isize.mean + isize.sd * 6.0) as u64,
+            None => single_read_window,
+        };
+        let mut record_buffer = bam::RecordBuffer::new(bam, true);
+        record_buffer.set_min_refetch_distance(min_refetch_distance);
         self.alignment_properties(alignment_properties)
             .record_buffer(RecordBuffer::new(
-                bam::RecordBuffer::new(bam, true),
+                record_buffer,
                 single_read_window,
                 read_pair_window,
             ))
@@ -221,10 +232,16 @@ impl Sample {
         L: variants::types::Loci,
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
-        variant.extract_observations(
+        let observations = variant.extract_observations(
             &mut self.record_buffer,
             &mut self.alignment_properties,
             self.max_depth,
-        )
+        )?;
+        // Process for each observation whether it is from the major read position or not.
+        let major_pos = major_read_position(&observations);
+        Ok(observations
+            .iter()
+            .map(|obs| obs.process_read_position(major_pos))
+            .collect())
     }
 }

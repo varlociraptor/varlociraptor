@@ -10,7 +10,10 @@ use std::ops::Deref;
 use std::str;
 
 use anyhow::Result;
-use bio::stats::{bayesian::bayes_factors::evidence::KassRaftery, LogProb, PHREDProb, Prob};
+use bio::stats::{
+    bayesian::bayes_factors::evidence::KassRaftery, bayesian::bayes_factors::BayesFactor, LogProb,
+    PHREDProb, Prob,
+};
 use counter::Counter;
 use half::f16;
 use itertools::join;
@@ -24,16 +27,22 @@ use crate::variants::model;
 use crate::Event;
 
 pub(crate) mod collect_variants;
-pub(crate) mod worker_pool;
 
 pub(crate) use collect_variants::collect_variants;
-pub(crate) use worker_pool::worker_pool;
 
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
 lazy_static! {
     pub(crate) static ref PROB_HALF: LogProb = LogProb::from(Prob(0.5f64));
     pub(crate) static ref PROB_ONE_THIRD: LogProb = LogProb::from(Prob(1.0 / 3.0));
+}
+
+pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
+    if let Some(bam::record::Aux::String(strand_info)) = record.aux(b"SI") {
+        Some(strand_info)
+    } else {
+        None
+    }
 }
 
 pub(crate) fn is_sv_bcf(reader: &bcf::Reader) -> bool {
@@ -54,17 +63,17 @@ pub fn is_bnd(record: &mut bcf::Record) -> Result<bool> {
         .map_or(false, |entries| entries[0] == b"BND"))
 }
 
-pub(crate) fn info_tag_svtype(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
-    Ok(record.info(b"SVTYPE").string()?.map(|v| v[0]))
+pub(crate) fn info_tag_svtype(record: &mut bcf::Record) -> Result<Option<Vec<u8>>> {
+    Ok(record.info(b"SVTYPE").string()?.map(|v| v[0].to_owned()))
 }
 
-pub(crate) fn info_tag_event(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
-    Ok(record.info(b"EVENT").string()?.map(|v| v[0]))
+pub(crate) fn info_tag_event(record: &mut bcf::Record) -> Result<Option<Vec<u8>>> {
+    Ok(record.info(b"EVENT").string()?.map(|v| v[0].to_owned()))
 }
 
-pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<&[u8]>> {
+pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<Vec<u8>>> {
     // TODO support multiple mateids (in case of uncertainty, see spec)
-    Ok(record.info(b"MATEID").string()?.map(|v| v[0]))
+    Ok(record.info(b"MATEID").string()?.map(|v| v[0].to_owned()))
 }
 
 pub(crate) fn is_reverse_strand(record: &bam::Record) -> bool {
@@ -109,9 +118,10 @@ pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
     }
 }
 
-pub(crate) fn evidence_kass_raftery_to_letter(evidence: KassRaftery) -> char {
-    match evidence {
+pub(crate) fn bayes_factor_to_letter(bayes_factor: BayesFactor) -> char {
+    match bayes_factor.evidence_kass_raftery() {
         KassRaftery::Barely => 'B',
+        KassRaftery::None if relative_eq!(*bayes_factor, 1.0) => 'E',
         KassRaftery::None => 'N',
         KassRaftery::Positive => 'P',
         KassRaftery::Strong => 'S',
@@ -232,11 +242,12 @@ where
     let mut prob_dist = Vec::new();
     let tags = events_to_tags(events);
     loop {
-        if !calls.read(&mut record)? {
-            break;
+        match calls.read(&mut record) {
+            None => break,
+            Some(res) => res?,
         }
         if let Ok(Some(event)) = info_tag_event(&mut record) {
-            if visited_breakend_events.contains(event) {
+            if visited_breakend_events.contains(&event) {
                 // Do not record probability of this event twice.
                 continue;
             } else {
@@ -345,8 +356,9 @@ where
     let mut record = calls.empty_record();
     let mut i = 1;
     loop {
-        if !calls.read(&mut record)? {
-            return Ok(());
+        match calls.read(&mut record) {
+            None => return Ok(()),
+            Some(res) => res?,
         }
 
         let mut remove = vec![false]; // don't remove the reference allele
@@ -476,8 +488,9 @@ mod tests {
         let test_file = "tests/resources/test_tags_prob_sum/overshoot.vcf";
         let mut overshoot_calls = bcf::Reader::from_path(test_file).unwrap();
         let mut record = overshoot_calls.empty_record();
-        if let Err(e) = overshoot_calls.read(&mut record) {
-            panic!("BCF reading error: {}", e);
+        match overshoot_calls.read(&mut record) {
+            None => panic!("BCF reading error: seems empty"),
+            Some(res) => res.unwrap(),
         }
 
         // set up all alt events with names as in prosolo

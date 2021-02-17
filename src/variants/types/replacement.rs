@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use anyhow::Result;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
@@ -9,18 +11,25 @@ use crate::variants::types::breakends::{
 };
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
 
-#[derive(Derefable)]
-pub(crate) struct Replacement(#[deref] BreakendGroup);
+pub(crate) struct Replacement<R: Realigner>(BreakendGroup<R>);
 
-impl Replacement {
+impl<R: Realigner> Deref for Replacement<R> {
+    type Target = BreakendGroup<R>;
+
+    fn deref(&self) -> &BreakendGroup<R> {
+        &self.0
+    }
+}
+
+impl<R: Realigner> Replacement<R> {
     pub(crate) fn new(
         interval: genome::Interval,
         replacement: Vec<u8>,
-        realigner: Realigner,
+        realigner: R,
         chrom_seq: &[u8],
     ) -> Self {
-        let mut breakend_group_builder = BreakendGroupBuilder::default();
-        breakend_group_builder.set_realigner(realigner);
+        let mut breakend_group_builder = BreakendGroupBuilder::new();
+        breakend_group_builder.realigner(realigner);
 
         let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..pos as usize + 1];
         let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
@@ -33,7 +42,7 @@ impl Replacement {
             ref_allele,
             replacement.clone(),
             Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().end - 1),
+                genome::Locus::new(interval.contig().to_owned(), interval.range().end),
                 Side::RightOfPos,
                 ExtensionModification::None,
             ),
@@ -41,34 +50,40 @@ impl Replacement {
             b"u",
             b"w",
         ));
+        // If replacement ends at the end of the contig, we do not need a right breakend.
+        if interval.range().end < chrom_seq.len() as u64 {
+            let ref_allele = get_ref_allele(interval.range().end);
+            let mut replacement = replacement.clone();
+            replacement.push(ref_allele[0]);
+            breakend_group_builder.push_breakend(Breakend::from_operations(
+                get_locus(interval.range().end),
+                ref_allele,
+                replacement,
+                Join::new(
+                    genome::Locus::new(interval.contig().to_owned(), interval.range().start - 1),
+                    Side::LeftOfPos,
+                    ExtensionModification::None,
+                ),
+                false,
+                b"w",
+                b"u",
+            ));
+        }
 
-        let ref_allele = get_ref_allele(interval.range().end);
-        let mut replacement = replacement[1..].to_owned();
-        replacement.push(ref_allele[0]);
-        breakend_group_builder.push_breakend(Breakend::from_operations(
-            get_locus(interval.range().end - 1),
-            ref_allele,
-            replacement,
-            Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().start),
-                Side::LeftOfPos,
-                ExtensionModification::None,
-            ),
-            false,
-            b"w",
-            b"u",
-        ));
-
-        Replacement(breakend_group_builder.build().unwrap())
+        Replacement(breakend_group_builder.build())
     }
 }
 
-impl Variant for Replacement {
+impl<R: Realigner> Variant for Replacement<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn is_valid_evidence(&self, evidence: &Self::Evidence) -> Option<Vec<usize>> {
-        (**self).is_valid_evidence(evidence)
+    fn is_valid_evidence(
+        &self,
+        evidence: &Self::Evidence,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<Vec<usize>> {
+        (**self).is_valid_evidence(evidence, alignment_properties)
     }
 
     fn loci(&self) -> &Self::Loci {

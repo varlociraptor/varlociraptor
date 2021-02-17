@@ -8,6 +8,9 @@ use anyhow::Result;
 use structopt::StructOpt;
 use varlociraptor::cli::{run, Varlociraptor};
 
+#[global_allocator]
+static GLOBAL: jemallocator::Jemalloc = jemallocator::Jemalloc;
+
 pub(crate) fn main() -> Result<()> {
     let opt = Varlociraptor::from_args();
 

@@ -15,7 +15,7 @@ use statrs::statistics::{OrderStatistics, Statistics};
 
 #[derive(Clone, Debug, Copy, Deserialize, Serialize)]
 pub(crate) struct AlignmentProperties {
-    insert_size: Option<InsertSize>,
+    pub(crate) insert_size: Option<InsertSize>,
     pub(crate) max_del_cigar_len: u32,
     pub(crate) max_ins_cigar_len: u32,
     pub(crate) frac_max_softclip: f64,
@@ -63,7 +63,11 @@ impl AlignmentProperties {
 
     /// Estimate `AlignmentProperties` from first 10000 fragments of bam file.
     /// Only reads that are mapped, not duplicates and where quality checks passed are taken.
-    pub(crate) fn estimate<R: bam::Read>(bam: &mut R, allow_hardclips: bool) -> Result<Self> {
+    pub(crate) fn estimate<R: bam::Read>(
+        bam: &mut R,
+        omit_insert_size: bool,
+        allow_hardclips: bool,
+    ) -> Result<Self> {
         let mut properties = AlignmentProperties {
             insert_size: None,
             max_del_cigar_len: 0,
@@ -91,8 +95,9 @@ impl AlignmentProperties {
 
                 break;
             }
-            if !bam.read(&mut record)? {
-                break;
+            match bam.read(&mut record) {
+                None => break,
+                Some(res) => res?,
             }
 
             // Records to skip without updating max_cigar_ops_len AND without incrementing the
@@ -112,6 +117,11 @@ impl AlignmentProperties {
             let (is_regular, has_soft_clip) =
                 properties.update_max_cigar_ops_len(&record, allow_hardclips);
 
+            // If we are not using the insert size, we do not need to estimate it
+            if omit_insert_size {
+                i += 1;
+                continue;
+            }
             // Records to skip after updating max_cigar_ops_len, BUT without incrementing the
             // counter (to keep looking for 10000 useful records for the estimation)
             if !record.is_paired()
@@ -182,14 +192,6 @@ impl AlignmentProperties {
             Ok(properties)
         }
     }
-
-    pub(crate) fn insert_size(&self) -> &InsertSize {
-        match &self.insert_size {
-            Some(insert_size)  => insert_size,
-            None => panic!("This is a bug.\n
-                            AlignmentProperties has insert_size set to `None`, but you are trying to use it without checking for None.")
-        }
-    }
 }
 
 /// Expected insert size in terms of mean and standard deviation.
@@ -208,11 +210,15 @@ mod tests {
     fn test_estimate() {
         let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
 
-        let props = AlignmentProperties::estimate(&mut bam, false).unwrap();
+        let props = AlignmentProperties::estimate(&mut bam, false, false).unwrap();
         println!("{:?}", props);
 
-        assert_relative_eq!(props.insert_size().mean, 311.9736111111111);
-        assert_relative_eq!(props.insert_size().sd, 11.9001225301502);
+        if let Some(isize) = props.insert_size {
+            assert_relative_eq!(isize.mean, 311.9736111111111);
+            assert_relative_eq!(isize.sd, 11.9001225301502);
+        } else {
+            panic!("test_estimate(): props.insert_size was None. Something is wrong, here.");
+        }
         assert_eq!(props.max_del_cigar_len, 30);
         assert_eq!(props.max_ins_cigar_len, 12);
         assert_eq!(props.frac_max_softclip, 0.63);
@@ -224,7 +230,7 @@ mod tests {
             bam::Reader::from_path("tests/resources/tumor-first30000.reads_with_soft_clips.bam")
                 .unwrap();
 
-        let props = AlignmentProperties::estimate(&mut bam, false).unwrap();
+        let props = AlignmentProperties::estimate(&mut bam, false, false).unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
@@ -241,7 +247,7 @@ mod tests {
         )
         .unwrap();
 
-        let props = AlignmentProperties::estimate(&mut bam, false).unwrap();
+        let props = AlignmentProperties::estimate(&mut bam, false, false).unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());

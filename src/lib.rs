@@ -28,6 +28,8 @@ extern crate derive_builder;
 extern crate shrinkwraprs;
 #[macro_use]
 extern crate derefable;
+#[macro_use]
+extern crate typed_builder;
 
 pub(crate) mod calling;
 pub mod cli;

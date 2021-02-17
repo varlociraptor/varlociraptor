@@ -4,7 +4,7 @@
 // except according to those terms.
 
 use std::cmp;
-use std::collections::BTreeMap;
+use std::cmp::Ordering;
 use std::ops::Range;
 use std::rc::Rc;
 use std::str;
@@ -12,12 +12,16 @@ use std::sync::Arc;
 use std::usize;
 
 use anyhow::Result;
-use bio::stats::{self, pairhmm::PairHMM, LogProb, Prob};
+use bio::alignment::AlignmentOperation;
+use bio::stats::{self, pairhmm::GapParameters, pairhmm::PairHMM, LogProb, Prob};
 use bio_types::genome;
 use bio_types::genome::AbstractInterval;
 use rust_htslib::bam;
 
+use crate::errors::Error;
 use crate::reference;
+use crate::utils;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
 use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, SingleLocus};
@@ -53,30 +57,7 @@ pub(crate) trait Realignable<'a> {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct Realigner {
-    gap_params: pairhmm::GapParams,
-    pairhmm: PairHMM,
-    max_window: u64,
-    ref_buffer: Arc<reference::Buffer>,
-}
-
-impl Realigner {
-    /// Create a new instance.
-    pub(crate) fn new(
-        ref_buffer: Arc<reference::Buffer>,
-        gap_params: pairhmm::GapParams,
-        max_window: u64,
-    ) -> Self {
-        let pairhmm = PairHMM::new(&gap_params);
-        Realigner {
-            gap_params,
-            pairhmm,
-            max_window,
-            ref_buffer,
-        }
-    }
-
+pub(crate) trait Realigner {
     fn candidate_region(
         &self,
         record: &bam::Record,
@@ -87,7 +68,7 @@ impl Realigner {
         let locus_start = locus.range().start;
         let locus_end = locus.range().end;
 
-        let ref_seq = self.ref_buffer.seq(locus.contig())?;
+        let ref_seq = self.ref_buffer().seq(locus.contig())?;
 
         let ref_interval = |breakpoint: usize| {
             breakpoint.saturating_sub(self.ref_window())
@@ -106,7 +87,8 @@ impl Realigner {
                     let qend = qend as usize;
                     // ensure that distance between qstart and qend does not make the window too
                     // large
-                    let max_window = (self.max_window as usize).saturating_sub((qend - qstart) / 2);
+                    let max_window =
+                        (self.max_window() as usize).saturating_sub((qend - qstart) / 2);
                     let mut read_offset = qstart.saturating_sub(max_window);
                     let mut read_end = cmp::min(qend + max_window as usize, record.seq_len());
 
@@ -128,8 +110,8 @@ impl Realigner {
                 // read overlaps from right
                 (Some(qstart), None) => {
                     let qstart = qstart as usize;
-                    let read_offset = qstart.saturating_sub(self.max_window as usize);
-                    let read_end = cmp::min(qstart + self.max_window as usize, record.seq_len());
+                    let read_offset = qstart.saturating_sub(self.max_window() as usize);
+                    let read_end = cmp::min(qstart + self.max_window() as usize, record.seq_len());
 
                     CandidateRegion {
                         overlap: true,
@@ -141,8 +123,8 @@ impl Realigner {
                 // read overlaps from left
                 (None, Some(qend)) => {
                     let qend = qend as usize;
-                    let read_offset = qend.saturating_sub(self.max_window as usize);
-                    let read_end = cmp::min(qend + self.max_window as usize, record.seq_len());
+                    let read_offset = qend.saturating_sub(self.max_window() as usize);
+                    let read_end = cmp::min(qend + self.max_window() as usize, record.seq_len());
 
                     CandidateRegion {
                         overlap: true,
@@ -154,8 +136,8 @@ impl Realigner {
                 // no overlap
                 (None, None) => {
                     let m = record.seq_len() / 2;
-                    let read_offset = m.saturating_sub(self.max_window as usize);
-                    let read_end = cmp::min(m + self.max_window as usize - 1, record.seq_len());
+                    let read_offset = m.saturating_sub(self.max_window() as usize);
+                    let read_end = cmp::min(m + self.max_window() as usize - 1, record.seq_len());
                     let breakpoint = record.pos() as usize + m;
                     // The following should only happen with deletions.
                     // It occurs if the read comes from ref allele and is mapped within start
@@ -176,10 +158,10 @@ impl Realigner {
     fn ref_window(&self) -> usize {
         // METHOD: the window on the reference should be a bit larger to allow some flexibility with close
         // indels. But it should not be so large that the read can align outside of the breakpoint.
-        (self.max_window as f64 * 1.5) as usize
+        (self.max_window() as f64 * 1.5) as usize
     }
 
-    pub(crate) fn allele_support<'a, V, L>(
+    fn allele_support<'a, V, L>(
         &mut self,
         record: &'a bam::Record,
         loci: L,
@@ -211,7 +193,7 @@ impl Realigner {
             return Ok(AlleleSupportBuilder::default()
                 .prob_ref_allele(p)
                 .prob_alt_allele(p)
-                .no_strand_info()
+                .strand(Strand::None)
                 .build()
                 .unwrap());
         }
@@ -244,19 +226,22 @@ impl Realigner {
         let mut prob_ref_all = LogProb::ln_one();
         let mut prob_alt_all = LogProb::ln_one();
 
-        let ref_seq = self.ref_buffer.seq(record.contig())?;
+        let ref_seq = self.ref_buffer().seq(record.contig())?;
         let read_seq: bam::record::Seq<'a> = record.seq();
         let read_qual = record.qual();
+
+        let aux_strand_info = utils::aux_tag_strand_info(record);
+        let mut strand = Strand::None;
 
         for region in merged_regions {
             // read emission
             let read_emission = Rc::new(ReadEmission::new(
-                Box::new(read_seq),
+                read_seq,
                 read_qual,
                 region.read_interval.start,
                 region.read_interval.end,
             ));
-            let edit_dist =
+            let mut edit_dist =
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
 
             // ref allele
@@ -267,20 +252,20 @@ impl Realigner {
                     ref_end: region.ref_interval.end,
                     read_emission: Rc::clone(&read_emission),
                 }],
-                &edit_dist,
+                &mut edit_dist,
             );
 
             let mut prob_alt = self.prob_allele(
                 &mut variant.alt_emission_params(
                     Rc::clone(&read_emission),
-                    Arc::clone(&self.ref_buffer),
+                    Arc::clone(self.ref_buffer()),
                     &genome::Interval::new(
                         record.contig().to_owned(),
                         region.ref_interval.start as u64..region.ref_interval.end as u64,
                     ),
                     self.ref_window(),
                 )?,
-                &edit_dist,
+                &mut edit_dist,
             );
 
             assert!(!prob_ref.is_nan());
@@ -314,68 +299,73 @@ impl Realigner {
                 );
             }
 
+            if prob_ref != prob_alt {
+                // METHOD: if record is not informative, we don't want to
+                // retain its information (e.g. strand).
+                if let Some(strand_info) = aux_strand_info {
+                    if let Some(s) = strand_info.get(region.read_interval) {
+                        strand |= Strand::from_aux(s)?;
+                    } else {
+                        return Err(Error::ReadPosOutOfBounds.into());
+                    }
+                }
+            }
+
             // METHOD: probabilities of independent regions are combined here.
             prob_ref_all += prob_ref;
             prob_alt_all += prob_alt;
         }
 
-        let mut builder = AlleleSupportBuilder::default();
-
-        builder
-            .prob_ref_allele(prob_ref_all)
-            .prob_alt_allele(prob_alt_all);
-
-        if prob_ref_all != prob_alt_all {
-            builder.register_record(record);
-        } else {
+        if aux_strand_info.is_none() && prob_ref_all != prob_alt_all {
             // METHOD: if record is not informative, we don't want to
             // retain its information (e.g. strand).
-            builder.no_strand_info();
+            strand = Strand::from_record(record);
         }
 
-        Ok(builder.build().unwrap())
+        Ok(AlleleSupportBuilder::default()
+            .strand(strand)
+            .prob_ref_allele(prob_ref_all)
+            .prob_alt_allele(prob_alt_all)
+            .build()
+            .unwrap())
     }
 
     /// Calculate probability of a certain allele.
     fn prob_allele<E>(
         &mut self,
         candidate_allele_params: &mut [E],
-        edit_dist: &edit_distance::EditDistanceCalculation,
+        edit_dist: &mut edit_distance::EditDistanceCalculation,
     ) -> LogProb
     where
         E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
     {
-        let mut hits: BTreeMap<usize, Vec<(EditDistanceHit, &mut E)>> = BTreeMap::new();
+        let mut hits = Vec::new();
+        let mut best_dist = None;
         for params in candidate_allele_params.iter_mut() {
-            let hit = edit_dist.calc_best_hit(params);
-            let entry = hits.entry(hit.dist()).or_insert_with(Vec::new);
-            entry.push((hit, params));
+            if let Some(hit) = edit_dist.calc_best_hit(params, None) {
+                match best_dist.map_or(Ordering::Less, |best_dist| hit.dist().cmp(&best_dist)) {
+                    Ordering::Less => {
+                        hits.clear();
+                        best_dist = Some(hit.dist());
+                        hits.push((hit, params));
+                    }
+                    Ordering::Equal => {
+                        hits.push((hit, params));
+                    }
+                    Ordering::Greater => (),
+                }
+            }
         }
 
-        let mut last_hit: Option<&EditDistanceHit> = None;
         let mut prob = None;
         // METHOD: for equal best edit dists, we have to compare the probabilities and take the best.
-        for (hit, allele_params) in hits.values_mut().next().unwrap() {
-            if last_hit.map_or(false, |last_hit| last_hit.dist() < hit.dist()) {
-                break;
-            }
-            last_hit = Some(hit);
-
+        for (hit, allele_params) in hits {
             if hit.dist() == 0 {
                 // METHOD: In case of a perfect match, we just take the base quality product.
                 // All alternative paths in the HMM will anyway be much worse.
                 prob = Some(allele_params.read_emission().certainty_est());
             } else {
-                // METHOD: We shrink the area to run the HMM against to an environment around the best
-                // edit distance hits.
-                allele_params.shrink_to_hit(&hit);
-
-                // METHOD: Further, we run the HMM on a band around the best edit distance.
-                let p = self.pairhmm.prob_related(
-                    *allele_params,
-                    &self.gap_params,
-                    Some(hit.dist_upper_bound()),
-                );
+                let p = self.calculate_prob_allele(&hit, allele_params);
 
                 if prob.map_or(true, |prob| p > prob) {
                     prob.replace(p);
@@ -383,7 +373,199 @@ impl Realigner {
             }
         }
 
+        // This is safe, as there will be always one probability at least.
         prob.unwrap()
+    }
+
+    fn calculate_prob_allele<E>(&mut self, hit: &EditDistanceHit, allele_params: &mut E) -> LogProb
+    where
+        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
+
+    fn ref_buffer(&self) -> &Arc<reference::Buffer>;
+
+    fn max_window(&self) -> u64;
+}
+
+#[derive(Clone)]
+pub(crate) struct PairHMMRealigner {
+    gap_params: pairhmm::GapParams,
+    pairhmm: PairHMM,
+    max_window: u64,
+    ref_buffer: Arc<reference::Buffer>,
+}
+
+impl PairHMMRealigner {
+    /// Create a new instance.
+    pub(crate) fn new(
+        ref_buffer: Arc<reference::Buffer>,
+        gap_params: pairhmm::GapParams,
+        max_window: u64,
+    ) -> Self {
+        let pairhmm = PairHMM::new(&gap_params);
+        PairHMMRealigner {
+            gap_params,
+            pairhmm,
+            max_window,
+            ref_buffer,
+        }
+    }
+}
+
+impl Realigner for PairHMMRealigner {
+    fn ref_buffer(&self) -> &Arc<reference::Buffer> {
+        &self.ref_buffer
+    }
+
+    fn max_window(&self) -> u64 {
+        self.max_window
+    }
+
+    fn calculate_prob_allele<E>(&mut self, hit: &EditDistanceHit, allele_params: &mut E) -> LogProb
+    where
+        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
+    {
+        // METHOD: We shrink the area to run the HMM against to an environment around the best
+        // edit distance hits.
+        allele_params.shrink_to_hit(&hit);
+
+        // METHOD: Further, we run the HMM on a band around the best edit distance.
+        self.pairhmm.prob_related(
+            allele_params,
+            &self.gap_params,
+            Some(hit.dist_upper_bound()),
+        )
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct PathHMMRealigner {
+    gap_params: pairhmm::GapParams,
+    max_window: u64,
+    ref_buffer: Arc<reference::Buffer>,
+    prob_no_gap: LogProb,
+    prob_close_gap_x: LogProb,
+    prob_close_gap_y: LogProb,
+    prob_extend_or_reopen_gap_x: LogProb,
+    prob_extend_or_reopen_gap_y: LogProb,
+}
+
+impl PathHMMRealigner {
+    pub(crate) fn new(
+        gap_params: pairhmm::GapParams,
+        max_window: u64,
+        ref_buffer: Arc<reference::Buffer>,
+    ) -> Self {
+        let prob_no_gap = gap_params
+            .prob_gap_x()
+            .ln_add_exp(gap_params.prob_gap_y())
+            .ln_one_minus_exp();
+        let prob_close_gap_x = gap_params.prob_gap_x_extend().ln_one_minus_exp();
+        let prob_close_gap_y = gap_params.prob_gap_y_extend().ln_one_minus_exp();
+        let prob_extend_or_reopen_gap_x = gap_params
+            .prob_gap_x_extend()
+            .ln_add_exp(prob_close_gap_x + gap_params.prob_gap_x());
+        let prob_extend_or_reopen_gap_y = gap_params
+            .prob_gap_y_extend()
+            .ln_add_exp(prob_close_gap_y + gap_params.prob_gap_y());
+        PathHMMRealigner {
+            gap_params,
+            max_window,
+            ref_buffer,
+            prob_no_gap,
+            prob_close_gap_x,
+            prob_close_gap_y,
+            prob_extend_or_reopen_gap_x,
+            prob_extend_or_reopen_gap_y,
+        }
+    }
+}
+
+impl Realigner for PathHMMRealigner {
+    fn ref_buffer(&self) -> &Arc<reference::Buffer> {
+        &self.ref_buffer
+    }
+
+    fn max_window(&self) -> u64 {
+        self.max_window
+    }
+
+    fn calculate_prob_allele<E>(&mut self, hit: &EditDistanceHit, allele_params: &mut E) -> LogProb
+    where
+        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
+    {
+        let mut best_prob = None;
+        for alignment in hit.alignments() {
+            let mut prob = LogProb::ln_one();
+            let mut pos_ref = alignment.start();
+            let mut pos_read = 0;
+            let mut prev_operation = None;
+            for operation in alignment.operations() {
+                match operation {
+                    AlignmentOperation::Match | AlignmentOperation::Subst => {
+                        // transitions
+                        match prev_operation {
+                            Some(&AlignmentOperation::Del) => {
+                                prob += self.prob_close_gap_y;
+                            },
+                            Some(&AlignmentOperation::Ins) => {
+                                prob += self.prob_close_gap_x;
+                            },
+                            Some(&AlignmentOperation::Match) | Some(&AlignmentOperation::Subst) => {
+                                prob += self.prob_no_gap;
+                            }
+                            _ => ()
+                        }
+
+                        let emission = allele_params.prob_emit_xy(pos_ref, pos_read);
+                        prob += emission.prob();
+                        pos_ref += 1;
+                        pos_read += 1;
+                    },
+                    AlignmentOperation::Del => {
+                        // transitions
+                        match prev_operation {
+                            Some(&AlignmentOperation::Del) => {
+                                prob += self.prob_extend_or_reopen_gap_y;
+                            },
+                            Some(&AlignmentOperation::Ins) => {
+                                prob += self.prob_close_gap_x + self.gap_params.prob_gap_y();
+                            },
+                            None | Some(&AlignmentOperation::Match) | Some(&AlignmentOperation::Subst) => {
+                                prob += self.gap_params.prob_gap_y();
+                            },
+                            _ => (),
+                        }
+                        prob += allele_params.prob_emit_x(pos_ref);
+                        pos_ref += 1;
+                    },
+                    AlignmentOperation::Ins => {
+                        // transitions
+                        match prev_operation {
+                            Some(&AlignmentOperation::Ins) => {
+                                prob += self.prob_extend_or_reopen_gap_x;
+                            },
+                            Some(&AlignmentOperation::Del) => {
+                                prob += self.prob_close_gap_y + self.gap_params.prob_gap_x();
+                            },
+                            None | Some(&AlignmentOperation::Match) | Some(&AlignmentOperation::Subst) => {
+                                prob += self.gap_params.prob_gap_x();
+                            },
+                            _ => (),
+                        }
+                        prob += allele_params.prob_emit_y(pos_read);
+                        pos_read += 1;
+                    },
+                    _ => panic!("bug: unsupported alignment operation (Myers algorithm should create a semiglobal alignment)")
+                }
+                prev_operation = Some(operation);
+            }
+            // If better than best probability, keep this.
+            if best_prob.map_or(true, |best| prob > best) {
+                best_prob = Some(prob);
+            }
+        }
+
+        best_prob.unwrap()
     }
 }
 

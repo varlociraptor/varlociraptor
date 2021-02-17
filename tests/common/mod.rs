@@ -80,6 +80,30 @@ pub(crate) trait Testcase {
         }
     }
 
+    fn omit_strand_bias(&self) -> bool {
+        if self.yaml()["omit_strand_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_strand_bias"].as_bool().unwrap()
+        }
+    }
+
+    fn omit_read_orientation_bias(&self) -> bool {
+        if self.yaml()["omit_read_orientation_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_read_orientation_bias"].as_bool().unwrap()
+        }
+    }
+
+    fn omit_read_position_bias(&self) -> bool {
+        if self.yaml()["omit_read_position_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_read_position_bias"].as_bool().unwrap()
+        }
+    }
+
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
@@ -138,7 +162,7 @@ pub(crate) trait Testcase {
         self.yaml()["purity"].as_f64()
     }
 
-    fn run(&self) -> Result<()> {
+    fn run(&self, pairhmm_mode_override: &str) -> Result<()> {
         let temp_ref = self.reference()?;
 
         let temp_preprocess = tempfile::tempdir()?;
@@ -155,6 +179,7 @@ pub(crate) trait Testcase {
                             ref mut output,
                             ref mut bam,
                             ref mut alignment_properties,
+                            ref mut pairhmm_mode,
                             ..
                         },
                 } => {
@@ -172,6 +197,7 @@ pub(crate) trait Testcase {
                     *candidates = self.candidates();
                     *output = Some(self.sample_preprocessed_path(sample_name, &temp_preprocess));
                     *alignment_properties = Some(props.path().to_owned());
+                    *pairhmm_mode = pairhmm_mode_override.to_owned();
 
                     run(options)?;
                 }
@@ -186,8 +212,10 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
+                        omit_strand_bias: self.omit_strand_bias(),
+                        omit_read_orientation_bias: self.omit_read_orientation_bias(),
+                        omit_read_position_bias: self.omit_read_position_bias(),
                         output: Some(self.output()),
-                        threads: 1,
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
                             sample_observations: self
@@ -217,8 +245,10 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
+                        omit_strand_bias: self.omit_strand_bias(),
+                        omit_read_orientation_bias: self.omit_read_orientation_bias(),
+                        omit_read_position_bias: self.omit_read_position_bias(),
                         output: Some(self.output()),
-                        threads: 1,
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self
                                 .sample_preprocessed_path("tumor", &temp_preprocess),
