@@ -265,60 +265,48 @@ impl ContigLogPosteriorsLOH {
         let absent_field_name = &String::from("PROB_ABSENT");
         bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
-        if bcf_reader.read(&mut record)? {
-            let mut posterior = site_posterior_loh_or_hom(
-                &mut record,
-                loh_field_name,
-                no_loh_field_name,
-                hom_field_name,
-                absent_field_name,
-            );
-            while posterior.is_none() {
-                bcf_reader.read(&mut record)?;
-                posterior = site_posterior_loh_or_hom(
-                    &mut record,
-                    loh_field_name,
-                    no_loh_field_name,
-                    hom_field_name,
-                    absent_field_name,
-                );
-            }
-            match posterior {
-                Some(p) => {
-                    cum_loh_posteriors.push(p);
-                    positions.push(record.pos() as u64);
+        while let Some(result) = bcf_reader.read(&mut record) {
+            match result {
+                Ok(()) => {
+                    let posterior = site_posterior_loh_or_hom(
+                        &mut record,
+                        loh_field_name,
+                        no_loh_field_name,
+                        hom_field_name,
+                        absent_field_name,
+                    );
+                    if let Some(p) = posterior {
+                        cum_loh_posteriors.push(p);
+                        positions.push(record.pos() as u64);
+                        break;
+                    }
                 },
-                None => eprintln!("Found no records with at least barely heterozygous evidence on contig with ID: {}", contig_id)
+                Err(err) => eprintln!("Error while trying to read records on contig with ID: {}\n Error is: {}", contig_id, err)
             }
-        } else {
-            // no records found
-            eprintln!("Found no records on contig with ID: {}", contig_id);
+        }
+        if cum_loh_posteriors.len() == 0 {
+            eprintln!("Found no records with at least barely heterozygous evidence on contig with ID: {}", contig_id)
         }
         // cumulatively add the following LOH probabilities
-        while bcf_reader.read(&mut record)? {
-            let mut posterior = site_posterior_loh_or_hom(
-                &mut record,
-                loh_field_name,
-                no_loh_field_name,
-                hom_field_name,
-                absent_field_name,
-            );
-            while posterior.is_none() {
-                bcf_reader.read(&mut record)?;
-                posterior = site_posterior_loh_or_hom(
-                    &mut record,
-                    loh_field_name,
-                    no_loh_field_name,
-                    hom_field_name,
-                    absent_field_name,
-                );
-            }
-            match posterior {
-                Some(p) => {
-                    cum_loh_posteriors.push(cum_loh_posteriors.last().unwrap() + p);
-                    positions.push(record.pos() as u64);
+        while let Some(result) = bcf_reader.read(&mut record) {
+            match result {
+                Ok(()) => {
+                    let posterior = site_posterior_loh_or_hom(
+                        &mut record,
+                        loh_field_name,
+                        no_loh_field_name,
+                        hom_field_name,
+                        absent_field_name,
+                    );
+                    match posterior {
+                        Some(p) => {
+                            cum_loh_posteriors.push(cum_loh_posteriors.last().unwrap() + p);
+                            positions.push(record.pos() as u64);
+                        },
+                        None => eprintln!("Found only one record with at least barely heterozygous evidence on contig with ID: {}", contig_id)
+                    }
                 },
-                None => eprintln!("Found only one record with at least barely heterozygous evidence on contig with ID: {}", contig_id)
+                Err(err) => eprintln!("Error while trying to read records on contig with ID: {}\n Error is: {}", contig_id, err)
             }
         }
         Ok(ContigLogPosteriorsLOH {
