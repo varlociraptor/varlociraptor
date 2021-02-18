@@ -124,7 +124,7 @@ impl Caller<'_> {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
-                        let interval_length = (interval.end() - interval.start() + 1) as f32;
+                        let interval_length = (contig.positions[*interval.end()] - contig.positions[*interval.start()] + 1) as f32;
                         interval_length * loh_indicator
                     })
                     .collect()
