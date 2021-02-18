@@ -303,7 +303,7 @@ impl ContigLogPosteriorsLOH {
                             cum_loh_posteriors.push(cum_loh_posteriors.last().unwrap() + p);
                             positions.push(record.pos() as u64);
                         },
-                        None => eprintln!("Found only one record with at least barely heterozygous evidence on contig with ID: {}", contig_id)
+                        None => continue
                     }
                 },
                 Err(err) => eprintln!("Error while trying to read records on contig with ID: {}\n Error is: {}", contig_id, err)
