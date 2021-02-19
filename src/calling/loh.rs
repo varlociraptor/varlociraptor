@@ -190,22 +190,31 @@ impl Caller<'_> {
                     let mut sorted_records: BTreeMap<u64, bed::Record> = BTreeMap::new();
                     for (var_name, var_value) in solution.results.iter() {
                         let split: Vec<_> = var_name.split('_').collect();
-                        let start_index: usize = split[1].parse()?;
-                        let end_index: usize = split[2].parse()?;
-                        let int_var_value = *var_value as u32;
-                        if int_var_value == 1 {
-                            debug!("{} is selected", var_name);
-                            let score = f64::from(
-                                PHREDProb::from(
-                                    *intervals.get(&(start_index..=end_index)).unwrap(),
+                        if split.len() != 3 {
+                            panic!(
+                                format!("Current chromosome index: {}\n\
+                                        The solver seems to have renamed the variables, probably due to some parsing problem.\n\
+                                        Please use the `--problems-folder` option to save the problem as a *.problem.lp file and manually run it through the solver to check this.",
+                                        contig_id)
+                            );
+                        } else {
+                            let start_index: usize = split[1].parse()?;
+                            let end_index: usize = split[2].parse()?;
+                            let int_var_value = *var_value as u32;
+                            if int_var_value == 1 {
+                                debug!("{} is selected", var_name);
+                                let score = f64::from(
+                                    PHREDProb::from(
+                                        *intervals.get(&(start_index..=end_index)).unwrap(),
+                                    )
                                 )
-                            )
-                                .to_string();
-                            // Write result to bed
-                            bed_record.set_start(contig.positions[start_index]); // 0-based as in bcf::Record::pos()
-                            bed_record.set_end(contig.positions[end_index] + 1); // 1-based
-                            bed_record.set_score(score.as_str());
-                            sorted_records.insert(bed_record.start(), bed_record.clone());
+                                    .to_string();
+                                // Write result to bed
+                                bed_record.set_start(contig.positions[start_index]); // 0-based as in bcf::Record::pos()
+                                bed_record.set_end(contig.positions[end_index] + 1); // 1-based
+                                bed_record.set_score(score.as_str());
+                                sorted_records.insert(bed_record.start(), bed_record.clone());
+                            }
                         }
                     }
                     for (_, record) in sorted_records {
