@@ -124,7 +124,9 @@ impl Caller<'_> {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
-                        let interval_length = (contig.positions[*interval.end()] - contig.positions[*interval.start()] + 1) as f32;
+                        let interval_length = (contig.positions[*interval.end()]
+                            - contig.positions[*interval.start()]
+                            + 1) as f32;
                         interval_length * loh_indicator
                     })
                     .collect()
@@ -245,13 +247,15 @@ fn site_posterior_loh_or_hom(
 ) -> Option<LogProb> {
     let site_log_likelihood_loh = info_phred_to_log_prob(record, loh_field_name);
     let site_log_likelihood_no_loh = info_phred_to_log_prob(record, no_loh_field_name);
-    let site_log_likelihood_hom = info_phred_to_log_prob(record, hom_field_name).ln_add_exp(info_phred_to_log_prob(record, absent_field_name));
+    let site_log_likelihood_hom = info_phred_to_log_prob(record, hom_field_name)
+        .ln_add_exp(info_phred_to_log_prob(record, absent_field_name));
     // Kass-Raftery evidence of at least barely for a heterozygous site
     // TODO: remove, once we have copy number estimation based on DP field
     if site_log_likelihood_hom > site_log_likelihood_loh.ln_add_exp(site_log_likelihood_no_loh) {
         None
     } else {
-        let site_log_likelihood_loh_or_hom = site_log_likelihood_loh.ln_add_exp(site_log_likelihood_hom);
+        let site_log_likelihood_loh_or_hom =
+            site_log_likelihood_loh.ln_add_exp(site_log_likelihood_hom);
         Some(
             site_log_likelihood_loh_or_hom
                 - (site_log_likelihood_loh_or_hom.ln_add_exp(site_log_likelihood_no_loh)),
@@ -289,12 +293,18 @@ impl ContigLogPosteriorsLOH {
                         positions.push(record.pos() as u64);
                         break;
                     }
-                },
-                Err(err) => eprintln!("Error while trying to read records on contig with ID: {}\n Error is: {}", contig_id, err)
+                }
+                Err(err) => eprintln!(
+                    "Error while trying to read records on contig with ID: {}\n Error is: {}",
+                    contig_id, err
+                ),
             }
         }
         if cum_loh_posteriors.len() == 0 {
-            eprintln!("Found no records with at least barely heterozygous evidence on contig with ID: {}", contig_id)
+            eprintln!(
+                "Found no records with at least barely heterozygous evidence on contig with ID: {}",
+                contig_id
+            )
         }
         // cumulatively add the following LOH probabilities
         while let Some(result) = bcf_reader.read(&mut record) {
@@ -311,11 +321,14 @@ impl ContigLogPosteriorsLOH {
                         Some(p) => {
                             cum_loh_posteriors.push(cum_loh_posteriors.last().unwrap() + p);
                             positions.push(record.pos() as u64);
-                        },
-                        None => continue
+                        }
+                        None => continue,
                     }
-                },
-                Err(err) => eprintln!("Error while trying to read records on contig with ID: {}\n Error is: {}", contig_id, err)
+                }
+                Err(err) => eprintln!(
+                    "Error while trying to read records on contig with ID: {}\n Error is: {}",
+                    contig_id, err
+                ),
             }
         }
         Ok(ContigLogPosteriorsLOH {
@@ -389,7 +402,7 @@ mod tests {
 
         match caller.call() {
             Ok(_) => println!("Caller returned successfully"),
-            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err),
         }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
@@ -418,7 +431,7 @@ mod tests {
 
         match caller.call() {
             Ok(_) => println!("Caller returned successfully"),
-            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err),
         }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
@@ -447,7 +460,7 @@ mod tests {
 
         match caller.call() {
             Ok(_) => println!("Caller returned successfully"),
-            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err),
         }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
@@ -476,7 +489,7 @@ mod tests {
 
         match caller.call() {
             Ok(_) => println!("Caller returned successfully"),
-            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err),
         }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
@@ -504,7 +517,7 @@ mod tests {
 
         match caller.call() {
             Ok(_) => println!("Caller returned successfully"),
-            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err),
         }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
@@ -532,7 +545,7 @@ mod tests {
 
         match caller.call() {
             Ok(_) => println!("Caller returned successfully"),
-            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err),
         }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
@@ -581,7 +594,7 @@ mod tests {
 
         match caller.call() {
             Ok(_) => println!("Caller returned successfully"),
-            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err),
         }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
@@ -609,7 +622,7 @@ mod tests {
 
         match caller.call() {
             Ok(_) => println!("Caller returned successfully"),
-            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err),
         }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
