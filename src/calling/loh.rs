@@ -18,7 +18,7 @@ use rust_htslib::bcf::Read;
 
 use lp_modeler::dsl::*;
 use lp_modeler::format::lp_format::LpFileFormat;
-use lp_modeler::solvers::{CbcSolver, SolverTrait};
+use lp_modeler::solvers::{NativeCbcSolver, SolverTrait};
 
 use crate::utils::info_phred_to_log_prob;
 
@@ -181,7 +181,7 @@ impl Caller<'_> {
             }
 
             // Specify solver
-            let solver = CbcSolver::new();
+            let solver = NativeCbcSolver::new();
 
             // (terminate if error, or assign status & variable values)
             match solver.run(&problem) {
