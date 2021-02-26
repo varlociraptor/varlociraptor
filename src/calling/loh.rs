@@ -387,7 +387,10 @@ mod tests {
             .build()
             .unwrap();
 
-        caller.call().unwrap();
+        match caller.call() {
+            Ok(_) => println!("Caller returned successfully"),
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+        }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
     }
@@ -413,7 +416,10 @@ mod tests {
             .build()
             .unwrap();
 
-        caller.call().unwrap();
+        match caller.call() {
+            Ok(_) => println!("Caller returned successfully"),
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+        }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
     }
@@ -439,7 +445,10 @@ mod tests {
             .build()
             .unwrap();
 
-        caller.call().unwrap();
+        match caller.call() {
+            Ok(_) => println!("Caller returned successfully"),
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+        }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
     }
@@ -465,7 +474,10 @@ mod tests {
             .build()
             .unwrap();
 
-        caller.call().unwrap();
+        match caller.call() {
+            Ok(_) => println!("Caller returned successfully"),
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+        }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
     }
@@ -490,7 +502,10 @@ mod tests {
             .build()
             .unwrap();
 
-        caller.call().unwrap();
+        match caller.call() {
+            Ok(_) => println!("Caller returned successfully"),
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+        }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
     }
@@ -515,7 +530,10 @@ mod tests {
             .build()
             .unwrap();
 
-        caller.call().unwrap();
+        match caller.call() {
+            Ok(_) => println!("Caller returned successfully"),
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+        }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
 
@@ -561,7 +579,10 @@ mod tests {
             .build()
             .unwrap();
 
-        caller.call().unwrap();
+        match caller.call() {
+            Ok(_) => println!("Caller returned successfully"),
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+        }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
     }
@@ -586,7 +607,10 @@ mod tests {
             .build()
             .unwrap();
 
-        caller.call().unwrap();
+        match caller.call() {
+            Ok(_) => println!("Caller returned successfully"),
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err)
+        }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
     }
