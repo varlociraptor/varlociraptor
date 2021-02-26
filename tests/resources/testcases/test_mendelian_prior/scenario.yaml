@@ -24,4 +24,4 @@ samples:
 
 events:
   denovo: "(brain:0.5 | brain:1.0 | blood:0.5 | brain:1.0) & father:0.0 & mother:0.0"
-  not interesting: "!father:0.0 | !mother:0.0 | (brain: 0.0 & blood:0.0)"
+  not_interesting: "!father:0.0 | !mother:0.0"
