@@ -20,8 +20,7 @@ itertools-num = "0.1"
 approx = "0.3"
 rusty-machine="0.5"
 ordered-float = "1"
-lp-modeler = { git = "https://github.com/dlaehnemann/rust-lp-modeler", branch = "newline-before-comparison-operator" }
-#lp-modeler = "0.4"
+#lp-modeler = "0.5"
 ndarray = "0.13"
 vec_map = "0.8"
 regex = "1"
@@ -67,6 +66,12 @@ futures = "0.3"
 crossbeam = "0.7"
 typed-builder = "0.7"
 jemallocator = "0.3.2"
+
+[dependencies.lp-modeler]
+git = "https://github.com/jcavat/rust-lp-modeler"
+branch = "master"
+default-features = false
+features = [ "native_coin_cbc" ]
 
 [dev-dependencies]
 env_logger = "0.3"
