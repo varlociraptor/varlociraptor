@@ -114,6 +114,7 @@ testcase!(test57, exact);
 testcase!(test58, exact);
 testcase!(test59, exact);
 testcase!(test60, exact);
+testcase!(test_mendelian_prior, exact);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);
 testcase!(test_contig_universe, exact, fast);

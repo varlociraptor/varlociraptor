@@ -205,6 +205,10 @@ impl Prior {
         self.somatic_effective_mutation_rate[sample].is_some()
     }
 
+    fn has_germline_variation(&self, sample: usize) -> bool {
+        self.germline_mutation_rate[sample].is_some()
+    }
+
     fn has_ploidy(&self, sample: usize) -> bool {
         self.ploidies.as_ref().unwrap()[sample].is_some()
     }
@@ -669,7 +673,7 @@ impl Prior {
             ploidy(child),
             (n_alt(parents.0), n_alt(parents.1)),
             n_alt(child),
-            self.germline_mutation_rate[child].expect("bug: no germline VAF for child"),
+            self.germline_mutation_rate[child].expect("bug: no germline mutation rate for child"),
         );
 
         if let Some(somatic_mutation_rate) = self.somatic_effective_mutation_rate[child] {
@@ -734,6 +738,12 @@ impl CheckablePrior for Prior {
                     _ => false,
                 } {
                     return err("inheritance defined but parental samples do not have a ploidy: define ploidy for each sample or the species");
+                }
+                match inheritance {
+                    Inheritance::Mendelian { .. } if !self.has_germline_variation(sample) => {
+                        return err("mendelian inheritance but no germline mutation rate defined: define germline mutation rate for child samples or the species")
+                    }
+                    _ => ()
                 }
             }
             if let Some(Inheritance::Subclonal { .. }) = &self.inheritance[sample] {
