@@ -105,6 +105,10 @@ impl Caller<'_> {
                 &self.control_local_fdr,
                 &self.filter_bayes_factor_minimum_barely,
             )?;
+            if intervals.len() == 0 {
+                eprintln!("No LOH candidate intervals found. BED file will be empty.");
+                return Ok(());
+            }
 
             // Define problem and objective sense
             let mut problem = LpProblem::new("LOH segmentation", LpObjective::Maximize);
@@ -156,6 +160,7 @@ impl Caller<'_> {
             }
 
             // Constraint: control false discovery rate at alpha
+            let alpha_f32 = f64::from(self.alpha) as f32;
             let selected_probs_vec: Vec<LpExpression> = {
                 interval_loh_indicator
                     .iter()
@@ -163,7 +168,7 @@ impl Caller<'_> {
                         let interval_prob_no_loh = f64::from(Prob::from(
                             intervals.get(&interval).unwrap().ln_one_minus_exp(),
                         )) as f32;
-                        (interval_prob_no_loh - f64::from(self.alpha) as f32) * loh_indicator
+                        (interval_prob_no_loh - alpha_f32) * loh_indicator
                     })
                     .collect()
             };
@@ -236,31 +241,20 @@ pub(crate) struct ContigLogPosteriorsLOH {
     contig_length: usize,
     cum_loh_posteriors: Vec<LogProb>,
     positions: Vec<u64>,
+    valid_start_ends: Vec<bool>,
 }
 
-fn site_posterior_loh_or_hom(
+fn site_posterior_not_no_loh(
     record: &mut bcf::Record,
     loh_field_name: &String,
     no_loh_field_name: &String,
-    hom_field_name: &String,
-    absent_field_name: &String,
-) -> Option<LogProb> {
-    let site_log_likelihood_loh = info_phred_to_log_prob(record, loh_field_name);
-    let site_log_likelihood_no_loh = info_phred_to_log_prob(record, no_loh_field_name);
-    let site_log_likelihood_hom = info_phred_to_log_prob(record, hom_field_name)
-        .ln_add_exp(info_phred_to_log_prob(record, absent_field_name));
-    // Kass-Raftery evidence of at least barely for a heterozygous site
-    // TODO: remove, once we have copy number estimation based on DP field
-    if site_log_likelihood_hom > site_log_likelihood_loh.ln_add_exp(site_log_likelihood_no_loh) {
-        None
-    } else {
-        let site_log_likelihood_loh_or_hom =
-            site_log_likelihood_loh.ln_add_exp(site_log_likelihood_hom);
-        Some(
-            site_log_likelihood_loh_or_hom
-                - (site_log_likelihood_loh_or_hom.ln_add_exp(site_log_likelihood_no_loh)),
-        )
-    }
+    background_het_threshold: LogProb,
+) -> (LogProb, bool) {
+    let loh_log_prob = info_phred_to_log_prob(record, loh_field_name);
+    let no_loh_log_prob = info_phred_to_log_prob(record, no_loh_field_name);
+    let valid_start_end = loh_log_prob > no_loh_log_prob
+        && loh_log_prob.ln_add_exp(no_loh_log_prob) > background_het_threshold;
+    (no_loh_log_prob.ln_one_minus_exp(), valid_start_end)
 }
 
 impl ContigLogPosteriorsLOH {
@@ -269,30 +263,28 @@ impl ContigLogPosteriorsLOH {
         contig_id: &u32,
         contig_length: &usize,
     ) -> Result<ContigLogPosteriorsLOH> {
+        let ln_0_5: LogProb = LogProb::from(Prob(0.5));
         let mut record = bcf_reader.empty_record();
         let mut cum_loh_posteriors: Vec<LogProb> = Vec::new();
         let mut positions = Vec::new();
+        let mut valid_start_ends: Vec<bool> = Vec::new();
         let loh_field_name = &String::from("PROB_LOH");
         let no_loh_field_name = &String::from("PROB_NO_LOH");
-        let hom_field_name = &String::from("PROB_UNINTERESTING");
-        let absent_field_name = &String::from("PROB_ABSENT");
         bcf_reader.fetch(*contig_id, 0, (contig_length - 1) as u64)?;
         // put in 1st LOH probability
         while let Some(result) = bcf_reader.read(&mut record) {
             match result {
                 Ok(()) => {
-                    let posterior = site_posterior_loh_or_hom(
+                    let (posterior, valid_start_end) = site_posterior_not_no_loh(
                         &mut record,
                         loh_field_name,
                         no_loh_field_name,
-                        hom_field_name,
-                        absent_field_name,
+                        ln_0_5,
                     );
-                    if let Some(p) = posterior {
-                        cum_loh_posteriors.push(p);
-                        positions.push(record.pos() as u64);
-                        break;
-                    }
+                    cum_loh_posteriors.push(posterior);
+                    positions.push(record.pos() as u64);
+                    valid_start_ends.push(valid_start_end);
+                    break;
                 }
                 Err(err) => eprintln!(
                     "Error while trying to read records on contig with ID: {}\n Error is: {}",
@@ -310,20 +302,15 @@ impl ContigLogPosteriorsLOH {
         while let Some(result) = bcf_reader.read(&mut record) {
             match result {
                 Ok(()) => {
-                    let posterior = site_posterior_loh_or_hom(
+                    let (posterior, valid_start_end) = site_posterior_not_no_loh(
                         &mut record,
                         loh_field_name,
                         no_loh_field_name,
-                        hom_field_name,
-                        absent_field_name,
+                        ln_0_5,
                     );
-                    match posterior {
-                        Some(p) => {
-                            cum_loh_posteriors.push(cum_loh_posteriors.last().unwrap() + p);
-                            positions.push(record.pos() as u64);
-                        }
-                        None => continue,
-                    }
+                    cum_loh_posteriors.push(cum_loh_posteriors.last().unwrap() + posterior);
+                    positions.push(record.pos() as u64);
+                    valid_start_ends.push(valid_start_end);
                 }
                 Err(err) => eprintln!(
                     "Error while trying to read records on contig with ID: {}\n Error is: {}",
@@ -336,6 +323,7 @@ impl ContigLogPosteriorsLOH {
             contig_length: *contig_length,
             cum_loh_posteriors,
             positions,
+            valid_start_ends,
         })
     }
 
@@ -348,7 +336,13 @@ impl ContigLogPosteriorsLOH {
         let log_one_minus_alpha = LogProb::from(alpha).ln_one_minus_exp();
         let mut intervals = HashMap::new();
         for start in 0..self.cum_loh_posteriors.len() {
+            if !self.valid_start_ends[start] {
+                continue;
+            }
             for end in start..self.cum_loh_posteriors.len() {
+                if !self.valid_start_ends[end] {
+                    continue;
+                }
                 let posterior_log_probability = if start > 0 {
                     self.cum_loh_posteriors[end] - self.cum_loh_posteriors[start - 1]
                 } else {
@@ -384,7 +378,7 @@ mod tests {
     fn test_loh_caller() {
         let test_input = PathBuf::from("tests/resources/test_loh/loh_no_loh.bcf");
         let test_output = PathBuf::from("tests/resources/test_loh/loh_no_loh.out.bed");
-        let expected_bed: Vec<u8> = Vec::from("chr8\t240134\t240135\t\t0.0000006369496848265032\n");
+        let expected_bed: Vec<u8> = Vec::from("chr8\t240134\t240135\t\t0.0000006369496848243304\n");
         let alpha = 0.98;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
@@ -415,7 +409,7 @@ mod tests {
         let test_output =
             PathBuf::from("tests/resources/test_loh/slightly_loh_no_het_between_loh.out.bed");
         let expected_bed: Vec<u8> =
-            Vec::from("chr8\t7999999\t8002000\t\t0.0000006369733111102624\n");
+            Vec::from("chr8\t7999999\t8002000\t\t0.0000006369920770503428\n");
         let alpha = 0.01;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
@@ -444,7 +438,7 @@ mod tests {
         let test_output =
             PathBuf::from("tests/resources/test_loh/slightly_loh_artifact_between_loh.out.bed");
         let expected_bed: Vec<u8> =
-            Vec::from("chr8\t7999999\t8002000\t\t0.0000013527459286120604\n");
+            Vec::from("chr8\t7999999\t8002000\t\t0.0000006369920770503428\n");
         let alpha = 0.01;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
@@ -472,8 +466,7 @@ mod tests {
             PathBuf::from("tests/resources/test_loh/slightly_no_loh_no_het_between_loh.bcf");
         let test_output =
             PathBuf::from("tests/resources/test_loh/slightly_no_loh_no_het_between_loh.out.bed");
-        let expected_bed: Vec<u8> = Vec::from("chr8\t7999999\t8000000\t\t0.000000000023626283759240104\n\
-                                                    chr8\t8001999\t8002000\t\t0.0000006369496861517909\n");
+        let expected_bed: Vec<u8> = Vec::from("chr8\t7999999\t8002000\t\t0.00011450448154268603\n");
         let alpha = 0.01;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
@@ -530,7 +523,7 @@ mod tests {
         let test_output =
             PathBuf::from("tests/resources/test_loh/slightly_loh_artifact_between_no_loh.out.bed");
         let expected_bed: Vec<u8> = vec![];
-        let alpha = 0.01;
+        let alpha = 0.2;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
             .unwrap()
@@ -549,42 +542,21 @@ mod tests {
         }
         let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
         assert_eq!(expected_bed, produced_bed);
-
-        let test_output2 =
-            PathBuf::from("tests/resources/test_loh/slightly_loh_artifact_between_no_loh.out2.bed");
-        let expected_bed2: Vec<u8> = Vec::from("chr8\t8000999\t8001000\t\t2.691023572732213\n");
-        let alpha2 = 0.55;
-        let mut caller2 = CallerBuilder::default()
-            .bcf(&test_input)
-            .unwrap()
-            .bed_path(&test_output2)
-            .add_and_check_alpha(alpha2)
-            .unwrap()
-            .control_local_fdr(false)
-            .filter_bayes_factor_minimum_barely(false)
-            .problems_folder(None)
-            .build()
-            .unwrap();
-
-        caller2.call().unwrap();
-        let produced_bed2 = fs::read(test_output2).expect("Cannot open test output file.");
-        assert_eq!(expected_bed2, produced_bed2);
     }
 
     #[test]
     fn test_medium_no_loh_no_het_between_loh() {
         let test_input =
             PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.bcf");
-        let test_output =
-            PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.out.bed");
-        let expected_bed: Vec<u8> =
-            Vec::from("chr8\t7999999\t8002000\t\t0.0000006369733111102624\n");
-        let alpha = 0.05;
+        let test_output_1 =
+            PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.out1.bed");
+        let expected_bed_1: Vec<u8> = Vec::from("chr8\t7999999\t8002000\t\t0.757383171188256\n");
+        let alpha_1 = 0.2;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
             .unwrap()
-            .bed_path(&test_output)
-            .add_and_check_alpha(alpha)
+            .bed_path(&test_output_1)
+            .add_and_check_alpha(alpha_1)
             .unwrap()
             .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
@@ -596,8 +568,33 @@ mod tests {
             Ok(_) => println!("Caller returned successfully"),
             Err(err) => panic!("Caller did not return successfully! Err: {}", err),
         }
-        let produced_bed = fs::read(test_output).expect("Cannot open test output file.");
-        assert_eq!(expected_bed, produced_bed);
+        let produced_bed_1 = fs::read(test_output_1).expect("Cannot open test output file.");
+        assert_eq!(expected_bed_1, produced_bed_1);
+        let test_output_2 =
+            PathBuf::from("tests/resources/test_loh/medium_no_loh_no_het_between_loh.out2.bed");
+        let expected_bed_2: Vec<u8> = Vec::from(
+            "chr8\t7999999\t8000000\t\t0.00000000002362566433079667\n\
+                       chr8\t8001999\t8002000\t\t0.0000006369496848258405\n",
+        );
+        let alpha_2 = 0.05;
+        let mut caller = CallerBuilder::default()
+            .bcf(&test_input)
+            .unwrap()
+            .bed_path(&test_output_2)
+            .add_and_check_alpha(alpha_2)
+            .unwrap()
+            .control_local_fdr(false)
+            .filter_bayes_factor_minimum_barely(false)
+            .problems_folder(None)
+            .build()
+            .unwrap();
+
+        match caller.call() {
+            Ok(_) => println!("Caller returned successfully"),
+            Err(err) => panic!("Caller did not return successfully! Err: {}", err),
+        }
+        let produced_bed_2 = fs::read(test_output_2).expect("Cannot open test output file.");
+        assert_eq!(expected_bed_2, produced_bed_2);
     }
 
     #[test]
@@ -640,16 +637,13 @@ mod tests {
 
         assert_eq!(loh_log_posteriors.contig_length, 145138636);
         assert_eq!(loh_log_posteriors.contig_id, 0);
-        // The two records in loh_no_loh.bcf are mirrored regarding PROB_LOH and PROB_NO_LOH, thus
-        // the Prob(LOH = 1) ( .last() in the vector) and Prob(LOH  = 0) ( .first() in the vector)
-        // should be equal cumulative sums at the second ( .last() ) position.
         assert_eq!(
             loh_log_posteriors.cum_loh_posteriors[0],
-            LogProb(-0.0000001466630849268762)
+            LogProb(-0.0000001466630849263759)
         );
         assert_eq!(
             loh_log_posteriors.cum_loh_posteriors[1],
-            LogProb(-15.735129302014165)
+            LogProb(-15.735135389722103)
         );
 
         let intervals = loh_log_posteriors
@@ -657,30 +651,8 @@ mod tests {
             .unwrap();
         println!("intervals: {:?}", intervals);
         assert_eq!(
-            intervals.get(&(1..=1)).unwrap(),
-            &LogProb(-15.73512915535108)
-        );
-        assert_eq!(
-            intervals.get(&(0..=1)).unwrap(),
-            &LogProb(-15.735129302014165)
-        );
-        assert_eq!(
             intervals.get(&(0..=0)).unwrap(),
-            &LogProb(-0.0000001466630849268762)
+            &LogProb(-0.0000001466630849263759)
         );
-
-        let intervals_filter_bayes_factor = loh_log_posteriors
-            .create_all_intervals(alpha, &false, &true)
-            .unwrap();
-        let bayes_filtered = intervals_filter_bayes_factor.get(&(1..=1));
-        println!("bayes_filtered: {:?}", bayes_filtered);
-        assert!(bayes_filtered.is_none());
-
-        let intervals_control_local_fdr = loh_log_posteriors
-            .create_all_intervals(alpha, &true, &false)
-            .unwrap();
-        let local_fdr_filtered = intervals_control_local_fdr.get(&(1..=1));
-        println!("local_fdr_filtered: {:?}", local_fdr_filtered);
-        assert!(local_fdr_filtered.is_none());
     }
 }
