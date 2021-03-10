@@ -11,7 +11,7 @@ edition = "2018"
 
 [dependencies]
 bio = "0.32"
-bio-types = { version = "0.10", features = ["serde"] }
+bio-types = { version = "0.11", features = ["serde"] }
 rust-htslib = "0.36"
 log = "0.4"
 GSL = "2.0.1"
