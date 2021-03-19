@@ -187,8 +187,8 @@ dependencies = [
  "serde",
  "serde_derive",
  "statrs 0.12.0",
- "strum 0.20.0",
- "strum_macros 0.20.1",
+ "strum",
+ "strum_macros",
  "thiserror",
  "triple_accel",
  "vec_map",
@@ -204,7 +204,7 @@ dependencies = [
  "lazy_static 1.4.0",
  "regex 1.4.5",
  "serde",
- "strum_macros 0.20.1",
+ "strum_macros",
  "thiserror",
 ]
 
@@ -2058,7 +2058,7 @@ dependencies = [
  "linear-map",
  "newtype_derive",
  "regex 1.4.5",
- "strum_macros 0.20.1",
+ "strum_macros",
  "thiserror",
  "url 2.2.1",
 ]
@@ -2297,27 +2297,9 @@ dependencies = [
 
 [[package]]
 name = "strum"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57bd81eb48f4c437cadc685403cad539345bf703d78e63707418431cecd4522b"
-
-[[package]]
-name = "strum"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7318c509b5ba57f18533982607f24070a55d353e90d4cae30c467cdb2ad5ac5c"
-
-[[package]]
-name = "strum_macros"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87c85aa3f8ea653bfd3ddf25f7ee357ee4d204731f6aa9ad04002306f6e2774c"
-dependencies = [
- "heck",
- "proc-macro2 1.0.24",
- "quote 1.0.9",
- "syn 1.0.64",
-]
 
 [[package]]
 name = "strum_macros"
@@ -2626,8 +2608,8 @@ dependencies = [
  "snafu",
  "statrs 0.11.0",
  "structopt",
- "strum 0.18.0",
- "strum_macros 0.18.0",
+ "strum",
+ "strum_macros",
  "tempfile",
  "thiserror",
  "time",
