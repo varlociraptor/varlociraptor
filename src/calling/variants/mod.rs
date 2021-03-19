@@ -244,8 +244,12 @@ impl Call {
         record.set_qual(f32::missing());
 
         // set event probabilities
+        // determine whether marginal probability is zero (prob becomes NaN)
+        // this is a missing data case, which we want to present accordingly
+        let is_missing = event_probs.values().any(|prob| prob.is_nan());
         for (event, prob) in event_probs {
-            let prob = if prob.is_nan() {
+            let prob = if is_missing {
+                // missing data
                 f32::missing()
             } else {
                 PHREDProb::from(prob).abs() as f32
