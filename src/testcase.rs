@@ -76,7 +76,7 @@ pub struct Testcase {
 }
 
 impl TestcaseBuilder {
-    pub(crate) fn reference(self, path: impl AsRef<Path>) -> Result<Self> {
+    pub(crate) fn reference(self, path: impl AsRef<Path> + std::fmt::Debug) -> Result<Self> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
     }
 
