@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.6.5] - 2021-03-19
+- Fix posterior probabilities when having zero observations and no bias estimation
+
 ## [2.6.4] - 2021-03-19
 - Fix strum dependency version
 
