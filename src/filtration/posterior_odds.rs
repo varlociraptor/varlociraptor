@@ -75,7 +75,8 @@ where
                     }
                     // Variant does not fit in given vartype.
                     (None, None) => false,
-                    _ => panic!("bug: divergence in variant filtration"),
+                    // in case some are none, this is because of missing data
+                    _ => false,
                 }
             }))
     };

@@ -76,7 +76,7 @@ pub struct Testcase {
 }
 
 impl TestcaseBuilder {
-    pub(crate) fn reference(self, path: impl AsRef<Path>) -> Result<Self> {
+    pub(crate) fn reference(self, path: impl AsRef<Path> + std::fmt::Debug) -> Result<Self> {
         Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
     }
 
@@ -349,6 +349,14 @@ impl Testcase {
 
         // fetch reference
         let ref_name = str::from_utf8(&chrom_name)?;
+
+        // limit ref_end
+        for seq in self.reference_reader.index.sequences() {
+            if seq.name == ref_name {
+                ref_end = cmp::min(ref_end, seq.len);
+            }
+        }
+
         self.reference_reader
             .fetch(ref_name, ref_start as u64, ref_end as u64)?;
         let mut ref_seq = Vec::new();

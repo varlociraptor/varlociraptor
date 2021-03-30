@@ -436,17 +436,21 @@ where
                     vafs: vaftree.clone(),
                     biases: vec![Biases::none()],
                 });
-                // Corresponding biased event.
-                events.push(model::Event {
-                    name: event_name.clone(),
-                    vafs: vaftree.clone(),
-                    biases: Biases::all_artifact_combinations(
-                        consider_read_orientation_bias,
-                        consider_strand_bias,
-                        consider_read_position_bias,
-                    )
-                    .collect(),
-                });
+
+                let biases: Vec<_> = Biases::all_artifact_combinations(
+                    consider_read_orientation_bias,
+                    consider_strand_bias,
+                    consider_read_position_bias,
+                )
+                .collect();
+                if !biases.is_empty() {
+                    // Corresponding biased event.
+                    events.push(model::Event {
+                        name: event_name.clone(),
+                        vafs: vaftree.clone(),
+                        biases,
+                    });
+                }
             }
 
             // update prior to the VAF universe of the current chromosome
