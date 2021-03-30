@@ -39,17 +39,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "alga"
-version = "0.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f823d037a7ec6ea2197046bafd4ae150e6bc36f9ca347404f46a46823fa84f2"
-dependencies = [
- "approx",
- "num-complex 0.2.4",
- "num-traits",
-]
-
-[[package]]
 name = "ansi_term"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -168,9 +157,8 @@ dependencies = [
 
 [[package]]
 name = "bio"
-version = "0.33.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5bf608c2f4e25edc48f85b8c93f4ef772fe4397d018f4aee88308f8d5864ffd"
+version = "0.33.1-alpha.0"
+source = "git+file:///home/johannes/scms/rust-bio?branch=dbg#c69e6d7929458edfa70f0d0165a1df26be0ae70c"
 dependencies = [
  "anyhow",
  "approx",
@@ -184,20 +172,20 @@ dependencies = [
  "fnv",
  "fxhash",
  "getset 0.0.9",
- "itertools 0.9.0",
+ "itertools",
  "itertools-num",
  "lazy_static 1.4.0",
  "multimap",
- "ndarray 0.14.0",
+ "ndarray",
  "newtype_derive",
  "num-integer",
  "num-traits",
  "ordered-float",
- "petgraph 0.5.1",
+ "petgraph",
  "regex 1.4.5",
  "serde",
  "serde_derive",
- "statrs 0.13.0",
+ "statrs",
  "strum",
  "strum_macros",
  "thiserror",
@@ -249,7 +237,7 @@ dependencies = [
  "block-padding",
  "byte-tools",
  "byteorder",
- "generic-array 0.12.4",
+ "generic-array",
 ]
 
 [[package]]
@@ -659,7 +647,7 @@ version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f3d0c8c8752312f9713efd397ff63acb9f85585afbf179282e720e7704954dd5"
 dependencies = [
- "generic-array 0.12.4",
+ "generic-array",
 ]
 
 [[package]]
@@ -749,12 +737,6 @@ name = "fixedbitset"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86d4de0081402f5e88cdac65c8dcdcc73118c1a7a465e2a05f0da05843a8ea33"
-
-[[package]]
-name = "fixedbitset"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
 
 [[package]]
 name = "flate2"
@@ -947,15 +929,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "generic-array"
-version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f797e67af32588215eaaab8327027ee8e71b9dd0b2b26996aedf20c030fce309"
-dependencies = [
- "typenum",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1014,12 +987,6 @@ checksum = "62aca2aba2d62b4a7f5b33f3712cb1b0692779a56fb510499d5c0aa594daeaf3"
 dependencies = [
  "serde",
 ]
-
-[[package]]
-name = "hashbrown"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 
 [[package]]
 name = "heck"
@@ -1121,29 +1088,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9007da9cacbd3e6343da136e98b0d2df013f553d35bdec8b518f07bea768e19c"
 
 [[package]]
-name = "indexmap"
-version = "1.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "824845a0bf897a9042383849b02c1bc219c2383772efcd5c6f9766fa4b81aef3"
-dependencies = [
- "autocfg 1.0.1",
- "hashbrown",
-]
-
-[[package]]
 name = "itertools"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
 dependencies = [
  "either",
 ]
@@ -1235,12 +1183,6 @@ name = "libc"
 version = "0.2.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8916b1f6ca17130ec6568feccee27c156ad12037880833a3b842a823236502e7"
-
-[[package]]
-name = "libm"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7d73b3f436185384286bd8098d17ec07c9a7d2388a6599f824d8502b529702a"
 
 [[package]]
 name = "libz-sys"
@@ -1408,44 +1350,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "nalgebra"
-version = "0.19.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0abb021006c01b126a936a8dd1351e0720d83995f4fc942d0d426c654f990745"
-dependencies = [
- "alga",
- "approx",
- "generic-array 0.13.3",
- "matrixmultiply 0.2.4",
- "num-complex 0.2.4",
- "num-rational",
- "num-traits",
- "rand 0.7.3",
- "rand_distr",
- "typenum",
-]
-
-[[package]]
 name = "ndarray"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac06db03ec2f46ee0ecdca1a1c34a99c0d188a0d83439b84bf0cb4b386e4ab09"
 dependencies = [
  "matrixmultiply 0.2.4",
- "num-complex 0.2.4",
- "num-integer",
- "num-traits",
- "rawpointer 0.2.1",
-]
-
-[[package]]
-name = "ndarray"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c0d5c9540a691d153064dc47a4db2504587a75eae07bf1d73f7a596ebc73c04"
-dependencies = [
- "matrixmultiply 0.2.4",
- "num-complex 0.3.1",
+ "num-complex",
  "num-integer",
  "num-traits",
  "rawpointer 0.2.1",
@@ -1492,15 +1403,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-complex"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "747d632c0c558b87dbabbe6a82f3b4ae03720d0646ac5b7b4dae89394be5f2c5"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "num-integer"
 version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1522,24 +1424,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-rational"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
-dependencies = [
- "autocfg 1.0.1",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
 name = "num-traits"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
 dependencies = [
  "autocfg 1.0.1",
- "libm",
 ]
 
 [[package]]
@@ -1701,18 +1591,8 @@ version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c3659d1ee90221741f65dd128d9998311b0e40c5d3c23a62445938214abce4f"
 dependencies = [
- "fixedbitset 0.1.9",
+ "fixedbitset",
  "ordermap",
-]
-
-[[package]]
-name = "petgraph"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "467d164a6de56270bd7c4d070df81d07beace25012d5103ced4e9ff08d6afdb7"
-dependencies = [
- "fixedbitset 0.2.0",
- "indexmap",
 ]
 
 [[package]]
@@ -1945,15 +1825,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34cf66eb183df1c5876e2dcf6b13d57340741e8dc255b48e40a26de954d06ae7"
 dependencies = [
  "getrandom 0.2.2",
-]
-
-[[package]]
-name = "rand_distr"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96977acbdd3a6576fb1d27391900035bf3863d4a16422973a409b488cf29ffb2"
-dependencies = [
- "rand 0.7.3",
 ]
 
 [[package]]
@@ -2328,7 +2199,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83695fde96cbe9e08f0e4eb96b1b56fdbd44f2098ee27462dda964c7745fddc7"
 dependencies = [
  "bitflags",
- "itertools 0.8.2",
+ "itertools",
  "proc-macro2 1.0.24",
  "quote 1.0.9",
  "syn 1.0.67",
@@ -2383,16 +2254,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "835a1669368b3524d9214cfcb274a1f5e3b0820b5f275c1509bfb0cc67664636"
 dependencies = [
  "rand 0.6.5",
-]
-
-[[package]]
-name = "statrs"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e34b58a8f9b7462b6922e0b4e3c83d1b3c2075f7f996a56d6c66afa81590064"
-dependencies = [
- "nalgebra",
- "rand 0.7.3",
 ]
 
 [[package]]
@@ -2726,18 +2587,18 @@ dependencies = [
  "getset 0.1.1",
  "half",
  "hyper",
- "itertools 0.8.2",
+ "itertools",
  "itertools-num",
  "jemallocator",
  "lazy_static 1.4.0",
  "log 0.4.14",
  "lru_time_cache",
- "ndarray 0.13.1",
+ "ndarray",
  "ordered-float",
  "paste",
  "pest",
  "pest_derive",
- "petgraph 0.4.13",
+ "petgraph",
  "rand 0.7.3",
  "rayon",
  "regex 1.4.5",
@@ -2750,7 +2611,7 @@ dependencies = [
  "serde_yaml",
  "shrinkwraprs",
  "snafu",
- "statrs 0.11.0",
+ "statrs",
  "structopt",
  "strum",
  "strum_macros",

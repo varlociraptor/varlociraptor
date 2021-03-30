@@ -3,11 +3,9 @@
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
+    - index == 0.5 && mother == 0.0 && father == 0.0
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - PROB_DENOVO <= 0.0001
 
 # necessary bam files
 samples:
@@ -28,10 +26,10 @@ samples:
 # candidate variant
 candidate: 'candidates.vcf'
 
-scenario: 'scenario.yaml'
-#scenario: 'scenario.uniform.yaml'
+#scenario: 'scenario.yaml'
+scenario: 'scenario.uniform.yaml'
 
-omit_read_position_bias: true
+#omit_read_position_bias: true
 #omit_strand_bias: true
 #omit_read_orientation_bias: true
 
