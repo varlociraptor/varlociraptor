@@ -327,7 +327,6 @@ impl Prior {
             };
 
             if self.has_uniform_prior(sample) {
-                dbg!("uniform");
                 // sample has a uniform prior
                 if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq) {
                     // no explicit info about germline VAF
@@ -337,7 +336,6 @@ impl Prior {
                     LogProb::ln_zero()
                 }
             } else if self.has_somatic_variation(sample) {
-                dbg!("somatic");
                 if let Some(ploidy) = self.ploidies.as_ref().unwrap()[sample] {
                     let mut probs = Vec::with_capacity(ploidy as usize + 1);
                     for n_alt in 0..=ploidy {
@@ -352,9 +350,7 @@ impl Prior {
                     unreachable!("bug: sample with somatic mutation rate but no ploidy")
                 }
             } else if sample_ploidy.is_some() && self.heterozygosity.is_some() {
-                dbg!("ploidy");
                 if self.is_valid_germline_vaf(sample, sample_event.allele_freq) {
-                    dbg!(sample_event.allele_freq);
                     let germline_vafs = push_vafs(sample_event.allele_freq);
 
                     self.calc_prob(event, germline_vafs)
@@ -621,7 +617,9 @@ impl Prior {
                 .into_iter()
                 .cartesian_product(0..=cmp::min(source_alt.1, second_split_ploidy))
                 .filter_map(|(alt_from_first, alt_from_second)| {
-                    if alt_from_first + alt_from_second == target_alt {
+                    // There may not be more alts from first and second than in the target
+                    // but there may be more alts in the target due to denovo mutations.
+                    if alt_from_first + alt_from_second <= target_alt {
                         let ref_from_first = first_split_ploidy - alt_from_first;
                         let ref_from_second = second_split_ploidy - alt_from_second;
                         let prob = self.prob_select_ref_alt_alleles(
@@ -637,9 +635,6 @@ impl Prior {
                         );
 
                         let missing = target_alt as i32 - (alt_from_first + alt_from_second) as i32;
-                        if alt_from_first == 0 && alt_from_second == 0 {
-                            dbg!(prob, missing, source_alt, target_alt);
-                        }
                         Some(prob + LogProb(germline_mutation_rate.ln() * missing as f64))
                     } else {
                         None
@@ -688,7 +683,6 @@ impl Prior {
         let ploidy = |sample: usize| ploidies[sample].unwrap();
         // we control above that the vafs are valid for the ploidy, but the rounding ensures that there are no numeric glitches
         let n_alt = |sample: usize| (*germline_vafs[sample] * ploidy(sample) as f64).round() as u32;
-        //dbg!((germline_vafs[parents.0], germline_vafs[parents.1], n_alt(parents.0), n_alt(parents.1)));
 
         let mut prob = self.prob_mendelian_alt_counts(
             (ploidy(parents.0), ploidy(parents.1)),
