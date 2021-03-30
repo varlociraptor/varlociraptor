@@ -239,7 +239,10 @@ impl Prior {
                     .zip(self.ploidies.as_ref().unwrap().iter())
                     .enumerate()
                     .filter_map(|(sample, (inheritance, ploidy))| {
-                        if inheritance.is_none() && ploidy.is_some() {
+                        if inheritance.is_none()
+                            && ploidy.is_some()
+                            && !self.has_uniform_prior(sample)
+                        {
                             Some(sample)
                         } else {
                             None
@@ -256,42 +259,53 @@ impl Prior {
                 .inheritance
                 .iter()
                 .enumerate()
-                .filter_map(|(sample, inheritance)| match inheritance {
-                    Some(Inheritance::Mendelian { from: parents }) => Some(
-                        self.prob_mendelian_inheritance(sample, *parents, event, &germline_vafs),
-                    ),
-                    Some(Inheritance::Clonal {
-                        from: parent,
-                        somatic,
-                    }) => Some(self.prob_clonal_inheritance(
-                        sample,
-                        *parent,
-                        event,
-                        &germline_vafs,
-                        *somatic,
-                    )),
-                    Some(Inheritance::Subclonal {
-                        from: parent,
-                        origin,
-                    }) => {
-                        // here, somatic variation is already included in the returned probability
-                        Some(self.prob_subclonal_inheritance(
+                .filter_map(|(sample, inheritance)| {
+                    if self.has_uniform_prior(sample) {
+                        // if sample has a uniform prior, ignore any defined inheritance patterns
+                        return None;
+                    }
+                    match inheritance {
+                        Some(Inheritance::Mendelian { from: parents }) => {
+                            Some(self.prob_mendelian_inheritance(
+                                sample,
+                                *parents,
+                                event,
+                                &germline_vafs,
+                            ))
+                        }
+                        Some(Inheritance::Clonal {
+                            from: parent,
+                            somatic,
+                        }) => Some(self.prob_clonal_inheritance(
                             sample,
                             *parent,
                             event,
                             &germline_vafs,
-                            *origin,
-                        ))
-                    }
-                    None => {
-                        // no inheritance pattern defined
-                        if let Some(r) = self.somatic_effective_mutation_rate[sample] {
-                            Some(self.prob_somatic_mutation(
-                                r,
-                                self.effective_somatic_vaf(sample, event, &germline_vafs),
+                            *somatic,
+                        )),
+                        Some(Inheritance::Subclonal {
+                            from: parent,
+                            origin,
+                        }) => {
+                            // here, somatic variation is already included in the returned probability
+                            Some(self.prob_subclonal_inheritance(
+                                sample,
+                                *parent,
+                                event,
+                                &germline_vafs,
+                                *origin,
                             ))
-                        } else {
-                            None
+                        }
+                        None => {
+                            // no inheritance pattern defined
+                            if let Some(r) = self.somatic_effective_mutation_rate[sample] {
+                                Some(self.prob_somatic_mutation(
+                                    r,
+                                    self.effective_somatic_vaf(sample, event, &germline_vafs),
+                                ))
+                            } else {
+                                None
+                            }
                         }
                     }
                 })
@@ -313,6 +327,7 @@ impl Prior {
             };
 
             if self.has_uniform_prior(sample) {
+                dbg!("uniform");
                 // sample has a uniform prior
                 if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq) {
                     // no explicit info about germline VAF
@@ -322,6 +337,7 @@ impl Prior {
                     LogProb::ln_zero()
                 }
             } else if self.has_somatic_variation(sample) {
+                dbg!("somatic");
                 if let Some(ploidy) = self.ploidies.as_ref().unwrap()[sample] {
                     let mut probs = Vec::with_capacity(ploidy as usize + 1);
                     for n_alt in 0..=ploidy {
@@ -336,7 +352,9 @@ impl Prior {
                     unreachable!("bug: sample with somatic mutation rate but no ploidy")
                 }
             } else if sample_ploidy.is_some() && self.heterozygosity.is_some() {
+                dbg!("ploidy");
                 if self.is_valid_germline_vaf(sample, sample_event.allele_freq) {
+                    dbg!(sample_event.allele_freq);
                     let germline_vafs = push_vafs(sample_event.allele_freq);
 
                     self.calc_prob(event, germline_vafs)
@@ -619,6 +637,9 @@ impl Prior {
                         );
 
                         let missing = target_alt as i32 - (alt_from_first + alt_from_second) as i32;
+                        if alt_from_first == 0 && alt_from_second == 0 {
+                            dbg!(prob, missing, source_alt, target_alt);
+                        }
                         Some(prob + LogProb(germline_mutation_rate.ln() * missing as f64))
                     } else {
                         None
@@ -628,10 +649,6 @@ impl Prior {
         };
 
         let probs = match (source_ploidy.0, source_ploidy.1, target_ploidy) {
-            (p1, p2, c) if p1 % 2 == 0 && p2 % 2 == 0 && c == (p1 / 2 + p2 / 2) => {
-                // Default case, normal meiosis (child inherits one half from each parent).
-                prob_after_meiotic_split(p1 / 2, p2 / 2)
-            }
             (0, p2, c) if p2 == c => {
                 // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
                 prob_after_meiotic_split(0, p2)
@@ -639,6 +656,10 @@ impl Prior {
             (p1, 0, c) if p1 == c => {
                 // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
                 prob_after_meiotic_split(p1, 0)
+            }
+            (p1, p2, c) if p1 % 2 == 0 && p2 % 2 == 0 && c == (p1 / 2 + p2 / 2) => {
+                // Default case, normal meiosis (child inherits one half from each parent).
+                prob_after_meiotic_split(p1 / 2, p2 / 2)
             }
             (p1, p2, c) => {
                 // something went wrong, there are more chromosomes in the child than in the parents
@@ -667,6 +688,7 @@ impl Prior {
         let ploidy = |sample: usize| ploidies[sample].unwrap();
         // we control above that the vafs are valid for the ploidy, but the rounding ensures that there are no numeric glitches
         let n_alt = |sample: usize| (*germline_vafs[sample] * ploidy(sample) as f64).round() as u32;
+        //dbg!((germline_vafs[parents.0], germline_vafs[parents.1], n_alt(parents.0), n_alt(parents.1)));
 
         let mut prob = self.prob_mendelian_alt_counts(
             (ploidy(parents.0), ploidy(parents.1)),
