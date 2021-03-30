@@ -157,8 +157,9 @@ dependencies = [
 
 [[package]]
 name = "bio"
-version = "0.33.1-alpha.0"
-source = "git+file:///home/johannes/scms/rust-bio?branch=dbg#c69e6d7929458edfa70f0d0165a1df26be0ae70c"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5bf608c2f4e25edc48f85b8c93f4ef772fe4397d018f4aee88308f8d5864ffd"
 dependencies = [
  "anyhow",
  "approx",

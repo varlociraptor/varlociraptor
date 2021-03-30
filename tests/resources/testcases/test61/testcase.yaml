@@ -26,8 +26,8 @@ samples:
 # candidate variant
 candidate: 'candidates.vcf'
 
-#scenario: 'scenario.yaml'
-scenario: 'scenario.uniform.yaml'
+scenario: 'scenario.yaml'
+#scenario: 'scenario.uniform.yaml'
 
 #omit_read_position_bias: true
 #omit_strand_bias: true
