@@ -1,0 +1,21 @@
+species:
+  heterozygosity: 0.001
+  ploidy: 2
+  genome-size: 3.5e9
+  germline-mutation-rate: 0.1 #1.2e-8
+
+samples:
+  index:
+    inheritance:
+      mendelian:
+        from:
+          - mother
+          - father
+  mother:
+    sex: female
+  father:
+    sex: male
+
+events:
+  denovo: "(index:0.5 | index:1.0) & father:0.0 & mother:0.0"
+  not_interesting: "!father:0.0 | !mother:0.0"
