@@ -1,18 +1,23 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::TryFrom;
+use std::fs::File;
+use std::io::Read;
 use std::ops::{Deref, DerefMut};
+use std::path::Path;
 use std::string::ToString;
 use std::sync::Mutex;
 
 use anyhow::Result;
+use serde_yaml;
 use vec_map::VecMap;
 
 pub(crate) mod formula;
 pub(crate) mod vaftree;
 
 use crate::errors;
-pub(crate) use crate::grammar::formula::{Formula, VAFSpectrum, VAFUniverse};
+pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
+use crate::variants::model::AlleleFreq;
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -78,6 +83,12 @@ impl<T> DerefMut for SampleInfo<T> {
     }
 }
 
+impl<T> From<Vec<T>> for SampleInfo<T> {
+    fn from(vec: Vec<T>) -> Self {
+        SampleInfo { inner: vec }
+    }
+}
+
 /// Builder for `SampleInfo`.
 #[derive(new, Debug)]
 pub(crate) struct SampleInfoBuilder<T> {
@@ -114,7 +125,8 @@ impl ToString for ExpressionIdentifier {
 }
 
 #[derive(Deserialize, Getters)]
-#[get = "pub"]
+#[get = "pub(crate)"]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Scenario {
     // map of reusable expressions
     #[serde(default)]
@@ -125,9 +137,18 @@ pub(crate) struct Scenario {
     samples: BTreeMap<String, Sample>,
     #[serde(skip)]
     sample_idx: Mutex<Option<HashMap<String, usize>>>,
+    #[serde(default)]
+    species: Option<Species>,
 }
 
 impl Scenario {
+    pub(crate) fn from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let mut scenario_content = String::new();
+        File::open(path)?.read_to_string(&mut scenario_content)?;
+
+        Ok(serde_yaml::from_str(&scenario_content)?)
+    }
+
     pub(crate) fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
         let mut sample_idx = self.sample_idx.lock().unwrap();
         if sample_idx.is_none() {
@@ -176,40 +197,268 @@ impl<'a> TryFrom<&'a str> for Scenario {
     }
 }
 
-fn default_resolution() -> usize {
-    100
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub(crate) enum PloidyDefinition {
+    Simple(u32),
+    Map(HashMap<String, u32>),
 }
 
-#[derive(Deserialize, Getters)]
-#[get = "pub"]
-pub(crate) struct Sample {
-    /// optional contamination
-    contamination: Option<Contamination>,
-    /// grid point resolution for integration over continuous allele frequency ranges
-    #[serde(default = "default_resolution")]
-    resolution: usize,
-    /// possible VAFs of given sample
-    universe: UniverseDefinition,
-}
-
-impl Sample {
-    pub(crate) fn contig_universe(&self, contig: &str) -> Result<&VAFUniverse> {
-        Ok(match self.universe {
-            UniverseDefinition::Simple(ref universe) => universe,
-            UniverseDefinition::Map(ref map) => match map.get(contig) {
-                Some(universe) => universe,
-                None => map
-                    .get("all")
-                    .ok_or_else(|| errors::Error::UniverseContigNotFound {
+impl PloidyDefinition {
+    pub(crate) fn contig_ploidy(&self, contig: &str) -> Result<u32> {
+        Ok(match self {
+            PloidyDefinition::Simple(ploidy) => *ploidy,
+            PloidyDefinition::Map(map) => match map.get(contig) {
+                Some(ploidy) => *ploidy,
+                None => map.get("all").map(|ploidy| *ploidy).ok_or_else(|| {
+                    errors::Error::PloidyContigNotFound {
                         contig: contig.to_owned(),
-                    })?,
+                    }
+                })?,
             },
         })
     }
 }
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub(crate) enum SexPloidyDefinition {
+    Generic(PloidyDefinition),
+    Specific(HashMap<Sex, PloidyDefinition>),
+}
+
+impl SexPloidyDefinition {
+    pub(crate) fn contig_ploidy(&self, sex: Option<Sex>, contig: &str) -> Result<u32> {
+        match (self, sex) {
+            (SexPloidyDefinition::Generic(p), _) => p.contig_ploidy(contig),
+            (SexPloidyDefinition::Specific(p), Some(s)) => p.get(&s).map_or_else(
+                || {
+                    Err(errors::Error::InvalidPriorConfiguration {
+                        msg: format!("ploidy definition for {} not found", s),
+                    }
+                    .into())
+                },
+                |p| p.contig_ploidy(contig),
+            ),
+            (SexPloidyDefinition::Specific(_), None) => {
+                Err(errors::Error::InvalidPriorConfiguration {
+                    msg: "sex specific ploidy definition found but no sex specified in sample"
+                        .to_owned(),
+                }
+                .into())
+            }
+        }
+    }
+}
+
 #[derive(Deserialize, Getters)]
-#[get = "pub"]
+#[get = "pub(crate)"]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Species {
+    #[serde(default)]
+    heterozygosity: Option<f64>,
+    #[serde(default, rename = "germline-mutation-rate")]
+    germline_mutation_rate: Option<f64>,
+    #[serde(default, rename = "somatic-effective-mutation-rate")]
+    somatic_effective_mutation_rate: Option<f64>,
+    #[serde(default, rename = "variant-fractions")]
+    variant_type_fractions: VariantTypeFraction,
+    #[serde(default)]
+    ploidy: Option<SexPloidyDefinition>,
+    #[serde(default)]
+    #[serde(rename = "genome-size")]
+    genome_size: Option<f64>,
+}
+
+impl Species {
+    pub(crate) fn contig_ploidy(&self, contig: &str, sex: Option<Sex>) -> Result<Option<u32>> {
+        if let Some(ploidy) = &self.ploidy {
+            Ok(Some(ploidy.contig_ploidy(sex, contig)?))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+fn default_indel_fraction() -> f64 {
+    0.1
+}
+
+fn default_mnv_fraction() -> f64 {
+    0.001
+}
+
+fn default_sv_fraction() -> f64 {
+    0.01
+}
+
+#[derive(Deserialize, Getters)]
+#[get = "pub(crate)"]
+#[serde(deny_unknown_fields)]
+pub(crate) struct VariantTypeFraction {
+    #[serde(default = "default_indel_fraction")]
+    indel: f64,
+    #[serde(default = "default_mnv_fraction")]
+    mnv: f64,
+    #[serde(default = "default_sv_fraction")]
+    sv: f64,
+}
+
+impl Default for VariantTypeFraction {
+    fn default() -> Self {
+        VariantTypeFraction {
+            indel: default_indel_fraction(),
+            mnv: default_mnv_fraction(),
+            sv: default_sv_fraction(),
+        }
+    }
+}
+
+fn default_resolution() -> usize {
+    100
+}
+
+#[derive(Deserialize, Getters)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Sample {
+    /// optional contamination
+    #[get = "pub(crate)"]
+    contamination: Option<Contamination>,
+    /// grid point resolution for integration over continuous allele frequency ranges
+    #[serde(default = "default_resolution")]
+    #[get = "pub(crate)"]
+    resolution: usize,
+    /// possible VAFs of given sample
+    #[serde(default)]
+    #[get = "pub(crate)"]
+    universe: Option<UniverseDefinition>,
+    #[serde(default, rename = "somatic-effective-mutation-rate")]
+    somatic_effective_mutation_rate: Option<f64>,
+    #[serde(default, rename = "germline-mutation-rate")]
+    germline_mutation_rate: Option<f64>,
+    #[serde(default)]
+    #[get = "pub(crate)"]
+    ploidy: Option<PloidyDefinition>,
+    #[get = "pub(crate)"]
+    inheritance: Option<Inheritance>,
+    #[serde(default)]
+    sex: Option<Sex>,
+}
+
+impl Sample {
+    pub(crate) fn has_uniform_prior(&self) -> bool {
+        self.universe.is_some()
+    }
+
+    pub(crate) fn contig_universe(
+        &self,
+        contig: &str,
+        species: &Option<Species>,
+    ) -> Result<VAFUniverse> {
+        if let Some(universe) = &self.universe {
+            Ok(match universe {
+                UniverseDefinition::Simple(ref universe) => universe.clone(),
+                UniverseDefinition::Map(ref map) => match map.get(contig) {
+                    Some(universe) => universe.clone(),
+                    None => map
+                        .get("all")
+                        .ok_or_else(|| errors::Error::UniverseContigNotFound {
+                            contig: contig.to_owned(),
+                        })?
+                        .clone(),
+                },
+            })
+        } else {
+            let ploidy_derived_spectrum = |ploidy| -> BTreeSet<AlleleFreq> {
+                (0..=ploidy)
+                    .map(|n_alt| AlleleFreq(n_alt as f64 / ploidy as f64))
+                    .collect()
+            };
+            Ok(
+                match (
+                    self.contig_ploidy(contig, species)?,
+                    self.somatic_effective_mutation_rate.is_some(),
+                ) {
+                    (Some(ploidy), false) => {
+                        let mut universe = VAFUniverse::default();
+                        universe.insert(VAFSpectrum::Set(ploidy_derived_spectrum(ploidy)));
+                        universe
+                    }
+                    (Some(ploidy), true) => {
+                        let ploidy_spectrum = ploidy_derived_spectrum(ploidy);
+
+                        let mut universe = VAFUniverse::default();
+
+                        let mut last = ploidy_spectrum.iter().next().unwrap();
+                        for vaf in ploidy_spectrum.iter().skip(1) {
+                            universe.insert(VAFSpectrum::Range(VAFRange::builder()
+                                .inner(*last..*vaf)
+                                .left_exclusive(true)
+                                .right_exclusive(true)
+                                .build()
+                            ));
+                            last = vaf;
+                        }
+                        universe.insert(VAFSpectrum::Set(ploidy_spectrum));
+                        universe
+                    }
+                    (None, true) => {
+                        let mut universe = VAFUniverse::default();
+                        universe.insert(VAFSpectrum::Range(VAFRange::builder()
+                            .inner(AlleleFreq(0.0)..AlleleFreq(1.0))
+                            .left_exclusive(false)
+                            .right_exclusive(false)
+                            .build()
+                        ));
+                        universe
+                    }
+                    (None, false) => return Err(errors::Error::InvalidPriorConfiguration{
+                        msg: "sample needs to define either universe, ploidy or somatic_mutation_rate".to_owned(),
+                    }
+                    .into()),
+                },
+            )
+        }
+    }
+
+    pub(crate) fn contig_ploidy(
+        &self,
+        contig: &str,
+        species: &Option<Species>,
+    ) -> Result<Option<u32>> {
+        if let Some(ploidy) = &self.ploidy {
+            Ok(Some(ploidy.contig_ploidy(contig)?))
+        } else {
+            species
+                .as_ref()
+                .map_or(Ok(None), |species| species.contig_ploidy(contig, self.sex))
+        }
+    }
+
+    pub(crate) fn germline_mutation_rate(&self, species: &Option<Species>) -> Option<f64> {
+        if let Some(rate) = self.germline_mutation_rate {
+            Some(rate)
+        } else {
+            species
+                .as_ref()
+                .map_or(None, |species| species.germline_mutation_rate)
+        }
+    }
+
+    pub(crate) fn somatic_effective_mutation_rate(&self, species: &Option<Species>) -> Option<f64> {
+        if let Some(rate) = self.somatic_effective_mutation_rate {
+            Some(rate)
+        } else {
+            species
+                .as_ref()
+                .map_or(None, |species| species.somatic_effective_mutation_rate)
+        }
+    }
+}
+
+#[derive(Deserialize, Getters)]
+#[get = "pub(crate)"]
+#[serde(deny_unknown_fields)]
 pub(crate) struct Contamination {
     /// name of contaminating sample
     by: String,
@@ -217,7 +466,73 @@ pub(crate) struct Contamination {
     fraction: f64,
 }
 
-#[derive(Deserialize)]
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    IntoStaticStr,
+    EnumVariantNames,
+    PartialEq,
+    Eq,
+    Hash,
+)]
+#[strum(serialize_all = "kebab_case")]
+pub(crate) enum Inheritance {
+    #[serde(rename = "mendelian")]
+    Mendelian { from: (String, String) },
+    #[serde(rename = "clonal")]
+    Clonal { from: String, somatic: bool },
+    #[serde(rename = "subclonal")]
+    Subclonal {
+        from: String,
+        origin: SubcloneOrigin,
+    },
+}
+
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    IntoStaticStr,
+    EnumVariantNames,
+    PartialEq,
+    Eq,
+    Hash,
+)]
+#[strum(serialize_all = "kebab_case")]
+pub(crate) enum SubcloneOrigin {
+    #[serde(rename = "single-cell")]
+    SingleCell,
+    #[serde(rename = "multi-cell")]
+    MultiCell,
+}
+
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    IntoStaticStr,
+    EnumVariantNames,
+    PartialEq,
+    Eq,
+    Hash,
+)]
+pub(crate) enum Sex {
+    #[serde(rename = "male")]
+    Male,
+    #[serde(rename = "female")]
+    Female,
+}
+
+#[derive(Deserialize, Debug)]
 #[serde(untagged)]
 pub(crate) enum UniverseDefinition {
     Map(BTreeMap<String, VAFUniverse>),

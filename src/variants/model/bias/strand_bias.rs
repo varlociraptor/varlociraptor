@@ -1,6 +1,6 @@
 use bio::stats::probs::LogProb;
 
-use crate::utils::PROB_HALF;
+use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model::bias::Bias;
 
@@ -27,13 +27,13 @@ impl Bias for StrandBias {
             (StrandBias::Forward, Strand::Both) => LogProb::ln_zero(),
             (StrandBias::Reverse, Strand::Both) => LogProb::ln_zero(),
             (StrandBias::None, Strand::Both) => observation.prob_double_overlap,
-            (StrandBias::None, _) => *PROB_HALF + observation.prob_single_overlap,
+            (StrandBias::None, _) => *PROB_05 + observation.prob_single_overlap,
             (_, Strand::None) => unreachable!(),
         }
     }
 
     fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
-        *PROB_HALF
+        *PROB_05
     }
 
     fn is_artifact(&self) -> bool {

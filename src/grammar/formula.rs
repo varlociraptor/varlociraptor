@@ -128,7 +128,7 @@ impl Formula {
                     .ok_or_else(|| errors::Error::InvalidSampleName {
                         name: sample.to_owned(),
                     })?
-                    .contig_universe(contig)?;
+                    .contig_universe(contig, scenario.species())?;
 
                 let mut disjunction = Vec::new();
                 match vafs {
@@ -289,7 +289,7 @@ impl VAFSpectrum {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
 pub(crate) struct VAFRange {
     inner: ops::Range<AlleleFreq>,
     left_exclusive: bool,
@@ -441,8 +441,8 @@ impl PartialOrd for VAFRange {
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct VAFUniverse(BTreeSet<VAFSpectrum>);
+#[derive(Debug, Clone, Default, Derefable)]
+pub(crate) struct VAFUniverse(#[deref(mutable)] BTreeSet<VAFSpectrum>);
 
 impl VAFUniverse {
     pub(crate) fn contains(&self, vaf: AlleleFreq) -> bool {
@@ -452,14 +452,6 @@ impl VAFUniverse {
             }
         }
         false
-    }
-}
-
-impl ops::Deref for VAFUniverse {
-    type Target = BTreeSet<VAFSpectrum>;
-
-    fn deref(&self) -> &BTreeSet<VAFSpectrum> {
-        &self.0
     }
 }
 

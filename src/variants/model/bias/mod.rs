@@ -35,7 +35,7 @@ pub(crate) trait Bias {
     }
 }
 
-#[derive(Builder, CopyGetters, Getters, Debug, Clone)]
+#[derive(Builder, CopyGetters, Getters, Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub(crate) struct Biases {
     #[getset(get = "pub(crate)")]
     strand_bias: StrandBias,
@@ -43,29 +43,6 @@ pub(crate) struct Biases {
     read_orientation_bias: ReadOrientationBias,
     #[getset(get = "pub(crate)")]
     read_position_bias: ReadPositionBias,
-}
-
-impl PartialEq for Biases {
-    fn eq(&self, other: &Self) -> bool {
-        self.strand_bias == other.strand_bias
-            && self.read_orientation_bias == other.read_orientation_bias
-    }
-}
-
-impl Eq for Biases {}
-
-impl Ord for Biases {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.strand_bias
-            .cmp(&other.strand_bias)
-            .then(self.read_orientation_bias.cmp(&other.read_orientation_bias))
-    }
-}
-
-impl PartialOrd for Biases {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
 }
 
 impl Biases {

@@ -17,6 +17,7 @@ use crate::variants::model::bias::Biases;
 pub(crate) mod bias;
 pub(crate) mod likelihood;
 pub(crate) mod modes;
+pub(crate) mod prior;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Contamination {

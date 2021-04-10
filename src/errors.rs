@@ -8,6 +8,10 @@ pub(crate) enum Error {
     InvalidSampleName { name: String },
     #[error("contamination refers to unknown sample {name}; it is not defined in the scenario")]
     InvalidContaminationSampleName { name: String },
+    #[error(
+        "inheritance definition refers to unknown sample {name}; it is not defined in the scenario"
+    )]
+    InvalidInheritanceSampleName { name: String },
     #[error("observation files must be provided as samplename=path")]
     InvalidObservationsSpec,
     #[error(
@@ -28,6 +32,8 @@ pub(crate) enum Error {
     NoRecordsFound,
     #[error("contig {contig} not found in universe definition and no 'all' defined")]
     UniverseContigNotFound { contig: String },
+    #[error("contig {contig} not found in ploidy definition and no 'all' defined")]
+    PloidyContigNotFound { contig: String },
     #[error("record {i} in candidate BCF/VCF does not define a chromosome")]
     RecordMissingChrom { i: usize },
     #[error("inconsistent observations: input observation BCF files do not contain exactly the same records")]
@@ -43,9 +49,11 @@ pub(crate) enum Error {
     #[error("at least one BCF with observations must be provided")]
     EmptyObservations,
     #[error(
-        "undefined expression ${identifier}; please define under 'expressions:' in your scenario"
+        "undefined expression {identifier}; please define under 'expressions:' in your scenario"
     )]
     UndefinedExpression { identifier: String },
+    #[error("invalid prior configuration: {msg}")]
+    InvalidPriorConfiguration { msg: String },
     #[error("read position determined from cigar string exceeds record length")]
     ReadPosOutOfBounds,
     #[error("invalid strand information '{value}', must be '+', '-', or '*'")]
