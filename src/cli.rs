@@ -284,7 +284,7 @@ pub enum EstimateKind {
         #[structopt(
             long = "tumor-sample",
             default_value = "tumor",
-            help = "Names of the tumor samples in the given VCF/BCF."
+            help = "Name(s) of the tumor sample(s) in the given VCF/BCF. Multiple samples can be given when using the multibar plot mode."
         )]
         tumor_sample: Vec<String>,
         #[structopt(

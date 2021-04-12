@@ -171,7 +171,6 @@ pub(crate) fn collect_estimates(
         }
     }
     if tmb.is_empty() {
-        println!("Empty");
         return Err(errors::Error::NoRecordsFound.into());
     }
 
