@@ -48,19 +48,28 @@ struct TMB {
 struct TMBStrat {
     min_vaf: f64,
     tmb: f64,
-    vartype: Vartype,
+    vartype: Signature,
 }
 
 #[derive(Debug, Clone, Serialize)]
 struct TMBBin {
     vaf: f64,
     tmb: f64,
-    vartype: Vartype,
+    vartype: Signature,
 }
 
-struct Record {
+#[derive(Debug, Clone, Serialize)]
+struct TMBMultiBar {
+    vaf: f64,
+    tmb: f64,
+    vartype: Signature,
+    sample: String
+}
+
+struct RecordSig {
     prob: LogProb,
-    vartype: Vartype,
+    vartype: Signature,
+    sample: String,
 }
 
 #[derive(
@@ -79,22 +88,28 @@ struct Record {
 pub enum PlotMode {
     Hist,
     Curve,
+    Multibar
 }
 
-/// Estimate tumor mutational burden based on Varlociraptor calls from STDIN and print result to STDOUT.
-pub(crate) fn estimate(
+pub(crate) fn collect_estimates(
     somatic_tumor_events: &[String],
-    tumor_name: &str,
+    tumor_names: &[String],
     coding_genome_size: u64,
     mode: PlotMode,
+    cutoff: f64,
 ) -> Result<()> {
     let mut bcf = bcf::Reader::from_stdin()?;
     let header = bcf.header().to_owned();
 
-    let tumor_id = bcf
-        .header()
-        .sample_id(tumor_name.as_bytes())
-        .unwrap_or_else(|| panic!("Sample {} not found", tumor_name)); // TODO throw a proper error
+    let mut tumor_ids = BTreeMap::new();
+
+    for t in tumor_names {
+        let tumor_id = bcf
+            .header()
+            .sample_id(t.as_bytes())
+            .unwrap_or_else(|| panic!("Sample {} not found", t));
+        tumor_ids.insert(t, tumor_id);
+    }
 
     let mut tmb = BTreeMap::new();
     'records: loop {
@@ -107,8 +122,11 @@ pub(crate) fn estimate(
         let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
         let vcfpos = rec.pos() + 1;
         // obtain VAF estimates (do it here already to work around a segfault in htslib)
-        let vafs = rec.format(b"AF").float()?[tumor_id].to_owned();
-
+        let mut vafmap = BTreeMap::new();
+        for (name, id) in &tumor_ids {
+            let vafs = rec.format(b"AF").float()?[*id].to_owned();
+            vafmap.insert(name, vafs);
+        }
         if !is_valid_variant(&mut rec)? {
             info!(
                 "Skipping variant {}:{} because it is not coding.",
@@ -137,20 +155,23 @@ pub(crate) fn estimate(
                 continue 'records;
             }
         }
-        let vartypes = vartypes(&rec);
+        let vartypes = signatures(&rec);
 
         // push into TMB function
-        for i in 0..alt_allele_count {
-            let vaf = AlleleFreq(vafs[i] as f64);
-            let entry = tmb.entry(vaf).or_insert_with(Vec::new);
-            entry.push(Record {
-                prob: allele_probs[i],
-                vartype: vartypes[i],
-            });
+        for (tumor_name, _) in &tumor_ids {
+            for i in 0..alt_allele_count {
+                let vaf = AlleleFreq(vafmap.get(tumor_name).unwrap()[i] as f64);
+                let entry = tmb.entry(vaf).or_insert_with(Vec::new);
+                entry.push(RecordSig {
+                    prob: allele_probs[i],
+                    vartype: vartypes[i],
+                    sample: tumor_name.to_string()
+                });
+            }
         }
     }
-
     if tmb.is_empty() {
+        println!("Empty");
         return Err(errors::Error::NoRecordsFound.into());
     }
 
@@ -165,10 +186,16 @@ pub(crate) fn estimate(
             let mut blueprint = serde_json::from_str(blueprint)?;
             if let Value::Object(ref mut blueprint) = blueprint {
                 blueprint["data"]["values"] = data;
-                blueprint["vconcat"][0]["encoding"]["y"]["scale"]["domain"] =
-                    json!([cutpoint_tmb, max_tmb]);
-                blueprint["vconcat"][1]["encoding"]["y"]["scale"]["domain"] =
-                    json!([0.0, cutpoint_tmb]);
+                if cutpoint_tmb == max_tmb {
+                    blueprint["vconcat"][0]["encoding"]["y"]["scale"]["domain"] =
+                    json!([0.0, max_tmb]);
+                }
+                else {
+                    blueprint["vconcat"][0]["encoding"]["y"]["scale"]["domain"] =
+                        json!([cutpoint_tmb, max_tmb]);
+                    blueprint["vconcat"][1]["encoding"]["y"]["scale"]["domain"] =
+                        json!([0.0, cutpoint_tmb]);
+                }
                 // print to STDOUT
                 println!("{}", serde_json::to_string_pretty(blueprint)?);
                 Ok(())
@@ -180,6 +207,38 @@ pub(crate) fn estimate(
     let min_vafs = linspace(0.0, 1.0, 100).map(AlleleFreq);
 
     match mode {
+        PlotMode::Multibar => {
+            let mut plot_data = Vec::new();
+            let mut max_tmb = 0.0;
+            // calculate TMB function (expected number of somatic variants per minimum allele frequency)
+            let groups = tmb
+                .range(AlleleFreq(cutoff)..AlleleFreq(1.0))
+                .map(|(_, records)| records)
+                .flatten()
+                .map(|record| ((record.vartype, record.sample.clone()), record.prob))
+                .into_group_map();
+
+            for ((vartype, sample), probs) in groups {
+                let tmb = calc_tmb(&probs);
+                if tmb > max_tmb {
+                    max_tmb = tmb;
+                }
+
+                plot_data.push(TMBMultiBar {
+                    vaf: cutoff,
+                    tmb,
+                    vartype,
+                    sample
+                });
+            }
+            
+            print_plot(
+                json!(plot_data),
+                include_str!("../../templates/plots/vaf_multi_bar.json"),
+                max_tmb,
+                max_tmb,
+            )
+        },
         PlotMode::Hist => {
             let mut plot_data = Vec::new();
             // perform binning for histogram
@@ -218,7 +277,7 @@ pub(crate) fn estimate(
                 cutpoint_tmb,
                 max_tmb,
             )
-        }
+        },
         PlotMode::Curve => {
             let mut plot_data = Vec::new();
             let mut max_tmbs = Vec::new();
@@ -258,7 +317,7 @@ pub(crate) fn estimate(
                 max_tmb,
             )
         }
-    }
+    }       
 }
 
 #[derive(
@@ -319,6 +378,81 @@ pub(crate) enum Vartype {
     #[strum(serialize = "T>G")]
     #[serde(rename = "T>G")]
     TG,
+}
+
+#[derive(
+    Display,
+    Debug,
+    Clone,
+    Copy,
+    Serialize,
+    Deserialize,
+    EnumString,
+    EnumIter,
+    IntoStaticStr,
+    PartialEq,
+    Hash,
+    Eq,
+)]
+pub(crate) enum Signature {
+    DEL,
+    INS,
+    INV,
+    DUP,
+    BND,
+    MNV,
+    Complex,
+    #[strum(serialize = "C>A", serialize = "G>T")]
+    #[serde(rename = "C>A")]
+    CA,
+    #[strum(serialize = "C>G", serialize = "G>C")]
+    #[serde(rename = "C>G")]
+    CG,
+    #[strum(serialize = "C>T", serialize = "G>A")]
+    #[serde(rename = "C>T")]
+    CT,
+    #[strum(serialize = "T>A", serialize = "A>T")]
+    #[serde(rename = "T>A")]
+    TA,
+    #[strum(serialize = "T>C", serialize = "A>G")]
+    #[serde(rename = "T>C")]
+    TC,
+    #[strum(serialize = "T>G", serialize = "A>C")]
+    #[serde(rename = "T>G")]
+    TG,
+}
+
+pub(crate) fn signatures(record: &bcf::Record) -> Vec<Signature> {
+    let ref_allele = record.alleles()[0];
+    record.alleles()[1..]
+        .iter()
+        .map(|alt_allele| {
+            if alt_allele == b"<DEL>" {
+                Signature::DEL
+            } else if alt_allele == b"<INV>" {
+                Signature::INV
+            } else if alt_allele == b"<DUP>" {
+                Signature::DUP
+            } else if alt_allele == b"<BND>" {
+                Signature::BND
+            } else if ref_allele.len() == 1 && alt_allele.len() == 1 {
+                Signature::from_str(&format!(
+                    "{}>{}",
+                    str::from_utf8(ref_allele).unwrap(),
+                    str::from_utf8(alt_allele).unwrap()
+                ))
+                .unwrap()
+            } else if ref_allele.len() > 1 && alt_allele.len() == 1 {
+                Signature::DEL
+            } else if ref_allele.len() == 1 && alt_allele.len() > 1 {
+                Signature::INS
+            } else if ref_allele.len() == alt_allele.len() && ref_allele.len() > 1 {
+                Signature::MNV
+            } else {
+                Signature::Complex
+            }
+        })
+        .collect_vec()
 }
 
 pub(crate) fn vartypes(record: &bcf::Record) -> Vec<Vartype> {

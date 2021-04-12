@@ -284,9 +284,9 @@ pub enum EstimateKind {
         #[structopt(
             long = "tumor-sample",
             default_value = "tumor",
-            help = "Name of the tumor sample in the given VCF/BCF."
+            help = "Names of the tumor samples in the given VCF/BCF."
         )]
-        tumor_sample: String,
+        tumor_sample: Vec<String>,
         #[structopt(
             long = "coding-genome-size",
             default_value = "3e7",
@@ -296,9 +296,15 @@ pub enum EstimateKind {
         #[structopt(
             long = "plot-mode",
             possible_values = &estimation::tumor_mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec(),
-            help = "How to plot (as stratified curve or as histogram)."
+            help = "How to plot (as stratified curve, histogram or multi-sample barplot)."
         )]
         mode: estimation::tumor_mutational_burden::PlotMode,
+        #[structopt(
+            long = "vaf-cutoff",
+            default_value = "0.2",
+            help = "Minimal variant allelic fraction to consider for mutli-sample barplot"
+        )]
+        cutoff: f64,
     },
 }
 
@@ -917,11 +923,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 tumor_sample,
                 coding_genome_size,
                 mode,
-            } => estimation::tumor_mutational_burden::estimate(
+                cutoff,
+            } => estimation::tumor_mutational_burden::collect_estimates(
                 &somatic_tumor_events,
                 &tumor_sample,
                 coding_genome_size as u64,
                 mode,
+                cutoff as f64,
             )?,
         },
     }
