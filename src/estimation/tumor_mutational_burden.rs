@@ -63,7 +63,7 @@ struct TMBMultiBar {
     vaf: f64,
     tmb: f64,
     vartype: Signature,
-    sample: String
+    sample: String,
 }
 
 struct RecordSig {
@@ -88,7 +88,7 @@ struct RecordSig {
 pub enum PlotMode {
     Hist,
     Curve,
-    Multibar
+    Multibar,
 }
 
 pub(crate) fn collect_estimates(
@@ -165,7 +165,7 @@ pub(crate) fn collect_estimates(
                 entry.push(RecordSig {
                     prob: allele_probs[i],
                     vartype: vartypes[i],
-                    sample: tumor_name.to_string()
+                    sample: tumor_name.to_string(),
                 });
             }
         }
@@ -187,9 +187,8 @@ pub(crate) fn collect_estimates(
                 blueprint["data"]["values"] = data;
                 if cutpoint_tmb == max_tmb {
                     blueprint["vconcat"][0]["encoding"]["y"]["scale"]["domain"] =
-                    json!([0.0, max_tmb]);
-                }
-                else {
+                        json!([0.0, max_tmb]);
+                } else {
                     blueprint["vconcat"][0]["encoding"]["y"]["scale"]["domain"] =
                         json!([cutpoint_tmb, max_tmb]);
                     blueprint["vconcat"][1]["encoding"]["y"]["scale"]["domain"] =
@@ -227,17 +226,17 @@ pub(crate) fn collect_estimates(
                     vaf: cutoff,
                     tmb,
                     vartype,
-                    sample
+                    sample,
                 });
             }
-            
+
             print_plot(
                 json!(plot_data),
                 include_str!("../../templates/plots/vaf_multi_bar.json"),
                 max_tmb,
                 max_tmb,
             )
-        },
+        }
         PlotMode::Hist => {
             let mut plot_data = Vec::new();
             // perform binning for histogram
@@ -276,7 +275,7 @@ pub(crate) fn collect_estimates(
                 cutpoint_tmb,
                 max_tmb,
             )
-        },
+        }
         PlotMode::Curve => {
             let mut plot_data = Vec::new();
             let mut max_tmbs = Vec::new();
@@ -316,7 +315,7 @@ pub(crate) fn collect_estimates(
                 max_tmb,
             )
         }
-    }       
+    }
 }
 
 #[derive(
