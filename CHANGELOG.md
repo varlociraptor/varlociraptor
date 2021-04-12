@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [3.0.0] - 2021-04-12
+- Added a prior distribution that is fully configurable via the variant calling grammar, covering population genetics (heterozygosity), mendelian inheritance, and tumor evolution (Williams et al.).
+
 ## [2.6.5] - 2021-03-19
 - Fix posterior probabilities when having zero observations and no bias estimation
 
