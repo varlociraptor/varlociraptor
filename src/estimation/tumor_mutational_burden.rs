@@ -161,7 +161,9 @@ pub(crate) fn collect_estimates(
         for (tumor_name, _) in &tumor_ids {
             for i in 0..alt_allele_count {
                 // if all alt_alleles are NaN, the list will only contain one NaN, so check for size
-                if i == vafmap.get(tumor_name).unwrap().len() && vafmap.get(tumor_name).unwrap()[0].is_nan() {
+                if i == vafmap.get(tumor_name).unwrap().len()
+                    && vafmap.get(tumor_name).unwrap()[0].is_nan()
+                {
                     continue;
                 }
                 let vaf = vafmap.get(tumor_name).unwrap()[i] as f64;
