@@ -160,8 +160,12 @@ pub(crate) fn collect_estimates(
         // push into TMB function
         for (tumor_name, _) in &tumor_ids {
             for i in 0..alt_allele_count {
-                let vaf = AlleleFreq(vafmap.get(tumor_name).unwrap()[i] as f64);
-                let entry = tmb.entry(vaf).or_insert_with(Vec::new);
+                let vaf = vafmap.get(tumor_name).unwrap()[i] as f64;
+                if vaf.is_nan() {
+                    continue;
+                }
+                let allele_freq = AlleleFreq(vaf);
+                let entry = tmb.entry(allele_freq).or_insert_with(Vec::new);
                 entry.push(RecordSig {
                     prob: allele_probs[i],
                     vartype: vartypes[i],
