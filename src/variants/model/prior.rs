@@ -47,6 +47,7 @@ pub(crate) enum Inheritance {
     },
 }
 
+
 #[derive(Debug, TypedBuilder, Default, Clone)]
 pub(crate) struct Prior {
     uniform: grammar::SampleInfo<bool>,
@@ -58,7 +59,7 @@ pub(crate) struct Prior {
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
     genome_size: Option<f64>,
     #[builder(default)]
-    cache: RefCell<BTreeMap<Vec<likelihood::Event>, LogProb>>,
+    cache: RefCell<BTreeMap<Vec<AlleleFreq>, LogProb>>,
 }
 
 impl Prior {
@@ -707,13 +708,14 @@ impl bayesian::model::Prior for Prior {
     type Event = Vec<likelihood::Event>;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
-        if let Some(prob) = self.cache.borrow().get(event) {
-            dbg!("cache hit");
+        let key: Vec<_> = event.iter().map(|sample_event| sample_event.allele_freq).collect();
+
+        if let Some(prob) = self.cache.borrow().get(key) {
             return *prob;
         }
-        dbg!(("not cache miss", event));
+        dbg!(self.cache.len());
         let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
-        self.cache.borrow_mut().insert(event.to_owned(), prob);
+        self.cache.borrow_mut().insert(key, prob);
 
         prob
     }
