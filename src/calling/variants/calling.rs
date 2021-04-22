@@ -284,7 +284,6 @@ where
             self.call_record(&mut work_item, _model, &events);
 
             work_item.call.write_final_record(&mut bcf_writer)?;
-
             if (i + 1) % 100 == 0 {
                 info!("{} records processed.", i + 1);
             }
