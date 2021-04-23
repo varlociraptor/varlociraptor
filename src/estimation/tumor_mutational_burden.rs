@@ -39,29 +39,29 @@ fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool> {
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct TMB {
+struct MB {
     min_vaf: f64,
-    tmb: f64,
+    mb: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct TMBStrat {
+struct MBStrat {
     min_vaf: f64,
-    tmb: f64,
+    mb: f64,
     vartype: Signature,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct TMBBin {
+struct MBBin {
     vaf: f64,
-    tmb: f64,
+    mb: f64,
     vartype: Signature,
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct TMBMultiBar {
+struct MBMultiBar {
     vaf: f64,
-    tmb: f64,
+    mb: f64,
     vartype: Signature,
     sample: String,
 }
@@ -92,8 +92,8 @@ pub enum PlotMode {
 }
 
 pub(crate) fn collect_estimates(
-    somatic_tumor_events: &[String],
-    tumor_names: &[String],
+    mutational_events: &[String],
+    sample_names: &[String],
     coding_genome_size: u64,
     mode: PlotMode,
     cutoff: f64,
@@ -101,17 +101,17 @@ pub(crate) fn collect_estimates(
     let mut bcf = bcf::Reader::from_stdin()?;
     let header = bcf.header().to_owned();
 
-    let mut tumor_ids = BTreeMap::new();
+    let mut sample_ids = BTreeMap::new();
 
-    for t in tumor_names {
-        let tumor_id = bcf
+    for s in sample_names {
+        let sample_id = bcf
             .header()
-            .sample_id(t.as_bytes())
-            .unwrap_or_else(|| panic!("Sample {} not found", t));
-        tumor_ids.insert(t, tumor_id);
+            .sample_id(s.as_bytes())
+            .unwrap_or_else(|| panic!("Sample {} not found", s));
+        sample_ids.insert(s, sample_id);
     }
 
-    let mut tmb = BTreeMap::new();
+    let mut mb = BTreeMap::new();
     'records: loop {
         let mut rec = bcf.empty_record();
         match bcf.read(&mut rec) {
@@ -123,7 +123,7 @@ pub(crate) fn collect_estimates(
         let vcfpos = rec.pos() + 1;
         // obtain VAF estimates (do it here already to work around a segfault in htslib)
         let mut vafmap = BTreeMap::new();
-        for (name, id) in &tumor_ids {
+        for (name, id) in &sample_ids {
             let vafs = rec.format(b"AF").float()?[*id].to_owned();
             vafmap.insert(name, vafs);
         }
@@ -139,7 +139,7 @@ pub(crate) fn collect_estimates(
 
         // collect allele probabilities for given events
         let mut allele_probs = vec![LogProb::ln_zero(); alt_allele_count];
-        for e in somatic_tumor_events {
+        for e in mutational_events {
             let e = SimpleEvent { name: e.to_owned() };
             let tag_name = e.tag_name("PROB");
             if let Some(probs) = rec.info(tag_name.as_bytes()).float()? {
@@ -157,52 +157,52 @@ pub(crate) fn collect_estimates(
         }
         let vartypes = signatures(&rec);
 
-        // push into TMB function
-        for (tumor_name, _) in &tumor_ids {
+        // push into MB function
+        for (sample_name, _) in &sample_ids {
             for i in 0..alt_allele_count {
                 // if all alt_alleles are NaN, the list will only contain one NaN, so check for size
-                if i == vafmap.get(tumor_name).unwrap().len()
-                    && vafmap.get(tumor_name).unwrap()[0].is_nan()
+                if i == vafmap.get(sample_name).unwrap().len()
+                    && vafmap.get(sample_name).unwrap()[0].is_nan()
                 {
                     continue;
                 }
-                let vaf = vafmap.get(tumor_name).unwrap()[i] as f64;
+                let vaf = vafmap.get(sample_name).unwrap()[i] as f64;
                 if vaf.is_nan() {
                     continue;
                 }
                 let allele_freq = AlleleFreq(vaf);
-                let entry = tmb.entry(allele_freq).or_insert_with(Vec::new);
+                let entry = mb.entry(allele_freq).or_insert_with(Vec::new);
                 entry.push(RecordSig {
                     prob: allele_probs[i],
                     vartype: vartypes[i],
-                    sample: tumor_name.to_string(),
+                    sample: sample_name.to_string(),
                 });
             }
         }
     }
-    if tmb.is_empty() {
+    if mb.is_empty() {
         return Err(errors::Error::NoRecordsFound.into());
     }
 
-    let calc_tmb = |probs: &[LogProb]| -> f64 {
+    let calc_mb = |probs: &[LogProb]| -> f64 {
         let count = LogProb::ln_sum_exp(probs).exp();
         // Expected number of variants with VAF>=min_vaf per megabase.
         (count / coding_genome_size as f64) * 1000000.0
     };
 
     let print_plot =
-        |data: serde_json::Value, blueprint: &str, cutpoint_tmb: f64, max_tmb: f64| -> Result<()> {
+        |data: serde_json::Value, blueprint: &str, cutpoint_mb: f64, max_mb: f64| -> Result<()> {
             let mut blueprint = serde_json::from_str(blueprint)?;
             if let Value::Object(ref mut blueprint) = blueprint {
                 blueprint["data"]["values"] = data;
-                if cutpoint_tmb == max_tmb {
+                if cutpoint_mb == max_mb {
                     blueprint["vconcat"][0]["encoding"]["y"]["scale"]["domain"] =
-                        json!([0.0, max_tmb]);
+                        json!([0.0, max_mb]);
                 } else {
                     blueprint["vconcat"][0]["encoding"]["y"]["scale"]["domain"] =
-                        json!([cutpoint_tmb, max_tmb]);
+                        json!([cutpoint_mb, max_mb]);
                     blueprint["vconcat"][1]["encoding"]["y"]["scale"]["domain"] =
-                        json!([0.0, cutpoint_tmb]);
+                        json!([0.0, cutpoint_mb]);
                 }
                 // print to STDOUT
                 println!("{}", serde_json::to_string_pretty(blueprint)?);
@@ -217,9 +217,9 @@ pub(crate) fn collect_estimates(
     match mode {
         PlotMode::Multibar => {
             let mut plot_data = Vec::new();
-            let mut max_tmb = 0.0;
-            // calculate TMB function (expected number of somatic variants per minimum allele frequency)
-            let groups = tmb
+            let mut max_mb = 0.0;
+            // calculate mutational burden (mb) function (expected number of variants per minimum allele frequency)
+            let groups = mb
                 .range(AlleleFreq(cutoff)..AlleleFreq(1.0))
                 .map(|(_, records)| records)
                 .flatten()
@@ -227,14 +227,14 @@ pub(crate) fn collect_estimates(
                 .into_group_map();
 
             for ((vartype, sample), probs) in groups {
-                let tmb = calc_tmb(&probs);
-                if tmb > max_tmb {
-                    max_tmb = tmb;
+                let mb = calc_mb(&probs);
+                if mb > max_mb {
+                    max_mb = mb;
                 }
 
-                plot_data.push(TMBMultiBar {
+                plot_data.push(MBMultiBar {
                     vaf: cutoff,
-                    tmb,
+                    mb,
                     vartype,
                     sample,
                 });
@@ -243,56 +243,56 @@ pub(crate) fn collect_estimates(
             print_plot(
                 json!(plot_data),
                 include_str!("../../templates/plots/vaf_multi_bar.json"),
-                max_tmb,
-                max_tmb,
+                max_mb,
+                max_mb,
             )
         }
         PlotMode::Hist => {
             let mut plot_data = Vec::new();
             // perform binning for histogram
-            let mut max_tmbs = Vec::new();
-            let mut cutpoint_tmbs = Vec::new();
+            let mut max_mbs = Vec::new();
+            let mut cutpoint_mbs = Vec::new();
             for (i, center_vaf) in linspace(0.05, 0.95, 19).enumerate() {
-                let groups = tmb
+                let groups = mb
                     .range(AlleleFreq(center_vaf - 0.05)..AlleleFreq(center_vaf + 0.05))
                     .map(|(_, records)| records)
                     .flatten()
                     .map(|record| (record.vartype, record.prob))
                     .into_group_map();
                 for (vartype, probs) in groups {
-                    let tmb = calc_tmb(&probs);
+                    let mb = calc_mb(&probs);
                     if i == 0 {
-                        max_tmbs.push(tmb);
+                        max_mbs.push(mb);
                     }
                     // cutpoint beyond 15%
                     if i == 2 {
-                        cutpoint_tmbs.push(tmb);
+                        cutpoint_mbs.push(mb);
                     }
-                    plot_data.push(TMBBin {
+                    plot_data.push(MBBin {
                         vaf: center_vaf,
-                        tmb,
+                        mb,
                         vartype,
                     });
                 }
             }
 
-            let max_tmb: f64 = max_tmbs.iter().sum();
-            let cutpoint_tmb: f64 = cutpoint_tmbs.iter().sum();
+            let max_mb: f64 = max_mbs.iter().sum();
+            let cutpoint_mb: f64 = cutpoint_mbs.iter().sum();
 
             print_plot(
                 json!(plot_data),
                 include_str!("../../templates/plots/vaf_hist.json"),
-                cutpoint_tmb,
-                max_tmb,
+                cutpoint_mb,
+                max_mb,
             )
         }
         PlotMode::Curve => {
             let mut plot_data = Vec::new();
-            let mut max_tmbs = Vec::new();
-            let mut cutpoint_tmbs = Vec::new();
-            // calculate TMB function (expected number of somatic variants per minimum allele frequency)
+            let mut max_mbs = Vec::new();
+            let mut cutpoint_mbs = Vec::new();
+            // calculate MB function (expected number of variants per minimum allele frequency)
             for (i, min_vaf) in min_vafs.enumerate() {
-                let groups = tmb
+                let groups = mb
                     .range(min_vaf..)
                     .map(|(_, records)| records)
                     .flatten()
@@ -300,29 +300,29 @@ pub(crate) fn collect_estimates(
                     .into_group_map();
 
                 for (vartype, probs) in groups {
-                    let tmb = calc_tmb(&probs);
+                    let mb = calc_mb(&probs);
                     if i == 0 {
-                        max_tmbs.push(tmb);
+                        max_mbs.push(mb);
                     }
                     if i == 10 {
-                        cutpoint_tmbs.push(tmb);
+                        cutpoint_mbs.push(mb);
                     }
-                    plot_data.push(TMBStrat {
+                    plot_data.push(MBStrat {
                         min_vaf: *min_vaf,
-                        tmb,
+                        mb,
                         vartype,
                     });
                 }
             }
 
-            let max_tmb: f64 = max_tmbs.iter().sum();
-            let cutpoint_tmb: f64 = cutpoint_tmbs.iter().sum();
+            let max_mb: f64 = max_mbs.iter().sum();
+            let cutpoint_mb: f64 = cutpoint_mbs.iter().sum();
 
             print_plot(
                 json!(plot_data),
                 include_str!("../../templates/plots/vaf_curve_strat.json"),
-                cutpoint_tmb,
-                max_tmb,
+                cutpoint_mb,
+                max_mb,
             )
         }
     }
