@@ -16,13 +16,29 @@ use statrs::statistics::{OrderStatistics, Statistics};
 #[derive(Clone, Debug, Copy, Deserialize, Serialize)]
 pub(crate) struct AlignmentProperties {
     pub(crate) insert_size: Option<InsertSize>,
-    pub(crate) max_del_cigar_len: u32,
-    pub(crate) max_ins_cigar_len: u32,
+    max_del_cigar_len: u32,
+    max_ins_cigar_len: u32,
     pub(crate) frac_max_softclip: f64,
     pub(crate) max_read_len: u32,
 }
 
 impl AlignmentProperties {
+    pub(crate) fn max_del_cigar_len(&self) -> u32 {
+        if self.max_del_cigar_len == 0 {
+            20
+        } else {
+            self.max_del_cigar_len
+        }
+    }
+
+    pub(crate) fn max_ins_cigar_len(&self) -> u32 {
+        if self.max_ins_cigar_len == 0 {
+            20
+        } else {
+            self.max_ins_cigar_len
+        }
+    }
+
     /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
     /// was found in the cigar string.
     pub(crate) fn update_max_cigar_ops_len(

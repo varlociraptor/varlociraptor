@@ -76,7 +76,7 @@ impl<'a, R: Realigner> Realignable<'a> for Insertion<R> {
 impl<R: Realigner> SamplingBias for Insertion<R> {
     fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
         if let Some(len) = self.enclosable_len() {
-            if len < (alignment_properties.max_ins_cigar_len as u64) {
+            if len <= (alignment_properties.max_ins_cigar_len() as u64) {
                 return read_len;
             }
         }
