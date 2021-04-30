@@ -3,8 +3,9 @@ use std::cmp;
 use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
 use derive_builder::Builder;
-use itertools::Itertools;
+use itertools::{Itertools, MinMaxResult};
 use vec_map::VecMap;
+use itertools_num::linspace;
 
 use crate::grammar;
 use crate::utils::PROB_05;
@@ -55,7 +56,7 @@ pub(crate) struct GenericModelBuilder<P>
 where
     P: Prior<Event = Vec<likelihood::Event>>,
 {
-    resolutions: Option<grammar::SampleInfo<usize>>,
+    resolutions: Option<grammar::SampleInfo<grammar::Resolution>>,
     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
     prior: P,
 }
@@ -64,7 +65,7 @@ impl<P> GenericModelBuilder<P>
 where
     P: Prior<Event = Vec<likelihood::Event>>,
 {
-    pub(crate) fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
+    pub(crate) fn resolutions(mut self, resolutions: grammar::SampleInfo<grammar::Resolution>) -> Self {
         self.resolutions = Some(resolutions);
 
         self
@@ -102,21 +103,25 @@ where
 
 #[derive(new, Clone, Debug, Default)]
 pub(crate) struct GenericPosterior {
-    resolutions: grammar::SampleInfo<usize>,
+    resolutions: grammar::SampleInfo<grammar::Resolution>,
 }
 
 impl GenericPosterior {
-    fn grid_points(&self, pileups: &[Pileup]) -> Vec<usize> {
+    fn grid_points(&self, pileups: &[Pileup]) -> Vec<grammar::Resolution> {
         pileups
             .iter()
             .zip(self.resolutions.iter())
             .map(|(pileup, res)| {
-                let n_obs = pileup.len();
-                let mut n = cmp::min(cmp::max(n_obs + 1, 5), *res);
-                if n % 2 == 0 {
-                    n += 1;
+                if let grammar::Resolution::Uniform(res) = res {
+                    let n_obs = pileup.len();
+                    let mut n = cmp::min(cmp::max(n_obs + 1, 5), *res);
+                    if n % 2 == 0 {
+                        n += 1;
+                    }
+                    grammar::Resolution::Uniform(n)
+                } else {
+                    grammar::Resolution::Adaptive
                 }
-                n
             })
             .collect()
     }
@@ -125,7 +130,7 @@ impl GenericPosterior {
         &self,
         vaf_tree_node: &grammar::vaftree::Node,
         base_events: &mut VecMap<likelihood::Event>,
-        sample_grid_points: &[usize],
+        sample_grid_points: &[grammar::Resolution],
         data: &<Self as Posterior>::Data,
         biases: &Biases,
         joint_prob: &mut F,
@@ -194,16 +199,82 @@ impl GenericPosterior {
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
                         let n_obs = data.pileups[*sample].len();
-                        LogProb::ln_simpsons_integrate_exp(
-                            |_, vaf| {
-                                let mut base_events = base_events.clone();
-                                push_base_event(AlleleFreq(vaf), &mut base_events);
-                                subdensity(&mut base_events)
-                            },
-                            *vafs.observable_min(n_obs),
-                            *vafs.observable_max(n_obs),
-                            sample_grid_points[*sample],
-                        )
+                        let grid_points = sample_grid_points[*sample];
+                        let min_vaf = vafs.observable_min(n_obs);
+                        let max_vaf = vafs.observable_max(n_obs);
+                        let density = |vaf| {
+                            let mut base_events = base_events.clone();
+                            push_base_event(AlleleFreq(vaf), &mut base_events);
+                            subdensity(&mut base_events)
+                        };
+                        
+                        if let grammar::Resolution::Uniform(n) {
+                            LogProb::ln_simpsons_integrate_exp(
+                                |_, vaf| density,
+                                *min_vaf,
+                                *max_vaf,
+                                n,
+                            )
+                        } else {
+                            // select number of points such that step size is 0.01, at least 5
+                            let get_n = |min_vaf, max_vaf, step_size| {
+                                let n = cmp::max(((max_vaf - min_vaf) / step_size).round() as usize, 5);
+                                if n % 2 == 0 {
+                                    n + 1
+                                } else {
+                                    n
+                                }
+                            };
+                            let n = get_n(min_vaf, max_vaf, 0.01);
+
+                            // generate grid
+                            let grid_points: BTreeSet<_> = linspace(min_vaf, max_vaf, n).map(|vaf| AlleleFreq(vaf)).collect();
+                            
+                            // take 5 points for probing
+                            let probes: BTreeMap<_, _> = grid_points.iter().map(|vaf| (AlleleFreq(vaf), density(vaf))).collect();
+
+                            // get maximum probability
+                            if let Some((vaf, max_prob)) = probes.iter().max_by_key(|(_, prob)| prob) {
+                                // get standard deviation around max (binomial with n_obs, see paper)
+                                let stddev = 1.0 / n_obs * (n_obs * *vaf * (1.0 - *vaf)).sqrt();
+                                // get grid points enclosed by the stddev
+                                let std_range: Vec<_> = grid_points.range(AlleleFreq(cmp::max(0.0, *vaf - stddev))..AlleleFreq(cmp::min(*vaf + stddev, 1.0))).collect();
+
+                                let mut n = range.len();
+
+                                let probed_density = |_, vaf| {
+                                    // if already probed, reuse, otherwise calculate
+                                    probes.get(NotNan(vaf)).unwrap_or_else(|| {
+                                        density(vaf)
+                                    })
+                                };
+
+                                // integrate over standard deviation interval
+                                let std_prob = LogProb::ln_trapezoid_integrate_grid_exp(
+                                    probed_density,
+                                    &std_range
+                                );
+
+                                let range = grid_points.range(..std_range.first());
+                                let left_tail_prob = LogProb::ln_trapezoid_integrate_grid_exp(
+                                    probed_density,
+                                    range.step_by(range.len() / 3)
+                                );
+
+                                let right_tail_prob = LogProb::ln_trapezoid_integrate_grid_exp(
+                                    probed_density,
+                                    grid_points.range(std_range.last()..)
+                                );
+
+                                left_tail_prob + std_prob + right_tail_prob
+                            } else {
+                                panic!("bug: probes map is supposed to be non empty")
+                            }
+
+                            
+
+
+                        }
                     }
                 }
             }

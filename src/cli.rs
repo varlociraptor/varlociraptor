@@ -1018,7 +1018,7 @@ pub(crate) fn est_or_load_alignment_properties(
 struct SampleInfos {
     uniform_prior: grammar::SampleInfo<bool>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
-    resolutions: grammar::SampleInfo<usize>,
+    resolutions: grammar::SampleInfo<grammar::Resolution>,
     germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,

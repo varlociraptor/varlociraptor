@@ -314,8 +314,16 @@ impl Default for VariantTypeFraction {
     }
 }
 
-fn default_resolution() -> usize {
-    100
+fn default_resolution() -> Resolution {
+    Resolution::Adaptive
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub(crate) enum Resolution {
+    Uniform(usize),
+    #[serde(rename = "adaptive")]
+    Adaptive
 }
 
 #[derive(Deserialize, Getters)]
@@ -327,7 +335,7 @@ pub(crate) struct Sample {
     /// grid point resolution for integration over continuous allele frequency ranges
     #[serde(default = "default_resolution")]
     #[get = "pub(crate)"]
-    resolution: usize,
+    resolution: Resolution,
     /// possible VAFs of given sample
     #[serde(default)]
     #[get = "pub(crate)"]

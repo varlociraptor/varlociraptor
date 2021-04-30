@@ -47,7 +47,7 @@ where
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
-    resolutions: grammar::SampleInfo<usize>,
+    resolutions: grammar::SampleInfo<grammar::Resolution>,
     prior: Pr,
     breakend_index: BreakendIndex,
     #[builder(default)]
