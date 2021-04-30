@@ -24,7 +24,7 @@ candidate: 'candidates.vcf'
 
 
 
-purity: 1
+purity: 1.0
 
 
 # reference sequence
