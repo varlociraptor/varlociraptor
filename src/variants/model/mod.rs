@@ -25,7 +25,7 @@ pub(crate) struct Contamination {
     pub(crate) fraction: f64,
 }
 
-#[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub(crate) struct Event {
     pub(crate) name: String,
     pub(crate) vafs: grammar::VAFTree,

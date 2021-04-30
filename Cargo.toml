@@ -10,7 +10,7 @@ include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE", "te
 edition = "2018"
 
 [dependencies]
-bio = "0.33"
+bio = { git = "https://github.com/rust-bio/rust-bio.git", branch = "bayesian-model-hash" }
 bio-types = { version = "0.11", features = ["serde"] }
 rust-htslib = "0.36"
 log = "0.4"

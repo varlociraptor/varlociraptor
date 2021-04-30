@@ -3,7 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use bio::stats::{bayesian::model::Likelihood, LogProb};
 
@@ -13,10 +13,10 @@ use crate::variants::model::bias::Biases;
 use crate::variants::model::AlleleFreq;
 use crate::variants::sample::Pileup;
 
-pub(crate) type ContaminatedSampleCache = BTreeMap<ContaminatedSampleEvent, LogProb>;
-pub(crate) type SingleSampleCache = BTreeMap<Event, LogProb>;
+pub(crate) type ContaminatedSampleCache = HashMap<ContaminatedSampleEvent, LogProb>;
+pub(crate) type SingleSampleCache = HashMap<Event, LogProb>;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct Event {
     pub(crate) allele_freq: AlleleFreq,
     pub(crate) biases: Biases,
@@ -49,7 +49,7 @@ impl<T> ContaminatedSamplePairView<T> for Vec<T> {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct ContaminatedSampleEvent {
     pub(crate) primary: Event,
     pub(crate) secondary: Event,

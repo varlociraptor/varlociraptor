@@ -4,7 +4,7 @@ use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model::bias::Bias;
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter)]
+#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
 pub(crate) enum StrandBias {
     None,
     Forward,
