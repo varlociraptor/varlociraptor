@@ -16,31 +16,19 @@ use statrs::statistics::{OrderStatistics, Statistics};
 #[derive(Clone, Debug, Copy, Deserialize, Serialize)]
 pub(crate) struct AlignmentProperties {
     pub(crate) insert_size: Option<InsertSize>,
-    max_del_cigar_len: u32,
-    max_ins_cigar_len: u32,
-    pub(crate) frac_max_softclip: f64,
+    pub(crate) max_del_cigar_len: Option<u32>,
+    pub(crate) max_ins_cigar_len: Option<u32>,
+    pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
+    #[serde(default)]
+    initial: bool,
 }
 
 impl AlignmentProperties {
-    pub(crate) fn max_del_cigar_len(&self) -> u32 {
-        if self.max_del_cigar_len == 0 {
-            20
-        } else {
-            self.max_del_cigar_len
-        }
-    }
-
-    pub(crate) fn max_ins_cigar_len(&self) -> u32 {
-        if self.max_ins_cigar_len == 0 {
-            20
-        } else {
-            self.max_ins_cigar_len
-        }
-    }
-
     /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
     /// was found in the cigar string.
+    /// The argument `update_unknown` denotes whether unknown properties shall be updated as well.
+    /// This is only desired during initial estimation.
     pub(crate) fn update_max_cigar_ops_len(
         &mut self,
         record: &bam::Record,
@@ -54,17 +42,28 @@ impl AlignmentProperties {
             match *c {
                 Cigar::SoftClip(l) => {
                     let s = norm(l);
-                    self.frac_max_softclip =
-                        *cmp::max(s, NotNan::new(self.frac_max_softclip).unwrap());
+                    if let Some(ref mut maxclipfrac) = self.frac_max_softclip {
+                        *maxclipfrac = *cmp::max(s, NotNan::new(*maxclipfrac).unwrap())
+                    } else if self.initial {
+                        self.frac_max_softclip = Some(*s);
+                    }
                     is_regular = false;
                     has_soft_clip = true;
                 }
                 Cigar::Del(l) => {
-                    self.max_del_cigar_len = cmp::max(l, self.max_del_cigar_len);
+                    if let Some(ref mut maxlen) = self.max_del_cigar_len {
+                        *maxlen = cmp::max(l, *maxlen);
+                    } else if self.initial {
+                        self.max_del_cigar_len = Some(l);
+                    }
                     is_regular = false;
                 }
                 Cigar::Ins(l) => {
-                    self.max_ins_cigar_len = cmp::max(l, self.max_ins_cigar_len);
+                    if let Some(ref mut maxlen) = self.max_ins_cigar_len {
+                        *maxlen = cmp::max(l, *maxlen);
+                    } else if self.initial {
+                        self.max_ins_cigar_len = Some(l);
+                    }
                     is_regular = false;
                 }
                 Cigar::HardClip(_) if !allow_hardclips => {
@@ -86,10 +85,11 @@ impl AlignmentProperties {
     ) -> Result<Self> {
         let mut properties = AlignmentProperties {
             insert_size: None,
-            max_del_cigar_len: 0,
-            max_ins_cigar_len: 0,
-            frac_max_softclip: 0.0,
+            max_del_cigar_len: None,
+            max_ins_cigar_len: None,
+            frac_max_softclip: None,
             max_read_len: 0,
+            initial: true,
         };
 
         let mut record = bam::Record::new();
@@ -164,6 +164,16 @@ impl AlignmentProperties {
 
         properties.max_read_len = max_read_len;
 
+        if let None = properties.max_del_cigar_len {
+            warn!("No deletion CIGAR operations found in first 10000 alignments. Varlociraptor will be unable to estimate the sampling bias for deletions.");
+        }
+        if let None = properties.max_ins_cigar_len {
+            warn!("No deletion CIGAR operations found in first 10000 alignments. Varlociraptor will be unable to estimate the sampling bias for insertions.");
+        }
+
+        // Mark initial estimation as done.
+        properties.initial = false;
+
         if tlens.is_empty() {
             warn!(
                 "\nFound no records to use for estimating the insert size. Will assume\n\
@@ -235,9 +245,9 @@ mod tests {
         } else {
             panic!("test_estimate(): props.insert_size was None. Something is wrong, here.");
         }
-        assert_eq!(props.max_del_cigar_len, 30);
-        assert_eq!(props.max_ins_cigar_len, 12);
-        assert_eq!(props.frac_max_softclip, 0.63);
+        assert_eq!(props.max_del_cigar_len, Some(30));
+        assert_eq!(props.max_ins_cigar_len, Some(12));
+        assert_eq!(props.frac_max_softclip, Some(0.63));
     }
 
     #[test]
@@ -250,9 +260,9 @@ mod tests {
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
-        assert_eq!(props.max_del_cigar_len, 2);
-        assert_eq!(props.max_ins_cigar_len, 4);
-        assert_eq!(props.frac_max_softclip, 0.63);
+        assert_eq!(props.max_del_cigar_len, Some(2));
+        assert_eq!(props.max_ins_cigar_len, Some(4));
+        assert_eq!(props.frac_max_softclip, Some(0.63));
     }
 
     #[test]
@@ -267,8 +277,8 @@ mod tests {
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
-        assert_eq!(props.max_del_cigar_len, 0);
-        assert_eq!(props.max_ins_cigar_len, 0);
-        assert_eq!(props.frac_max_softclip, 0.03);
+        assert_eq!(props.max_del_cigar_len, None);
+        assert_eq!(props.max_ins_cigar_len, None);
+        assert_eq!(props.frac_max_softclip, Some(0.03));
     }
 }
