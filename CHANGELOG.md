@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [3.1.0] - 2021-05-04
+- Generalized TMB plots to mutational burden plots (not tumor specific). Added a multi-sample variant using barplots (@jafors).
+- Added testcase for and handling of missing CIGAR operation lenghts observations (@nh13, @dlaehnemann, @johanneskoester).
+- Use hash map instead of BTree for managing event space. This should result in some speed-up (@johanneskoester).
+- Fixed bugs with sex chromosome handling and prior distribution (@christopher-schroeder, @dawidkrzeciesa, @johanneskoester).
+
 ## [3.0.1] - 2021-04-22
 - Fixed a bug in the new prior implementation that led to almost infinite filling of a result cache, leading to a memory leak.
 
