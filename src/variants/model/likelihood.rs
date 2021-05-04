@@ -226,6 +226,12 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
                 prob + lh
             });
 
+            // dbg!(pileup);
+            // panic!("test");
+            // if *events.secondary.allele_freq == 0.0 {
+            //     dbg!((events, likelihood));
+            // }
+
             assert!(!likelihood.is_nan());
 
             cache.insert(event.clone(), likelihood);
