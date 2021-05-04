@@ -117,6 +117,7 @@ testcase!(test60, exact);
 testcase!(test61, exact);
 testcase!(test62, exact);
 testcase!(test63, exact);
+testcase!(test64, exact);
 testcase!(test_mendelian_prior, exact);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);

@@ -357,10 +357,13 @@ impl Prior {
                 germline_vafs
             };
 
-            if self.has_uniform_prior(sample) {
+            if let Some(0) = sample_ploidy {
+                // chromosome does not occur in sample (e.g. Y chromsome)
+                LogProb::ln_zero()
+            } else if self.has_uniform_prior(sample) {
                 // sample has a uniform prior
                 if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq) {
-                    // no explicit info about germline VAF
+                    // no explicit info about germline VAF, assume 0.0
                     let germline_vafs = push_vafs(AlleleFreq(0.0));
                     self.calc_prob(event, germline_vafs)
                 } else {
@@ -686,6 +689,14 @@ impl Prior {
             (p1, p2, c) if p1 % 2 == 0 && p2 % 2 == 0 && c == (p1 / 2 + p2 / 2) => {
                 // Default case, normal meiosis (child inherits one half from each parent).
                 prob_after_meiotic_split(p1 / 2, p2 / 2)
+            }
+            (p1, p2, c) if p1 % 2 == 0 && p2 == 1 && c == (p1 / 2 + p2) => {
+                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
+                prob_after_meiotic_split(p1 / 2, p2)
+            }
+            (p1, p2, c) if p1 == 1 && p2 % 2 == 0 && c == (p1 + p2 / 2) => {
+                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
+                prob_after_meiotic_split(p1, p2 / 2)
             }
             (p1, p2, c) => {
                 // something went wrong, there are more chromosomes in the child than in the parents
