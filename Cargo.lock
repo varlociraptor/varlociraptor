@@ -163,8 +163,9 @@ dependencies = [
 
 [[package]]
 name = "bio"
-version = "0.33.1-alpha.0"
-source = "git+https://github.com/rust-bio/rust-bio.git?branch=bayesian-model-hash#97f89087d067f280eaf3f022f8bc5541a3f21d31"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6499d92d6002444351fe273f820abadbd7165a039a474dab9f4ef611563e39a9"
 dependencies = [
  "anyhow",
  "approx",
