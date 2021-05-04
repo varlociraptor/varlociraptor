@@ -371,7 +371,14 @@ impl Sample {
         } else {
             let ploidy_derived_spectrum = |ploidy| -> BTreeSet<AlleleFreq> {
                 (0..=ploidy)
-                    .map(|n_alt| AlleleFreq(n_alt as f64 / ploidy as f64))
+                    .map(|n_alt| {
+                        if ploidy > 0 {
+                            AlleleFreq(n_alt as f64 / ploidy as f64)
+                        } else {
+                            assert_eq!(n_alt, 0);
+                            AlleleFreq(0.0)
+                        }
+                    })
                     .collect()
             };
             Ok(
