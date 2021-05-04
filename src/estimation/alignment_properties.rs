@@ -165,13 +165,22 @@ impl AlignmentProperties {
         properties.max_read_len = max_read_len;
 
         if properties.max_del_cigar_len.is_none() {
-            warn!("No deletion CIGAR operations found in first 10000 alignments. Varlociraptor will be unable to estimate the sampling bias for deletions.");
+            warn!(
+                "No deletion CIGAR operations found in first 10000 alignments. \
+                Varlociraptor will be unable to estimate the sampling bias for deletions."
+            );
         }
         if properties.max_ins_cigar_len.is_none() {
-            warn!("No deletion CIGAR operations found in first 10000 alignments. Varlociraptor will be unable to estimate the sampling bias for insertions.");
+            warn!(
+                "No deletion CIGAR operations found in first 10000 alignments. \
+                Varlociraptor will be unable to estimate the sampling bias for insertions."
+            );
         }
         if properties.frac_max_softclip.is_none() {
-            warn!("No softclip CIGAR operations found in the first 10000 alignments. Varlociraptor will be unable to estimate the sampling bias for larger indels.")
+            warn!(
+                "No softclip CIGAR operations found in the first 10000 alignments. \
+                Varlociraptor will be unable to estimate the sampling bias for larger indels."
+            )
         }
 
         // Mark initial estimation as done.
