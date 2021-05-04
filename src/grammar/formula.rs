@@ -1,5 +1,5 @@
 use std::cmp::{Ord, Ordering, PartialOrd};
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeSet, HashSet, VecDeque};
 
 use std::fmt;
 use std::ops;
@@ -14,7 +14,7 @@ use crate::errors;
 use crate::grammar::{ExpressionIdentifier, Scenario};
 use crate::variants::model::AlleleFreq;
 
-#[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct IUPAC(u8);
 
 impl IUPAC {
@@ -43,7 +43,7 @@ impl IUPAC {
 #[grammar = "grammar/formula.pest"]
 pub(crate) struct FormulaParser;
 
-#[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub(crate) enum Formula {
     Conjunction {
         operands: Vec<Formula>,
@@ -69,7 +69,7 @@ pub(crate) enum Formula {
     },
 }
 
-#[derive(PartialEq, PartialOrd, Ord, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub(crate) enum NormalizedFormula {
     Conjunction {
         operands: Vec<NormalizedFormula>,
@@ -268,7 +268,7 @@ impl Formula {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum VAFSpectrum {
     Set(BTreeSet<AlleleFreq>),
     Range(VAFRange),
@@ -289,7 +289,7 @@ impl VAFSpectrum {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder)]
+#[derive(Clone, Debug, PartialEq, Eq, TypedBuilder, Hash)]
 pub(crate) struct VAFRange {
     inner: ops::Range<AlleleFreq>,
     left_exclusive: bool,
@@ -442,7 +442,7 @@ impl PartialOrd for VAFRange {
 }
 
 #[derive(Debug, Clone, Default, Derefable)]
-pub(crate) struct VAFUniverse(#[deref(mutable)] BTreeSet<VAFSpectrum>);
+pub(crate) struct VAFUniverse(#[deref(mutable)] HashSet<VAFSpectrum>);
 
 impl VAFUniverse {
     pub(crate) fn contains(&self, vaf: AlleleFreq) -> bool {
@@ -482,7 +482,7 @@ impl<'de> de::Visitor<'de> for VAFUniverseVisitor {
         let res = FormulaParser::parse(Rule::universe, v);
         match res {
             Ok(pairs) => {
-                let mut operands = BTreeSet::new();
+                let mut operands = HashSet::new();
                 for pair in pairs {
                     match pair.as_rule() {
                         Rule::vaf => {

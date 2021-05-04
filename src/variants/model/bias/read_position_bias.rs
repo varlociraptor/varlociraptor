@@ -3,7 +3,7 @@ use bio::stats::probs::LogProb;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter)]
+#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
 pub(crate) enum ReadPositionBias {
     None,
     Some,

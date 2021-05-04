@@ -35,7 +35,7 @@ pub(crate) trait Bias {
     }
 }
 
-#[derive(Builder, CopyGetters, Getters, Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Builder, CopyGetters, Getters, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub(crate) struct Biases {
     #[getset(get = "pub(crate)")]
     strand_bias: StrandBias,
