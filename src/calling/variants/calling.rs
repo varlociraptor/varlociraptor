@@ -101,7 +101,7 @@ where
 
         // register sample specific tags
         header.push_record(
-            b"##FORMAT=<ID=DP,Number=A,Type=Integer,\
+            b"##FORMAT=<ID=DP,Number=1,Type=Integer,\
               Description=\"Expected sequencing depth, while considering mapping uncertainty\">",
         );
         header.push_record(
