@@ -7,7 +7,7 @@ use crate::errors;
 use crate::grammar::{formula::NormalizedFormula, formula::IUPAC, Scenario, VAFSpectrum};
 use crate::variants::model::AlleleFreq;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct VAFTree {
     inner: Vec<Node>,
 }
@@ -47,7 +47,7 @@ impl<'a> IntoIterator for &'a VAFTree {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum NodeKind {
     Variant {
         refbase: IUPAC,
@@ -60,7 +60,7 @@ pub(crate) enum NodeKind {
     },
 }
 
-#[derive(new, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Getters)]
+#[derive(new, Clone, Debug, PartialEq, Eq, Getters, Hash)]
 #[get = "pub"]
 pub(crate) struct Node {
     kind: NodeKind,

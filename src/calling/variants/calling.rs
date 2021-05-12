@@ -101,7 +101,7 @@ where
 
         // register sample specific tags
         header.push_record(
-            b"##FORMAT=<ID=DP,Number=A,Type=Integer,\
+            b"##FORMAT=<ID=DP,Number=1,Type=Integer,\
               Description=\"Expected sequencing depth, while considering mapping uncertainty\">",
         );
         header.push_record(
@@ -284,7 +284,6 @@ where
             self.call_record(&mut work_item, _model, &events);
 
             work_item.call.write_final_record(&mut bcf_writer)?;
-
             if (i + 1) % 100 == 0 {
                 info!("{} records processed.", i + 1);
             }

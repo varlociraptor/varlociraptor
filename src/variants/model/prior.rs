@@ -10,6 +10,7 @@ use bio::stats::{LogProb, Prob};
 use data_encoding::HEXUPPER;
 use itertools::Itertools;
 use itertools_num::linspace;
+use lru::LruCache;
 use ring::digest;
 use serde_json::{self, json, Value};
 use statrs::distribution::{self, Discrete};
@@ -47,7 +48,21 @@ pub(crate) enum Inheritance {
     },
 }
 
-#[derive(Debug, TypedBuilder, Default, Clone)]
+#[derive(Derefable, Debug)]
+pub struct Cache {
+    #[deref(mutable)]
+    inner: LruCache<Vec<AlleleFreq>, LogProb>,
+}
+
+impl Default for Cache {
+    fn default() -> Self {
+        Cache {
+            inner: LruCache::new(1000),
+        }
+    }
+}
+
+#[derive(Debug, TypedBuilder, Default)]
 pub(crate) struct Prior {
     uniform: grammar::SampleInfo<bool>,
     ploidies: Option<grammar::SampleInfo<Option<u32>>>,
@@ -58,7 +73,23 @@ pub(crate) struct Prior {
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
     genome_size: Option<f64>,
     #[builder(default)]
-    cache: RefCell<BTreeMap<Vec<likelihood::Event>, LogProb>>,
+    cache: RefCell<Cache>,
+}
+
+impl Clone for Prior {
+    fn clone(&self) -> Self {
+        Prior {
+            uniform: self.uniform.clone(),
+            ploidies: self.ploidies.clone(),
+            universe: self.universe.clone(),
+            germline_mutation_rate: self.germline_mutation_rate.clone(),
+            somatic_effective_mutation_rate: self.somatic_effective_mutation_rate.clone(),
+            heterozygosity: self.heterozygosity.clone(),
+            inheritance: self.inheritance.clone(),
+            genome_size: self.genome_size.clone(),
+            cache: RefCell::default(),
+        }
+    }
 }
 
 impl Prior {
@@ -326,10 +357,13 @@ impl Prior {
                 germline_vafs
             };
 
-            if self.has_uniform_prior(sample) {
+            if let Some(0) = sample_ploidy {
+                // chromosome does not occur in sample (e.g. Y chromsome)
+                LogProb::ln_zero()
+            } else if self.has_uniform_prior(sample) {
                 // sample has a uniform prior
                 if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq) {
-                    // no explicit info about germline VAF
+                    // no explicit info about germline VAF, assume 0.0
                     let germline_vafs = push_vafs(AlleleFreq(0.0));
                     self.calc_prob(event, germline_vafs)
                 } else {
@@ -656,6 +690,14 @@ impl Prior {
                 // Default case, normal meiosis (child inherits one half from each parent).
                 prob_after_meiotic_split(p1 / 2, p2 / 2)
             }
+            (p1, p2, c) if p1 % 2 == 0 && p2 == 1 && c == (p1 / 2 + p2) => {
+                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
+                prob_after_meiotic_split(p1 / 2, p2)
+            }
+            (p1, p2, c) if p1 == 1 && p2 % 2 == 0 && c == (p1 + p2 / 2) => {
+                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
+                prob_after_meiotic_split(p1, p2 / 2)
+            }
             (p1, p2, c) => {
                 // something went wrong, there are more chromosomes in the child than in the parents
                 // case 1: no separation in the first meiotic split (choose from all chromosomes of that parent)
@@ -707,12 +749,16 @@ impl bayesian::model::Prior for Prior {
     type Event = Vec<likelihood::Event>;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
-        if let Some(prob) = self.cache.borrow().get(event) {
+        let key: Vec<_> = event
+            .iter()
+            .map(|sample_event| sample_event.allele_freq)
+            .collect();
+
+        if let Some(prob) = self.cache.borrow_mut().get(&key) {
             return *prob;
         }
-
         let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
-        self.cache.borrow_mut().insert(event.to_owned(), prob);
+        self.cache.borrow_mut().put(key, prob);
 
         prob
     }

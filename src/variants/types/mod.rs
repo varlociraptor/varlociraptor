@@ -125,6 +125,11 @@ where
         let candidates: Vec<_> = buffer
             .iter()
             .filter_map(|record| {
+                // METHOD: First, we check whether the record contains an indel in the cigar.
+                // We store the maximum indel size to update the global estimates, in case
+                // it is larger in this region.
+                alignment_properties.update_max_cigar_ops_len(record.as_ref(), false);
+
                 let evidence = SingleEndEvidence::new(record);
                 if self
                     .is_valid_evidence(&evidence, alignment_properties)

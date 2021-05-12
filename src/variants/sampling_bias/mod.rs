@@ -14,7 +14,12 @@ pub(crate) use reads::ReadSamplingBias;
 
 pub(crate) trait SamplingBias: Variant {
     /// Number of bases that are feasible for overlapping the variant.
-    fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64;
+    /// Can return None if no information is available.
+    fn feasible_bases(
+        &self,
+        read_len: u64,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<u64>;
 
     fn enclosable_len(&self) -> Option<u64>;
 }
