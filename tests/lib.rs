@@ -128,6 +128,7 @@ testcase!(omit_sb, exact);
 testcase!(test_panel_overlap, exact);
 testcase!(test_panel_unknown_orientation_bias, exact);
 testcase!(issue_154, exact, fast);
+testcase!(test_low_cov_vaf, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
