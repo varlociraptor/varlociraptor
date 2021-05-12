@@ -1,3 +1,6 @@
+# a somatic variant that should be very uncertain, because the coverage is only 2.
+# TODO this is a perfect test case for allele frequency confidence intervals once they are implemented.
+
 expected:
   posteriors:
     # write down a list of expressions of the form
