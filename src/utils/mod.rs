@@ -88,10 +88,15 @@ pub(crate) struct GenomicLocus {
     pos: u32,
 }
 
-pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
+pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display, F, K>(
     items: impl Iterator<Item = T>,
     keep_order: bool,
-) -> String {
+    aux_sort: F,
+) -> String
+where
+    F: FnMut(&(T, usize)) -> K,
+    K: Ord,
+{
     if keep_order {
         join(
             items
@@ -112,6 +117,7 @@ pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
             items
                 .most_common()
                 .into_iter()
+                .sorted_by_key(aux_sort)
                 .map(|(item, count)| format!("{}{}", count, item)),
             "",
         )
