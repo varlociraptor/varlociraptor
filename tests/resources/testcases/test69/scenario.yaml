@@ -40,3 +40,4 @@ events:
   inherited: "!brain:0.0 & (!father:0.0 | !mother:0.0)"
   lost:      "brain:0.0 & (!father:0.0 | !mother:0.0)"
   mosaik_brain: "brain:]0.0,0.5[ & father:0.0 & mother:0.0"
+  otherwise: "brain:0.0 & father:0.0 & mother:0.0"

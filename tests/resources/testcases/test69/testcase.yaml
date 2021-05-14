@@ -1,11 +1,9 @@
+# real variant that occurs as mosaic in the blood but neither in the brain nor in the parents
+
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - blood > 0.0 && brain == 0.0 && father == 0.0 && mother == 0.0 
 
 # necessary bam files
 samples:
