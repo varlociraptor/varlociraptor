@@ -112,6 +112,7 @@ impl Call {
         let mut event_probs = HashMap::new();
         let mut allelefreq_estimates = VecMap::new();
         let mut observations = VecMap::new();
+        let mut simple_observations = VecMap::new();
         let mut obs_counts = VecMap::new();
         let mut strand_bias = VecMap::new();
         let mut read_orientation_bias = VecMap::new();
@@ -200,6 +201,42 @@ impl Call {
                             )
                         }),
                         false,
+                        |(item, count)| {
+                            if item.starts_with("N") {
+                                2
+                            } else if item.starts_with("E") {
+                                1
+                            } else {
+                                0
+                            }
+                        },
+                    ),
+                );
+
+                simple_observations.insert(
+                    i,
+                    utils::generalized_cigar(
+                        sample_info.observations.iter().map(|obs| {
+                            let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
+                            format!(
+                                "{}",
+                                if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
+                                    score.to_ascii_lowercase()
+                                } else {
+                                    score.to_ascii_uppercase()
+                                }
+                            )
+                        }),
+                        false,
+                        |(item, count)| {
+                            if item.starts_with("N") {
+                                2
+                            } else if item.starts_with("E") {
+                                1
+                            } else {
+                                0
+                            }
+                        },
                     ),
                 );
             }
@@ -291,10 +328,23 @@ impl Call {
                 .map(|rpb| vec![*rpb])
                 .collect_vec();
             record.push_format_string(b"RPB", &rpb)?;
+
+            let sobs = simple_observations
+                .values()
+                .map(|sample_obs| {
+                    if sample_obs.is_empty() {
+                        b"."
+                    } else {
+                        sample_obs.as_bytes()
+                    }
+                })
+                .collect_vec();
+            record.push_format_string(b"SOBS", &sobs)?;
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"SOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"ROB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;
