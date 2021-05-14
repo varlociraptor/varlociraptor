@@ -6,6 +6,7 @@ use std::ops;
 
 use anyhow::Result;
 use boolean_expression::Expr;
+use itertools::Itertools;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use serde::de;
@@ -69,6 +70,64 @@ pub(crate) enum FormulaTerminal {
     },
 }
 
+impl std::fmt::Display for Formula {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fmt_operand = |formula: &Formula| {
+            if formula.is_terminal() {
+                format!("{}", formula)
+            } else {
+                format!("({})", formula)
+            }
+        };
+
+        let formatted = match self {
+            Formula::Terminal(FormulaTerminal::Atom {
+                sample,
+                vafs: VAFSpectrum::Set(vafs),
+            }) => vafs.iter().map(|vaf| format!("sample:{}", vaf)).join("|"),
+            Formula::Terminal(FormulaTerminal::Atom {
+                sample,
+                vafs: VAFSpectrum::Range(vafrange),
+            }) => {
+                let left_bracket = if vafrange.left_exclusive { ']' } else { '[' };
+                let right_bracket = if vafrange.right_exclusive { '[' } else { ']' };
+                format!(
+                    "sample:{}{},{}{}",
+                    left_bracket, vafrange.start, vafrange.end, right_bracket
+                )
+            }
+            Formula::Terminal(FormulaTerminal::Variant {
+                positive,
+                refbase,
+                altbase,
+            }) => {
+                format!(
+                    "{negate}({refbase}>{altbase})",
+                    negate = if *positive { "" } else { "!" },
+                    refbase = **refbase,
+                    altbase = **altbase,
+                )
+            }
+            Formula::Terminal(FormulaTerminal::Expression {
+                identifier,
+                negated,
+            }) => {
+                format!(
+                    "{negate}${expr}",
+                    negate = if *negated { "!" } else { "" },
+                    expr = **identifier
+                )
+            }
+            Formula::Negation { operand } => {
+                format!("!{operand}", operand = fmt_operand(operand))
+            }
+            Formula::Conjunction { operands } => operands.iter().map(&fmt_operand).join(" & "),
+            Formula::Disjunction { operands } => operands.iter().map(&fmt_operand).join(" | "),
+        };
+        write!(f, "{}", formatted)
+    }
+}
+
 impl From<Expr<FormulaTerminal>> for Formula {
     fn from(expr: Expr<FormulaTerminal>) -> Self {
         match expr {
@@ -130,6 +189,14 @@ pub(crate) enum NormalizedFormula {
 }
 
 impl Formula {
+    pub(crate) fn is_terminal(&self) -> bool {
+        if let Formula::Terminal(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
     /// Generate formula representing the absent event
     pub(crate) fn absent(scenario: &Scenario) -> Self {
         Formula::Conjunction {

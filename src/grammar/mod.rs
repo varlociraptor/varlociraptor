@@ -166,9 +166,15 @@ impl Scenario {
         // expand and simplify expressions
         let mut simplified_events = BTreeMap::new();
         for (name, formula) in scenario.events.iter() {
+            let before = format!("{}", formula);
             let expanded_formula = formula.expand_expressions(&scenario)?;
             if let Some(simplified_formula) = expanded_formula.simplify() {
+                let after = format!("{}", simplified_formula);
                 simplified_events.insert(name.to_owned(), simplified_formula);
+
+                if before != after {
+                    info!("Expanded and simplified event {} into:\n{}", name, after);
+                }
             } else {
                 Err(errors::Error::UnsatisfiableEventFormula {
                     name: name.to_owned(),
