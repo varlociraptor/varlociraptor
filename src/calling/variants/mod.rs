@@ -201,7 +201,15 @@ impl Call {
                             )
                         }),
                         false,
-                        |(item, count)| if item.starts_with("N") { 1 } else { 0 },
+                        |(item, count)| {
+                            if item.starts_with("N") {
+                                2
+                            } else if item.starts_with("E") {
+                                1
+                            } else {
+                                0
+                            }
+                        },
                     ),
                 );
 
@@ -220,7 +228,15 @@ impl Call {
                             )
                         }),
                         false,
-                        |(item, count)| if item.starts_with("N") { 1 } else { 0 },
+                        |(item, count)| {
+                            if item.starts_with("N") {
+                                2
+                            } else if item.starts_with("E") {
+                                1
+                            } else {
+                                0
+                            }
+                        },
                     ),
                 );
             }
