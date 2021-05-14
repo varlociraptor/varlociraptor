@@ -5,6 +5,7 @@ use std::fmt;
 use std::ops;
 
 use anyhow::Result;
+use boolean_expression::Expr;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use serde::de;
@@ -45,15 +46,14 @@ pub(crate) struct FormulaParser;
 
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub(crate) enum Formula {
-    Conjunction {
-        operands: Vec<Formula>,
-    },
-    Disjunction {
-        operands: Vec<Formula>,
-    },
-    Negation {
-        operand: Box<Formula>,
-    },
+    Conjunction { operands: Vec<Formula> },
+    Disjunction { operands: Vec<Formula> },
+    Negation { operand: Box<Formula> },
+    Terminal(FormulaTerminal),
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub(crate) enum FormulaTerminal {
     Atom {
         sample: String,
         vafs: VAFSpectrum,
@@ -67,6 +67,47 @@ pub(crate) enum Formula {
         identifier: ExpressionIdentifier,
         negated: bool,
     },
+}
+
+impl From<Expr<FormulaTerminal>> for Formula {
+    fn from(expr: Expr<FormulaTerminal>) -> Self {
+        match expr {
+            Expr::Terminal(terminal) => Formula::Terminal(terminal),
+            Expr::Not(a) => Formula::Negation {
+                operand: Box::new((*a).into()),
+            },
+            Expr::And(a, b) => Formula::Conjunction {
+                operands: vec![(*a).into(), (*b).into()],
+            },
+            Expr::Or(a, b) => Formula::Disjunction {
+                operands: vec![(*a).into(), (*b).into()],
+            },
+            _ => panic!("bug: unexpected boolean expression containing constant"),
+        }
+    }
+}
+
+impl Into<Expr<FormulaTerminal>> for Formula {
+    fn into(self) -> Expr<FormulaTerminal> {
+        match self {
+            Formula::Terminal(terminal) => Expr::Terminal(terminal),
+            Formula::Conjunction { mut operands } => {
+                let mut expr = operands.pop().unwrap().into();
+                for operand in operands {
+                    expr &= operand.into();
+                }
+                expr
+            }
+            Formula::Disjunction { mut operands } => {
+                let mut expr = operands.pop().unwrap().into();
+                for operand in operands {
+                    expr |= operand.into();
+                }
+                expr
+            }
+            Formula::Negation { operand } => Expr::Not(Box::new((*operand).into())),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
@@ -89,8 +130,79 @@ pub(crate) enum NormalizedFormula {
 }
 
 impl Formula {
+    /// Generate formula representing the absent event
+    pub(crate) fn absent(scenario: &Scenario) -> Self {
+        Formula::Conjunction {
+            operands: scenario
+                .samples()
+                .keys()
+                .map(|sample| {
+                    Formula::Terminal(FormulaTerminal::Atom {
+                        sample: sample.to_owned(),
+                        vafs: VAFSpectrum::singleton(AlleleFreq(0.0)),
+                    })
+                })
+                .collect(),
+        }
+    }
+
+    pub(crate) fn expand_expressions(&self, scenario: &Scenario) -> Result<Self> {
+        Ok(match self {
+            Formula::Conjunction { operands } => Formula::Conjunction {
+                operands: operands
+                    .iter()
+                    .map(|operand| operand.expand_expressions(scenario))
+                    .collect::<Result<Vec<_>>>()?,
+            },
+            Formula::Disjunction { operands } => Formula::Disjunction {
+                operands: operands
+                    .iter()
+                    .map(|operand| operand.expand_expressions(scenario))
+                    .collect::<Result<Vec<_>>>()?,
+            },
+            Formula::Negation { operand } => Formula::Negation {
+                operand: Box::new(operand.expand_expressions(scenario)?),
+            },
+            Formula::Terminal(terminal) => {
+                if let FormulaTerminal::Expression {
+                    identifier,
+                    negated,
+                } = terminal
+                {
+                    if let Some(formula) = scenario.expressions().get(identifier) {
+                        if *negated {
+                            Formula::Negation {
+                                operand: Box::new(formula.clone()),
+                            }
+                        } else {
+                            formula.clone()
+                        }
+                    } else {
+                        Err(errors::Error::UndefinedExpression {
+                            identifier: identifier.to_string(),
+                        })?;
+                        unreachable!();
+                    }
+                } else {
+                    Formula::Terminal(terminal.clone())
+                }
+            }
+        })
+    }
+
+    /// Simplify formula via a BDD
+    pub(crate) fn simplify(self) -> Option<Self> {
+        let expr: Expr<FormulaTerminal> = self.into();
+        let simplified = expr.simplify_via_bdd();
+        if simplified == Expr::Const(false) {
+            None
+        } else {
+            Some(simplified.into())
+        }
+    }
+
     /// Negate formula.
-    pub(crate) fn negate(&self, scenario: &Scenario, contig: &str) -> Result<Formula> {
+    pub(crate) fn negate(&self, scenario: &Scenario, contig: &str) -> Result<Self> {
         Ok(match self {
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
@@ -105,23 +217,23 @@ impl Formula {
                     .collect::<Result<Vec<Formula>>>()?,
             },
             Formula::Negation { operand } => operand.as_ref().clone(),
-            &Formula::Variant {
+            &Formula::Terminal(FormulaTerminal::Variant {
                 positive,
                 refbase,
                 altbase,
-            } => Formula::Variant {
+            }) => Formula::Terminal(FormulaTerminal::Variant {
                 positive: !positive,
                 refbase,
                 altbase,
-            },
-            Formula::Expression {
+            }),
+            Formula::Terminal(FormulaTerminal::Expression {
                 identifier,
                 negated,
-            } => Formula::Expression {
+            }) => Formula::Terminal(FormulaTerminal::Expression {
                 identifier: identifier.clone(),
                 negated: !negated,
-            },
-            Formula::Atom { sample, vafs } => {
+            }),
+            Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => {
                 let universe = scenario
                     .samples()
                     .get(sample)
@@ -205,9 +317,11 @@ impl Formula {
                 Formula::Disjunction {
                     operands: disjunction
                         .into_iter()
-                        .map(|vafs| Formula::Atom {
-                            sample: sample.clone(),
-                            vafs,
+                        .map(|vafs| {
+                            Formula::Terminal(FormulaTerminal::Atom {
+                                sample: sample.clone(),
+                                vafs,
+                            })
                         })
                         .collect(),
                 }
@@ -220,7 +334,7 @@ impl Formula {
             Formula::Negation { operand } => operand
                 .negate(scenario, contig)?
                 .normalize(scenario, contig)?,
-            Formula::Atom { sample, vafs } => NormalizedFormula::Atom {
+            Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => NormalizedFormula::Atom {
                 sample: sample.to_owned(),
                 vafs: vafs.to_owned(),
             },
@@ -236,33 +350,20 @@ impl Formula {
                     .map(|o| Ok(o.normalize(scenario, contig)?))
                     .collect::<Result<Vec<NormalizedFormula>>>()?,
             },
-            &Formula::Variant {
+            &Formula::Terminal(FormulaTerminal::Variant {
                 positive,
                 refbase,
                 altbase,
-            } => NormalizedFormula::Variant {
+            }) => NormalizedFormula::Variant {
                 positive,
                 refbase,
                 altbase,
             },
-            &Formula::Expression {
+            &Formula::Terminal(FormulaTerminal::Expression {
                 ref identifier,
                 negated,
-            } => {
-                if let Some(formula) = scenario.expressions().get(identifier) {
-                    if negated {
-                        formula
-                            .negate(scenario, contig)?
-                            .normalize(scenario, contig)?
-                    } else {
-                        formula.normalize(scenario, contig)?
-                    }
-                } else {
-                    Err(errors::Error::UndefinedExpression {
-                        identifier: identifier.to_string(),
-                    })?;
-                    unreachable!();
-                }
+            }) => {
+                panic!("bug: expressions should be expanded before normalization");
             }
         })
     }
@@ -574,36 +675,36 @@ where
         Rule::expression => {
             let mut inner = pair.into_inner();
             let identifier = inner.next().unwrap().as_str();
-            Formula::Expression {
+            Formula::Terminal(FormulaTerminal::Expression {
                 identifier: ExpressionIdentifier(identifier.to_owned()),
                 negated: false,
-            }
+            })
         }
         Rule::variant => {
             let mut inner = pair.into_inner();
             let refbase = inner.next().unwrap().as_str().as_bytes()[0];
             let altbase = inner.next().unwrap().as_str().as_bytes()[0];
-            Formula::Variant {
+            Formula::Terminal(FormulaTerminal::Variant {
                 refbase: IUPAC(refbase),
                 altbase: IUPAC(altbase),
                 positive: true,
-            }
+            })
         }
         Rule::sample_vaf => {
             let mut inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
-            Formula::Atom {
+            Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: parse_vaf(inner.next().unwrap()),
-            }
+            })
         }
         Rule::sample_vafrange => {
             let mut inner = pair.into_inner();
             let sample = inner.next().unwrap().as_str().to_owned();
-            Formula::Atom {
+            Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: parse_vafrange(inner.next().unwrap().into_inner()),
-            }
+            })
         }
         Rule::conjunction => {
             let inner = pair.into_inner();

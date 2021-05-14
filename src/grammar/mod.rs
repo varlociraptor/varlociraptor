@@ -146,7 +146,38 @@ impl Scenario {
         let mut scenario_content = String::new();
         File::open(path)?.read_to_string(&mut scenario_content)?;
 
-        Ok(serde_yaml::from_str(&scenario_content)?)
+        let mut scenario: Self = serde_yaml::from_str(&scenario_content)?;
+
+        let mut event_expressions = HashMap::new();
+
+        // register all events as expressions
+        for (name, formula) in scenario.events() {
+            let identifier = ExpressionIdentifier(name.clone());
+            if !scenario.expressions().contains_key(&identifier) {
+                event_expressions.insert(identifier, formula.clone());
+            }
+        }
+        let absent_identifier = ExpressionIdentifier("absent".to_owned());
+        if !scenario.expressions.contains_key(&absent_identifier) {
+            event_expressions.insert(absent_identifier, Formula::absent(&scenario));
+        }
+        scenario.expressions.extend(event_expressions);
+
+        // expand and simplify expressions
+        let mut simplified_events = BTreeMap::new();
+        for (name, formula) in scenario.events.iter() {
+            let expanded_formula = formula.expand_expressions(&scenario)?;
+            if let Some(simplified_formula) = expanded_formula.simplify() {
+                simplified_events.insert(name.to_owned(), simplified_formula);
+            } else {
+                Err(errors::Error::UnsatisfiableEventFormula {
+                    name: name.to_owned(),
+                })?
+            }
+        }
+        scenario.events = simplified_events;
+
+        Ok(scenario)
     }
 
     pub(crate) fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
