@@ -62,4 +62,6 @@ pub(crate) enum Error {
     InvalidReadOrientationInfo { value: String },
     #[error("event {name} is unsatisfiable: check whether it is defined as intended, if you are sure, it should be removed because it can never become true. This can e.g. happen if the event is a negation of other events that span the entire set of possibilites.")]
     UnsatisfiableEventFormula { name: String },
+    #[error("formula is unsatisfiable")]
+    UnsatisfiableFormula,
 }
