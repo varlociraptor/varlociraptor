@@ -179,7 +179,7 @@ dependencies = [
  "fnv",
  "fxhash",
  "getset 0.0.9",
- "itertools 0.8.2",
+ "itertools 0.9.0",
  "itertools-num",
  "lazy_static 1.4.0",
  "multimap",
@@ -1127,6 +1127,15 @@ name = "itertools"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37d572918e350e82412fe766d24b15e6682fb2ed2bbe018280caa810397cb319"
 dependencies = [
  "either",
 ]
@@ -2638,7 +2647,7 @@ dependencies = [
  "getset 0.1.1",
  "half",
  "hyper",
- "itertools 0.8.2",
+ "itertools 0.10.0",
  "itertools-num",
  "jemallocator",
  "lazy_static 1.4.0",

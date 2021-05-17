@@ -83,12 +83,12 @@ impl FormulaTerminal {
                     vafs: vafs_b,
                 },
             ) if sample_a == sample_b => {
-                match (vafs_a, vafs_b) {
-                    (VAFSpectrum::Range(ref mut a), VAFSpectrum::Range(b)) => {
+                match (&vafs_a, &vafs_b) {
+                    (VAFSpectrum::Range(a), VAFSpectrum::Range(b)) => {
                         match a.overlap(b) {
                             VAFRangeOverlap::None => *vafs_a = VAFSpectrum::empty(),
-                            VAFRangeOverlap::Contains => (), // nothing to do
-                            VAFRangeOverlap::Contained => *vafs_a = vafs_b,
+                            VAFRangeOverlap::Contains | VAFRangeOverlap::Equal => (), // nothing to do
+                            VAFRangeOverlap::Contained => *vafs_a = vafs_b.clone(),
                             VAFRangeOverlap::Start => {
                                 *vafs_a = VAFSpectrum::Range(VAFRange {
                                     inner: b.start..a.end,
@@ -106,15 +106,17 @@ impl FormulaTerminal {
                         }
                     }
                     (VAFSpectrum::Range(a), VAFSpectrum::Set(b)) => {
-                        *vafs_a =
-                            VAFSpectrum::Set(b.iter().filter_map(|vaf| a.contains(b)).collect());
+                        *vafs_a = VAFSpectrum::Set(
+                            b.iter().filter(|vaf| a.contains(**vaf)).cloned().collect(),
+                        );
                     }
                     (VAFSpectrum::Set(a), VAFSpectrum::Range(b)) => {
-                        *vafs_a =
-                            VAFSpectrum::Set(a.iter().filter_map(|vaf| b.contains(a)).collect());
+                        *vafs_a = VAFSpectrum::Set(
+                            a.iter().filter(|vaf| b.contains(**vaf)).cloned().collect(),
+                        );
                     }
                     (VAFSpectrum::Set(a), VAFSpectrum::Set(b)) => {
-                        *vafs_a = VAFSpectrum::Set(a.intersect(b));
+                        *vafs_a = VAFSpectrum::Set(a.intersection(b).cloned().collect());
                     }
                 }
             }
@@ -303,31 +305,41 @@ impl Into<Expr<FormulaTerminal>> for Formula {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Hash)]
-pub(crate) enum NormalizedFormula {
-    Conjunction {
-        operands: Vec<NormalizedFormula>,
-    },
-    Disjunction {
-        operands: Vec<NormalizedFormula>,
-    },
-    Atom {
-        sample: String,
-        vafs: VAFSpectrum,
-    },
-    Variant {
-        positive: bool,
-        refbase: IUPAC,
-        altbase: IUPAC,
-    },
-}
-
 impl Formula {
     pub(crate) fn is_terminal(&self) -> bool {
         if let Formula::Terminal(_) = self {
             true
         } else {
             false
+        }
+    }
+
+    pub(crate) fn to_terminal(&self) -> Option<&FormulaTerminal> {
+        if let Formula::Terminal(terminal) = self {
+            Some(terminal)
+        } else {
+            None
+        }
+    }
+
+    /// Return true if this formula is a terminal that is always false (an empty VAF set).
+    pub(crate) fn is_terminal_false(&self) -> bool {
+        if let Formula::Terminal(FormulaTerminal::Atom {
+            vafs: VAFSpectrum::Set(vafs),
+            ..
+        }) = self
+        {
+            vafs.is_empty()
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn into_terminal(self) -> Option<FormulaTerminal> {
+        if let Formula::Terminal(terminal) = self {
+            Some(terminal)
+        } else {
+            None
         }
     }
 
@@ -350,12 +362,14 @@ impl Formula {
     pub(crate) fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
         // Expand all expressions and move negations down to atoms. Then, simplify via BDDs,
         // merge atoms (VAF intervals) of same sample in the same conjuction, and simplify again.
-        self.expand_expressions(scenario)?
+        let mut simplified = self
+            .expand_expressions(scenario)?
             .apply_negations(scenario, contig)?
             .simplify()?
             .merge_atoms()
-            .simplify()
-            .into_normalized_formula()
+            .simplify()?;
+        simplified.strip_false();
+        Ok(simplified.into_normalized_formula())
     }
 
     fn expand_expressions(&self, scenario: &Scenario) -> Result<Self> {
@@ -408,17 +422,17 @@ impl Formula {
                 sample: sample.to_owned(),
                 vafs: vafs.to_owned(),
             },
-            Formula::Conjunction { operands } => Formula::Conjunction {
+            Formula::Conjunction { operands } => NormalizedFormula::Conjunction {
                 operands: operands
                     .iter()
                     .map(|o| o.into_normalized_formula())
                     .collect(),
             },
-            Formula::Disjunction { operands } => Formula::Disjunction {
+            Formula::Disjunction { operands } => NormalizedFormula::Disjunction {
                 operands: operands
                     .iter()
                     .map(|o| o.into_normalized_formula())
-                    .collect::<Result<Vec<Formula>>>()?,
+                    .collect(),
             },
             &Formula::Terminal(FormulaTerminal::Variant {
                 positive,
@@ -445,9 +459,9 @@ impl Formula {
         match self {
             Formula::Conjunction { operands } => {
                 // collect statements per sample
-                let grouped_operands = operands.iter().into_group_map_by(|operand| {
-                    if let NormalizedFormula::Atom { sample, vafs } = operand {
-                        Some(sample)
+                let mut grouped_operands = operands.iter().cloned().into_group_map_by(|operand| {
+                    if let Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) = operand {
+                        Some(sample.to_owned())
                     } else {
                         // group all non-atoms together
                         None
@@ -457,27 +471,50 @@ impl Formula {
                 // merge atoms of the same sample
                 for (sample, statements) in &mut grouped_operands {
                     if let Some(sample) = sample {
-                        let mut merged_statement = statements.pop();
-                        for statement in statements {
-                            merged_statement.merge(statement);
+                        let mut merged_statement =
+                            statements.pop().unwrap().into_terminal().unwrap();
+                        for statement in statements.iter() {
+                            merged_statement.merge(statement.to_terminal().unwrap());
                         }
-                        *statements = vec![merged_statement];
+                        *statements = vec![Formula::Terminal(merged_statement)];
                     } else {
                         continue;
                     }
                 }
 
                 Formula::Conjunction {
-                    operands: grouped_operands.values().flatten().collect(),
+                    operands: grouped_operands
+                        .into_iter()
+                        .map(|(_, statements)| statements)
+                        .flatten()
+                        .collect(),
                 }
             }
             Formula::Disjunction { operands } => Formula::Disjunction {
                 operands: operands.iter().map(|o| o.merge_atoms()).collect(),
             },
             Formula::Negation { operand } => Formula::Negation {
-                operand: operand.merge_atoms(),
+                operand: Box::new(operand.merge_atoms()),
             },
             terminal => terminal.clone(),
+        }
+    }
+
+    fn strip_false(&mut self) {
+        if let Formula::Disjunction { ref mut operands } = self {
+            *operands = operands
+                .iter()
+                .filter(|operand| {
+                    if operand.is_terminal_false() {
+                        false
+                    } else if let Formula::Conjunction { operands } = operand {
+                        !operands.iter().any(|operand| operand.is_terminal_false())
+                    } else {
+                        true
+                    }
+                })
+                .cloned()
+                .collect();
         }
     }
 
@@ -627,7 +664,7 @@ impl Formula {
         Ok(match self {
             Formula::Negation { operand } => operand
                 .negate(scenario, contig)?
-                .normalize(scenario, contig)?,
+                .apply_negations(scenario, contig)?,
             Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => {
                 Formula::Terminal(FormulaTerminal::Atom {
                     sample: sample.to_owned(),
@@ -637,7 +674,7 @@ impl Formula {
             Formula::Conjunction { operands } => {
                 let operands = operands
                     .iter()
-                    .map(|o| Ok(o.normalize(scenario, contig)?))
+                    .map(|o| Ok(o.apply_negations(scenario, contig)?))
                     .collect::<Result<Vec<Formula>>>()?;
 
                 Formula::Conjunction { operands }
@@ -645,7 +682,7 @@ impl Formula {
             Formula::Disjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Ok(o.normalize(scenario, contig)?))
+                    .map(|o| Ok(o.apply_negations(scenario, contig)?))
                     .collect::<Result<Vec<Formula>>>()?,
             },
             &Formula::Terminal(FormulaTerminal::Variant {
@@ -664,6 +701,85 @@ impl Formula {
                 panic!("bug: expressions should be expanded before applying negations");
             }
         })
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub(crate) enum NormalizedFormula {
+    Conjunction {
+        operands: Vec<NormalizedFormula>,
+    },
+    Disjunction {
+        operands: Vec<NormalizedFormula>,
+    },
+    Atom {
+        sample: String,
+        vafs: VAFSpectrum,
+    },
+    Variant {
+        positive: bool,
+        refbase: IUPAC,
+        altbase: IUPAC,
+    },
+}
+
+impl std::fmt::Display for NormalizedFormula {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let fmt_operand = |formula: &NormalizedFormula| match formula {
+            NormalizedFormula::Atom { .. } | NormalizedFormula::Variant { .. } => {
+                format!("{}", formula)
+            }
+            _ => format!("({})", formula),
+        };
+
+        let formatted = match self {
+            NormalizedFormula::Atom {
+                sample,
+                vafs: VAFSpectrum::Set(vafs),
+            } => {
+                if vafs.len() > 1 {
+                    format!(
+                        "{}:{{{}}}",
+                        sample,
+                        vafs.iter().map(|vaf| format!("{:.1}", vaf)).join(", "),
+                    )
+                } else if vafs.len() == 1 {
+                    format!("{}:{}", sample, vafs.iter().next().unwrap())
+                } else {
+                    "false".to_owned()
+                }
+            }
+            NormalizedFormula::Atom {
+                sample,
+                vafs: VAFSpectrum::Range(vafrange),
+            } => {
+                let left_bracket = if vafrange.left_exclusive { ']' } else { '[' };
+                let right_bracket = if vafrange.right_exclusive { '[' } else { ']' };
+                format!(
+                    "{}:{}{:.1},{:.1}{}",
+                    sample, left_bracket, vafrange.start, vafrange.end, right_bracket
+                )
+            }
+            NormalizedFormula::Variant {
+                positive,
+                refbase,
+                altbase,
+            } => {
+                format!(
+                    "{negate}({refbase}>{altbase})",
+                    negate = if *positive { "" } else { "!" },
+                    refbase = **refbase,
+                    altbase = **altbase,
+                )
+            }
+            NormalizedFormula::Conjunction { operands } => {
+                operands.iter().map(&fmt_operand).join(" & ")
+            }
+            NormalizedFormula::Disjunction { operands } => {
+                operands.iter().map(&fmt_operand).join(" | ")
+            }
+        };
+        write!(f, "{}", formatted)
     }
 }
 
