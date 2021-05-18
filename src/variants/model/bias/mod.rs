@@ -1,9 +1,11 @@
+use std::cmp;
 
-
+use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
 use bio::stats::probs::LogProb;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
+use crate::utils::{PROB_05, PROB_095};
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 
 pub(crate) mod read_orientation_bias;
@@ -14,7 +16,7 @@ pub(crate) use read_orientation_bias::ReadOrientationBias;
 pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use strand_bias::StrandBias;
 
-pub(crate) trait Bias {
+pub(crate) trait Bias: Default + cmp::PartialEq {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;
 
     fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb;
@@ -29,9 +31,35 @@ pub(crate) trait Bias {
         })
     }
 
-    #[allow(unused_variables)]
     fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         true
+    }
+
+    fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        if *self == Self::default() {
+            true
+        } else {
+            pileups.iter().any(|pileup| {
+                let is_strong_obs = |obs: &&Observation<ReadPosition>| {
+                    obs.prob_mapping() >= *PROB_095
+                        && BayesFactor::new(obs.prob_alt, obs.prob_ref).evidence_kass_raftery()
+                            >= KassRaftery::Strong
+                };
+                let strong_all = pileup.iter().filter(&is_strong_obs).count();
+                if strong_all >= 10 {
+                    let strong_bias_evidence = pileup
+                        .iter()
+                        .filter(|obs| is_strong_obs(obs) && self.prob(obs) == LogProb::ln_one())
+                        .count();
+                    // METHOD: there is bias evidence if we have at least two third of the strong observations supporting the bias
+                    let ratio = strong_bias_evidence as f64 / strong_all as f64;
+                    ratio >= 0.66666
+                } else {
+                    // METHOD: not enough reads, rather consider all biases to be sure
+                    true
+                }
+            })
+        }
     }
 }
 
@@ -112,6 +140,12 @@ impl Biases {
         self.strand_bias.is_informative(pileups)
             && self.read_orientation_bias.is_informative(pileups)
             && self.read_position_bias.is_informative(pileups)
+    }
+
+    pub(crate) fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        self.strand_bias.is_likely(pileups)
+            && self.read_orientation_bias.is_likely(pileups)
+            && self.read_position_bias.is_likely(pileups)
     }
 
     pub(crate) fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {

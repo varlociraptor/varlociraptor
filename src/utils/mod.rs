@@ -35,6 +35,7 @@ lazy_static! {
     pub(crate) static ref PROB_05: LogProb = LogProb::from(Prob(0.5f64));
     pub(crate) static ref PROB_033: LogProb = LogProb::from(Prob(1.0 / 3.0));
     pub(crate) static ref PROB_025: LogProb = LogProb::from(Prob(0.25));
+    pub(crate) static ref PROB_095: LogProb = LogProb::from(Prob(0.95));
 }
 
 pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
