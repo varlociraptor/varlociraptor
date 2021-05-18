@@ -368,11 +368,11 @@ impl<R: Realigner> SamplingBias for BreakendGroup<R> {
         };
 
         if self.is_deletion() {
-            if let Some(feasible) = enclosable(alignment_properties.max_del_cigar_len) {
+            if let Some(_feasible) = enclosable(alignment_properties.max_del_cigar_len) {
                 return Some(read_len);
             }
         } else if self.is_insertion() {
-            if let Some(feasible) = enclosable(alignment_properties.max_ins_cigar_len) {
+            if let Some(_feasible) = enclosable(alignment_properties.max_ins_cigar_len) {
                 return Some(read_len);
             }
         }

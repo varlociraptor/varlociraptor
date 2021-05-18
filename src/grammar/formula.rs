@@ -444,12 +444,12 @@ impl Formula {
                 altbase,
             },
             &Formula::Terminal(FormulaTerminal::Expression {
-                ref identifier,
-                negated,
+                identifier: _,
+                negated: _,
             }) => {
                 panic!("bug: expressions should be expanded before normalization");
             }
-            Formula::Negation { operand } => {
+            Formula::Negation { operand: _ } => {
                 panic!("bug: negations should have been applied before normalization")
             }
         }
@@ -460,7 +460,7 @@ impl Formula {
             Formula::Conjunction { operands } => {
                 // collect statements per sample
                 let mut grouped_operands = operands.iter().cloned().into_group_map_by(|operand| {
-                    if let Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) = operand {
+                    if let Formula::Terminal(FormulaTerminal::Atom { sample, vafs: _ }) = operand {
                         Some(sample.to_owned())
                     } else {
                         // group all non-atoms together
@@ -470,7 +470,7 @@ impl Formula {
 
                 // merge atoms of the same sample
                 for (sample, statements) in &mut grouped_operands {
-                    if let Some(sample) = sample {
+                    if let Some(_sample) = sample {
                         let mut merged_statement =
                             statements.pop().unwrap().into_terminal().unwrap();
                         for statement in statements.iter() {
@@ -695,8 +695,8 @@ impl Formula {
                 altbase,
             }),
             &Formula::Terminal(FormulaTerminal::Expression {
-                ref identifier,
-                negated,
+                identifier: _,
+                negated: _,
             }) => {
                 panic!("bug: expressions should be expanded before applying negations");
             }

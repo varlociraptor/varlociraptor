@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+
 
 use bio::stats::probs::LogProb;
 use itertools::Itertools;

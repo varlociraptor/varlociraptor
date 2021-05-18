@@ -28,7 +28,7 @@ use crate::reference;
 use crate::testcase;
 use crate::variants::evidence::realignment;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
-use crate::variants::model::modes::generic::FlatPrior;
+
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::{Contamination, VariantType};

@@ -201,7 +201,7 @@ impl Call {
                             )
                         }),
                         false,
-                        |(item, count)| {
+                        |(item, _count)| {
                             if item.starts_with("N") {
                                 2
                             } else if item.starts_with("E") {
@@ -228,7 +228,7 @@ impl Call {
                             )
                         }),
                         false,
-                        |(item, count)| {
+                        |(item, _count)| {
                             if item.starts_with("N") {
                                 2
                             } else if item.starts_with("E") {
