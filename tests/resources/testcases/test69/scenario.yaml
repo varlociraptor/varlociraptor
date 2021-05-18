@@ -39,5 +39,5 @@ events:
   denovo: "(brain:0.5 | brain:1.0) & father:0.0 & mother:0.0"
   inherited: "!brain:0.0 & (!father:0.0 | !mother:0.0)"
   lost:      "brain:0.0 & (!father:0.0 | !mother:0.0)"
-  mosaik_brain: "brain:]0.0,0.5[ & father:0.0 & mother:0.0"
-  otherwise: "brain:0.0 & father:0.0 & mother:0.0"
+  mosaik_brain: "brain:]0.0,1.0[ & father:0.0 & mother:0.0"
+  otherwise: "!($denovo | $inherited | $lost | $mosaik_brain | $absent)"
