@@ -120,6 +120,7 @@ testcase!(test63, exact);
 testcase!(test64, exact);
 testcase!(test65, exact);
 testcase!(test69, exact);
+testcase!(test70, exact);
 testcase!(test_mendelian_prior, exact);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);
