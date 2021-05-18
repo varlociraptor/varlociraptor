@@ -688,6 +688,7 @@ impl Prior {
             }
             (p1, p2, c) if p1 % 2 == 0 && p2 % 2 == 0 && c == (p1 / 2 + p2 / 2) => {
                 // Default case, normal meiosis (child inherits one half from each parent).
+                // TODO derive other cases in a more generic way from this one!
                 prob_after_meiotic_split(p1 / 2, p2 / 2)
             }
             (p1, p2, c) if p1 % 2 == 0 && p2 == 1 && c == (p1 / 2 + p2) => {
@@ -697,6 +698,14 @@ impl Prior {
             (p1, p2, c) if p1 == 1 && p2 % 2 == 0 && c == (p1 + p2 / 2) => {
                 // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
                 prob_after_meiotic_split(p1, p2 / 2)
+            }
+            (p1, p2, c) if p1 == 2 && p2 == 1 && c == 1 => {
+                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
+                prob_after_meiotic_split(1, 0)
+            }
+            (p1, p2, c) if p1 == 1 && p2 == 2 && c == 1 => {
+                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
+                prob_after_meiotic_split(0, 1)
             }
             (p1, p2, c) => {
                 // something went wrong, there are more chromosomes in the child than in the parents
