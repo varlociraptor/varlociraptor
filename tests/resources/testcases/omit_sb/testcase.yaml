@@ -1,11 +1,8 @@
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
     - test > 0.4
   posteriors:
-    # write down a list of expressions of the form
     - PROB_PRESENT == 0.0
-    - PROB_ARTIFACT > 480.0
 
 # necessary bam files
 samples:
