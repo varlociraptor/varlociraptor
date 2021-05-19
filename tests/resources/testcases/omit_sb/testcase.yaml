@@ -1,3 +1,5 @@
+# true variant from amplicon data that needs a deactivation of strand bias
+
 expected:
   allelefreqs:
     - test > 0.3 && test < 0.4
