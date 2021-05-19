@@ -271,16 +271,15 @@ impl<P: Clone> Observation<P> {
         omit_read_orientation_bias: bool,
     ) -> Vec<Self> {
         // METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
-        // solely driven by standard alignments, that are not clipped and in expected orientation.
+        // solely driven by standard alignments, that are in expected orientation.
         // Otherwise called SNVs can be artifacts of near SVs.
         pileup
             .into_iter()
             .filter(|obs| {
-                !obs.softclipped
-                    && (omit_read_orientation_bias
-                        || (obs.read_orientation == SequenceReadPairOrientation::F1R2
-                            || obs.read_orientation == SequenceReadPairOrientation::F2R1
-                            || obs.read_orientation == SequenceReadPairOrientation::None))
+                omit_read_orientation_bias
+                    || (obs.read_orientation == SequenceReadPairOrientation::F1R2
+                        || obs.read_orientation == SequenceReadPairOrientation::F2R1
+                        || obs.read_orientation == SequenceReadPairOrientation::None)
             })
             .collect()
     }

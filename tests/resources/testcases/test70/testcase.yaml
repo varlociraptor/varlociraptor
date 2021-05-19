@@ -1,8 +1,8 @@
-# strand bias artifact, but here because of its complex scenario
+# here because of its complex scenario, also this is seemingly a true call in a crazily crowded region
 
 expected:
-  posteriors:
-    - PROB_ARTIFACT <= 0.09
+  allelefreqs:
+    - patient48 > 0.0
 
 # necessary bam files
 samples:

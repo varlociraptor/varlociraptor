@@ -1,6 +1,6 @@
 expected:
   allelefreqs:
-    - test > 0.4
+    - test > 0.3 && test < 0.4
   posteriors:
     - PROB_PRESENT == 0.0
 
