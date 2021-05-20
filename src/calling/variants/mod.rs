@@ -24,7 +24,8 @@ use crate::variants::evidence::observation::expected_depth;
 use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::{
-    bias::Biases, bias::ReadOrientationBias, bias::ReadPositionBias, bias::StrandBias, AlleleFreq,
+    bias::Biases, bias::ReadOrientationBias, bias::ReadPositionBias, bias::SoftclipBias,
+    bias::StrandBias, AlleleFreq,
 };
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
@@ -117,6 +118,7 @@ impl Call {
         let mut strand_bias = VecMap::new();
         let mut read_orientation_bias = VecMap::new();
         let mut read_position_bias = VecMap::new();
+        let mut softclip_bias = VecMap::new();
         let mut alleles = Vec::new();
         let mut svlens = Vec::new();
         let mut events = Vec::new();
@@ -164,6 +166,13 @@ impl Call {
                         ReadPositionBias::Some => b'^',
                     },
                 );
+                softclip_bias.insert(
+                    i,
+                    match sample_info.biases.softclip_bias() {
+                        SoftclipBias::None => b'.',
+                        SoftclipBias::Some => b'$',
+                    },
+                );
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
 
@@ -175,7 +184,7 @@ impl Call {
                         sample_info.observations.iter().map(|obs| {
                             let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                             format!(
-                                "{}{}{}{}{}",
+                                "{}{}{}{}{}{}",
                                 if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
                                     score.to_ascii_lowercase()
                                 } else {
@@ -198,6 +207,7 @@ impl Call {
                                     ReadPosition::Major => '^',
                                     ReadPosition::Some => '*',
                                 },
+                                if obs.softclipped { '$' } else { '.' },
                             )
                         }),
                         false,
@@ -328,6 +338,9 @@ impl Call {
                 .map(|rpb| vec![*rpb])
                 .collect_vec();
             record.push_format_string(b"RPB", &rpb)?;
+
+            let scb = softclip_bias.values().map(|scb| vec![*scb]).collect_vec();
+            record.push_format_string(b"SCB", &scb)?;
 
             let sobs = simple_observations
                 .values()
