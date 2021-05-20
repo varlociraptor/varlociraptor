@@ -678,7 +678,8 @@ impl Prior {
                     } else {
                         None
                     }
-                }).collect_vec()
+                })
+                .collect_vec()
         };
 
         let parent_inheritance_cases = |parental_ploidy| {
@@ -694,9 +695,8 @@ impl Prior {
                 .into_iter()
                 .cartesian_product(parent_inheritance_cases(p2).into_iter())
         };
-        let is_valid_inheritance = |p1, p2, c| {
-                inheritance_cases(p1, p2).any(|(p1, p2)| c == p1 + p2)
-        };
+        let is_valid_inheritance =
+            |p1, p2, c| inheritance_cases(p1, p2).any(|(p1, p2)| c == p1 + p2);
 
         if is_valid_inheritance(source_ploidy.0, source_ploidy.1, target_ploidy) {
             LogProb::ln_sum_exp(
