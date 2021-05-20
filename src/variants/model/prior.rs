@@ -357,8 +357,9 @@ impl Prior {
                 germline_vafs
             };
 
-            if let Some(0) = sample_ploidy {
-                // chromosome does not occur in sample (e.g. Y chromsome)
+            if sample_ploidy == Some(0) && *sample_event.allele_freq != 0.0 {
+                // Chromosome does not occur in sample (e.g. Y chromsome) but allele freq > 0,
+                // that's impossible, hence stop and return 0.
                 LogProb::ln_zero()
             } else if self.has_uniform_prior(sample) {
                 // sample has a uniform prior
@@ -374,7 +375,11 @@ impl Prior {
                     let mut probs = Vec::with_capacity(ploidy as usize + 1);
                     for n_alt in 0..=ploidy {
                         // for each possible number of germline alt alleles, obtain necessary somatic VAF to get the event VAF.
-                        let germline_vaf = AlleleFreq(n_alt as f64 / ploidy as f64);
+                        let germline_vaf = if ploidy > 0 {
+                            AlleleFreq(n_alt as f64 / ploidy as f64)
+                        } else {
+                            AlleleFreq(0.0)
+                        };
 
                         let germline_vafs = push_vafs(germline_vaf);
                         probs.push(self.calc_prob(event, germline_vafs));
@@ -677,49 +682,46 @@ impl Prior {
                 .collect_vec()
         };
 
-        let probs = match (source_ploidy.0, source_ploidy.1, target_ploidy) {
-            (0, p2, c) if p2 == c => {
-                // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
-                prob_after_meiotic_split(0, p2)
-            }
-            (p1, 0, c) if p1 == c => {
-                // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
-                prob_after_meiotic_split(p1, 0)
-            }
-            (p1, p2, c) if p1 % 2 == 0 && p2 % 2 == 0 && c == (p1 / 2 + p2 / 2) => {
-                // Default case, normal meiosis (child inherits one half from each parent).
-                // TODO derive other cases in a more generic way from this one!
-                prob_after_meiotic_split(p1 / 2, p2 / 2)
-            }
-            (p1, p2, c) if p1 % 2 == 0 && p2 == 1 && c == (p1 / 2 + p2) => {
-                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
-                prob_after_meiotic_split(p1 / 2, p2)
-            }
-            (p1, p2, c) if p1 == 1 && p2 % 2 == 0 && c == (p1 + p2 / 2) => {
-                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
-                prob_after_meiotic_split(p1, p2 / 2)
-            }
-            (p1, p2, c) if p1 == 2 && p2 == 1 && c == 1 => {
-                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
-                prob_after_meiotic_split(1, 0)
-            }
-            (p1, p2, c) if p1 == 1 && p2 == 2 && c == 1 => {
-                // Sex chromosome inheritance (one parent is e.g. diploid, the other haploid).
-                prob_after_meiotic_split(0, 1)
-            }
-            (p1, p2, c) => {
-                // something went wrong, there are more chromosomes in the child than in the parents
-                // case 1: no separation in the first meiotic split (choose from all chromosomes of that parent)
-                // case 2: no separation in the second meiotic split (duplicate a parental chromosome)
-                panic!(format!(
-                    "ploidies of child and parents do not match ({}, {} => {}) chromosome duplication events \
-                     (e.g. trisomy) are not yet supported by the mendelian inheritance model of varlociraptor", 
-                    p1, p2, c
-                ));
+        let parent_inheritance_cases = |parental_ploidy| {
+            if parental_ploidy % 2 == 0 {
+                vec![parental_ploidy / 2]
+            } else {
+                let half = parental_ploidy as f64 / 2.0;
+                vec![half.floor() as u32, half.ceil() as u32]
             }
         };
+        let inheritance_cases = |p1, p2| {
+            parent_inheritance_cases(p1)
+                .into_iter()
+                .cartesian_product(parent_inheritance_cases(p2).into_iter())
+        };
+        let is_valid_inheritance =
+            |p1, p2, c| inheritance_cases(p1, p2).any(|(p1, p2)| c == p1 + p2);
 
-        LogProb::ln_sum_exp(&probs)
+        if is_valid_inheritance(source_ploidy.0, source_ploidy.1, target_ploidy) {
+            LogProb::ln_sum_exp(
+                &inheritance_cases(source_ploidy.0, source_ploidy.1)
+                    .filter_map(|(p1, p2)| {
+                        if p1 + p2 == target_ploidy {
+                            Some(prob_after_meiotic_split(p1, p2))
+                        } else {
+                            None
+                        }
+                    })
+                    .flatten()
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            // something went wrong, chromosomes of child do not match the parents
+            // TODO For the future:
+            // case 1: no separation in the first meiotic split (choose from all chromosomes of that parent)
+            // case 2: no separation in the second meiotic split (duplicate a parental chromosome)
+            panic!(format!(
+                "ploidies of child and parents do not match ({}, {} => {}) chromosome duplication events \
+                    (e.g. trisomy) are not yet supported by the mendelian inheritance model of varlociraptor", 
+                source_ploidy.0, source_ploidy.1, target_ploidy
+            ));
+        }
     }
 
     fn prob_mendelian_inheritance(

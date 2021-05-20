@@ -68,6 +68,7 @@ pub(crate) enum FormulaTerminal {
         identifier: ExpressionIdentifier,
         negated: bool,
     },
+    False,
 }
 
 impl FormulaTerminal {
@@ -140,13 +141,19 @@ impl std::fmt::Display for Formula {
         };
 
         let formatted = match self {
+            Formula::Terminal(FormulaTerminal::False) => "false".to_owned(),
             Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: VAFSpectrum::Set(vafs),
-            }) => vafs
-                .iter()
-                .map(|vaf| format!("{}:{}", sample, vaf))
-                .join("|"),
+            }) => {
+                if self.is_terminal_false() {
+                    "false".to_owned()
+                } else {
+                    vafs.iter()
+                        .map(|vaf| format!("{}:{}", sample, vaf))
+                        .join("|")
+                }
+            }
             Formula::Terminal(FormulaTerminal::Atom {
                 sample,
                 vafs: VAFSpectrum::Range(vafrange),
@@ -277,6 +284,7 @@ impl From<Expr<FormulaTerminal>> for Formula {
                     operands: vec![left, right],
                 },
             },
+            Expr::Const(false) => Formula::Terminal(FormulaTerminal::False),
             _ => panic!("bug: unexpected boolean expression containing constant"),
         }
     }
@@ -284,6 +292,9 @@ impl From<Expr<FormulaTerminal>> for Formula {
 
 impl Into<Expr<FormulaTerminal>> for Formula {
     fn into(self) -> Expr<FormulaTerminal> {
+        if self.is_terminal_false() {
+            return Expr::Const(false);
+        }
         match self {
             Formula::Terminal(terminal) => Expr::Terminal(terminal),
             Formula::Conjunction { mut operands } => {
@@ -324,14 +335,13 @@ impl Formula {
 
     /// Return true if this formula is a terminal that is always false (an empty VAF set).
     pub(crate) fn is_terminal_false(&self) -> bool {
-        if let Formula::Terminal(FormulaTerminal::Atom {
-            vafs: VAFSpectrum::Set(vafs),
-            ..
-        }) = self
-        {
-            vafs.is_empty()
-        } else {
-            false
+        match self {
+            Formula::Terminal(FormulaTerminal::Atom {
+                vafs: VAFSpectrum::Set(vafs),
+                ..
+            }) => vafs.is_empty(),
+            Formula::Terminal(FormulaTerminal::False) => true,
+            _ => false,
         }
     }
 
@@ -360,14 +370,14 @@ impl Formula {
     }
 
     pub(crate) fn normalize(&self, scenario: &Scenario, contig: &str) -> Result<NormalizedFormula> {
-        // Expand all expressions and move negations down to atoms. Then, simplify via BDDs,
+        // METHOD: Expand all expressions and move negations down to atoms. Then, simplify via BDDs,
         // merge atoms (VAF intervals) of same sample in the same conjuction, and simplify again.
         let mut simplified = self
             .expand_expressions(scenario)?
             .apply_negations(scenario, contig)?
-            .simplify()?
+            .simplify()
             .merge_atoms()
-            .simplify()?;
+            .simplify();
         simplified.strip_false();
         Ok(simplified.into_normalized_formula())
     }
@@ -452,6 +462,7 @@ impl Formula {
             Formula::Negation { operand: _ } => {
                 panic!("bug: negations should have been applied before normalization")
             }
+            Formula::Terminal(FormulaTerminal::False) => NormalizedFormula::False,
         }
     }
 
@@ -519,19 +530,18 @@ impl Formula {
     }
 
     /// Simplify formula via a BDD
-    fn simplify(self) -> Result<Self> {
+    fn simplify(self) -> Self {
         let expr: Expr<FormulaTerminal> = self.into();
         let simplified = expr.simplify_via_bdd();
-        if simplified == Expr::Const(false) {
-            Err(errors::Error::UnsatisfiableFormula)?
-        } else {
-            Ok(simplified.into())
-        }
+        simplified.into()
     }
 
     /// Negate formula.
     fn negate(&self, scenario: &Scenario, contig: &str) -> Result<Self> {
         Ok(match self {
+            Formula::Terminal(FormulaTerminal::False) => {
+                panic!("bug: negation not implemented for false terminal (this is unexpected since the grammar does not allow to specify false).")
+            }
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
@@ -645,16 +655,25 @@ impl Formula {
                         }
                     }
                 }
-                Formula::Disjunction {
-                    operands: disjunction
-                        .into_iter()
-                        .map(|vafs| {
-                            Formula::Terminal(FormulaTerminal::Atom {
-                                sample: sample.clone(),
-                                vafs,
+
+                if disjunction.is_empty() {
+                    // impossible, return empty set
+                    Formula::Terminal(FormulaTerminal::Atom {
+                        sample: sample.to_owned(),
+                        vafs: VAFSpectrum::empty(),
+                    })
+                } else {
+                    Formula::Disjunction {
+                        operands: disjunction
+                            .into_iter()
+                            .map(|vafs| {
+                                Formula::Terminal(FormulaTerminal::Atom {
+                                    sample: sample.clone(),
+                                    vafs,
+                                })
                             })
-                        })
-                        .collect(),
+                            .collect(),
+                    }
                 }
             }
         })
@@ -700,6 +719,9 @@ impl Formula {
             }) => {
                 panic!("bug: expressions should be expanded before applying negations");
             }
+            Formula::Terminal(FormulaTerminal::False) => {
+                panic!("bug: false terminals may not appear in formula to be negated because this is not allowed in the grammar");
+            }
         })
     }
 }
@@ -721,6 +743,7 @@ pub(crate) enum NormalizedFormula {
         refbase: IUPAC,
         altbase: IUPAC,
     },
+    False,
 }
 
 impl std::fmt::Display for NormalizedFormula {
@@ -778,6 +801,7 @@ impl std::fmt::Display for NormalizedFormula {
             NormalizedFormula::Disjunction { operands } => {
                 operands.iter().map(&fmt_operand).join(" | ")
             }
+            NormalizedFormula::False => "false".to_owned(),
         };
         write!(f, "{}", formatted)
     }
