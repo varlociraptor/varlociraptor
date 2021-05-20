@@ -5,7 +5,7 @@ use bio::stats::probs::LogProb;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-use crate::utils::{PROB_095};
+use crate::utils::PROB_095;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 
 pub(crate) mod read_orientation_bias;
