@@ -220,6 +220,7 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
+                        testcase_anonymous: true,
                         omit_strand_bias: self.omit_strand_bias(),
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
@@ -254,6 +255,7 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
+                        testcase_anonymous: true,
                         omit_strand_bias: self.omit_strand_bias(),
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
