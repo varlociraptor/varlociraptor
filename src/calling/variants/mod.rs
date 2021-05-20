@@ -11,7 +11,7 @@ use std::str;
 use std::u8;
 
 use anyhow::Result;
-use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::stats::{LogProb, PHREDProb};
 use bio_types::sequence::SequenceReadPairOrientation;
 use derive_builder::Builder;
 use itertools::Itertools;

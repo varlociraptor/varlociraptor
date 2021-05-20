@@ -5,7 +5,7 @@ use bio::stats::probs::LogProb;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-use crate::utils::{PROB_05, PROB_095};
+use crate::utils::{PROB_095};
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 
 pub(crate) mod read_orientation_bias;
@@ -31,7 +31,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
         })
     }
 
-    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_informative(&self, _pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         true
     }
 
