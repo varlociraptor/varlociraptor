@@ -111,7 +111,7 @@ impl TestcaseBuilder {
         mut self,
         name: &str,
         bam: impl AsRef<Path>,
-        options: &cli::Varlociraptor,
+        mut options: cli::Varlociraptor,
     ) -> Result<Self> {
         if self.bams.is_none() {
             self = self.bams(HashMap::new());
@@ -126,10 +126,29 @@ impl TestcaseBuilder {
             self = self.options(HashMap::new());
         }
 
+        if let cli::Varlociraptor::Preprocess {
+            kind:
+                cli::PreprocessKind::Variants {
+                    ref mut reference,
+                    ref mut candidates,
+                    ref mut bam,
+                    ref mut output,
+                    ..
+                },
+        } = options
+        {
+            *reference = "?".into();
+            *candidates = "?".into();
+            *bam = "?".into();
+            *output = Some("?".into());
+        } else {
+            unreachable!();
+        }
+
         self.options
             .as_mut()
             .unwrap()
-            .insert(name.to_owned(), serde_json::to_string(options)?);
+            .insert(name.to_owned(), serde_json::to_string(&options)?);
 
         Ok(self)
     }
