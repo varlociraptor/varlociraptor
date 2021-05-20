@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [3.3.0] - 2021-05-20
+- Add softclip bias for detecting SNV or MNV artifacts induced by alignment issues (@johanneskoester).
+- Generalize mendelian inheritance towards arbitrary ploidies (@johanneskoester).
+- Add option for anonymizing testcases (`--testcase-anonymous`) (@johanneskoester)
+
 ## [3.2.0] - 2021-05-18
 - Added SOBS field, showing simplified observations that omit all information but the alt allele evidence (@johanneskoester).
 - Enable to use any event as an expression via $eventname in other events. This can be used to e.g. formulate "otherwise" events, via defining a negated disjuction of all other events (e.g. `otherwise: !($denovo | $absent)`).
