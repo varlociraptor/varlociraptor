@@ -92,7 +92,8 @@ where
         }
         header.push_record(
             b"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,\
-             Description=\"Posterior probability for strand bias artifact (PHRED)\">",
+             Description=\"Posterior probability for any artifact, indicated by strand, read position, \
+             read orientation, or softclip bias (PHRED).\">",
         );
         header.push_record(
             b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\

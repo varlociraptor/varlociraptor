@@ -11,7 +11,7 @@ use std::str;
 use std::u8;
 
 use anyhow::Result;
-use bio::stats::{LogProb, PHREDProb};
+use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::sequence::SequenceReadPairOrientation;
 use derive_builder::Builder;
 use itertools::Itertools;
@@ -283,15 +283,28 @@ impl Call {
         // set event probabilities
         // determine whether marginal probability is zero (prob becomes NaN)
         // this is a missing data case, which we want to present accordingly
-        let is_missing = event_probs.values().any(|prob| prob.is_nan());
-        for (event, prob) in event_probs {
-            let prob = if is_missing {
-                // missing data
-                f32::missing()
-            } else {
-                PHREDProb::from(prob).abs() as f32
-            };
-            record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob])?;
+        let is_missing_data = variant.sample_info.iter().all(|sample| {
+            sample
+                .as_ref()
+                .map_or(true, |info| info.observations.is_empty())
+        });
+
+        let mut push_prob =
+            |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob]);
+        if is_missing_data {
+            // missing data
+            for event in event_probs.keys() {
+                push_prob(event, f32::missing())?;
+            }
+        } else {
+            assert!(
+                !event_probs.values().any(|prob| prob.is_nan()),
+                "bug: event probability is NaN but not all observations are empty"
+            );
+            for (event, prob) in event_probs {
+                let prob = PHREDProb::from(prob).abs() as f32;
+                push_prob(event, prob)?;
+            }
         }
 
         // set sample info
