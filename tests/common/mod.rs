@@ -104,6 +104,14 @@ pub(crate) trait Testcase {
         }
     }
 
+    fn omit_softclip_bias(&self) -> bool {
+        if self.yaml()["omit_softclip_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_softclip_bias"].as_bool().unwrap()
+        }
+    }
+
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
@@ -215,6 +223,7 @@ pub(crate) trait Testcase {
                         omit_strand_bias: self.omit_strand_bias(),
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
+                        omit_softclip_bias: self.omit_softclip_bias(),
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -248,6 +257,7 @@ pub(crate) trait Testcase {
                         omit_strand_bias: self.omit_strand_bias(),
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
+                        omit_softclip_bias: self.omit_softclip_bias(),
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self

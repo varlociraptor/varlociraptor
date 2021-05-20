@@ -44,6 +44,7 @@ where
     omit_strand_bias: bool,
     omit_read_orientation_bias: bool,
     omit_read_position_bias: bool,
+    omit_softclip_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -106,11 +107,12 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBTSOP, with C being a count, \
+              Description=\"Summary of observations. Each entry is encoded as CBTSOPX, with C being a count, \
               B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
               as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
               O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
-              and P being the read position (^ = most found read position, * = any other position or position is irrelevant). \
+              P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
+              and X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip). \
               Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
@@ -150,6 +152,18 @@ where
               the most found read position, . indicates that there is no read position bias.
               Read position bias is indicative of systematic sequencing errors, e.g. in a specific cycle. \
               Probability for read orientation bias is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=SCB,Number=A,Type=String,\
+              Description=\"Softclip bias estimate: $ indicates that ALT allele is associated with \
+              with softclips in the same alignment, . indicates that there is no softclip bias.
+              Softclip bias is indicative of systematic alignment errors, cause by a part of the read \
+              that does not properly align to the reference (and is thus soft clipped). Note that \
+              softclips can also be caused by structural variants. However, structural variants on the \
+              same haplotype as e.g. an SNV should not cause a softclip bias, because there will usually \
+              still be reads that do not reach the SV, thereby providing evidence against a softclip \
+              bias. Probability for softclip bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
         );
 
@@ -271,6 +285,7 @@ where
             let model_mode = (
                 work_item.check_read_orientation_bias,
                 work_item.check_read_position_bias,
+                work_item.check_softclip_bias,
             );
             _model = models.entry(model_mode).or_insert_with(|| self.model());
             {
@@ -288,6 +303,7 @@ where
                 work_item.check_read_orientation_bias,
                 work_item.check_strand_bias,
                 work_item.check_read_position_bias,
+                work_item.check_softclip_bias,
             )?;
 
             self.call_record(&mut work_item, _model, &events);
@@ -374,6 +390,7 @@ where
             check_read_orientation_bias: is_snv_or_mnv && !self.omit_read_orientation_bias,
             check_strand_bias: !self.omit_strand_bias,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
+            check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -424,6 +441,7 @@ where
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
+        consider_softclip_bias: bool,
     ) -> Result<()> {
         if !rid.map_or(false, |rid: u32| current_rid == rid) {
             // rid is not the same as before, obtain event universe
@@ -449,6 +467,7 @@ where
                     consider_read_orientation_bias,
                     consider_strand_bias,
                     consider_read_position_bias,
+                    consider_softclip_bias,
                 )
                 .collect();
                 if !biases.is_empty() {
@@ -616,4 +635,5 @@ struct WorkItem {
     check_read_orientation_bias: bool,
     check_strand_bias: bool,
     check_read_position_bias: bool,
+    check_softclip_bias: bool,
 }

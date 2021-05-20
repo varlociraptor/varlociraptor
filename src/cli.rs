@@ -374,6 +374,14 @@ pub enum CallKind {
         #[serde(default)]
         omit_read_position_bias: bool,
         #[structopt(
+            long = "omit-softclip-bias",
+            help = "Do not consider softclip bias when calculating the probability of an \
+                    artifact. Use this flag when processing (panel) sequencing data, where the \
+                    wet-lab methodology leads to stacks of reads starting at the same position."
+        )]
+        #[serde(default)]
+        omit_softclip_bias: bool,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
@@ -690,6 +698,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_strand_bias,
                     omit_read_orientation_bias,
                     omit_read_position_bias,
+                    omit_softclip_bias,
                     testcase_locus,
                     testcase_prefix,
                     output,
@@ -765,6 +774,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .omit_strand_bias(omit_strand_bias)
                             .omit_read_orientation_bias(omit_read_orientation_bias)
                             .omit_read_position_bias(omit_read_position_bias)
+                            .omit_softclip_bias(omit_softclip_bias)
                             .scenario(scenario)
                             .prior(prior)
                             .contaminations(sample_infos.contaminations)
