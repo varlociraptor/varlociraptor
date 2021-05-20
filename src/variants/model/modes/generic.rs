@@ -163,6 +163,7 @@ impl GenericPosterior {
         };
 
         match vaf_tree_node.kind() {
+            grammar::vaftree::NodeKind::False => LogProb::ln_zero(),
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
                 let push_base_event = |allele_freq, base_events: &mut VecMap<likelihood::Event>| {
                     base_events.insert(
@@ -259,7 +260,7 @@ impl Posterior for GenericPosterior {
                 && bias.is_informative(&data.pileups)
                 && bias.is_likely(&data.pileups)
         });
-        LogProb::ln_sum_exp(
+        let p = LogProb::ln_sum_exp(
             &possible_biases
                 .cartesian_product(vaf_tree)
                 .map(|(biases, node)| {
@@ -275,7 +276,11 @@ impl Posterior for GenericPosterior {
                         )
                 })
                 .collect_vec(),
-        )
+        );
+
+        dbg!((event, p));
+
+        p
     }
 }
 
