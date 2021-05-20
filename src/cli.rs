@@ -396,6 +396,11 @@ pub enum CallKind {
         )]
         testcase_prefix: Option<String>,
         #[structopt(
+            long = "testcase-anonymous",
+            help = "Anonymize any identifiers (via uuid4) and the sequences (by randomly permuting the alphabet) in the test case."
+        )]
+        testcase_anonymous: bool,
+        #[structopt(
             long,
             short,
             help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
@@ -701,6 +706,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_softclip_bias,
                     testcase_locus,
                     testcase_prefix,
+                    testcase_anonymous,
                     output,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
@@ -709,6 +715,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             Some(
                                 testcase::TestcaseBuilder::default()
                                     .prefix(PathBuf::from(testcase_prefix))
+                                    .anonymize(testcase_anonymous)
                                     .locus(&testcase_locus)?,
                             )
                         } else {
@@ -807,7 +814,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         testcase_builder = testcase_builder.register_sample(
                                             &sample_name,
                                             preprocess_input.bam,
-                                            &options,
+                                            options,
                                         )?;
                                         if i == 0 {
                                             testcase_builder =
@@ -854,12 +861,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .register_sample(
                                         "tumor",
                                         tumor_options.preprocess_input().bam,
-                                        &tumor_options,
+                                        tumor_options,
                                     )?
                                     .register_sample(
                                         "normal",
                                         normal_options.preprocess_input().bam,
-                                        &normal_options,
+                                        normal_options,
                                     )?
                                     .scenario(None)
                                     .mode(testcase::Mode::TumorNormal)
