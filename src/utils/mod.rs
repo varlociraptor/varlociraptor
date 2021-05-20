@@ -25,6 +25,7 @@ use rust_htslib::{bam, bcf};
 use crate::variants::model;
 use crate::Event;
 
+pub(crate) mod anonymize;
 pub(crate) mod collect_variants;
 
 pub(crate) use collect_variants::collect_variants;

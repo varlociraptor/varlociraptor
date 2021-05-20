@@ -18,6 +18,7 @@ use rust_htslib::{bam, bcf, bcf::Read};
 use crate::cli;
 use crate::errors;
 use crate::utils;
+use crate::utils::anonymize::Anonymizer;
 use crate::variants::model::Variant;
 use crate::variants::sample;
 use crate::variants::types::breakends::BreakendIndex;
@@ -73,6 +74,7 @@ pub struct Testcase {
     #[builder(default = "None")]
     purity: Option<f64>,
     mode: Mode,
+    anonymize: bool,
 }
 
 impl TestcaseBuilder {
@@ -214,6 +216,8 @@ impl Testcase {
     }
 
     pub(crate) fn write(&mut self) -> Result<()> {
+        let mut anonymizer = Anonymizer::new();
+
         fs::create_dir_all(&self.prefix)?;
 
         let candidate_filename = Path::new("candidates.vcf");
@@ -309,6 +313,9 @@ impl Testcase {
                 // update mapping position to interval
                 rec.set_pos(rec.pos() - ref_start as i64);
                 rec.set_mpos(rec.mpos() - ref_start as i64);
+                if self.anonymize {
+                    anonymizer.anonymize_bam_record(&mut rec);
+                }
                 bam_writer.write(&rec)?;
             }
             samples.insert(
@@ -337,6 +344,9 @@ impl Testcase {
         {
             candidate_record.push_info_integer(b"END", &[end - ref_start as i32])?;
         }
+        if self.anonymize {
+            anonymizer.anonymize_bcf_record(&mut candidate_record);
+        }
         candidate_writer.write(&candidate_record)?;
 
         // write scenario
@@ -361,6 +371,10 @@ impl Testcase {
             .fetch(ref_name, ref_start as u64, ref_end as u64)?;
         let mut ref_seq = Vec::new();
         self.reference_reader.read(&mut ref_seq)?;
+
+        if self.anonymize {
+            anonymizer.anonymize_seq(&mut ref_seq);
+        }
 
         // write reference
         let ref_filename = "ref.fa";

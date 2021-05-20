@@ -2615,6 +2615,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1ca13c08c41c9c3e04224ed9ff80461d97e121589ff27c753a16cb10830ae0f"
 
 [[package]]
+name = "uuid"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom 0.2.2",
+]
+
+[[package]]
 name = "varlociraptor"
 version = "3.2.1-alpha.0"
 dependencies = [
@@ -2680,6 +2689,7 @@ dependencies = [
  "thiserror",
  "time",
  "typed-builder",
+ "uuid",
  "vec_map",
  "yaml-rust 0.4.5",
 ]
