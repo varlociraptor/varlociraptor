@@ -318,11 +318,17 @@ impl Testcase {
             let properties = sample::estimate_alignment_properties(path, false, false)?;
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
             let filename = Path::new(name).with_extension("bam");
-            let mut bam_writer = bam::Writer::from_path(
-                self.prefix.join(&filename),
-                &bam::Header::from_template(bam_reader.header()),
-                bam::Format::BAM,
-            )?;
+
+            // create header with just the modified sequence
+            let mut header = bam::header::Header::new();
+            header.push_record(
+                bam::header::HeaderRecord::new(b"SQ")
+                    .push_tag(b"SN", &str::from_utf8(&chrom_name)?)
+                    .push_tag(b"LN", &format!("{}", ref_end - ref_start)),
+            );
+
+            let mut bam_writer =
+                bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::BAM)?;
 
             let tid = bam_reader.header().tid(chrom_name).unwrap();
 
@@ -348,9 +354,13 @@ impl Testcase {
         }
 
         // write candidate
+        let mut header = bcf::Header::from_template(self.candidate_reader()?.header());
+        if self.anonymize {
+            header.remove_generic(b"varlociraptor_preprocess_args");
+        }
         let mut candidate_writer = bcf::Writer::from_path(
             self.prefix.join(candidate_filename),
-            &bcf::Header::from_template(self.candidate_reader()?.header()),
+            &header,
             true,
             bcf::Format::VCF,
         )?;
