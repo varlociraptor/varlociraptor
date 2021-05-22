@@ -195,14 +195,14 @@ impl Scenario {
     }
 
     pub(crate) fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {
-        println!("Preprocessing events for contig {}", contig);
+        info!("Preprocessing events for contig {}", contig);
         self.events()
             .iter()
             .map(|(name, formula)| {
                 let normalized = formula
                     .normalize(self, contig)
                     .with_context(|| format!("invalid event definition for {}", name))?;
-                println!("    {}: {}", name, normalized);
+                info!("    {}: {}", name, normalized);
                 let vaftree = VAFTree::new(&normalized, self, contig)?;
                 Ok((name.to_owned(), vaftree))
             })

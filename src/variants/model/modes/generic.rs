@@ -278,8 +278,6 @@ impl Posterior for GenericPosterior {
                 .collect_vec(),
         );
 
-        dbg!((event, p));
-
         p
     }
 }
