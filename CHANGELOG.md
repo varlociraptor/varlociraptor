@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [3.3.1] - 2021-05-22
+- Fix debug output accidentally printing to STDOUT, thereby invalidating BCF.
+
 ## [3.3.0] - 2021-05-20
 - Add softclip bias for detecting SNV or MNV artifacts induced by alignment issues (@johanneskoester).
 - Generalize mendelian inheritance towards arbitrary ploidies (@johanneskoester).
