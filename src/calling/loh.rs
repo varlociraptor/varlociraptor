@@ -165,9 +165,9 @@ impl Caller<'_> {
                 interval_loh_indicator
                     .iter()
                     .map(|(&interval, loh_indicator)| {
-                        let interval_prob_no_loh = ( f64::from(Prob::from(
+                        let interval_prob_no_loh = (f64::from(Prob::from(
                             intervals.get(&interval).unwrap().ln_one_minus_exp(),
-                        )) - alpha_f64 ) as f32;
+                        )) - alpha_f64) as f32;
                         interval_prob_no_loh * loh_indicator
                     })
                     .collect()
@@ -258,24 +258,23 @@ fn site_posterior_not_no_loh(
     let no_loh_log_prob = info_phred_to_log_prob(record, no_loh_field_name);
     let background_het = loh_log_prob.ln_add_exp(no_loh_log_prob);
     if background_het < minimum_background_het {
-        return None
+        return None;
     }
     // a LogProb(0.0) would set the cumulative sum of log posteriors to
     // LogProb(-inf), rendering them useless
-    let checked_posterior =
-        if no_loh_log_prob > LogProb(-0.0000001) {
-            let absent_log_prob = info_phred_to_log_prob(record, absent_field_name);
-            let uninteresting_log_prob = info_phred_to_log_prob(record, uninteresting_field_name);
-            let artifact_log_prob = info_phred_to_log_prob(record, artifact_field_name);
-            loh_log_prob
-                .ln_add_exp(absent_log_prob)
-                .ln_add_exp(uninteresting_log_prob)
-                .ln_add_exp(artifact_log_prob)
-        } else {
-            no_loh_log_prob.ln_one_minus_exp()
-        };
-    let valid_start_end = loh_log_prob > no_loh_log_prob
-        && background_het > valid_start_end_background_het;
+    let checked_posterior = if no_loh_log_prob > LogProb(-0.0000001) {
+        let absent_log_prob = info_phred_to_log_prob(record, absent_field_name);
+        let uninteresting_log_prob = info_phred_to_log_prob(record, uninteresting_field_name);
+        let artifact_log_prob = info_phred_to_log_prob(record, artifact_field_name);
+        loh_log_prob
+            .ln_add_exp(absent_log_prob)
+            .ln_add_exp(uninteresting_log_prob)
+            .ln_add_exp(artifact_log_prob)
+    } else {
+        no_loh_log_prob.ln_one_minus_exp()
+    };
+    let valid_start_end =
+        loh_log_prob > no_loh_log_prob && background_het > valid_start_end_background_het;
     Some((checked_posterior, valid_start_end))
 }
 
@@ -316,8 +315,8 @@ impl ContigLogPosteriorsLOH {
                             positions.push(record.pos() as u64);
                             valid_start_ends.push(valid_start_end);
                             break;
-                        },
-                        None => continue
+                        }
+                        None => continue,
                     }
                 }
                 Err(err) => eprintln!(
@@ -337,7 +336,7 @@ impl ContigLogPosteriorsLOH {
                 cum_loh_posteriors,
                 positions,
                 valid_start_ends,
-            })
+            });
         }
         // cumulatively add the following LOH probabilities
         while let Some(result) = bcf_reader.read(&mut record) {
@@ -357,8 +356,8 @@ impl ContigLogPosteriorsLOH {
                             cum_loh_posteriors.push(cum_loh_posteriors.last().unwrap() + posterior);
                             positions.push(record.pos() as u64);
                             valid_start_ends.push(valid_start_end);
-                        },
-                        None => continue
+                        }
+                        None => continue,
                     }
                 }
                 Err(err) => eprintln!(
@@ -515,7 +514,8 @@ mod tests {
             PathBuf::from("tests/resources/test_loh/slightly_no_loh_no_het_between_loh.bcf");
         let test_output =
             PathBuf::from("tests/resources/test_loh/slightly_no_loh_no_het_between_loh.out.bed");
-        let expected_bed: Vec<u8> = Vec::from("chr8\t7999999\t8002000\t\t0.0000006369733104886611\n");
+        let expected_bed: Vec<u8> =
+            Vec::from("chr8\t7999999\t8002000\t\t0.0000006369733104886611\n");
         let alpha = 0.01;
         let mut caller = CallerBuilder::default()
             .bcf(&test_input)
