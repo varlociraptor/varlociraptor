@@ -261,7 +261,7 @@ where
             }
 
             // ensure that all observation BCFs contain exactly the same calls
-            let mut first_record = records.first_not_none()?;
+            let first_record = records.first_not_none()?;
             let current_rid = first_record.rid();
             let current_pos = first_record.pos();
             let current_alleles = first_record.alleles();

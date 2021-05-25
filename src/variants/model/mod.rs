@@ -8,7 +8,6 @@ use std::fmt::Debug;
 use std::ops::{Deref, Range};
 use std::str;
 
-use anyhow;
 use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
@@ -230,7 +229,7 @@ impl Variant {
     }
 
     pub(crate) fn to_type(&self) -> VariantType {
-        match (self) {
+        match self {
             Variant::Deletion(_) => VariantType::Deletion(None),
             Variant::Insertion(_) => VariantType::Insertion(None),
             Variant::SNV(_) => VariantType::SNV,
