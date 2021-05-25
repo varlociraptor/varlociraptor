@@ -101,13 +101,23 @@ impl<R: Realigner> Deletion<R> {
 }
 
 impl<R: Realigner> SamplingBias for Deletion<R> {
-    fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
+    fn feasible_bases(
+        &self,
+        read_len: u64,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<u64> {
         if let Some(len) = self.enclosable_len() {
-            if len < (alignment_properties.max_del_cigar_len as u64) {
-                return read_len;
+            if let Some(maxlen) = alignment_properties.max_del_cigar_len {
+                if len <= (maxlen as u64) {
+                    return Some(read_len);
+                }
             }
         }
-        (read_len as f64 * alignment_properties.frac_max_softclip) as u64
+        if let Some(maxfrac) = alignment_properties.frac_max_softclip {
+            Some((read_len as f64 * maxfrac) as u64)
+        } else {
+            None
+        }
     }
 
     fn enclosable_len(&self) -> Option<u64> {

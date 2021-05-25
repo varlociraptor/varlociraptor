@@ -1,0 +1,39 @@
+species:
+  heterozygosity: 0.001
+  germline-mutation-rate: 1e-3
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+  genome-size: 3.5e9
+
+samples:
+  tumor:
+    sex: female
+    somatic-effective-mutation-rate: 3e-7
+    inheritance:
+      clonal:
+        from: normal
+        somatic: false
+    contamination:
+      by: normal
+      fraction: 0.20
+  normal:
+    sex: female
+    somatic-effective-mutation-rate: 1e-10
+    contamination:
+      by: tumor
+      fraction: 0.05
+
+events:
+  somatic_tumor_low: "tumor:]0.0,0.1[ & normal:0.0"
+  somatic_tumor_medium: "tumor:[0.1,0.3[ & normal:0.0"
+  somatic_tumor_high: "tumor:[0.3,1.0] & normal:0.0"
+  somatic_normal: "normal:]0.0,0.5["
+  germline_hom: "normal:1.0"
+  germline_het: "normal:0.5"

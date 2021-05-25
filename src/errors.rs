@@ -8,6 +8,10 @@ pub(crate) enum Error {
     InvalidSampleName { name: String },
     #[error("contamination refers to unknown sample {name}; it is not defined in the scenario")]
     InvalidContaminationSampleName { name: String },
+    #[error(
+        "inheritance definition refers to unknown sample {name}; it is not defined in the scenario"
+    )]
+    InvalidInheritanceSampleName { name: String },
     #[error("observation files must be provided as samplename=path")]
     InvalidObservationsSpec,
     #[error(
@@ -28,6 +32,8 @@ pub(crate) enum Error {
     NoRecordsFound,
     #[error("contig {contig} not found in universe definition and no 'all' defined")]
     UniverseContigNotFound { contig: String },
+    #[error("contig {contig} not found in ploidy definition and no 'all' defined")]
+    PloidyContigNotFound { contig: String },
     #[error("record {i} in candidate BCF/VCF does not define a chromosome")]
     RecordMissingChrom { i: usize },
     #[error("inconsistent observations: input observation BCF files do not contain exactly the same records")]
@@ -43,13 +49,19 @@ pub(crate) enum Error {
     #[error("at least one BCF with observations must be provided")]
     EmptyObservations,
     #[error(
-        "undefined expression ${identifier}; please define under 'expressions:' in your scenario"
+        "undefined expression {identifier}; please define under 'expressions:' in your scenario"
     )]
     UndefinedExpression { identifier: String },
+    #[error("invalid prior configuration: {msg}")]
+    InvalidPriorConfiguration { msg: String },
     #[error("read position determined from cigar string exceeds record length")]
     ReadPosOutOfBounds,
     #[error("invalid strand information '{value}', must be '+', '-', or '*'")]
     InvalidStrandInfo { value: char },
     #[error("invalid read orientation information '{value}', must be 'F1R2', 'F2R1', etc.")]
     InvalidReadOrientationInfo { value: String },
+    #[error("event {name} is unsatisfiable: check whether it is defined as intended, if you are sure, it should be removed because it can never become true. This can e.g. happen if the event is a negation of other events that span the entire set of possibilites.")]
+    UnsatisfiableEventFormula { name: String },
+    #[error("formula is unsatisfiable")]
+    UnsatisfiableFormula,
 }

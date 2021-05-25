@@ -1,0 +1,20 @@
+species:
+  heterozygosity: 0.001
+  genome-size: 3.5e9
+  ploidy: 2
+
+samples:
+  normal:
+    sex: male
+  tumor:
+    somatic-effective-mutation-rate: 1e-6
+    inheritance:
+      clonal:
+        from: normal
+        somatic: false
+  relapse:
+    universe: "[0.0,1.0]"
+
+events:
+  somatic_tumor: "tumor:]0.0,1.0]"
+  somatic_relapse: "tumor:0.0 & relapse:]0.0,1.0]"

@@ -7,7 +7,7 @@ use crate::errors;
 use crate::grammar::{formula::NormalizedFormula, formula::IUPAC, Scenario, VAFSpectrum};
 use crate::variants::model::AlleleFreq;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct VAFTree {
     inner: Vec<Node>,
 }
@@ -47,7 +47,7 @@ impl<'a> IntoIterator for &'a VAFTree {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum NodeKind {
     Variant {
         refbase: IUPAC,
@@ -58,9 +58,10 @@ pub(crate) enum NodeKind {
         sample: usize,
         vafs: VAFSpectrum,
     },
+    False,
 }
 
-#[derive(new, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Getters)]
+#[derive(new, Clone, Debug, PartialEq, Eq, Getters, Hash)]
 #[get = "pub"]
 pub(crate) struct Node {
     kind: NodeKind,
@@ -151,6 +152,7 @@ impl VAFTree {
                     refbase,
                     altbase,
                 })]),
+                NormalizedFormula::False => Ok(vec![Node::new(NodeKind::False)]),
             }
         }
 
@@ -160,6 +162,11 @@ impl VAFTree {
             scenario: &'a Scenario,
             contig: &str,
         ) -> Result<()> {
+            if let NodeKind::False = node.kind {
+                // METHOD: no need to add further missing samples as the formula is false anyways
+                return Ok(());
+            }
+
             if let NodeKind::Sample { sample, .. } = node.kind {
                 seen.insert(sample);
             }
@@ -172,7 +179,7 @@ impl VAFTree {
                         seen.insert(idx);
 
                         node.children = sample
-                            .contig_universe(contig)?
+                            .contig_universe(contig, scenario.species())?
                             .iter()
                             .map(|vafs| {
                                 Node::new(NodeKind::Sample {

@@ -114,6 +114,15 @@ testcase!(test57, exact);
 testcase!(test58, exact);
 testcase!(test59, exact);
 testcase!(test60, exact);
+testcase!(test61, exact);
+testcase!(test62, exact);
+testcase!(test63, exact);
+testcase!(test64, exact);
+testcase!(test65, exact);
+testcase!(test69, exact);
+testcase!(test70, exact);
+testcase!(test71, exact);
+testcase!(test_mendelian_prior, exact);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);
 testcase!(test_contig_universe, exact, fast);
@@ -121,6 +130,8 @@ testcase!(test_expressions, exact);
 testcase!(omit_sb, exact);
 testcase!(test_panel_overlap, exact);
 testcase!(test_panel_unknown_orientation_bias, exact);
+testcase!(issue_154, exact, fast);
+testcase!(test_low_cov_vaf, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)

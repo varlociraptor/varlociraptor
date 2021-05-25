@@ -1,0 +1,4 @@
+channels:
+  - conda-forge
+dependencies:
+  - vega-lite-cli =4.17

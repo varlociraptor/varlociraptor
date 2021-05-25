@@ -1,0 +1,20 @@
+scenarios:
+  pedigree:
+    samples:
+      - child
+  simple-pedigree:
+    samples:
+      - child
+  population:
+    samples:
+      - a
+  tumor-normal-relapse:
+    samples:
+      - tumor
+      - relapse
+  tumor-normal:
+    samples:
+      - tumor
+  tumor-relapse:
+    samples:
+      - relapse

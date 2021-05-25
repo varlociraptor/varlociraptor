@@ -351,21 +351,36 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
 }
 
 impl<R: Realigner> SamplingBias for BreakendGroup<R> {
-    fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
-        if self.is_deletion() {
+    fn feasible_bases(
+        &self,
+        read_len: u64,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<u64> {
+        let enclosable = |max_op_len| {
             if let Some(len) = self.enclosable_len() {
-                if len < (alignment_properties.max_del_cigar_len as u64) {
-                    return read_len;
+                if let Some(maxlen) = max_op_len {
+                    if len <= (maxlen as u64) {
+                        return Some(read_len);
+                    }
                 }
+            }
+            None
+        };
+
+        if self.is_deletion() {
+            if let Some(_feasible) = enclosable(alignment_properties.max_del_cigar_len) {
+                return Some(read_len);
             }
         } else if self.is_insertion() {
-            if let Some(len) = self.enclosable_len() {
-                if len < (alignment_properties.max_ins_cigar_len as u64) {
-                    return read_len;
-                }
+            if let Some(_feasible) = enclosable(alignment_properties.max_ins_cigar_len) {
+                return Some(read_len);
             }
         }
-        (read_len as f64 * alignment_properties.frac_max_softclip) as u64
+        if let Some(maxfrac) = alignment_properties.frac_max_softclip {
+            Some((read_len as f64 * maxfrac) as u64)
+        } else {
+            None
+        }
     }
 
     fn enclosable_len(&self) -> Option<u64> {

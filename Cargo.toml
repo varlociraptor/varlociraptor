@@ -1,6 +1,6 @@
 [package]
 name = "varlociraptor"
-version = "2.6.2-alpha.0"
+version = "3.3.2-alpha.0"
 authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>"]
 description = "A library for calling of genomic variants using a latent variable model."
 repository = "https://github.com/varlociraptor/varlociraptor"
@@ -10,12 +10,12 @@ include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE", "te
 edition = "2018"
 
 [dependencies]
-bio = "0.32"
+bio = "0.34"
 bio-types = { version = "0.11", features = ["serde"] }
 rust-htslib = "0.36"
 log = "0.4"
 GSL = "2.0.1"
-itertools = "0.8"
+itertools = "0.10"
 itertools-num = "0.1"
 approx = "0.3"
 rusty-machine="0.5"
@@ -33,8 +33,8 @@ cached = "0.9"
 statrs = "0.11"
 clap = {version = "2", features = ["yaml", "color", "suggestions"]}
 structopt = "0.3"
-strum = "0.18"
-strum_macros = "0.18"
+strum = "0.20.0"
+strum_macros = "0.20.1"
 rand = "0.7"
 derive_builder = "0.9"
 fern = "0.5"
@@ -60,6 +60,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 derefable = "0.1"
 lru_time_cache = "0.10"
+lru = "0.6"
 format-bytes = "0.1"
 futures = "0.3"
 crossbeam = "0.7"
@@ -67,6 +68,10 @@ typed-builder = "0.7"
 jemallocator = "0.3.2"
 lp-modeler = {version = "0.5"}#, default-features = false, features = [ "native_coin_cbc" ]}
 #coin_cbc = "0.1.3, <0.1.4"
+ring = "0.16"
+data-encoding = "2.3"
+boolean_expression = "0.4"
+uuid = { version = "0.8", features = ["v4"] }
 
 [dev-dependencies]
 env_logger = "0.3"

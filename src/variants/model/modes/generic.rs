@@ -7,7 +7,7 @@ use itertools::Itertools;
 use vec_map::VecMap;
 
 use crate::grammar;
-use crate::utils::PROB_HALF;
+use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
 use crate::variants::model::{bias::Biases, AlleleFreq, Contamination};
@@ -163,6 +163,7 @@ impl GenericPosterior {
         };
 
         match vaf_tree_node.kind() {
+            grammar::vaftree::NodeKind::False => LogProb::ln_zero(),
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
                 let push_base_event = |allele_freq, base_events: &mut VecMap<likelihood::Event>| {
                     base_events.insert(
@@ -248,17 +249,18 @@ impl Posterior for GenericPosterior {
         let grid_points = self.grid_points(&data.pileups);
         let vaf_tree = &event.vafs;
         let bias_prior = if event.is_artifact() {
-            *PROB_HALF + LogProb((1.0 / event.biases.len() as f64).ln())
+            *PROB_05 + LogProb((1.0 / event.biases.len() as f64).ln())
         } else {
-            *PROB_HALF
+            *PROB_05
         };
 
         // METHOD: filter out biases that are impossible to observe, (e.g. + without any + observation).
-        let possible_biases = event
-            .biases
-            .iter()
-            .filter(|bias| bias.is_possible(&data.pileups) && bias.is_informative(&data.pileups));
-        LogProb::ln_sum_exp(
+        let possible_biases = event.biases.iter().filter(|bias| {
+            bias.is_possible(&data.pileups)
+                && bias.is_informative(&data.pileups)
+                && bias.is_likely(&data.pileups)
+        });
+        let p = LogProb::ln_sum_exp(
             &possible_biases
                 .cartesian_product(vaf_tree)
                 .map(|(biases, node)| {
@@ -274,7 +276,9 @@ impl Posterior for GenericPosterior {
                         )
                 })
                 .collect_vec(),
-        )
+        );
+
+        p
     }
 }
 
@@ -361,6 +365,8 @@ impl Likelihood<Cache> for GenericLikelihood {
     }
 }
 
+// TODO: remove the following in favor of the new universal prior.
+
 #[derive(Default, Clone, Debug)]
 pub(crate) struct FlatPrior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
@@ -388,8 +394,12 @@ impl Prior for FlatPrior {
     }
 }
 
-impl model::modes::UniverseDrivenPrior for FlatPrior {
-    fn set_universe(&mut self, universe: grammar::SampleInfo<grammar::VAFUniverse>) {
+impl model::prior::UpdatablePrior for FlatPrior {
+    fn set_universe_and_ploidies(
+        &mut self,
+        universe: grammar::SampleInfo<grammar::VAFUniverse>,
+        _ploidies: grammar::SampleInfo<Option<u32>>,
+    ) {
         self.universe = Some(universe);
     }
 }

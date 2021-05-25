@@ -1,0 +1,33 @@
+species: human
+
+samples:
+  brother:
+    gender: male
+    resolution: 5
+    variation:
+      - germline
+      - somatic
+    inheritance:
+      type: mendelian
+      from:
+        - father
+        - mother
+  sister:
+    gender: female
+    resolution: 5
+    variation:
+      - germline
+      - somatic
+    inheritance:
+      type: mendelian
+      from:
+        - mother
+        - father
+  mother:
+    gender: female
+    variation:
+      - germline
+  father:
+    gender: male
+    variation:
+      - germline

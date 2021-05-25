@@ -1,0 +1,43 @@
+species:
+  genome-size: 3.5e9
+  germline-mutation-rate: 1.2e-8
+  heterozygosity: 0.001
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+
+samples:
+  brain:
+    resolution: 20
+    somatic-effective-mutation-rate: 1e-10
+    sex: female
+    inheritance:
+      clonal:
+        from: blood
+        somatic: false
+  blood:
+    resolution: 20
+    somatic-effective-mutation-rate: 1e-10
+    sex: female
+    inheritance:
+      mendelian:
+        from:
+          - mother
+          - father
+  mother:
+    sex: female
+  father:
+    sex: male
+
+events:
+  denovo: "(brain:0.5 | brain:1.0) & father:0.0 & mother:0.0"
+  inherited: "!brain:0.0 & (!father:0.0 | !mother:0.0)"
+  lost:      "brain:0.0 & (!father:0.0 | !mother:0.0)"
+  mosaik_brain: "brain:]0.0,1.0[ & father:0.0 & mother:0.0"
+  otherwise: "!($denovo | $inherited | $lost | $mosaik_brain | $absent)"

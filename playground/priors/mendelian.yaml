@@ -1,0 +1,48 @@
+population:
+  heterozygosity:
+    small: 0.001
+    structural: 0.0001
+
+samples:
+  brother:
+    ploidy:
+      all: 2
+      Y: 1
+      X: 1
+    resolution: 5
+    variation:
+      - germline
+      - somatic:
+          mutation-rate: 1e-10
+    inheritance:
+      type: mendelian
+      from:
+        - father
+        - mother
+  sister:
+    ploidy: 
+      all: 2
+      Y: 0
+    resolution: 5
+    variation:
+      - germline
+      - somatic:
+          mutation-rate: 1e-10
+    inheritance:
+      type: mendelian
+      from:
+        - mother
+        - father
+  mother:
+    ploidy:
+      all: 2
+      Y: 0
+    variation:
+      - germline
+  father:
+    ploidy:
+      all: 2
+      Y: 1
+      X: 1
+    variation:
+      - germline

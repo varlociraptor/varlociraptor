@@ -17,6 +17,7 @@ use crate::variants::model::bias::Biases;
 pub(crate) mod bias;
 pub(crate) mod likelihood;
 pub(crate) mod modes;
+pub(crate) mod prior;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Contamination {
@@ -24,7 +25,7 @@ pub(crate) struct Contamination {
     pub(crate) fraction: f64,
 }
 
-#[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub(crate) struct Event {
     pub(crate) name: String,
     pub(crate) vafs: grammar::VAFTree,

@@ -44,6 +44,7 @@ where
     omit_strand_bias: bool,
     omit_read_orientation_bias: bool,
     omit_read_position_bias: bool,
+    omit_softclip_bias: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -57,11 +58,10 @@ where
 impl<Pr> Caller<Pr>
 where
     Pr: bayesian::model::Prior<Event = AlleleFreqCombination>
-        + model::modes::UniverseDrivenPrior
+        + model::prior::UpdatablePrior
+        + model::prior::CheckablePrior
         + Clone
-        + Default
-        + Send
-        + Sync,
+        + Default,
 {
     pub(crate) fn n_samples(&self) -> usize {
         self.samplenames.len()
@@ -93,7 +93,8 @@ where
         }
         header.push_record(
             b"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,\
-             Description=\"Posterior probability for strand bias artifact (PHRED)\">",
+             Description=\"Posterior probability for any artifact, indicated by strand, read position, \
+             read orientation, or softclip bias (PHRED).\">",
         );
         header.push_record(
             b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
@@ -102,19 +103,29 @@ where
 
         // register sample specific tags
         header.push_record(
-            b"##FORMAT=<ID=DP,Number=A,Type=Integer,\
+            b"##FORMAT=<ID=DP,Number=1,Type=Integer,\
               Description=\"Expected sequencing depth, while considering mapping uncertainty\">",
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBTSOP, with C being a count, \
+              Description=\"Summary of observations. Each entry is encoded as CBTSOPX, with C being a count, \
               B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
               as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
               O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
-              and P being the read position (^ = most found read position, * = any other position or position is irrelevant). \
+              P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
+              and X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip). \
               Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
-              probability for correct mapping of fragment is <95%). Thereby we extend Kass Raftery scores with \
+              probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
+              a term for equality between the evidence of the two alleles (E=equal).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=SOBS,Number=A,Type=String,\
+              Description=\"Summary of simplified observations. Each entry is encoded as CB, with C being a count, \
+              B being the posterior odds for the alt allele. \
+              Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
+              scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
+              probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
               a term for equality between the evidence of the two alleles (E=equal).\">",
         );
         header.push_record(
@@ -142,6 +153,18 @@ where
               the most found read position, . indicates that there is no read position bias.
               Read position bias is indicative of systematic sequencing errors, e.g. in a specific cycle. \
               Probability for read orientation bias is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=SCB,Number=A,Type=String,\
+              Description=\"Softclip bias estimate: $ indicates that ALT allele is associated with \
+              with softclips in the same alignment, . indicates that there is no softclip bias.
+              Softclip bias is indicative of systematic alignment errors, cause by a part of the read \
+              that does not properly align to the reference (and is thus soft clipped). Note that \
+              softclips can also be caused by structural variants. However, structural variants on the \
+              same haplotype as e.g. an SNV should not cause a softclip bias, because there will usually \
+              still be reads that do not reach the SV, thereby providing evidence against a softclip \
+              bias. Probability for softclip bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
         );
 
@@ -263,6 +286,7 @@ where
             let model_mode = (
                 work_item.check_read_orientation_bias,
                 work_item.check_read_position_bias,
+                work_item.check_softclip_bias,
             );
             _model = models.entry(model_mode).or_insert_with(|| self.model());
             {
@@ -280,12 +304,12 @@ where
                 work_item.check_read_orientation_bias,
                 work_item.check_strand_bias,
                 work_item.check_read_position_bias,
+                work_item.check_softclip_bias,
             )?;
 
             self.call_record(&mut work_item, _model, &events);
 
             work_item.call.write_final_record(&mut bcf_writer)?;
-
             if (i + 1) % 100 == 0 {
                 info!("{} records processed.", i + 1);
             }
@@ -367,6 +391,7 @@ where
             check_read_orientation_bias: is_snv_or_mnv && !self.omit_read_orientation_bias,
             check_strand_bias: !self.omit_strand_bias,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
+            check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -417,6 +442,7 @@ where
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
+        consider_softclip_bias: bool,
     ) -> Result<()> {
         if !rid.map_or(false, |rid: u32| current_rid == rid) {
             // rid is not the same as before, obtain event universe
@@ -437,27 +463,39 @@ where
                     vafs: vaftree.clone(),
                     biases: vec![Biases::none()],
                 });
-                // Corresponding biased event.
-                events.push(model::Event {
-                    name: event_name.clone(),
-                    vafs: vaftree.clone(),
-                    biases: Biases::all_artifact_combinations(
-                        consider_read_orientation_bias,
-                        consider_strand_bias,
-                        consider_read_position_bias,
-                    )
-                    .collect(),
-                });
+
+                let biases: Vec<_> = Biases::all_artifact_combinations(
+                    consider_read_orientation_bias,
+                    consider_strand_bias,
+                    consider_read_position_bias,
+                    consider_softclip_bias,
+                )
+                .collect();
+                if !biases.is_empty() {
+                    // Corresponding biased event.
+                    events.push(model::Event {
+                        name: event_name.clone(),
+                        vafs: vaftree.clone(),
+                        biases,
+                    });
+                }
             }
 
             // update prior to the VAF universe of the current chromosome
             let mut vaf_universes = self.scenario.sample_info();
+            let mut ploidies = self.scenario.sample_info();
             for (sample_name, sample) in self.scenario.samples().iter() {
-                let universe = sample.contig_universe(&contig)?;
+                let universe = sample.contig_universe(&contig, self.scenario.species())?;
                 vaf_universes = vaf_universes.push(sample_name, universe.to_owned());
+
+                let ploidy = sample.contig_ploidy(&contig, self.scenario.species())?;
+                ploidies = ploidies.push(sample_name, ploidy);
             }
 
-            model.prior_mut().set_universe(vaf_universes.build());
+            model
+                .prior_mut()
+                .set_universe_and_ploidies(vaf_universes.build(), ploidies.build());
+            model.prior().check()?;
         }
 
         Ok(())
@@ -598,4 +636,5 @@ struct WorkItem {
     check_read_orientation_bias: bool,
     check_strand_bias: bool,
     check_read_position_bias: bool,
+    check_softclip_bias: bool,
 }

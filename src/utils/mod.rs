@@ -26,6 +26,7 @@ use rust_htslib::{bam, bcf};
 use crate::variants::model;
 use crate::Event;
 
+pub(crate) mod anonymize;
 pub(crate) mod collect_variants;
 
 pub(crate) use collect_variants::collect_variants;
@@ -33,8 +34,10 @@ pub(crate) use collect_variants::collect_variants;
 pub(crate) const NUMERICAL_EPSILON: f64 = 1e-3;
 
 lazy_static! {
-    pub(crate) static ref PROB_HALF: LogProb = LogProb::from(Prob(0.5f64));
-    pub(crate) static ref PROB_ONE_THIRD: LogProb = LogProb::from(Prob(1.0 / 3.0));
+    pub(crate) static ref PROB_05: LogProb = LogProb::from(Prob(0.5f64));
+    pub(crate) static ref PROB_033: LogProb = LogProb::from(Prob(1.0 / 3.0));
+    pub(crate) static ref PROB_025: LogProb = LogProb::from(Prob(0.25));
+    pub(crate) static ref PROB_095: LogProb = LogProb::from(Prob(0.95));
 }
 
 pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
@@ -88,10 +91,15 @@ pub(crate) struct GenomicLocus {
     pos: u32,
 }
 
-pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
+pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display, F, K>(
     items: impl Iterator<Item = T>,
     keep_order: bool,
-) -> String {
+    aux_sort: F,
+) -> String
+where
+    F: FnMut(&(T, usize)) -> K,
+    K: Ord,
+{
     if keep_order {
         join(
             items
@@ -112,6 +120,7 @@ pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
             items
                 .most_common()
                 .into_iter()
+                .sorted_by_key(aux_sort)
                 .map(|(item, count)| format!("{}{}", count, item)),
             "",
         )
