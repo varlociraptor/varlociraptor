@@ -72,6 +72,7 @@ pub(crate) struct Prior {
     heterozygosity: Option<LogProb>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
     genome_size: Option<f64>,
+    variant_type_fractions: grammar::VariantTypeFraction,
     #[builder(default)]
     cache: RefCell<Cache>,
 }
@@ -88,6 +89,7 @@ impl Clone for Prior {
             inheritance: self.inheritance.clone(),
             genome_size: self.genome_size.clone(),
             cache: RefCell::default(),
+            variant_type_fractions: self.variant_type_fractions.clone(),
         }
     }
 }

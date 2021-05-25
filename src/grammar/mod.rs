@@ -166,6 +166,14 @@ impl Scenario {
         Ok(scenario)
     }
 
+    pub(crate) fn variant_type_fractions(&self) -> VariantTypeFraction {
+        self.species()
+            .as_ref()
+            .map_or(VariantTypeFraction::default(), |species| {
+                species.variant_type_fractions().clone()
+            })
+    }
+
     pub(crate) fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
         let mut sample_idx = self.sample_idx.lock().unwrap();
         if sample_idx.is_none() {
@@ -313,7 +321,7 @@ fn default_sv_fraction() -> f64 {
     0.01
 }
 
-#[derive(Deserialize, Getters)]
+#[derive(Deserialize, Getters, Clone, Debug)]
 #[get = "pub(crate)"]
 #[serde(deny_unknown_fields)]
 pub(crate) struct VariantTypeFraction {

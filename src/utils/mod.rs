@@ -196,7 +196,7 @@ where
 pub(crate) fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
-    vartype: &model::VariantType,
+    vartype: Option<&model::VariantType>,
 ) -> Result<Vec<NotNan<f64>>>
 where
     E: Event,
@@ -220,7 +220,7 @@ where
             }
         }
 
-        for p in tags_prob_sum(&mut record, &tags, Some(&vartype))? {
+        for p in tags_prob_sum(&mut record, &tags, vartype)? {
             if let Some(p) = p {
                 prob_dist.push(NotNan::new(*p)?);
             }
@@ -463,13 +463,13 @@ mod tests {
         let del = VariantType::Deletion(None);
 
         let mut del_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_del = collect_prob_dist(&mut del_calls_1, &events, &del).unwrap();
+        let prob_del = collect_prob_dist(&mut del_calls_1, &events, Some(&del)).unwrap();
         println!("prob_del[0]: {:?}", prob_del[0].into_inner());
         assert_eq!(prob_del.len(), 1);
         assert_relative_eq!(prob_del[0].into_inner(), Prob(0.8).ln(), epsilon = 0.000005);
 
         let mut del_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_del_abs = collect_prob_dist(&mut del_calls_2, &absent_event, &del).unwrap();
+        let prob_del_abs = collect_prob_dist(&mut del_calls_2, &absent_event, Some(&del)).unwrap();
         assert_eq!(prob_del_abs.len(), 1);
         assert_relative_eq!(
             prob_del_abs[0].into_inner(),
@@ -481,12 +481,12 @@ mod tests {
         let ins = VariantType::Insertion(None);
 
         let mut ins_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_ins = collect_prob_dist(&mut ins_calls_1, &events, &ins).unwrap();
+        let prob_ins = collect_prob_dist(&mut ins_calls_1, &events, Some(&ins)).unwrap();
         assert_eq!(prob_ins.len(), 1);
         assert_relative_eq!(prob_ins[0].into_inner(), Prob(0.2).ln(), epsilon = 0.000005);
 
         let mut ins_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_ins_abs = collect_prob_dist(&mut ins_calls_2, &absent_event, &ins).unwrap();
+        let prob_ins_abs = collect_prob_dist(&mut ins_calls_2, &absent_event, Some(&ins)).unwrap();
         assert_eq!(prob_ins_abs.len(), 1);
         assert_relative_eq!(
             prob_ins_abs[0].into_inner(),

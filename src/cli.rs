@@ -519,7 +519,7 @@ pub enum FilterMethod {
             be used to control FDR for each type separately. Otherwise, less certain variant types will be \
             underrepresented."
         )]
-        vartype: VariantType,
+        vartype: Option<VariantType>,
         #[structopt(long, help = "FDR to control for.")]
         fdr: f64,
         #[structopt(
@@ -757,6 +757,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
                                 species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                             }))
+                            .variant_type_fractions(scenario.variant_type_fractions())
                             .build();
 
                         // setup caller
@@ -936,11 +937,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .map(|event| SimpleEvent { name: event })
                     .collect_vec();
                 let vartype = match (vartype, minlen, maxlen) {
-                    (VariantType::Insertion(None), Some(minlen), Some(maxlen)) => {
-                        VariantType::Insertion(Some(minlen..maxlen))
+                    (Some(VariantType::Insertion(None)), Some(minlen), Some(maxlen)) => {
+                        Some(VariantType::Insertion(Some(minlen..maxlen)))
                     }
-                    (VariantType::Deletion(None), Some(minlen), Some(maxlen)) => {
-                        VariantType::Deletion(Some(minlen..maxlen))
+                    (Some(VariantType::Deletion(None)), Some(minlen), Some(maxlen)) => {
+                        Some(VariantType::Deletion(Some(minlen..maxlen)))
                     }
                     (vartype, _, _) => vartype,
                 };
@@ -949,7 +950,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     &calls,
                     None,
                     &events,
-                    &vartype,
+                    vartype.as_ref(),
                     LogProb::from(Prob::checked(fdr)?),
                     local,
                 )?;
@@ -1010,6 +1011,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 let ploidies = ploidies.build();
 
                 let prior = Prior::builder()
+                    .variant_type_fractions(scenario.variant_type_fractions())
                     .ploidies(Some(ploidies))
                     .universe(Some(universes))
                     .uniform(sample_infos.uniform_prior)

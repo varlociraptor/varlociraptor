@@ -36,7 +36,7 @@ pub fn control_fdr<E: Event, R, W>(
     inbcf: R,
     outbcf: Option<W>,
     events: &[E],
-    vartype: &model::VariantType,
+    vartype: Option<&model::VariantType>,
     alpha: LogProb,
     local: bool,
 ) -> Result<()>
@@ -97,13 +97,7 @@ where
 
     // second pass on bcf file
     let mut inbcf_reader = bcf::Reader::from_path(&inbcf)?;
-    utils::filter_by_threshold(
-        &mut inbcf_reader,
-        threshold,
-        &mut outbcf,
-        events,
-        Some(vartype),
-    )?;
+    utils::filter_by_threshold(&mut inbcf_reader, threshold, &mut outbcf, events, vartype)?;
 
     Ok(())
 }

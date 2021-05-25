@@ -153,7 +153,9 @@ fn control_fdr(test: &str, event_str: &str, alpha: f64, local: bool) {
         &[varlociraptor::SimpleEvent {
             name: event_str.to_owned(),
         }],
-        &varlociraptor::variants::model::VariantType::Deletion(Some(1..30)),
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
         LogProb::from(Prob(alpha)),
         local,
     )

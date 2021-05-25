@@ -374,7 +374,7 @@ impl Testcase {
             candidate_record.push_info_integer(b"END", &[end - ref_start as i32])?;
         }
         if self.anonymize {
-            anonymizer.anonymize_bcf_record(&mut candidate_record);
+            anonymizer.anonymize_bcf_record(&mut candidate_record)?;
         }
         candidate_writer.write(&candidate_record)?;
 

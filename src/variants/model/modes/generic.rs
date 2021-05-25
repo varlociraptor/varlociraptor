@@ -372,12 +372,6 @@ pub(crate) struct FlatPrior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
 }
 
-impl FlatPrior {
-    pub(crate) fn new() -> Self {
-        FlatPrior { universe: None }
-    }
-}
-
 impl Prior for FlatPrior {
     type Event = Vec<likelihood::Event>;
 
