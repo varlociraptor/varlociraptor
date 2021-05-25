@@ -32,7 +32,7 @@ impl Anonymizer {
     }
 
     pub(crate) fn anonymize_bcf_record(&self, record: &mut bcf::Record) {
-        let mut rand_alleles: Vec<Vec<u8>> = record
+        let rand_alleles: Vec<Vec<u8>> = record
             .alleles()
             .iter()
             .map(|allele| {
