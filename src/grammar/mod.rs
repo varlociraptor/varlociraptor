@@ -330,11 +330,11 @@ fn default_sv_fraction() -> f64 {
 #[get = "pub(crate)"]
 #[serde(deny_unknown_fields)]
 pub(crate) struct VariantTypeFraction {
-    #[serde(default = "indel")]
+    #[serde(default = "default_indel_fraction")]
     indel: f64,
-    #[serde(default = "mnv")]
+    #[serde(default = "default_mnv_fraction")]
     mnv: f64,
-    #[serde(default = "sv")]
+    #[serde(default = "default_sv_fraction")]
     sv: f64,
 }
 
