@@ -255,6 +255,11 @@ impl Prior {
         self.germline_mutation_rate[sample].map(|rate| rate * self.variant_type_fraction())
     }
 
+    fn vartype_heterozygosity(&self) -> Option<LogProb> {
+        self.heterozygosity
+            .map(|het| LogProb((het.exp() * self.variant_type_fraction()).ln()))
+    }
+
     fn has_somatic_variation(&self, sample: usize) -> bool {
         self.somatic_effective_mutation_rate[sample].is_some()
     }
@@ -285,7 +290,7 @@ impl Prior {
             // recursion end
 
             // step 1: population
-            let mut prob = if let Some(heterozygosity) = self.heterozygosity {
+            let mut prob = if let Some(heterozygosity) = self.vartype_heterozygosity() {
                 // calculate population prior
                 let population_samples = self
                     .inheritance
