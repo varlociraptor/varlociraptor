@@ -310,7 +310,7 @@ impl Species {
 }
 
 fn default_indel_fraction() -> f64 {
-    0.1
+    0.0125
 }
 
 fn default_mnv_fraction() -> f64 {
@@ -321,6 +321,12 @@ fn default_sv_fraction() -> f64 {
     0.01
 }
 
+
+/// Mutation rate reduciton factors (relative to SNVs) for variant types.
+/// Defaults:
+/// * mnvs: 0.001 (see https://www.nature.com/articles/s41467-019-12438-5)
+/// * indels: 0.0125 (see https://gatk.broadinstitute.org/hc/en-us/articles/360036826431-HaplotypeCaller, reduction in heterozygosity)
+/// * svs: 0.001 (predicted several hundred times less frequent that SNVs: https://doi.org/10.1038/s41588-018-0107-y)
 #[derive(Deserialize, Getters, Clone, Debug)]
 #[get = "pub(crate)"]
 #[serde(deny_unknown_fields)]
