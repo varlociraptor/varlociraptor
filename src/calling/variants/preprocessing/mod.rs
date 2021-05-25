@@ -181,7 +181,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 Some(res) => res?,
             }
 
-            let variants = utils::collect_variants(&mut record, true, &mut skips)?;
+            let variants = utils::collect_variants(&mut record, true, Some(&mut skips))?;
             if !variants.is_empty() {
                 // process record
                 let work_item = WorkItem {

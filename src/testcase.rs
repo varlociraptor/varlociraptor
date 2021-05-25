@@ -245,7 +245,7 @@ impl Testcase {
         // get and write candidate
         let mut candidate = None;
         for (i, mut record) in (self.variants()?).into_iter().enumerate() {
-            let variants = utils::collect_variants(&mut record, false, &mut skips)?;
+            let variants = utils::collect_variants(&mut record, false, Some(&mut skips))?;
             for variant in variants {
                 if i == self.idx {
                     // if no chromosome was specified, we infer the locus from the matching
@@ -374,7 +374,7 @@ impl Testcase {
             candidate_record.push_info_integer(b"END", &[end - ref_start as i32])?;
         }
         if self.anonymize {
-            anonymizer.anonymize_bcf_record(&mut candidate_record);
+            anonymizer.anonymize_bcf_record(&mut candidate_record)?;
         }
         candidate_writer.write(&candidate_record)?;
 

@@ -126,7 +126,7 @@ impl Biases {
                         rpb.is_artifact(),
                         scb.is_artifact(),
                     ]
-                    .into_iter()
+                    .iter()
                     .map(|artifact| if *artifact { 1 } else { 0 })
                     .sum::<usize>()
                         == 1

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use anyhow::Result;
 use rand::{seq::SliceRandom, thread_rng};
 use rust_htslib::{bam, bcf};
 use uuid::Uuid;
@@ -31,8 +32,8 @@ impl Anonymizer {
         }
     }
 
-    pub(crate) fn anonymize_bcf_record(&self, record: &mut bcf::Record) {
-        let mut rand_alleles: Vec<Vec<u8>> = record
+    pub(crate) fn anonymize_bcf_record(&self, record: &mut bcf::Record) -> Result<()> {
+        let rand_alleles: Vec<Vec<u8>> = record
             .alleles()
             .iter()
             .map(|allele| {
@@ -52,7 +53,9 @@ impl Anonymizer {
             .iter()
             .map(|allele| allele.as_slice())
             .collect();
-        record.set_alleles(refs.as_slice());
+        record.set_alleles(refs.as_slice())?;
+
+        Ok(())
     }
 
     pub(crate) fn anonymize_bam_record(&mut self, record: &mut bam::Record) {

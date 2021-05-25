@@ -807,16 +807,6 @@ impl std::fmt::Display for NormalizedFormula {
     }
 }
 
-impl NormalizedFormula {
-    fn is_atom(&self) -> bool {
-        if let NormalizedFormula::Atom { .. } = self {
-            true
-        } else {
-            false
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum VAFSpectrum {
     Set(BTreeSet<AlleleFreq>),

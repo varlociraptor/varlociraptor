@@ -36,8 +36,9 @@ pub fn control_fdr<E: Event, R, W>(
     inbcf: R,
     outbcf: Option<W>,
     events: &[E],
-    vartype: &model::VariantType,
+    vartype: Option<&model::VariantType>,
     alpha: LogProb,
+    local: bool,
 ) -> Result<()>
 where
     R: AsRef<Path>,
@@ -59,7 +60,9 @@ where
 
     let mut threshold = None;
 
-    if alpha != LogProb::ln_one() {
+    if local {
+        threshold = Some(alpha.ln_one_minus_exp());
+    } else if alpha != LogProb::ln_one() {
         // do not filter by FDR if alpha is 1.0
         // TODO: remove hits where another event has a higher probability
         // Otherwise, if there are just enough calls, events like PROB_SOMATIC=8, PROB_ABSENT=2
