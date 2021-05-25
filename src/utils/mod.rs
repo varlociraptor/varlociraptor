@@ -151,7 +151,7 @@ pub(crate) fn tags_prob_sum(
     vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>> {
     let mut skips = SimpleCounter::default();
-    let variants = collect_variants(record, false, &mut skips)?;
+    let variants = collect_variants(record, false, Some(&mut skips))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
     for tag in tags {

@@ -10,7 +10,7 @@ use crate::grammar;
 use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
-use crate::variants::model::{bias::Biases, AlleleFreq, Contamination};
+use crate::variants::model::{bias::Biases, AlleleFreq, Contamination, VariantType};
 use crate::variants::sample::Pileup;
 
 #[derive(new, Clone, Debug)]
@@ -396,4 +396,6 @@ impl model::prior::UpdatablePrior for FlatPrior {
     ) {
         self.universe = Some(universe);
     }
+
+    fn set_variant_type(&mut self, _: VariantType) {}
 }

@@ -17,7 +17,7 @@ pub(crate) mod vaftree;
 use crate::errors;
 pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
-use crate::variants::model::AlleleFreq;
+use crate::variants::model::{AlleleFreq, VariantType};
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -331,6 +331,19 @@ pub(crate) struct VariantTypeFraction {
     mnv: f64,
     #[serde(default = "default_sv_fraction")]
     sv: f64,
+}
+
+impl VariantTypeFraction {
+    pub(crate) fn get(&self, variant_type: &VariantType) -> f64 {
+        match variant_type {
+            VariantType::Insertion(_) | VariantType::Deletion(_) | VariantType::Replacement => {
+                self.indel
+            }
+            VariantType::MNV => self.mnv,
+            VariantType::Inversion | VariantType::Breakend | VariantType::Duplication => self.sv,
+            _ => 1.0,
+        }
+    }
 }
 
 impl Default for VariantTypeFraction {

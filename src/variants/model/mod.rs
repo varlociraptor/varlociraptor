@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use std::ops::{Deref, Range};
 use std::str;
 
+use anyhow;
 use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
@@ -225,6 +226,20 @@ impl Variant {
             (&Variant::Duplication { .. }, &VariantType::Duplication) => true,
             (&Variant::Replacement { .. }, &VariantType::Replacement) => true,
             _ => false,
+        }
+    }
+
+    pub(crate) fn to_type(&self) -> VariantType {
+        match (self) {
+            Variant::Deletion(_) => VariantType::Deletion(None),
+            Variant::Insertion(_) => VariantType::Insertion(None),
+            Variant::SNV(_) => VariantType::SNV,
+            Variant::MNV(_) => VariantType::MNV,
+            Variant::Breakend { .. } => VariantType::Breakend,
+            Variant::Inversion(_) => VariantType::Inversion,
+            Variant::Duplication(_) => VariantType::Duplication,
+            Variant::Replacement { .. } => VariantType::Replacement,
+            Variant::None => VariantType::None,
         }
     }
 

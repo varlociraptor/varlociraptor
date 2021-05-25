@@ -17,7 +17,7 @@ use statrs::distribution::{self, Discrete};
 
 use crate::errors;
 use crate::grammar;
-use crate::variants::model::{bias::Biases, likelihood, AlleleFreq};
+use crate::variants::model::{bias::Biases, likelihood, AlleleFreq, VariantType};
 
 pub(crate) trait UpdatablePrior {
     fn set_universe_and_ploidies(
@@ -25,6 +25,8 @@ pub(crate) trait UpdatablePrior {
         universe: grammar::SampleInfo<grammar::VAFUniverse>,
         ploidies: grammar::SampleInfo<Option<u32>>,
     );
+
+    fn set_variant_type(&mut self, variant_type: VariantType);
 }
 
 pub(crate) trait CheckablePrior {
@@ -74,6 +76,8 @@ pub(crate) struct Prior {
     genome_size: Option<f64>,
     variant_type_fractions: grammar::VariantTypeFraction,
     #[builder(default)]
+    variant_type: Option<VariantType>,
+    #[builder(default)]
     cache: RefCell<Cache>,
 }
 
@@ -90,6 +94,7 @@ impl Clone for Prior {
             genome_size: self.genome_size.clone(),
             cache: RefCell::default(),
             variant_type_fractions: self.variant_type_fractions.clone(),
+            variant_type: self.variant_type.clone(),
         }
     }
 }
@@ -234,6 +239,22 @@ impl Prior {
         relative_eq!(n_alt, n_alt.round())
     }
 
+    fn variant_type_fraction(&self) -> f64 {
+        self.variant_type_fractions.get(
+            self.variant_type
+                .as_ref()
+                .expect("bug: variant type not set in prior"),
+        )
+    }
+
+    fn vartype_somatic_effective_mutation_rate(&self, sample: usize) -> Option<f64> {
+        self.somatic_effective_mutation_rate[sample].map(|rate| rate * self.variant_type_fraction())
+    }
+
+    fn vartype_germline_mutation_rate(&self, sample: usize) -> Option<f64> {
+        self.germline_mutation_rate[sample].map(|rate| rate * self.variant_type_fraction())
+    }
+
     fn has_somatic_variation(&self, sample: usize) -> bool {
         self.somatic_effective_mutation_rate[sample].is_some()
     }
@@ -331,7 +352,7 @@ impl Prior {
                         }
                         None => {
                             // no inheritance pattern defined
-                            if let Some(r) = self.somatic_effective_mutation_rate[sample] {
+                            if let Some(r) = self.vartype_somatic_effective_mutation_rate(sample) {
                                 Some(self.prob_somatic_mutation(
                                     r,
                                     self.effective_somatic_vaf(sample, event, &germline_vafs),
@@ -441,7 +462,10 @@ impl Prior {
         if !relative_eq!(*germline_vafs[sample], *germline_vafs[parent]) {
             LogProb::ln_zero()
         } else {
-            match (somatic, self.somatic_effective_mutation_rate[sample]) {
+            match (
+                somatic,
+                self.vartype_somatic_effective_mutation_rate(sample),
+            ) {
                 (true, Some(somatic_mutation_rate)) => {
                     // METHOD: de novo somatic variation in the sample, anything is possible.
                     let denovo_vaf = event[sample].allele_freq
@@ -488,7 +512,7 @@ impl Prior {
         } else {
             let parent_somatic_vaf = self.effective_somatic_vaf(parent, event, germline_vafs);
             let parent_total_vaf = event[parent].allele_freq;
-            match (origin, self.somatic_effective_mutation_rate[sample]) {
+            match (origin, self.vartype_somatic_effective_mutation_rate(sample)) {
                 (grammar::SubcloneOrigin::SingleCell, None) => {
                     // METHOD: no de novo somatic mutation. total_vaf must reflect ploidy.
                     if *parent_total_vaf == 1.0 {
@@ -744,10 +768,11 @@ impl Prior {
             ploidy(child),
             (n_alt(parents.0), n_alt(parents.1)),
             n_alt(child),
-            self.germline_mutation_rate[child].expect("bug: no germline mutation rate for child"),
+            self.vartype_germline_mutation_rate(child)
+                .expect("bug: no germline mutation rate for child"),
         );
 
-        if let Some(somatic_mutation_rate) = self.somatic_effective_mutation_rate[child] {
+        if let Some(somatic_mutation_rate) = self.vartype_somatic_effective_mutation_rate(child) {
             prob += self.prob_somatic_mutation(
                 somatic_mutation_rate,
                 self.effective_somatic_vaf(child, event, &germline_vafs),
@@ -786,6 +811,10 @@ impl UpdatablePrior for Prior {
         self.cache.borrow_mut().clear();
         self.universe = Some(universe);
         self.ploidies = Some(ploidies);
+    }
+
+    fn set_variant_type(&mut self, variant_type: VariantType) {
+        self.variant_type = Some(variant_type);
     }
 }
 
