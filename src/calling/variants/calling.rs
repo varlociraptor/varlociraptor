@@ -295,12 +295,17 @@ where
                 *entry = Some(work_item.rid);
             }
 
+            // obtain variant type
+            let variant_type =
+                utils::collect_variants(records.first_not_none_mut()?, false, None)?[0].to_type();
+
             self.configure_model(
                 work_item.rid,
                 _last_rid,
                 _model,
                 &mut events,
                 contig,
+                variant_type,
                 work_item.check_read_orientation_bias,
                 work_item.check_strand_bias,
                 work_item.check_read_position_bias,
@@ -439,6 +444,7 @@ where
         model: &mut Model<Pr>,
         events: &mut Vec<model::Event>,
         contig: &str,
+        variant_type: model::VariantType,
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
@@ -497,6 +503,8 @@ where
                 .set_universe_and_ploidies(vaf_universes.build(), ploidies.build());
             model.prior().check()?;
         }
+
+        model.prior_mut().set_variant_type(variant_type);
 
         Ok(())
     }

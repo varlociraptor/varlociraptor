@@ -17,7 +17,7 @@ pub(crate) mod vaftree;
 use crate::errors;
 pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
-use crate::variants::model::AlleleFreq;
+use crate::variants::model::{AlleleFreq, VariantType};
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -166,6 +166,14 @@ impl Scenario {
         Ok(scenario)
     }
 
+    pub(crate) fn variant_type_fractions(&self) -> VariantTypeFraction {
+        self.species()
+            .as_ref()
+            .map_or(VariantTypeFraction::default(), |species| {
+                species.variant_type_fractions().clone()
+            })
+    }
+
     pub(crate) fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
         let mut sample_idx = self.sample_idx.lock().unwrap();
         if sample_idx.is_none() {
@@ -302,7 +310,7 @@ impl Species {
 }
 
 fn default_indel_fraction() -> f64 {
-    0.1
+    0.0125
 }
 
 fn default_mnv_fraction() -> f64 {
@@ -313,7 +321,12 @@ fn default_sv_fraction() -> f64 {
     0.01
 }
 
-#[derive(Deserialize, Getters)]
+/// Mutation rate reduciton factors (relative to SNVs) for variant types.
+/// Defaults:
+/// * mnvs: 0.001 (see https://www.nature.com/articles/s41467-019-12438-5)
+/// * indels: 0.0125 (see https://gatk.broadinstitute.org/hc/en-us/articles/360036826431-HaplotypeCaller, reduction in heterozygosity)
+/// * svs: 0.001 (predicted several hundred times less frequent that SNVs: https://doi.org/10.1038/s41588-018-0107-y)
+#[derive(Deserialize, Getters, Clone, Debug)]
 #[get = "pub(crate)"]
 #[serde(deny_unknown_fields)]
 pub(crate) struct VariantTypeFraction {
@@ -323,6 +336,19 @@ pub(crate) struct VariantTypeFraction {
     mnv: f64,
     #[serde(default = "default_sv_fraction")]
     sv: f64,
+}
+
+impl VariantTypeFraction {
+    pub(crate) fn get(&self, variant_type: &VariantType) -> f64 {
+        match variant_type {
+            VariantType::Insertion(_) | VariantType::Deletion(_) | VariantType::Replacement => {
+                self.indel
+            }
+            VariantType::MNV => self.mnv,
+            VariantType::Inversion | VariantType::Breakend | VariantType::Duplication => self.sv,
+            _ => 1.0,
+        }
+    }
 }
 
 impl Default for VariantTypeFraction {
