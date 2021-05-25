@@ -38,6 +38,7 @@ pub fn control_fdr<E: Event, R, W>(
     events: &[E],
     vartype: &model::VariantType,
     alpha: LogProb,
+    local: bool,
 ) -> Result<()>
 where
     R: AsRef<Path>,
@@ -59,7 +60,9 @@ where
 
     let mut threshold = None;
 
-    if alpha != LogProb::ln_one() {
+    if local {
+        threshold = Some(alpha.ln_one_minus_exp());
+    } else if alpha != LogProb::ln_one() {
         // do not filter by FDR if alpha is 1.0
         // TODO: remove hits where another event has a higher probability
         // Otherwise, if there are just enough calls, events like PROB_SOMATIC=8, PROB_ABSENT=2
@@ -94,7 +97,13 @@ where
 
     // second pass on bcf file
     let mut inbcf_reader = bcf::Reader::from_path(&inbcf)?;
-    utils::filter_by_threshold(&mut inbcf_reader, threshold, &mut outbcf, events, vartype)?;
+    utils::filter_by_threshold(
+        &mut inbcf_reader,
+        threshold,
+        &mut outbcf,
+        events,
+        Some(vartype),
+    )?;
 
     Ok(())
 }

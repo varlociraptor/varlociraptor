@@ -515,11 +515,19 @@ pub enum FilterMethod {
         #[structopt(
             long = "var",
             possible_values = &VariantType::iter().map(|v| v.into()).collect_vec(),
-            help = "Variant type to consider."
+            help = "Variant type to consider. When controlling global FDR (not using --local) this should \
+            be used to control FDR for each type separately. Otherwise, less certain variant types will be \
+            underrepresented."
         )]
         vartype: VariantType,
         #[structopt(long, help = "FDR to control for.")]
         fdr: f64,
+        #[structopt(
+            long = "local",
+            help = "Control local FDR instead of global FDR. This means that for each record, the posterior \
+            of the selected events has to be at least 1-fdr."
+        )]
+        local: bool,
         #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
@@ -918,6 +926,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 calls,
                 events,
                 fdr,
+                local,
                 vartype,
                 minlen,
                 maxlen,
@@ -942,6 +951,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     &events,
                     &vartype,
                     LogProb::from(Prob::checked(fdr)?),
+                    local,
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {

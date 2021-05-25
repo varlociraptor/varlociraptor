@@ -241,13 +241,13 @@ where
 /// * `threshold` - minimum threshold for the sum of posterior probabilities of the set of Events considered
 /// * `calls` - BCF writer for the filtered varlociraptor calls
 /// * `events` - the set of Events to filter on
-/// * `vartype` - the variant type to consider
+/// * `vartype` - the variant type to consider (if None, use all types)
 pub(crate) fn filter_by_threshold<E: Event>(
     calls: &mut bcf::Reader,
     threshold: Option<LogProb>,
     out: &mut bcf::Writer,
     events: &[E],
-    vartype: &model::VariantType,
+    vartype: Option<&model::VariantType>,
 ) -> Result<()> {
     let mut breakend_event_decisions = HashMap::new();
 
@@ -265,7 +265,7 @@ pub(crate) fn filter_by_threshold<E: Event>(
             None
         };
 
-        let probs = tags_prob_sum(record, &tags, Some(vartype))?;
+        let probs = tags_prob_sum(record, &tags, vartype)?;
 
         assert!(
             bnd_event.is_none() || probs.len() == 1,
