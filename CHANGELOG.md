@@ -2,6 +2,9 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [3.3.2] - 2021-05-25
+- Stop decode-phred subcommand from removing quoting from description field in header lines of decoded fields.
+
 ## [3.3.1] - 2021-05-22
 - Fix debug output accidentally printing to STDOUT, thereby invalidating BCF.
 
