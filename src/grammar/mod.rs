@@ -321,7 +321,6 @@ fn default_sv_fraction() -> f64 {
     0.01
 }
 
-
 /// Mutation rate reduciton factors (relative to SNVs) for variant types.
 /// Defaults:
 /// * mnvs: 0.001 (see https://www.nature.com/articles/s41467-019-12438-5)
