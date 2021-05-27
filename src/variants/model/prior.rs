@@ -747,11 +747,11 @@ impl Prior {
             // TODO For the future:
             // case 1: no separation in the first meiotic split (choose from all chromosomes of that parent)
             // case 2: no separation in the second meiotic split (duplicate a parental chromosome)
-            panic!(format!(
+            panic!(
                 "ploidies of child and parents do not match ({}, {} => {}) chromosome duplication events \
                     (e.g. trisomy) are not yet supported by the mendelian inheritance model of varlociraptor", 
                 source_ploidy.0, source_ploidy.1, target_ploidy
-            ));
+            );
         }
     }
 
