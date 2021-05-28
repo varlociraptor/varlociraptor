@@ -394,6 +394,29 @@ pub enum CallKind {
         )]
         output: Option<PathBuf>,
     },
+    // my part starts here.
+    #[structopt(
+        name = "haplotype-abundances",
+        about = "Call variants in haplotypes.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Abundances {
+            #[structopt(
+                parse(from_os_str),
+                long = "haplotype-counts",
+                required = true,
+                help = "HDF5 haplotype counts calculated by Kallisto.",
+            )]
+            haplotype_counts: PathBuf,
+
+            #[structopt(
+                parse(from_os_str),
+                long = "haplotype-variants",
+                required = true,
+                help = "Haplotype variants should be supplied.",
+            )]
+            haplotype_variants: PathBuf,
+    }
     // #[structopt(
     //     name = "cnvs",
     //     about = "Call CNVs in tumor-normal sample pairs. This is experimental (do not use it yet).",
@@ -869,6 +892,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             call_generic(scenario, observations)?;
                         }
                     }
+                
+
                 } // CallKind::CNVs {
                   //     calls,
                   //     output,
@@ -894,6 +919,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                   //         .unwrap();
                   //     caller.call()?;
                   // }
+            
+                CallKind::Abundances {
+                    haplotype_counts,
+                    haplotype_variants,
+                } => {
+                    let mut caller = calling::haplotype_abundances::Caller;
+                    caller.call()?;
+                }
             }
         }
         Varlociraptor::FilterCalls { method } => match method {
