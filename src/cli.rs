@@ -426,7 +426,7 @@ pub enum CallKind {
                 parse(from_os_str),
                 long = "haplotype-variants",
                 required = true,
-                help = "Haplotype variants should be supplied.",
+                help = "Haplotype variants compared to a common reference.", // TODO later, we will add a subcommand to generate this file with Varlociraptor as well
             )]
             haplotype_variants: PathBuf,
     }
