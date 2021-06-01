@@ -410,7 +410,7 @@ pub enum CallKind {
     // my part starts here.
     #[structopt(
         name = "haplotype-abundances",
-        about = "Call variants in haplotypes.",
+        about = "Call haplotype abundances (e.g. for HLA typing or viral strain quantification).",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Abundances {
@@ -426,7 +426,7 @@ pub enum CallKind {
                 parse(from_os_str),
                 long = "haplotype-variants",
                 required = true,
-                help = "Haplotype variants should be supplied.",
+                help = "Haplotype variants compared to a common reference.", // TODO later, we will add a subcommand to generate this file with Varlociraptor as well
             )]
             haplotype_variants: PathBuf,
     }
