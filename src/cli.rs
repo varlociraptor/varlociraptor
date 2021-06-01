@@ -410,7 +410,7 @@ pub enum CallKind {
     // my part starts here.
     #[structopt(
         name = "haplotype-abundances",
-        about = "Call variants in haplotypes.",
+        about = "Call haplotype abundances (e.g. for HLA typing or viral strain quantification).",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Abundances {
