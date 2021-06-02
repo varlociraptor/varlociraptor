@@ -382,6 +382,17 @@ impl Formula {
         Ok(simplified.into_normalized_formula())
     }
 
+    pub(crate) fn normalize2(&self, scenario: &Scenario) -> Result<Formula> {
+        let mut simplified = self
+            .expand_expressions(scenario)?
+            .apply_negations(scenario, "all")?
+            .simplify()
+            .merge_atoms()
+            .simplify();
+        simplified.strip_false();
+        Ok(simplified)
+    }
+
     fn expand_expressions(&self, scenario: &Scenario) -> Result<Self> {
         Ok(match self {
             Formula::Conjunction { operands } => Formula::Conjunction {

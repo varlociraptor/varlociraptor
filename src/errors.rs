@@ -60,4 +60,6 @@ pub(crate) enum Error {
     InvalidStrandInfo { value: char },
     #[error("invalid read orientation information '{value}', must be 'F1R2', 'F2R1', etc.")]
     InvalidReadOrientationInfo { value: String },
+    #[error("the following events are not disjunct: {expressions}")]
+    OverlappingEvents { expressions: String },
 }

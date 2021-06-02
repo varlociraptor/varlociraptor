@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Read;
@@ -18,6 +18,7 @@ use crate::errors;
 pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
+use itertools::Itertools;
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -162,8 +163,17 @@ impl Scenario {
             event_expressions.insert(absent_identifier, Formula::absent(&scenario));
         }
         scenario.expressions.extend(event_expressions);
-
-        Ok(scenario)
+        let overlapping = scenario.overlapping_formulae()?;
+        if !overlapping.is_empty() {
+            Err(crate::errors::Error::OverlappingEvents {
+                expressions: overlapping
+                    .iter()
+                    .map(|(a1, a2, f)| format!("({} | {}) = {}", a1.0, a2.0, f.0))
+                    .join(", "),
+            })?
+        } else {
+            Ok(scenario)
+        }
     }
 
     pub(crate) fn variant_type_fractions(&self) -> VariantTypeFraction {
@@ -215,6 +225,48 @@ impl Scenario {
                 Ok((name.to_owned(), vaftree))
             })
             .collect()
+    }
+
+    pub(crate) fn overlapping_formulae(
+        &self,
+    ) -> Result<
+        Vec<(
+            ExpressionIdentifier,
+            ExpressionIdentifier,
+            ExpressionIdentifier,
+        )>,
+    > {
+        let expressions = self
+            .expressions
+            .iter()
+            .filter(|(id, _)| id.0 != "absent")
+            .map(|(_, expr)| expr.normalize2(self))
+            .collect::<Result<HashSet<_>>>()?;
+        let names = self
+            .expressions
+            .iter()
+            .map(|(id, expr)| (expr, id))
+            .collect::<HashMap<_, _>>();
+        let mut overlapping = vec![];
+        for e1 in &expressions {
+            for e2 in &expressions {
+                if e1 == e2 {
+                    continue;
+                }
+                let disjunction = Formula::Disjunction {
+                    operands: vec![e1.to_owned(), e2.to_owned()],
+                }
+                .normalize2(self)?;
+                if expressions.contains(&disjunction) {
+                    overlapping.push((
+                        names[e1].clone(),
+                        names[e2].clone(),
+                        names[&disjunction].clone(),
+                    ));
+                }
+            }
+        }
+        Ok(overlapping)
     }
 }
 
@@ -466,10 +518,10 @@ impl Sample {
                         ));
                         universe
                     }
-                    (None, false) => return Err(errors::Error::InvalidPriorConfiguration{
+                    (None, false) => return Err(errors::Error::InvalidPriorConfiguration {
                         msg: "sample needs to define either universe, ploidy or somatic_mutation_rate".to_owned(),
                     }
-                    .into()),
+                        .into()),
                 },
             )
         }
