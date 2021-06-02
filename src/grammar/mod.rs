@@ -248,9 +248,9 @@ impl Scenario {
             .map(|(id, expr)| (expr, id))
             .collect::<HashMap<_, _>>();
         let mut overlapping = vec![];
-        for e1 in &expressions {
-            for e2 in &expressions {
-                if e1 == e2 {
+        for (i, e1) in expressions.iter().enumerate() {
+            for (j, e2) in expressions.iter().enumerate() {
+                if i == j {
                     continue;
                 }
                 let disjunction = Formula::Disjunction {
