@@ -930,7 +930,12 @@ impl VAFRange {
             (false, true) => range.end < other_range.end,
             (false, false) => range.end < other_range.end,
         };
-        if range.end <= other_range.start || range.start >= other_range.end {
+        if (range.end < other_range.start || range.start > other_range.end)
+            || (range.end <= other_range.start
+                && (range.right_exclusive || other_range.left_exclusive))
+            || (range.start >= other_range.end
+                && (range.left_exclusive || other_range.right_exclusive))
+        {
             VAFRangeOverlap::None
         } else {
             match (start_is_right_of_start, end_is_left_of_end) {
