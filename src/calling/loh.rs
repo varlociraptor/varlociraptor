@@ -248,16 +248,18 @@ fn site_posterior_not_no_loh(
     record: &mut bcf::Record,
     loh_field_name: &String,
     no_loh_field_name: &String,
+    unclear_het_field_name: &String,
     absent_field_name: &String,
     uninteresting_field_name: &String,
     artifact_field_name: &String,
-    minimum_background_het: LogProb,
+    minimum_loh_no_loh: LogProb,
     valid_start_end_background_het: LogProb,
 ) -> Option<(LogProb, bool)> {
     let loh_log_prob = info_phred_to_log_prob(record, loh_field_name);
     let no_loh_log_prob = info_phred_to_log_prob(record, no_loh_field_name);
-    let background_het = loh_log_prob.ln_add_exp(no_loh_log_prob);
-    if background_het < minimum_background_het {
+    let unclear_het_log_prob = info_phred_to_log_prob(record, unclear_het_field_name);
+    let loh_no_loh_log_prob = loh_log_prob.ln_add_exp(no_loh_log_prob);
+    if loh_no_loh_log_prob < minimum_loh_no_loh {
         return None;
     }
     // a LogProb(0.0) would set the cumulative sum of log posteriors to
@@ -267,14 +269,16 @@ fn site_posterior_not_no_loh(
         let uninteresting_log_prob = info_phred_to_log_prob(record, uninteresting_field_name);
         let artifact_log_prob = info_phred_to_log_prob(record, artifact_field_name);
         loh_log_prob
+            .ln_add_exp(unclear_het_log_prob)
             .ln_add_exp(absent_log_prob)
             .ln_add_exp(uninteresting_log_prob)
             .ln_add_exp(artifact_log_prob)
     } else {
         no_loh_log_prob.ln_one_minus_exp()
     };
+    let background_het = loh_no_loh_log_prob.ln_add_exp(unclear_het_log_prob);
     let valid_start_end =
-        loh_log_prob > no_loh_log_prob && background_het > valid_start_end_background_het;
+        loh_log_prob > no_loh_log_prob && background_het >= valid_start_end_background_het;
     Some((checked_posterior, valid_start_end))
 }
 
@@ -284,7 +288,7 @@ impl ContigLogPosteriorsLOH {
         contig_id: &u32,
         contig_length: &usize,
     ) -> Result<ContigLogPosteriorsLOH> {
-        let minimum_background_het: LogProb = LogProb::from(Prob(0.2));
+        let minimum_loh_no_loh: LogProb = LogProb::from(Prob(0.2));
         let valid_start_end_background_het: LogProb = LogProb::from(Prob(0.5));
         let mut record = bcf_reader.empty_record();
         let mut cum_loh_posteriors: Vec<LogProb> = Vec::new();
@@ -292,6 +296,7 @@ impl ContigLogPosteriorsLOH {
         let mut valid_start_ends: Vec<bool> = Vec::new();
         let loh_field_name = &String::from("PROB_LOH");
         let no_loh_field_name = &String::from("PROB_NO_LOH");
+        let unclear_het_field_name = &String::from("PROB_UNCLEAR_HET");
         let absent_field_name = &String::from("PROB_ABSENT");
         let uninteresting_field_name = &String::from("PROB_UNINTERESTING");
         let artifact_field_name = &String::from("PROB_ARTIFACT");
@@ -304,10 +309,11 @@ impl ContigLogPosteriorsLOH {
                         &mut record,
                         loh_field_name,
                         no_loh_field_name,
+                        unclear_het_field_name,
                         absent_field_name,
                         uninteresting_field_name,
                         artifact_field_name,
-                        minimum_background_het,
+                        minimum_loh_no_loh,
                         valid_start_end_background_het,
                     ) {
                         Some((posterior, valid_start_end)) => {
@@ -346,10 +352,11 @@ impl ContigLogPosteriorsLOH {
                         &mut record,
                         loh_field_name,
                         no_loh_field_name,
+                        unclear_het_field_name,
                         absent_field_name,
                         uninteresting_field_name,
                         artifact_field_name,
-                        minimum_background_het,
+                        minimum_loh_no_loh,
                         valid_start_end_background_het,
                     ) {
                         Some((posterior, valid_start_end)) => {
