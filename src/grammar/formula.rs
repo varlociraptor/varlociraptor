@@ -1,6 +1,5 @@
 use std::cmp::{Ord, Ordering, PartialOrd};
 use std::collections::{BTreeSet, HashSet, VecDeque};
-
 use std::fmt;
 use std::ops;
 
@@ -107,7 +106,7 @@ pub(crate) enum FormulaTerminal {
 }
 
 impl FormulaTerminal {
-    fn merge(&mut self, other: &FormulaTerminal) {
+    fn merge_conjunctions(&mut self, other: &FormulaTerminal) {
         match (self, other) {
             (
                 FormulaTerminal::Atom {
@@ -118,44 +117,24 @@ impl FormulaTerminal {
                     sample: sample_b,
                     vafs: vafs_b,
                 },
-            ) if sample_a == sample_b => {
-                match (&vafs_a, &vafs_b) {
-                    (VAFSpectrum::Range(a), VAFSpectrum::Range(b)) => {
-                        match a.overlap(b) {
-                            VAFRangeOverlap::None => *vafs_a = VAFSpectrum::empty(),
-                            VAFRangeOverlap::Contains | VAFRangeOverlap::Equal => (), // nothing to do
-                            VAFRangeOverlap::Contained => *vafs_a = vafs_b.clone(),
-                            VAFRangeOverlap::Start => {
-                                *vafs_a = VAFSpectrum::Range(VAFRange {
-                                    inner: b.start..a.end,
-                                    left_exclusive: b.left_exclusive,
-                                    right_exclusive: a.right_exclusive,
-                                })
-                            }
-                            VAFRangeOverlap::End => {
-                                *vafs_a = VAFSpectrum::Range(VAFRange {
-                                    inner: a.start..b.end,
-                                    left_exclusive: a.left_exclusive,
-                                    right_exclusive: b.right_exclusive,
-                                })
-                            }
-                        }
-                    }
-                    (VAFSpectrum::Range(a), VAFSpectrum::Set(b)) => {
-                        *vafs_a = VAFSpectrum::Set(
-                            b.iter().filter(|vaf| a.contains(**vaf)).cloned().collect(),
-                        );
-                    }
-                    (VAFSpectrum::Set(a), VAFSpectrum::Range(b)) => {
-                        *vafs_a = VAFSpectrum::Set(
-                            a.iter().filter(|vaf| b.contains(**vaf)).cloned().collect(),
-                        );
-                    }
-                    (VAFSpectrum::Set(a), VAFSpectrum::Set(b)) => {
-                        *vafs_a = VAFSpectrum::Set(a.intersection(b).cloned().collect());
-                    }
+            ) if sample_a == sample_b => match (&vafs_a, &vafs_b) {
+                (VAFSpectrum::Range(a), VAFSpectrum::Range(b)) => {
+                    *vafs_a = VAFSpectrum::Range(a & b)
                 }
-            }
+                (VAFSpectrum::Range(a), VAFSpectrum::Set(b)) => {
+                    *vafs_a = VAFSpectrum::Set(
+                        b.iter().filter(|vaf| a.contains(**vaf)).cloned().collect(),
+                    );
+                }
+                (VAFSpectrum::Set(a), VAFSpectrum::Range(b)) => {
+                    *vafs_a = VAFSpectrum::Set(
+                        a.iter().filter(|vaf| b.contains(**vaf)).cloned().collect(),
+                    );
+                }
+                (VAFSpectrum::Set(a), VAFSpectrum::Set(b)) => {
+                    *vafs_a = VAFSpectrum::Set(a.intersection(b).cloned().collect());
+                }
+            },
             _ => {
                 panic!("bug: trying to merge FormulaTerminals that are not both atoms and for the same sample")
             }
@@ -520,7 +499,7 @@ impl Formula {
                         let mut merged_statement =
                             statements.pop().unwrap().into_terminal().unwrap();
                         for statement in statements.iter() {
-                            merged_statement.merge(statement.to_terminal().unwrap());
+                            merged_statement.merge_conjunctions(statement.to_terminal().unwrap());
                         }
                         *statements = vec![Formula::Terminal(merged_statement)];
                     } else {
@@ -874,6 +853,7 @@ pub(crate) struct VAFRange {
     right_exclusive: bool,
 }
 
+#[derive(Debug)]
 pub(crate) enum VAFRangeOverlap {
     Contained,
     Contains,
@@ -884,6 +864,14 @@ pub(crate) enum VAFRangeOverlap {
 }
 
 impl VAFRange {
+    pub(crate) fn empty() -> Self {
+        Self {
+            inner: AlleleFreq(0.0)..AlleleFreq(0.0),
+            left_exclusive: true,
+            right_exclusive: true,
+        }
+    }
+
     pub(crate) fn contains(&self, vaf: AlleleFreq) -> bool {
         match (self.left_exclusive, self.right_exclusive) {
             (true, true) => self.start < vaf && self.end > vaf,
@@ -999,6 +987,27 @@ impl VAFRange {
         n_obs as f64 * *freq
     }
 }
+
+use auto_ops::impl_op_ex;
+
+impl_op_ex!(&|a: &VAFRange, b: &VAFRange| -> VAFRange {
+    match a.overlap(b) {
+        VAFRangeOverlap::Contained => a.clone(),
+        VAFRangeOverlap::Contains => b.clone(),
+        VAFRangeOverlap::Start => VAFRange {
+            inner: a.inner.start..b.inner.end,
+            left_exclusive: a.left_exclusive,
+            right_exclusive: b.right_exclusive,
+        },
+        VAFRangeOverlap::End => VAFRange {
+            inner: b.inner.start..a.inner.end,
+            left_exclusive: b.left_exclusive,
+            right_exclusive: a.right_exclusive,
+        },
+        VAFRangeOverlap::Equal => a.clone(),
+        VAFRangeOverlap::None => VAFRange::empty(),
+    }
+});
 
 impl ops::Deref for VAFRange {
     type Target = ops::Range<AlleleFreq>;
@@ -1223,4 +1232,58 @@ where
         Rule::COMMENT => unreachable!(),
         Rule::iupac => unreachable!(),
     })
+}
+
+#[cfg(test)]
+mod test {
+    use crate::grammar::Scenario;
+    use crate::grammar::{Formula, VAFRange};
+    use crate::variants::model::AlleleFreq;
+
+    #[test]
+    fn test_vaf_range_overlap() {
+        let r1 = VAFRange {
+            inner: AlleleFreq(0.0)..AlleleFreq(0.7),
+            left_exclusive: false,
+            right_exclusive: true,
+        };
+        let r2 = VAFRange {
+            inner: AlleleFreq(0.3)..AlleleFreq(1.0),
+            left_exclusive: false,
+            right_exclusive: false,
+        };
+        let expected = VAFRange {
+            inner: AlleleFreq(0.3)..AlleleFreq(0.7),
+            left_exclusive: false,
+            right_exclusive: true,
+        };
+        assert_eq!(expected, r1 & r2);
+    }
+
+    #[test]
+    fn test_range_conjunction() {
+        let scenario: Scenario = serde_yaml::from_str(
+            r#"samples:
+  normal:
+    resolution: 100
+    universe: "[0.0,1.0]"
+events:
+  full: "normal:[0.0,1.0]"
+  part1: "normal:[0.0,0.7]"
+  part2: "normal:[0.3,1.0]"
+  expected: "normal:[0.3,0.7]""#,
+        )
+        .unwrap();
+        let expected = scenario.events["expected"].clone();
+        let full = scenario.events["full"].clone();
+        let part1 = scenario.events["part1"].clone();
+        let part2 = scenario.events["part2"].clone();
+        let conjunction = Formula::Conjunction {
+            operands: vec![part1, part2],
+        }
+        .normalize(&scenario, "all")
+        .unwrap();
+        assert_eq!(conjunction, expected.normalize(&scenario, "all").unwrap());
+        assert_ne!(conjunction, full.normalize(&scenario, "all").unwrap());
+    }
 }
