@@ -163,17 +163,8 @@ impl Scenario {
             event_expressions.insert(absent_identifier, Formula::absent(&scenario));
         }
         scenario.expressions.extend(event_expressions);
-        let overlapping = scenario.overlapping_formulae()?;
-        if !overlapping.is_empty() {
-            Err(crate::errors::Error::OverlappingEvents {
-                expressions: overlapping
-                    .iter()
-                    .map(|(a1, a2, f)| format!("({} | {}) = {}", a1.0, a2.0, f.0))
-                    .join(", "),
-            })?
-        } else {
-            Ok(scenario)
-        }
+        scenario.validate()?;
+        Ok(scenario)
     }
 
     pub(crate) fn variant_type_fractions(&self) -> VariantTypeFraction {
@@ -227,15 +218,7 @@ impl Scenario {
             .collect()
     }
 
-    pub(crate) fn overlapping_formulae(
-        &self,
-    ) -> Result<
-        Vec<(
-            ExpressionIdentifier,
-            ExpressionIdentifier,
-            ExpressionIdentifier,
-        )>,
-    > {
+    pub(crate) fn validate(&self) -> Result<()> {
         let expressions = self
             .expressions
             .iter()
@@ -266,7 +249,16 @@ impl Scenario {
                 }
             }
         }
-        Ok(overlapping)
+        if !overlapping.is_empty() {
+            Err(crate::errors::Error::OverlappingEvents {
+                expressions: overlapping
+                    .iter()
+                    .map(|(a1, a2, f)| format!("({} | {}) = {}", a1.0, a2.0, f.0))
+                    .join(", "),
+            })?
+        } else {
+            Ok(())
+        }
     }
 }
 
