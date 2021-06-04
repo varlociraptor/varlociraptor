@@ -853,7 +853,7 @@ pub(crate) struct VAFRange {
     right_exclusive: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub(crate) enum VAFRangeOverlap {
     Contained,
     Contains,
@@ -1006,6 +1006,25 @@ impl_op_ex!(&|a: &VAFRange, b: &VAFRange| -> VAFRange {
         },
         VAFRangeOverlap::Equal => a.clone(),
         VAFRangeOverlap::None => VAFRange::empty(),
+    }
+});
+
+impl_op_ex!(| |a: &VAFRange, b: &VAFRange| -> (VAFRange, Option<VAFRange>) {
+    match a.overlap(b) {
+        VAFRangeOverlap::Contained => (b.clone(), None),
+        VAFRangeOverlap::Contains => (a.clone(), None),
+        VAFRangeOverlap::Start => (VAFRange {
+            inner: b.inner.start..a.inner.end,
+            left_exclusive: b.left_exclusive,
+            right_exclusive: a.right_exclusive,
+        }, None),
+        VAFRangeOverlap::End => (VAFRange {
+            inner: a.inner.start..b.inner.end,
+            left_exclusive: a.left_exclusive,
+            right_exclusive: b.right_exclusive,
+        }, None),
+        VAFRangeOverlap::Equal => (a.clone(), None),
+        VAFRangeOverlap::None => (a.clone(), Some(b.clone()))
     }
 });
 
