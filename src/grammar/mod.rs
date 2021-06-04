@@ -163,7 +163,6 @@ impl Scenario {
             event_expressions.insert(absent_identifier, Formula::absent(&scenario));
         }
         scenario.expressions.extend(event_expressions);
-        scenario.validate()?;
         Ok(scenario)
     }
 
@@ -205,7 +204,8 @@ impl Scenario {
 
     pub(crate) fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {
         info!("Preprocessing events for contig {}", contig);
-        self.events()
+        let trees = self
+            .events()
             .iter()
             .map(|(name, formula)| {
                 let normalized = formula
@@ -215,15 +215,17 @@ impl Scenario {
                 let vaftree = VAFTree::new(&normalized, self, contig)?;
                 Ok((name.to_owned(), vaftree))
             })
-            .collect()
+            .collect();
+        self.validate(contig)?;
+        trees
     }
 
-    pub(crate) fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self, contig: &str) -> Result<()> {
         let expressions = self
             .expressions
             .iter()
             .filter(|(id, _)| id.0 != "absent")
-            .map(|(_, expr)| expr.normalize2(self))
+            .map(|(_, expr)| expr.normalize(self, contig).map(Formula::from))
             .collect::<Result<HashSet<_>>>()?;
         let names = self
             .expressions
@@ -236,10 +238,12 @@ impl Scenario {
                 if i == j {
                     continue;
                 }
-                let disjunction = Formula::Disjunction {
-                    operands: vec![e1.to_owned(), e2.to_owned()],
-                }
-                .normalize2(self)?;
+                let disjunction = Formula::from(
+                    Formula::Disjunction {
+                        operands: vec![e1.to_owned(), e2.to_owned()],
+                    }
+                    .normalize(self, contig)?,
+                );
                 if expressions.contains(&disjunction) {
                     overlapping.push((
                         names[e1].clone(),

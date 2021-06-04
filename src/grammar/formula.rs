@@ -53,6 +53,41 @@ pub(crate) enum Formula {
     Terminal(FormulaTerminal),
 }
 
+impl From<NormalizedFormula> for Formula {
+    fn from(formula: NormalizedFormula) -> Self {
+        fn from_normalized(formula: NormalizedFormula) -> Formula {
+            match formula {
+                NormalizedFormula::Conjunction { operands } => Formula::Conjunction {
+                    operands: operands
+                        .into_iter()
+                        .map(|operand| from_normalized(operand))
+                        .collect(),
+                },
+                NormalizedFormula::Disjunction { operands } => Formula::Disjunction {
+                    operands: operands
+                        .into_iter()
+                        .map(|operand| from_normalized(operand))
+                        .collect(),
+                },
+                NormalizedFormula::Atom { sample, vafs } => {
+                    Formula::Terminal(FormulaTerminal::Atom { sample, vafs })
+                }
+                NormalizedFormula::Variant {
+                    altbase,
+                    positive,
+                    refbase,
+                } => Formula::Terminal(FormulaTerminal::Variant {
+                    altbase,
+                    positive,
+                    refbase,
+                }),
+                NormalizedFormula::False => Formula::Terminal(FormulaTerminal::False),
+            }
+        }
+        from_normalized(formula)
+    }
+}
+
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub(crate) enum FormulaTerminal {
     Atom {
@@ -380,17 +415,6 @@ impl Formula {
             .simplify();
         simplified.strip_false();
         Ok(simplified.into_normalized_formula())
-    }
-
-    pub(crate) fn normalize2(&self, scenario: &Scenario) -> Result<Formula> {
-        let mut simplified = self
-            .expand_expressions(scenario)?
-            .apply_negations(scenario, "all")?
-            .simplify()
-            .merge_atoms()
-            .simplify();
-        simplified.strip_false();
-        Ok(simplified)
     }
 
     fn expand_expressions(&self, scenario: &Scenario) -> Result<Self> {
