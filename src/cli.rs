@@ -442,13 +442,6 @@ pub enum CallKind {
                     Intervals with a posterior probability lower than 1 - alpha are not considered \
                     in the integer linear program problem setup."
         )]
-        control_local_fdr: bool,
-        #[structopt(
-            long,
-            help = "Exclude intervals where the likelihood of an LOH is not even 'barely' better \
-                    than the likelihood of no LOH from the integer linear program problem setup. \
-                    'barely' refers to the Bayes Factor classification of Kass and Raftery."
-        )]
         filter_bayes_factor_minimum_barely: bool,
         #[structopt(
             parse(from_os_str),
@@ -942,7 +935,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     calls,
                     output,
                     alpha,
-                    control_local_fdr,
                     filter_bayes_factor_minimum_barely,
                     problems_folder,
                 } => {
@@ -950,7 +942,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         .bcf(&calls)?
                         .bed_path(&output)
                         .add_and_check_alpha(alpha)?
-                        .control_local_fdr(control_local_fdr)
                         .filter_bayes_factor_minimum_barely(filter_bayes_factor_minimum_barely)
                         .problems_folder(problems_folder)
                         .build()

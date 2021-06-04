@@ -32,7 +32,6 @@ pub(crate) struct Caller<'a> {
     contig_lens: HashMap<u32, usize>,
     #[builder(private)]
     alpha: Prob,
-    control_local_fdr: bool,
     filter_bayes_factor_minimum_barely: bool,
     problems_folder: Option<PathBuf>,
 }
@@ -102,7 +101,6 @@ impl Caller<'_> {
             }
             let intervals = contig.create_all_intervals(
                 self.alpha,
-                &self.control_local_fdr,
                 &self.filter_bayes_factor_minimum_barely,
             )?;
             if intervals.len() == 0 {
@@ -385,7 +383,6 @@ impl ContigLogPosteriorsLOH {
     pub(crate) fn create_all_intervals(
         &self,
         alpha: Prob,
-        control_local_fdr: &bool,
         filter_bayes_factor_minimum_barely: &bool,
     ) -> Result<HashMap<RangeInclusive<usize>, LogProb>> {
         let log_one_minus_alpha = LogProb::from(alpha).ln_one_minus_exp();
@@ -403,9 +400,10 @@ impl ContigLogPosteriorsLOH {
                 } else {
                     self.cum_loh_posteriors[end]
                 };
-                // skipping stuff can make the problem formulation much smaller to start with
-                if *control_local_fdr && posterior_log_probability < log_one_minus_alpha {
-                    continue;
+                // controlling for the local FDR should be more robust against spurious intervals
+                if posterior_log_probability < log_one_minus_alpha {
+                    // the longer an interval from the same start point, the lower its probability will get
+                    break;
                 }
                 if *filter_bayes_factor_minimum_barely
                     && BayesFactor::new(
@@ -441,7 +439,6 @@ mod tests {
             .bed_path(&test_output)
             .add_and_check_alpha(alpha)
             .unwrap()
-            .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(Some(PathBuf::from(
                 "tests/resources/test_loh/test_loh_caller",
@@ -472,7 +469,6 @@ mod tests {
             .bed_path(&test_output)
             .add_and_check_alpha(alpha)
             .unwrap()
-            .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
             .build()
@@ -501,7 +497,6 @@ mod tests {
             .bed_path(&test_output)
             .add_and_check_alpha(alpha)
             .unwrap()
-            .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
             .build()
@@ -530,7 +525,6 @@ mod tests {
             .bed_path(&test_output)
             .add_and_check_alpha(alpha)
             .unwrap()
-            .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
             .build()
@@ -558,7 +552,6 @@ mod tests {
             .bed_path(&test_output)
             .add_and_check_alpha(alpha)
             .unwrap()
-            .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
             .build()
@@ -586,7 +579,6 @@ mod tests {
             .bed_path(&test_output)
             .add_and_check_alpha(alpha)
             .unwrap()
-            .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
             .build()
@@ -614,7 +606,6 @@ mod tests {
             .bed_path(&test_output_1)
             .add_and_check_alpha(alpha_1)
             .unwrap()
-            .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
             .build()
@@ -639,7 +630,6 @@ mod tests {
             .bed_path(&test_output_2)
             .add_and_check_alpha(alpha_2)
             .unwrap()
-            .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
             .build()
@@ -667,7 +657,6 @@ mod tests {
             .bed_path(&test_output)
             .add_and_check_alpha(alpha)
             .unwrap()
-            .control_local_fdr(false)
             .filter_bayes_factor_minimum_barely(false)
             .problems_folder(None)
             .build()
@@ -703,7 +692,7 @@ mod tests {
         );
 
         let intervals = loh_log_posteriors
-            .create_all_intervals(alpha, &false, &false)
+            .create_all_intervals(alpha, &false)
             .unwrap();
         println!("intervals: {:?}", intervals);
         assert_eq!(
