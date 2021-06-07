@@ -59,13 +59,13 @@ impl From<NormalizedFormula> for Formula {
                 NormalizedFormula::Conjunction { operands } => Formula::Conjunction {
                     operands: operands
                         .into_iter()
-                        .map(|operand| from_normalized(operand))
+                        .map(from_normalized)
                         .collect(),
                 },
                 NormalizedFormula::Disjunction { operands } => Formula::Disjunction {
                     operands: operands
                         .into_iter()
-                        .map(|operand| from_normalized(operand))
+                        .map(from_normalized)
                         .collect(),
                 },
                 NormalizedFormula::Atom { sample, vafs } => {
