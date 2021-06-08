@@ -407,13 +407,15 @@ pub enum CallKind {
         )]
         output: Option<PathBuf>,
     },
-    // my part starts here.
+
     #[structopt(
         name = "haplotype-abundances",
         about = "Call haplotype abundances (e.g. for HLA typing or viral strain quantification).",
+        usage = "varlociraptor call haplotype-abundances --haplotype-counts counts.hdf5 \
+                 --haplotype-variants calls.vcf --output results.tsv",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
-    Abundances {
+    HaplotypeCalls { 
         #[structopt(
             parse(from_os_str),
             long = "haplotype-counts",
@@ -421,7 +423,6 @@ pub enum CallKind {
             help = "HDF5 haplotype counts calculated by Kallisto."
         )]
         haplotype_counts: PathBuf,
-
         #[structopt(
                 parse(from_os_str),
                 long = "haplotype-variants",
@@ -429,7 +430,8 @@ pub enum CallKind {
                 help = "Haplotype variants compared to a common reference.", // TODO later, we will add a subcommand to generate this file with Varlociraptor as well
             )]
         haplotype_variants: PathBuf,
-    }, // #[structopt(
+    },
+       // #[structopt(
        //     name = "cnvs",
        //     about = "Call CNVs in tumor-normal sample pairs. This is experimental (do not use it yet).",
        //     setting = structopt::clap::AppSettings::ColoredHelp,
@@ -942,15 +944,17 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 //         .unwrap();
                 //     caller.call()?;
                 // }
-                CallKind::Abundances {
+                CallKind::HaplotypeCalls {
                     haplotype_counts,
                     haplotype_variants,
                 } => {
-                    let mut caller = calling::haplotype_abundances::Caller;
-                    caller.call()?;
+                    let mut caller = calling::haplotype_abundances::Caller::new(haplotype_counts,
+                    haplotype_variants)?;
+                    caller.call();
                 }
             }
         }
+        
         Varlociraptor::FilterCalls { method } => match method {
             FilterMethod::ControlFDR {
                 calls,

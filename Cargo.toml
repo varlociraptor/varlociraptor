@@ -70,6 +70,7 @@ ring = "0.16"
 data-encoding = "2.3"
 boolean_expression = "0.4"
 uuid = { version = "0.8", features = ["v4"] }
+hdf5 = "0.7.1"
 
 [dev-dependencies]
 env_logger = "0.3"
