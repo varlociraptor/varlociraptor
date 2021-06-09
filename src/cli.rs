@@ -948,9 +948,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     haplotype_counts,
                     haplotype_variants,
                 } => {
-                    let mut caller = calling::haplotype_abundances::Caller::new(haplotype_counts,
-                    haplotype_variants)?;
-                    caller.call();
+                    let mut caller = calling::haplotype_abundances::CallerBuilder::default()
+                        .build();
+
                 }
             }
         }
