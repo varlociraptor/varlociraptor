@@ -228,6 +228,20 @@ impl Variant {
         }
     }
 
+    pub(crate) fn to_type(&self) -> VariantType {
+        match self {
+            Variant::Deletion(_) => VariantType::Deletion(None),
+            Variant::Insertion(_) => VariantType::Insertion(None),
+            Variant::SNV(_) => VariantType::SNV,
+            Variant::MNV(_) => VariantType::MNV,
+            Variant::Breakend { .. } => VariantType::Breakend,
+            Variant::Inversion(_) => VariantType::Inversion,
+            Variant::Duplication(_) => VariantType::Duplication,
+            Variant::Replacement { .. } => VariantType::Replacement,
+            Variant::None => VariantType::None,
+        }
+    }
+
     pub(crate) fn len(&self) -> u64 {
         match *self {
             Variant::Deletion(l) => l,

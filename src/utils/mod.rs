@@ -25,6 +25,7 @@ use rust_htslib::{bam, bcf};
 use crate::variants::model;
 use crate::Event;
 
+pub(crate) mod anonymize;
 pub(crate) mod collect_variants;
 
 pub(crate) use collect_variants::collect_variants;
@@ -35,6 +36,7 @@ lazy_static! {
     pub(crate) static ref PROB_05: LogProb = LogProb::from(Prob(0.5f64));
     pub(crate) static ref PROB_033: LogProb = LogProb::from(Prob(1.0 / 3.0));
     pub(crate) static ref PROB_025: LogProb = LogProb::from(Prob(0.25));
+    pub(crate) static ref PROB_095: LogProb = LogProb::from(Prob(0.95));
 }
 
 pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
@@ -88,10 +90,15 @@ pub(crate) struct GenomicLocus {
     pos: u32,
 }
 
-pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
+pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display, F, K>(
     items: impl Iterator<Item = T>,
     keep_order: bool,
-) -> String {
+    aux_sort: F,
+) -> String
+where
+    F: FnMut(&(T, usize)) -> K,
+    K: Ord,
+{
     if keep_order {
         join(
             items
@@ -112,6 +119,7 @@ pub(crate) fn generalized_cigar<T: Hash + Eq + Clone + Display>(
             items
                 .most_common()
                 .into_iter()
+                .sorted_by_key(aux_sort)
                 .map(|(item, count)| format!("{}{}", count, item)),
             "",
         )
@@ -143,7 +151,7 @@ pub(crate) fn tags_prob_sum(
     vartype: Option<&model::VariantType>,
 ) -> Result<Vec<Option<LogProb>>> {
     let mut skips = SimpleCounter::default();
-    let variants = collect_variants(record, false, &mut skips)?;
+    let variants = collect_variants(record, false, Some(&mut skips))?;
     let mut tags_probs_out = vec![Vec::new(); variants.len()];
 
     for tag in tags {
@@ -188,7 +196,7 @@ where
 pub(crate) fn collect_prob_dist<E>(
     calls: &mut bcf::Reader,
     events: &[E],
-    vartype: &model::VariantType,
+    vartype: Option<&model::VariantType>,
 ) -> Result<Vec<NotNan<f64>>>
 where
     E: Event,
@@ -212,7 +220,7 @@ where
             }
         }
 
-        for p in tags_prob_sum(&mut record, &tags, Some(&vartype))? {
+        for p in tags_prob_sum(&mut record, &tags, vartype)? {
             if let Some(p) = p {
                 prob_dist.push(NotNan::new(*p)?);
             }
@@ -233,13 +241,13 @@ where
 /// * `threshold` - minimum threshold for the sum of posterior probabilities of the set of Events considered
 /// * `calls` - BCF writer for the filtered varlociraptor calls
 /// * `events` - the set of Events to filter on
-/// * `vartype` - the variant type to consider
+/// * `vartype` - the variant type to consider (if None, use all types)
 pub(crate) fn filter_by_threshold<E: Event>(
     calls: &mut bcf::Reader,
     threshold: Option<LogProb>,
     out: &mut bcf::Writer,
     events: &[E],
-    vartype: &model::VariantType,
+    vartype: Option<&model::VariantType>,
 ) -> Result<()> {
     let mut breakend_event_decisions = HashMap::new();
 
@@ -257,7 +265,7 @@ pub(crate) fn filter_by_threshold<E: Event>(
             None
         };
 
-        let probs = tags_prob_sum(record, &tags, Some(vartype))?;
+        let probs = tags_prob_sum(record, &tags, vartype)?;
 
         assert!(
             bnd_event.is_none() || probs.len() == 1,
@@ -455,13 +463,13 @@ mod tests {
         let del = VariantType::Deletion(None);
 
         let mut del_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_del = collect_prob_dist(&mut del_calls_1, &events, &del).unwrap();
+        let prob_del = collect_prob_dist(&mut del_calls_1, &events, Some(&del)).unwrap();
         println!("prob_del[0]: {:?}", prob_del[0].into_inner());
         assert_eq!(prob_del.len(), 1);
         assert_relative_eq!(prob_del[0].into_inner(), Prob(0.8).ln(), epsilon = 0.000005);
 
         let mut del_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_del_abs = collect_prob_dist(&mut del_calls_2, &absent_event, &del).unwrap();
+        let prob_del_abs = collect_prob_dist(&mut del_calls_2, &absent_event, Some(&del)).unwrap();
         assert_eq!(prob_del_abs.len(), 1);
         assert_relative_eq!(
             prob_del_abs[0].into_inner(),
@@ -473,12 +481,12 @@ mod tests {
         let ins = VariantType::Insertion(None);
 
         let mut ins_calls_1 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_ins = collect_prob_dist(&mut ins_calls_1, &events, &ins).unwrap();
+        let prob_ins = collect_prob_dist(&mut ins_calls_1, &events, Some(&ins)).unwrap();
         assert_eq!(prob_ins.len(), 1);
         assert_relative_eq!(prob_ins[0].into_inner(), Prob(0.2).ln(), epsilon = 0.000005);
 
         let mut ins_calls_2 = bcf::Reader::from_path(test_file).unwrap();
-        let prob_ins_abs = collect_prob_dist(&mut ins_calls_2, &absent_event, &ins).unwrap();
+        let prob_ins_abs = collect_prob_dist(&mut ins_calls_2, &absent_event, Some(&ins)).unwrap();
         assert_eq!(prob_ins_abs.len(), 1);
         assert_relative_eq!(
             prob_ins_abs[0].into_inner(),

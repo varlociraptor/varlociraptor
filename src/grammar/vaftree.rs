@@ -58,6 +58,7 @@ pub(crate) enum NodeKind {
         sample: usize,
         vafs: VAFSpectrum,
     },
+    False,
 }
 
 #[derive(new, Clone, Debug, PartialEq, Eq, Getters, Hash)]
@@ -151,6 +152,7 @@ impl VAFTree {
                     refbase,
                     altbase,
                 })]),
+                NormalizedFormula::False => Ok(vec![Node::new(NodeKind::False)]),
             }
         }
 
@@ -160,6 +162,11 @@ impl VAFTree {
             scenario: &'a Scenario,
             contig: &str,
         ) -> Result<()> {
+            if let NodeKind::False = node.kind {
+                // METHOD: no need to add further missing samples as the formula is false anyways
+                return Ok(());
+            }
+
             if let NodeKind::Sample { sample, .. } = node.kind {
                 seen.insert(sample);
             }

@@ -30,7 +30,7 @@ use crate::reference;
 use crate::testcase;
 use crate::variants::evidence::realignment;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
-use crate::variants::model::modes::generic::FlatPrior;
+
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::{Contamination, VariantType};
@@ -403,6 +403,14 @@ pub enum CallKind {
         #[serde(default)]
         omit_read_position_bias: bool,
         #[structopt(
+            long = "omit-softclip-bias",
+            help = "Do not consider softclip bias when calculating the probability of an \
+                    artifact. Use this flag when processing (panel) sequencing data, where the \
+                    wet-lab methodology leads to stacks of reads starting at the same position."
+        )]
+        #[serde(default)]
+        omit_softclip_bias: bool,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
@@ -416,6 +424,11 @@ pub enum CallKind {
             help = "Create test case files in the given directory."
         )]
         testcase_prefix: Option<String>,
+        #[structopt(
+            long = "testcase-anonymous",
+            help = "Anonymize any identifiers (via uuid4) and the sequences (by randomly permuting the alphabet) in the test case."
+        )]
+        testcase_anonymous: bool,
         #[structopt(
             long,
             short,
@@ -531,11 +544,19 @@ pub enum FilterMethod {
         #[structopt(
             long = "var",
             possible_values = &VariantType::iter().map(|v| v.into()).collect_vec(),
-            help = "Variant type to consider."
+            help = "Variant type to consider. When controlling global FDR (not using --local) this should \
+            be used to control FDR for each type separately. Otherwise, less certain variant types will be \
+            underrepresented."
         )]
-        vartype: VariantType,
+        vartype: Option<VariantType>,
         #[structopt(long, help = "FDR to control for.")]
         fdr: f64,
+        #[structopt(
+            long = "local",
+            help = "Control local FDR instead of global FDR. This means that for each record, the posterior \
+            of the selected events has to be at least 1-fdr."
+        )]
+        local: bool,
         #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
@@ -696,8 +717,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_strand_bias,
                     omit_read_orientation_bias,
                     omit_read_position_bias,
+                    omit_softclip_bias,
                     testcase_locus,
                     testcase_prefix,
+                    testcase_anonymous,
                     output,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
@@ -706,6 +729,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             Some(
                                 testcase::TestcaseBuilder::default()
                                     .prefix(PathBuf::from(testcase_prefix))
+                                    .anonymize(testcase_anonymous)
                                     .locus(&testcase_locus)?,
                             )
                         } else {
@@ -762,6 +786,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
                                 species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                             }))
+                            .variant_type_fractions(scenario.variant_type_fractions())
                             .build();
 
                         // setup caller
@@ -771,6 +796,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .omit_strand_bias(omit_strand_bias)
                             .omit_read_orientation_bias(omit_read_orientation_bias)
                             .omit_read_position_bias(omit_read_position_bias)
+                            .omit_softclip_bias(omit_softclip_bias)
                             .scenario(scenario)
                             .prior(prior)
                             .contaminations(sample_infos.contaminations)
@@ -803,7 +829,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         testcase_builder = testcase_builder.register_sample(
                                             &sample_name,
                                             preprocess_input.bam,
-                                            &options,
+                                            options,
                                         )?;
                                         if i == 0 {
                                             testcase_builder =
@@ -850,12 +876,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .register_sample(
                                         "tumor",
                                         tumor_options.preprocess_input().bam,
-                                        &tumor_options,
+                                        tumor_options,
                                     )?
                                     .register_sample(
                                         "normal",
                                         normal_options.preprocess_input().bam,
-                                        &normal_options,
+                                        normal_options,
                                     )?
                                     .scenario(None)
                                     .mode(testcase::Mode::TumorNormal)
@@ -930,6 +956,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 calls,
                 events,
                 fdr,
+                local,
                 vartype,
                 minlen,
                 maxlen,
@@ -939,11 +966,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .map(|event| SimpleEvent { name: event })
                     .collect_vec();
                 let vartype = match (vartype, minlen, maxlen) {
-                    (VariantType::Insertion(None), Some(minlen), Some(maxlen)) => {
-                        VariantType::Insertion(Some(minlen..maxlen))
+                    (Some(VariantType::Insertion(None)), Some(minlen), Some(maxlen)) => {
+                        Some(VariantType::Insertion(Some(minlen..maxlen)))
                     }
-                    (VariantType::Deletion(None), Some(minlen), Some(maxlen)) => {
-                        VariantType::Deletion(Some(minlen..maxlen))
+                    (Some(VariantType::Deletion(None)), Some(minlen), Some(maxlen)) => {
+                        Some(VariantType::Deletion(Some(minlen..maxlen)))
                     }
                     (vartype, _, _) => vartype,
                 };
@@ -952,8 +979,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     &calls,
                     None,
                     &events,
-                    &vartype,
+                    vartype.as_ref(),
                     LogProb::from(Prob::checked(fdr)?),
+                    local,
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {
@@ -1012,6 +1040,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 let ploidies = ploidies.build();
 
                 let prior = Prior::builder()
+                    .variant_type_fractions(scenario.variant_type_fractions())
                     .ploidies(Some(ploidies))
                     .universe(Some(universes))
                     .uniform(sample_infos.uniform_prior)

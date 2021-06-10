@@ -2,6 +2,29 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [3.4.0] - 2021-05-25
+- Allow to control local instead of global FDR (`varlociraptor filter-calls control-fdr --local`).
+- Allow to configure mutation rate reduction factors for MNVs, Indels, and SVs.
+
+
+## [3.3.2] - 2021-05-22
+- Stop decode-phred subcommand from removing quoting from description field in header lines of decoded fields.
+
+## [3.3.1] - 2021-05-22
+- Fix debug output accidentally printing to STDOUT, thereby invalidating BCF.
+
+## [3.3.0] - 2021-05-20
+- Add softclip bias for detecting SNV or MNV artifacts induced by alignment issues (@johanneskoester).
+- Generalize mendelian inheritance towards arbitrary ploidies (@johanneskoester).
+- Add option for anonymizing testcases (`--testcase-anonymous`) (@johanneskoester)
+
+## [3.2.0] - 2021-05-18
+- Added SOBS field, showing simplified observations that omit all information but the alt allele evidence (@johanneskoester).
+- Enable to use any event as an expression via $eventname in other events. This can be used to e.g. formulate "otherwise" events, via defining a negated disjuction of all other events (e.g. `otherwise: !($denovo | $absent)`).
+- Add BDD based automatic simplification of all event formulas (@johanneskoester).
+- Automatically omit unlikely biases: for a bias to be evaluated, it needs to be supported by at least two third of the observations which are strongly (by their Kass-Raftery-Score) supporting the alt allele. This is safe, because bias likelihoods will otherwise be astronomically small. Since the three biases (strand, read position, read orientation) add 2 + 1 + 2 = 5 additional formula tree evaluations, this should make `varlociraptor call` 6 times faster on loci without a bias and three times faster on loci with a bias (@johanneskoester).
+- Several fixes for corner cases in the implementation of the prior (@johanneskoester).
+
 ## [3.1.0] - 2021-05-04
 - Generalized TMB plots to mutational burden plots (not tumor specific). Added a multi-sample variant using barplots (@jafors).
 - Added testcase for and handling of missing CIGAR operation lenghts observations (@nh13, @dlaehnemann, @johanneskoester).

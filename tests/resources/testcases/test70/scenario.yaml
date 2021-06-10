@@ -1,0 +1,55 @@
+species:
+  genome-size: 3.5e9
+  germline-mutation-rate: 1.2e-8
+  heterozygosity: 0.001
+  ploidy:
+    male:
+      all: 2
+      X: 1
+      Y: 1
+    female:
+      all: 2
+      X: 2
+      Y: 0
+
+samples:
+  patient11: # unaffected dummy
+    sex: male
+  patient12: # unaffected dummy
+    sex: female
+  patient25: # affected dummy
+    sex: female
+    inheritance:
+      mendelian:
+        from:
+          - patient11
+          - patient12
+  patient26: # unaffected dummy
+    sex: male
+  patient28: # unaffected dummy
+    sex: female
+    inheritance:
+      mendelian:
+        from:
+          - patient11
+          - patient12
+  patient29: # unaffected dummy
+    sex: male
+  patient48: # affected
+    sex: male
+    inheritance:
+      mendelian:
+        from:
+          - patient25
+          - patient26
+  patient49: # affected
+    sex: male
+    inheritance:
+      mendelian:
+        from:
+          - patient28
+          - patient29
+
+events:
+  heterozygous_all: "patient48: 0.5 & patient49: 0.5"
+  not_interesting: "!(patient48: 0.5 & patient49: 0.5)"

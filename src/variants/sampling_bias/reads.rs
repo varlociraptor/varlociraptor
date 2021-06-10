@@ -33,8 +33,6 @@ pub(crate) trait ReadSamplingBias: Variant + SamplingBias {
             };
             assert!(prob.is_valid());
 
-            dbg!(prob);
-
             prob
         } else {
             LogProb::ln_one()
