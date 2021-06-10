@@ -309,7 +309,9 @@ impl Call {
         } else {
             assert!(
                 !event_probs.values().any(|prob| prob.is_nan()),
-                "bug: event probability is NaN but not all observations are empty"
+                "bug: event probability is NaN but not all observations are empty for record at {}:{}",
+                str::from_utf8(&self.chrom).unwrap(),
+                self.pos,
             );
             for (event, prob) in event_probs {
                 let prob = PHREDProb::from(prob).abs() as f32;
