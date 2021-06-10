@@ -8,12 +8,10 @@ use itertools::Itertools;
 use itertools_num::linspace;
 use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
-use kodama::{Method, linkage};
 
 use crate::errors;
 use crate::variants::model::AlleleFreq;
 use crate::{Event, SimpleEvent};
-
 
 /// Consider only variants in coding regions.
 /// We rely on the ANN field for this.
@@ -47,7 +45,6 @@ struct SCATTERVAF {
     tumor_vaf: f64,
 }
 
-
 pub(crate) fn vaf_scatter(
     mutational_events: &[String],
     normal: &String,
@@ -56,13 +53,12 @@ pub(crate) fn vaf_scatter(
     let mut bcf = bcf::Reader::from_stdin()?;
     let header = bcf.header().to_owned();
 
-    
     let mut plot_data = Vec::new();
-    
+
     let normal_id = bcf
-    .header()
-    .sample_id(normal.as_bytes())
-    .unwrap_or_else(|| panic!("Sample {} not found", normal));
+        .header()
+        .sample_id(normal.as_bytes())
+        .unwrap_or_else(|| panic!("Sample {} not found", normal));
 
     let mut tumor_ids = BTreeMap::new();
 
@@ -95,8 +91,6 @@ pub(crate) fn vaf_scatter(
         // obtain VAF estimates (do it here already to work around a segfault in htslib)
         let normal_vafs = rec.format(b"AF").float()?[normal_id].to_owned();
 
-
-
         let alt_allele_count = (rec.allele_count() - 1) as usize;
 
         // collect allele probabilities for given events
@@ -124,7 +118,8 @@ pub(crate) fn vaf_scatter(
             for (t, tumor_id) in &tumor_ids {
                 let tumor_vafs = rec.format(b"AF").float()?[*tumor_id].to_owned();
                 // if all alt_alleles are NaN, the list will only contain one NaN, so check for size
-                if (i == normal_vafs.len() && normal_vafs[0].is_nan()) || (i == tumor_vafs.len() && tumor_vafs[0].is_nan())
+                if (i == normal_vafs.len() && normal_vafs[0].is_nan())
+                    || (i == tumor_vafs.len() && tumor_vafs[0].is_nan())
                 {
                     continue;
                 }
@@ -134,7 +129,7 @@ pub(crate) fn vaf_scatter(
                     continue;
                 }
                 let tumor_allele_freq = AlleleFreq(tumor_vaf);
-                let normal_allele_freq = AlleleFreq(normal_vaf);            
+                let normal_allele_freq = AlleleFreq(normal_vaf);
 
                 plot_data.push(SCATTERVAF {
                     sample: t.to_string(),
