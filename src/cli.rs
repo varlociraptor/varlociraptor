@@ -21,9 +21,9 @@ use crate::calling;
 use crate::conversion;
 use crate::errors;
 use crate::estimation;
-use crate::estimation::tumor_mutational_burden;
-use crate::estimation::sample_variants;
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::estimation::sample_variants;
+use crate::estimation::tumor_mutational_burden;
 use crate::filtration;
 use crate::grammar;
 use crate::reference;
@@ -1060,7 +1060,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 prior.check()?;
 
                 prior.plot(&sample, &sample_infos.names)?;
-            },
+            }
             PlotKind::Scatter {
                 somatic_tumor_events,
                 normal_sample,
