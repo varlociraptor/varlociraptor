@@ -21,6 +21,8 @@ use crate::calling;
 use crate::conversion;
 use crate::errors;
 use crate::estimation;
+use crate::estimation::tumor_mutational_burden;
+use crate::estimation::sample_variants;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::filtration;
 use crate::grammar;
@@ -292,6 +294,33 @@ pub enum PlotKind {
         contig: String,
         #[structopt(long = "sample", required = true, help = "Sample to plot.")]
         sample: String,
+    },
+    #[structopt(
+        name = "scatter",
+        about = "Plot variant allelic fraction scatter plot between two samples",
+        usage = "varlociraptor plot scatter --somatic-tumor-events SOMATIC_TUMOR \
+        --tumor-sample tumor --normal-sample normal < calls.bcf | vg2svg > scatter.svg",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Scatter {
+        #[structopt(
+            long = "somatic-tumor-events",
+            default_value = "SOMATIC_TUMOR",
+            help = "Events to consider (e.g. SOMATIC_TUMOR)."
+        )]
+        somatic_tumor_events: Vec<String>,
+        #[structopt(
+            long = "normal-sample",
+            default_value = "normal",
+            help = "Name(s) of the normal sample(s) in the given VCF/BCF. Multiple samples can be given when using the multibar plot mode."
+        )]
+        normal_sample: String,
+        #[structopt(
+            long = "tumor-sample",
+            default_value = "tumor",
+            help = "Name(s) of the tumor sample(s) in the given VCF/BCF. Multiple samples can be given when using the multibar plot mode."
+        )]
+        tumor_sample: Vec<String>,
     },
 }
 
@@ -1002,7 +1031,16 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 prior.check()?;
 
                 prior.plot(&sample, &sample_infos.names)?;
-            }
+            },
+            PlotKind::Scatter {
+                somatic_tumor_events,
+                normal_sample,
+                tumor_sample,
+            } => estimation::sample_variants::vaf_scatter(
+                &somatic_tumor_events,
+                &normal_sample,
+                &tumor_sample,
+            )?,
         },
     }
     Ok(())
