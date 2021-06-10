@@ -1,0 +1,160 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "description": "A contour plot example, overlaying a density estimate on scatter plot points.",
+  "width": 500,
+  "height": 400,
+  "padding": 5,
+  "autosize": "pad",
+
+  "signals": [
+    {
+      "name": "bandwidth", "value": -1,
+      "bind": {"input": "range", "min": -1, "max": 100, "step": 1}
+    },
+    {
+      "name": "resolve", "value": "shared",
+      "bind": {"input": "select", "options": ["independent", "shared"]}
+    },
+    {
+      "name": "counts", "value": true,
+      "bind": {"input": "checkbox"}
+    }
+  ],
+  "data": [
+    {
+      "name": "source",
+      "values": []
+    },
+    {
+      "name": "density",
+      "source": "source",
+      "transform": [
+        {
+          "type": "kde2d",
+          "groupby": ["sample"],
+          "size": [{"signal": "width"}, {"signal": "height"}],
+          "x": {"expr": "scale('x', datum.tumor_vaf)"},
+          "y": {"expr": "scale('y', datum.normal_vaf)"},
+          "bandwidth": {"signal": "[bandwidth, bandwidth]"},
+          "counts": {"signal": "counts"}
+        }
+      ]
+    },
+    {
+      "name": "contours",
+      "source": "density",
+      "transform": [
+        {
+          "type": "isocontour",
+          "field": "grid",
+          "resolve": {"signal": "resolve"},
+          "levels": 3
+        }
+      ]
+    }
+  ],
+
+  "scales": [
+    {
+      "name": "x",
+      "type": "linear",
+      "round": true,
+      "nice": true,
+      "zero": true,
+      "domain": {"data": "source", "field": "tumor_vaf"},
+      "range": "width"
+    },
+    {
+      "name": "y",
+      "type": "linear",
+      "round": true,
+      "nice": true,
+      "zero": true,
+      "domain": {"data": "source", "field": "normal_vaf"},
+      "range": "height"
+    },
+    {
+      "name": "color",
+      "type": "ordinal",
+      "domain": {
+        "data": "source", "field": "sample",
+        "sort": {"order": "descending"}
+      },
+      "range": "category"
+    }
+  ],
+
+  "axes": [
+    {
+      "scale": "x",
+      "grid": true,
+      "domain": false,
+      "orient": "bottom",
+      "tickCount": 5
+    },
+    {
+      "scale": "y",
+      "grid": true,
+      "domain": false,
+      "orient": "left",
+      "tickCount": 5
+    }
+  ],
+
+  "legends": [
+    {"title": "Sample", "stroke": "color", "symbolType": "stroke"}
+  ],
+
+  "marks": [
+    {
+      "name": "marks",
+      "type": "symbol",
+      "from": {"data": "source"},
+      "encode": {
+        "update": {
+          "x": {"scale": "x", "field": "tumor_vaf"},
+          "y": {"scale": "y", "field": "normal_vaf"},
+          "size": {"value": 4},
+          "fill": {"value": "#ccc"}
+        }
+      }
+    },
+    {
+      "type": "image",
+      "from": {"data": "density"},
+      "encode": {
+        "update": {
+          "x": {"value": 0},
+          "y": {"value": 0},
+          "width": {"signal": "width"},
+          "height": {"signal": "height"},
+          "aspect": {"value": false}
+        }
+      },
+      "transform": [
+        {
+          "type": "heatmap",
+          "field": "datum.grid",
+          "resolve": {"signal": "resolve"},
+          "color": {"expr": "scale('color', datum.datum.sample)"}
+        }
+      ]
+    },
+    {
+      "type": "path",
+      "clip": true,
+      "from": {"data": "contours"},
+      "encode": {
+        "enter": {
+          "strokeWidth": {"value": 1},
+          "strokeOpacity": {"value": 1},
+          "stroke": {"scale": "color", "field": "sample"}
+        }
+      },
+      "transform": [
+        { "type": "geopath", "field": "datum.contour" }
+      ]
+    }
+  ]
+}
+

@@ -297,7 +297,7 @@ pub enum PlotKind {
     },
     #[structopt(
         name = "scatter",
-        about = "Plot variant allelic fraction scatter plot between two samples",
+        about = "Plot variant allelic fraction scatter plot overlayed with a contour plot between two sample groups",
         usage = "varlociraptor plot scatter --somatic-tumor-events SOMATIC_TUMOR \
         --tumor-sample tumor --normal-sample normal < calls.bcf | vg2svg > scatter.svg",
         setting = structopt::clap::AppSettings::ColoredHelp,
@@ -312,13 +312,13 @@ pub enum PlotKind {
         #[structopt(
             long = "normal-sample",
             default_value = "normal",
-            help = "Name(s) of the normal sample(s) in the given VCF/BCF. Multiple samples can be given when using the multibar plot mode."
+            help = "Name of the normal or reference sample in the given VCF/BCF."
         )]
         normal_sample: String,
         #[structopt(
             long = "tumor-sample",
             default_value = "tumor",
-            help = "Name(s) of the tumor sample(s) in the given VCF/BCF. Multiple samples can be given when using the multibar plot mode."
+            help = "Name(s) of the tumor or alternative sample(s) in the given VCF/BCF. Multiple samples can be given."
         )]
         tumor_sample: Vec<String>,
     },
