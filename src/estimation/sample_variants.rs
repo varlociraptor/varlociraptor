@@ -1,11 +1,8 @@
 use std::collections::BTreeMap;
 use std::str;
-use std::str::FromStr;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
-use itertools::Itertools;
-use itertools_num::linspace;
 use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
 
@@ -39,7 +36,7 @@ fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool> {
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct SCATTERVAF {
+struct Scattervaf {
     sample: String,
     normal_vaf: f64,
     tumor_vaf: f64,
@@ -71,12 +68,6 @@ pub(crate) fn vaf_scatter(
     }
 
     for record in bcf.records() {
-    // 'records: loop {
-    //     let mut rec = bcf.empty_record();
-    //     match bcf.read(&mut rec) {
-    //         None => break,
-    //         Some(res) => res?,
-    //     }
         let mut rec = record.unwrap();
         let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
         let vcfpos = rec.pos() + 1;
@@ -132,7 +123,7 @@ pub(crate) fn vaf_scatter(
                 let b_allele_freq = AlleleFreq(b_vaf);
                 let a_allele_freq = AlleleFreq(a_vaf);
 
-                plot_data.push(SCATTERVAF {
+                plot_data.push(Scattervaf {
                     sample: b.to_string(),
                     normal_vaf: *a_allele_freq,
                     tumor_vaf: *b_allele_freq,
