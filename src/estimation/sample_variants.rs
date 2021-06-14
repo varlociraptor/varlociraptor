@@ -47,36 +47,37 @@ struct SCATTERVAF {
 
 pub(crate) fn vaf_scatter(
     mutational_events: &[String],
-    normal: &String,
-    tumor: &[String],
+    sample_a: &str,
+    sample_b: &[String],
 ) -> Result<()> {
     let mut bcf = bcf::Reader::from_stdin()?;
     let header = bcf.header().to_owned();
 
     let mut plot_data = Vec::new();
 
-    let normal_id = bcf
+    let id_a = bcf
         .header()
-        .sample_id(normal.as_bytes())
-        .unwrap_or_else(|| panic!("Sample {} not found", normal));
+        .sample_id(sample_a.as_bytes())
+        .unwrap_or_else(|| panic!("Sample {} not found", sample_a));
 
-    let mut tumor_ids = BTreeMap::new();
+    let mut ids_b = BTreeMap::new();
 
-    for s in tumor {
-        let tumor_id = bcf
+    for s in sample_b {
+        let id_b = bcf
             .header()
             .sample_id(s.as_bytes())
             .unwrap_or_else(|| panic!("Sample {} not found", s));
-        tumor_ids.insert(s, tumor_id);
+        ids_b.insert(s, id_b);
     }
 
-    'records: loop {
-        let mut rec = bcf.empty_record();
-        match bcf.read(&mut rec) {
-            None => break,
-            Some(res) => res?,
-        }
-
+    for record in bcf.records() {
+    // 'records: loop {
+    //     let mut rec = bcf.empty_record();
+    //     match bcf.read(&mut rec) {
+    //         None => break,
+    //         Some(res) => res?,
+    //     }
+        let mut rec = record.unwrap();
         let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
         let vcfpos = rec.pos() + 1;
 
@@ -89,7 +90,7 @@ pub(crate) fn vaf_scatter(
         }
 
         // obtain VAF estimates (do it here already to work around a segfault in htslib)
-        let normal_vafs = rec.format(b"AF").float()?[normal_id].to_owned();
+        let a_vafs = rec.format(b"AF").float()?[id_a].to_owned();
 
         let alt_allele_count = (rec.allele_count() - 1) as usize;
 
@@ -108,33 +109,33 @@ pub(crate) fn vaf_scatter(
                     "Skipping variant {}:{} because it does not contain the required INFO tag {}.",
                     contig, vcfpos, tag_name
                 );
-                continue 'records;
+                continue;
             }
         }
 
         // push into MB function
 
         for i in 0..alt_allele_count {
-            for (t, tumor_id) in &tumor_ids {
-                let tumor_vafs = rec.format(b"AF").float()?[*tumor_id].to_owned();
+            for (b, id_b) in &ids_b {
+                let b_vafs = rec.format(b"AF").float()?[*id_b].to_owned();
                 // if all alt_alleles are NaN, the list will only contain one NaN, so check for size
-                if (i == normal_vafs.len() && normal_vafs[0].is_nan())
-                    || (i == tumor_vafs.len() && tumor_vafs[0].is_nan())
+                if (i == a_vafs.len() && a_vafs[0].is_nan())
+                    || (i == b_vafs.len() && b_vafs[0].is_nan())
                 {
                     continue;
                 }
-                let normal_vaf = normal_vafs[i] as f64;
-                let tumor_vaf = tumor_vafs[i] as f64;
-                if normal_vaf.is_nan() || tumor_vaf.is_nan() {
+                let a_vaf = a_vafs[i] as f64;
+                let b_vaf = b_vafs[i] as f64;
+                if a_vaf.is_nan() || b_vaf.is_nan() {
                     continue;
                 }
-                let tumor_allele_freq = AlleleFreq(tumor_vaf);
-                let normal_allele_freq = AlleleFreq(normal_vaf);
+                let b_allele_freq = AlleleFreq(b_vaf);
+                let a_allele_freq = AlleleFreq(a_vaf);
 
                 plot_data.push(SCATTERVAF {
-                    sample: t.to_string(),
-                    normal_vaf: *normal_allele_freq,
-                    tumor_vaf: *tumor_allele_freq,
+                    sample: b.to_string(),
+                    normal_vaf: *a_allele_freq,
+                    tumor_vaf: *b_allele_freq,
                 });
             }
         }
@@ -162,7 +163,7 @@ pub(crate) fn vaf_scatter(
     print_plot(
         json!(plot_data),
         //serde_json::value::Value::String(tumor.to_string()),
-        serde_json::value::Value::String(normal.to_string()),
+        serde_json::value::Value::String(sample_a.to_string()),
         include_str!("../../templates/plots/vaf_scatter_contour.json"),
     )
 }
