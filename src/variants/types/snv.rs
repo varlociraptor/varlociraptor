@@ -9,13 +9,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
+use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
-use bio::stats::pairhmm::EmissionParameters;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::utils;
 use crate::reference;
+use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};

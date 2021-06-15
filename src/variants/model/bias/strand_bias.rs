@@ -39,4 +39,22 @@ impl Bias for StrandBias {
     fn is_artifact(&self) -> bool {
         *self != StrandBias::None
     }
+
+    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        if let StrandBias::None = *self {
+            return true;
+        }
+        // METHOD: strand bias is only informative if we observe both strands in the pileup.
+        // Otherwise, we likely have a situation caused by targeted sequencing where we should
+        // not infer the strand bias (e.g. only covered by a single amplicon or at the beginning
+        // of a target region).
+        pileups
+            .iter()
+            .flatten()
+            .any(|observation| observation.strand == Strand::Forward)
+            && pileups
+                .iter()
+                .flatten()
+                .any(|observation| observation.strand == Strand::Reverse)
+    }
 }
