@@ -340,6 +340,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 locus(),
                 self.reference_buffer.seq(&work_item.chrom)?[start..start + alt.len()].to_owned(),
                 alt.to_owned(),
+                self.realigner.clone(),
             ))?,
             model::Variant::None => sample.extract_observations(&variants::types::None::new(
                 locus(),

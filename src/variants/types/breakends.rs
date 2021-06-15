@@ -591,7 +591,7 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                     }
                 }
 
-                //dbg!(std::str::from_utf8(&alt_allele.seq.iter().cloned().collect_vec()).unwrap());
+                //dbg!(std::str::from_utf8(&alt_allele.seq.iter().cloned().collect::<Vec<_>>()).unwrap());
 
                 let alt_allele = Arc::new(alt_allele);
 

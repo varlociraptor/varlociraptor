@@ -20,7 +20,7 @@ use itertools::join;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bcf::Read;
-use rust_htslib::{bam, bcf};
+use rust_htslib::{bam, bam::record::Cigar, bcf};
 
 use crate::variants::model;
 use crate::Event;
@@ -80,6 +80,17 @@ pub(crate) fn info_tag_mateid(record: &mut bcf::Record) -> Result<Option<Vec<u8>
 
 pub(crate) fn is_reverse_strand(record: &bam::Record) -> bool {
     record.flags() & 0x10 != 0
+}
+
+pub(crate) fn contains_indel_op(record: &bam::Record) -> bool {
+    record
+        .cigar_cached()
+        .expect("bug: cigar accessed before caching")
+        .iter()
+        .any(|op| match op {
+            Cigar::Ins(_) | Cigar::Del(_) => true,
+            _ => false,
+        })
 }
 
 #[derive(new, Getters, CopyGetters, Debug)]
