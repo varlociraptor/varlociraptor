@@ -1,4 +1,6 @@
 # GIAB variant (1:3386594) which is homozygous. In this sample, it can look like strand bias (which is wrong) because of the targeted approach.
+# TODO what can we do about this? I'd rather say better we have a bit of missing sensitivity at the boundaries of target regions instead of 
+# FPs in the middle.
 
 expected:
   allelefreqs:
