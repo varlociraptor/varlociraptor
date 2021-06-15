@@ -105,6 +105,9 @@ impl<R: Realigner> Variant for MNV<R> {
         _: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
         if utils::contains_indel_op(&**read) {
+            // METHOD: reads containing indel operations should always be realigned,
+            // as their support or non-support of the MNV might be an artifact
+            // of the aligner.
             Ok(Some(self.realigner.borrow_mut().allele_support(
                 &**read,
                 [&self.locus].iter(),

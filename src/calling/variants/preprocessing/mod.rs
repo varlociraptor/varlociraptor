@@ -335,6 +335,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 locus(),
                 self.reference_buffer.seq(&work_item.chrom)?[start],
                 *alt,
+                self.realigner.clone(),
             ))?,
             model::Variant::MNV(alt) => sample.extract_observations(&variants::types::MNV::new(
                 locus(),

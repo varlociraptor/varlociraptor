@@ -124,6 +124,7 @@ testcase!(test70, exact);
 testcase!(test71, exact);
 testcase!(test_giab_01, exact);
 testcase!(test_giab_02, exact);
+testcase!(test_giab_03, exact);
 testcase!(test_mendelian_prior, exact);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);
