@@ -299,7 +299,7 @@ pub enum PlotKind {
         name = "scatter",
         about = "Plot variant allelic fraction scatter plot overlayed with a contour plot between two sample groups",
         usage = "varlociraptor plot scatter --somatic-tumor-events SOMATIC_TUMOR \
-        --sample-A sample1 --sample-B sample2 sample3 < calls.bcf | vg2svg > scatter.svg",
+        --sample-y sample1 --sample-x sample2 sample3 < calls.bcf | vg2svg > scatter.svg",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Scatter {
@@ -310,17 +310,15 @@ pub enum PlotKind {
         )]
         somatic_tumor_events: Vec<String>,
         #[structopt(
-            long = "sample-A",
-            default_value = "A",
+            long = "sample-y",
             help = "Name of the first sample in the given VCF/BCF."
         )]
-        sample_a: String,
+        sample_y: String,
         #[structopt(
-            long = "sample-B",
-            default_value = "B",
+            long = "sample-x",
             help = "Name(s) of the alternative sample(s) in the given VCF/BCF. Multiple samples can be given."
         )]
-        sample_b: Vec<String>,
+        sample_x: Vec<String>,
     },
 }
 
@@ -1063,12 +1061,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             }
             PlotKind::Scatter {
                 somatic_tumor_events,
-                sample_a,
-                sample_b,
+                sample_y,
+                sample_x,
             } => estimation::sample_variants::vaf_scatter(
                 &somatic_tumor_events,
-                &sample_a,
-                &sample_b,
+                &sample_y,
+                &sample_x,
             )?,
         },
     }

@@ -44,27 +44,27 @@ struct Scattervaf {
 
 pub(crate) fn vaf_scatter(
     mutational_events: &[String],
-    sample_a: &str,
-    sample_b: &[String],
+    sample_y: &str,
+    sample_x: &[String],
 ) -> Result<()> {
     let mut bcf = bcf::Reader::from_stdin()?;
     let header = bcf.header().to_owned();
 
     let mut plot_data = Vec::new();
 
-    let id_a = bcf
+    let id_y = bcf
         .header()
-        .sample_id(sample_a.as_bytes())
-        .unwrap_or_else(|| panic!("Sample {} not found", sample_a));
+        .sample_id(sample_y.as_bytes())
+        .unwrap_or_else(|| panic!("Sample {} not found", sample_y));
 
-    let mut ids_b = BTreeMap::new();
+    let mut ids_x = BTreeMap::new();
 
-    for s in sample_b {
-        let id_b = bcf
+    for s in sample_x {
+        let id_x = bcf
             .header()
             .sample_id(s.as_bytes())
             .unwrap_or_else(|| panic!("Sample {} not found", s));
-        ids_b.insert(s, id_b);
+        ids_x.insert(s, id_x);
     }
 
     for record in bcf.records() {
@@ -81,7 +81,7 @@ pub(crate) fn vaf_scatter(
         }
 
         // obtain VAF estimates (do it here already to work around a segfault in htslib)
-        let a_vafs = rec.format(b"AF").float()?[id_a].to_owned();
+        let y_vafs = rec.format(b"AF").float()?[id_y].to_owned();
 
         let alt_allele_count = (rec.allele_count() - 1) as usize;
 
@@ -107,26 +107,26 @@ pub(crate) fn vaf_scatter(
         // push into MB function
 
         for i in 0..alt_allele_count {
-            for (b, id_b) in &ids_b {
-                let b_vafs = rec.format(b"AF").float()?[*id_b].to_owned();
+            for (x, id_x) in &ids_x {
+                let x_vafs = rec.format(b"AF").float()?[*id_x].to_owned();
                 // if all alt_alleles are NaN, the list will only contain one NaN, so check for size
-                if (i == a_vafs.len() && a_vafs[0].is_nan())
-                    || (i == b_vafs.len() && b_vafs[0].is_nan())
+                if (i == y_vafs.len() && y_vafs[0].is_nan())
+                    || (i == x_vafs.len() && x_vafs[0].is_nan())
                 {
                     continue;
                 }
-                let a_vaf = a_vafs[i] as f64;
-                let b_vaf = b_vafs[i] as f64;
-                if a_vaf.is_nan() || b_vaf.is_nan() {
+                let y_vaf = y_vafs[i] as f64;
+                let x_vaf = x_vafs[i] as f64;
+                if y_vaf.is_nan() || x_vaf.is_nan() {
                     continue;
                 }
-                let b_allele_freq = AlleleFreq(b_vaf);
-                let a_allele_freq = AlleleFreq(a_vaf);
+                let x_allele_freq = AlleleFreq(x_vaf);
+                let y_allele_freq = AlleleFreq(x_vaf);
 
                 plot_data.push(Scattervaf {
-                    sample: b.to_string(),
-                    normal_vaf: *a_allele_freq,
-                    tumor_vaf: *b_allele_freq,
+                    sample: x.to_string(),
+                    normal_vaf: *y_allele_freq,
+                    tumor_vaf: *x_allele_freq,
                 });
             }
         }
@@ -154,7 +154,7 @@ pub(crate) fn vaf_scatter(
     print_plot(
         json!(plot_data),
         //serde_json::value::Value::String(tumor.to_string()),
-        serde_json::value::Value::String(sample_a.to_string()),
+        serde_json::value::Value::String(sample_y.to_string()),
         include_str!("../../templates/plots/vaf_scatter_contour.json"),
     )
 }
