@@ -4,7 +4,6 @@ use hdf5;
 use kernel_density;
 use rust_htslib::bcf;
 
-
 #[derive(Builder)]
 #[builder(pattern = "owned")]
 pub(crate) struct Caller {
@@ -12,26 +11,35 @@ pub(crate) struct Caller {
     vcf_reader: bcf::Reader,
 }
 
+pub(crate) struct ECDF {
+    seqname: String,
+    bootstraps: Vec<u64>,
+    ecdf: kernel_density::ecdf::Ecdf<u64>,
+}
+
 impl Caller {
-    pub(crate) fn cdf(&self) -> Result<()> {
+    pub(crate) fn cdf(&self, seqname: String) -> Result<ECDF> {
         let hdf5 = &self.hdf5_reader;
-        let group = hdf5.group("bootstrap")?;
+        let ids = hdf5
+            .dataset("aux/ids")?
+            .read_1d::<hdf5::types::VarLenAscii>()?;
+        let index = ids.iter().position(|x| x.as_str() == seqname).unwrap();
         let num_bootstraps = hdf5.dataset("/aux/num_bootstrap")?.read_scalar()?;
         let mut bootstraps = Vec::new();
         for i in 0..num_bootstraps {
-            let dataset = group.dataset(&format!("bs{i}", i = i))?;
+            let dataset = hdf5.dataset(&format!("bootstrap/bs{i}", i = i))?;
             let tpm = dataset.read_1d::<u64>()?;
-            bootstraps.extend(tpm.to_vec());
+            let tst = tpm[index];
+            bootstraps.push(tst);
         }
-        let n_values = hdf5.dataset("/aux/lengths")?.read_scalar()?;
-        let array = ndarray::Array2::from_shape_vec((num_bootstraps, n_values), bootstraps)?;
-        let array = array.t();
-        let cdf: Vec<_> = array
-            .outer_iter()
-            .map(|x| kernel_density::ecdf::Ecdf::new(&x.to_vec()))
-            .collect();
-        Ok(())
+        let ecdf = kernel_density::ecdf::Ecdf::new(&bootstraps);
+        Ok(ECDF {
+            seqname,
+            bootstraps,
+            ecdf,
+        })
     }
+
     pub(crate) fn call(&self) {
         todo!()
     }
