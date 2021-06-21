@@ -78,7 +78,7 @@
       "type": "ordinal",
       "domain": {
         "data": "source", "field": "sample",
-        "sort": {"order": "descending"}
+        "sort": {"order": "ascending"}
       },
       "range": "category"
     }

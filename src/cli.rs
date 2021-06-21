@@ -310,15 +310,15 @@ pub enum PlotKind {
         )]
         somatic_tumor_events: Vec<String>,
         #[structopt(
-            long = "sample-y",
+            long = "sample-x",
             help = "Name of the first sample in the given VCF/BCF."
         )]
-        sample_y: String,
+        sample_x: String,
         #[structopt(
-            long = "sample-x",
+            long = "sample-y",
             help = "Name(s) of the alternative sample(s) in the given VCF/BCF. Multiple samples can be given."
         )]
-        sample_x: Vec<String>,
+        sample_y: Vec<String>,
     },
 }
 
@@ -1061,12 +1061,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             }
             PlotKind::Scatter {
                 somatic_tumor_events,
-                sample_y,
                 sample_x,
+                sample_y,
             } => estimation::sample_variants::vaf_scatter(
                 &somatic_tumor_events,
-                &sample_y,
                 &sample_x,
+                &sample_y,
             )?,
         },
     }
