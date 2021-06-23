@@ -431,6 +431,15 @@ pub enum CallKind {
                 help = "Haplotype variants compared to a common reference.", // TODO later, we will add a subcommand to generate this file with Varlociraptor as well
             )]
         haplotype_variants: PathBuf,
+        #[structopt(
+            default_value = "1.0",
+            help = "Minimal variant allelic fraction to consider for mutli-sample barplot"
+        )]
+        min_tpm: f64,
+        #[structopt(
+            long,
+            help = "Output QC plotting of ecdf to given path.")]
+        qc_plot: Option<PathBuf>,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -948,11 +957,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 CallKind::HaplotypeCalls {
                     haplotype_counts,
                     haplotype_variants,
+                    qc_plot,
+                    min_tpm,
                 } => {
-                    //let _e = hdf5::silence_errors();
-                    let mut caller = calling::haplotype_abundances::CallerBuilder::default()
+                    let caller = calling::haplotype_abundances::CallerBuilder::default()
                         .hdf5_reader(hdf5::File::open(haplotype_counts)?)
-                        .vcf_reader(bcf::Reader::from_path(haplotype_variants)?)
+                        .vcf_reader(bcf::Reader::from_path(haplotype_variants)?)    
                         .build();
                 }
             }
