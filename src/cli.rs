@@ -433,12 +433,13 @@ pub enum CallKind {
         haplotype_variants: PathBuf,
         #[structopt(
             default_value = "1.0",
-            help = "Minimal variant allelic fraction to consider for mutli-sample barplot"
+            help = "Minimum value for normalized Kallisto counts."
         )]
-        min_tpm: f64,
+        min_norm_counts: f64,
         #[structopt(
             long,
-            help = "Output QC plotting of ecdf to given path.")]
+            help = "Folder to store quality control plots for the inference of a CDF from Kallisto bootstraps for each haplotype of interest."
+        )]
         qc_plot: Option<PathBuf>,
     },
     // #[structopt(
@@ -958,11 +959,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     haplotype_counts,
                     haplotype_variants,
                     qc_plot,
-                    min_tpm,
+                    min_norm_counts,
                 } => {
                     let caller = calling::haplotype_abundances::CallerBuilder::default()
                         .hdf5_reader(hdf5::File::open(haplotype_counts)?)
-                        .vcf_reader(bcf::Reader::from_path(haplotype_variants)?)    
+                        .vcf_reader(bcf::Reader::from_path(haplotype_variants)?)
                         .build();
                 }
             }
