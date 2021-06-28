@@ -4,6 +4,9 @@ use hdf5;
 use kernel_density;
 use rust_htslib::bcf;
 use serde_json::json;
+use std::path::PathBuf;
+use std::fs::File;
+
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -11,7 +14,7 @@ pub(crate) struct Caller {
     hdf5_reader: hdf5::File,
     vcf_reader: bcf::Reader,
     min_tpm: u64,
-    qc_plot: Option<PathBuf>
+    qc_plot: Option<PathBuf>,
 }
 
 pub(crate) struct ECDF {
@@ -24,7 +27,7 @@ impl Caller {
     //Below function outputs a vector of filtered seqnames according to min_tpm.
     pub(crate) fn filter_seqnames(&self) -> Result<Vec<String>> {
         let hdf5 = &self.hdf5_reader;
-        let tpm = hdf5.dataset("bootstrap/bs0")?.read_1d::<u64>()?;
+        let tpm = hdf5.dataset("est_counts")?.read_1d::<u64>()?;
         let mut indices = Vec::new();
         for (i,num) in tpm.iter().enumerate() {
             if num > &self.min_tpm {
@@ -43,7 +46,7 @@ impl Caller {
     }
 
     //Below function outputs an ECDF struct for one haplotype.
-    pub(crate) fn cdf(&self, seqname:String) -> Result<ECDF> {
+    pub(crate) fn cdf(&self, seqname: String) -> Result<ECDF> {
         let hdf5 = &self.hdf5_reader;
         let ids = hdf5
             .dataset("aux/ids")?
@@ -73,7 +76,7 @@ impl Caller {
 }
 
 impl ECDF {
-    pub(crate) fn qc(&self) -> Result<()> {
+    pub(crate) fn plot_qc(&self, qc_plot: Option<PathBuf> ) -> Result<()> {
         let blueprint = "../../templates/plots/qc_cdf.json";
         let mut blueprint: serde_json::Value = serde_json::from_str(blueprint)?;
 
@@ -83,8 +86,7 @@ impl ECDF {
         let data = json!([bootstraps, ecdf]);
         blueprint["data"]["values"] = data;
 
-        println!("{}", serde_json::to_string_pretty(&blueprint)?);
-
+        serde_json::to_writer(&File::create(qc_plot.as_ref().unwrap())?, &blueprint)?;
         Ok(())
     } 
 }
