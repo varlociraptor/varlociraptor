@@ -432,7 +432,7 @@ pub enum CallKind {
             )]
         haplotype_variants: PathBuf,
         #[structopt(
-            default_value = "1.0",
+            default_value = "0.1",
             help = "Minimum value for normalized Kallisto counts."
         )]
         min_norm_counts: f64,
@@ -440,7 +440,7 @@ pub enum CallKind {
             long,
             help = "Folder to store quality control plots for the inference of a CDF from Kallisto bootstraps for each haplotype of interest."
         )]
-        qc_plot: Option<PathBuf>,
+        qc_plot: PathBuf,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -962,9 +962,16 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     min_norm_counts,
                 } => {
                     let caller = calling::haplotype_abundances::CallerBuilder::default()
-                        .hdf5_reader(hdf5::File::open(haplotype_counts)?)
-                        .vcf_reader(bcf::Reader::from_path(haplotype_variants)?)
-                        .build();
+                        .hdf5_reader(hdf5::File::open(&haplotype_counts)?)
+                        .vcf_reader(bcf::Reader::from_path(&haplotype_variants)?)
+                        .min_norm_counts(min_norm_counts)
+                        .build()
+                        .unwrap();
+                    let seqnames = caller.filter_seqnames().unwrap();
+                    for seqname in seqnames {
+                        let ecdf = caller.cdf(seqname).unwrap();
+                        ecdf.plot_qc(qc_plot.clone()).unwrap();
+                    }
                 }
             }
         }

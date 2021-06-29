@@ -12,8 +12,7 @@ use std::path::PathBuf;
 pub(crate) struct Caller {
     hdf5_reader: hdf5::File,
     vcf_reader: bcf::Reader,
-    min_norm_counts: u64,
-    qc_plot: Option<PathBuf>,
+    min_norm_counts: f64,
 }
 
 pub(crate) struct ECDF {
@@ -26,11 +25,10 @@ impl Caller {
     //Below function outputs a vector of filtered seqnames according to --min-norm-counts.
     pub(crate) fn filter_seqnames(&self) -> Result<Vec<String>> {
         let hdf5 = &self.hdf5_reader;
-        let est_counts = hdf5.dataset("/est_counts")?.read_1d::<u64>()?;
-        let seq_length = hdf5.dataset("/aux/lengths")?.read_1d::<u64>()?; //these two variables arrays have the same length.
+        let est_counts = hdf5.dataset("est_counts")?.read_1d::<f64>()?;
+        let seq_length = hdf5.dataset("aux/lengths")?.read_1d::<f64>()?; //these two variables arrays have the same length.
 
         let norm_counts = est_counts / seq_length;
-
         let mut indices = Vec::new();
         for (i, num) in norm_counts.iter().enumerate() {
             if num > &self.min_norm_counts {
@@ -39,8 +37,8 @@ impl Caller {
         }
         let ids = hdf5
             .dataset("aux/ids")?
-            .read_1d::<hdf5::types::VarLenAscii>()?;
-
+            .read_1d::<hdf5::types::FixedAscii<>>()?; //have to find a way to read haplotype names as string ectors
+        
         let mut filtered: Vec<String> = Vec::new();
         for i in indices {
             filtered.push(ids[i].to_string());
@@ -80,7 +78,7 @@ impl Caller {
 }
 
 impl ECDF {
-    pub(crate) fn plot_qc(&self, qc_plot: Option<PathBuf>) -> Result<()> {
+    pub(crate) fn plot_qc(&self, qc_plot: PathBuf) -> Result<()> {
         let blueprint = "../../templates/plots/qc_cdf.json";
         let mut blueprint: serde_json::Value = serde_json::from_str(blueprint)?;
 
@@ -90,7 +88,8 @@ impl ECDF {
         let data = json!([bootstraps, ecdf]);
         blueprint["data"]["values"] = data;
 
-        serde_json::to_writer(&File::create(qc_plot.as_ref().unwrap())?, &blueprint)?;
+        //let mut qc_plot = append qc_plot with self.seqname
+        serde_json::to_writer(&File::create(qc_plot)?, &blueprint)?;
         Ok(())
     }
 }
