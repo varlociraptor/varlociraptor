@@ -8,6 +8,7 @@ use std::f64;
 use std::u32;
 
 use anyhow::Result;
+use counter::Counter;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
@@ -92,6 +93,29 @@ impl AlignmentProperties {
             initial: true,
         };
 
+        #[derive(Debug)]
+        struct Stats {
+            inner: Counter<(&'static str, bool), usize>,
+        }
+        impl Stats {
+            fn new() -> Self {
+                Self {
+                    inner: Counter::new(),
+                }
+            }
+            fn update(&mut self, record: &bam::Record) {
+                self.inner[&("mapq_is_zero", record.mapq() == 0)] += 1;
+                self.inner[&("is_duplicate", record.is_duplicate())] += 1;
+                self.inner[&("is_unmapped", record.is_unmapped())] += 1;
+                self.inner[&("is_quality_check_failed", record.is_quality_check_failed())] += 1;
+                self.inner[&("is_paired", record.is_paired())] += 1;
+                self.inner[&("is_first_in_template", record.is_first_in_template())] += 1;
+                self.inner[&("is_mate_unmapped", record.is_mate_unmapped())] += 1;
+                self.inner[&("mate_ids_match", (record.tid() == record.mtid()))] += 1;
+            }
+        }
+
+        let mut stats = Stats::new();
         let mut record = bam::Record::new();
         let mut tlens = Vec::new();
         let mut max_read_len = 0;
@@ -115,6 +139,7 @@ impl AlignmentProperties {
                 None => break,
                 Some(res) => res?,
             }
+            stats.update(&record);
 
             // Records to skip without updating max_cigar_ops_len AND without incrementing the
             // counter (to keep looking for 10000 useful records for the estimation)
@@ -201,17 +226,25 @@ impl AlignmentProperties {
                 \n\
                 In addition, {nr} records were skipped in the estimation for one\n\
                 of the following reasons:\n\
-                - not paired\n\
-                - not the first segment with regard to the template sequence\n\
-                - mapping quality of 0\n\
-                - marked as a duplicate\n\
-                - mate mapped to different template (e.g. different chromosome)\n\
-                - failed some quality check according to the 512 SAM flag\n\
-                - mate unmapped\n\
-                - record unmapped\n",
+                - not paired: {not_paired}\n\
+                - not the first segment with regard to the template sequence: {not_first_in_template}\n\
+                - mapping quality of 0: {mapq_zero}\n\
+                - marked as a duplicate: {duplicate}\n\
+                - mate mapped to different template (e.g. different chromosome): {mate_ids_dont_match}\n\
+                - failed some quality check according to the 512 SAM flag: {quality_fail}\n\
+                - mate unmapped: {mate_unmapped}\n\
+                - record unmapped: {record_unmapped}\n",
                 nu = n_not_useable,
                 sc = n_soft_clip,
-                nr = skipped
+                nr = skipped,
+                not_paired = stats.inner.get(&("is_paired", false)).unwrap_or(&0),
+                not_first_in_template = stats.inner.get(&("is_first_in_template", false)).unwrap_or(&0),
+                mapq_zero = stats.inner.get(&("mapq_is_zero", true)).unwrap_or(&0),
+                duplicate = stats.inner.get(&("is_duplicate", true)).unwrap_or(&0),
+                mate_ids_dont_match = stats.inner.get(&("mate_ids_match", false)).unwrap_or(&0),
+                quality_fail = stats.inner.get(&("is_quality_check_failed", true)).unwrap_or(&0),
+                mate_unmapped = stats.inner.get(&("is_mate_unmapped", true)).unwrap_or(&0),
+                record_unmapped = stats.inner.get(&("is_unmapped", true)).unwrap_or(&0),
             );
             properties.insert_size = None;
             Ok(properties)
