@@ -29,7 +29,7 @@ use crate::grammar;
 use crate::reference;
 use crate::testcase;
 use crate::variants::evidence::realignment;
-use crate::variants::evidence::realignment::pairhmm::GapParams;
+use crate::variants::evidence::realignment::pairhmm::{GapParams, HopParams};
 
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::{Inheritance, Prior};
@@ -224,6 +224,14 @@ pub enum PreprocessKind {
             help = "Extension rate of spurious deletions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
         )]
         spurious_delext_rate: f64,
+        #[structopt(long, default_value = "0.0", help = "TODO")]
+        spurious_hop_seq_rate: f64,
+        #[structopt(long, default_value = "0.0", help = "TODO")]
+        spurious_hop_ref_rate: f64,
+        #[structopt(long, default_value = "0.1", help = "TODO")]
+        spurious_hop_seq_ext_rate: f64,
+        #[structopt(long, default_value = "0.05", help = "TODO")]
+        spurious_hop_ref_ext_rate: f64,
         #[structopt(
             long = "strandedness",
             default_value = "opposite",
@@ -617,6 +625,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     spurious_del_rate,
                     spurious_insext_rate,
                     spurious_delext_rate,
+                    spurious_hop_seq_rate,
+                    spurious_hop_ref_rate,
+                    spurious_hop_seq_ext_rate,
+                    spurious_hop_ref_ext_rate,
                     protocol_strandedness,
                     realignment_window,
                     max_depth,
@@ -662,7 +674,35 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         reference_buffer_size,
                     ));
 
-                    if pairhmm_mode == "fast" {
+                    if spurious_hop_seq_rate > 0.0 || spurious_hop_ref_rate > 0.0 {
+                        let hop_params = HopParams {
+                            prob_seq_homopolymer: LogProb::from(spurious_hop_seq_rate),
+                            prob_ref_homopolymer: LogProb::from(spurious_hop_ref_rate),
+                            prob_seq_extend_homopolymer: LogProb::from(spurious_hop_seq_ext_rate),
+                            prob_ref_extend_homopolymer: LogProb::from(spurious_hop_ref_ext_rate),
+                        };
+                        let mut processor =
+                            calling::variants::preprocessing::ObservationProcessor::builder()
+                                .alignment_properties(alignment_properties)
+                                .protocol_strandedness(protocol_strandedness)
+                                .max_depth(max_depth)
+                                .inbam(bam)
+                                .min_bam_refetch_distance(min_bam_refetch_distance)
+                                .reference_buffer(Arc::clone(&reference_buffer))
+                                .breakend_index(BreakendIndex::new(&candidates)?)
+                                .inbcf(candidates)
+                                .options(opt_clone)
+                                .outbcf(output)
+                                .realigner(realignment::HomopolyPairHMMRealigner::new(
+                                    reference_buffer,
+                                    gap_params,
+                                    hop_params,
+                                    realignment_window,
+                                ))
+                                .build();
+
+                        processor.process()?;
+                    } else if pairhmm_mode == "fast" {
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
                                 .alignment_properties(alignment_properties)

@@ -120,6 +120,37 @@ impl pairhmm::StartEndGapParameters for GapParams {
     }
 }
 
+/// Hop parameters for HomopolyPairHMM.
+#[derive(Debug, Clone)]
+pub(crate) struct HopParams {
+    pub(crate) prob_seq_homopolymer: LogProb,
+    pub(crate) prob_ref_homopolymer: LogProb,
+    pub(crate) prob_seq_extend_homopolymer: LogProb,
+    pub(crate) prob_ref_extend_homopolymer: LogProb,
+}
+
+impl pairhmm::HopParameters for HopParams {
+    #[inline]
+    fn prob_hop_x(&self) -> LogProb {
+        self.prob_seq_homopolymer
+    }
+
+    #[inline]
+    fn prob_hop_y(&self) -> LogProb {
+        self.prob_ref_homopolymer
+    }
+
+    #[inline]
+    fn prob_hop_x_extend(&self) -> LogProb {
+        self.prob_seq_extend_homopolymer
+    }
+
+    #[inline]
+    fn prob_hop_y_extend(&self) -> LogProb {
+        self.prob_ref_extend_homopolymer
+    }
+}
+
 #[macro_export]
 macro_rules! default_emission {
     () => {
