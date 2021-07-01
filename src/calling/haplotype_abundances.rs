@@ -15,6 +15,7 @@ pub(crate) struct Caller {
     min_norm_counts: f64,
 }
 
+#[derive(Serialize)]
 pub(crate) struct ECDF {
     seqname: String,
     bootstraps: Vec<u64>,
@@ -35,10 +36,9 @@ impl Caller {
                 indices.push(i);
             }
         }
-        let ids = hdf5
-            .dataset("aux/ids")?
-            .read_1d::<hdf5::types::FixedAscii<>>()?; //have to find a way to read haplotype names as string ectors
-        
+        //let len = hdf5.dataset("aux/ids")?.dtype().unwrap().size();
+        let ids = hdf5.dataset("aux/ids")?.read_1d::<hdf5::types::FixedAscii<255>>()?;
+    
         let mut filtered: Vec<String> = Vec::new();
         for i in indices {
             filtered.push(ids[i].to_string());
@@ -51,12 +51,12 @@ impl Caller {
         let hdf5 = &self.hdf5_reader;
         let ids = hdf5
             .dataset("aux/ids")?
-            .read_1d::<hdf5::types::VarLenAscii>()?;
+            .read_1d::<hdf5::types::FixedAscii<255>>()?;
         let index = ids.iter().position(|x| x.as_str() == seqname).unwrap();
-        let num_bootstraps = hdf5.dataset("/aux/num_bootstrap")?.read_scalar()?;
-        let seq_length = hdf5.dataset("/aux/lengths")?.read_1d::<u64>()?;
+        let num_bootstraps = hdf5.dataset("aux/num_bootstrap")?.read_1d::<i32>()?;
+        let seq_length = hdf5.dataset("aux/lengths")?.read_1d::<u64>()?;
         let mut bootstraps = Vec::new();
-        for i in 0..num_bootstraps {
+        for i in 0..num_bootstraps[0] {
             let dataset = hdf5.dataset(&format!("bootstrap/bs{i}", i = i))?;
             let est_counts = dataset.read_1d::<u64>()?;
             let norm_counts = est_counts / &seq_length;
@@ -78,18 +78,20 @@ impl Caller {
 }
 
 impl ECDF {
-    pub(crate) fn plot_qc(&self, qc_plot: PathBuf) -> Result<()> {
-        let blueprint = "../../templates/plots/qc_cdf.json";
-        let mut blueprint: serde_json::Value = serde_json::from_str(blueprint)?;
-
+    pub(crate) fn plot_qc(&self, mut qc_plot: PathBuf) -> std::io::Result<()> {
+        let json = include_str!("../../templates/plots/qc_cdf.json");
+        let mut blueprint: serde_json::Value = serde_json::from_str(json)?;
         let bootstraps = &self.bootstraps;
         let ecdf = &self.ecdf;
 
-        let data = json!([bootstraps, ecdf]);
+        let data = json!([bootstraps, ecdf]); //need to play with the values to have discrete x and y points
+    
         blueprint["data"]["values"] = data;
+        println!{"{:?}", blueprint};
 
-        //let mut qc_plot = append qc_plot with self.seqname
-        serde_json::to_writer(&File::create(qc_plot)?, &blueprint)?;
+        qc_plot.push(self.seqname.clone() + &".json".to_string());
+        let file = File::create(qc_plot)?;
+        serde_json::to_writer(file, &blueprint);
         Ok(())
     }
 }

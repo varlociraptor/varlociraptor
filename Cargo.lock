@@ -189,7 +189,7 @@ dependencies = [
  "itertools-num",
  "lazy_static 1.4.0",
  "multimap",
- "ndarray",
+ "ndarray 0.13.1",
  "newtype_derive",
  "num-integer",
  "num-traits 0.2.14",
@@ -1023,26 +1023,23 @@ dependencies = [
 [[package]]
 name = "hdf5"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a863396b1828dcb188209e0d3e380433415cc4c253f80fa367b5154cc3073db0"
+source = "git+https://github.com/aldanor/hdf5-rust?branch=master#ca5eb20f3c4157528404ce27273903ef95d29bbd"
 dependencies = [
  "bitflags",
+ "cfg-if 1.0.0",
  "hdf5-derive",
  "hdf5-sys",
  "hdf5-types",
  "lazy_static 1.4.0",
  "libc",
- "ndarray",
- "num-integer",
- "num-traits 0.2.14",
+ "ndarray 0.15.3",
  "parking_lot 0.11.1",
 ]
 
 [[package]]
 name = "hdf5-derive"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6eddba76f9d15423c8737a3f376128e3b556f01cd8927e44736ea8cc63bbcc02"
+source = "git+https://github.com/aldanor/hdf5-rust?branch=master#ca5eb20f3c4157528404ce27273903ef95d29bbd"
 dependencies = [
  "proc-macro2 1.0.24",
  "quote 1.0.9",
@@ -1052,8 +1049,7 @@ dependencies = [
 [[package]]
 name = "hdf5-sys"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15fa1f3c5b34a7dd3815fc68aa8d64f0682e500b393b77b88f8dac206d2b16a9"
+source = "git+https://github.com/aldanor/hdf5-rust?branch=master#ca5eb20f3c4157528404ce27273903ef95d29bbd"
 dependencies = [
  "libc",
  "libloading",
@@ -1067,10 +1063,11 @@ dependencies = [
 [[package]]
 name = "hdf5-types"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4523a5d946b3ef2a0aa1d3643a844c581794dee09934c4a8e1ffb6dbb878872e"
+source = "git+https://github.com/aldanor/hdf5-rust?branch=master#ca5eb20f3c4157528404ce27273903ef95d29bbd"
 dependencies = [
  "ascii",
+ "cfg-if 1.0.0",
+ "hdf5-sys",
  "libc",
 ]
 
@@ -1309,9 +1306,9 @@ checksum = "8916b1f6ca17130ec6568feccee27c156ad12037880833a3b842a823236502e7"
 
 [[package]]
 name = "libloading"
-version = "0.6.7"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "351a32417a12d5f7e82c368a66781e307834dae04c6ce0cd4456d52989229883"
+checksum = "6f84d96438c15fcd6c3f244c8fce01d1e2b9c6b5623e9c711dc9286d8fc92d6a"
 dependencies = [
  "cfg-if 1.0.0",
  "winapi 0.3.9",
@@ -1434,6 +1431,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "matrixmultiply"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a8a15b776d9dfaecd44b03c5828c2199cddff5247215858aac14624f8d6b741"
+dependencies = [
+ "rawpointer 0.2.1",
+]
+
+[[package]]
 name = "maybe-uninit"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1507,7 +1513,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac06db03ec2f46ee0ecdca1a1c34a99c0d188a0d83439b84bf0cb4b386e4ab09"
 dependencies = [
  "matrixmultiply 0.2.4",
- "num-complex",
+ "num-complex 0.2.4",
+ "num-integer",
+ "num-traits 0.2.14",
+ "rawpointer 0.2.1",
+]
+
+[[package]]
+name = "ndarray"
+version = "0.15.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08e854964160a323e65baa19a0b1a027f76d590faba01f05c0cbc3187221a8c9"
+dependencies = [
+ "matrixmultiply 0.3.1",
+ "num-complex 0.4.0",
  "num-integer",
  "num-traits 0.2.14",
  "rawpointer 0.2.1",
@@ -1550,6 +1569,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
 dependencies = [
  "autocfg 1.0.1",
+ "num-traits 0.2.14",
+]
+
+[[package]]
+name = "num-complex"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26873667bbbb7c5182d4a37c1add32cdf09f841af72da53318fdb81543c15085"
+dependencies = [
  "num-traits 0.2.14",
 ]
 
@@ -2816,7 +2844,7 @@ dependencies = [
  "log 0.4.14",
  "lru",
  "lru_time_cache",
- "ndarray",
+ "ndarray 0.13.1",
  "ordered-float 1.1.1",
  "paste",
  "pest",
