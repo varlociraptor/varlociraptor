@@ -163,16 +163,16 @@ impl AlignmentProperties {
                 i += 1;
                 continue;
             }
-            // Records to skip after updating max_cigar_ops_len, BUT without incrementing the
-            // counter (to keep looking for 10000 useful records for the estimation)
-            if !record.is_paired()
-                || !record.is_first_in_template()
-                || record.tid() != record.mtid()
-                || record.is_mate_unmapped()
-            {
-                skipped += 1;
-                continue;
-            }
+            // // Records to skip after updating max_cigar_ops_len, BUT without incrementing the
+            // // counter (to keep looking for 10000 useful records for the estimation)
+            // if !record.is_paired()
+            //     || !record.is_first_in_template()
+            //     || record.tid() != record.mtid()
+            //     || record.is_mate_unmapped()
+            // {
+            //     skipped += 1;
+            //     continue;
+            // }
 
             if !is_regular {
                 n_not_useable += 1;
