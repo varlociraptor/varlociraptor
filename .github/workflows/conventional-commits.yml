@@ -8,7 +8,7 @@ on:
       - synchronize
 
 jobs:
-  title format:
+  title-format:
     runs-on: ubuntu-latest
     steps:
       - uses: aslafy-z/conventional-pr-title-action@v2.2.0
