@@ -676,10 +676,10 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                     if spurious_hop_seq_rate > 0.0 || spurious_hop_ref_rate > 0.0 {
                         let hop_params = HopParams {
-                            prob_seq_homopolymer: LogProb::from(spurious_hop_seq_rate),
-                            prob_ref_homopolymer: LogProb::from(spurious_hop_ref_rate),
-                            prob_seq_extend_homopolymer: LogProb::from(spurious_hop_seq_ext_rate),
-                            prob_ref_extend_homopolymer: LogProb::from(spurious_hop_ref_ext_rate),
+                            prob_seq_homopolymer: LogProb::from(Prob(spurious_hop_seq_rate)),
+                            prob_ref_homopolymer: LogProb::from(Prob(spurious_hop_ref_rate)),
+                            prob_seq_extend_homopolymer: LogProb::from(Prob(spurious_hop_seq_ext_rate)),
+                            prob_ref_extend_homopolymer: LogProb::from(Prob(spurious_hop_ref_ext_rate)),
                         };
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
