@@ -334,10 +334,7 @@ pub enum EstimateKind {
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     MutationalBurden {
-        #[structopt(
-            long = "events",
-            help = "Events to consider (e.g. SOMATIC_TUMOR)."
-        )]
+        #[structopt(long = "events", help = "Events to consider (e.g. SOMATIC_TUMOR).")]
         events: Vec<String>,
         #[structopt(
             long = "sample",
