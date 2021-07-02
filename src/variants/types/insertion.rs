@@ -218,3 +218,19 @@ impl<'a> EmissionParameters for InsertionEmissionParams<'a> {
         self.ref_end - self.ref_offset + self.ins_len
     }
 }
+
+impl<'a> bio::stats::pairhmm::Emission for InsertionEmissionParams<'a> {
+    #[inline]
+    fn emission_x(&self, i: usize) -> u8 {
+        self.ref_base(i)
+    }
+
+    #[inline]
+    fn emission_y(&self, j: usize) -> u8 {
+        unsafe {
+            self.read_emission
+                .read_seq
+                .decoded_base_unchecked(self.read_emission.project_j(j))
+        }
+    }
+}

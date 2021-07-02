@@ -180,7 +180,7 @@ macro_rules! default_emission {
 #[derive(Getters)]
 #[getset(get = "pub")]
 pub(crate) struct ReadEmission<'a> {
-    read_seq: bam::record::Seq<'a>,
+    pub(crate) read_seq: bam::record::Seq<'a>,
     any_miscall: Vec<LogProb>,
     no_miscall: Vec<LogProb>,
     read_offset: usize,
@@ -231,7 +231,7 @@ impl<'a> ReadEmission<'a> {
     }
 
     #[inline]
-    fn project_j(&self, j: usize) -> usize {
+    pub(crate) fn project_j(&self, j: usize) -> usize {
         j + self.read_offset
     }
 
@@ -264,5 +264,19 @@ impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
+    }
+}
+
+impl<'a> bio::stats::pairhmm::Emission for ReferenceEmissionParams<'a> {
+    fn emission_x(&self, i: usize) -> u8 {
+        self.ref_base(i)
+    }
+
+    fn emission_y(&self, j: usize) -> u8 {
+        unsafe {
+            self.read_emission
+                .read_seq
+                .decoded_base_unchecked(self.read_emission.project_j(j))
+        }
     }
 }

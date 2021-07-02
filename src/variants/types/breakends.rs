@@ -666,6 +666,22 @@ impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
     }
 }
 
+impl<'a> bio::stats::pairhmm::Emission for BreakendEmissionParams<'a> {
+    #[inline]
+    fn emission_x(&self, i: usize) -> u8 {
+        self.ref_base(i)
+    }
+
+    #[inline]
+    fn emission_y(&self, j: usize) -> u8 {
+        unsafe {
+            self.read_emission
+                .read_seq
+                .decoded_base_unchecked(self.read_emission.project_j(j))
+        }
+    }
+}
+
 /// Modeling of breakends.
 #[derive(Getters, CopyGetters, Debug, Clone)]
 pub(crate) struct Breakend {

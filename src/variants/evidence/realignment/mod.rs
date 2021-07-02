@@ -30,6 +30,7 @@ pub(crate) mod edit_distance;
 pub(crate) mod pairhmm;
 
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
+use bio::stats::pairhmm::HomopolyPairHMM;
 
 pub(crate) struct CandidateRegion {
     overlap: bool,
@@ -38,7 +39,9 @@ pub(crate) struct CandidateRegion {
 }
 
 pub(crate) trait Realignable<'a> {
-    type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
+    type EmissionParams: stats::pairhmm::EmissionParameters
+        + pairhmm::RefBaseEmission
+        + stats::pairhmm::Emission;
 
     fn alt_emission_params(
         &self,
@@ -337,7 +340,9 @@ pub(crate) trait Realigner {
         edit_dist: &mut edit_distance::EditDistanceCalculation,
     ) -> LogProb
     where
-        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
+        E: stats::pairhmm::EmissionParameters
+            + pairhmm::RefBaseEmission
+            + bio::stats::pairhmm::Emission,
     {
         let mut hits = Vec::new();
         let mut best_dist = None;
@@ -379,7 +384,9 @@ pub(crate) trait Realigner {
 
     fn calculate_prob_allele<E>(&mut self, hit: &EditDistanceHit, allele_params: &mut E) -> LogProb
     where
-        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
+        E: stats::pairhmm::EmissionParameters
+            + pairhmm::RefBaseEmission
+            + bio::stats::pairhmm::Emission;
 
     fn ref_buffer(&self) -> &Arc<reference::Buffer>;
 
@@ -573,7 +580,7 @@ impl Realigner for PathHMMRealigner {
 pub(crate) struct HomopolyPairHMMRealigner {
     gap_params: pairhmm::GapParams,
     hop_params: pairhmm::HopParams,
-    pairhmm: PairHMM,
+    pairhmm: HomopolyPairHMM,
     max_window: u64,
     ref_buffer: Arc<reference::Buffer>,
 }
@@ -586,7 +593,7 @@ impl HomopolyPairHMMRealigner {
         hop_params: pairhmm::HopParams,
         max_window: u64,
     ) -> Self {
-        let pairhmm = PairHMM::new(&gap_params);
+        let pairhmm = HomopolyPairHMM::new(&gap_params, &hop_params);
         HomopolyPairHMMRealigner {
             gap_params,
             hop_params,
@@ -608,7 +615,9 @@ impl Realigner for HomopolyPairHMMRealigner {
 
     fn calculate_prob_allele<E>(&mut self, hit: &EditDistanceHit, allele_params: &mut E) -> LogProb
     where
-        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
+        E: stats::pairhmm::EmissionParameters
+            + pairhmm::RefBaseEmission
+            + bio::stats::pairhmm::Emission,
     {
         // METHOD: We shrink the area to run the HMM against to an environment around the best
         // edit distance hits.
