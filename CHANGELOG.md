@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [3.5.0] - 2021-07-02
+- Improvements to SNV and MNV calling: in case of reads with indels, perform a realignment to properly assess evidences (@johanneskoester).
+- Improved error messages (@johanneskoester).
+- Add subcommand for scatterplotting VAFs between multiple samples (@jafors).
+
 ## [3.4.0] - 2021-05-25
 - Allow to control local instead of global FDR (`varlociraptor filter-calls control-fdr --local`).
 - Allow to configure mutation rate reduction factors for MNVs, Indels, and SVs.
