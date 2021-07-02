@@ -128,10 +128,6 @@ fn default_reference_buffer_size() -> usize {
     10
 }
 
-fn default_pairhmm_mode() -> String {
-    "exact".to_owned()
-}
-
 fn default_min_bam_refetch_distance() -> u64 {
     1
 }
@@ -201,37 +197,12 @@ pub enum PreprocessKind {
         )]
         output: Option<PathBuf>,
         #[structopt(
-            long = "spurious-ins-rate",
-            default_value = "2.8e-6",
-            help = "Rate of spuriously inserted bases by the sequencer (Illumina: 2.8e-6, see Schirmer et al. BMC Bioinformatics 2016)."
+            parse(from_os_str),
+            long,
+            required = true,
+            help = "Error model defined in the varlociraptor error model grammar."
         )]
-        spurious_ins_rate: f64,
-        #[structopt(
-            long = "spurious-del-rate",
-            default_value = "5.1e-6",
-            help = "Rate of spuriosly deleted bases by the sequencer (Illumina: 5.1e-6, see Schirmer et al. BMC Bioinformatics 2016)."
-        )]
-        spurious_del_rate: f64,
-        #[structopt(
-            long = "spurious-insext-rate",
-            default_value = "0.0",
-            help = "Extension rate of spurious insertions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
-        )]
-        spurious_insext_rate: f64,
-        #[structopt(
-            long = "spurious-delext-rate",
-            default_value = "0.0",
-            help = "Extension rate of spurious deletions by the sequencer (Illumina: 0.0, see Schirmer et al. BMC Bioinformatics 2016)"
-        )]
-        spurious_delext_rate: f64,
-        #[structopt(long, default_value = "0.0", help = "TODO")]
-        spurious_hop_seq_rate: f64,
-        #[structopt(long, default_value = "0.0", help = "TODO")]
-        spurious_hop_ref_rate: f64,
-        #[structopt(long, default_value = "0.1", help = "TODO")]
-        spurious_hop_seq_ext_rate: f64,
-        #[structopt(long, default_value = "0.05", help = "TODO")]
-        spurious_hop_ref_ext_rate: f64,
+        model: PathBuf,
         #[structopt(
             long = "strandedness",
             default_value = "opposite",
@@ -261,20 +232,6 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         omit_insert_size: bool,
-        #[structopt(
-            long = "pairhmm-mode",
-            possible_values = &["fast", "exact"],
-            default_value = "exact",
-            help = "PairHMM computation mode (either fast or exact). Fast mode means that only the best \
-                    alignment path is considered for probability calculation. In rare cases, this can lead \
-                    to wrong results for single reads. Hence, we advice to not use it when \
-                    discrete allele frequences are of interest (0.5, 1.0). For continuous \
-                    allele frequencies, fast mode should cause almost no deviations from the \
-                    exact results. Also, if per sample allele frequencies are irrelevant (e.g. \
-                    in large cohorts), fast mode can be safely used."
-        )]
-        #[serde(default = "default_pairhmm_mode")]
-        pairhmm_mode: String,
     },
 }
 
@@ -621,28 +578,39 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     bam,
                     alignment_properties,
                     output,
-                    spurious_ins_rate,
-                    spurious_del_rate,
-                    spurious_insext_rate,
-                    spurious_delext_rate,
-                    spurious_hop_seq_rate,
-                    spurious_hop_ref_rate,
-                    spurious_hop_seq_ext_rate,
-                    spurious_hop_ref_ext_rate,
+                    model,
                     protocol_strandedness,
                     realignment_window,
                     max_depth,
                     omit_insert_size,
                     reference_buffer_size,
                     min_bam_refetch_distance,
-                    pairhmm_mode,
                 } => {
                     // TODO: handle testcases
 
-                    let spurious_ins_rate = Prob::checked(spurious_ins_rate)?;
-                    let spurious_del_rate = Prob::checked(spurious_del_rate)?;
-                    let spurious_insext_rate = Prob::checked(spurious_insext_rate)?;
-                    let spurious_delext_rate = Prob::checked(spurious_delext_rate)?;
+                    #[derive(Deserialize, Getters)]
+                    #[get = "pub(crate)"]
+                    #[serde(deny_unknown_fields)]
+                    pub(crate) struct Model {
+                        spurious_ins_rate: f64,
+                        spurious_del_rate: f64,
+                        spurious_insext_rate: f64,
+                        spurious_delext_rate: f64,
+
+                        #[serde(default)]
+                        spurious_hop_ref_rate: f64,
+                        #[serde(default)]
+                        spurious_hop_seq_rate: f64,
+                        #[serde(default)]
+                        spurious_hop_ref_ext_rate: f64,
+                        #[serde(default)]
+                        spurious_hop_seq_ext_rate: f64,
+
+                        #[serde(default)]
+                        fast: bool,
+                    }
+                    let model = std::fs::read(model)?;
+                    let model: Model = serde_yaml::from_slice(&model)?;
                     if realignment_window > (128 / 2) {
                         return Err(
                             structopt::clap::Error::with_description(
@@ -662,10 +630,18 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     )?;
 
                     let gap_params = GapParams {
-                        prob_insertion_artifact: LogProb::from(spurious_ins_rate),
-                        prob_deletion_artifact: LogProb::from(spurious_del_rate),
-                        prob_insertion_extend_artifact: LogProb::from(spurious_insext_rate),
-                        prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
+                        prob_insertion_artifact: LogProb::from(Prob::checked(
+                            model.spurious_ins_rate,
+                        )?),
+                        prob_deletion_artifact: LogProb::from(Prob::checked(
+                            model.spurious_del_rate,
+                        )?),
+                        prob_insertion_extend_artifact: LogProb::from(Prob::checked(
+                            model.spurious_insext_rate,
+                        )?),
+                        prob_deletion_extend_artifact: LogProb::from(Prob::checked(
+                            model.spurious_delext_rate,
+                        )?),
                     };
 
                     let reference_buffer = Arc::new(reference::Buffer::new(
@@ -674,12 +650,20 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         reference_buffer_size,
                     ));
 
-                    if spurious_hop_seq_rate > 0.0 || spurious_hop_ref_rate > 0.0 {
+                    if model.spurious_hop_seq_rate > 0.0 || model.spurious_hop_ref_rate > 0.0 {
                         let hop_params = HopParams {
-                            prob_seq_homopolymer: LogProb::from(Prob(spurious_hop_seq_rate)),
-                            prob_ref_homopolymer: LogProb::from(Prob(spurious_hop_ref_rate)),
-                            prob_seq_extend_homopolymer: LogProb::from(Prob(spurious_hop_seq_ext_rate)),
-                            prob_ref_extend_homopolymer: LogProb::from(Prob(spurious_hop_ref_ext_rate)),
+                            prob_seq_homopolymer: LogProb::from(Prob::checked(
+                                model.spurious_hop_seq_rate,
+                            )?),
+                            prob_ref_homopolymer: LogProb::from(Prob::checked(
+                                model.spurious_hop_ref_rate,
+                            )?),
+                            prob_seq_extend_homopolymer: LogProb::from(Prob::checked(
+                                model.spurious_hop_seq_ext_rate,
+                            )?),
+                            prob_ref_extend_homopolymer: LogProb::from(Prob::checked(
+                                model.spurious_hop_ref_ext_rate,
+                            )?),
                         };
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
@@ -702,7 +686,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 .build();
 
                         processor.process()?;
-                    } else if pairhmm_mode == "fast" {
+                    } else if model.fast {
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
                                 .alignment_properties(alignment_properties)
