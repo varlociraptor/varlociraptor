@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [3.6.0](https://www.github.com/varlociraptor/varlociraptor/compare/v3.5.0...v3.6.0) (2021-07-02)
+
+
+### Features
+
+* release automation ([b6cc00f](https://www.github.com/varlociraptor/varlociraptor/commit/b6cc00ff5cc77c2760e12891540f36c326ca0c1b))
+
 ## [3.5.0] - 2021-07-02
 - Improvements to SNV and MNV calling: in case of reads with indels, perform a realignment to properly assess evidences (@johanneskoester).
 - Improved error messages (@johanneskoester).
