@@ -18,7 +18,7 @@ Varlociraptor implements a novel, unified fully uncertainty-aware approach to ge
 
 ### Calling modes
 
-* Tumor-normal-calling, classifying variants as somatic in tumor, somatic in normal, germline, or absent.
 * Generic, grammar based configuration of the statistical model, allowing to classify arbitrary scenarios, from poplation genetics, to pedigrees, complex tumor scenarios and arbitrary combinations thereof.
+* Tumor-normal-calling, classifying variants as somatic in tumor, somatic in normal, germline, or absent.
 
 **For details, see the homepage: https://varlociraptor.github.io**
