@@ -1,4 +1,4 @@
-name: Check PR title
+name: PR
 on:
   pull_request:
     types:
@@ -8,7 +8,7 @@ on:
       - synchronize
 
 jobs:
-  conventional:
+  title format:
     runs-on: ubuntu-latest
     steps:
       - uses: aslafy-z/conventional-pr-title-action@v2.2.0
