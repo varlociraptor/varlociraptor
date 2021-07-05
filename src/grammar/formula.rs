@@ -140,6 +140,49 @@ impl FormulaTerminal {
             }
         }
     }
+
+    /// Try building the union of two instances of VAFSpectrum.
+    /// Returns None in case ranges do not overlap or a set is not fully contained within a range,
+    /// otherwise returns the union (which will always be a VAFSpectrum::Range
+    fn try_merge_disjunction(&self, other: &FormulaTerminal) -> Option<VAFSpectrum> {
+        match (self, other) {
+            (
+                FormulaTerminal::Atom {
+                    sample: sample_a,
+                    vafs: vafs_a,
+                },
+                FormulaTerminal::Atom {
+                    sample: sample_b,
+                    vafs: vafs_b,
+                },
+            ) if sample_a == sample_b => match (&vafs_a, &vafs_b) {
+                (VAFSpectrum::Range(a), VAFSpectrum::Range(b)) => match a.overlap(b) {
+                    VAFRangeOverlap::None => None,
+                    _ => Some(VAFSpectrum::Range((a | b).0)),
+                },
+                (VAFSpectrum::Range(a), VAFSpectrum::Set(b)) => {
+                    if b.iter().all(|v| a.contains(*v)) {
+                        Some(VAFSpectrum::Range(a.clone()))
+                    } else {
+                        None
+                    }
+                }
+                (VAFSpectrum::Set(a), VAFSpectrum::Range(b)) => {
+                    if a.iter().all(|v| b.contains(*v)) {
+                        Some(VAFSpectrum::Range(b.clone()))
+                    } else {
+                        None
+                    }
+                }
+                (VAFSpectrum::Set(a), VAFSpectrum::Set(b)) => {
+                    Some(VAFSpectrum::Set(a.union(b).cloned().collect()))
+                }
+            },
+            _ => {
+                panic!("bug: trying to merge FormulaTerminals that are not both atoms and for the same sample")
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for Formula {
@@ -515,9 +558,74 @@ impl Formula {
                         .collect(),
                 }
             }
-            Formula::Disjunction { operands } => Formula::Disjunction {
-                operands: operands.iter().map(|o| o.merge_atoms()).collect(),
-            },
+            Formula::Disjunction { operands } => {
+                // collect statements per sample
+                let mut grouped_operands = operands.iter().cloned().into_group_map_by(|operand| {
+                    if let Formula::Terminal(FormulaTerminal::Atom { sample, vafs: _ }) = operand {
+                        Some(sample.to_owned())
+                    } else {
+                        // group all non-atoms together
+                        None
+                    }
+                });
+
+                // merge atoms of the same sample
+                for (sample, statements) in &mut grouped_operands {
+                    // Sort by start position of VAFRange or minimum of VAFSet.
+                    // The idea is to try to keep merging neighbouring ranges/sets, greedily.
+                    statements.sort_unstable_by_key(|stmt| {
+                        if let Formula::Terminal(FormulaTerminal::Atom { sample: _, vafs }) = stmt {
+                            match vafs {
+                                VAFSpectrum::Set(s) => s.iter().min().map(|v| v.clone()),
+                                VAFSpectrum::Range(r) => Some(r.start),
+                            }
+                        } else {
+                            None
+                        }
+                    });
+                    if let Some(sample) = sample {
+                        let mut merged_statements = vec![];
+                        // Pick off the last terminal from the list of statements..
+                        let mut current_statement =
+                            statements.pop().unwrap().into_terminal().unwrap();
+                        for statement in statements.iter().rev() {
+                            // then look at the (current) second to last one if the merge was
+                            // successful. Otherwise, `other_statement` will be the last statement
+                            // that could *not* be merged with `current_statement`
+                            let other_statement = statement.to_terminal().unwrap();
+
+                            // Try merging (i.e. unionise!) the two spectra
+                            if let Some(merged) =
+                                current_statement.try_merge_disjunction(other_statement)
+                            {
+                                // if it succeeds, use the merge result as `current_statement`
+                                current_statement = FormulaTerminal::Atom {
+                                    sample: sample.into(),
+                                    vafs: merged,
+                                };
+                            } else {
+                                // if it fails, stash our `current_statement` and replace it with
+                                // the other statement which couldn't be merged with
+                                // `current_statement`.
+                                merged_statements.push(Formula::Terminal(current_statement));
+                                current_statement = other_statement.clone();
+                            }
+                        }
+                        // don't forget to push the last result.
+                        merged_statements.push(Formula::Terminal(current_statement));
+                        *statements = merged_statements;
+                    } else {
+                        continue;
+                    }
+                }
+                Formula::Disjunction {
+                    operands: grouped_operands
+                        .into_iter()
+                        .map(|(_, statements)| statements)
+                        .flatten()
+                        .collect(),
+                }
+            }
             Formula::Negation { operand } => Formula::Negation {
                 operand: Box::new(operand.merge_atoms()),
             },
@@ -1309,5 +1417,41 @@ events:
         .unwrap();
         assert_eq!(conjunction, expected.normalize(&scenario, "all").unwrap());
         assert_ne!(conjunction, full.normalize(&scenario, "all").unwrap());
+    }
+
+    #[test]
+    fn test_nested_range_disjunction() {
+        let scenario: Scenario = serde_yaml::from_str(
+            r#"samples:
+  normal:
+    resolution: 100
+    universe: "[0.0,1.0]"
+events:
+  full: "(normal:[0.0, 0.25] | normal:[0.5,0.75]) | (normal:[0.25,0.5] | normal:[0.75,1.0]) | normal:[0.1,0.4]"
+  expected: "normal:[0.0,1.0]""#,
+        )
+            .unwrap();
+        let expected = scenario.events["expected"].clone();
+        let full = scenario.events["full"].clone();
+        let full = full.normalize(&scenario, "all").unwrap();
+        assert_eq!(full, expected.normalize(&scenario, "all").unwrap());
+    }
+
+    #[test]
+    fn test_two_separate_range_disjunctions() {
+        let scenario: Scenario = serde_yaml::from_str(
+            r#"samples:
+  normal:
+    resolution: 100
+    universe: "[0.0,1.0]"
+events:
+  full: "(normal:[0.0, 0.25] | normal:[0.5,0.6]) | ((normal:[0.25,0.5] | normal:[0.7,0.9]) | normal:[0.9,1.0])"
+  expected: "normal:[0.0,0.6] | normal:[0.7,1.0]""#,
+        )
+            .unwrap();
+        let expected = scenario.events["expected"].clone();
+        let full = scenario.events["full"].clone();
+        let full = full.normalize(&scenario, "all").unwrap();
+        assert_eq!(full, expected.normalize(&scenario, "all").unwrap());
     }
 }
