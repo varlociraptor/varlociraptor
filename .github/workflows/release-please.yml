@@ -12,4 +12,4 @@ jobs:
       - uses: GoogleCloudPlatform/release-please-action@v2
         with:
           release-type: rust
-          package-name: release-please-action
+          package-name: varlociraptor
