@@ -11,6 +11,9 @@ jobs:
   title-format:
     runs-on: ubuntu-latest
     steps:
-      - uses: kunalnagarco/action-semantic-pr@v1.2.25
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: check-for-cc
+        id: check-for-cc
+        uses: agenthunt/conventional-commit-checker-action@v1.0.0
