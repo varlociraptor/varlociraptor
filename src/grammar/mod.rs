@@ -8,7 +8,6 @@ use std::string::ToString;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
-use serde_yaml;
 use vec_map::VecMap;
 
 pub(crate) mod formula;

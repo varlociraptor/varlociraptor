@@ -559,13 +559,13 @@ impl Formula {
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Ok(o.negate(scenario, contig)?))
+                    .map(|o| o.negate(scenario, contig))
                     .collect::<Result<Vec<Formula>>>()?,
             },
             Formula::Disjunction { operands } => Formula::Conjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Ok(o.negate(scenario, contig)?))
+                    .map(|o| o.negate(scenario, contig))
                     .collect::<Result<Vec<Formula>>>()?,
             },
             Formula::Negation { operand } => operand.as_ref().clone(),
@@ -602,7 +602,7 @@ impl Formula {
                             match uvafs {
                                 VAFSpectrum::Set(uvafs) => {
                                     let difference: BTreeSet<_> =
-                                        uvafs.difference(&vafs).cloned().collect();
+                                        uvafs.difference(vafs).cloned().collect();
                                     if !difference.is_empty() {
                                         disjunction.push(VAFSpectrum::Set(difference));
                                     }
@@ -707,7 +707,7 @@ impl Formula {
             Formula::Conjunction { operands } => {
                 let operands = operands
                     .iter()
-                    .map(|o| Ok(o.apply_negations(scenario, contig)?))
+                    .map(|o| o.apply_negations(scenario, contig))
                     .collect::<Result<Vec<Formula>>>()?;
 
                 Formula::Conjunction { operands }
@@ -715,7 +715,7 @@ impl Formula {
             Formula::Disjunction { operands } => Formula::Disjunction {
                 operands: operands
                     .iter()
-                    .map(|o| Ok(o.apply_negations(scenario, contig)?))
+                    .map(|o| o.apply_negations(scenario, contig))
                     .collect::<Result<Vec<Formula>>>()?,
             },
             &Formula::Terminal(FormulaTerminal::Variant {
