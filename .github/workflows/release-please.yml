@@ -9,7 +9,33 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
+
       - uses: GoogleCloudPlatform/release-please-action@v2
+        id: release
         with:
           release-type: rust
           package-name: varlociraptor
+
+      - uses: actions/checkout@v2
+        if: ${{ steps.release.outputs.release_created }}
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        if: ${{ steps.release.outputs.release_created }}
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install system dependencies
+        run: |
+            sudo apt-get install --yes libgsl0-dev zlib1g-dev
+
+      - uses: Swatinem/rust-cache@v1.3.0
+        if: ${{ steps.release.outputs.release_created }}
+      
+      - name: Publish crate
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions-rs/cargo@v1
+        with:
+          command: publish
+          args: --token ${{ secrets.CRATES_IO_TOKEN }}
