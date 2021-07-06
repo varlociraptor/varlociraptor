@@ -571,19 +571,21 @@ impl Formula {
 
                 // merge atoms of the same sample
                 for (sample, statements) in &mut grouped_operands {
-                    // Sort by start position of VAFRange or minimum of VAFSet.
-                    // The idea is to try to keep merging neighbouring ranges/sets, greedily.
-                    statements.sort_unstable_by_key(|stmt| {
-                        if let Formula::Terminal(FormulaTerminal::Atom { sample: _, vafs }) = stmt {
-                            match vafs {
-                                VAFSpectrum::Set(s) => s.iter().min().map(|v| v.clone()),
-                                VAFSpectrum::Range(r) => Some(r.start),
-                            }
-                        } else {
-                            None
-                        }
-                    });
                     if let Some(sample) = sample {
+                        // Sort by start position of VAFRange or minimum of VAFSet.
+                        // The idea is to try to keep merging neighbouring ranges/sets, greedily.
+                        statements.sort_unstable_by_key(|stmt| {
+                            if let Formula::Terminal(FormulaTerminal::Atom { sample: _, vafs }) =
+                                stmt
+                            {
+                                match vafs {
+                                    VAFSpectrum::Set(s) => s.iter().min().map(|v| v.clone()),
+                                    VAFSpectrum::Range(r) => Some(r.start),
+                                }
+                            } else {
+                                None
+                            }
+                        });
                         let mut merged_statements = vec![];
                         // Pick off the first terminal from the list of statements..
                         let mut current_statement = statements.remove(0).into_terminal().unwrap();
