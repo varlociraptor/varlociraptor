@@ -14,6 +14,7 @@ pub(crate) mod formula;
 pub(crate) mod vaftree;
 
 use crate::errors;
+use crate::grammar::formula::FormulaTerminal;
 pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
@@ -234,7 +235,15 @@ impl Scenario {
         let mut overlapping = vec![];
         for (i, e1) in events.iter().enumerate() {
             for (j, e2) in events.iter().enumerate() {
+                // skip comparison of event with itself
                 if i == j {
+                    continue;
+                }
+                // skip if one of the operands is a terminal `False`.
+                if [e1, e2]
+                    .iter()
+                    .any(|e| matches!(e.to_terminal(), Some(FormulaTerminal::False)))
+                {
                     continue;
                 }
                 let disjunction = Formula::from(
