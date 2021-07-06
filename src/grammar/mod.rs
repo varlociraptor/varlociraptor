@@ -220,20 +220,20 @@ impl Scenario {
     }
 
     pub(crate) fn validate(&self, contig: &str) -> Result<()> {
-        let expressions = self
-            .expressions
+        let events = self
+            .events()
             .iter()
-            .filter(|(id, _)| id.0 != "absent")
-            .map(|(_, expr)| expr.normalize(self, contig).map(Formula::from))
+            .filter(|(name, _)| *name != "absent")
+            .map(|(_, formula)| formula.normalize(self, contig).map(Formula::from))
             .collect::<Result<HashSet<_>>>()?;
         let names = self
-            .expressions
+            .events()
             .iter()
-            .map(|(id, expr)| (expr, id))
+            .map(|(name, formula)| (formula, name))
             .collect::<HashMap<_, _>>();
         let mut overlapping = vec![];
-        for (i, e1) in expressions.iter().enumerate() {
-            for (j, e2) in expressions.iter().enumerate() {
+        for (i, e1) in events.iter().enumerate() {
+            for (j, e2) in events.iter().enumerate() {
                 if i == j {
                     continue;
                 }
@@ -243,7 +243,7 @@ impl Scenario {
                     }
                     .normalize(self, contig)?,
                 );
-                if expressions.contains(&disjunction) {
+                if events.contains(&disjunction) {
                     overlapping.push((
                         names[e1].clone(),
                         names[e2].clone(),
@@ -256,7 +256,7 @@ impl Scenario {
             Err(crate::errors::Error::OverlappingEvents {
                 expressions: overlapping
                     .iter()
-                    .map(|(a1, a2, f)| format!("({} | {}) = {}", a1.0, a2.0, f.0))
+                    .map(|(a1, a2, f)| format!("({} | {}) = {}", a1, a2, f))
                     .join(", "),
             })?
         } else {
