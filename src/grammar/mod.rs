@@ -230,42 +230,41 @@ impl Scenario {
         let names = self
             .events()
             .iter()
-            .map(|(name, formula)| (formula, name))
-            .collect::<HashMap<_, _>>();
+            .map(|(name, formula)| {
+                (
+                    formula.normalize(self, contig).map(Formula::from).unwrap(),
+                    name,
+                )
+            })
+            .into_group_map();
         let mut overlapping = vec![];
-        for (i, e1) in events.iter().enumerate() {
-            for (j, e2) in events.iter().enumerate() {
-                // skip comparison of event with itself
-                if i == j {
-                    continue;
-                }
-                // skip if one of the operands is a terminal `False`.
-                if [e1, e2]
-                    .iter()
-                    .any(|e| matches!(e.to_terminal(), Some(FormulaTerminal::False)))
-                {
-                    continue;
-                }
-                let disjunction = Formula::from(
-                    Formula::Disjunction {
-                        operands: vec![e1.to_owned(), e2.to_owned()],
-                    }
-                    .normalize(self, contig)?,
-                );
-                if events.contains(&disjunction) {
-                    overlapping.push((
-                        names[e1].clone(),
-                        names[e2].clone(),
-                        names[&disjunction].clone(),
-                    ));
-                }
+        for (e1, e2) in events.iter().tuple_combinations() {
+            // skip comparison of event with itself
+            if e1 == e2 {
+                continue;
+            }
+            // skip if one of the operands is a terminal `False`.
+            let terms = [e1, e2]
+                .iter()
+                .filter(|e| !matches!(e.to_terminal(), Some(FormulaTerminal::False)))
+                .map(|&v| v.clone())
+                .collect();
+
+            let disjunction =
+                Formula::from(Formula::Disjunction { operands: terms }.normalize(self, contig)?);
+            if events.contains(&disjunction) {
+                overlapping.push((
+                    names[e1].clone(),
+                    names[e2].clone(),
+                    names[&disjunction].clone(),
+                ));
             }
         }
         if !overlapping.is_empty() {
             Err(crate::errors::Error::OverlappingEvents {
                 expressions: overlapping
                     .iter()
-                    .map(|(a1, a2, f)| format!("({} | {}) = {}", a1, a2, f))
+                    .map(|(a1, a2, f)| format!("({:?} | {:?}) = {:?}", a1, a2, f))
                     .join(", "),
             })?
         } else {
