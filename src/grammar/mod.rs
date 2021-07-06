@@ -232,6 +232,8 @@ impl Scenario {
             .iter()
             .map(|(name, formula)| {
                 (
+                    // if `formula.normalize(…)` failed above, we won't get to this line,
+                    // so we might as well unwrap.
                     formula.normalize(self, contig).map(Formula::from).unwrap(),
                     name,
                 )
