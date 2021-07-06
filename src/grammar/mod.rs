@@ -294,14 +294,16 @@ impl PloidyDefinition {
     pub(crate) fn contig_ploidy(&self, contig: &str) -> Result<u32> {
         Ok(match self {
             PloidyDefinition::Simple(ploidy) => *ploidy,
-            PloidyDefinition::Map(map) => match map.get(contig) {
-                Some(ploidy) => *ploidy,
-                None => map.get("all").map(|ploidy| *ploidy).ok_or_else(|| {
-                    errors::Error::PloidyContigNotFound {
-                        contig: contig.to_owned(),
-                    }
-                })?,
-            },
+            PloidyDefinition::Map(map) => {
+                match map.get(contig) {
+                    Some(ploidy) => *ploidy,
+                    None => map.get("all").copied().ok_or_else(|| {
+                        errors::Error::PloidyContigNotFound {
+                            contig: contig.to_owned(),
+                        }
+                    })?,
+                }
+            }
         })
     }
 }
@@ -552,7 +554,7 @@ impl Sample {
         } else {
             species
                 .as_ref()
-                .map_or(None, |species| species.germline_mutation_rate)
+                .and_then(|species| species.germline_mutation_rate)
         }
     }
 
