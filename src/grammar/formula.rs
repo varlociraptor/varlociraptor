@@ -143,7 +143,7 @@ impl FormulaTerminal {
 
     /// Try building the union of two instances of VAFSpectrum.
     /// Returns None in case ranges do not overlap or a set is not fully contained within a range,
-    /// otherwise returns the union (which will always be a VAFSpectrum::Range
+    /// otherwise returns the union.
     fn try_merge_disjunction(&self, other: &FormulaTerminal) -> Option<VAFSpectrum> {
         match (self, other) {
             (
