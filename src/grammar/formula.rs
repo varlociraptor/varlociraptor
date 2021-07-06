@@ -588,7 +588,7 @@ impl Formula {
                         // Pick off the first terminal from the list of statements..
                         let mut current_statement = statements.remove(0).into_terminal().unwrap();
                         for statement in statements.iter() {
-                            // then look at the (current) second to last one if the merge was
+                            // then look at the (current) next one if the merge was
                             // successful. Otherwise, `other_statement` will be the last statement
                             // that could *not* be merged with `current_statement`
                             let other_statement = statement.to_terminal().unwrap();
