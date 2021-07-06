@@ -263,12 +263,13 @@ impl Scenario {
             }
         }
         if !overlapping.is_empty() {
-            Err(crate::errors::Error::OverlappingEvents {
+            return Err(crate::errors::Error::OverlappingEvents {
                 expressions: overlapping
                     .iter()
                     .map(|(a1, a2, f)| format!("({:?} | {:?}) = {:?}", a1, a2, f))
                     .join(", "),
-            })?
+            }
+            .into());
         } else {
             Ok(())
         }
@@ -564,7 +565,7 @@ impl Sample {
         } else {
             species
                 .as_ref()
-                .map_or(None, |species| species.somatic_effective_mutation_rate)
+                .and_then(|species| species.somatic_effective_mutation_rate)
         }
     }
 }
