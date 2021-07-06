@@ -585,10 +585,9 @@ impl Formula {
                     });
                     if let Some(sample) = sample {
                         let mut merged_statements = vec![];
-                        // Pick off the last terminal from the list of statements..
-                        let mut current_statement =
-                            statements.pop().unwrap().into_terminal().unwrap();
-                        for statement in statements.iter().rev() {
+                        // Pick off the first terminal from the list of statements..
+                        let mut current_statement = statements.remove(0).into_terminal().unwrap();
+                        for statement in statements.iter() {
                             // then look at the (current) second to last one if the merge was
                             // successful. Otherwise, `other_statement` will be the last statement
                             // that could *not* be merged with `current_statement`
@@ -1427,7 +1426,7 @@ events:
     resolution: 100
     universe: "[0.0,1.0]"
 events:
-  full: "(normal:[0.0, 0.25] | normal:[0.5,0.75]) | (normal:[0.25,0.5] | normal:[0.75,1.0]) | normal:[0.1,0.4]"
+  full: "(normal:[0.0, 0.25] | normal:[0.5,0.75]) | (normal:[0.25,0.5] | normal:[0.75,1.0]) | normal:[0.1,0.4] | normal:0.1"
   expected: "normal:[0.0,1.0]""#,
         )
             .unwrap();
@@ -1445,7 +1444,7 @@ events:
     resolution: 100
     universe: "[0.0,1.0]"
 events:
-  full: "(normal:[0.0, 0.25] | normal:[0.5,0.6]) | ((normal:[0.25,0.5] | normal:[0.7,0.9]) | normal:[0.9,1.0])"
+  full: "(normal:[0.0, 0.25] | normal:[0.5,0.6]) | ((normal:[0.25,0.5] | normal:[0.7,0.9]) | normal:[0.9,1.0]) | normal:]0.8,0.9[ | normal:0.75"
   expected: "normal:[0.0,0.6] | normal:[0.7,1.0]""#,
         )
             .unwrap();
