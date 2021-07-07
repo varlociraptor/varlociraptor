@@ -376,11 +376,7 @@ impl<R: Realigner> SamplingBias for BreakendGroup<R> {
                 return Some(read_len);
             }
         }
-        if let Some(maxfrac) = alignment_properties.frac_max_softclip {
-            Some((read_len as f64 * maxfrac) as u64)
-        } else {
-            None
-        }
+        alignment_properties.frac_max_softclip.map(|maxfrac| (read_len as f64 * maxfrac) as u64)
     }
 
     fn enclosable_len(&self) -> Option<u64> {

@@ -106,56 +106,54 @@ impl<R: Realigner> Variant for Snv<R> {
                 [&self.locus].iter(),
                 self,
             )?))
-        } else {
-            if let Some(qpos) = read
-                .cigar_cached()
-                .unwrap()
-                // TODO expect u64 in read_pos
-                .read_pos(self.locus.range().start as u32, false, false)?
-            {
-                let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
-                let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-                let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
+        } else if let Some(qpos) = read
+            .cigar_cached()
+            .unwrap()
+            // TODO expect u64 in read_pos
+            .read_pos(self.locus.range().start as u32, false, false)?
+        {
+            let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+            let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
+            let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
 
-                // METHOD: instead of considering the actual REF base, we assume that REF is whatever
-                // base the read has at this position (if not the ALT base). This way, we avoid biased
-                // allele frequencies at sites with multiple alternative alleles.
-                // Note that this is an approximation. The real solution would be to have multiple allele
-                // frequency variables in the likelihood function, but that would be computationally
-                // more demanding (leading to a combinatorial explosion).
-                // However, the approximation is pretty accurate, because it will only matter for true
-                // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
-                // because they are too rare.
-                let non_alt_base = if read_base != self.alt_base {
-                    read_base
-                } else {
-                    self.ref_base
-                };
-
-                let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
-                let strand = if prob_ref != prob_alt {
-                    Strand::from_record_and_pos(read, qpos as usize)?
-                } else {
-                    // METHOD: if record is not informative, we don't want to
-                    // retain its information (e.g. strand).
-                    Strand::no_strand_info()
-                };
-
-                Ok(Some(
-                    AlleleSupportBuilder::default()
-                        .prob_ref_allele(prob_ref)
-                        .prob_alt_allele(prob_alt)
-                        .strand(strand)
-                        .read_position(Some(qpos))
-                        .build()
-                        .unwrap(),
-                ))
+            // METHOD: instead of considering the actual REF base, we assume that REF is whatever
+            // base the read has at this position (if not the ALT base). This way, we avoid biased
+            // allele frequencies at sites with multiple alternative alleles.
+            // Note that this is an approximation. The real solution would be to have multiple allele
+            // frequency variables in the likelihood function, but that would be computationally
+            // more demanding (leading to a combinatorial explosion).
+            // However, the approximation is pretty accurate, because it will only matter for true
+            // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
+            // because they are too rare.
+            let non_alt_base = if read_base != self.alt_base {
+                read_base
             } else {
-                // a read that spans an SNV might have the respective position in the
-                // reference skipped (Cigar op 'N'), and the library should not choke on those reads
-                // but instead needs to know NOT to add those reads (as observations) further up
-                Ok(None)
-            }
+                self.ref_base
+            };
+
+            let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
+            let strand = if prob_ref != prob_alt {
+                Strand::from_record_and_pos(read, qpos as usize)?
+            } else {
+                // METHOD: if record is not informative, we don't want to
+                // retain its information (e.g. strand).
+                Strand::no_strand_info()
+            };
+
+            Ok(Some(
+                AlleleSupportBuilder::default()
+                    .prob_ref_allele(prob_ref)
+                    .prob_alt_allele(prob_alt)
+                    .strand(strand)
+                    .read_position(Some(qpos))
+                    .build()
+                    .unwrap(),
+            ))
+        } else {
+            // a read that spans an SNV might have the respective position in the
+            // reference skipped (Cigar op 'N'), and the library should not choke on those reads
+            // but instead needs to know NOT to add those reads (as observations) further up
+            Ok(None)
         }
     }
 

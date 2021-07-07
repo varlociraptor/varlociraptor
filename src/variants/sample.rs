@@ -168,11 +168,11 @@ pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     allow_hardclips: bool,
 ) -> Result<alignment_properties::AlignmentProperties> {
     let mut bam = bam::Reader::from_path(path)?;
-    Ok(alignment_properties::AlignmentProperties::estimate(
+    alignment_properties::AlignmentProperties::estimate(
         &mut bam,
         omit_insert_size,
         allow_hardclips,
-    )?)
+    )
 }
 
 /// A sequenced sample, e.g., a tumor or a normal sample.
