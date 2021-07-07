@@ -252,6 +252,7 @@ impl Scenario {
                 continue;
             }
 
+            // TODO make sure the disjunction really is canonical, such that trying to check if it's contained in `events` isn't a game of chance
             let disjunction =
                 Formula::from(Formula::Disjunction { operands: terms }.normalize(self, contig)?);
             if events.contains(&disjunction) {
