@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Read;
@@ -241,12 +241,16 @@ impl Scenario {
             if e1 == e2 {
                 continue;
             }
-            // skip if one of the operands is a terminal `False`.
             let terms = [e1, e2]
                 .iter()
                 .filter(|e| !matches!(e.to_terminal(), Some(FormulaTerminal::False)))
                 .map(|&v| v.clone())
-                .collect();
+                .collect_vec();
+
+            // skip if any of the operands is a terminal `False`.
+            if terms.len() != 2 {
+                continue;
+            }
 
             let disjunction =
                 Formula::from(Formula::Disjunction { operands: terms }.normalize(self, contig)?);
