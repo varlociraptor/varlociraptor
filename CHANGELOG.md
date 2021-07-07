@@ -2,6 +2,27 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v3.5.0...v4.0.0) (2021-07-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* Rename estimate tmb subcommand into estimate mutational-burden (#182)
+
+### Features
+
+* release automation ([b6cc00f](https://www.github.com/varlociraptor/varlociraptor/commit/b6cc00ff5cc77c2760e12891540f36c326ca0c1b))
+
+
+### Bug Fixes
+
+* merging of VAFRanges ([#177](https://www.github.com/varlociraptor/varlociraptor/issues/177)) ([7e875a5](https://www.github.com/varlociraptor/varlociraptor/commit/7e875a5ff4a4afee9b690dd5ea05d6bee762ac47))
+
+
+### Code Refactoring
+
+* Rename estimate tmb subcommand into estimate mutational-burden ([#182](https://www.github.com/varlociraptor/varlociraptor/issues/182)) ([9fa5a1f](https://www.github.com/varlociraptor/varlociraptor/commit/9fa5a1f6cb58d37c9fdf5c235ae035cf096b10a0))
+
 ## [3.5.0] - 2021-07-02
 - Improvements to SNV and MNV calling: in case of reads with indels, perform a realignment to properly assess evidences (@johanneskoester).
 - Improved error messages (@johanneskoester).
