@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Read;
@@ -221,15 +221,10 @@ impl Scenario {
     }
 
     pub(crate) fn validate(&self, contig: &str) -> Result<()> {
-        let events = self
-            .events()
-            .iter()
-            .filter(|(name, _)| *name != "absent")
-            .map(|(_, formula)| formula.normalize(self, contig).map(Formula::from))
-            .collect::<Result<HashSet<_>>>()?;
         let names = self
             .events()
             .iter()
+            .filter(|(name, _)| *name != "absent")
             .map(|(name, formula)| {
                 (
                     // if `formula.normalize(…)` failed above, we won't get to this line,
@@ -240,18 +235,24 @@ impl Scenario {
             })
             .into_group_map();
         let mut overlapping = vec![];
+        let events: Vec<_> = names.keys().sorted().cloned().collect();
         for (e1, e2) in events.iter().tuple_combinations() {
             // skip comparison of event with itself
             if e1 == e2 {
                 continue;
             }
-            // skip if one of the operands is a terminal `False`.
             let terms = [e1, e2]
                 .iter()
                 .filter(|e| !matches!(e.to_terminal(), Some(FormulaTerminal::False)))
                 .map(|&v| v.clone())
-                .collect();
+                .collect_vec();
 
+            // skip if any of the operands is a terminal `False`.
+            if terms.len() != 2 {
+                continue;
+            }
+
+            // TODO make sure the disjunction really is canonical, such that trying to check if it's contained in `events` isn't a game of chance
             let disjunction =
                 Formula::from(Formula::Disjunction { operands: terms }.normalize(self, contig)?);
             if events.contains(&disjunction) {

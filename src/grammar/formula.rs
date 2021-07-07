@@ -44,7 +44,7 @@ impl IUPAC {
 #[grammar = "grammar/formula.pest"]
 pub(crate) struct FormulaParser;
 
-#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash, PartialOrd, Ord)]
 pub(crate) enum Formula {
     Conjunction { operands: Vec<Formula> },
     Disjunction { operands: Vec<Formula> },
@@ -81,7 +81,7 @@ impl From<NormalizedFormula> for Formula {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash, PartialOrd, Ord)]
 pub(crate) enum FormulaTerminal {
     Atom {
         sample: String,
@@ -843,7 +843,7 @@ impl Formula {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash, PartialOrd, Ord)]
 pub(crate) enum NormalizedFormula {
     Conjunction {
         operands: Vec<NormalizedFormula>,
@@ -924,7 +924,7 @@ impl std::fmt::Display for NormalizedFormula {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum VAFSpectrum {
     Set(BTreeSet<AlleleFreq>),
     Range(VAFRange),
