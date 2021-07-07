@@ -12,12 +12,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Features
 
 * release automation ([b6cc00f](https://www.github.com/varlociraptor/varlociraptor/commit/b6cc00ff5cc77c2760e12891540f36c326ca0c1b))
-
-
-### Bug Fixes
-
-* merging of VAFRanges ([#177](https://www.github.com/varlociraptor/varlociraptor/issues/177)) ([7e875a5](https://www.github.com/varlociraptor/varlociraptor/commit/7e875a5ff4a4afee9b690dd5ea05d6bee762ac47))
-
+* improved formula simplification, detection of overlapping events ([#177](https://www.github.com/varlociraptor/varlociraptor/issues/177)) ([7e875a5](https://www.github.com/varlociraptor/varlociraptor/commit/7e875a5ff4a4afee9b690dd5ea05d6bee762ac47))
 
 ### Code Refactoring
 
