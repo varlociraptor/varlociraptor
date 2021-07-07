@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.0.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.0.0...v4.0.1) (2021-07-07)
+
+
+### Bug Fixes
+
+* testcase 71 sometimes fails because formula normalization via BDD is not deterministic ([#187](https://www.github.com/varlociraptor/varlociraptor/issues/187)) ([bdeddcc](https://www.github.com/varlociraptor/varlociraptor/commit/bdeddcc7594e49ebea4812e13303686fbec6ef69))
+
 ## [4.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v3.5.0...v4.0.0) (2021-07-07)
 
 
