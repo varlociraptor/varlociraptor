@@ -25,16 +25,16 @@ use crate::variants::types::{
 };
 use crate::{default_emission, default_ref_base_emission};
 
-pub(crate) struct SNV<R: Realigner> {
+pub(crate) struct Snv<R: Realigner> {
     locus: SingleLocus,
     ref_base: u8,
     alt_base: u8,
     realigner: RefCell<R>,
 }
 
-impl<R: Realigner> SNV<R> {
+impl<R: Realigner> Snv<R> {
     pub(crate) fn new(locus: genome::Locus, ref_base: u8, alt_base: u8, realigner: R) -> Self {
-        SNV {
+        Snv {
             locus: SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
@@ -46,8 +46,8 @@ impl<R: Realigner> SNV<R> {
     }
 }
 
-impl<'a, R: Realigner> Realignable<'a> for SNV<R> {
-    type EmissionParams = SNVEmissionParams<'a>;
+impl<'a, R: Realigner> Realignable<'a> for Snv<R> {
+    type EmissionParams = SnvEmissionParams<'a>;
 
     fn alt_emission_params(
         &self,
@@ -55,13 +55,13 @@ impl<'a, R: Realigner> Realignable<'a> for SNV<R> {
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<SNVEmissionParams<'a>>> {
+    ) -> Result<Vec<SnvEmissionParams<'a>>> {
         let start = self.locus.range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
         let ref_seq_len = ref_seq.len();
-        Ok(vec![SNVEmissionParams {
+        Ok(vec![SnvEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
@@ -72,7 +72,7 @@ impl<'a, R: Realigner> Realignable<'a> for SNV<R> {
     }
 }
 
-impl<R: Realigner> Variant for SNV<R> {
+impl<R: Realigner> Variant for Snv<R> {
     type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
@@ -165,7 +165,7 @@ impl<R: Realigner> Variant for SNV<R> {
 }
 
 /// Emission parameters for PairHMM over insertion allele.
-pub(crate) struct SNVEmissionParams<'a> {
+pub(crate) struct SnvEmissionParams<'a> {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
@@ -174,7 +174,7 @@ pub(crate) struct SNVEmissionParams<'a> {
     read_emission: Rc<ReadEmission<'a>>,
 }
 
-impl<'a> RefBaseEmission for SNVEmissionParams<'a> {
+impl<'a> RefBaseEmission for SnvEmissionParams<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -189,7 +189,7 @@ impl<'a> RefBaseEmission for SNVEmissionParams<'a> {
     default_ref_base_emission!();
 }
 
-impl<'a> EmissionParameters for SNVEmissionParams<'a> {
+impl<'a> EmissionParameters for SnvEmissionParams<'a> {
     default_emission!();
 
     #[inline]

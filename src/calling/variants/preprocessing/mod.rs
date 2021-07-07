@@ -331,13 +331,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let start = work_item.start as usize;
 
         Ok(Some(match variant {
-            model::Variant::SNV(alt) => sample.extract_observations(&variants::types::SNV::new(
+            model::Variant::Snv(alt) => sample.extract_observations(&variants::types::Snv::new(
                 locus(),
                 self.reference_buffer.seq(&work_item.chrom)?[start],
                 *alt,
                 self.realigner.clone(),
             ))?,
-            model::Variant::MNV(alt) => sample.extract_observations(&variants::types::MNV::new(
+            model::Variant::Mnv(alt) => sample.extract_observations(&variants::types::Mnv::new(
                 locus(),
                 self.reference_buffer.seq(&work_item.chrom)?[start..start + alt.len()].to_owned(),
                 alt.to_owned(),

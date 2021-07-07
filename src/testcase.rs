@@ -280,8 +280,8 @@ impl Testcase {
             (Variant::Insertion(ref seq), _) => {
                 (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
-            (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
-            (Variant::MNV(ref bases), _) => {
+            (Variant::Snv(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
+            (Variant::Mnv(ref bases), _) => {
                 (pos.saturating_sub(100), pos + bases.len() as u64 + 100)
             }
             (Variant::Breakend { .. }, _) => {

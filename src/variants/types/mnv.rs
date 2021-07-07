@@ -26,21 +26,21 @@ use crate::variants::types::{
 };
 use crate::{default_emission, default_ref_base_emission};
 
-pub(crate) struct MNV<R: Realigner> {
+pub(crate) struct Mnv<R: Realigner> {
     locus: SingleLocus,
     ref_bases: Vec<u8>,
     alt_bases: Rc<Vec<u8>>,
     realigner: RefCell<R>,
 }
 
-impl<R: Realigner> MNV<R> {
+impl<R: Realigner> Mnv<R> {
     pub(crate) fn new<L: genome::AbstractLocus>(
         locus: L,
         ref_bases: Vec<u8>,
         alt_bases: Vec<u8>,
         realigner: R,
     ) -> Self {
-        MNV {
+        Mnv {
             locus: SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + alt_bases.len() as u64,
@@ -52,8 +52,8 @@ impl<R: Realigner> MNV<R> {
     }
 }
 
-impl<'a, R: Realigner> Realignable<'a> for MNV<R> {
-    type EmissionParams = MNVEmissionParams<'a>;
+impl<'a, R: Realigner> Realignable<'a> for Mnv<R> {
+    type EmissionParams = MnvEmissionParams<'a>;
 
     fn alt_emission_params(
         &self,
@@ -61,13 +61,13 @@ impl<'a, R: Realigner> Realignable<'a> for MNV<R> {
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<MNVEmissionParams<'a>>> {
+    ) -> Result<Vec<MnvEmissionParams<'a>>> {
         let start = self.locus.range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
         let ref_seq_len = ref_seq.len();
-        Ok(vec![MNVEmissionParams {
+        Ok(vec![MnvEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + self.alt_bases.len() + ref_window, ref_seq_len),
@@ -79,7 +79,7 @@ impl<'a, R: Realigner> Realignable<'a> for MNV<R> {
     }
 }
 
-impl<R: Realigner> Variant for MNV<R> {
+impl<R: Realigner> Variant for Mnv<R> {
     type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
@@ -202,7 +202,7 @@ impl<R: Realigner> Variant for MNV<R> {
 }
 
 /// Emission parameters for PairHMM over insertion allele.
-pub(crate) struct MNVEmissionParams<'a> {
+pub(crate) struct MnvEmissionParams<'a> {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
@@ -212,7 +212,7 @@ pub(crate) struct MNVEmissionParams<'a> {
     read_emission: Rc<ReadEmission<'a>>,
 }
 
-impl<'a> RefBaseEmission for MNVEmissionParams<'a> {
+impl<'a> RefBaseEmission for MnvEmissionParams<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -227,7 +227,7 @@ impl<'a> RefBaseEmission for MNVEmissionParams<'a> {
     default_ref_base_emission!();
 }
 
-impl<'a> EmissionParameters for MNVEmissionParams<'a> {
+impl<'a> EmissionParameters for MnvEmissionParams<'a> {
     default_emission!();
 
     #[inline]

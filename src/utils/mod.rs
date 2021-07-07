@@ -443,7 +443,7 @@ mod tests {
             String::from("PROB_ERR_REF"),
         ];
 
-        let snv = VariantType::SNV;
+        let snv = VariantType::Snv;
 
         if let Ok(prob_sum) = tags_prob_sum(&mut record, &alt_tags, Some(&snv)) {
             assert_eq!(LogProb::ln_one(), prob_sum[0].unwrap());

@@ -404,7 +404,7 @@ impl VariantTypeFraction {
             VariantType::Insertion(_) | VariantType::Deletion(_) | VariantType::Replacement => {
                 self.indel
             }
-            VariantType::MNV => self.mnv,
+            VariantType::Mnv => self.mnv,
             VariantType::Inversion | VariantType::Breakend | VariantType::Duplication => self.sv,
             _ => 1.0,
         }
