@@ -221,15 +221,10 @@ impl Scenario {
     }
 
     pub(crate) fn validate(&self, contig: &str) -> Result<()> {
-        let events = self
-            .events()
-            .iter()
-            .filter(|(name, _)| *name != "absent")
-            .map(|(_, formula)| formula.normalize(self, contig).map(Formula::from))
-            .collect::<Result<HashSet<_>>>()?;
         let names = self
             .events()
             .iter()
+            .filter(|(name, _)| *name != "absent")
             .map(|(name, formula)| {
                 (
                     // if `formula.normalize(…)` failed above, we won't get to this line,
@@ -240,6 +235,7 @@ impl Scenario {
             })
             .into_group_map();
         let mut overlapping = vec![];
+        let events: Vec<_> = names.keys().sorted().cloned().collect();
         for (e1, e2) in events.iter().tuple_combinations() {
             // skip comparison of event with itself
             if e1 == e2 {
