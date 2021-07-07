@@ -463,6 +463,7 @@ pub(crate) fn signatures(record: &bcf::Record) -> Vec<Signature> {
         .collect_vec()
 }
 
+#[allow(dead_code)]
 pub(crate) fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
     let ref_allele = record.alleles()[0];
     record.alleles()[1..]

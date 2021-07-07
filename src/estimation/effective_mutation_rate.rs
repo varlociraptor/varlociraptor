@@ -22,11 +22,13 @@ pub(crate) struct Estimate {
 }
 
 impl Estimate {
+    #[allow(dead_code)]
     pub(crate) fn effective_mutation_rate(&self) -> f64 {
         self.slope
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn estimate<F: IntoIterator<Item = AlleleFreq>>(
     allele_frequencies: F,
 ) -> Result<Estimate> {
