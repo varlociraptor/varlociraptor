@@ -158,7 +158,7 @@ pub(crate) fn collect_estimates(
         let vartypes = signatures(&rec);
 
         // push into MB function
-        for (sample_name, _) in &sample_ids {
+        for sample_name in sample_ids.keys() {
             for i in 0..alt_allele_count {
                 // if all alt_alleles are NaN, the list will only contain one NaN, so check for size
                 if i == vafmap.get(sample_name).unwrap().len()
@@ -343,12 +343,24 @@ pub(crate) fn collect_estimates(
     Eq,
 )]
 pub(crate) enum Vartype {
-    DEL,
-    INS,
-    INV,
-    DUP,
-    BND,
-    MNV,
+    #[strum(serialize = "DEL")]
+    #[serde(rename = "DEL")]
+    Del,
+    #[strum(serialize = "INS")]
+    #[serde(rename = "INS")]
+    Ins,
+    #[strum(serialize = "INV")]
+    #[serde(rename = "INV")]
+    Inv,
+    #[strum(serialize = "DUP")]
+    #[serde(rename = "DUP")]
+    Dup,
+    #[strum(serialize = "BND")]
+    #[serde(rename = "BND")]
+    Bnd,
+    #[strum(serialize = "MNV")]
+    #[serde(rename = "MNV")]
+    Mnv,
     Complex,
     #[strum(serialize = "A>C")]
     #[serde(rename = "A>C")]
@@ -403,12 +415,24 @@ pub(crate) enum Vartype {
     Eq,
 )]
 pub(crate) enum Signature {
-    DEL,
-    INS,
-    INV,
-    DUP,
-    BND,
-    MNV,
+    #[strum(serialize = "DEL")]
+    #[serde(rename = "DEL")]
+    Del,
+    #[strum(serialize = "INS")]
+    #[serde(rename = "INS")]
+    Ins,
+    #[strum(serialize = "INV")]
+    #[serde(rename = "INV")]
+    Inv,
+    #[strum(serialize = "DUP")]
+    #[serde(rename = "DUP")]
+    Dup,
+    #[strum(serialize = "BND")]
+    #[serde(rename = "BND")]
+    Bnd,
+    #[strum(serialize = "MNV")]
+    #[serde(rename = "MNV")]
+    Mnv,
     Complex,
     #[strum(serialize = "C>A", serialize = "G>T")]
     #[serde(rename = "C>A")]
@@ -436,13 +460,13 @@ pub(crate) fn signatures(record: &bcf::Record) -> Vec<Signature> {
         .iter()
         .map(|alt_allele| {
             if alt_allele == b"<DEL>" {
-                Signature::DEL
+                Signature::Del
             } else if alt_allele == b"<INV>" {
-                Signature::INV
+                Signature::Inv
             } else if alt_allele == b"<DUP>" {
-                Signature::DUP
+                Signature::Dup
             } else if alt_allele == b"<BND>" {
-                Signature::BND
+                Signature::Bnd
             } else if ref_allele.len() == 1 && alt_allele.len() == 1 {
                 Signature::from_str(&format!(
                     "{}>{}",
@@ -451,11 +475,11 @@ pub(crate) fn signatures(record: &bcf::Record) -> Vec<Signature> {
                 ))
                 .unwrap()
             } else if ref_allele.len() > 1 && alt_allele.len() == 1 {
-                Signature::DEL
+                Signature::Del
             } else if ref_allele.len() == 1 && alt_allele.len() > 1 {
-                Signature::INS
+                Signature::Ins
             } else if ref_allele.len() == alt_allele.len() && ref_allele.len() > 1 {
-                Signature::MNV
+                Signature::Mnv
             } else {
                 Signature::Complex
             }
@@ -470,13 +494,13 @@ pub(crate) fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
         .iter()
         .map(|alt_allele| {
             if alt_allele == b"<DEL>" {
-                Vartype::DEL
+                Vartype::Del
             } else if alt_allele == b"<INV>" {
-                Vartype::INV
+                Vartype::Inv
             } else if alt_allele == b"<DUP>" {
-                Vartype::DUP
+                Vartype::Dup
             } else if alt_allele == b"<BND>" {
-                Vartype::BND
+                Vartype::Bnd
             } else if ref_allele.len() == 1 && alt_allele.len() == 1 {
                 Vartype::from_str(&format!(
                     "{}>{}",
@@ -485,11 +509,11 @@ pub(crate) fn vartypes(record: &bcf::Record) -> Vec<Vartype> {
                 ))
                 .unwrap()
             } else if ref_allele.len() > 1 && alt_allele.len() == 1 {
-                Vartype::DEL
+                Vartype::Del
             } else if ref_allele.len() == 1 && alt_allele.len() > 1 {
-                Vartype::INS
+                Vartype::Ins
             } else if ref_allele.len() == alt_allele.len() && ref_allele.len() > 1 {
-                Vartype::MNV
+                Vartype::Mnv
             } else {
                 Vartype::Complex
             }

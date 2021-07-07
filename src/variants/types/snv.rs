@@ -177,7 +177,7 @@ impl<'a> RefBaseEmission for SnvEmissionParams<'a> {
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
 
-        if i_ < self.alt_start || i_ >= self.alt_start + 1 {
+        if i_ != self.alt_start {
             self.ref_seq[i_]
         } else {
             self.alt_base

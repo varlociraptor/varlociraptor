@@ -86,7 +86,9 @@ impl<R: Realigner> SamplingBias for Insertion<R> {
                 }
             }
         }
-        alignment_properties.frac_max_softclip.map(|maxfrac| (read_len as f64 * maxfrac) as u64)
+        alignment_properties
+            .frac_max_softclip
+            .map(|maxfrac| (read_len as f64 * maxfrac) as u64)
     }
 
     fn enclosable_len(&self) -> Option<u64> {

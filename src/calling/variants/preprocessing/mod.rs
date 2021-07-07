@@ -252,12 +252,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 .unwrap();
 
                 let chrom_seq = self.reference_buffer.seq(&work_item.chrom)?;
-                let pileup = self.process_variant(&variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
+                let pileup = self.process_variant(variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
                 // add variant information
                 call.variant = Some(
                     VariantBuilder::default()
-                        .variant(&variant, work_item.start as usize, Some(chrom_seq.as_ref()))
+                        .variant(variant, work_item.start as usize, Some(chrom_seq.as_ref()))
                         .observations(Some(pileup))
                         .build()
                         .unwrap(),
