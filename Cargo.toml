@@ -66,6 +66,8 @@ futures = "0.3"
 crossbeam = "0.7"
 typed-builder = "0.7"
 jemallocator = "0.3.2"
+lp-modeler = {version = "0.5"}#, default-features = false, features = [ "native_coin_cbc" ]}
+#coin_cbc = "0.1.3, <0.1.4"
 ring = "0.16"
 data-encoding = "2.3"
 boolean_expression = "0.4"
