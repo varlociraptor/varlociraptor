@@ -175,10 +175,10 @@ where
         let header = self.header();
 
         Ok(if let Some(ref path) = self.outbcf {
-            bcf::Writer::from_path(path, &header.as_ref().unwrap(), false, bcf::Format::BCF)
+            bcf::Writer::from_path(path, header.as_ref().unwrap(), false, bcf::Format::BCF)
                 .context(format!("Unable to write BCF to {}.", path.display()))?
         } else {
-            bcf::Writer::from_stdout(&header.as_ref().unwrap(), false, bcf::Format::BCF)
+            bcf::Writer::from_stdout(header.as_ref().unwrap(), false, bcf::Format::BCF)
                 .context("Unable to write BCF to STDOUT.")?
         })
     }
@@ -265,14 +265,12 @@ where
             let current_rid = first_record.rid();
             let current_pos = first_record.pos();
             let current_alleles = first_record.alleles();
-            for record in &records[1..] {
-                if let Some(record) = record {
-                    if record.rid() != current_rid
-                        || record.pos() != current_pos
-                        || record.alleles() != current_alleles
-                    {
-                        return Err(errors::Error::InconsistentObservations.into());
-                    }
+            for record in records[1..].iter().flatten() {
+                if record.rid() != current_rid
+                    || record.pos() != current_pos
+                    || record.alleles() != current_alleles
+                {
+                    return Err(errors::Error::InconsistentObservations.into());
                 }
             }
 
@@ -291,7 +289,7 @@ where
             _model = models.entry(model_mode).or_insert_with(|| self.model());
             {
                 let entry = last_rids.entry(model_mode).or_insert(None);
-                _last_rid = (*entry).clone();
+                _last_rid = *entry;
                 *entry = Some(work_item.rid);
             }
 
@@ -356,7 +354,7 @@ where
                 let alleles = first_record.alleles();
                 if alleles[0].len() == 1 && alleles[1].len() == 1 {
                     is_snv_or_mnv = true;
-                    snv = Some(model::modes::generic::SNV::new(
+                    snv = Some(model::modes::generic::Snv::new(
                         alleles[0][0],
                         alleles[1][0],
                     ));
@@ -370,7 +368,7 @@ where
             };
 
             let bnd_event = if utils::is_bnd(first_record)? {
-                Some(utils::info_tag_event(first_record)?.unwrap().to_owned())
+                Some(utils::info_tag_event(first_record)?.unwrap())
             } else {
                 None
             };
@@ -638,7 +636,7 @@ struct WorkItem {
     call: Call,
     variant_builder: VariantBuilder,
     pileups: Option<Vec<Vec<Observation<ReadPosition>>>>,
-    snv: Option<model::modes::generic::SNV>,
+    snv: Option<model::modes::generic::Snv>,
     bnd_event: Option<Vec<u8>>,
     index: usize,
     check_read_orientation_bias: bool,

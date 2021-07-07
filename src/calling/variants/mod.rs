@@ -212,9 +212,9 @@ impl Call {
                         }),
                         false,
                         |(item, _count)| {
-                            if item.starts_with("N") {
+                            if item.starts_with('N') {
                                 2
-                            } else if item.starts_with("E") {
+                            } else if item.starts_with('E') {
                                 1
                             } else {
                                 0
@@ -239,9 +239,9 @@ impl Call {
                         }),
                         false,
                         |(item, _count)| {
-                            if item.starts_with("N") {
+                            if item.starts_with('N') {
                                 2
-                            } else if item.starts_with("E") {
+                            } else if item.starts_with('E') {
                                 1
                             } else {
                                 0
@@ -454,10 +454,10 @@ impl VariantBuilder {
                     .svlen(Some(svlen))
                     .svtype(Some(b"INS".to_vec()))
             }
-            model::Variant::SNV(base) => self
+            model::Variant::Snv(base) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(vec![*base].to_ascii_uppercase()),
-            model::Variant::MNV(bases) => self
+            model::Variant::Mnv(bases) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + bases.len()].to_ascii_uppercase())
                 .alt_allele(bases.to_ascii_uppercase()),
             model::Variant::Breakend {

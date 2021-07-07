@@ -774,9 +774,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 scenario
                                     .species()
                                     .as_ref()
-                                    .map_or(None, |species| *species.genome_size()),
+                                    .and_then(|species| *species.genome_size()),
                             )
-                            .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
+                            .heterozygosity(scenario.species().as_ref().and_then(|species| {
                                 species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                             }))
                             .variant_type_fractions(scenario.variant_type_fractions())
@@ -820,7 +820,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         let options = calling::variants::preprocessing::read_preprocess_options(obspath)?;
                                         let preprocess_input = options.preprocess_input();
                                         testcase_builder = testcase_builder.register_sample(
-                                            &sample_name,
+                                            sample_name,
                                             preprocess_input.bam,
                                             options,
                                         )?;
@@ -1044,9 +1044,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         scenario
                             .species()
                             .as_ref()
-                            .map_or(None, |species| *species.genome_size()),
+                            .and_then(|species| *species.genome_size()),
                     )
-                    .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
+                    .heterozygosity(scenario.species().as_ref().and_then(|species| {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
                     .build();

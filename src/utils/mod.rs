@@ -87,10 +87,7 @@ pub(crate) fn contains_indel_op(record: &bam::Record) -> bool {
         .cigar_cached()
         .expect("bug: cigar accessed before caching")
         .iter()
-        .any(|op| match op {
-            Cigar::Ins(_) | Cigar::Del(_) => true,
-            _ => false,
-        })
+        .any(|op| matches!(op, Cigar::Ins(_) | Cigar::Del(_)))
 }
 
 #[derive(new, Getters, CopyGetters, Debug)]
@@ -231,10 +228,11 @@ where
             }
         }
 
-        for p in tags_prob_sum(&mut record, &tags, vartype)? {
-            if let Some(p) = p {
-                prob_dist.push(NotNan::new(*p)?);
-            }
+        for p in (tags_prob_sum(&mut record, &tags, vartype)?)
+            .into_iter()
+            .flatten()
+        {
+            prob_dist.push(NotNan::new(*p)?);
         }
     }
     prob_dist.sort();
@@ -264,12 +262,7 @@ pub(crate) fn filter_by_threshold<E: Event>(
 
     let tags = events.iter().map(|e| e.tag_name("PROB")).collect_vec();
     let filter = |record: &mut bcf::Record| -> Result<Vec<bool>> {
-        let bnd_event = if let Ok(event) = info_tag_event(record) {
-            event.map(|event| event.to_owned())
-        } else {
-            None
-        };
-
+        let bnd_event = info_tag_event(record).ok().flatten();
         let keep = if let Some(event) = bnd_event.as_ref() {
             breakend_event_decisions.get(event).cloned()
         } else {
@@ -443,7 +436,7 @@ mod tests {
             String::from("PROB_ERR_REF"),
         ];
 
-        let snv = VariantType::SNV;
+        let snv = VariantType::Snv;
 
         if let Ok(prob_sum) = tags_prob_sum(&mut record, &alt_tags, Some(&snv)) {
             assert_eq!(LogProb::ln_one(), prob_sum[0].unwrap());

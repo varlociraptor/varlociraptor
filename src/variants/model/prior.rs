@@ -89,9 +89,9 @@ impl Clone for Prior {
             universe: self.universe.clone(),
             germline_mutation_rate: self.germline_mutation_rate.clone(),
             somatic_effective_mutation_rate: self.somatic_effective_mutation_rate.clone(),
-            heterozygosity: self.heterozygosity.clone(),
+            heterozygosity: self.heterozygosity,
             inheritance: self.inheritance.clone(),
-            genome_size: self.genome_size.clone(),
+            genome_size: self.genome_size,
             cache: RefCell::default(),
             variant_type_fractions: self.variant_type_fractions.clone(),
             variant_type: self.variant_type.clone(),
@@ -357,14 +357,13 @@ impl Prior {
                         }
                         None => {
                             // no inheritance pattern defined
-                            if let Some(r) = self.vartype_somatic_effective_mutation_rate(sample) {
-                                Some(self.prob_somatic_mutation(
-                                    r,
-                                    self.effective_somatic_vaf(sample, event, &germline_vafs),
-                                ))
-                            } else {
-                                None
-                            }
+                            self.vartype_somatic_effective_mutation_rate(sample)
+                                .map(|r| {
+                                    self.prob_somatic_mutation(
+                                        r,
+                                        self.effective_somatic_vaf(sample, event, &germline_vafs),
+                                    )
+                                })
                         }
                     }
                 })
@@ -527,20 +526,18 @@ impl Prior {
                             // METHOD: impossible, since all parental allele copies host the variant.
                             LogProb::ln_zero()
                         }
-                    } else {
-                        if self.is_valid_germline_vaf(sample, total_vaf) {
-                            let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
-                            if *total_vaf > 0.0 {
-                                // METHOD: alt present, hence the cell has to come from the subclone with the alt allele.
-                                prob_alt
-                            } else {
-                                // METHOD: alt not present, hence the cell has to come from the ref subclone.
-                                prob_alt.ln_one_minus_exp()
-                            }
+                    } else if self.is_valid_germline_vaf(sample, total_vaf) {
+                        let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
+                        if *total_vaf > 0.0 {
+                            // METHOD: alt present, hence the cell has to come from the subclone with the alt allele.
+                            prob_alt
                         } else {
-                            // METHOD: VAF must reflect ploidy.
-                            LogProb::ln_zero()
+                            // METHOD: alt not present, hence the cell has to come from the ref subclone.
+                            prob_alt.ln_one_minus_exp()
                         }
+                    } else {
+                        // METHOD: VAF must reflect ploidy.
+                        LogProb::ln_zero()
                     }
                 }
                 (grammar::SubcloneOrigin::MultiCell, None) => {
@@ -780,7 +777,7 @@ impl Prior {
         if let Some(somatic_mutation_rate) = self.vartype_somatic_effective_mutation_rate(child) {
             prob += self.prob_somatic_mutation(
                 somatic_mutation_rate,
-                self.effective_somatic_vaf(child, event, &germline_vafs),
+                self.effective_somatic_vaf(child, event, germline_vafs),
             );
         }
 

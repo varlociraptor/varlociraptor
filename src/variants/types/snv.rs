@@ -25,16 +25,16 @@ use crate::variants::types::{
 };
 use crate::{default_emission, default_ref_base_emission};
 
-pub(crate) struct SNV<R: Realigner> {
+pub(crate) struct Snv<R: Realigner> {
     locus: SingleLocus,
     ref_base: u8,
     alt_base: u8,
     realigner: RefCell<R>,
 }
 
-impl<R: Realigner> SNV<R> {
+impl<R: Realigner> Snv<R> {
     pub(crate) fn new(locus: genome::Locus, ref_base: u8, alt_base: u8, realigner: R) -> Self {
-        SNV {
+        Snv {
             locus: SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
@@ -46,8 +46,8 @@ impl<R: Realigner> SNV<R> {
     }
 }
 
-impl<'a, R: Realigner> Realignable<'a> for SNV<R> {
-    type EmissionParams = SNVEmissionParams<'a>;
+impl<'a, R: Realigner> Realignable<'a> for Snv<R> {
+    type EmissionParams = SnvEmissionParams<'a>;
 
     fn alt_emission_params(
         &self,
@@ -55,13 +55,13 @@ impl<'a, R: Realigner> Realignable<'a> for SNV<R> {
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<SNVEmissionParams<'a>>> {
+    ) -> Result<Vec<SnvEmissionParams<'a>>> {
         let start = self.locus.range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
         let ref_seq_len = ref_seq.len();
-        Ok(vec![SNVEmissionParams {
+        Ok(vec![SnvEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
@@ -72,7 +72,7 @@ impl<'a, R: Realigner> Realignable<'a> for SNV<R> {
     }
 }
 
-impl<R: Realigner> Variant for SNV<R> {
+impl<R: Realigner> Variant for Snv<R> {
     type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
@@ -106,56 +106,54 @@ impl<R: Realigner> Variant for SNV<R> {
                 [&self.locus].iter(),
                 self,
             )?))
-        } else {
-            if let Some(qpos) = read
-                .cigar_cached()
-                .unwrap()
-                // TODO expect u64 in read_pos
-                .read_pos(self.locus.range().start as u32, false, false)?
-            {
-                let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
-                let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
-                let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
+        } else if let Some(qpos) = read
+            .cigar_cached()
+            .unwrap()
+            // TODO expect u64 in read_pos
+            .read_pos(self.locus.range().start as u32, false, false)?
+        {
+            let read_base = unsafe { read.seq().decoded_base_unchecked(qpos as usize) };
+            let base_qual = unsafe { *read.qual().get_unchecked(qpos as usize) };
+            let prob_alt = prob_read_base(read_base, self.alt_base, base_qual);
 
-                // METHOD: instead of considering the actual REF base, we assume that REF is whatever
-                // base the read has at this position (if not the ALT base). This way, we avoid biased
-                // allele frequencies at sites with multiple alternative alleles.
-                // Note that this is an approximation. The real solution would be to have multiple allele
-                // frequency variables in the likelihood function, but that would be computationally
-                // more demanding (leading to a combinatorial explosion).
-                // However, the approximation is pretty accurate, because it will only matter for true
-                // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
-                // because they are too rare.
-                let non_alt_base = if read_base != self.alt_base {
-                    read_base
-                } else {
-                    self.ref_base
-                };
-
-                let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
-                let strand = if prob_ref != prob_alt {
-                    Strand::from_record_and_pos(read, qpos as usize)?
-                } else {
-                    // METHOD: if record is not informative, we don't want to
-                    // retain its information (e.g. strand).
-                    Strand::no_strand_info()
-                };
-
-                Ok(Some(
-                    AlleleSupportBuilder::default()
-                        .prob_ref_allele(prob_ref)
-                        .prob_alt_allele(prob_alt)
-                        .strand(strand)
-                        .read_position(Some(qpos))
-                        .build()
-                        .unwrap(),
-                ))
+            // METHOD: instead of considering the actual REF base, we assume that REF is whatever
+            // base the read has at this position (if not the ALT base). This way, we avoid biased
+            // allele frequencies at sites with multiple alternative alleles.
+            // Note that this is an approximation. The real solution would be to have multiple allele
+            // frequency variables in the likelihood function, but that would be computationally
+            // more demanding (leading to a combinatorial explosion).
+            // However, the approximation is pretty accurate, because it will only matter for true
+            // multiallelic cases. Sequencing errors won't have a severe effect on the allele frequencies
+            // because they are too rare.
+            let non_alt_base = if read_base != self.alt_base {
+                read_base
             } else {
-                // a read that spans an SNV might have the respective position in the
-                // reference skipped (Cigar op 'N'), and the library should not choke on those reads
-                // but instead needs to know NOT to add those reads (as observations) further up
-                Ok(None)
-            }
+                self.ref_base
+            };
+
+            let prob_ref = prob_read_base(read_base, non_alt_base, base_qual);
+            let strand = if prob_ref != prob_alt {
+                Strand::from_record_and_pos(read, qpos as usize)?
+            } else {
+                // METHOD: if record is not informative, we don't want to
+                // retain its information (e.g. strand).
+                Strand::no_strand_info()
+            };
+
+            Ok(Some(
+                AlleleSupportBuilder::default()
+                    .prob_ref_allele(prob_ref)
+                    .prob_alt_allele(prob_alt)
+                    .strand(strand)
+                    .read_position(Some(qpos))
+                    .build()
+                    .unwrap(),
+            ))
+        } else {
+            // a read that spans an SNV might have the respective position in the
+            // reference skipped (Cigar op 'N'), and the library should not choke on those reads
+            // but instead needs to know NOT to add those reads (as observations) further up
+            Ok(None)
         }
     }
 
@@ -165,7 +163,7 @@ impl<R: Realigner> Variant for SNV<R> {
 }
 
 /// Emission parameters for PairHMM over insertion allele.
-pub(crate) struct SNVEmissionParams<'a> {
+pub(crate) struct SnvEmissionParams<'a> {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
@@ -174,12 +172,12 @@ pub(crate) struct SNVEmissionParams<'a> {
     read_emission: Rc<ReadEmission<'a>>,
 }
 
-impl<'a> RefBaseEmission for SNVEmissionParams<'a> {
+impl<'a> RefBaseEmission for SnvEmissionParams<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
 
-        if i_ < self.alt_start || i_ >= self.alt_start + 1 {
+        if i_ != self.alt_start {
             self.ref_seq[i_]
         } else {
             self.alt_base
@@ -189,7 +187,7 @@ impl<'a> RefBaseEmission for SNVEmissionParams<'a> {
     default_ref_base_emission!();
 }
 
-impl<'a> EmissionParameters for SNVEmissionParams<'a> {
+impl<'a> EmissionParameters for SnvEmissionParams<'a> {
     default_emission!();
 
     #[inline]

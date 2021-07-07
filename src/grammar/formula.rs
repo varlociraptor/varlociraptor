@@ -1,5 +1,5 @@
 use std::cmp::{Ord, Ordering, PartialOrd};
-use std::collections::{BTreeSet, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::ops;
 
@@ -16,9 +16,9 @@ use crate::grammar::{ExpressionIdentifier, Scenario};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct IUPAC(u8);
+pub(crate) struct Iupac(u8);
 
-impl IUPAC {
+impl Iupac {
     pub(crate) fn contains(&self, base: u8) -> bool {
         if base == **self {
             return true;
@@ -89,8 +89,8 @@ pub(crate) enum FormulaTerminal {
     },
     Variant {
         positive: bool,
-        refbase: IUPAC,
-        altbase: IUPAC,
+        refbase: Iupac,
+        altbase: Iupac,
     },
     Expression {
         identifier: ExpressionIdentifier,
@@ -369,11 +369,7 @@ impl Into<Expr<FormulaTerminal>> for Formula {
 
 impl Formula {
     pub(crate) fn is_terminal(&self) -> bool {
-        if let Formula::Terminal(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Formula::Terminal(_))
     }
 
     pub(crate) fn to_terminal(&self) -> Option<&FormulaTerminal> {
@@ -465,10 +461,10 @@ impl Formula {
                             formula.clone()
                         }
                     } else {
-                        Err(errors::Error::UndefinedExpression {
+                        return Err(errors::Error::UndefinedExpression {
                             identifier: identifier.to_string(),
-                        })?;
-                        unreachable!();
+                        }
+                        .into());
                     }
                 } else {
                     Formula::Terminal(terminal.clone())
@@ -518,17 +514,20 @@ impl Formula {
     }
 
     fn merge_atoms(&self) -> Self {
+        let group_operands = |operands: &Vec<Formula>| -> HashMap<Option<String>, Vec<Formula>> {
+            operands.iter().cloned().into_group_map_by(|operand| {
+                if let Formula::Terminal(FormulaTerminal::Atom { sample, vafs: _ }) = operand {
+                    Some(sample.to_owned())
+                } else {
+                    // group all non-atoms together
+                    None
+                }
+            })
+        };
         match self {
             Formula::Conjunction { operands } => {
                 // collect statements per sample
-                let mut grouped_operands = operands.iter().cloned().into_group_map_by(|operand| {
-                    if let Formula::Terminal(FormulaTerminal::Atom { sample, vafs: _ }) = operand {
-                        Some(sample.to_owned())
-                    } else {
-                        // group all non-atoms together
-                        None
-                    }
-                });
+                let mut grouped_operands = group_operands(operands);
 
                 // merge atoms of the same sample
                 for (sample, statements) in &mut grouped_operands {
@@ -554,14 +553,7 @@ impl Formula {
             }
             Formula::Disjunction { operands } => {
                 // collect statements per sample
-                let mut grouped_operands = operands.iter().cloned().into_group_map_by(|operand| {
-                    if let Formula::Terminal(FormulaTerminal::Atom { sample, vafs: _ }) = operand {
-                        Some(sample.to_owned())
-                    } else {
-                        // group all non-atoms together
-                        None
-                    }
-                });
+                let mut grouped_operands = group_operands(operands);
 
                 // merge atoms of the same sample
                 for (sample, statements) in &mut grouped_operands {
@@ -573,7 +565,7 @@ impl Formula {
                                 stmt
                             {
                                 match vafs {
-                                    VAFSpectrum::Set(s) => s.iter().min().map(|v| v.clone()),
+                                    VAFSpectrum::Set(s) => s.iter().min().copied(),
                                     VAFSpectrum::Range(r) => Some(r.start),
                                 }
                             } else {
@@ -857,8 +849,8 @@ pub(crate) enum NormalizedFormula {
     },
     Variant {
         positive: bool,
-        refbase: IUPAC,
-        altbase: IUPAC,
+        refbase: Iupac,
+        altbase: Iupac,
     },
     False,
 }
@@ -876,19 +868,17 @@ impl std::fmt::Display for NormalizedFormula {
             NormalizedFormula::Atom {
                 sample,
                 vafs: VAFSpectrum::Set(vafs),
-            } => {
-                if vafs.len() > 1 {
+            } => match vafs.len() {
+                1 => format!("{}:{}", sample, vafs.iter().next().unwrap()),
+                x if x > 1 => {
                     format!(
                         "{}:{{{}}}",
                         sample,
                         vafs.iter().map(|vaf| format!("{:.1}", vaf)).join(", "),
                     )
-                } else if vafs.len() == 1 {
-                    format!("{}:{}", sample, vafs.iter().next().unwrap())
-                } else {
-                    "false".to_owned()
                 }
-            }
+                _ => "false".to_owned(),
+            },
             NormalizedFormula::Atom {
                 sample,
                 vafs: VAFSpectrum::Range(vafrange),
@@ -1302,8 +1292,8 @@ where
             let refbase = inner.next().unwrap().as_str().as_bytes()[0];
             let altbase = inner.next().unwrap().as_str().as_bytes()[0];
             Formula::Terminal(FormulaTerminal::Variant {
-                refbase: IUPAC(refbase),
-                altbase: IUPAC(altbase),
+                refbase: Iupac(refbase),
+                altbase: Iupac(altbase),
                 positive: true,
             })
         }

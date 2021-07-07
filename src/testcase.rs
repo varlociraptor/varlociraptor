@@ -194,9 +194,7 @@ impl Testcase {
 
                 for rec in &mut found {
                     if utils::is_bnd(rec)? {
-                        if let Some(event) =
-                            utils::info_tag_event(rec)?.map(|event| event.to_owned())
-                        {
+                        if let Some(event) = utils::info_tag_event(rec)? {
                             // METHOD: for breakend events, collect all the other breakends.
                             if breakend_index.is_none() {
                                 breakend_index = Some(BreakendIndex::new(&self.candidates)?);
@@ -280,8 +278,8 @@ impl Testcase {
             (Variant::Insertion(ref seq), _) => {
                 (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
-            (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
-            (Variant::MNV(ref bases), _) => {
+            (Variant::Snv(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
+            (Variant::Mnv(ref bases), _) => {
                 (pos.saturating_sub(100), pos + bases.len() as u64 + 100)
             }
             (Variant::Breakend { .. }, _) => {
@@ -323,7 +321,7 @@ impl Testcase {
             let mut header = bam::header::Header::new();
             header.push_record(
                 bam::header::HeaderRecord::new(b"SQ")
-                    .push_tag(b"SN", &str::from_utf8(&chrom_name)?)
+                    .push_tag(b"SN", &str::from_utf8(chrom_name)?)
                     .push_tag(b"LN", &format!("{}", ref_end - ref_start)),
             );
 
@@ -387,7 +385,7 @@ impl Testcase {
         };
 
         // fetch reference
-        let ref_name = str::from_utf8(&chrom_name)?;
+        let ref_name = str::from_utf8(chrom_name)?;
 
         // limit ref_end
         for seq in self.reference_reader.index.sequences() {

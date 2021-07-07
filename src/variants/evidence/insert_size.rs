@@ -27,8 +27,8 @@ pub(crate) fn estimate_insert_size(left: &bam::Record, right: &bam::Record) -> R
         ))
     };
 
-    let (left_start, left_end) = aln(left, &left_cigar)?;
-    let (right_start, right_end) = aln(right, &right_cigar)?;
+    let (left_start, left_end) = aln(left, left_cigar)?;
+    let (right_start, right_end) = aln(right, right_cigar)?;
     // as defined by Torsten Seemann
     // (http://thegenomefactory.blogspot.nl/2013/08/paired-end-read-confusion-library.html)
     let inner_mate_distance = right_start as i64 - left_end as i64;
