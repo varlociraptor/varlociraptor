@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Read;
@@ -8,16 +8,17 @@ use std::string::ToString;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
-use serde_yaml;
 use vec_map::VecMap;
 
 pub(crate) mod formula;
 pub(crate) mod vaftree;
 
 use crate::errors;
+use crate::grammar::formula::FormulaTerminal;
 pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
+use itertools::Itertools;
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -162,7 +163,6 @@ impl Scenario {
             event_expressions.insert(absent_identifier, Formula::absent(&scenario));
         }
         scenario.expressions.extend(event_expressions);
-
         Ok(scenario)
     }
 
@@ -204,7 +204,8 @@ impl Scenario {
 
     pub(crate) fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {
         info!("Preprocessing events for contig {}", contig);
-        self.events()
+        let trees = self
+            .events()
             .iter()
             .map(|(name, formula)| {
                 let normalized = formula
@@ -214,7 +215,64 @@ impl Scenario {
                 let vaftree = VAFTree::new(&normalized, self, contig)?;
                 Ok((name.to_owned(), vaftree))
             })
-            .collect()
+            .collect();
+        self.validate(contig)?;
+        trees
+    }
+
+    pub(crate) fn validate(&self, contig: &str) -> Result<()> {
+        let events = self
+            .events()
+            .iter()
+            .filter(|(name, _)| *name != "absent")
+            .map(|(_, formula)| formula.normalize(self, contig).map(Formula::from))
+            .collect::<Result<HashSet<_>>>()?;
+        let names = self
+            .events()
+            .iter()
+            .map(|(name, formula)| {
+                (
+                    // if `formula.normalize(…)` failed above, we won't get to this line,
+                    // so we might as well unwrap.
+                    formula.normalize(self, contig).map(Formula::from).unwrap(),
+                    name,
+                )
+            })
+            .into_group_map();
+        let mut overlapping = vec![];
+        for (e1, e2) in events.iter().tuple_combinations() {
+            // skip comparison of event with itself
+            if e1 == e2 {
+                continue;
+            }
+            // skip if one of the operands is a terminal `False`.
+            let terms = [e1, e2]
+                .iter()
+                .filter(|e| !matches!(e.to_terminal(), Some(FormulaTerminal::False)))
+                .map(|&v| v.clone())
+                .collect();
+
+            let disjunction =
+                Formula::from(Formula::Disjunction { operands: terms }.normalize(self, contig)?);
+            if events.contains(&disjunction) {
+                overlapping.push((
+                    names[e1].clone(),
+                    names[e2].clone(),
+                    names[&disjunction].clone(),
+                ));
+            }
+        }
+        if !overlapping.is_empty() {
+            return Err(crate::errors::Error::OverlappingEvents {
+                expressions: overlapping
+                    .iter()
+                    .map(|(a1, a2, f)| format!("({:?} | {:?}) = {:?}", a1, a2, f))
+                    .join(", "),
+            }
+            .into());
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -237,14 +295,16 @@ impl PloidyDefinition {
     pub(crate) fn contig_ploidy(&self, contig: &str) -> Result<u32> {
         Ok(match self {
             PloidyDefinition::Simple(ploidy) => *ploidy,
-            PloidyDefinition::Map(map) => match map.get(contig) {
-                Some(ploidy) => *ploidy,
-                None => map.get("all").map(|ploidy| *ploidy).ok_or_else(|| {
-                    errors::Error::PloidyContigNotFound {
-                        contig: contig.to_owned(),
-                    }
-                })?,
-            },
+            PloidyDefinition::Map(map) => {
+                match map.get(contig) {
+                    Some(ploidy) => *ploidy,
+                    None => map.get("all").copied().ok_or_else(|| {
+                        errors::Error::PloidyContigNotFound {
+                            contig: contig.to_owned(),
+                        }
+                    })?,
+                }
+            }
         })
     }
 }
@@ -466,10 +526,10 @@ impl Sample {
                         ));
                         universe
                     }
-                    (None, false) => return Err(errors::Error::InvalidPriorConfiguration{
+                    (None, false) => return Err(errors::Error::InvalidPriorConfiguration {
                         msg: "sample needs to define either universe, ploidy or somatic_mutation_rate".to_owned(),
                     }
-                    .into()),
+                        .into()),
                 },
             )
         }
@@ -495,7 +555,7 @@ impl Sample {
         } else {
             species
                 .as_ref()
-                .map_or(None, |species| species.germline_mutation_rate)
+                .and_then(|species| species.germline_mutation_rate)
         }
     }
 
@@ -505,7 +565,7 @@ impl Sample {
         } else {
             species
                 .as_ref()
-                .map_or(None, |species| species.somatic_effective_mutation_rate)
+                .and_then(|species| species.somatic_effective_mutation_rate)
         }
     }
 }

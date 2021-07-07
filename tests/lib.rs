@@ -45,6 +45,38 @@ macro_rules! testcase {
     };
 }
 
+macro_rules! testcase_should_panic {
+    ($name:ident, $($pairhmm_mode:ident),+) => {
+        paste! {
+            lazy_static! {
+                static ref [<$name:upper _MUTEX>]: Mutex<()> = Mutex::new(());
+            }
+
+            $(
+                #[should_panic]
+                #[test]
+                fn [<$name _ $pairhmm_mode _mode>]() {
+                    // Poison error can be ignored here, because it just means that the other test failed
+                    // and we are safe to go on.
+                    let _guard = [<$name:upper _MUTEX>].lock();
+                    let name = stringify!($name);
+                    let testcase = load_testcase(
+                        &Path::new(file!())
+                            .parent()
+                            .unwrap()
+                            .join("resources/testcases")
+                            .join(name),
+                    )
+                    .unwrap();
+                    let mode = stringify!($pairhmm_mode);
+                    testcase.run(mode).unwrap();
+                    testcase.check();
+                }
+            )*
+        }
+    };
+}
+
 testcase!(test01, exact, fast);
 testcase!(test02, exact, fast);
 testcase!(test03, exact, fast);
@@ -143,6 +175,7 @@ testcase!(test_panel_overlap, exact);
 testcase!(test_panel_unknown_orientation_bias, exact);
 testcase!(issue_154, exact, fast);
 testcase!(test_low_cov_vaf, exact);
+testcase_should_panic!(test_overlapping_events, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
