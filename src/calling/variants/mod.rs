@@ -371,7 +371,7 @@ impl Call {
             let scb = softclip_bias.values().map(|scb| vec![*scb]).collect_vec();
             record.push_format_string(b"SCB", &scb)?;
 
-            let dib = softclip_bias.values().map(|dib| vec![*dib]).collect_vec();
+            let dib = divindel_bias.values().map(|dib| vec![*dib]).collect_vec();
             record.push_format_string(b"DIB", &dib)?;
 
             let sobs = simple_observations

@@ -282,6 +282,7 @@ mod tests {
             .read_position(ReadPosition::Some)
             .strand(Strand::Both)
             .softclipped(false)
+            .indel_operations(IndelOperations::None)
             .paired(true)
             .prob_hit_base(LogProb::from(0.01f64.ln()))
             .build()

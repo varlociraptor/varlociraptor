@@ -39,6 +39,14 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
         true
     }
 
+    fn is_bias_evidence(&self, observation: &Observation<ReadPosition, IndelOperations>) -> bool {
+        self.prob(observation) != LogProb::ln_zero()
+    }
+
+    fn min_strong_evidence_ratio(&self) -> f64 {
+        0.66666
+    }
+
     fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
         if *self == Self::default() {
             true
@@ -48,13 +56,11 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
                 if strong_all >= 10 {
                     let strong_bias_evidence = pileup
                         .iter()
-                        .filter(|obs| {
-                            Self::is_strong_obs(obs) && self.prob(obs) == LogProb::ln_one()
-                        })
+                        .filter(|obs| Self::is_strong_obs(obs) && self.is_bias_evidence(obs))
                         .count();
                     // METHOD: there is bias evidence if we have at least two third of the strong observations supporting the bias
                     let ratio = strong_bias_evidence as f64 / strong_all as f64;
-                    ratio >= 0.66666
+                    ratio >= self.min_strong_evidence_ratio()
                 } else {
                     // METHOD: not enough reads, rather consider all biases to be sure
                     true

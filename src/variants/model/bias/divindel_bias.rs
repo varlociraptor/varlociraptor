@@ -77,6 +77,18 @@ impl Bias for DivIndelBias {
         })
     }
 
+    fn is_bias_evidence(&self, observation: &Observation<ReadPosition, IndelOperations>) -> bool {
+        observation.indel_operations == IndelOperations::Other
+    }
+
+    fn min_strong_evidence_ratio(&self) -> f64 {
+        if let DivIndelBias::Some { other_rate } = self {
+            0.66666 * **other_rate
+        } else {
+            unreachable!();
+        }
+    }
+
     fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
