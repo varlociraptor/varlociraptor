@@ -552,6 +552,16 @@ where
                 work_item.snv.clone(),
             );
 
+            let mut event_universe: Vec<_> = event_universe.iter().cloned().collect();
+            for event in &mut event_universe {
+                // METHOD: learn parameters for each bias (if necessary).
+                // By this, we can avoid marginalization of them, which is
+                // unnecessarily expensive.
+                for bias in &mut event.biases {
+                    bias.learn_parameters(data.pileups());
+                }
+            }
+
             // Compute probabilities for given events.
             let m = model.compute(event_universe.iter().cloned(), &data);
 

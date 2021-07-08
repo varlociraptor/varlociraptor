@@ -44,16 +44,13 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
             true
         } else {
             pileups.iter().any(|pileup| {
-                let is_strong_obs = |obs: &&Observation<ReadPosition, IndelOperations>| {
-                    obs.prob_mapping() >= *PROB_095
-                        && BayesFactor::new(obs.prob_alt, obs.prob_ref).evidence_kass_raftery()
-                            >= KassRaftery::Strong
-                };
-                let strong_all = pileup.iter().filter(&is_strong_obs).count();
+                let strong_all = pileup.iter().filter(&Self::is_strong_obs).count();
                 if strong_all >= 10 {
                     let strong_bias_evidence = pileup
                         .iter()
-                        .filter(|obs| is_strong_obs(obs) && self.prob(obs) == LogProb::ln_one())
+                        .filter(|obs| {
+                            Self::is_strong_obs(obs) && self.prob(obs) == LogProb::ln_one()
+                        })
                         .count();
                     // METHOD: there is bias evidence if we have at least two third of the strong observations supporting the bias
                     let ratio = strong_bias_evidence as f64 / strong_all as f64;
@@ -64,6 +61,19 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
                 }
             })
         }
+    }
+
+    /// Learn parameters needed for estimation on current pileup.
+    fn learn_parameters(&mut self, _pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) {
+        // METHOD: by default, there is nothing to learn, however, a bias can use this to
+        // infer some parameters over which we would otherwise need to integrate (which would hamper
+        // performance too much).
+    }
+
+    fn is_strong_obs(obs: &&Observation<ReadPosition, IndelOperations>) -> bool {
+        obs.prob_mapping() >= *PROB_095
+            && BayesFactor::new(obs.prob_alt, obs.prob_ref).evidence_kass_raftery()
+                >= KassRaftery::Strong
     }
 }
 
@@ -119,7 +129,7 @@ impl Biases {
             vec![SoftclipBias::None]
         };
         let divindel_biases = if consider_divindel_bias {
-            DivIndelBias::iter().collect_vec()
+            DivIndelBias::values()
         } else {
             vec![DivIndelBias::None]
         };
@@ -231,5 +241,12 @@ impl Biases {
             || self.read_position_bias.is_artifact()
             || self.softclip_bias.is_artifact()
             || self.divindel_bias.is_artifact()
+    }
+
+    pub(crate) fn learn_parameters(
+        &mut self,
+        pileups: &[Vec<Observation<ReadPosition, IndelOperations>>],
+    ) {
+        self.divindel_bias.learn_parameters(pileups)
     }
 }

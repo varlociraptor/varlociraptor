@@ -1,13 +1,24 @@
 use bio::stats::probs::LogProb;
+use ordered_float::NotNan;
 
-use crate::utils::{PROB_025, PROB_033};
 use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
+#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, Hash)]
 pub(crate) enum DivIndelBias {
     None,
-    Some,
+    Some { other_rate: NotNan<f64> },
+}
+
+impl DivIndelBias {
+    pub(crate) fn values() -> Vec<Self> {
+        vec![
+            DivIndelBias::None,
+            DivIndelBias::Some {
+                other_rate: NotNan::new(0.0).unwrap(),
+            },
+        ]
+    }
 }
 
 impl Default for DivIndelBias {
@@ -18,20 +29,27 @@ impl Default for DivIndelBias {
 
 impl Bias for DivIndelBias {
     fn prob(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
-        match (self, observation.indel_operations) {
-            (DivIndelBias::None, IndelOperations::Primary) => *PROB_033,
-            (DivIndelBias::None, IndelOperations::Secondary) => *PROB_033,
-            (DivIndelBias::None, IndelOperations::Other) => LogProb::ln_zero(),
-            (DivIndelBias::None, IndelOperations::None) => *PROB_033,
-            (DivIndelBias::Some, IndelOperations::Primary) => *PROB_025,
-            (DivIndelBias::Some, IndelOperations::Secondary) => *PROB_025,
-            (DivIndelBias::Some, IndelOperations::Other) => *PROB_025,
-            (DivIndelBias::Some, IndelOperations::None) => *PROB_025,
+        match self {
+            DivIndelBias::None => match observation.indel_operations {
+                IndelOperations::Other => LogProb::ln_zero(),
+                _ => LogProb::ln_one(),
+            },
+            DivIndelBias::Some { other_rate } => {
+                if **other_rate == 0.0 {
+                    // METHOD: if there are no other operations than primary and secondary, there is no artifact.
+                    LogProb::ln_zero()
+                } else {
+                    match observation.indel_operations {
+                        IndelOperations::Other => LogProb(other_rate.ln()),
+                        _ => LogProb((1.0 - **other_rate).ln()),
+                    }
+                }
+            }
         }
     }
 
     fn prob_any(&self, _observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
-        *PROB_025
+        LogProb::ln_one() // TODO check this
     }
 
     fn is_artifact(&self) -> bool {
@@ -46,7 +64,44 @@ impl Bias for DivIndelBias {
         pileups.iter().any(|pileup| {
             pileup
                 .iter()
-                .any(|obs| obs.indel_operations != IndelOperations::None)
+                .any(|obs| obs.indel_operations == IndelOperations::Other)
         })
+    }
+
+    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
+        pileups.iter().any(|pileup| {
+            pileup.iter().any(|observation| match self {
+                DivIndelBias::Some { .. } => observation.indel_operations == IndelOperations::Other,
+                DivIndelBias::None => self.prob(observation) != LogProb::ln_zero(),
+            })
+        })
+    }
+
+    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) {
+        // METHOD: by default, there is nothing to learn, however, a bias can use this to
+        // infer some parameters over which we would otherwise need to integrate (which would hamper
+        // performance too much).
+        if let DivIndelBias::Some { ref mut other_rate } = self {
+            let strong_all = pileups
+                .iter()
+                .map(|pileup| pileup.iter().filter(&Self::is_strong_obs))
+                .flatten()
+                .count();
+            let strong_other = pileups
+                .iter()
+                .map(|pileup| {
+                    pileup.iter().filter(|obs| {
+                        Self::is_strong_obs(obs) && obs.indel_operations == IndelOperations::Other
+                    })
+                })
+                .flatten()
+                .count();
+
+            *other_rate = if strong_all > 0 {
+                NotNan::new(strong_other as f64 / strong_all as f64).unwrap()
+            } else {
+                NotNan::new(0.0).unwrap()
+            }
+        }
     }
 }
