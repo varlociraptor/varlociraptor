@@ -17,6 +17,7 @@ use rust_htslib::bam;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::variants::evidence::insert_size::estimate_insert_size;
+use crate::variants::evidence::observation::Observable;
 use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
@@ -154,6 +155,11 @@ impl<'a, R: Realigner> Realignable<'a> for Deletion<R> {
 impl<R: Realigner> Variant for Deletion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
+
+    fn report_indel_operations(&self) -> bool {
+        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
+        true
+    }
 
     fn is_valid_evidence(
         &self,

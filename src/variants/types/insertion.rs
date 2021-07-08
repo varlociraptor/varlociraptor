@@ -15,6 +15,7 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
+use crate::variants::evidence::observation::Observable;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
@@ -101,6 +102,11 @@ impl<R: Realigner> ReadSamplingBias for Insertion<R> {}
 impl<R: Realigner> Variant for Insertion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
+
+    fn report_indel_operations(&self) -> bool {
+        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
+        true
+    }
 
     fn is_valid_evidence(
         &self,

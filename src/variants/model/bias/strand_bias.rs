@@ -1,7 +1,7 @@
 use bio::stats::probs::LogProb;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
+use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition, Strand};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
@@ -18,7 +18,7 @@ impl Default for StrandBias {
 }
 
 impl Bias for StrandBias {
-    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
         match (self, observation.strand) {
             (StrandBias::Forward, Strand::Forward) => LogProb::ln_one(),
             (StrandBias::Reverse, Strand::Forward) => LogProb::ln_zero(),
@@ -32,7 +32,7 @@ impl Bias for StrandBias {
         }
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_any(&self, _observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
         *PROB_05
     }
 

@@ -404,6 +404,16 @@ pub enum CallKind {
         #[serde(default)]
         omit_softclip_bias: bool,
         #[structopt(
+            long = "omit-divindel-bias",
+            help = "Do not consider divindel bias when calculating the probability of an \
+                    artifact. Divindel bias is used to detect PCR homopolymer artifacts. \
+                    If you are sure that your protocol did not use any PCR or if you are \
+                    running on data with lots of homopolymer errors from the sequencer (e.g. nanopore) \
+                    you should use this flag to omit divindel bias consideration."
+        )]
+        #[serde(default)]
+        omit_divindel_bias: bool,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
@@ -711,6 +721,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_read_orientation_bias,
                     omit_read_position_bias,
                     omit_softclip_bias,
+                    omit_divindel_bias,
                     testcase_locus,
                     testcase_prefix,
                     testcase_anonymous,
@@ -790,6 +801,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .omit_read_orientation_bias(omit_read_orientation_bias)
                             .omit_read_position_bias(omit_read_position_bias)
                             .omit_softclip_bias(omit_softclip_bias)
+                            .omit_divindel_bias(omit_divindel_bias)
                             .scenario(scenario)
                             .prior(prior)
                             .contaminations(sample_infos.contaminations)

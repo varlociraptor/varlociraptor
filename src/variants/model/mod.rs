@@ -270,7 +270,7 @@ mod tests {
         prob_mapping: LogProb,
         prob_alt: LogProb,
         prob_ref: LogProb,
-    ) -> Observation<ReadPosition> {
+    ) -> Observation<ReadPosition, IndelOperations> {
         ObservationBuilder::default()
             .prob_mapping_mismapping(prob_mapping)
             .prob_alt(prob_alt)

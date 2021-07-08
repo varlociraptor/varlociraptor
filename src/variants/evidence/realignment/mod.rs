@@ -232,6 +232,7 @@ pub(crate) trait Realigner {
 
         let aux_strand_info = utils::aux_tag_strand_info(record);
         let mut strand = Strand::None;
+        let mut indel_operations = Vec::new();
 
         for region in merged_regions {
             // read emission
@@ -305,6 +306,7 @@ pub(crate) trait Realigner {
                 if let Some(strand_info) = aux_strand_info {
                     if let Some(s) = strand_info.get(region.read_interval) {
                         strand |= Strand::from_aux(s)?;
+                        indel_operations = utils::indel_ops(record);
                     } else {
                         return Err(Error::ReadPosOutOfBounds.into());
                     }
@@ -320,10 +322,12 @@ pub(crate) trait Realigner {
             // METHOD: if record is not informative, we don't want to
             // retain its information (e.g. strand).
             strand = Strand::from_record(record);
+            indel_operations = utils::indel_ops(record);
         }
 
         Ok(AlleleSupportBuilder::default()
             .strand(strand)
+            .indel_operations(indel_operations)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
             .build()

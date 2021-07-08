@@ -21,11 +21,11 @@ use vec_map::VecMap;
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
 use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
+use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::{
-    bias::Biases, bias::ReadOrientationBias, bias::ReadPositionBias, bias::SoftclipBias,
-    bias::StrandBias, AlleleFreq,
+    bias::Biases, bias::DivIndelBias, bias::ReadOrientationBias, bias::ReadPositionBias,
+    bias::SoftclipBias, bias::StrandBias, AlleleFreq,
 };
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
@@ -119,6 +119,7 @@ impl Call {
         let mut read_orientation_bias = VecMap::new();
         let mut read_position_bias = VecMap::new();
         let mut softclip_bias = VecMap::new();
+        let mut divindel_bias = VecMap::new();
         let mut alleles = Vec::new();
         let mut svlens = Vec::new();
         let mut events = Vec::new();
@@ -173,6 +174,13 @@ impl Call {
                         SoftclipBias::Some => b'$',
                     },
                 );
+                divindel_bias.insert(
+                    i,
+                    match sample_info.biases.divindel_bias() {
+                        DivIndelBias::None => b'.',
+                        DivIndelBias::Some => b'd',
+                    },
+                );
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
 
@@ -184,7 +192,7 @@ impl Call {
                         sample_info.observations.iter().map(|obs| {
                             let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                             format!(
-                                "{}{}{}{}{}{}",
+                                "{}{}{}{}{}{}{}",
                                 if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
                                     score.to_ascii_lowercase()
                                 } else {
@@ -208,6 +216,12 @@ impl Call {
                                     ReadPosition::Some => '*',
                                 },
                                 if obs.softclipped { '$' } else { '.' },
+                                match obs.indel_operations {
+                                    IndelOperations::Primary => 'I',
+                                    IndelOperations::Secondary => 'i',
+                                    IndelOperations::Other => 'd',
+                                    IndelOperations::None => '.',
+                                },
                             )
                         }),
                         false,
@@ -401,7 +415,7 @@ pub(crate) struct Variant {
     #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
-    observations: Option<Vec<Observation<ReadPosition>>>,
+    observations: Option<Vec<Observation<ReadPosition, IndelOperations>>>,
     #[builder(default)]
     #[getset(get = "pub(crate)")]
     sample_info: Vec<Option<SampleInfo>>,
@@ -496,7 +510,7 @@ impl VariantBuilder {
 pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     #[builder(default = "Vec::new()")]
-    observations: Vec<Observation<ReadPosition>>,
+    observations: Vec<Observation<ReadPosition, IndelOperations>>,
     biases: Biases,
 }
 
