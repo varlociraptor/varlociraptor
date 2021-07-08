@@ -5,7 +5,6 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::observation::Observable;
 use crate::variants::evidence::realignment::Realigner;
 use crate::variants::types::breakends::{
     Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
