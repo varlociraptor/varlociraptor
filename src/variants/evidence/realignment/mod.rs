@@ -319,8 +319,6 @@ pub(crate) trait Realigner {
             prob_alt_all += prob_alt;
         }
 
-        dbg!(&indel_operations);
-
         if aux_strand_info.is_none() && prob_ref_all != prob_alt_all {
             // METHOD: if record is not informative, we don't want to
             // retain its information (e.g. strand).
