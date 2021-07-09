@@ -7,10 +7,10 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
-use itertools::Itertools;
 use bio::alignment::AlignmentOperation;
 use bio::pattern_matching::myers::{self, long};
 use bio::stats::pairhmm;
+use itertools::Itertools;
 
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
@@ -140,7 +140,8 @@ impl EditDistanceCalculation {
                         })
                         .collect_vec()
                 })
-                .min_by_key(|indels| indels.len()).unwrap();
+                .min_by_key(|indels| indels.len())
+                .unwrap();
 
             Some(EditDistanceHit {
                 start,

@@ -6,7 +6,7 @@ expected:
   - tumor >= 0.042 && tumor <= 0.16
   - normal == 0.0
   posteriors:
-  - PROB_SOMATIC_TUMOR <= 0.12
+  - PROB_SOMATIC_TUMOR <= 0.6
 
 # necessary bam files
 samples:

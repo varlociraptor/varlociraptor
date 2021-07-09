@@ -599,34 +599,9 @@ where
             work_item.variant_builder.event_probs(Some(event_probs));
 
             // add sample specific information
-            work_item.variant_builder.sample_info(
-                if let Some(map_estimates) = m.maximum_posterior() {
-                    data.into_pileups()
-                        .into_iter()
-                        .zip(map_estimates.iter())
-                        .map(|(pileup, estimate)| {
-                            let mut sample_builder = SampleInfoBuilder::default();
-                            sample_builder.observations(pileup);
-                            match estimate {
-                                model::likelihood::Event { biases, .. } if biases.is_artifact() => {
-                                    sample_builder
-                                        .allelefreq_estimate(AlleleFreq(0.0))
-                                        .biases(biases.clone());
-                                }
-                                model::likelihood::Event { allele_freq, .. } => {
-                                    sample_builder
-                                        .allelefreq_estimate(*allele_freq)
-                                        .biases(Biases::none());
-                                }
-                            };
-                            Some(sample_builder.build().unwrap())
-                        })
-                        .collect_vec()
-                } else {
-                    // no observations
-                    vec![None; data.into_pileups().len()]
-                },
-            );
+            work_item
+                .variant_builder
+                .sample_info(self.sample_infos(&m, &event_probs, &data));
         } else {
             unreachable!();
         }
@@ -650,6 +625,48 @@ where
         }
 
         work_item.call.variant = Some(variant);
+    }
+
+    fn sample_infos(
+        &self,
+        model_instance: &ModelInstance,
+        event_probs: &HashMap<String, LogProb>,
+        data: &model::modes::generic::Data,
+    ) -> Vec<Option<SampleInfo>> {
+        let prob_artifact = event_probs.get("artifact");
+        let is_artifact = prob_artifact > prob_artifact.ln_one_minus_exp();
+        for map_estimates in m.event_posteriors() {
+            if map_estimates.iter().any(|estimate| estimate.is_artifact()) && !is_artifact {
+                // METHOD: skip MAP that is an artifact if the overall artifact event is not the strongest one.
+                // This ensures consistency between the events and the per sample MAPs.
+                continue;
+            }
+            return data
+                .into_pileups()
+                .into_iter()
+                .zip(map_estimates.iter())
+                .map(|(pileup, estimate)| {
+                    let mut sample_builder = SampleInfoBuilder::default();
+                    sample_builder.observations(pileup);
+                    match estimate {
+                        model::likelihood::Event { biases, .. } if biases.is_artifact() => {
+                            sample_builder
+                                .allelefreq_estimate(AlleleFreq(0.0))
+                                .biases(biases.clone());
+                        }
+                        model::likelihood::Event { allele_freq, .. } => {
+                            sample_builder
+                                .allelefreq_estimate(*allele_freq)
+                                .biases(Biases::none());
+                        }
+                    };
+                    Some(sample_builder.build().unwrap())
+                })
+                .collect_vec();
+        }
+
+        // no observations
+        vec![None; data.into_pileups().len()]
     }
 }
 

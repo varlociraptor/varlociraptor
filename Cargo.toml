@@ -10,7 +10,7 @@ include = ["src/**/*", "Cargo.toml", "CHANGELOG.md", "README.md", "LICENSE", "te
 edition = "2018"
 
 [dependencies]
-bio = "0.34"
+bio = "0.37"
 bio-types = { version = "0.12", features = ["serde"] }
 rust-htslib = "0.36"
 log = "0.4"

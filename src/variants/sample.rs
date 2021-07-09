@@ -19,8 +19,8 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
 use crate::variants::evidence::observation::{
-    self, major_read_position, major_indel_operations, IndelOperations, Observable,
-    Observation, ReadPosition,
+    self, major_indel_operations, major_read_position, IndelOperations, Observable, Observation,
+    ReadPosition,
 };
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
@@ -239,12 +239,7 @@ impl Sample {
         let major_indel_ops = major_indel_operations(&observations);
         Ok(observations
             .iter()
-            .map(|obs| {
-                obs.process(
-                    major_pos,
-                    major_indel_ops.as_ref(),
-                )
-            })
+            .map(|obs| obs.process(major_pos, major_indel_ops.as_ref()))
             .collect())
     }
 }

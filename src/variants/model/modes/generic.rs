@@ -279,7 +279,7 @@ impl Posterior for GenericPosterior {
                 .collect_vec(),
         );
 
-        // dbg!((event, p));
+        //dbg!((event, p));
         // for bias in event.biases.iter() {
         //     dbg!((
         //         bias,

@@ -11,8 +11,8 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
-use bio::stats::LogProb;
 use bio::alignment::AlignmentOperation;
+use bio::stats::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 use rust_htslib::bam;
@@ -269,7 +269,9 @@ impl Observation<Option<u32>, Vec<AlignmentOperation>> {
                         IndelOperations::Other
                     }
                 } else {
-                    unreachable!("bug: obs has indel operations but no major indel operations recorded")
+                    unreachable!(
+                        "bug: obs has indel operations but no major indel operations recorded"
+                    )
                 }
             },
         }
@@ -313,7 +315,9 @@ impl<P: Clone, I: Clone> Observation<P, I> {
     }
 }
 
-pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>, Vec<AlignmentOperation>>]) -> Option<u32> {
+pub(crate) fn major_read_position(
+    pileup: &[Observation<Option<u32>, Vec<AlignmentOperation>>],
+) -> Option<u32> {
     let counter: Counter<_> = pileup.iter().filter_map(|obs| obs.read_position).collect();
     let most_common = counter.most_common();
     if most_common.is_empty() {
