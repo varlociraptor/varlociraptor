@@ -196,7 +196,7 @@ impl<'a> EmissionParameters for SnvEmissionParams<'a> {
     }
 }
 
-impl<'a> bio::stats::pairhmm::Emission for SNVEmissionParams<'a> {
+impl<'a> bio::stats::pairhmm::Emission for SnvEmissionParams<'a> {
     #[inline]
     fn emission_x(&self, i: usize) -> u8 {
         self.ref_base(i)
