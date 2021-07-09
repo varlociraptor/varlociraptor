@@ -32,10 +32,10 @@ pub(crate) use deletion::Deletion;
 pub(crate) use duplication::Duplication;
 pub(crate) use insertion::Insertion;
 pub(crate) use inversion::Inversion;
-pub(crate) use mnv::MNV;
+pub(crate) use mnv::Mnv;
 pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
-pub(crate) use snv::SNV;
+pub(crate) use snv::Snv;
 
 #[derive(Debug, CopyGetters, Builder)]
 #[getset(get_copy = "pub")]

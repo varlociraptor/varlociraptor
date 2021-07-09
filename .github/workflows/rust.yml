@@ -35,6 +35,8 @@ jobs:
           toolchain: stable
           override: true
           components: clippy
+      
+      - uses: Swatinem/rust-cache@v1.3.0
 
       - name: Lint with clippy
         uses: actions-rs/clippy-check@v1
@@ -60,13 +62,7 @@ jobs:
         run: |
             sudo apt-get install --yes libgsl0-dev zlib1g-dev samtools
 
-      - uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: Swatinem/rust-cache@v1.3.0
 
       - name: Run cargo test
         uses: actions-rs/cargo@v1

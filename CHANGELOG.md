@@ -2,6 +2,34 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.0.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.0.0...v4.0.1) (2021-07-07)
+
+
+### Bug Fixes
+
+* testcase 71 sometimes fails because formula normalization via BDD is not deterministic ([#187](https://www.github.com/varlociraptor/varlociraptor/issues/187)) ([bdeddcc](https://www.github.com/varlociraptor/varlociraptor/commit/bdeddcc7594e49ebea4812e13303686fbec6ef69))
+
+## [4.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v3.5.0...v4.0.0) (2021-07-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* Rename estimate tmb subcommand into estimate mutational-burden (#182)
+
+### Features
+
+* release automation ([b6cc00f](https://www.github.com/varlociraptor/varlociraptor/commit/b6cc00ff5cc77c2760e12891540f36c326ca0c1b))
+* improved formula simplification, detection of overlapping events ([#177](https://www.github.com/varlociraptor/varlociraptor/issues/177)) ([7e875a5](https://www.github.com/varlociraptor/varlociraptor/commit/7e875a5ff4a4afee9b690dd5ea05d6bee762ac47))
+
+### Code Refactoring
+
+* Rename estimate tmb subcommand into estimate mutational-burden ([#182](https://www.github.com/varlociraptor/varlociraptor/issues/182)) ([9fa5a1f](https://www.github.com/varlociraptor/varlociraptor/commit/9fa5a1f6cb58d37c9fdf5c235ae035cf096b10a0))
+
+## [3.5.0] - 2021-07-02
+- Improvements to SNV and MNV calling: in case of reads with indels, perform a realignment to properly assess evidences (@johanneskoester).
+- Improved error messages (@johanneskoester).
+- Add subcommand for scatterplotting VAFs between multiple samples (@jafors).
+
 ## [3.4.0] - 2021-05-25
 - Allow to control local instead of global FDR (`varlociraptor filter-calls control-fdr --local`).
 - Allow to configure mutation rate reduction factors for MNVs, Indels, and SVs.

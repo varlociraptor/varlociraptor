@@ -107,7 +107,6 @@ impl ops::BitOrAssign for Strand {
             *self = rhs;
         } else if let Strand::None = rhs {
             // no new information
-            return;
         } else if *self != rhs {
             *self = Strand::Both;
         }

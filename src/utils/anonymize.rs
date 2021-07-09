@@ -15,7 +15,7 @@ impl Anonymizer {
         let mut alphabet = b"ACGT".to_owned();
         alphabet.shuffle(&mut thread_rng());
         let mut replacements = HashMap::new();
-        for (base, repl) in b"ACGT".into_iter().zip(&alphabet) {
+        for (base, repl) in b"ACGT".iter().zip(&alphabet) {
             replacements.insert(*base, *repl);
         }
         replacements.insert(b'N', b'N');

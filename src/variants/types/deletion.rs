@@ -113,11 +113,9 @@ impl<R: Realigner> SamplingBias for Deletion<R> {
                 }
             }
         }
-        if let Some(maxfrac) = alignment_properties.frac_max_softclip {
-            Some((read_len as f64 * maxfrac) as u64)
-        } else {
-            None
-        }
+        alignment_properties
+            .frac_max_softclip
+            .map(|maxfrac| (read_len as f64 * maxfrac) as u64)
     }
 
     fn enclosable_len(&self) -> Option<u64> {
@@ -187,14 +185,12 @@ impl<R: Realigner> Variant for Deletion<R> {
                     } else {
                         None
                     }
+                } else if !self.locus.overlap(left, true).is_none()
+                    || !self.locus.overlap(right, true).is_none()
+                {
+                    Some(vec![0])
                 } else {
-                    if !self.locus.overlap(left, true).is_none()
-                        || !self.locus.overlap(right, true).is_none()
-                    {
-                        Some(vec![0])
-                    } else {
-                        None
-                    }
+                    None
                 }
             }
         }

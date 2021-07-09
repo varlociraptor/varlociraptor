@@ -290,27 +290,22 @@ pub enum PlotKind {
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum EstimateKind {
     #[structopt(
-        name = "tmb",
-        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated \
-                 with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT. \
+        name = "mutational-burden",
+        about = "Estimate mutational burden. Takes Varlociraptor calls (must be annotated \
+                 with e.g. VEP but using ANN instead of CSQ) from STDIN, prints mutational burden estimate in Vega-lite JSON format to STDOUT. \
                  It can be converted to an image via vega-lite-cli (see conda package).",
-        usage = "varlociraptor estimate tmb --coding-genome-size 3e7 --somatic-tumor-events SOMATIC_TUMOR \
-                 --tumor-sample tumor < calls.bcf | vg2svg > tmb.svg",
+        usage = "varlociraptor estimate mutational-burden --coding-genome-size 3e7 --events SOMATIC_TUMOR \
+                 --sample tumor < calls.bcf | vg2svg > tmb.svg",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
-    TMB {
+    MutationalBurden {
+        #[structopt(long = "events", help = "Events to consider (e.g. SOMATIC_TUMOR).")]
+        events: Vec<String>,
         #[structopt(
-            long = "somatic-tumor-events",
-            default_value = "SOMATIC_TUMOR",
-            help = "Events to consider (e.g. SOMATIC_TUMOR)."
+            long = "sample",
+            help = "Name(s) of the sample(s) in the given VCF/BCF. Multiple samples can be given when using the multibar plot mode."
         )]
-        somatic_tumor_events: Vec<String>,
-        #[structopt(
-            long = "tumor-sample",
-            default_value = "tumor",
-            help = "Name(s) of the tumor sample(s) in the given VCF/BCF. Multiple samples can be given when using the multibar plot mode."
-        )]
-        tumor_sample: Vec<String>,
+        sample: Vec<String>,
         #[structopt(
             long = "coding-genome-size",
             default_value = "3e7",
@@ -319,10 +314,10 @@ pub enum EstimateKind {
         coding_genome_size: f64,
         #[structopt(
             long = "plot-mode",
-            possible_values = &estimation::tumor_mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec(),
+            possible_values = &estimation::mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec(),
             help = "How to plot (as stratified curve, histogram or multi-sample barplot)."
         )]
-        mode: estimation::tumor_mutational_burden::PlotMode,
+        mode: estimation::mutational_burden::PlotMode,
         #[structopt(
             long = "vaf-cutoff",
             default_value = "0.2",
@@ -803,9 +798,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 scenario
                                     .species()
                                     .as_ref()
-                                    .map_or(None, |species| *species.genome_size()),
+                                    .and_then(|species| *species.genome_size()),
                             )
-                            .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
+                            .heterozygosity(scenario.species().as_ref().and_then(|species| {
                                 species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                             }))
                             .variant_type_fractions(scenario.variant_type_fractions())
@@ -849,7 +844,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         let options = calling::variants::preprocessing::read_preprocess_options(obspath)?;
                                         let preprocess_input = options.preprocess_input();
                                         testcase_builder = testcase_builder.register_sample(
-                                            &sample_name,
+                                            sample_name,
                                             preprocess_input.bam,
                                             options,
                                         )?;
@@ -1023,15 +1018,15 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             conversion::decode_phred::decode_phred()?;
         }
         Varlociraptor::Estimate { kind } => match kind {
-            EstimateKind::TMB {
-                somatic_tumor_events,
-                tumor_sample,
+            EstimateKind::MutationalBurden {
+                events,
+                sample,
                 coding_genome_size,
                 mode,
                 cutoff,
-            } => estimation::tumor_mutational_burden::collect_estimates(
-                &somatic_tumor_events,
-                &tumor_sample,
+            } => estimation::mutational_burden::collect_estimates(
+                &events,
+                &sample,
                 coding_genome_size as u64,
                 mode,
                 cutoff as f64,
@@ -1073,9 +1068,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         scenario
                             .species()
                             .as_ref()
-                            .map_or(None, |species| *species.genome_size()),
+                            .and_then(|species| *species.genome_size()),
                     )
-                    .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
+                    .heterozygosity(scenario.species().as_ref().and_then(|species| {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
                     .build();

@@ -14,7 +14,7 @@ use crate::variants::model::{bias::Biases, AlleleFreq, Contamination, VariantTyp
 use crate::variants::sample::Pileup;
 
 #[derive(new, Clone, Debug)]
-pub(crate) struct SNV {
+pub(crate) struct Snv {
     refbase: u8,
     altbase: u8,
 }
@@ -23,7 +23,7 @@ pub(crate) struct SNV {
 #[get = "pub"]
 pub(crate) struct Data {
     pileups: Vec<Pileup>,
-    snv: Option<SNV>,
+    snv: Option<Snv>,
 }
 
 impl Data {
@@ -213,7 +213,7 @@ impl GenericPosterior {
                 refbase: given_refbase,
                 altbase: given_altbase,
             } => {
-                if let Some(SNV { refbase, altbase }) = data.snv {
+                if let Some(Snv { refbase, altbase }) = data.snv {
                     let contains =
                         given_refbase.contains(refbase) && given_altbase.contains(altbase);
                     if (*positive && !contains) || (!*positive && contains) {
@@ -260,7 +260,7 @@ impl Posterior for GenericPosterior {
                 && bias.is_informative(&data.pileups)
                 && bias.is_likely(&data.pileups)
         });
-        let p = LogProb::ln_sum_exp(
+        LogProb::ln_sum_exp(
             &possible_biases
                 .cartesian_product(vaf_tree)
                 .map(|(biases, node)| {
@@ -276,9 +276,7 @@ impl Posterior for GenericPosterior {
                         )
                 })
                 .collect_vec(),
-        );
-
-        p
+        )
     }
 }
 

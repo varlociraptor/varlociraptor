@@ -1,6 +1,6 @@
 [package]
 name = "varlociraptor"
-version = "3.4.1-alpha.0"
+version = "4.0.1"
 authors = ["Johannes Köster <johannes.koester@tu-dortmund.de>", "David Lähnemann <david.laehnemann@uni-duesseldorf.de>"]
 description = "A library for calling of genomic variants using a latent variable model."
 repository = "https://github.com/varlociraptor/varlociraptor"
@@ -70,6 +70,7 @@ ring = "0.16"
 data-encoding = "2.3"
 boolean_expression = "0.4"
 uuid = { version = "0.8", features = ["v4"] }
+auto_ops = "0.3.0"
 
 [dev-dependencies]
 env_logger = "0.3"

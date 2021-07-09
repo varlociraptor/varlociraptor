@@ -252,12 +252,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 .unwrap();
 
                 let chrom_seq = self.reference_buffer.seq(&work_item.chrom)?;
-                let pileup = self.process_variant(&variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
+                let pileup = self.process_variant(variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
                 // add variant information
                 call.variant = Some(
                     VariantBuilder::default()
-                        .variant(&variant, work_item.start as usize, Some(chrom_seq.as_ref()))
+                        .variant(variant, work_item.start as usize, Some(chrom_seq.as_ref()))
                         .observations(Some(pileup))
                         .build()
                         .unwrap(),
@@ -331,13 +331,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let start = work_item.start as usize;
 
         Ok(Some(match variant {
-            model::Variant::SNV(alt) => sample.extract_observations(&variants::types::SNV::new(
+            model::Variant::Snv(alt) => sample.extract_observations(&variants::types::Snv::new(
                 locus(),
                 self.reference_buffer.seq(&work_item.chrom)?[start],
                 *alt,
                 self.realigner.clone(),
             ))?,
-            model::Variant::MNV(alt) => sample.extract_observations(&variants::types::MNV::new(
+            model::Variant::Mnv(alt) => sample.extract_observations(&variants::types::Mnv::new(
                 locus(),
                 self.reference_buffer.seq(&work_item.chrom)?[start..start + alt.len()].to_owned(),
                 alt.to_owned(),
