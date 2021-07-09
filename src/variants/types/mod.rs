@@ -71,14 +71,12 @@ impl AlleleSupport {
         if self.strand == Strand::None {
             self.strand = other.strand;
             self.indel_operations = other.indel_operations.clone();
-        } else {
-            if other.strand != Strand::None {
-                if self.strand != other.strand {
-                    self.strand = Strand::Both;
-                }
-                self.indel_operations
-                    .extend(other.indel_operations.iter().cloned())
+        } else if other.strand != Strand::None {
+            if self.strand != other.strand {
+                self.strand = Strand::Both;
             }
+            self.indel_operations
+                .extend(other.indel_operations.iter().cloned())
         }
 
         self

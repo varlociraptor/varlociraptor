@@ -135,7 +135,7 @@ impl EditDistanceCalculation {
                         .operations()
                         .iter()
                         .filter_map(|op| match op {
-                            AlignmentOperation::Del | AlignmentOperation::Ins => Some(op.clone()),
+                            AlignmentOperation::Del | AlignmentOperation::Ins => Some(*op),
                             _ => None,
                         })
                         .collect_vec()

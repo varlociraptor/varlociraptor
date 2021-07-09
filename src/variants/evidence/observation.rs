@@ -261,18 +261,14 @@ impl Observation<Option<u32>, Vec<AlignmentOperation>> {
             }),
             indel_operations: if self.indel_operations.is_empty() {
                 IndelOperations::None
-            } else {
-                if let Some(major_indel_operations) = major_indel_operations {
-                    if self.indel_operations == *major_indel_operations {
-                        IndelOperations::Major
-                    } else {
-                        IndelOperations::Other
-                    }
+            } else if let Some(major_indel_operations) = major_indel_operations {
+                if self.indel_operations == *major_indel_operations {
+                    IndelOperations::Major
                 } else {
-                    unreachable!(
-                        "bug: obs has indel operations but no major indel operations recorded"
-                    )
+                    IndelOperations::Other
                 }
+            } else {
+                unreachable!("bug: obs has indel operations but no major indel operations recorded")
             },
         }
     }
