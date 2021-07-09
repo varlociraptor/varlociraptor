@@ -90,16 +90,6 @@ pub(crate) fn contains_indel_op(record: &bam::Record) -> bool {
         .any(|op| matches!(op, Cigar::Ins(_) | Cigar::Del(_)))
 }
 
-pub(crate) fn indel_ops(record: &bam::Record) -> Vec<Cigar> {
-    record
-        .cigar_cached()
-        .expect("bug: cigar accessed before caching")
-        .iter()
-        .filter(|op| matches!(op, Cigar::Ins(_) | Cigar::Del(_)))
-        .cloned()
-        .collect()
-}
-
 #[derive(new, Getters, CopyGetters, Debug)]
 pub(crate) struct GenomicLocus {
     #[getset(get = "pub")]

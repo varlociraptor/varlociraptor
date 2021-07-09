@@ -117,8 +117,8 @@ where
               O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
               X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
-              I denoting indel operations in the respective alignments (I = primary, most observed indel operation, \
-              i = secondary indel operation, d = other diverse indel operations, . = no indel or irrelevant for variant). \
+              I denoting indel operations in the respective alignments (* = primary, most observed indel operation, \
+              # = other diverse indel operations, . = no indel or information irrelevant for variant type). \
               Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \

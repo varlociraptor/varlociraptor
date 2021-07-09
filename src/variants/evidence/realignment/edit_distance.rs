@@ -7,6 +7,7 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 
+use itertools::Itertools;
 use bio::alignment::AlignmentOperation;
 use bio::pattern_matching::myers::{self, long};
 use bio::stats::pairhmm;
@@ -125,11 +126,28 @@ impl EditDistanceCalculation {
                 alignments.last().unwrap().start() + self.read_seq_len + best_dist as usize,
                 emission_params.len_x(),
             );
+
+            // METHOD: obtain indel operations for divindel bias
+            let best_indel_operations = alignments
+                .iter()
+                .map(|alignment| {
+                    alignment
+                        .operations()
+                        .iter()
+                        .filter_map(|op| match op {
+                            AlignmentOperation::Del | AlignmentOperation::Ins => Some(op.clone()),
+                            _ => None,
+                        })
+                        .collect_vec()
+                })
+                .min_by_key(|indels| indels.len()).unwrap();
+
             Some(EditDistanceHit {
                 start,
                 end,
                 dist: best_dist,
                 alignments,
+                best_indel_operations,
             })
         }
     }
@@ -153,6 +171,8 @@ pub(crate) struct EditDistanceHit {
     dist: usize,
     #[getset(get = "pub(crate)")]
     alignments: Vec<Alignment>,
+    #[getset(get = "pub(crate)")]
+    best_indel_operations: Vec<AlignmentOperation>,
 }
 
 impl EditDistanceHit {

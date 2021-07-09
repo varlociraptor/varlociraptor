@@ -178,7 +178,7 @@ impl Call {
                     i,
                     match sample_info.biases.divindel_bias() {
                         DivIndelBias::None => b'.',
-                        DivIndelBias::Some { .. } => b'd',
+                        DivIndelBias::Some { .. } => b'#',
                     },
                 );
 
@@ -217,9 +217,8 @@ impl Call {
                                 },
                                 if obs.softclipped { '$' } else { '.' },
                                 match obs.indel_operations {
-                                    IndelOperations::Primary => 'I',
-                                    IndelOperations::Secondary => 'i',
-                                    IndelOperations::Other => 'd',
+                                    IndelOperations::Major => '*',
+                                    IndelOperations::Other => '#',
                                     IndelOperations::None => '.',
                                 },
                             )

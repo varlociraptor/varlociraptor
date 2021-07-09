@@ -8,8 +8,9 @@ use std::rc::Rc;
 
 use anyhow::Result;
 use bio::stats::{LogProb, PHREDProb};
+use bio::alignment::AlignmentOperation;
 use bio_types::genome::{self, AbstractInterval};
-use rust_htslib::bam::{self, record::Cigar};
+use rust_htslib::bam;
 use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -50,7 +51,7 @@ pub(crate) struct AlleleSupport {
     read_position: Option<u32>,
     #[builder(default)]
     #[getset(get = "pub")]
-    indel_operations: Vec<Cigar>,
+    indel_operations: Vec<AlignmentOperation>,
 }
 
 impl AlleleSupport {

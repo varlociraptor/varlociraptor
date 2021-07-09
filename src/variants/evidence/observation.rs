@@ -12,9 +12,10 @@ use std::str;
 
 use anyhow::Result;
 use bio::stats::LogProb;
+use bio::alignment::AlignmentOperation;
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
-use rust_htslib::{bam, bam::record::Cigar};
+use rust_htslib::bam;
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -127,8 +128,7 @@ impl Default for ReadPosition {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum IndelOperations {
-    Primary,
-    Secondary,
+    Major,
     Other,
     None,
 }
@@ -171,7 +171,7 @@ pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairO
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default)]
-pub(crate) struct Observation<P = Option<u32>, I = Vec<Cigar>>
+pub(crate) struct Observation<P = Option<u32>, I = Vec<AlignmentOperation>>
 where
     P: Clone,
 {
@@ -226,12 +226,11 @@ impl<P: Clone, I: Clone> ObservationBuilder<P, I> {
     }
 }
 
-impl Observation<Option<u32>, Vec<Cigar>> {
+impl Observation<Option<u32>, Vec<AlignmentOperation>> {
     pub(crate) fn process(
         &self,
         major_read_position: Option<u32>,
-        primary_indel_operations: Option<&Vec<Cigar>>,
-        secondary_indel_operations: Option<&Vec<Cigar>>,
+        major_indel_operations: Option<&Vec<AlignmentOperation>>,
     ) -> Observation<ReadPosition, IndelOperations> {
         Observation {
             prob_mapping: self.prob_mapping,
@@ -263,26 +262,14 @@ impl Observation<Option<u32>, Vec<Cigar>> {
             indel_operations: if self.indel_operations.is_empty() {
                 IndelOperations::None
             } else {
-                match (primary_indel_operations, secondary_indel_operations) {
-                    (Some(primary_indel_operations), Some(secondary_indel_operations)) => {
-                        if self.indel_operations == *primary_indel_operations {
-                            IndelOperations::Primary
-                        } else if self.indel_operations == *secondary_indel_operations {
-                            IndelOperations::Secondary
-                        } else {
-                            IndelOperations::Other
-                        }
+                if let Some(major_indel_operations) = major_indel_operations {
+                    if self.indel_operations == *major_indel_operations {
+                        IndelOperations::Major
+                    } else {
+                        IndelOperations::Other
                     }
-                    (Some(primary_indel_operations), None) => {
-                        if self.indel_operations == *primary_indel_operations {
-                            IndelOperations::Primary
-                        } else {
-                            IndelOperations::Other
-                        }
-                    }
-                    (None, _) => {
-                        panic!("bug: impossible to have no primary indel operations but operations given in the current observation");
-                    }
+                } else {
+                    unreachable!("bug: obs has indel operations but no major indel operations recorded")
                 }
             },
         }
@@ -326,7 +313,7 @@ impl<P: Clone, I: Clone> Observation<P, I> {
     }
 }
 
-pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>, Vec<Cigar>>]) -> Option<u32> {
+pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>, Vec<AlignmentOperation>>]) -> Option<u32> {
     let counter: Counter<_> = pileup.iter().filter_map(|obs| obs.read_position).collect();
     let most_common = counter.most_common();
     if most_common.is_empty() {
@@ -336,9 +323,9 @@ pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>, Vec<Cigar>>
     }
 }
 
-pub(crate) fn most_common_indel_operations(
-    pileup: &[Observation<Option<u32>, Vec<Cigar>>],
-) -> Vec<Vec<Cigar>> {
+pub(crate) fn major_indel_operations(
+    pileup: &[Observation<Option<u32>, Vec<AlignmentOperation>>],
+) -> Option<Vec<AlignmentOperation>> {
     let counter: Counter<_> = pileup
         .iter()
         .filter_map(|obs| {
@@ -349,11 +336,12 @@ pub(crate) fn most_common_indel_operations(
             }
         })
         .collect();
-    counter
-        .most_common()
-        .into_iter()
-        .map(|(ops, _)| ops)
-        .collect()
+    let most_common = counter.most_common();
+    if most_common.is_empty() {
+        None
+    } else {
+        Some(most_common[0].0.clone())
+    }
 }
 
 impl Serialize for Observation {

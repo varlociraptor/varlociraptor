@@ -19,7 +19,7 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
 use crate::variants::evidence::observation::{
-    self, major_read_position, most_common_indel_operations, IndelOperations, Observable,
+    self, major_read_position, major_indel_operations, IndelOperations, Observable,
     Observation, ReadPosition,
 };
 use crate::variants::model::VariantType;
@@ -236,14 +236,13 @@ impl Sample {
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
-        let most_common_indel_operations = most_common_indel_operations(&observations);
+        let major_indel_ops = major_indel_operations(&observations);
         Ok(observations
             .iter()
             .map(|obs| {
                 obs.process(
                     major_pos,
-                    most_common_indel_operations.get(0),
-                    most_common_indel_operations.get(1),
+                    major_indel_ops.as_ref(),
                 )
             })
             .collect())
