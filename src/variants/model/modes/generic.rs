@@ -260,6 +260,7 @@ impl Posterior for GenericPosterior {
                 && bias.is_informative(&data.pileups)
                 && bias.is_likely(&data.pileups)
         });
+
         LogProb::ln_sum_exp(
             &possible_biases
                 .cartesian_product(vaf_tree)

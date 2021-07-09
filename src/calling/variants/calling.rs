@@ -19,7 +19,7 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
 use crate::variants::model;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
@@ -45,6 +45,8 @@ where
     omit_read_orientation_bias: bool,
     omit_read_position_bias: bool,
     omit_softclip_bias: bool,
+    omit_divindel_bias: bool,
+    min_divindel_other_rate: f64,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -94,7 +96,8 @@ where
         header.push_record(
             b"##INFO=<ID=PROB_ARTIFACT,Number=A,Type=Float,\
              Description=\"Posterior probability for any artifact, indicated by strand, read position, \
-             read orientation, or softclip bias (PHRED).\">",
+             read orientation, softclip bias, or divindel bias (PHRED). See the bias specific records below for \
+             an explanation for each type of bias.\">",
         );
         header.push_record(
             b"##INFO=<ID=PROB_ABSENT,Number=A,Type=Float,\
@@ -108,12 +111,14 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBTSOPX, with C being a count, \
+              Description=\"Summary of observations. Each entry is encoded as CBTSOPXI, with C being a count, \
               B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
               as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
               O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
-              and X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip). \
+              X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
+              I denoting indel operations in the respective alignments (* = primary, most observed indel operation, \
+              # = other diverse indel operations, . = no indel or information irrelevant for variant type). \
               Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
@@ -165,6 +170,14 @@ where
               same haplotype as e.g. an SNV should not cause a softclip bias, because there will usually \
               still be reads that do not reach the SV, thereby providing evidence against a softclip \
               bias. Probability for softclip bias is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=DIB,Number=A,Type=String,\
+              Description=\"Divindel bias estimate: # indicates that ALT allele is associated with \
+              with indel operations of varying length, . indicates that there is no divindel bias.
+              Divindel bias is indicative of systematic PCR amplification errors, e.g. induced by \
+              homopolymers. Probability for divindel bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
         );
 
@@ -308,6 +321,7 @@ where
                 work_item.check_strand_bias,
                 work_item.check_read_position_bias,
                 work_item.check_softclip_bias,
+                work_item.check_divindel_bias,
             )?;
 
             self.call_record(&mut work_item, _model, &events);
@@ -395,6 +409,7 @@ where
             check_strand_bias: !self.omit_strand_bias,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias,
+            check_divindel_bias: !self.omit_divindel_bias,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -447,6 +462,7 @@ where
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
         consider_softclip_bias: bool,
+        consider_divindel_bias: bool,
     ) -> Result<()> {
         if !rid.map_or(false, |rid: u32| current_rid == rid) {
             // rid is not the same as before, obtain event universe
@@ -473,6 +489,8 @@ where
                     consider_strand_bias,
                     consider_read_position_bias,
                     consider_softclip_bias,
+                    consider_divindel_bias,
+                    self.min_divindel_other_rate,
                 )
                 .collect();
                 if !biases.is_empty() {
@@ -536,6 +554,16 @@ where
                 work_item.snv.clone(),
             );
 
+            let mut event_universe: Vec<_> = event_universe.to_vec();
+            for event in &mut event_universe {
+                // METHOD: learn parameters for each bias (if necessary).
+                // By this, we can avoid marginalization of them, which is
+                // unnecessarily expensive.
+                for bias in &mut event.biases {
+                    bias.learn_parameters(data.pileups());
+                }
+            }
+
             // Compute probabilities for given events.
             let m = model.compute(event_universe.iter().cloned(), &data);
 
@@ -551,54 +579,34 @@ where
                     }
                 })
                 .collect();
+
             // generate artifact event
-            event_probs.insert(
-                "artifact".to_owned(),
-                LogProb::ln_sum_exp(
-                    &event_universe
-                        .iter()
-                        .filter_map(|event| {
-                            if event.is_artifact() {
-                                let p = m.posterior(event).unwrap();
-                                Some(p)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect_vec(),
-                ),
+            let prob_artifact = LogProb::ln_sum_exp(
+                &event_universe
+                    .iter()
+                    .filter_map(|event| {
+                        if event.is_artifact() {
+                            let p = m.posterior(event).unwrap();
+                            Some(p)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect_vec(),
             );
+
+            event_probs.insert("artifact".to_owned(), prob_artifact);
+
+            let is_artifact = event_probs
+                .iter()
+                .all(|(event, prob)| event == "artifact" || *prob < prob_artifact);
+
             work_item.variant_builder.event_probs(Some(event_probs));
 
             // add sample specific information
-            work_item.variant_builder.sample_info(
-                if let Some(map_estimates) = m.maximum_posterior() {
-                    data.into_pileups()
-                        .into_iter()
-                        .zip(map_estimates.iter())
-                        .map(|(pileup, estimate)| {
-                            let mut sample_builder = SampleInfoBuilder::default();
-                            sample_builder.observations(pileup);
-                            match estimate {
-                                model::likelihood::Event { biases, .. } if biases.is_artifact() => {
-                                    sample_builder
-                                        .allelefreq_estimate(AlleleFreq(0.0))
-                                        .biases(biases.clone());
-                                }
-                                model::likelihood::Event { allele_freq, .. } => {
-                                    sample_builder
-                                        .allelefreq_estimate(*allele_freq)
-                                        .biases(Biases::none());
-                                }
-                            };
-                            Some(sample_builder.build().unwrap())
-                        })
-                        .collect_vec()
-                } else {
-                    // no observations
-                    vec![None; data.into_pileups().len()]
-                },
-            );
+            work_item
+                .variant_builder
+                .sample_info(self.sample_infos(&m, is_artifact, data));
         } else {
             unreachable!();
         }
@@ -623,6 +631,50 @@ where
 
         work_item.call.variant = Some(variant);
     }
+
+    fn sample_infos(
+        &self,
+        model_instance: &bayesian::model::ModelInstance<AlleleFreqCombination, model::Event>,
+        is_artifact: bool,
+        data: model::modes::generic::Data,
+    ) -> Vec<Option<SampleInfo>> {
+        for (map_estimates, _) in model_instance.event_posteriors() {
+            if map_estimates
+                .iter()
+                .any(|estimate| estimate.biases.is_artifact())
+                && !is_artifact
+            {
+                // METHOD: skip MAP that is an artifact if the overall artifact event is not the strongest one.
+                // This ensures consistency between the events and the per sample MAPs.
+                continue;
+            }
+            return data
+                .into_pileups()
+                .into_iter()
+                .zip(map_estimates.iter())
+                .map(|(pileup, estimate)| {
+                    let mut sample_builder = SampleInfoBuilder::default();
+                    sample_builder.observations(pileup);
+                    match estimate {
+                        model::likelihood::Event { biases, .. } if biases.is_artifact() => {
+                            sample_builder
+                                .allelefreq_estimate(AlleleFreq(0.0))
+                                .biases(biases.clone());
+                        }
+                        model::likelihood::Event { allele_freq, .. } => {
+                            sample_builder
+                                .allelefreq_estimate(*allele_freq)
+                                .biases(Biases::none());
+                        }
+                    };
+                    Some(sample_builder.build().unwrap())
+                })
+                .collect_vec();
+        }
+
+        // no observations
+        vec![None; data.into_pileups().len()]
+    }
 }
 
 #[derive(Default)]
@@ -635,7 +687,7 @@ struct WorkItem {
     rid: u32,
     call: Call,
     variant_builder: VariantBuilder,
-    pileups: Option<Vec<Vec<Observation<ReadPosition>>>>,
+    pileups: Option<Vec<Vec<Observation<ReadPosition, IndelOperations>>>>,
     snv: Option<model::modes::generic::Snv>,
     bnd_event: Option<Vec<u8>>,
     index: usize,
@@ -643,4 +695,5 @@ struct WorkItem {
     check_strand_bias: bool,
     check_read_position_bias: bool,
     check_softclip_bias: bool,
+    check_divindel_bias: bool,
 }

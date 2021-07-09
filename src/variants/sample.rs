@@ -19,7 +19,8 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
 use crate::variants::evidence::observation::{
-    self, major_read_position, Observable, Observation, ReadPosition,
+    self, major_indel_operations, major_read_position, IndelOperations, Observable, Observation,
+    ReadPosition,
 };
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
@@ -126,7 +127,7 @@ impl Default for ProtocolStrandedness {
     }
 }
 
-pub(crate) type Pileup = Vec<Observation<ReadPosition>>;
+pub(crate) type Pileup = Vec<Observation<ReadPosition, IndelOperations>>;
 
 pub(crate) enum SubsampleCandidates {
     Necessary {
@@ -235,9 +236,10 @@ impl Sample {
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
+        let major_indel_ops = major_indel_operations(&observations);
         Ok(observations
             .iter()
-            .map(|obs| obs.process_read_position(major_pos))
+            .map(|obs| obs.process(major_pos, major_indel_ops.as_ref()))
             .collect())
     }
 }
