@@ -595,12 +595,11 @@ where
                     .collect_vec(),
             );
 
-            event_probs.insert(
-                "artifact".to_owned(),
-                prob_artifact,
-            );
+            event_probs.insert("artifact".to_owned(), prob_artifact);
 
-            let is_artifact = event_probs.iter().all(|(event, prob)| event == "artifact" || *prob < prob_artifact); 
+            let is_artifact = event_probs
+                .iter()
+                .all(|(event, prob)| event == "artifact" || *prob < prob_artifact);
 
             work_item.variant_builder.event_probs(Some(event_probs));
 
@@ -640,7 +639,11 @@ where
         data: model::modes::generic::Data,
     ) -> Vec<Option<SampleInfo>> {
         for (map_estimates, _) in model_instance.event_posteriors() {
-            if map_estimates.iter().any(|estimate| estimate.biases.is_artifact()) && !is_artifact {
+            if map_estimates
+                .iter()
+                .any(|estimate| estimate.biases.is_artifact())
+                && !is_artifact
+            {
                 // METHOD: skip MAP that is an artifact if the overall artifact event is not the strongest one.
                 // This ensures consistency between the events and the per sample MAPs.
                 continue;
