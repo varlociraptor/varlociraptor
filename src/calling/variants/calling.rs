@@ -579,29 +579,35 @@ where
                     }
                 })
                 .collect();
+
             // generate artifact event
+            let prob_artifact = LogProb::ln_sum_exp(
+                &event_universe
+                    .iter()
+                    .filter_map(|event| {
+                        if event.is_artifact() {
+                            let p = m.posterior(event).unwrap();
+                            Some(p)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect_vec(),
+            );
+
             event_probs.insert(
                 "artifact".to_owned(),
-                LogProb::ln_sum_exp(
-                    &event_universe
-                        .iter()
-                        .filter_map(|event| {
-                            if event.is_artifact() {
-                                let p = m.posterior(event).unwrap();
-                                Some(p)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect_vec(),
-                ),
+                prob_artifact,
             );
+
+            let is_artifact = event_probs.iter().all(|(event, prob)| event == "artifact" || *prob < prob_artifact); 
+
             work_item.variant_builder.event_probs(Some(event_probs));
 
             // add sample specific information
             work_item
                 .variant_builder
-                .sample_info(self.sample_infos(&m, &event_probs, &data));
+                .sample_info(self.sample_infos(&m, is_artifact, data));
         } else {
             unreachable!();
         }
@@ -629,14 +635,12 @@ where
 
     fn sample_infos(
         &self,
-        model_instance: &ModelInstance,
-        event_probs: &HashMap<String, LogProb>,
-        data: &model::modes::generic::Data,
+        model_instance: &bayesian::model::ModelInstance<AlleleFreqCombination, model::Event>,
+        is_artifact: bool,
+        data: model::modes::generic::Data,
     ) -> Vec<Option<SampleInfo>> {
-        let prob_artifact = event_probs.get("artifact");
-        let is_artifact = prob_artifact > prob_artifact.ln_one_minus_exp();
-        for map_estimates in m.event_posteriors() {
-            if map_estimates.iter().any(|estimate| estimate.is_artifact()) && !is_artifact {
+        for (map_estimates, _) in model_instance.event_posteriors() {
+            if map_estimates.iter().any(|estimate| estimate.biases.is_artifact()) && !is_artifact {
                 // METHOD: skip MAP that is an artifact if the overall artifact event is not the strongest one.
                 // This ensures consistency between the events and the per sample MAPs.
                 continue;
