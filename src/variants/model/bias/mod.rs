@@ -104,6 +104,7 @@ impl Biases {
         consider_read_position_bias: bool,
         consider_softclip_bias: bool,
         consider_divindel_bias: bool,
+        min_divindel_other_rate: f64,
     ) -> Box<dyn Iterator<Item = Self>> {
         if !consider_strand_bias
             && !consider_read_orientation_bias
@@ -135,7 +136,7 @@ impl Biases {
             vec![SoftclipBias::None]
         };
         let divindel_biases = if consider_divindel_bias {
-            DivIndelBias::values()
+            DivIndelBias::values(min_divindel_other_rate)
         } else {
             vec![DivIndelBias::None]
         };

@@ -234,6 +234,7 @@ pub(crate) trait Testcase {
                         omit_read_position_bias: self.omit_read_position_bias(),
                         omit_softclip_bias: self.omit_softclip_bias(),
                         omit_divindel_bias: self.omit_divindel_bias(),
+                        min_divindel_other_rate: 0.25,
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -270,6 +271,7 @@ pub(crate) trait Testcase {
                         omit_read_position_bias: self.omit_read_position_bias(),
                         omit_softclip_bias: self.omit_softclip_bias(),
                         omit_divindel_bias: self.omit_divindel_bias(),
+                        min_divindel_other_rate: 0.25,
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self

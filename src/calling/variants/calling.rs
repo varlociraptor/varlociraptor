@@ -46,6 +46,7 @@ where
     omit_read_position_bias: bool,
     omit_softclip_bias: bool,
     omit_divindel_bias: bool,
+    min_divindel_other_rate: f64,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -489,6 +490,7 @@ where
                     consider_read_position_bias,
                     consider_softclip_bias,
                     consider_divindel_bias,
+                    self.min_divindel_other_rate,
                 )
                 .collect();
                 if !biases.is_empty() {

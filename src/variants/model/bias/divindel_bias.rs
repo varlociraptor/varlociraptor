@@ -1,3 +1,5 @@
+use std::cmp;
+
 use bio::stats::probs::LogProb;
 use ordered_float::NotNan;
 
@@ -7,15 +9,19 @@ use crate::variants::model::bias::Bias;
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, Hash)]
 pub(crate) enum DivIndelBias {
     None,
-    Some { other_rate: NotNan<f64> },
+    Some {
+        other_rate: NotNan<f64>,
+        min_other_rate: NotNan<f64>,
+    },
 }
 
 impl DivIndelBias {
-    pub(crate) fn values() -> Vec<Self> {
+    pub(crate) fn values(min_other_rate: f64) -> Vec<Self> {
         vec![
             DivIndelBias::None,
             DivIndelBias::Some {
                 other_rate: NotNan::new(0.0).unwrap(),
+                min_other_rate: NotNan::new(min_other_rate).unwrap(),
             },
         ]
     }
@@ -34,7 +40,7 @@ impl Bias for DivIndelBias {
                 IndelOperations::Other => LogProb::ln_zero(),
                 _ => LogProb::ln_one(),
             },
-            DivIndelBias::Some { other_rate } => {
+            DivIndelBias::Some { other_rate, .. } => {
                 if **other_rate == 0.0 {
                     // METHOD: if there are no other operations than primary and secondary, there is no artifact.
                     LogProb::ln_zero()
@@ -82,7 +88,7 @@ impl Bias for DivIndelBias {
     }
 
     fn min_strong_evidence_ratio(&self) -> f64 {
-        if let DivIndelBias::Some { other_rate } = self {
+        if let DivIndelBias::Some { other_rate, .. } = self {
             0.66666 * **other_rate
         } else {
             unreachable!();
@@ -93,7 +99,11 @@ impl Bias for DivIndelBias {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
-        if let DivIndelBias::Some { ref mut other_rate } = self {
+        if let DivIndelBias::Some {
+            ref mut other_rate,
+            min_other_rate,
+        } = self
+        {
             let strong_all = pileups
                 .iter()
                 .map(|pileup| pileup.iter().filter(&Self::is_strong_obs))
@@ -109,11 +119,15 @@ impl Bias for DivIndelBias {
                 .flatten()
                 .count();
 
-            *other_rate = if strong_all > 0 {
-                NotNan::new(strong_other as f64 / strong_all as f64).unwrap()
-            } else {
-                NotNan::new(0.0).unwrap()
-            }
+            *other_rate = cmp::max(
+                NotNan::new(if strong_all > 0 {
+                    strong_other as f64 / strong_all as f64
+                } else {
+                    0.0
+                })
+                .unwrap(),
+                *min_other_rate,
+            );
         }
     }
 }
