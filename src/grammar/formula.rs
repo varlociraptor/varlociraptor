@@ -182,12 +182,8 @@ impl FormulaTerminal {
 impl std::fmt::Display for Formula {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let fmt_operand = |formula: &Formula| match formula {
-            Formula::Terminal(_) => {
-                format!("{}", formula)
-            }
-            Formula::Negation { operand } if operand.is_terminal() => {
-                format!("{}", formula)
-            }
+            Formula::Terminal(_) => format!("{}", formula),
+            Formula::Negation { operand } if operand.is_terminal() => format!("{}", formula),
             _ => format!("({})", formula),
         };
 
@@ -220,27 +216,21 @@ impl std::fmt::Display for Formula {
                 positive,
                 refbase,
                 altbase,
-            }) => {
-                format!(
-                    "{negate}({refbase}>{altbase})",
-                    negate = if *positive { "" } else { "!" },
-                    refbase = **refbase,
-                    altbase = **altbase,
-                )
-            }
+            }) => format!(
+                "{negate}({refbase}>{altbase})",
+                negate = if *positive { "" } else { "!" },
+                refbase = **refbase,
+                altbase = **altbase,
+            ),
             Formula::Terminal(FormulaTerminal::Expression {
                 identifier,
                 negated,
-            }) => {
-                format!(
-                    "{negate}${expr}",
-                    negate = if *negated { "!" } else { "" },
-                    expr = **identifier
-                )
-            }
-            Formula::Negation { operand } => {
-                format!("!{operand}", operand = fmt_operand(operand))
-            }
+            }) => format!(
+                "{negate}${expr}",
+                negate = if *negated { "!" } else { "" },
+                expr = **identifier
+            ),
+            Formula::Negation { operand } => format!("!{operand}", operand = fmt_operand(operand)),
             Formula::Conjunction { operands } => operands.iter().map(&fmt_operand).join(" & "),
             Formula::Disjunction { operands } => operands.iter().map(&fmt_operand).join(" | "),
         };
@@ -870,13 +860,11 @@ impl std::fmt::Display for NormalizedFormula {
                 vafs: VAFSpectrum::Set(vafs),
             } => match vafs.len() {
                 1 => format!("{}:{}", sample, vafs.iter().next().unwrap()),
-                x if x > 1 => {
-                    format!(
-                        "{}:{{{}}}",
-                        sample,
-                        vafs.iter().map(|vaf| format!("{:.1}", vaf)).join(", "),
-                    )
-                }
+                x if x > 1 => format!(
+                    "{}:{{{}}}",
+                    sample,
+                    vafs.iter().map(|vaf| format!("{:.1}", vaf)).join(", "),
+                ),
                 _ => "false".to_owned(),
             },
             NormalizedFormula::Atom {
@@ -894,14 +882,12 @@ impl std::fmt::Display for NormalizedFormula {
                 positive,
                 refbase,
                 altbase,
-            } => {
-                format!(
-                    "{negate}({refbase}>{altbase})",
-                    negate = if *positive { "" } else { "!" },
-                    refbase = **refbase,
-                    altbase = **altbase,
-                )
-            }
+            } => format!(
+                "{negate}({refbase}>{altbase})",
+                negate = if *positive { "" } else { "!" },
+                refbase = **refbase,
+                altbase = **altbase,
+            ),
             NormalizedFormula::Conjunction { operands } => {
                 operands.iter().map(&fmt_operand).join(" & ")
             }

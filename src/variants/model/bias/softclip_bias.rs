@@ -1,6 +1,6 @@
 use bio::stats::probs::LogProb;
 
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
@@ -16,7 +16,7 @@ impl Default for SoftclipBias {
 }
 
 impl Bias for SoftclipBias {
-    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
         match (self, observation.softclipped) {
             (SoftclipBias::Some, true) => LogProb::ln_one(),
             (SoftclipBias::Some, false) => LogProb::ln_zero(),
@@ -24,7 +24,7 @@ impl Bias for SoftclipBias {
         }
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_any(&self, _observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
         LogProb::ln_one()
     }
 
@@ -32,7 +32,7 @@ impl Bias for SoftclipBias {
         *self != SoftclipBias::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
         if !self.is_artifact() {
             return true;
         }

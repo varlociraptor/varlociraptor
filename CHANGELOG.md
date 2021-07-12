@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.1.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.0.1...v4.1.0) (2021-07-09)
+
+
+### Features
+
+* add divindel bias for detecting artifacts caused by diverging indels associated with the alt allele ([#189](https://www.github.com/varlociraptor/varlociraptor/issues/189)) ([5ab2620](https://www.github.com/varlociraptor/varlociraptor/commit/5ab2620fe2e0702a4ff57f54b7c5ce0251739e04))
+
 ### [4.0.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.0.0...v4.0.1) (2021-07-07)
 
 

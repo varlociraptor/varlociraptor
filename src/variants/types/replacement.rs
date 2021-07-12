@@ -78,6 +78,11 @@ impl<R: Realigner> Variant for Replacement<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
+    fn report_indel_operations(&self) -> bool {
+        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
+        true
+    }
+
     fn is_valid_evidence(
         &self,
         evidence: &Self::Evidence,

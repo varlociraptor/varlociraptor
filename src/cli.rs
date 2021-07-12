@@ -132,6 +132,10 @@ fn default_min_bam_refetch_distance() -> u64 {
     1
 }
 
+fn default_min_divindel_other_rate() -> f64 {
+    0.25
+}
+
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum PreprocessKind {
     #[structopt(
@@ -368,6 +372,27 @@ pub enum CallKind {
         )]
         #[serde(default)]
         omit_softclip_bias: bool,
+        #[structopt(
+            long = "omit-divindel-bias",
+            help = "Do not consider divindel bias when calculating the probability of an \
+                    artifact. Divindel bias is used to detect PCR homopolymer artifacts. \
+                    If you are sure that your protocol did not use any PCR or if you are \
+                    running on data with lots of homopolymer errors from the sequencer (e.g. nanopore) \
+                    you should use this flag to omit divindel bias consideration."
+        )]
+        #[serde(default)]
+        omit_divindel_bias: bool,
+        #[structopt(
+            long = "min-divindel-rate",
+            default_value = "0.25",
+            help = "Minimum fraction of indel operations other than the primary and secondary combination \
+                    of indel operations associated with a variant allele. The smaller this value is chosen, \
+                    the more agressive will Varlociraptor be when marking a variant as being a divindel artifact \
+                    (i.e., an artifact induced by various (slightly) different indels as it occurs in homopolymer \
+                    runs that give rise to PCR errors)."
+        )]
+        #[serde(default = "default_min_divindel_other_rate")]
+        min_divindel_other_rate: f64,
         #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
@@ -735,6 +760,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_read_orientation_bias,
                     omit_read_position_bias,
                     omit_softclip_bias,
+                    omit_divindel_bias,
+                    min_divindel_other_rate,
                     testcase_locus,
                     testcase_prefix,
                     testcase_anonymous,
@@ -814,6 +841,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .omit_read_orientation_bias(omit_read_orientation_bias)
                             .omit_read_position_bias(omit_read_position_bias)
                             .omit_softclip_bias(omit_softclip_bias)
+                            .omit_divindel_bias(omit_divindel_bias)
+                            .min_divindel_other_rate(min_divindel_other_rate)
                             .scenario(scenario)
                             .prior(prior)
                             .contaminations(sample_infos.contaminations)
