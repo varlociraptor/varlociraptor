@@ -863,7 +863,7 @@ impl std::fmt::Display for NormalizedFormula {
                 x if x > 1 => format!(
                     "{}:{{{}}}",
                     sample,
-                    vafs.iter().map(|vaf| format!("{:.1}", vaf)).join(", "),
+                    vafs.iter().map(|vaf| format!("{:.3}", vaf)).join(", "),
                 ),
                 _ => "false".to_owned(),
             },
@@ -874,7 +874,7 @@ impl std::fmt::Display for NormalizedFormula {
                 let left_bracket = if vafrange.left_exclusive { ']' } else { '[' };
                 let right_bracket = if vafrange.right_exclusive { '[' } else { ']' };
                 format!(
-                    "{}:{}{:.1},{:.1}{}",
+                    "{}:{}{:.3},{:.3}{}",
                     sample, left_bracket, vafrange.start, vafrange.end, right_bracket
                 )
             }
