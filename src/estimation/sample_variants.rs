@@ -10,31 +10,6 @@ use crate::errors;
 use crate::variants::model::AlleleFreq;
 use crate::{Event, SimpleEvent};
 
-/// Consider only variants in coding regions.
-/// We rely on the ANN field for this.
-fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool> {
-    for ann in rec
-        .info(b"ANN")
-        .string()?
-        .expect("ANN field not found. Annotate VCF with e.g. snpEff.")
-        .iter()
-    {
-        let mut coding = false;
-        for (i, entry) in ann.split(|c| *c == b'|').enumerate() {
-            if i == 7 {
-                coding = entry == b"protein_coding";
-            }
-            if i == 13 {
-                coding &= entry != b"";
-            }
-        }
-        if coding {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
 #[derive(Debug, Clone, Serialize)]
 struct Scattervaf {
     sample: String,
@@ -71,14 +46,6 @@ pub(crate) fn vaf_scatter(
         let mut rec = record.unwrap();
         let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
         let vcfpos = rec.pos() + 1;
-
-        if !is_valid_variant(&mut rec)? {
-            info!(
-                "Skipping variant {}:{} because it is not coding.",
-                contig, vcfpos
-            );
-            continue;
-        }
 
         // obtain VAF estimates (do it here already to work around a segfault in htslib)
         let x_vafs = rec.format(b"AF").float()?[id_x].to_owned();
