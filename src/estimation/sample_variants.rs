@@ -15,10 +15,7 @@ struct Scattervaf {
     tumor_vaf: f64,
 }
 
-pub(crate) fn vaf_scatter(
-    sample_x: &str,
-    sample_y: &[String],
-) -> Result<()> {
+pub(crate) fn vaf_scatter(sample_x: &str, sample_y: &[String]) -> Result<()> {
     let mut bcf = bcf::Reader::from_stdin()?;
 
     let mut plot_data = Vec::new();
