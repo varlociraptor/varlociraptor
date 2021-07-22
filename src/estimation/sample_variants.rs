@@ -43,7 +43,7 @@ pub(crate) fn vaf_scatter(
     }
 
     for record in bcf.records() {
-        let mut rec = record.unwrap();
+        let rec = record.unwrap();
         let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
         let vcfpos = rec.pos() + 1;
 
@@ -77,8 +77,8 @@ pub(crate) fn vaf_scatter(
             for (y, id_y) in &ids_y {
                 let y_vafs = rec.format(b"AF").float()?[*id_y].to_owned();
                 // if all alt_alleles are NaN, the list will only contain one NaN, so check for size
-                if (i == x_vafs.len() && x_vafs[0].is_nan())
-                    || (i == y_vafs.len() && y_vafs[0].is_nan())
+                if (i >= x_vafs.len() && x_vafs[0].is_nan())
+                    || (i >= y_vafs.len() && y_vafs[0].is_nan())
                 {
                     continue;
                 }
@@ -104,12 +104,12 @@ pub(crate) fn vaf_scatter(
     }
 
     let print_plot =
-        |data: serde_json::Value, ylabel: serde_json::Value, blueprint: &str| -> Result<()> {
+        |data: serde_json::Value, xlabel: serde_json::Value, blueprint: &str| -> Result<()> {
             let mut blueprint = serde_json::from_str(blueprint)?;
             if let Value::Object(ref mut blueprint) = blueprint {
                 blueprint["data"][0]["values"] = data;
-                //blueprint["axes"][0]["title"] = xlabel;
-                blueprint["axes"][1]["title"] = ylabel;
+                blueprint["axes"][0]["title"] = xlabel;
+                //blueprint["axes"][1]["title"] = ylabel;
                 // print to STDOUT
                 println!("{}", serde_json::to_string_pretty(blueprint)?);
                 Ok(())

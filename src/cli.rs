@@ -303,7 +303,7 @@ pub enum PlotKind {
         name = "scatter",
         about = "Plot variant allelic fraction scatter plot overlayed with a contour plot between two sample groups",
         usage = "varlociraptor plot scatter --somatic-tumor-events SOMATIC_TUMOR \
-        --sample-y sample1 --sample-x sample2 sample3 < calls.bcf | vg2svg > scatter.svg",
+        --sample-x sample1 --sample-y sample2 sample3 < calls.bcf | vg2svg > scatter.svg",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Scatter {
