@@ -61,7 +61,7 @@
       "round": true,
       "nice": true,
       "zero": true,
-      "domain": {"data": "source", "field": "normal_vaf"},
+      "domain": [0, 1],
       "range": "width"
     },
     {
@@ -70,7 +70,7 @@
       "round": true,
       "nice": true,
       "zero": true,
-      "domain": {"data": "source", "field": "tumor_vaf"},
+      "domain": [0, 1],
       "range": "height"
     },
     {
