@@ -1077,13 +1077,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
 
                 prior.plot(&sample, &sample_infos.names)?;
             }
-            PlotKind::Scatter {
-                sample_x,
-                sample_y,
-            } => estimation::sample_variants::vaf_scatter(
-                &sample_x,
-                &sample_y,
-            )?,
+            PlotKind::Scatter { sample_x, sample_y } => {
+                estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
+            }
         },
     }
     Ok(())
