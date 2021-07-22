@@ -2,13 +2,11 @@ use std::collections::BTreeMap;
 use std::str;
 
 use anyhow::Result;
-use bio::stats::{LogProb, PHREDProb};
 use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
 
 use crate::errors;
 use crate::variants::model::AlleleFreq;
-use crate::{Event, SimpleEvent};
 
 #[derive(Debug, Clone, Serialize)]
 struct Scattervaf {
@@ -18,12 +16,10 @@ struct Scattervaf {
 }
 
 pub(crate) fn vaf_scatter(
-    mutational_events: &[String],
     sample_x: &str,
     sample_y: &[String],
 ) -> Result<()> {
     let mut bcf = bcf::Reader::from_stdin()?;
-    let header = bcf.header().to_owned();
 
     let mut plot_data = Vec::new();
 
@@ -44,32 +40,11 @@ pub(crate) fn vaf_scatter(
 
     for record in bcf.records() {
         let rec = record.unwrap();
-        let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
-        let vcfpos = rec.pos() + 1;
 
         // obtain VAF estimates (do it here already to work around a segfault in htslib)
         let x_vafs = rec.format(b"AF").float()?[id_x].to_owned();
 
         let alt_allele_count = (rec.allele_count() - 1) as usize;
-
-        // collect allele probabilities for given events
-        let mut allele_probs = vec![LogProb::ln_zero(); alt_allele_count];
-        for e in mutational_events {
-            let e = SimpleEvent { name: e.to_owned() };
-            let tag_name = e.tag_name("PROB");
-            if let Some(probs) = rec.info(tag_name.as_bytes()).float()? {
-                for i in 0..alt_allele_count {
-                    allele_probs[i] =
-                        allele_probs[i].ln_add_exp(LogProb::from(PHREDProb(probs[i] as f64)));
-                }
-            } else {
-                info!(
-                    "Skipping variant {}:{} because it does not contain the required INFO tag {}.",
-                    contig, vcfpos, tag_name
-                );
-                continue;
-            }
-        }
 
         // push into MB function
 
