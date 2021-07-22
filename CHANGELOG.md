@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.1.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.0...v4.1.1) (2021-07-22)
+
+
+### Bug Fixes
+
+* display 3 digits in normalized formulae ([f5e5261](https://www.github.com/varlociraptor/varlociraptor/commit/f5e5261b82499beb14ec6f5df7f3d8d63992643e))
+* Removed check for coding variants ([#193](https://www.github.com/varlociraptor/varlociraptor/issues/193)) ([2f0f653](https://www.github.com/varlociraptor/varlociraptor/commit/2f0f653cc07479384f62e4f28ab75b347a40df6a))
+
 ## [4.1.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.0.1...v4.1.0) (2021-07-09)
 
 
