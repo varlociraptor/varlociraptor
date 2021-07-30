@@ -15,10 +15,10 @@ pub(crate) struct Caller {
     min_norm_counts: f64,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct ECDF {
     seqname: String,
-    bootstraps: Vec<u64>,
+    bootstraps: Vec<f64>,
     ecdf: Vec<f64>,
 }
 
@@ -28,7 +28,6 @@ impl Caller {
         let hdf5 = &self.hdf5_reader;
         let est_counts = hdf5.dataset("est_counts")?.read_1d::<f64>()?;
         let seq_length = hdf5.dataset("aux/lengths")?.read_1d::<f64>()?; //these two variables arrays have the same length.
-
         let norm_counts = est_counts / seq_length;
         let mut indices = Vec::new();
         for (i, num) in norm_counts.iter().enumerate() {
@@ -54,16 +53,17 @@ impl Caller {
             .read_1d::<hdf5::types::FixedAscii<255>>()?;
         let index = ids.iter().position(|x| x.as_str() == seqname).unwrap();
         let num_bootstraps = hdf5.dataset("aux/num_bootstrap")?.read_1d::<i32>()?;
-        let seq_length = hdf5.dataset("aux/lengths")?.read_1d::<u64>()?;
+        let seq_length = hdf5.dataset("aux/lengths")?.read_1d::<f64>()?;
         let mut bootstraps = Vec::new();
         for i in 0..num_bootstraps[0] {
             let dataset = hdf5.dataset(&format!("bootstrap/bs{i}", i = i))?;
-            let est_counts = dataset.read_1d::<u64>()?;
+            let est_counts = dataset.read_1d::<f64>()?; 
             let norm_counts = est_counts / &seq_length;
             let norm_counts = norm_counts[index];
             bootstraps.push(norm_counts);
         }
-        let ecdf = kernel_density::ecdf::Ecdf::new(&bootstraps);
+
+        let ecdf = kernel_density::ecdf::Ecdf::new(&bootstraps); //the trait Ord is not implemented for f64!
         let ecdf: Vec<f64> = bootstraps.iter().map(|&x| ecdf.value(x)).collect();
         Ok(ECDF {
             seqname,
@@ -78,16 +78,18 @@ impl Caller {
 }
 
 impl ECDF {
-    pub(crate) fn plot_qc(&self, mut qc_plot: PathBuf) -> std::io::Result<()> {
+    pub(crate) fn plot_qc(&self, mut qc_plot: PathBuf) -> Result<()> {
         let json = include_str!("../../templates/plots/qc_cdf.json");
         let mut blueprint: serde_json::Value = serde_json::from_str(json)?;
-        let bootstraps = &self.bootstraps;
-        let ecdf = &self.ecdf;
-
-        let data = json!([bootstraps, ecdf]); //need to play with the values to have discrete x and y points
-    
-        blueprint["data"]["values"] = data;
-        println!{"{:?}", blueprint};
+        
+        let mut plot_data = Vec::new();
+        plot_data.push(ECDF {
+            seqname: self.seqname.to_string(),
+            bootstraps: self.bootstraps.to_vec(),
+            ecdf: self.ecdf.to_vec(),
+        });
+        let plot_data = json!(plot_data);    
+        blueprint["data"]["values"] = plot_data;
 
         qc_plot.push(self.seqname.clone() + &".json".to_string());
         let file = File::create(qc_plot)?;
