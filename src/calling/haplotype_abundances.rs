@@ -6,6 +6,7 @@ use rust_htslib::bcf;
 use serde_json::json;
 use std::fs::File;
 use std::path::PathBuf;
+use ordered_float::OrderedFloat;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -20,6 +21,12 @@ pub(crate) struct ECDF {
     seqname: String,
     bootstraps: Vec<f64>,
     ecdf: Vec<f64>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub(crate) struct plot_ECDF {
+    bootstrap: f64,
+    ecdf: f64
 }
 
 impl Caller {
@@ -62,9 +69,9 @@ impl Caller {
             let norm_counts = norm_counts[index];
             bootstraps.push(norm_counts);
         }
-
-        let ecdf = kernel_density::ecdf::Ecdf::new(&bootstraps); //the trait Ord is not implemented for f64!
-        let ecdf: Vec<f64> = bootstraps.iter().map(|&x| ecdf.value(x)).collect();
+        let bootstraps_ordered_float: Vec<OrderedFloat<f64>> = bootstraps.iter().map(|&x| OrderedFloat(x)).collect();   
+        let ecdf = kernel_density::ecdf::Ecdf::new(&bootstraps_ordered_float); //the trait Ord is not implemented for f64!
+        let ecdf: Vec<f64> = bootstraps_ordered_float.iter().map(|&x| ecdf.value(x)).collect();
         Ok(ECDF {
             seqname,
             bootstraps,
@@ -83,12 +90,14 @@ impl ECDF {
         let mut blueprint: serde_json::Value = serde_json::from_str(json)?;
         
         let mut plot_data = Vec::new();
-        plot_data.push(ECDF {
-            seqname: self.seqname.to_string(),
-            bootstraps: self.bootstraps.to_vec(),
-            ecdf: self.ecdf.to_vec(),
-        });
-        let plot_data = json!(plot_data);    
+        
+        for num in 0..self.bootstraps.to_vec().len(){
+            plot_data.push(plot_ECDF{
+                bootstrap: self.bootstraps[num],
+                ecdf: self.ecdf[num],
+            })
+        }
+        let plot_data = json!(plot_data);
         blueprint["data"]["values"] = plot_data;
 
         qc_plot.push(self.seqname.clone() + &".json".to_string());

@@ -4,12 +4,12 @@
   "layer": [
     {
       "mark": "tick",
-      "encoding": {"x": {"field": "bootstraps", "type": "quantitative"}}
+      "encoding": {"x": {"field": "bootstrap", "type": "quantitative"}}
     },
     {
       "mark": "line",
       "encoding": {
-        "x": {"field": "bootstraps", "type": "quantitative"},
+        "x": {"field": "bootstrap", "type": "quantitative"},
         "y": {"field": "ecdf", "type": "quantitative"}
       }
     }
