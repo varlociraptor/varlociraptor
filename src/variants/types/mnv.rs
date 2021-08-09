@@ -5,9 +5,9 @@
 
 use std::cell::RefCell;
 use std::cmp;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::ops::Range;
 
 use anyhow::Result;
 use bio::stats::pairhmm::EmissionParameters;

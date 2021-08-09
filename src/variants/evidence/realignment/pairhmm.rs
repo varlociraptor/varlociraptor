@@ -38,7 +38,7 @@ pub(crate) trait RefBaseEmission {
 
     /// Reference area that is altered by the variant.
     /// Can return None if not applicable (default).
-    fn variant_ref_range(&self) -> Option<Range<usize>> ;
+    fn variant_ref_range(&self) -> Option<Range<usize>>;
 
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
         self.set_ref_end(cmp::min(

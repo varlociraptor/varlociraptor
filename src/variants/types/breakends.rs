@@ -474,11 +474,7 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                             let suffix_range = suffix_range(current, ref_seq.len(), false);
 
                             alt_allele.suffix_len = suffix_range.len();
-                            alt_allele.push_seq(
-                                ref_seq[suffix_range].iter(),
-                                false,
-                                false,
-                            );
+                            alt_allele.push_seq(ref_seq[suffix_range].iter(), false, false);
                         } else {
                             // Prepend prefix on reference.
                             let prefix_range = prefix_range(current);
@@ -619,8 +615,8 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                     alt_allele: Arc::clone(alt_allele),
                     read_emission: Rc::clone(&read_emission_params),
                     variant_ref_range: self.enclosable_ref_interval.as_ref().map(|_| {
-                        // Ref_offset is set to zero here (since we build a new reference), 
-                        // so we just have to report the range 
+                        // Ref_offset is set to zero here (since we build a new reference),
+                        // so we just have to report the range
                         // relative to the alt allele sequence which includes the necessary prefixes.
                         alt_allele.prefix_len..alt_allele.len() - alt_allele.suffix_len
                     }),

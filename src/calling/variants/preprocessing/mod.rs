@@ -375,7 +375,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 interval(ref_allele.len() as u64),
                 alt_allele.to_owned(),
                 self.realigner.clone(),
-                self.reference_buffer.seq(&work_item.chrom)?.as_ref(),
             ))?,
             model::Variant::Breakend {
                 ref_allele,

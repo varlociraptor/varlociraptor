@@ -149,7 +149,9 @@ impl EditDistanceCalculation {
                             // record operations if in variant interval
                             if let Some(variant_ref_range) = emission_params.variant_ref_range() {
                                 //dbg!((ref_pos, &variant_ref_range));
-                                if ref_pos >= variant_ref_range.start && ref_pos < variant_ref_range.end {
+                                if ref_pos >= variant_ref_range.start
+                                    && ref_pos < variant_ref_range.end
+                                {
                                     match op {
                                         AlignmentOperation::Del | AlignmentOperation::Ins => {
                                             Some(*op)

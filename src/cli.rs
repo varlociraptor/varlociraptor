@@ -137,7 +137,7 @@ fn default_min_bam_refetch_distance() -> u64 {
 }
 
 fn default_min_divindel_other_rate() -> f64 {
-    0.25
+    0.1
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]

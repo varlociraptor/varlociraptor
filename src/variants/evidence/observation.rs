@@ -337,6 +337,7 @@ pub(crate) fn major_indel_operations(
         })
         .collect();
     let most_common = counter.most_common();
+    dbg!(&most_common);
     if most_common.is_empty() {
         None
     } else {
