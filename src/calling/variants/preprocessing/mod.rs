@@ -525,6 +525,7 @@ pub(crate) fn write_observations(
     observations: &[Observation<ReadPosition, IndelOperations>],
     record: &mut bcf::Record,
 ) -> Result<()> {
+    //dbg!(observations);
     let vec = || Vec::with_capacity(observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();

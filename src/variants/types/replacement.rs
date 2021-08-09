@@ -70,7 +70,9 @@ impl<R: Realigner> Replacement<R> {
             ));
         }
 
-        Replacement(breakend_group_builder.build())
+        let bnd = breakend_group_builder.build();
+
+        Replacement(bnd)
     }
 }
 

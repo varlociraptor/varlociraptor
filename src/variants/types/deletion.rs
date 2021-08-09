@@ -5,6 +5,7 @@
 
 use std::cell::RefCell;
 use std::cmp;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -306,6 +307,10 @@ impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
         } else {
             self.ref_seq[i_ + self.del_len]
         }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        Some(self.del_start..self.del_start + self.del_len)
     }
 
     default_ref_base_emission!();

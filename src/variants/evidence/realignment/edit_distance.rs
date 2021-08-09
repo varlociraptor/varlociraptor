@@ -117,6 +117,7 @@ impl EditDistanceCalculation {
                     .collect();
             }
         }
+
         if positions.is_empty() {
             None
         } else {
@@ -131,12 +132,36 @@ impl EditDistanceCalculation {
             let best_indel_operations = alignments
                 .iter()
                 .map(|alignment| {
+                    let mut ref_pos = emission_params.ref_offset() + alignment.start;
                     alignment
                         .operations()
                         .iter()
-                        .filter_map(|op| match op {
-                            AlignmentOperation::Del | AlignmentOperation::Ins => Some(*op),
-                            _ => None,
+                        .filter_map(|op| {
+                            // update ref_pos
+                            match op {
+                                AlignmentOperation::Match
+                                | AlignmentOperation::Subst
+                                | AlignmentOperation::Del => ref_pos += 1,
+                                AlignmentOperation::Ins => (),
+                                _ => unreachable!(),
+                            }
+
+                            // record operations if in variant interval
+                            if let Some(variant_ref_range) = emission_params.variant_ref_range() {
+                                //dbg!((ref_pos, &variant_ref_range));
+                                if ref_pos >= variant_ref_range.start && ref_pos < variant_ref_range.end {
+                                    match op {
+                                        AlignmentOperation::Del | AlignmentOperation::Ins => {
+                                            Some(*op)
+                                        }
+                                        _ => None,
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
                         })
                         .collect_vec()
                 })

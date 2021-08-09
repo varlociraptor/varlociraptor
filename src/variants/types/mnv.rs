@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::cmp;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::ops::Range;
 
 use anyhow::Result;
 use bio::stats::pairhmm::EmissionParameters;
@@ -222,6 +223,10 @@ impl<'a> RefBaseEmission for MnvEmissionParams<'a> {
         } else {
             self.alt_seq[i_ - self.alt_start]
         }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        Some(self.alt_start..self.alt_end)
     }
 
     default_ref_base_emission!();

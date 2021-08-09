@@ -437,6 +437,7 @@ where
                         self.omit_read_orientation_bias,
                     );
                 }
+                //dbg!(&pileup);
 
                 pileup
             } else {

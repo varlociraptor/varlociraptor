@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::cmp;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt;
+use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
 use std::str;
@@ -434,22 +435,27 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                 // Decide whether to go from right to left or left to right
                 if first.is_left_to_right() {
                     // Add prefix on reference.
+
+                    let prefix_range = prefix_range(first);
+
+                    alt_allele.prefix_len = prefix_range.len();
                     alt_allele.push_seq(
-                        ref_buffer.seq(first.locus.contig())?[prefix_range(first)].iter(),
+                        ref_buffer.seq(first.locus.contig())?[prefix_range].iter(),
                         false,
                         false,
                     );
+
                     //alt_allele.push_seq(b"1".iter(), false); // dbg
                     // Add replacement to alt allele.
                     alt_allele.push_seq(first.replacement().iter(), false, true);
                 } else {
                     // Add suffix on reference.
                     let ref_seq = ref_buffer.seq(first.locus.contig())?;
-                    alt_allele.push_seq(
-                        ref_seq[suffix_range(first, ref_seq.len(), false)].iter(),
-                        true,
-                        false,
-                    );
+                    let suffix_range = suffix_range(first, ref_seq.len(), false);
+
+                    alt_allele.suffix_len = suffix_range.len();
+                    alt_allele.push_seq(ref_seq[suffix_range].iter(), true, false);
+
                     //alt_allele.push_seq(b"1".iter(), true); // dbg
                     // Add replacement to alt allele.
                     alt_allele.push_seq(first.replacement().iter(), true, true);
@@ -465,14 +471,20 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                         let ref_seq = ref_buffer.seq(current.locus.contig())?;
                         if current.is_left_to_right() {
                             // Add suffix on reference.
+                            let suffix_range = suffix_range(current, ref_seq.len(), false);
+
+                            alt_allele.suffix_len = suffix_range.len();
                             alt_allele.push_seq(
-                                ref_seq[suffix_range(current, ref_seq.len(), false)].iter(),
+                                ref_seq[suffix_range].iter(),
                                 false,
                                 false,
                             );
                         } else {
                             // Prepend prefix on reference.
-                            alt_allele.push_seq(ref_seq[prefix_range(current)].iter(), true, false);
+                            let prefix_range = prefix_range(current);
+
+                            alt_allele.prefix_len = prefix_range.len();
+                            alt_allele.push_seq(ref_seq[prefix_range].iter(), true, false);
                         }
                         break;
                     }
@@ -606,6 +618,12 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                     ref_end: alt_allele.len(),
                     alt_allele: Arc::clone(alt_allele),
                     read_emission: Rc::clone(&read_emission_params),
+                    variant_ref_range: self.enclosable_ref_interval.as_ref().map(|_| {
+                        // Ref_offset is set to zero here (since we build a new reference), 
+                        // so we just have to report the range 
+                        // relative to the alt allele sequence which includes the necessary prefixes.
+                        alt_allele.prefix_len..alt_allele.len() - alt_allele.suffix_len
+                    }),
                 });
             }
         }
@@ -619,6 +637,8 @@ pub(crate) struct AltAllele {
     #[deref]
     seq: VecDeque<u8>,
     alt_len: u64,
+    prefix_len: usize,
+    suffix_len: usize,
 }
 
 impl AltAllele {
@@ -644,12 +664,17 @@ pub(crate) struct BreakendEmissionParams<'a> {
     ref_offset: usize,
     ref_end: usize,
     read_emission: Rc<ReadEmission<'a>>,
+    variant_ref_range: Option<Range<usize>>,
 }
 
 impl<'a> RefBaseEmission for BreakendEmissionParams<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         self.alt_allele[i]
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        self.variant_ref_range.clone()
     }
 
     default_ref_base_emission!();

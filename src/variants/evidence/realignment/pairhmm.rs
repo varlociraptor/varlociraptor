@@ -5,6 +5,7 @@
 
 use std::cmp;
 use std::fmt::Debug;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -34,6 +35,10 @@ pub(crate) trait RefBaseEmission {
     fn set_ref_end(&mut self, value: usize);
 
     fn read_emission(&self) -> &ReadEmission;
+
+    /// Reference area that is altered by the variant.
+    /// Can return None if not applicable (default).
+    fn variant_ref_range(&self) -> Option<Range<usize>> ;
 
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
         self.set_ref_end(cmp::min(
@@ -222,6 +227,10 @@ impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         self.ref_seq[i + self.ref_offset]
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        None
     }
 
     default_ref_base_emission!();
