@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.1.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.1...v4.1.2) (2021-08-10)
+
+
+### Bug Fixes
+
+* improved divindel bias estimation precision (getting rid of false negatives due to erroneous divindel bias estimates) ([#196](https://www.github.com/varlociraptor/varlociraptor/issues/196)) ([6a0ac5d](https://www.github.com/varlociraptor/varlociraptor/commit/6a0ac5d2716c309cc88e1906412253e26bd4e5a2))
+
 ### [4.1.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.0...v4.1.1) (2021-07-22)
 
 
