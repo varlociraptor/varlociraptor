@@ -149,42 +149,40 @@ impl EditDistanceCalculation {
                         .filter_map(|(is_indel, group)| {
                             let group: Vec<_> = group.collect();
 
-                            let ret_group = if let Some(variant_ref_range) =
-                                emission_params.variant_ref_range()
-                            {
-                                dbg!((is_indel, ref_pos, &variant_ref_range, &group, variant_ref_range.contains(&ref_pos)));
-                                if is_indel
-                                    && (variant_ref_range.contains(&ref_pos)
-                                        || variant_ref_range.contains(&(ref_pos + group.len()))
-                                        || (variant_ref_range.start >= ref_pos
-                                            && variant_ref_range.end <= ref_pos + group.len()))
-                                {
-                                    // METHOD: indel ops that overlap with the variant interval are recorded here.
-                                    dbg!("keep");
-                                    true
-                                } else {
-                                    false
-                                }
-                            } else {
-                                false
-                            };
-
+                            let mut group_ref_len = 0;
                             for op in &group {
                                 // update ref_pos
                                 match op {
                                     AlignmentOperation::Match
                                     | AlignmentOperation::Subst
-                                    | AlignmentOperation::Del => ref_pos += 1,
+                                    | AlignmentOperation::Del => group_ref_len += 1,
                                     AlignmentOperation::Ins => (),
                                     _ => unreachable!(),
                                 }
                             }
 
-                            if ret_group {
-                                Some(group)
+
+                            let ret = if let Some(variant_ref_range) =
+                                emission_params.variant_ref_range()
+                            {
+                                if is_indel
+                                    && (variant_ref_range.contains(&ref_pos)
+                                        || variant_ref_range.contains(&(ref_pos + group_ref_len))
+                                        || (variant_ref_range.start >= ref_pos
+                                            && variant_ref_range.end <= ref_pos + group_ref_len))
+                                {
+                                    // METHOD: indel ops that overlap with the variant interval are recorded here.
+                                    Some(group)
+                                } else {
+                                    None
+                                }
                             } else {
                                 None
-                            }
+                            };
+
+                            ref_pos += group_ref_len;
+
+                            ret
                         })
                         .flatten()
                         .cloned()
