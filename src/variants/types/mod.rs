@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use anyhow::Result;
-use bio::alignment::AlignmentOperation;
 use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;

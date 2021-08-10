@@ -12,7 +12,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
-use bio_types::genome::{self, AbstractInterval, AbstractLocus};
+use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;

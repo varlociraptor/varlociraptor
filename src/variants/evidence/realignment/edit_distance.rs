@@ -134,9 +134,9 @@ impl EditDistanceCalculation {
                 .map(|alignment| {
                     let mut ref_pos = emission_params.ref_offset() + alignment.start;
 
-                    // METHOD: group operations by indel or not, check whether they overlap the variant, 
+                    // METHOD: group operations by indel or not, check whether they overlap the variant,
                     // and report additional indels that remain in the variant range.
-                    // These are indicative of divindel bias (i.e. some wild disagreeing indel operations cause a caller 
+                    // These are indicative of divindel bias (i.e. some wild disagreeing indel operations cause a caller
                     // to interpet them as an indel variant, but in reality it is e.g. a PCR homopolymer error.)
                     alignment
                         .operations()
@@ -160,7 +160,6 @@ impl EditDistanceCalculation {
                                     _ => unreachable!(),
                                 }
                             }
-
 
                             let ret = if let Some(variant_ref_range) =
                                 emission_params.variant_ref_range()

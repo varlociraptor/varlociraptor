@@ -28,7 +28,7 @@ use crate::utils;
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{
-    IndelOperations, Observation, ObservationBuilder, ReadPosition, Strand,
+    Observation, ObservationBuilder, ReadPosition, Strand,
 };
 use crate::variants::evidence::realignment;
 use crate::variants::model;

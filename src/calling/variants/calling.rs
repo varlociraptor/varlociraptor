@@ -19,7 +19,7 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,

@@ -11,7 +11,6 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
-use bio::alignment::AlignmentOperation;
 use bio::stats::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
@@ -126,19 +125,6 @@ impl Default for ReadPosition {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum IndelOperations {
-    Major,
-    Other,
-    None,
-}
-
-impl Default for IndelOperations {
-    fn default() -> Self {
-        IndelOperations::None
-    }
-}
-
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
     if let Some(ro) = record.aux(b"RO") {
         let orientations = ro.string().split(|e| *e == b',').collect_vec();
@@ -228,10 +214,7 @@ impl<P: Clone> ObservationBuilder<P> {
 }
 
 impl Observation<Option<u32>> {
-    pub(crate) fn process(
-        &self,
-        major_read_position: Option<u32>,
-    ) -> Observation<ReadPosition> {
+    pub(crate) fn process(&self, major_read_position: Option<u32>) -> Observation<ReadPosition> {
         Observation {
             prob_mapping: self.prob_mapping,
             prob_mismapping: self.prob_mismapping,
@@ -301,9 +284,7 @@ impl<P: Clone> Observation<P> {
     }
 }
 
-pub(crate) fn major_read_position(
-    pileup: &[Observation<Option<u32>>],
-) -> Option<u32> {
+pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option<u32> {
     let counter: Counter<_> = pileup.iter().filter_map(|obs| obs.read_position).collect();
     let most_common = counter.most_common();
     if most_common.is_empty() {

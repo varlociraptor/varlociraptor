@@ -3,7 +3,7 @@ use std::cmp;
 use bio::stats::probs::LogProb;
 use ordered_float::NotNan;
 
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, Hash)]
@@ -36,11 +36,13 @@ impl Default for DivIndelBias {
 impl Bias for DivIndelBias {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match self {
-            DivIndelBias::None => if observation.has_alt_indel_operations {
-                LogProb::ln_zero()
-            } else {
-                LogProb::ln_one()
-            },
+            DivIndelBias::None => {
+                if observation.has_alt_indel_operations {
+                    LogProb::ln_zero()
+                } else {
+                    LogProb::ln_one()
+                }
+            }
             DivIndelBias::Some { other_rate, .. } => {
                 if **other_rate == 0.0 {
                     // METHOD: if there are no other operations there is no artifact.
@@ -69,11 +71,9 @@ impl Bias for DivIndelBias {
             return true;
         }
         // METHOD: this bias is only relevant if there is at least one recorded indel operation (indel operations are only recorded for some variants).
-        pileups.iter().any(|pileup| {
-            pileup
-                .iter()
-                .any(|obs| obs.has_alt_indel_operations)
-        })
+        pileups
+            .iter()
+            .any(|pileup| pileup.iter().any(|obs| obs.has_alt_indel_operations))
     }
 
     fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
@@ -118,9 +118,9 @@ impl Bias for DivIndelBias {
             let strong_other = pileups
                 .iter()
                 .map(|pileup| {
-                    pileup.iter().filter(|obs| {
-                        Self::is_strong_obs(obs) && obs.has_alt_indel_operations
-                    })
+                    pileup
+                        .iter()
+                        .filter(|obs| Self::is_strong_obs(obs) && obs.has_alt_indel_operations)
                 })
                 .flatten()
                 .count();
@@ -133,10 +133,7 @@ impl Bias for DivIndelBias {
             .unwrap();
             dbg!((rate, &min_other_rate));
 
-            *other_rate = cmp::max(
-                rate,
-                *min_other_rate,
-            );
+            *other_rate = cmp::max(rate, *min_other_rate);
         }
     }
 }

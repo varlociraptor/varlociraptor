@@ -21,7 +21,7 @@ use vec_map::VecMap;
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
 use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition, Strand};
+use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::{
     bias::Biases, bias::DivIndelBias, bias::ReadOrientationBias, bias::ReadPositionBias,

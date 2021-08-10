@@ -6,7 +6,7 @@ use itertools::Itertools;
 use strum::IntoEnumIterator;
 
 use crate::utils::PROB_095;
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 
 pub(crate) mod divindel_bias;
 pub(crate) mod read_orientation_bias;
@@ -68,7 +68,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
                 } else if pileup.iter().all(|obs| Self::is_ref_obs(obs)) {
                     // METHOD: if all obs are towards REF allele, there is no need to consider biases.
                     // The variant will anyway be called as absent.
-                    // This can safe a lot of time and also avoids unexpected reporting 
+                    // This can safe a lot of time and also avoids unexpected reporting
                     // of artifacts in ambiguous cases.
                     false
                 } else {
@@ -203,10 +203,7 @@ impl Biases {
             .unwrap()
     }
 
-    pub(crate) fn is_possible(
-        &self,
-        pileups: &[Vec<Observation<ReadPosition>>],
-    ) -> bool {
+    pub(crate) fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         self.strand_bias.is_possible(pileups)
             && self.read_orientation_bias.is_possible(pileups)
             && self.read_position_bias.is_possible(pileups)
@@ -214,10 +211,7 @@ impl Biases {
             && self.divindel_bias.is_possible(pileups)
     }
 
-    pub(crate) fn is_informative(
-        &self,
-        pileups: &[Vec<Observation<ReadPosition>>],
-    ) -> bool {
+    pub(crate) fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         self.strand_bias.is_informative(pileups)
             && self.read_orientation_bias.is_informative(pileups)
             && self.read_position_bias.is_informative(pileups)
@@ -225,10 +219,7 @@ impl Biases {
             && self.divindel_bias.is_informative(pileups)
     }
 
-    pub(crate) fn is_likely(
-        &self,
-        pileups: &[Vec<Observation<ReadPosition>>],
-    ) -> bool {
+    pub(crate) fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         self.strand_bias.is_likely(pileups)
             && self.read_orientation_bias.is_likely(pileups)
             && self.read_position_bias.is_likely(pileups)
@@ -244,10 +235,7 @@ impl Biases {
             + self.divindel_bias.prob(observation)
     }
 
-    pub(crate) fn prob_any(
-        &self,
-        observation: &Observation<ReadPosition>,
-    ) -> LogProb {
+    pub(crate) fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb {
         self.strand_bias.prob_any(observation)
             + self.read_orientation_bias.prob_any(observation)
             + self.read_position_bias.prob_any(observation)
@@ -263,10 +251,7 @@ impl Biases {
             || self.divindel_bias.is_artifact()
     }
 
-    pub(crate) fn learn_parameters(
-        &mut self,
-        pileups: &[Vec<Observation<ReadPosition>>],
-    ) {
+    pub(crate) fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
         self.divindel_bias.learn_parameters(pileups)
     }
 }

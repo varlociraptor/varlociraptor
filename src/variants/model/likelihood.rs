@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use bio::stats::{bayesian::model::Likelihood, LogProb};
 
 use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Biases;
 use crate::variants::model::AlleleFreq;
 use crate::variants::sample::Pileup;
@@ -22,10 +22,7 @@ pub(crate) struct Event {
     pub(crate) biases: Biases,
 }
 
-fn prob_sample_alt(
-    observation: &Observation<ReadPosition>,
-    allele_freq: LogProb,
-) -> LogProb {
+fn prob_sample_alt(observation: &Observation<ReadPosition>, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
         // The effective sample probability for the alt allele is the allele frequency times
         // the probability to obtain a feasible fragment (prob_sample_alt).

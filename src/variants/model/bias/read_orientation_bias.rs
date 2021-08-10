@@ -2,7 +2,7 @@ use bio::stats::probs::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
