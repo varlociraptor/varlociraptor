@@ -20,7 +20,7 @@ pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
 
-pub(crate) trait Bias: Default + cmp::PartialEq {
+pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;
 
     fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb;
@@ -28,6 +28,10 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
     fn is_artifact(&self) -> bool;
 
     fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        if !self.is_artifact() {
+            return true;
+        }
+
         pileups.iter().any(|pileup| {
             pileup
                 .iter()
@@ -48,7 +52,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
     }
 
     fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
-        if *self == Self::default() {
+        if !self.is_artifact() {
             true
         } else {
             pileups.iter().any(|pileup| {
@@ -61,6 +65,12 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
                     // METHOD: there is bias evidence if we have at least two third of the strong observations supporting the bias
                     let ratio = strong_bias_evidence as f64 / strong_all as f64;
                     ratio >= self.min_strong_evidence_ratio()
+                } else if pileup.iter().all(|obs| Self::is_ref_obs(obs)) {
+                    // METHOD: if all obs are towards REF allele, there is no need to consider biases.
+                    // The variant will anyway be called as absent.
+                    // This can safe a lot of time and also avoids unexpected reporting 
+                    // of artifacts in ambiguous cases.
+                    false
                 } else {
                     // METHOD: not enough reads, rather consider all biases to be sure
                     true
@@ -80,6 +90,10 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
         obs.prob_mapping() >= *PROB_095
             && BayesFactor::new(obs.prob_alt, obs.prob_ref).evidence_kass_raftery()
                 >= KassRaftery::Strong
+    }
+
+    fn is_ref_obs(obs: &Observation<ReadPosition>) -> bool {
+        obs.prob_ref > obs.prob_alt
     }
 }
 

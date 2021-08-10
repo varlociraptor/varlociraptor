@@ -77,6 +77,10 @@ impl Bias for DivIndelBias {
     }
 
     fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        if !self.is_artifact() {
+            return true;
+        }
+
         pileups.iter().any(|pileup| {
             pileup.iter().any(|observation| match self {
                 DivIndelBias::Some { .. } => observation.has_alt_indel_operations,
@@ -121,13 +125,16 @@ impl Bias for DivIndelBias {
                 .flatten()
                 .count();
 
+            let rate = NotNan::new(if strong_all > 0 {
+                strong_other as f64 / strong_all as f64
+            } else {
+                0.0
+            })
+            .unwrap();
+            dbg!((rate, &min_other_rate));
+
             *other_rate = cmp::max(
-                NotNan::new(if strong_all > 0 {
-                    strong_other as f64 / strong_all as f64
-                } else {
-                    0.0
-                })
-                .unwrap(),
+                rate,
                 *min_other_rate,
             );
         }

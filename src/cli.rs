@@ -137,7 +137,7 @@ fn default_min_bam_refetch_distance() -> u64 {
 }
 
 fn default_min_divindel_other_rate() -> f64 {
-    0.1
+    0.05
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -419,7 +419,7 @@ pub enum CallKind {
         omit_divindel_bias: bool,
         #[structopt(
             long = "min-divindel-rate",
-            default_value = "0.25",
+            default_value = "0.05",
             help = "Minimum fraction of indel operations other than the primary and secondary combination \
                     of indel operations associated with a variant allele. The smaller this value is chosen, \
                     the more agressive will Varlociraptor be when marking a variant as being a divindel artifact \
