@@ -310,12 +310,8 @@ pub(crate) trait Realigner {
                         return Err(Error::ReadPosOutOfBounds.into());
                     }
                 }
-                if prob_alt > prob_ref {
-                    // METHOD: record indel operations if this is rather an alt read
-                    // Otherwise not, because we need to record the major operations from these and
-                    // should definitely ignore reads not primarily supporting alt for this bias.
-                    indel_operations.extend(alt_hit.best_indel_operations().iter().cloned());
-                }
+
+                indel_operations.extend(alt_hit.best_indel_operations().iter().cloned());
             }
 
             // METHOD: probabilities of independent regions are combined here.

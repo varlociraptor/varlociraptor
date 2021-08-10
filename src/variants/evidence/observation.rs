@@ -329,7 +329,9 @@ pub(crate) fn major_indel_operations(
     let counter: Counter<_> = pileup
         .iter()
         .filter_map(|obs| {
-            if obs.indel_operations.is_empty() {
+            if obs.indel_operations.is_empty() || obs.prob_alt < obs.prob_ref {
+                // METHOD: only consider observations which support the alt allele for deciding about the most common
+                // indel operations.
                 None
             } else {
                 Some(obs.indel_operations.clone())
@@ -337,7 +339,6 @@ pub(crate) fn major_indel_operations(
         })
         .collect();
     let most_common = counter.most_common();
-    dbg!(&most_common);
     if most_common.is_empty() {
         None
     } else {

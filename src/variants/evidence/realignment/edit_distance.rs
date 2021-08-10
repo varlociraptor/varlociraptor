@@ -133,38 +133,61 @@ impl EditDistanceCalculation {
                 .iter()
                 .map(|alignment| {
                     let mut ref_pos = emission_params.ref_offset() + alignment.start;
+
+                    // METHOD: group operations by indel or not, check whether they overlap the variant, 
+                    // and report additional indels that remain in the variant range.
+                    // These are indicative of divindel bias (i.e. some wild disagreeing indel operations cause a caller 
+                    // to interpet them as an indel variant, but in reality it is e.g. a PCR homopolymer error.)
                     alignment
                         .operations()
                         .iter()
-                        .filter_map(|op| {
-                            // update ref_pos
-                            match op {
-                                AlignmentOperation::Match
-                                | AlignmentOperation::Subst
-                                | AlignmentOperation::Del => ref_pos += 1,
-                                AlignmentOperation::Ins => (),
-                                _ => unreachable!(),
+                        .group_by(|op| match op {
+                            AlignmentOperation::Del | AlignmentOperation::Ins => true,
+                            _ => false,
+                        })
+                        .into_iter()
+                        .filter_map(|(is_indel, group)| {
+                            let group: Vec<_> = group.collect();
+
+                            let ret_group = if let Some(variant_ref_range) =
+                                emission_params.variant_ref_range()
+                            {
+                                dbg!((is_indel, ref_pos, &variant_ref_range, &group, variant_ref_range.contains(&ref_pos)));
+                                if is_indel
+                                    && (variant_ref_range.contains(&ref_pos)
+                                        || variant_ref_range.contains(&(ref_pos + group.len()))
+                                        || (variant_ref_range.start >= ref_pos
+                                            && variant_ref_range.end <= ref_pos + group.len()))
+                                {
+                                    // METHOD: indel ops that overlap with the variant interval are recorded here.
+                                    dbg!("keep");
+                                    true
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            };
+
+                            for op in &group {
+                                // update ref_pos
+                                match op {
+                                    AlignmentOperation::Match
+                                    | AlignmentOperation::Subst
+                                    | AlignmentOperation::Del => ref_pos += 1,
+                                    AlignmentOperation::Ins => (),
+                                    _ => unreachable!(),
+                                }
                             }
 
-                            // record operations if in variant interval
-                            if let Some(variant_ref_range) = emission_params.variant_ref_range() {
-                                //dbg!((ref_pos, &variant_ref_range));
-                                if ref_pos >= variant_ref_range.start
-                                    && ref_pos < variant_ref_range.end
-                                {
-                                    match op {
-                                        AlignmentOperation::Del | AlignmentOperation::Ins => {
-                                            Some(*op)
-                                        }
-                                        _ => None,
-                                    }
-                                } else {
-                                    None
-                                }
+                            if ret_group {
+                                Some(group)
                             } else {
                                 None
                             }
                         })
+                        .flatten()
+                        .cloned()
                         .collect_vec()
                 })
                 .min_by_key(|indels| indels.len())
