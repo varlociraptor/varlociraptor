@@ -21,13 +21,13 @@ pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
 
 pub(crate) trait Bias: Default + cmp::PartialEq {
-    fn prob(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb;
+    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;
 
-    fn prob_any(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb;
+    fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb;
 
     fn is_artifact(&self) -> bool;
 
-    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
+    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         pileups.iter().any(|pileup| {
             pileup
                 .iter()
@@ -35,11 +35,11 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
         })
     }
 
-    fn is_informative(&self, _pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
+    fn is_informative(&self, _pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         true
     }
 
-    fn is_bias_evidence(&self, observation: &Observation<ReadPosition, IndelOperations>) -> bool {
+    fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
         self.prob(observation) != LogProb::ln_zero()
     }
 
@@ -47,7 +47,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
         0.66666
     }
 
-    fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
+    fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         if *self == Self::default() {
             true
         } else {
@@ -70,13 +70,13 @@ pub(crate) trait Bias: Default + cmp::PartialEq {
     }
 
     /// Learn parameters needed for estimation on current pileup.
-    fn learn_parameters(&mut self, _pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) {
+    fn learn_parameters(&mut self, _pileups: &[Vec<Observation<ReadPosition>>]) {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
     }
 
-    fn is_strong_obs(obs: &&Observation<ReadPosition, IndelOperations>) -> bool {
+    fn is_strong_obs(obs: &&Observation<ReadPosition>) -> bool {
         obs.prob_mapping() >= *PROB_095
             && BayesFactor::new(obs.prob_alt, obs.prob_ref).evidence_kass_raftery()
                 >= KassRaftery::Strong
@@ -191,7 +191,7 @@ impl Biases {
 
     pub(crate) fn is_possible(
         &self,
-        pileups: &[Vec<Observation<ReadPosition, IndelOperations>>],
+        pileups: &[Vec<Observation<ReadPosition>>],
     ) -> bool {
         self.strand_bias.is_possible(pileups)
             && self.read_orientation_bias.is_possible(pileups)
@@ -202,7 +202,7 @@ impl Biases {
 
     pub(crate) fn is_informative(
         &self,
-        pileups: &[Vec<Observation<ReadPosition, IndelOperations>>],
+        pileups: &[Vec<Observation<ReadPosition>>],
     ) -> bool {
         self.strand_bias.is_informative(pileups)
             && self.read_orientation_bias.is_informative(pileups)
@@ -213,7 +213,7 @@ impl Biases {
 
     pub(crate) fn is_likely(
         &self,
-        pileups: &[Vec<Observation<ReadPosition, IndelOperations>>],
+        pileups: &[Vec<Observation<ReadPosition>>],
     ) -> bool {
         self.strand_bias.is_likely(pileups)
             && self.read_orientation_bias.is_likely(pileups)
@@ -222,8 +222,7 @@ impl Biases {
             && self.divindel_bias.is_likely(pileups)
     }
 
-    pub(crate) fn prob(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
-        //dbg!(self.strand_bias.prob(observation), self.read_orientation_bias.prob(observation), self.read_position_bias.prob(observation));
+    pub(crate) fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         self.strand_bias.prob(observation)
             + self.read_orientation_bias.prob(observation)
             + self.read_position_bias.prob(observation)
@@ -233,7 +232,7 @@ impl Biases {
 
     pub(crate) fn prob_any(
         &self,
-        observation: &Observation<ReadPosition, IndelOperations>,
+        observation: &Observation<ReadPosition>,
     ) -> LogProb {
         self.strand_bias.prob_any(observation)
             + self.read_orientation_bias.prob_any(observation)
@@ -252,7 +251,7 @@ impl Biases {
 
     pub(crate) fn learn_parameters(
         &mut self,
-        pileups: &[Vec<Observation<ReadPosition, IndelOperations>>],
+        pileups: &[Vec<Observation<ReadPosition>>],
     ) {
         self.divindel_bias.learn_parameters(pileups)
     }

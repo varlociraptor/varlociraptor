@@ -34,27 +34,29 @@ impl Default for DivIndelBias {
 }
 
 impl Bias for DivIndelBias {
-    fn prob(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
+    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match self {
-            DivIndelBias::None => match observation.indel_operations {
-                IndelOperations::Other => LogProb::ln_zero(),
-                _ => LogProb::ln_one(),
+            DivIndelBias::None => if observation.has_alt_indel_operations {
+                LogProb::ln_zero()
+            } else {
+                LogProb::ln_one()
             },
             DivIndelBias::Some { other_rate, .. } => {
                 if **other_rate == 0.0 {
-                    // METHOD: if there are no other operations than primary and secondary, there is no artifact.
+                    // METHOD: if there are no other operations there is no artifact.
                     LogProb::ln_zero()
                 } else {
-                    match observation.indel_operations {
-                        IndelOperations::Other => LogProb(other_rate.ln()),
-                        _ => LogProb((1.0 - **other_rate).ln()),
+                    if observation.has_alt_indel_operations {
+                        LogProb(other_rate.ln())
+                    } else {
+                        LogProb((1.0 - **other_rate).ln())
                     }
                 }
             }
         }
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
+    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
         LogProb::ln_one() // TODO check this
     }
 
@@ -62,7 +64,7 @@ impl Bias for DivIndelBias {
         *self != DivIndelBias::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
+    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         if !self.is_artifact() {
             return true;
         }
@@ -70,21 +72,21 @@ impl Bias for DivIndelBias {
         pileups.iter().any(|pileup| {
             pileup
                 .iter()
-                .any(|obs| obs.indel_operations == IndelOperations::Other)
+                .any(|obs| obs.has_alt_indel_operations)
         })
     }
 
-    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
+    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         pileups.iter().any(|pileup| {
             pileup.iter().any(|observation| match self {
-                DivIndelBias::Some { .. } => observation.indel_operations == IndelOperations::Other,
+                DivIndelBias::Some { .. } => observation.has_alt_indel_operations,
                 DivIndelBias::None => self.prob(observation) != LogProb::ln_zero(),
             })
         })
     }
 
-    fn is_bias_evidence(&self, observation: &Observation<ReadPosition, IndelOperations>) -> bool {
-        observation.indel_operations == IndelOperations::Other
+    fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
+        observation.has_alt_indel_operations
     }
 
     fn min_strong_evidence_ratio(&self) -> f64 {
@@ -95,7 +97,7 @@ impl Bias for DivIndelBias {
         }
     }
 
-    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) {
+    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
@@ -113,7 +115,7 @@ impl Bias for DivIndelBias {
                 .iter()
                 .map(|pileup| {
                     pileup.iter().filter(|obs| {
-                        Self::is_strong_obs(obs) && obs.indel_operations == IndelOperations::Other
+                        Self::is_strong_obs(obs) && obs.has_alt_indel_operations
                     })
                 })
                 .flatten()

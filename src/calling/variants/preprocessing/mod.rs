@@ -105,7 +105,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "READ_ORIENTATION",
             "READ_POSITION",
             "SOFTCLIPPED",
-            "INDEL_OPERATIONS",
+            "ALT_INDEL_OPERATIONS",
             "PAIRED",
         ] {
             header.push_record(
@@ -321,7 +321,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         variant: &model::Variant,
         work_item: &WorkItem,
         sample: &mut Sample,
-    ) -> Result<Option<Vec<Observation<ReadPosition, IndelOperations>>>> {
+    ) -> Result<Option<Vec<Observation<ReadPosition>>>> {
         let locus = || genome::Locus::new(work_item.chrom.clone(), work_item.start);
         let interval = |len: u64| {
             genome::Interval::new(
@@ -449,12 +449,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "8";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "9";
 
 /// Read observations from BCF record.
 pub(crate) fn read_observations(
     record: &mut bcf::Record,
-) -> Result<Vec<Observation<ReadPosition, IndelOperations>>> {
+) -> Result<Vec<Observation<ReadPosition>>> {
     fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T>
     where
         T: serde::de::DeserializeOwned + Debug,
@@ -493,7 +493,7 @@ pub(crate) fn read_observations(
         read_values(record, b"READ_ORIENTATION")?;
     let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION")?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED")?;
-    let indel_operations: Vec<IndelOperations> = read_values(record, b"INDEL_OPERATIONS")?;
+    let alt_indel_operations: BitVec<u8> = read_values(record, b"ALT_INDEL_OPERATIONS")?;
     let paired: BitVec<u8> = read_values(record, b"PAIRED")?;
 
     let obs = (0..prob_mapping.len())
@@ -510,7 +510,7 @@ pub(crate) fn read_observations(
                 .read_orientation(read_orientation[i])
                 .read_position(read_position[i])
                 .softclipped(softclipped[i as u64])
-                .indel_operations(indel_operations[i])
+                .has_alt_indel_operations(alt_indel_operations[i as u64])
                 .paired(paired[i as u64])
                 .build()
                 .unwrap()
@@ -521,10 +521,9 @@ pub(crate) fn read_observations(
 }
 
 pub(crate) fn write_observations(
-    observations: &[Observation<ReadPosition, IndelOperations>],
+    observations: &[Observation<ReadPosition>],
     record: &mut bcf::Record,
 ) -> Result<()> {
-    //dbg!(observations);
     let vec = || Vec::with_capacity(observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();
@@ -535,7 +534,7 @@ pub(crate) fn write_observations(
     let mut strand = Vec::with_capacity(observations.len());
     let mut read_orientation = Vec::with_capacity(observations.len());
     let mut softclipped: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
-    let mut indel_operations = Vec::with_capacity(observations.len());
+    let mut alt_indel_operations: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut paired: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut read_position = Vec::with_capacity(observations.len());
     let mut prob_hit_base = vec();
@@ -551,7 +550,7 @@ pub(crate) fn write_observations(
         strand.push(obs.strand);
         read_orientation.push(obs.read_orientation);
         softclipped.push(obs.softclipped);
-        indel_operations.push(obs.indel_operations);
+        alt_indel_operations.push(obs.has_alt_indel_operations);
         paired.push(obs.paired);
         read_position.push(obs.read_position);
     }
@@ -589,7 +588,7 @@ pub(crate) fn write_observations(
     push_values(record, b"STRAND", &strand)?;
     push_values(record, b"READ_ORIENTATION", &read_orientation)?;
     push_values(record, b"SOFTCLIPPED", &softclipped)?;
-    push_values(record, b"INDEL_OPERATIONS", &indel_operations)?;
+    push_values(record, b"ALT_INDEL_OPERATIONS", &alt_indel_operations)?;
     push_values(record, b"PAIRED", &paired)?;
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
@@ -607,7 +606,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"STRAND");
     header.remove_info(b"READ_ORIENTATION");
     header.remove_info(b"SOFTCLIPPED");
-    header.remove_info(b"INDEL_OPERATIONS");
+    header.remove_info(b"ALT_INDEL_OPERATIONS");
     header.remove_info(b"PAIRED");
     header.remove_info(b"PROB_HIT_BASE");
     header.remove_info(b"READ_POSITION");

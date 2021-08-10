@@ -50,8 +50,8 @@ pub(crate) struct AlleleSupport {
     #[getset(get_copy = "pub")]
     read_position: Option<u32>,
     #[builder(default)]
-    #[getset(get = "pub")]
-    indel_operations: Vec<AlignmentOperation>,
+    #[getset(get_copy = "pub")]
+    has_alt_indel_operations: bool,
 }
 
 impl AlleleSupport {
@@ -70,13 +70,12 @@ impl AlleleSupport {
 
         if self.strand == Strand::None {
             self.strand = other.strand;
-            self.indel_operations = other.indel_operations.clone();
+            self.has_alt_indel_operations = other.has_alt_indel_operations;
         } else if other.strand != Strand::None {
             if self.strand != other.strand {
                 self.strand = Strand::Both;
             }
-            self.indel_operations
-                .extend(other.indel_operations.iter().cloned())
+            self.has_alt_indel_operations |= other.has_alt_indel_operations;
         }
 
         self

@@ -23,7 +23,7 @@ pub(crate) struct Event {
 }
 
 fn prob_sample_alt(
-    observation: &Observation<ReadPosition, IndelOperations>,
+    observation: &Observation<ReadPosition>,
     allele_freq: LogProb,
 ) -> LogProb {
     if allele_freq != LogProb::ln_one() {
@@ -89,7 +89,7 @@ impl ContaminatedSampleLikelihoodModel {
         allele_freq_secondary: LogProb,
         biases_primary: &Biases,
         biases_secondary: &Biases,
-        observation: &Observation<ReadPosition, IndelOperations>,
+        observation: &Observation<ReadPosition>,
     ) -> LogProb {
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
@@ -166,7 +166,7 @@ impl SampleLikelihoodModel {
         &self,
         allele_freq: LogProb,
         biases: &Biases,
-        observation: &Observation<ReadPosition, IndelOperations>,
+        observation: &Observation<ReadPosition>,
     ) -> LogProb {
         // Step 1: likelihood for the mapping case.
         let prob = likelihood_mapping(allele_freq, biases, observation);
@@ -191,7 +191,7 @@ impl SampleLikelihoodModel {
 fn likelihood_mapping(
     allele_freq: LogProb,
     biases: &Biases,
-    observation: &Observation<ReadPosition, IndelOperations>,
+    observation: &Observation<ReadPosition>,
 ) -> LogProb {
     // Step 1: calculate probability to sample from alt allele
     let prob_sample_alt = prob_sample_alt(observation, allele_freq);

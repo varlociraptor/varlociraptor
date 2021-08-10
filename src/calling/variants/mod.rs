@@ -178,7 +178,7 @@ impl Call {
                     i,
                     match sample_info.biases.divindel_bias() {
                         DivIndelBias::None => b'.',
-                        DivIndelBias::Some { .. } => b'#',
+                        DivIndelBias::Some { .. } => b'*',
                     },
                 );
 
@@ -216,10 +216,10 @@ impl Call {
                                     ReadPosition::Some => '*',
                                 },
                                 if obs.softclipped { '$' } else { '.' },
-                                match obs.indel_operations {
-                                    IndelOperations::Major => '*',
-                                    IndelOperations::Other => '#',
-                                    IndelOperations::None => '.',
+                                if obs.has_alt_indel_operations {
+                                    '*'
+                                } else {
+                                    '.'
                                 },
                             )
                         }),
@@ -417,7 +417,7 @@ pub(crate) struct Variant {
     #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
-    observations: Option<Vec<Observation<ReadPosition, IndelOperations>>>,
+    observations: Option<Vec<Observation<ReadPosition>>>,
     #[builder(default)]
     #[getset(get = "pub(crate)")]
     sample_info: Vec<Option<SampleInfo>>,
@@ -512,7 +512,7 @@ impl VariantBuilder {
 pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     #[builder(default = "Vec::new()")]
-    observations: Vec<Observation<ReadPosition, IndelOperations>>,
+    observations: Vec<Observation<ReadPosition>>,
     biases: Biases,
 }
 

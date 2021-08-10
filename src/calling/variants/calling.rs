@@ -117,8 +117,8 @@ where
               O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
               X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
-              I denoting indel operations in the respective alignments (* = primary, most observed indel operation, \
-              # = other diverse indel operations, . = no indel or information irrelevant for variant type). \
+              I denoting indel operations in the respective alignments against the alt allele \
+              (* = some indel, . = no indel or information irrelevant for variant type). \
               Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
@@ -174,7 +174,7 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=DIB,Number=A,Type=String,\
-              Description=\"Divindel bias estimate: # indicates that ALT allele is associated with \
+              Description=\"Divindel bias estimate: * indicates that ALT allele is associated with \
               with indel operations of varying length, . indicates that there is no divindel bias.
               Divindel bias is indicative of systematic PCR amplification errors, e.g. induced by \
               homopolymers. Probability for divindel bias is captured by the ARTIFACT \
@@ -437,7 +437,6 @@ where
                         self.omit_read_orientation_bias,
                     );
                 }
-                //dbg!(&pileup);
 
                 pileup
             } else {
@@ -688,7 +687,7 @@ struct WorkItem {
     rid: u32,
     call: Call,
     variant_builder: VariantBuilder,
-    pileups: Option<Vec<Vec<Observation<ReadPosition, IndelOperations>>>>,
+    pileups: Option<Vec<Vec<Observation<ReadPosition>>>>,
     snv: Option<model::modes::generic::Snv>,
     bnd_event: Option<Vec<u8>>,
     index: usize,

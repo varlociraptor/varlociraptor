@@ -16,7 +16,7 @@ impl Default for ReadPositionBias {
 }
 
 impl Bias for ReadPositionBias {
-    fn prob(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
+    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.read_position) {
             (ReadPositionBias::None, _) => observation.prob_hit_base, // normal
             (ReadPositionBias::Some, ReadPosition::Major) => LogProb::ln_one(), // bias
@@ -24,7 +24,7 @@ impl Bias for ReadPositionBias {
         }
     }
 
-    fn prob_any(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
+    fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb {
         observation.prob_hit_base
     }
 
