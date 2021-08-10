@@ -2,7 +2,7 @@ use bio::stats::probs::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
@@ -19,7 +19,7 @@ impl Default for ReadOrientationBias {
 }
 
 impl Bias for ReadOrientationBias {
-    fn prob(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
+    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.read_orientation) {
             (ReadOrientationBias::None, SequenceReadPairOrientation::F1R2) => *PROB_05, // normal
             (ReadOrientationBias::None, SequenceReadPairOrientation::F2R1) => *PROB_05, // normal
@@ -31,7 +31,7 @@ impl Bias for ReadOrientationBias {
         }
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
+    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
         *PROB_05
     }
 
@@ -39,7 +39,7 @@ impl Bias for ReadOrientationBias {
         *self != ReadOrientationBias::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
+    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         if let ReadOrientationBias::None = *self {
             return true;
         }

@@ -137,7 +137,7 @@ fn default_min_bam_refetch_distance() -> u64 {
 }
 
 fn default_min_divindel_other_rate() -> f64 {
-    0.25
+    0.05
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -404,7 +404,7 @@ pub enum CallKind {
         #[structopt(
             long = "omit-divindel-bias",
             help = "Do not consider divindel bias when calculating the probability of an \
-                    artifact. Divindel bias is used to detect PCR homopolymer artifacts. \
+                    artifact. Divindel bias is used to e.g. detect PCR homopolymer artifacts. \
                     If you are sure that your protocol did not use any PCR or if you are \
                     running on data with lots of homopolymer errors from the sequencer (e.g. nanopore) \
                     you should use this flag to omit divindel bias consideration."
@@ -413,9 +413,9 @@ pub enum CallKind {
         omit_divindel_bias: bool,
         #[structopt(
             long = "min-divindel-rate",
-            default_value = "0.25",
-            help = "Minimum fraction of indel operations other than the primary and secondary combination \
-                    of indel operations associated with a variant allele. The smaller this value is chosen, \
+            default_value = "0.05",
+            help = "Minimum fraction of \
+                    of additional indel operations when realigning against a variant allele. The smaller this value is chosen, \
                     the more agressive will Varlociraptor be when marking a variant as being a divindel artifact \
                     (i.e., an artifact induced by various (slightly) different indels as it occurs in homopolymer \
                     runs that give rise to PCR errors)."

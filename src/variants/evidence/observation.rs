@@ -11,7 +11,6 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
-use bio::alignment::AlignmentOperation;
 use bio::stats::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
@@ -29,7 +28,7 @@ use crate::variants::sample;
 use crate::variants::types::Variant;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
-pub(crate) fn expected_depth(obs: &[Observation<ReadPosition, IndelOperations>]) -> u32 {
+pub(crate) fn expected_depth(obs: &[Observation<ReadPosition>]) -> u32 {
     LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec())
         .exp()
         .round() as u32
@@ -126,19 +125,6 @@ impl Default for ReadPosition {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) enum IndelOperations {
-    Major,
-    Other,
-    None,
-}
-
-impl Default for IndelOperations {
-    fn default() -> Self {
-        IndelOperations::None
-    }
-}
-
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
     if let Some(ro) = record.aux(b"RO") {
         let orientations = ro.string().split(|e| *e == b',').collect_vec();
@@ -171,7 +157,7 @@ pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairO
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default)]
-pub(crate) struct Observation<P = Option<u32>, I = Vec<AlignmentOperation>>
+pub(crate) struct Observation<P = Option<u32>>
 where
     P: Clone,
 {
@@ -211,10 +197,11 @@ where
     pub(crate) paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub(crate) read_position: P,
-    pub(crate) indel_operations: I,
+    /// Whether the read contains indel operations agains the alt allele
+    pub(crate) has_alt_indel_operations: bool,
 }
 
-impl<P: Clone, I: Clone> ObservationBuilder<P, I> {
+impl<P: Clone> ObservationBuilder<P> {
     pub(crate) fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self.prob_mapping(prob_mapping)
             .prob_mismapping(prob_mapping.ln_one_minus_exp())
@@ -226,12 +213,8 @@ impl<P: Clone, I: Clone> ObservationBuilder<P, I> {
     }
 }
 
-impl Observation<Option<u32>, Vec<AlignmentOperation>> {
-    pub(crate) fn process(
-        &self,
-        major_read_position: Option<u32>,
-        major_indel_operations: Option<&Vec<AlignmentOperation>>,
-    ) -> Observation<ReadPosition, IndelOperations> {
+impl Observation<Option<u32>> {
+    pub(crate) fn process(&self, major_read_position: Option<u32>) -> Observation<ReadPosition> {
         Observation {
             prob_mapping: self.prob_mapping,
             prob_mismapping: self.prob_mismapping,
@@ -259,22 +242,12 @@ impl Observation<Option<u32>, Vec<AlignmentOperation>> {
                     ReadPosition::Some
                 }
             }),
-            indel_operations: if self.indel_operations.is_empty() {
-                IndelOperations::None
-            } else if let Some(major_indel_operations) = major_indel_operations {
-                if self.indel_operations == *major_indel_operations {
-                    IndelOperations::Major
-                } else {
-                    IndelOperations::Other
-                }
-            } else {
-                unreachable!("bug: obs has indel operations but no major indel operations recorded")
-            },
+            has_alt_indel_operations: self.has_alt_indel_operations,
         }
     }
 }
 
-impl<P: Clone, I: Clone> Observation<P, I> {
+impl<P: Clone> Observation<P> {
     pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
@@ -311,36 +284,13 @@ impl<P: Clone, I: Clone> Observation<P, I> {
     }
 }
 
-pub(crate) fn major_read_position(
-    pileup: &[Observation<Option<u32>, Vec<AlignmentOperation>>],
-) -> Option<u32> {
+pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option<u32> {
     let counter: Counter<_> = pileup.iter().filter_map(|obs| obs.read_position).collect();
     let most_common = counter.most_common();
     if most_common.is_empty() {
         None
     } else {
         Some(most_common[0].0)
-    }
-}
-
-pub(crate) fn major_indel_operations(
-    pileup: &[Observation<Option<u32>, Vec<AlignmentOperation>>],
-) -> Option<Vec<AlignmentOperation>> {
-    let counter: Counter<_> = pileup
-        .iter()
-        .filter_map(|obs| {
-            if obs.indel_operations.is_empty() {
-                None
-            } else {
-                Some(obs.indel_operations.clone())
-            }
-        })
-        .collect();
-    let most_common = counter.most_common();
-    if most_common.is_empty() {
-        None
-    } else {
-        Some(most_common[0].0.clone())
     }
 }
 
@@ -400,11 +350,11 @@ where
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation()?)
                     .softclipped(evidence.softclipped())
-                    .indel_operations(if self.report_indel_operations() {
-                        allele_support.indel_operations().clone()
+                    .has_alt_indel_operations(if self.report_indel_operations() {
+                        allele_support.has_alt_indel_operations()
                     } else {
                         // METHOD: do not report any operations if the variant chooses to not report them.
-                        Vec::new()
+                        false
                     })
                     .read_position(allele_support.read_position())
                     .paired(evidence.is_paired())

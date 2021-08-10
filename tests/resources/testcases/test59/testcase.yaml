@@ -1,9 +1,8 @@
-# A deletion in a somehow noisy and repetetive region. It could be present, but there are many indels here.
-# Currently called as a divindel artifact. (TODO can we somehow find out whether it is real?)
+# Validated deletion
 
 expected:
   posteriors:
-    - PROB_ARTIFACT < 0.01
+    - PROB_PRESENT < 0.01
 
 # necessary bam files
 samples:
