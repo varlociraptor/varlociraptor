@@ -132,10 +132,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         );
 
         Ok(if let Some(ref path) = self.outbcf {
-            bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)
+            bcf::Writer::from_path(path, &header, false, bcf::Format::Bcf)
                 .context(format!("Unable to write BCF to {}.", path.display()))?
         } else {
-            bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)
+            bcf::Writer::from_stdout(&header, false, bcf::Format::Bcf)
                 .context("Unable to write BCF to STDOUT.")?
         })
     }

@@ -326,7 +326,7 @@ impl Testcase {
             );
 
             let mut bam_writer =
-                bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::BAM)?;
+                bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::Bam)?;
 
             let tid = bam_reader.header().tid(chrom_name).unwrap();
 
@@ -360,7 +360,7 @@ impl Testcase {
             self.prefix.join(candidate_filename),
             &header,
             true,
-            bcf::Format::VCF,
+            bcf::Format::Vcf,
         )?;
         let (_, mut candidate_record) = candidate;
         candidate_record.set_pos(candidate_record.pos() - ref_start as i64);

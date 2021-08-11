@@ -188,10 +188,10 @@ where
         let header = self.header();
 
         Ok(if let Some(ref path) = self.outbcf {
-            bcf::Writer::from_path(path, header.as_ref().unwrap(), false, bcf::Format::BCF)
+            bcf::Writer::from_path(path, header.as_ref().unwrap(), false, bcf::Format::Bcf)
                 .context(format!("Unable to write BCF to {}.", path.display()))?
         } else {
-            bcf::Writer::from_stdout(header.as_ref().unwrap(), false, bcf::Format::BCF)
+            bcf::Writer::from_stdout(header.as_ref().unwrap(), false, bcf::Format::Bcf)
                 .context("Unable to write BCF to STDOUT.")?
         })
     }

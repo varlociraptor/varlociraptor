@@ -126,32 +126,33 @@ impl Default for ReadPosition {
 }
 
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
-    if let Some(ro) = record.aux(b"RO") {
-        let orientations = ro.string().split(|e| *e == b',').collect_vec();
-        Ok(if orientations.len() != 1 {
-            // more than one orientation, return None
-            SequenceReadPairOrientation::None
-        } else {
-            match orientations[0] {
-                b"F1R2" => SequenceReadPairOrientation::F1R2,
-                b"F2R1" => SequenceReadPairOrientation::F2R1,
-                b"F1F2" => SequenceReadPairOrientation::F1F2,
-                b"F2F1" => SequenceReadPairOrientation::F2F1,
-                b"R1R2" => SequenceReadPairOrientation::R1R2,
-                b"R2R1" => SequenceReadPairOrientation::R2R1,
-                b"R1F2" => SequenceReadPairOrientation::R1F2,
-                b"R2F1" => SequenceReadPairOrientation::R2F1,
-                b"None" => SequenceReadPairOrientation::None,
-                _ => {
-                    return Err(errors::Error::InvalidReadOrientationInfo {
-                        value: str::from_utf8(orientations[0]).unwrap().to_owned(),
+    match record.aux(b"RO") {
+        Ok(bam::record::Aux::String(ro)) => {
+            let orientations = ro.as_bytes().split(|e| *e == b',').collect_vec();
+            Ok(if orientations.len() != 1 {
+                // more than one orientation, return None
+                SequenceReadPairOrientation::None
+            } else {
+                match orientations[0] {
+                    b"F1R2" => SequenceReadPairOrientation::F1R2,
+                    b"F2R1" => SequenceReadPairOrientation::F2R1,
+                    b"F1F2" => SequenceReadPairOrientation::F1F2,
+                    b"F2F1" => SequenceReadPairOrientation::F2F1,
+                    b"R1R2" => SequenceReadPairOrientation::R1R2,
+                    b"R2R1" => SequenceReadPairOrientation::R2R1,
+                    b"R1F2" => SequenceReadPairOrientation::R1F2,
+                    b"R2F1" => SequenceReadPairOrientation::R2F1,
+                    b"None" => SequenceReadPairOrientation::None,
+                    _ => {
+                        return Err(errors::Error::InvalidReadOrientationInfo {
+                            value: str::from_utf8(orientations[0]).unwrap().to_owned(),
+                        }
+                        .into())
                     }
-                    .into())
                 }
-            }
-        })
-    } else {
-        Ok(record.read_pair_orientation())
+            })
+        }
+        _ => Ok(record.read_pair_orientation())
     }
 }
 
