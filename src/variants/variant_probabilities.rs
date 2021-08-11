@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::str;
 
 use anyhow::Result;
@@ -6,12 +5,11 @@ use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
 
 use crate::errors;
-use crate::variants::model::AlleleFreq;
 
 #[derive(Debug, Clone, Serialize)]
 struct ScatterProbs {
     chromosome: String,
-    log_prob: f32,
+    prob: f32,
     pos: i64,
 }
 
@@ -24,15 +22,34 @@ pub(crate) fn variant_probabilities() -> Result<()> {
         let rec = record.unwrap();
         if let Some(rid) = rec.rid() {
             let chr = String::from_utf8(header.rid2name(rid)?.to_vec())?;
-            let pos = rec.pos();
-            let log_prob = rec.info(b"PROB_PRESENT").float()?.unwrap()[0].log10();
+            let pos = rec.pos() - rec.rlen();
+            let prob = rec.info(b"PROB_PRESENT").float()?.unwrap()[0];
             plot_data.push(ScatterProbs {
                 chromosome: chr,
-                log_prob,
+                prob,
                 pos,
             });
         }
     }
-    dbg!(plot_data);
-    Ok(())
+    if plot_data.is_empty() {
+        return Err(errors::Error::NoRecordsFound.into());
+    }
+
+    let print_plot =
+        |data: serde_json::Value, blueprint: &str| -> Result<()> {
+            let mut blueprint = serde_json::from_str(blueprint)?;
+            if let Value::Object(ref mut blueprint) = blueprint {
+                blueprint["data"][0]["values"] = data;
+                println!("{}", serde_json::to_string_pretty(blueprint)?);
+                Ok(())
+            } else {
+                unreachable!();
+            }
+        };
+
+    print_plot(
+        json!(plot_data),
+        //serde_json::value::Value::String(tumor.to_string()),
+        include_str!("../../templates/plots/probabilities_scatter_contour.json"),
+    )
 }
