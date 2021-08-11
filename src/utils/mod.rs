@@ -41,10 +41,8 @@ lazy_static! {
 
 pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
     match record.aux(b"SI") {
-        Ok(bam::record::Aux::String(strand_info)) => {
-            Some(strand_info.as_bytes())
-        }
-        _ => None
+        Ok(bam::record::Aux::String(strand_info)) => Some(strand_info.as_bytes()),
+        _ => None,
     }
 }
 

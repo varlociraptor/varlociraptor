@@ -152,7 +152,7 @@ pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairO
                 }
             })
         }
-        _ => Ok(record.read_pair_orientation())
+        _ => Ok(record.read_pair_orientation()),
     }
 }
 
