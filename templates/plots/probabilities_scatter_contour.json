@@ -1,17 +1,19 @@
 {
   "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "width": 500,
-  "height": 400,
-  "padding": 5,
-  "autosize": "pad",
-
-  "data": [
-    {
-      "values": []
-    }
-  ],
-  "mark": "point",
+  "data": {
+    "values": []
+  },
+  "mark": {
+    "type": "point",
+    "size": 1
+  },
   "encoding": {
+    "facet": {
+      "field": "chromosome",
+      "type": "nominal",
+      "title": "Chromsome",
+      "columns": 3
+    },
     "x": {
       "field": "pos",
       "type": "quantitative",
@@ -27,11 +29,7 @@
         "type": "log"
       }
     },
-    "column": {
-      "field": "chromosome",
-      "type": "nominal",
-      "title": "Chromosome"
-    }
+    "color": {"field": "event", "type": "nominal"}
   }
 }
 
