@@ -35,17 +35,16 @@ pub(crate) fn variant_probabilities() -> Result<()> {
         return Err(errors::Error::NoRecordsFound.into());
     }
 
-    let print_plot =
-        |data: serde_json::Value, blueprint: &str| -> Result<()> {
-            let mut blueprint = serde_json::from_str(blueprint)?;
-            if let Value::Object(ref mut blueprint) = blueprint {
-                blueprint["data"][0]["values"] = data;
-                println!("{}", serde_json::to_string_pretty(blueprint)?);
-                Ok(())
-            } else {
-                unreachable!();
-            }
-        };
+    let print_plot = |data: serde_json::Value, blueprint: &str| -> Result<()> {
+        let mut blueprint = serde_json::from_str(blueprint)?;
+        if let Value::Object(ref mut blueprint) = blueprint {
+            blueprint["data"][0]["values"] = data;
+            println!("{}", serde_json::to_string_pretty(blueprint)?);
+            Ok(())
+        } else {
+            unreachable!();
+        }
+    };
 
     print_plot(
         json!(plot_data),
