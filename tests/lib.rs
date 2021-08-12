@@ -45,6 +45,38 @@ macro_rules! testcase {
     };
 }
 
+macro_rules! testcase_should_panic {
+    ($name:ident, $($pairhmm_mode:ident),+) => {
+        paste! {
+            lazy_static! {
+                static ref [<$name:upper _MUTEX>]: Mutex<()> = Mutex::new(());
+            }
+
+            $(
+                #[should_panic]
+                #[test]
+                fn [<$name _ $pairhmm_mode _mode>]() {
+                    // Poison error can be ignored here, because it just means that the other test failed
+                    // and we are safe to go on.
+                    let _guard = [<$name:upper _MUTEX>].lock();
+                    let name = stringify!($name);
+                    let testcase = load_testcase(
+                        &Path::new(file!())
+                            .parent()
+                            .unwrap()
+                            .join("resources/testcases")
+                            .join(name),
+                    )
+                    .unwrap();
+                    let mode = stringify!($pairhmm_mode);
+                    testcase.run(mode).unwrap();
+                    testcase.check();
+                }
+            )*
+        }
+    };
+}
+
 testcase!(test01, exact, fast);
 testcase!(test02, exact, fast);
 testcase!(test03, exact, fast);
@@ -117,6 +149,28 @@ testcase!(test60, exact);
 testcase!(test61, exact);
 testcase!(test62, exact);
 testcase!(test63, exact);
+testcase!(test64, exact);
+testcase!(test65, exact);
+testcase!(test69, exact);
+testcase!(test70, exact);
+testcase!(test71, exact);
+
+// Skip test_giab_01 for now as the call seems to be correct.
+// TODO try to find out what is wrong in the GIAB callset at that location.
+//testcase!(test_giab_01, exact);
+testcase!(test_giab_02, exact);
+testcase!(test_giab_03, exact);
+// Skip test_giab_04 because there is strand bias (but variant is known to be correct).
+// The bias seems like a WES artifact. But we cannot avoid such a case for now.
+// Otherwise we would risk false positives elsewhere.
+//testcase!(test_giab_04, exact);
+
+testcase!(test_giab_05, exact);
+
+testcase!(test_pcr_homopolymer_error1, exact);
+testcase!(test_pcr_homopolymer_error2, exact);
+testcase!(test_pcr_homopolymer_error3, exact);
+
 testcase!(test_mendelian_prior, exact);
 testcase!(pattern_too_long, exact, fast);
 testcase!(test_long_pattern, exact, fast);
@@ -125,6 +179,9 @@ testcase!(test_expressions, exact);
 testcase!(omit_sb, exact);
 testcase!(test_panel_overlap, exact);
 testcase!(test_panel_unknown_orientation_bias, exact);
+testcase!(issue_154, exact, fast);
+testcase!(test_low_cov_vaf, exact);
+testcase_should_panic!(test_overlapping_events, exact);
 
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
@@ -136,7 +193,7 @@ fn cleanup_file(f: &str) {
     }
 }
 
-fn control_fdr(test: &str, event_str: &str, alpha: f64) {
+fn control_fdr(test: &str, event_str: &str, alpha: f64, local: bool) {
     let basedir = basedir(test);
     let output = format!("{}/calls.filtered.bcf", basedir);
     cleanup_file(&output);
@@ -146,8 +203,11 @@ fn control_fdr(test: &str, event_str: &str, alpha: f64) {
         &[varlociraptor::SimpleEvent {
             name: event_str.to_owned(),
         }],
-        &varlociraptor::variants::model::VariantType::Deletion(Some(1..30)),
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
         LogProb::from(Prob(alpha)),
+        local,
     )
     .unwrap();
 }
@@ -169,32 +229,44 @@ fn assert_call_number(test: &str, expected_calls: usize) {
 
 #[test]
 fn test_fdr_control1() {
-    control_fdr("test_fdr_ev_1", "SOMATIC", 0.05);
+    control_fdr("test_fdr_ev_1", "SOMATIC", 0.05, false);
     //assert_call_number("test_fdr_ev_1", 974);
 }
 
 #[test]
 fn test_fdr_control2() {
-    control_fdr("test_fdr_ev_2", "SOMATIC", 0.05);
+    control_fdr("test_fdr_ev_2", "SOMATIC", 0.05, false);
     assert_call_number("test_fdr_ev_2", 985);
 }
 
 /// same test, but low alpha
 #[test]
 fn test_fdr_control3() {
-    control_fdr("test_fdr_ev_3", "ABSENT", 0.001);
+    control_fdr("test_fdr_ev_3", "ABSENT", 0.001, false);
     assert_call_number("test_fdr_ev_3", 0);
 }
 
 #[test]
 fn test_fdr_control4() {
-    control_fdr("test_fdr_ev_4", "SOMATIC_TUMOR", 0.05);
+    control_fdr("test_fdr_ev_4", "SOMATIC_TUMOR", 0.05, false);
     assert_call_number("test_fdr_ev_4", 0);
+}
+
+#[test]
+fn test_fdr_control_local1() {
+    control_fdr("test_fdr_local1", "SOMATIC", 0.05, true);
+    assert_call_number("test_fdr_local1", 0);
+}
+
+#[test]
+fn test_fdr_control_local2() {
+    control_fdr("test_fdr_local2", "SOMATIC", 0.25, true);
+    assert_call_number("test_fdr_local2", 1);
 }
 
 // TODO enable this test again once https://github.com/samtools/bcftools/issues/874 is truly fixed upstream
 // Then, also encode SVLEN as negative again for deletions.
 //#[test]
 fn test_fdr_control5() {
-    control_fdr("test_fdr_control_out_of_bounds", "PRESENT", 0.05);
+    control_fdr("test_fdr_control_out_of_bounds", "PRESENT", 0.05, false);
 }

@@ -24,7 +24,8 @@ use crate::variants::evidence::observation::expected_depth;
 use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::{
-    bias::Biases, bias::ReadOrientationBias, bias::ReadPositionBias, bias::StrandBias, AlleleFreq,
+    bias::Biases, bias::DivIndelBias, bias::ReadOrientationBias, bias::ReadPositionBias,
+    bias::SoftclipBias, bias::StrandBias, AlleleFreq,
 };
 
 pub(crate) use crate::calling::variants::calling::CallerBuilder;
@@ -112,10 +113,13 @@ impl Call {
         let mut event_probs = HashMap::new();
         let mut allelefreq_estimates = VecMap::new();
         let mut observations = VecMap::new();
+        let mut simple_observations = VecMap::new();
         let mut obs_counts = VecMap::new();
         let mut strand_bias = VecMap::new();
         let mut read_orientation_bias = VecMap::new();
         let mut read_position_bias = VecMap::new();
+        let mut softclip_bias = VecMap::new();
+        let mut divindel_bias = VecMap::new();
         let mut alleles = Vec::new();
         let mut svlens = Vec::new();
         let mut events = Vec::new();
@@ -163,6 +167,20 @@ impl Call {
                         ReadPositionBias::Some => b'^',
                     },
                 );
+                softclip_bias.insert(
+                    i,
+                    match sample_info.biases.softclip_bias() {
+                        SoftclipBias::None => b'.',
+                        SoftclipBias::Some => b'$',
+                    },
+                );
+                divindel_bias.insert(
+                    i,
+                    match sample_info.biases.divindel_bias() {
+                        DivIndelBias::None => b'.',
+                        DivIndelBias::Some { .. } => b'*',
+                    },
+                );
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
 
@@ -174,7 +192,7 @@ impl Call {
                         sample_info.observations.iter().map(|obs| {
                             let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                             format!(
-                                "{}{}{}{}{}",
+                                "{}{}{}{}{}{}{}",
                                 if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
                                     score.to_ascii_lowercase()
                                 } else {
@@ -197,9 +215,51 @@ impl Call {
                                     ReadPosition::Major => '^',
                                     ReadPosition::Some => '*',
                                 },
+                                if obs.softclipped { '$' } else { '.' },
+                                if obs.has_alt_indel_operations {
+                                    '*'
+                                } else {
+                                    '.'
+                                },
                             )
                         }),
                         false,
+                        |(item, _count)| {
+                            if item.starts_with('N') {
+                                2
+                            } else if item.starts_with('E') {
+                                1
+                            } else {
+                                0
+                            }
+                        },
+                    ),
+                );
+
+                simple_observations.insert(
+                    i,
+                    utils::generalized_cigar(
+                        sample_info.observations.iter().map(|obs| {
+                            let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
+                            format!(
+                                "{}",
+                                if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
+                                    score.to_ascii_lowercase()
+                                } else {
+                                    score.to_ascii_uppercase()
+                                }
+                            )
+                        }),
+                        false,
+                        |(item, _count)| {
+                            if item.starts_with('N') {
+                                2
+                            } else if item.starts_with('E') {
+                                1
+                            } else {
+                                0
+                            }
+                        },
                     ),
                 );
             }
@@ -246,15 +306,30 @@ impl Call {
         // set event probabilities
         // determine whether marginal probability is zero (prob becomes NaN)
         // this is a missing data case, which we want to present accordingly
-        let is_missing = event_probs.values().any(|prob| prob.is_nan());
-        for (event, prob) in event_probs {
-            let prob = if is_missing {
-                // missing data
-                f32::missing()
-            } else {
-                PHREDProb::from(prob).abs() as f32
-            };
-            record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob])?;
+        let is_missing_data = variant.sample_info.iter().all(|sample| {
+            sample
+                .as_ref()
+                .map_or(true, |info| info.observations.is_empty())
+        });
+
+        let mut push_prob =
+            |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob]);
+        if is_missing_data {
+            // missing data
+            for event in event_probs.keys() {
+                push_prob(event, f32::missing())?;
+            }
+        } else {
+            assert!(
+                !event_probs.values().any(|prob| prob.is_nan()),
+                "bug: event probability is NaN but not all observations are empty for record at {}:{}",
+                str::from_utf8(&self.chrom).unwrap(),
+                self.pos,
+            );
+            for (event, prob) in event_probs {
+                let prob = PHREDProb::from(prob).abs() as f32;
+                push_prob(event, prob)?;
+            }
         }
 
         // set sample info
@@ -291,10 +366,29 @@ impl Call {
                 .map(|rpb| vec![*rpb])
                 .collect_vec();
             record.push_format_string(b"RPB", &rpb)?;
+
+            let scb = softclip_bias.values().map(|scb| vec![*scb]).collect_vec();
+            record.push_format_string(b"SCB", &scb)?;
+
+            let dib = divindel_bias.values().map(|dib| vec![*dib]).collect_vec();
+            record.push_format_string(b"DIB", &dib)?;
+
+            let sobs = simple_observations
+                .values()
+                .map(|sample_obs| {
+                    if sample_obs.is_empty() {
+                        b"."
+                    } else {
+                        sample_obs.as_bytes()
+                    }
+                })
+                .collect_vec();
+            record.push_format_string(b"SOBS", &sobs)?;
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
             record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"SOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"ROB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;
@@ -376,10 +470,10 @@ impl VariantBuilder {
                     .svlen(Some(svlen))
                     .svtype(Some(b"INS".to_vec()))
             }
-            model::Variant::SNV(base) => self
+            model::Variant::Snv(base) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + 1].to_ascii_uppercase())
                 .alt_allele(vec![*base].to_ascii_uppercase()),
-            model::Variant::MNV(bases) => self
+            model::Variant::Mnv(bases) => self
                 .ref_allele(chrom_seq.unwrap()[start..start + bases.len()].to_ascii_uppercase())
                 .alt_allele(bases.to_ascii_uppercase()),
             model::Variant::Breakend {

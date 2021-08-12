@@ -5,6 +5,7 @@
 
 use std::cell::RefCell;
 use std::cmp;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -74,13 +75,21 @@ impl<'a, R: Realigner> Realignable<'a> for Insertion<R> {
 }
 
 impl<R: Realigner> SamplingBias for Insertion<R> {
-    fn feasible_bases(&self, read_len: u64, alignment_properties: &AlignmentProperties) -> u64 {
+    fn feasible_bases(
+        &self,
+        read_len: u64,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<u64> {
         if let Some(len) = self.enclosable_len() {
-            if len < (alignment_properties.max_ins_cigar_len as u64) {
-                return read_len;
+            if let Some(maxlen) = alignment_properties.max_ins_cigar_len {
+                if len <= (maxlen as u64) {
+                    return Some(read_len);
+                }
             }
         }
-        (read_len as f64 * alignment_properties.frac_max_softclip) as u64
+        alignment_properties
+            .frac_max_softclip
+            .map(|maxfrac| (read_len as f64 * maxfrac) as u64)
     }
 
     fn enclosable_len(&self) -> Option<u64> {
@@ -93,6 +102,11 @@ impl<R: Realigner> ReadSamplingBias for Insertion<R> {}
 impl<R: Realigner> Variant for Insertion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
+
+    fn report_indel_operations(&self) -> bool {
+        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
+        true
+    }
 
     fn is_valid_evidence(
         &self,
@@ -195,6 +209,10 @@ impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
         } else {
             self.ins_seq[i_ - (self.ins_start + 1)]
         }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        Some(self.ins_start..self.ins_end)
     }
 
     default_ref_base_emission!();

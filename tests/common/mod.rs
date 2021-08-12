@@ -104,6 +104,22 @@ pub(crate) trait Testcase {
         }
     }
 
+    fn omit_softclip_bias(&self) -> bool {
+        if self.yaml()["omit_softclip_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_softclip_bias"].as_bool().unwrap()
+        }
+    }
+
+    fn omit_divindel_bias(&self) -> bool {
+        if self.yaml()["omit_divindel_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_divindel_bias"].as_bool().unwrap()
+        }
+    }
+
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
@@ -212,9 +228,13 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
+                        testcase_anonymous: true,
                         omit_strand_bias: self.omit_strand_bias(),
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
+                        omit_softclip_bias: self.omit_softclip_bias(),
+                        omit_divindel_bias: self.omit_divindel_bias(),
+                        min_divindel_other_rate: 0.05,
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -245,9 +265,13 @@ pub(crate) trait Testcase {
                     kind: CallKind::Variants {
                         testcase_locus: None,
                         testcase_prefix: None,
+                        testcase_anonymous: true,
                         omit_strand_bias: self.omit_strand_bias(),
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
+                        omit_softclip_bias: self.omit_softclip_bias(),
+                        omit_divindel_bias: self.omit_divindel_bias(),
+                        min_divindel_other_rate: 0.25,
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self

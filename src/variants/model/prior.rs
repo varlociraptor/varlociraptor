@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::cmp;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use std::str;
 
 use anyhow::Result;
@@ -17,7 +17,7 @@ use statrs::distribution::{self, Discrete};
 
 use crate::errors;
 use crate::grammar;
-use crate::variants::model::{bias::Biases, likelihood, AlleleFreq};
+use crate::variants::model::{bias::Biases, likelihood, AlleleFreq, VariantType};
 
 pub(crate) trait UpdatablePrior {
     fn set_universe_and_ploidies(
@@ -25,6 +25,8 @@ pub(crate) trait UpdatablePrior {
         universe: grammar::SampleInfo<grammar::VAFUniverse>,
         ploidies: grammar::SampleInfo<Option<u32>>,
     );
+
+    fn set_variant_type(&mut self, variant_type: VariantType);
 }
 
 pub(crate) trait CheckablePrior {
@@ -72,6 +74,9 @@ pub(crate) struct Prior {
     heterozygosity: Option<LogProb>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
     genome_size: Option<f64>,
+    variant_type_fractions: grammar::VariantTypeFraction,
+    #[builder(default)]
+    variant_type: Option<VariantType>,
     #[builder(default)]
     cache: RefCell<Cache>,
 }
@@ -84,10 +89,12 @@ impl Clone for Prior {
             universe: self.universe.clone(),
             germline_mutation_rate: self.germline_mutation_rate.clone(),
             somatic_effective_mutation_rate: self.somatic_effective_mutation_rate.clone(),
-            heterozygosity: self.heterozygosity.clone(),
+            heterozygosity: self.heterozygosity,
             inheritance: self.inheritance.clone(),
-            genome_size: self.genome_size.clone(),
+            genome_size: self.genome_size,
             cache: RefCell::default(),
+            variant_type_fractions: self.variant_type_fractions.clone(),
+            variant_type: self.variant_type.clone(),
         }
     }
 }
@@ -232,6 +239,27 @@ impl Prior {
         relative_eq!(n_alt, n_alt.round())
     }
 
+    fn variant_type_fraction(&self) -> f64 {
+        self.variant_type_fractions.get(
+            self.variant_type
+                .as_ref()
+                .expect("bug: variant type not set in prior"),
+        )
+    }
+
+    fn vartype_somatic_effective_mutation_rate(&self, sample: usize) -> Option<f64> {
+        self.somatic_effective_mutation_rate[sample].map(|rate| rate * self.variant_type_fraction())
+    }
+
+    fn vartype_germline_mutation_rate(&self, sample: usize) -> Option<f64> {
+        self.germline_mutation_rate[sample].map(|rate| rate * self.variant_type_fraction())
+    }
+
+    fn vartype_heterozygosity(&self) -> Option<LogProb> {
+        self.heterozygosity
+            .map(|het| LogProb((het.exp() * self.variant_type_fraction()).ln()))
+    }
+
     fn has_somatic_variation(&self, sample: usize) -> bool {
         self.somatic_effective_mutation_rate[sample].is_some()
     }
@@ -262,7 +290,7 @@ impl Prior {
             // recursion end
 
             // step 1: population
-            let mut prob = if let Some(heterozygosity) = self.heterozygosity {
+            let mut prob = if let Some(heterozygosity) = self.vartype_heterozygosity() {
                 // calculate population prior
                 let population_samples = self
                     .inheritance
@@ -329,14 +357,13 @@ impl Prior {
                         }
                         None => {
                             // no inheritance pattern defined
-                            if let Some(r) = self.somatic_effective_mutation_rate[sample] {
-                                Some(self.prob_somatic_mutation(
-                                    r,
-                                    self.effective_somatic_vaf(sample, event, &germline_vafs),
-                                ))
-                            } else {
-                                None
-                            }
+                            self.vartype_somatic_effective_mutation_rate(sample)
+                                .map(|r| {
+                                    self.prob_somatic_mutation(
+                                        r,
+                                        self.effective_somatic_vaf(sample, event, &germline_vafs),
+                                    )
+                                })
                         }
                     }
                 })
@@ -357,10 +384,14 @@ impl Prior {
                 germline_vafs
             };
 
-            if self.has_uniform_prior(sample) {
+            if sample_ploidy == Some(0) && *sample_event.allele_freq != 0.0 {
+                // Chromosome does not occur in sample (e.g. Y chromsome) but allele freq > 0,
+                // that's impossible, hence stop and return 0.
+                LogProb::ln_zero()
+            } else if self.has_uniform_prior(sample) {
                 // sample has a uniform prior
                 if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq) {
-                    // no explicit info about germline VAF
+                    // no explicit info about germline VAF, assume 0.0
                     let germline_vafs = push_vafs(AlleleFreq(0.0));
                     self.calc_prob(event, germline_vafs)
                 } else {
@@ -371,7 +402,11 @@ impl Prior {
                     let mut probs = Vec::with_capacity(ploidy as usize + 1);
                     for n_alt in 0..=ploidy {
                         // for each possible number of germline alt alleles, obtain necessary somatic VAF to get the event VAF.
-                        let germline_vaf = AlleleFreq(n_alt as f64 / ploidy as f64);
+                        let germline_vaf = if ploidy > 0 {
+                            AlleleFreq(n_alt as f64 / ploidy as f64)
+                        } else {
+                            AlleleFreq(0.0)
+                        };
 
                         let germline_vafs = push_vafs(germline_vaf);
                         probs.push(self.calc_prob(event, germline_vafs));
@@ -431,7 +466,10 @@ impl Prior {
         if !relative_eq!(*germline_vafs[sample], *germline_vafs[parent]) {
             LogProb::ln_zero()
         } else {
-            match (somatic, self.somatic_effective_mutation_rate[sample]) {
+            match (
+                somatic,
+                self.vartype_somatic_effective_mutation_rate(sample),
+            ) {
                 (true, Some(somatic_mutation_rate)) => {
                     // METHOD: de novo somatic variation in the sample, anything is possible.
                     let denovo_vaf = event[sample].allele_freq
@@ -478,7 +516,7 @@ impl Prior {
         } else {
             let parent_somatic_vaf = self.effective_somatic_vaf(parent, event, germline_vafs);
             let parent_total_vaf = event[parent].allele_freq;
-            match (origin, self.somatic_effective_mutation_rate[sample]) {
+            match (origin, self.vartype_somatic_effective_mutation_rate(sample)) {
                 (grammar::SubcloneOrigin::SingleCell, None) => {
                     // METHOD: no de novo somatic mutation. total_vaf must reflect ploidy.
                     if *parent_total_vaf == 1.0 {
@@ -488,20 +526,18 @@ impl Prior {
                             // METHOD: impossible, since all parental allele copies host the variant.
                             LogProb::ln_zero()
                         }
-                    } else {
-                        if self.is_valid_germline_vaf(sample, total_vaf) {
-                            let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
-                            if *total_vaf > 0.0 {
-                                // METHOD: alt present, hence the cell has to come from the subclone with the alt allele.
-                                prob_alt
-                            } else {
-                                // METHOD: alt not present, hence the cell has to come from the ref subclone.
-                                prob_alt.ln_one_minus_exp()
-                            }
+                    } else if self.is_valid_germline_vaf(sample, total_vaf) {
+                        let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
+                        if *total_vaf > 0.0 {
+                            // METHOD: alt present, hence the cell has to come from the subclone with the alt allele.
+                            prob_alt
                         } else {
-                            // METHOD: VAF must reflect ploidy.
-                            LogProb::ln_zero()
+                            // METHOD: alt not present, hence the cell has to come from the ref subclone.
+                            prob_alt.ln_one_minus_exp()
                         }
+                    } else {
+                        // METHOD: VAF must reflect ploidy.
+                        LogProb::ln_zero()
                     }
                 }
                 (grammar::SubcloneOrigin::MultiCell, None) => {
@@ -674,32 +710,46 @@ impl Prior {
                 .collect_vec()
         };
 
-        let probs = match (source_ploidy.0, source_ploidy.1, target_ploidy) {
-            (0, p2, c) if p2 == c => {
-                // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
-                prob_after_meiotic_split(0, p2)
-            }
-            (p1, 0, c) if p1 == c => {
-                // e.g. monosomal inheritance from single parent (e.g. Y chromosome) or no meiotic split from that parent
-                prob_after_meiotic_split(p1, 0)
-            }
-            (p1, p2, c) if p1 % 2 == 0 && p2 % 2 == 0 && c == (p1 / 2 + p2 / 2) => {
-                // Default case, normal meiosis (child inherits one half from each parent).
-                prob_after_meiotic_split(p1 / 2, p2 / 2)
-            }
-            (p1, p2, c) => {
-                // something went wrong, there are more chromosomes in the child than in the parents
-                // case 1: no separation in the first meiotic split (choose from all chromosomes of that parent)
-                // case 2: no separation in the second meiotic split (duplicate a parental chromosome)
-                panic!(format!(
-                    "ploidies of child and parents do not match ({}, {} => {}) chromosome duplication events \
-                     (e.g. trisomy) are not yet supported by the mendelian inheritance model of varlociraptor", 
-                    p1, p2, c
-                ));
+        let parent_inheritance_cases = |parental_ploidy| {
+            if parental_ploidy % 2 == 0 {
+                vec![parental_ploidy / 2]
+            } else {
+                let half = parental_ploidy as f64 / 2.0;
+                vec![half.floor() as u32, half.ceil() as u32]
             }
         };
+        let inheritance_cases = |p1, p2| {
+            parent_inheritance_cases(p1)
+                .into_iter()
+                .cartesian_product(parent_inheritance_cases(p2).into_iter())
+        };
+        let is_valid_inheritance =
+            |p1, p2, c| inheritance_cases(p1, p2).any(|(p1, p2)| c == p1 + p2);
 
-        LogProb::ln_sum_exp(&probs)
+        if is_valid_inheritance(source_ploidy.0, source_ploidy.1, target_ploidy) {
+            LogProb::ln_sum_exp(
+                &inheritance_cases(source_ploidy.0, source_ploidy.1)
+                    .filter_map(|(p1, p2)| {
+                        if p1 + p2 == target_ploidy {
+                            Some(prob_after_meiotic_split(p1, p2))
+                        } else {
+                            None
+                        }
+                    })
+                    .flatten()
+                    .collect::<Vec<_>>(),
+            )
+        } else {
+            // something went wrong, chromosomes of child do not match the parents
+            // TODO For the future:
+            // case 1: no separation in the first meiotic split (choose from all chromosomes of that parent)
+            // case 2: no separation in the second meiotic split (duplicate a parental chromosome)
+            panic!(
+                "ploidies of child and parents do not match ({}, {} => {}) chromosome duplication events \
+                    (e.g. trisomy) are not yet supported by the mendelian inheritance model of varlociraptor", 
+                source_ploidy.0, source_ploidy.1, target_ploidy
+            );
+        }
     }
 
     fn prob_mendelian_inheritance(
@@ -720,13 +770,14 @@ impl Prior {
             ploidy(child),
             (n_alt(parents.0), n_alt(parents.1)),
             n_alt(child),
-            self.germline_mutation_rate[child].expect("bug: no germline mutation rate for child"),
+            self.vartype_germline_mutation_rate(child)
+                .expect("bug: no germline mutation rate for child"),
         );
 
-        if let Some(somatic_mutation_rate) = self.somatic_effective_mutation_rate[child] {
+        if let Some(somatic_mutation_rate) = self.vartype_somatic_effective_mutation_rate(child) {
             prob += self.prob_somatic_mutation(
                 somatic_mutation_rate,
-                self.effective_somatic_vaf(child, event, &germline_vafs),
+                self.effective_somatic_vaf(child, event, germline_vafs),
             );
         }
 
@@ -762,6 +813,10 @@ impl UpdatablePrior for Prior {
         self.cache.borrow_mut().clear();
         self.universe = Some(universe);
         self.ploidies = Some(ploidies);
+    }
+
+    fn set_variant_type(&mut self, variant_type: VariantType) {
+        self.variant_type = Some(variant_type);
     }
 }
 

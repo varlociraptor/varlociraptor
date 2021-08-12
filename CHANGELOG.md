@@ -2,6 +2,85 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.1.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.1...v4.1.2) (2021-08-10)
+
+
+### Bug Fixes
+
+* improved divindel bias estimation precision (getting rid of false negatives due to erroneous divindel bias estimates) ([#196](https://www.github.com/varlociraptor/varlociraptor/issues/196)) ([6a0ac5d](https://www.github.com/varlociraptor/varlociraptor/commit/6a0ac5d2716c309cc88e1906412253e26bd4e5a2))
+
+### [4.1.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.0...v4.1.1) (2021-07-22)
+
+
+### Bug Fixes
+
+* display 3 digits in normalized formulae ([f5e5261](https://www.github.com/varlociraptor/varlociraptor/commit/f5e5261b82499beb14ec6f5df7f3d8d63992643e))
+* Removed check for coding variants ([#193](https://www.github.com/varlociraptor/varlociraptor/issues/193)) ([2f0f653](https://www.github.com/varlociraptor/varlociraptor/commit/2f0f653cc07479384f62e4f28ab75b347a40df6a))
+
+## [4.1.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.0.1...v4.1.0) (2021-07-09)
+
+
+### Features
+
+* add divindel bias for detecting artifacts caused by diverging indels associated with the alt allele ([#189](https://www.github.com/varlociraptor/varlociraptor/issues/189)) ([5ab2620](https://www.github.com/varlociraptor/varlociraptor/commit/5ab2620fe2e0702a4ff57f54b7c5ce0251739e04))
+
+### [4.0.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.0.0...v4.0.1) (2021-07-07)
+
+
+### Bug Fixes
+
+* testcase 71 sometimes fails because formula normalization via BDD is not deterministic ([#187](https://www.github.com/varlociraptor/varlociraptor/issues/187)) ([bdeddcc](https://www.github.com/varlociraptor/varlociraptor/commit/bdeddcc7594e49ebea4812e13303686fbec6ef69))
+
+## [4.0.0](https://www.github.com/varlociraptor/varlociraptor/compare/v3.5.0...v4.0.0) (2021-07-07)
+
+
+### ⚠ BREAKING CHANGES
+
+* Rename estimate tmb subcommand into estimate mutational-burden (#182)
+
+### Features
+
+* release automation ([b6cc00f](https://www.github.com/varlociraptor/varlociraptor/commit/b6cc00ff5cc77c2760e12891540f36c326ca0c1b))
+* improved formula simplification, detection of overlapping events ([#177](https://www.github.com/varlociraptor/varlociraptor/issues/177)) ([7e875a5](https://www.github.com/varlociraptor/varlociraptor/commit/7e875a5ff4a4afee9b690dd5ea05d6bee762ac47))
+
+### Code Refactoring
+
+* Rename estimate tmb subcommand into estimate mutational-burden ([#182](https://www.github.com/varlociraptor/varlociraptor/issues/182)) ([9fa5a1f](https://www.github.com/varlociraptor/varlociraptor/commit/9fa5a1f6cb58d37c9fdf5c235ae035cf096b10a0))
+
+## [3.5.0] - 2021-07-02
+- Improvements to SNV and MNV calling: in case of reads with indels, perform a realignment to properly assess evidences (@johanneskoester).
+- Improved error messages (@johanneskoester).
+- Add subcommand for scatterplotting VAFs between multiple samples (@jafors).
+
+## [3.4.0] - 2021-05-25
+- Allow to control local instead of global FDR (`varlociraptor filter-calls control-fdr --local`).
+- Allow to configure mutation rate reduction factors for MNVs, Indels, and SVs.
+
+
+## [3.3.2] - 2021-05-22
+- Stop decode-phred subcommand from removing quoting from description field in header lines of decoded fields.
+
+## [3.3.1] - 2021-05-22
+- Fix debug output accidentally printing to STDOUT, thereby invalidating BCF.
+
+## [3.3.0] - 2021-05-20
+- Add softclip bias for detecting SNV or MNV artifacts induced by alignment issues (@johanneskoester).
+- Generalize mendelian inheritance towards arbitrary ploidies (@johanneskoester).
+- Add option for anonymizing testcases (`--testcase-anonymous`) (@johanneskoester)
+
+## [3.2.0] - 2021-05-18
+- Added SOBS field, showing simplified observations that omit all information but the alt allele evidence (@johanneskoester).
+- Enable to use any event as an expression via $eventname in other events. This can be used to e.g. formulate "otherwise" events, via defining a negated disjuction of all other events (e.g. `otherwise: !($denovo | $absent)`).
+- Add BDD based automatic simplification of all event formulas (@johanneskoester).
+- Automatically omit unlikely biases: for a bias to be evaluated, it needs to be supported by at least two third of the observations which are strongly (by their Kass-Raftery-Score) supporting the alt allele. This is safe, because bias likelihoods will otherwise be astronomically small. Since the three biases (strand, read position, read orientation) add 2 + 1 + 2 = 5 additional formula tree evaluations, this should make `varlociraptor call` 6 times faster on loci without a bias and three times faster on loci with a bias (@johanneskoester).
+- Several fixes for corner cases in the implementation of the prior (@johanneskoester).
+
+## [3.1.0] - 2021-05-04
+- Generalized TMB plots to mutational burden plots (not tumor specific). Added a multi-sample variant using barplots (@jafors).
+- Added testcase for and handling of missing CIGAR operation lenghts observations (@nh13, @dlaehnemann, @johanneskoester).
+- Use hash map instead of BTree for managing event space. This should result in some speed-up (@johanneskoester).
+- Fixed bugs with sex chromosome handling and prior distribution (@christopher-schroeder, @dawidkrzeciesa, @johanneskoester).
+
 ## [3.0.1] - 2021-04-22
 - Fixed a bug in the new prior implementation that led to almost infinite filling of a result cache, leading to a memory leak.
 

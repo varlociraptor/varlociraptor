@@ -22,13 +22,15 @@ use crate::conversion;
 use crate::errors;
 use crate::estimation;
 use crate::estimation::alignment_properties::AlignmentProperties;
+//use crate::estimation::sample_variants;
+//use crate::estimation::tumor_mutational_burden;
 use crate::filtration;
 use crate::grammar;
 use crate::reference;
 use crate::testcase;
 use crate::variants::evidence::realignment;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
-use crate::variants::model::modes::generic::FlatPrior;
+
 use crate::variants::model::prior::CheckablePrior;
 use crate::variants::model::prior::{Inheritance, Prior};
 use crate::variants::model::{Contamination, VariantType};
@@ -132,6 +134,10 @@ fn default_pairhmm_mode() -> String {
 
 fn default_min_bam_refetch_distance() -> u64 {
     1
+}
+
+fn default_min_divindel_other_rate() -> f64 {
+    0.05
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -293,32 +299,46 @@ pub enum PlotKind {
         #[structopt(long = "sample", required = true, help = "Sample to plot.")]
         sample: String,
     },
+    #[structopt(
+        name = "scatter",
+        about = "Plot variant allelic fraction scatter plot overlayed with a contour plot between two sample groups",
+        usage = "varlociraptor plot scatter --sample-x sample1 \
+        --sample-y sample2 sample3 < calls.bcf | vg2svg > scatter.svg",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Scatter {
+        #[structopt(
+            long = "sample-x",
+            help = "Name of the first sample in the given VCF/BCF."
+        )]
+        sample_x: String,
+        #[structopt(
+            long = "sample-y",
+            help = "Name(s) of the alternative sample(s) in the given VCF/BCF. Multiple samples can be given."
+        )]
+        sample_y: Vec<String>,
+    },
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum EstimateKind {
     #[structopt(
-        name = "tmb",
-        about = "Estimate tumor mutational burden. Takes Varlociraptor calls (must be annotated \
-                 with e.g. snpEFF) from STDIN, prints TMB estimate in Vega-lite JSON format to STDOUT. \
+        name = "mutational-burden",
+        about = "Estimate mutational burden. Takes Varlociraptor calls (must be annotated \
+                 with e.g. VEP but using ANN instead of CSQ) from STDIN, prints mutational burden estimate in Vega-lite JSON format to STDOUT. \
                  It can be converted to an image via vega-lite-cli (see conda package).",
-        usage = "varlociraptor estimate tmb --coding-genome-size 3e7 --somatic-tumor-events SOMATIC_TUMOR \
-                 --tumor-sample tumor < calls.bcf | vg2svg > tmb.svg",
+        usage = "varlociraptor estimate mutational-burden --coding-genome-size 3e7 --events SOMATIC_TUMOR \
+                 --sample tumor < calls.bcf | vg2svg > tmb.svg",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
-    TMB {
+    MutationalBurden {
+        #[structopt(long = "events", help = "Events to consider (e.g. SOMATIC_TUMOR).")]
+        events: Vec<String>,
         #[structopt(
-            long = "somatic-tumor-events",
-            default_value = "SOMATIC_TUMOR",
-            help = "Events to consider (e.g. SOMATIC_TUMOR)."
+            long = "sample",
+            help = "Name(s) of the sample(s) in the given VCF/BCF. Multiple samples can be given when using the multibar plot mode."
         )]
-        somatic_tumor_events: Vec<String>,
-        #[structopt(
-            long = "tumor-sample",
-            default_value = "tumor",
-            help = "Name of the tumor sample in the given VCF/BCF."
-        )]
-        tumor_sample: String,
+        sample: Vec<String>,
         #[structopt(
             long = "coding-genome-size",
             default_value = "3e7",
@@ -327,10 +347,16 @@ pub enum EstimateKind {
         coding_genome_size: f64,
         #[structopt(
             long = "plot-mode",
-            possible_values = &estimation::tumor_mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec(),
-            help = "How to plot (as stratified curve or as histogram)."
+            possible_values = &estimation::mutational_burden::PlotMode::iter().map(|v| v.into()).collect_vec(),
+            help = "How to plot (as stratified curve, histogram or multi-sample barplot)."
         )]
-        mode: estimation::tumor_mutational_burden::PlotMode,
+        mode: estimation::mutational_burden::PlotMode,
+        #[structopt(
+            long = "vaf-cutoff",
+            default_value = "0.2",
+            help = "Minimal variant allelic fraction to consider for mutli-sample barplot"
+        )]
+        cutoff: f64,
     },
 }
 
@@ -368,6 +394,35 @@ pub enum CallKind {
         #[serde(default)]
         omit_read_position_bias: bool,
         #[structopt(
+            long = "omit-softclip-bias",
+            help = "Do not consider softclip bias when calculating the probability of an \
+                    artifact. Use this flag when processing (panel) sequencing data, where the \
+                    wet-lab methodology leads to stacks of reads starting at the same position."
+        )]
+        #[serde(default)]
+        omit_softclip_bias: bool,
+        #[structopt(
+            long = "omit-divindel-bias",
+            help = "Do not consider divindel bias when calculating the probability of an \
+                    artifact. Divindel bias is used to e.g. detect PCR homopolymer artifacts. \
+                    If you are sure that your protocol did not use any PCR or if you are \
+                    running on data with lots of homopolymer errors from the sequencer (e.g. nanopore) \
+                    you should use this flag to omit divindel bias consideration."
+        )]
+        #[serde(default)]
+        omit_divindel_bias: bool,
+        #[structopt(
+            long = "min-divindel-rate",
+            default_value = "0.05",
+            help = "Minimum fraction of \
+                    of additional indel operations when realigning against a variant allele. The smaller this value is chosen, \
+                    the more agressive will Varlociraptor be when marking a variant as being a divindel artifact \
+                    (i.e., an artifact induced by various (slightly) different indels as it occurs in homopolymer \
+                    runs that give rise to PCR errors)."
+        )]
+        #[serde(default = "default_min_divindel_other_rate")]
+        min_divindel_other_rate: f64,
+        #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
                     CHROM:POS[:IDX]. IDX is thereby an optional value to select a particular \
@@ -381,6 +436,11 @@ pub enum CallKind {
             help = "Create test case files in the given directory."
         )]
         testcase_prefix: Option<String>,
+        #[structopt(
+            long = "testcase-anonymous",
+            help = "Anonymize any identifiers (via uuid4) and the sequences (by randomly permuting the alphabet) in the test case."
+        )]
+        testcase_anonymous: bool,
         #[structopt(
             long,
             short,
@@ -496,11 +556,19 @@ pub enum FilterMethod {
         #[structopt(
             long = "var",
             possible_values = &VariantType::iter().map(|v| v.into()).collect_vec(),
-            help = "Variant type to consider."
+            help = "Variant type to consider. When controlling global FDR (not using --local) this should \
+            be used to control FDR for each type separately. Otherwise, less certain variant types will be \
+            underrepresented."
         )]
-        vartype: VariantType,
+        vartype: Option<VariantType>,
         #[structopt(long, help = "FDR to control for.")]
         fdr: f64,
+        #[structopt(
+            long = "local",
+            help = "Control local FDR instead of global FDR. This means that for each record, the posterior \
+            of the selected events has to be at least 1-fdr."
+        )]
+        local: bool,
         #[structopt(long, help = "Events to consider.")]
         events: Vec<String>,
         #[structopt(long, help = "Minimum indel length to consider.")]
@@ -661,8 +729,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_strand_bias,
                     omit_read_orientation_bias,
                     omit_read_position_bias,
+                    omit_softclip_bias,
+                    omit_divindel_bias,
+                    min_divindel_other_rate,
                     testcase_locus,
                     testcase_prefix,
+                    testcase_anonymous,
                     output,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
@@ -671,6 +743,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             Some(
                                 testcase::TestcaseBuilder::default()
                                     .prefix(PathBuf::from(testcase_prefix))
+                                    .anonymize(testcase_anonymous)
                                     .locus(&testcase_locus)?,
                             )
                         } else {
@@ -722,11 +795,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 scenario
                                     .species()
                                     .as_ref()
-                                    .map_or(None, |species| *species.genome_size()),
+                                    .and_then(|species| *species.genome_size()),
                             )
-                            .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
+                            .heterozygosity(scenario.species().as_ref().and_then(|species| {
                                 species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                             }))
+                            .variant_type_fractions(scenario.variant_type_fractions())
                             .build();
 
                         // setup caller
@@ -736,6 +810,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .omit_strand_bias(omit_strand_bias)
                             .omit_read_orientation_bias(omit_read_orientation_bias)
                             .omit_read_position_bias(omit_read_position_bias)
+                            .omit_softclip_bias(omit_softclip_bias)
+                            .omit_divindel_bias(omit_divindel_bias)
+                            .min_divindel_other_rate(min_divindel_other_rate)
                             .scenario(scenario)
                             .prior(prior)
                             .contaminations(sample_infos.contaminations)
@@ -766,9 +843,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                         let options = calling::variants::preprocessing::read_preprocess_options(obspath)?;
                                         let preprocess_input = options.preprocess_input();
                                         testcase_builder = testcase_builder.register_sample(
-                                            &sample_name,
+                                            sample_name,
                                             preprocess_input.bam,
-                                            &options,
+                                            options,
                                         )?;
                                         if i == 0 {
                                             testcase_builder =
@@ -815,12 +892,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     .register_sample(
                                         "tumor",
                                         tumor_options.preprocess_input().bam,
-                                        &tumor_options,
+                                        tumor_options,
                                     )?
                                     .register_sample(
                                         "normal",
                                         normal_options.preprocess_input().bam,
-                                        &normal_options,
+                                        normal_options,
                                     )?
                                     .scenario(None)
                                     .mode(testcase::Mode::TumorNormal)
@@ -895,6 +972,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 calls,
                 events,
                 fdr,
+                local,
                 vartype,
                 minlen,
                 maxlen,
@@ -904,11 +982,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .map(|event| SimpleEvent { name: event })
                     .collect_vec();
                 let vartype = match (vartype, minlen, maxlen) {
-                    (VariantType::Insertion(None), Some(minlen), Some(maxlen)) => {
-                        VariantType::Insertion(Some(minlen..maxlen))
+                    (Some(VariantType::Insertion(None)), Some(minlen), Some(maxlen)) => {
+                        Some(VariantType::Insertion(Some(minlen..maxlen)))
                     }
-                    (VariantType::Deletion(None), Some(minlen), Some(maxlen)) => {
-                        VariantType::Deletion(Some(minlen..maxlen))
+                    (Some(VariantType::Deletion(None)), Some(minlen), Some(maxlen)) => {
+                        Some(VariantType::Deletion(Some(minlen..maxlen)))
                     }
                     (vartype, _, _) => vartype,
                 };
@@ -917,8 +995,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     &calls,
                     None,
                     &events,
-                    &vartype,
+                    vartype.as_ref(),
                     LogProb::from(Prob::checked(fdr)?),
+                    local,
                 )?;
             }
             FilterMethod::PosteriorOdds { ref events, odds } => {
@@ -938,16 +1017,18 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             conversion::decode_phred::decode_phred()?;
         }
         Varlociraptor::Estimate { kind } => match kind {
-            EstimateKind::TMB {
-                somatic_tumor_events,
-                tumor_sample,
+            EstimateKind::MutationalBurden {
+                events,
+                sample,
                 coding_genome_size,
                 mode,
-            } => estimation::tumor_mutational_burden::estimate(
-                &somatic_tumor_events,
-                &tumor_sample,
+                cutoff,
+            } => estimation::mutational_burden::collect_estimates(
+                &events,
+                &sample,
                 coding_genome_size as u64,
                 mode,
+                cutoff as f64,
             )?,
         },
         Varlociraptor::Plot { kind } => match kind {
@@ -975,6 +1056,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 let ploidies = ploidies.build();
 
                 let prior = Prior::builder()
+                    .variant_type_fractions(scenario.variant_type_fractions())
                     .ploidies(Some(ploidies))
                     .universe(Some(universes))
                     .uniform(sample_infos.uniform_prior)
@@ -985,15 +1067,18 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         scenario
                             .species()
                             .as_ref()
-                            .map_or(None, |species| *species.genome_size()),
+                            .and_then(|species| *species.genome_size()),
                     )
-                    .heterozygosity(scenario.species().as_ref().map_or(None, |species| {
+                    .heterozygosity(scenario.species().as_ref().and_then(|species| {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
                     .build();
                 prior.check()?;
 
                 prior.plot(&sample, &sample_infos.names)?;
+            }
+            PlotKind::Scatter { sample_x, sample_y } => {
+                estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
             }
         },
     }

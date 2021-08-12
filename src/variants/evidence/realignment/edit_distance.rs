@@ -10,6 +10,7 @@ use std::fmt::Debug;
 use bio::alignment::AlignmentOperation;
 use bio::pattern_matching::myers::{self, long};
 use bio::stats::pairhmm;
+use itertools::Itertools;
 
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
@@ -116,6 +117,7 @@ impl EditDistanceCalculation {
                     .collect();
             }
         }
+
         if positions.is_empty() {
             None
         } else {
@@ -125,11 +127,75 @@ impl EditDistanceCalculation {
                 alignments.last().unwrap().start() + self.read_seq_len + best_dist as usize,
                 emission_params.len_x(),
             );
+
+            // METHOD: obtain indel operations for divindel bias
+            let best_indel_operations = alignments
+                .iter()
+                .map(|alignment| {
+                    let mut ref_pos = emission_params.ref_offset() + alignment.start;
+
+                    // METHOD: group operations by indel or not, check whether they overlap the variant,
+                    // and report additional indels that remain in the variant range.
+                    // These are indicative of divindel bias (i.e. some wild disagreeing indel operations cause a caller
+                    // to interpet them as an indel variant, but in reality it is e.g. a PCR homopolymer error.)
+                    alignment
+                        .operations()
+                        .iter()
+                        .group_by(|op| match op {
+                            AlignmentOperation::Del | AlignmentOperation::Ins => true,
+                            _ => false,
+                        })
+                        .into_iter()
+                        .filter_map(|(is_indel, group)| {
+                            let group: Vec<_> = group.collect();
+
+                            let mut group_ref_len = 0;
+                            for op in &group {
+                                // update ref_pos
+                                match op {
+                                    AlignmentOperation::Match
+                                    | AlignmentOperation::Subst
+                                    | AlignmentOperation::Del => group_ref_len += 1,
+                                    AlignmentOperation::Ins => (),
+                                    _ => unreachable!(),
+                                }
+                            }
+
+                            let ret = if let Some(variant_ref_range) =
+                                emission_params.variant_ref_range()
+                            {
+                                if is_indel
+                                    && (variant_ref_range.contains(&ref_pos)
+                                        || variant_ref_range.contains(&(ref_pos + group_ref_len))
+                                        || (variant_ref_range.start >= ref_pos
+                                            && variant_ref_range.end <= ref_pos + group_ref_len))
+                                {
+                                    // METHOD: indel ops that overlap with the variant interval are recorded here.
+                                    Some(group)
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+
+                            ref_pos += group_ref_len;
+
+                            ret
+                        })
+                        .flatten()
+                        .cloned()
+                        .collect_vec()
+                })
+                .min_by_key(|indels| indels.len())
+                .unwrap();
+
             Some(EditDistanceHit {
                 start,
                 end,
                 dist: best_dist,
                 alignments,
+                best_indel_operations,
             })
         }
     }
@@ -153,6 +219,8 @@ pub(crate) struct EditDistanceHit {
     dist: usize,
     #[getset(get = "pub(crate)")]
     alignments: Vec<Alignment>,
+    #[getset(get = "pub(crate)")]
+    best_indel_operations: Vec<AlignmentOperation>,
 }
 
 impl EditDistanceHit {

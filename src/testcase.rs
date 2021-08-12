@@ -18,6 +18,7 @@ use rust_htslib::{bam, bcf, bcf::Read};
 use crate::cli;
 use crate::errors;
 use crate::utils;
+use crate::utils::anonymize::Anonymizer;
 use crate::variants::model::Variant;
 use crate::variants::sample;
 use crate::variants::types::breakends::BreakendIndex;
@@ -73,6 +74,7 @@ pub struct Testcase {
     #[builder(default = "None")]
     purity: Option<f64>,
     mode: Mode,
+    anonymize: bool,
 }
 
 impl TestcaseBuilder {
@@ -109,7 +111,7 @@ impl TestcaseBuilder {
         mut self,
         name: &str,
         bam: impl AsRef<Path>,
-        options: &cli::Varlociraptor,
+        mut options: cli::Varlociraptor,
     ) -> Result<Self> {
         if self.bams.is_none() {
             self = self.bams(HashMap::new());
@@ -124,10 +126,29 @@ impl TestcaseBuilder {
             self = self.options(HashMap::new());
         }
 
+        if let cli::Varlociraptor::Preprocess {
+            kind:
+                cli::PreprocessKind::Variants {
+                    ref mut reference,
+                    ref mut candidates,
+                    ref mut bam,
+                    ref mut output,
+                    ..
+                },
+        } = options
+        {
+            *reference = "?".into();
+            *candidates = "?".into();
+            *bam = "?".into();
+            *output = Some("?".into());
+        } else {
+            unreachable!();
+        }
+
         self.options
             .as_mut()
             .unwrap()
-            .insert(name.to_owned(), serde_json::to_string(options)?);
+            .insert(name.to_owned(), serde_json::to_string(&options)?);
 
         Ok(self)
     }
@@ -173,9 +194,7 @@ impl Testcase {
 
                 for rec in &mut found {
                     if utils::is_bnd(rec)? {
-                        if let Some(event) =
-                            utils::info_tag_event(rec)?.map(|event| event.to_owned())
-                        {
+                        if let Some(event) = utils::info_tag_event(rec)? {
                             // METHOD: for breakend events, collect all the other breakends.
                             if breakend_index.is_none() {
                                 breakend_index = Some(BreakendIndex::new(&self.candidates)?);
@@ -214,6 +233,8 @@ impl Testcase {
     }
 
     pub(crate) fn write(&mut self) -> Result<()> {
+        let mut anonymizer = Anonymizer::new();
+
         fs::create_dir_all(&self.prefix)?;
 
         let candidate_filename = Path::new("candidates.vcf");
@@ -222,7 +243,7 @@ impl Testcase {
         // get and write candidate
         let mut candidate = None;
         for (i, mut record) in (self.variants()?).into_iter().enumerate() {
-            let variants = utils::collect_variants(&mut record, false, &mut skips)?;
+            let variants = utils::collect_variants(&mut record, false, Some(&mut skips))?;
             for variant in variants {
                 if i == self.idx {
                     // if no chromosome was specified, we infer the locus from the matching
@@ -257,8 +278,8 @@ impl Testcase {
             (Variant::Insertion(ref seq), _) => {
                 (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
-            (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
-            (Variant::MNV(ref bases), _) => {
+            (Variant::Snv(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
+            (Variant::Mnv(ref bases), _) => {
                 (pos.saturating_sub(100), pos + bases.len() as u64 + 100)
             }
             (Variant::Breakend { .. }, _) => {
@@ -295,11 +316,17 @@ impl Testcase {
             let properties = sample::estimate_alignment_properties(path, false, false)?;
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
             let filename = Path::new(name).with_extension("bam");
-            let mut bam_writer = bam::Writer::from_path(
-                self.prefix.join(&filename),
-                &bam::Header::from_template(bam_reader.header()),
-                bam::Format::BAM,
-            )?;
+
+            // create header with just the modified sequence
+            let mut header = bam::header::Header::new();
+            header.push_record(
+                bam::header::HeaderRecord::new(b"SQ")
+                    .push_tag(b"SN", &str::from_utf8(chrom_name)?)
+                    .push_tag(b"LN", &format!("{}", ref_end - ref_start)),
+            );
+
+            let mut bam_writer =
+                bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::BAM)?;
 
             let tid = bam_reader.header().tid(chrom_name).unwrap();
 
@@ -309,6 +336,9 @@ impl Testcase {
                 // update mapping position to interval
                 rec.set_pos(rec.pos() - ref_start as i64);
                 rec.set_mpos(rec.mpos() - ref_start as i64);
+                if self.anonymize {
+                    anonymizer.anonymize_bam_record(&mut rec);
+                }
                 bam_writer.write(&rec)?;
             }
             samples.insert(
@@ -322,9 +352,13 @@ impl Testcase {
         }
 
         // write candidate
+        let mut header = bcf::Header::from_template(self.candidate_reader()?.header());
+        if self.anonymize {
+            header.remove_generic(b"varlociraptor_preprocess_args");
+        }
         let mut candidate_writer = bcf::Writer::from_path(
             self.prefix.join(candidate_filename),
-            &bcf::Header::from_template(self.candidate_reader()?.header()),
+            &header,
             true,
             bcf::Format::VCF,
         )?;
@@ -337,6 +371,9 @@ impl Testcase {
         {
             candidate_record.push_info_integer(b"END", &[end - ref_start as i32])?;
         }
+        if self.anonymize {
+            anonymizer.anonymize_bcf_record(&mut candidate_record)?;
+        }
         candidate_writer.write(&candidate_record)?;
 
         // write scenario
@@ -348,7 +385,7 @@ impl Testcase {
         };
 
         // fetch reference
-        let ref_name = str::from_utf8(&chrom_name)?;
+        let ref_name = str::from_utf8(chrom_name)?;
 
         // limit ref_end
         for seq in self.reference_reader.index.sequences() {
@@ -361,6 +398,10 @@ impl Testcase {
             .fetch(ref_name, ref_start as u64, ref_end as u64)?;
         let mut ref_seq = Vec::new();
         self.reference_reader.read(&mut ref_seq)?;
+
+        if self.anonymize {
+            anonymizer.anonymize_seq(&mut ref_seq);
+        }
 
         // write reference
         let ref_filename = "ref.fa";

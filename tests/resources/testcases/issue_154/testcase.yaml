@@ -1,0 +1,38 @@
+# test case from issue 154: https://github.com/varlociraptor/varlociraptor/issues/154
+expected:
+  allelefreqs:
+    - normal == 0.0
+    - tumor > 0.15 && tumor < 0.25
+  posteriors:
+    - PROB_ARTIFACT == inf
+    - PROB_SOMATIC_TUMOR < 0.08
+
+# necessary bam files
+samples:
+  normal:
+    path: 'normal.bam'
+    properties: '{"insert_size":null,"max_del_cigar_len":null,"max_ins_cigar_len":null,"frac_max_softclip":null,"max_read_len":33}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"tmp.fasta","candidates":"tmp.vcf","bam":"tmp.normal.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":null,"spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact"}}}}'
+  tumor:
+    path: 'tumor.bam'
+    properties: '{"insert_size":null,"max_del_cigar_len":4,"max_ins_cigar_len":null,"frac_max_softclip":null,"max_read_len":33}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"tmp.fasta","candidates":"tmp.vcf","bam":"tmp.tumor.bam","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":null,"output":null,"spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact"}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+omit_strand_bias: true
+omit_read_orientation_bias: true
+omit_read_position_bias: true
+
+purity: 1.0
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: TumorNormal
+
+version: '4'

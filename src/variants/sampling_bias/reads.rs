@@ -22,18 +22,20 @@ pub(crate) trait ReadSamplingBias: Variant + SamplingBias {
         read_len: u64,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        let feasible = self.feasible_bases(read_len, alignment_properties);
+        if let Some(feasible) = self.feasible_bases(read_len, alignment_properties) {
+            let prob = {
+                let n_alt = self
+                    .enclosable_len()
+                    .map_or(read_len, |len| cmp::min(len, read_len));
+                let n_alt_valid = cmp::min(n_alt, feasible);
 
-        let prob = {
-            let n_alt = self
-                .enclosable_len()
-                .map_or(read_len, |len| cmp::min(len, read_len));
-            let n_alt_valid = cmp::min(n_alt, feasible);
+                LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
+            };
+            assert!(prob.is_valid());
 
-            LogProb((n_alt_valid as f64).ln() - (n_alt as f64).ln())
-        };
-        assert!(prob.is_valid());
-
-        prob
+            prob
+        } else {
+            LogProb::ln_one()
+        }
     }
 }

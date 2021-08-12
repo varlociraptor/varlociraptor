@@ -7,17 +7,18 @@ use std::path::Path;
 use std::string::ToString;
 use std::sync::Mutex;
 
-use anyhow::Result;
-use serde_yaml;
+use anyhow::{Context, Result};
 use vec_map::VecMap;
 
 pub(crate) mod formula;
 pub(crate) mod vaftree;
 
 use crate::errors;
+use crate::grammar::formula::FormulaTerminal;
 pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniverse};
 pub(crate) use crate::grammar::vaftree::VAFTree;
-use crate::variants::model::AlleleFreq;
+use crate::variants::model::{AlleleFreq, VariantType};
+use itertools::Itertools;
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -146,7 +147,31 @@ impl Scenario {
         let mut scenario_content = String::new();
         File::open(path)?.read_to_string(&mut scenario_content)?;
 
-        Ok(serde_yaml::from_str(&scenario_content)?)
+        let mut scenario: Self = serde_yaml::from_str(&scenario_content)?;
+
+        let mut event_expressions = HashMap::new();
+
+        // register all events as expressions
+        for (name, formula) in scenario.events() {
+            let identifier = ExpressionIdentifier(name.clone());
+            if !scenario.expressions().contains_key(&identifier) {
+                event_expressions.insert(identifier, formula.clone());
+            }
+        }
+        let absent_identifier = ExpressionIdentifier("absent".to_owned());
+        if !scenario.expressions.contains_key(&absent_identifier) {
+            event_expressions.insert(absent_identifier, Formula::absent(&scenario));
+        }
+        scenario.expressions.extend(event_expressions);
+        Ok(scenario)
+    }
+
+    pub(crate) fn variant_type_fractions(&self) -> VariantTypeFraction {
+        self.species()
+            .as_ref()
+            .map_or(VariantTypeFraction::default(), |species| {
+                species.variant_type_fractions().clone()
+            })
     }
 
     pub(crate) fn sample_info<T>(&self) -> SampleInfoBuilder<T> {
@@ -178,14 +203,77 @@ impl Scenario {
     }
 
     pub(crate) fn vaftrees(&self, contig: &str) -> Result<HashMap<String, VAFTree>> {
-        self.events()
+        info!("Preprocessing events for contig {}", contig);
+        let trees = self
+            .events()
             .iter()
             .map(|(name, formula)| {
-                let normalized = formula.normalize(self, contig)?;
+                let normalized = formula
+                    .normalize(self, contig)
+                    .with_context(|| format!("invalid event definition for {}", name))?;
+                info!("    {}: {}", name, normalized);
                 let vaftree = VAFTree::new(&normalized, self, contig)?;
                 Ok((name.to_owned(), vaftree))
             })
-            .collect()
+            .collect();
+        self.validate(contig)?;
+        trees
+    }
+
+    pub(crate) fn validate(&self, contig: &str) -> Result<()> {
+        let names = self
+            .events()
+            .iter()
+            .filter(|(name, _)| *name != "absent")
+            .map(|(name, formula)| {
+                (
+                    // if `formula.normalize(…)` failed above, we won't get to this line,
+                    // so we might as well unwrap.
+                    formula.normalize(self, contig).map(Formula::from).unwrap(),
+                    name,
+                )
+            })
+            .into_group_map();
+        let mut overlapping = vec![];
+        let events: Vec<_> = names.keys().sorted().cloned().collect();
+        for (e1, e2) in events.iter().tuple_combinations() {
+            // skip comparison of event with itself
+            if e1 == e2 {
+                continue;
+            }
+            let terms = [e1, e2]
+                .iter()
+                .filter(|e| !matches!(e.to_terminal(), Some(FormulaTerminal::False)))
+                .map(|&v| v.clone())
+                .collect_vec();
+
+            // skip if any of the operands is a terminal `False`.
+            if terms.len() != 2 {
+                continue;
+            }
+
+            // TODO make sure the disjunction really is canonical, such that trying to check if it's contained in `events` isn't a game of chance
+            let disjunction =
+                Formula::from(Formula::Disjunction { operands: terms }.normalize(self, contig)?);
+            if events.contains(&disjunction) {
+                overlapping.push((
+                    names[e1].clone(),
+                    names[e2].clone(),
+                    names[&disjunction].clone(),
+                ));
+            }
+        }
+        if !overlapping.is_empty() {
+            return Err(crate::errors::Error::OverlappingEvents {
+                expressions: overlapping
+                    .iter()
+                    .map(|(a1, a2, f)| format!("({:?} | {:?}) = {:?}", a1, a2, f))
+                    .join(", "),
+            }
+            .into());
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -208,14 +296,16 @@ impl PloidyDefinition {
     pub(crate) fn contig_ploidy(&self, contig: &str) -> Result<u32> {
         Ok(match self {
             PloidyDefinition::Simple(ploidy) => *ploidy,
-            PloidyDefinition::Map(map) => match map.get(contig) {
-                Some(ploidy) => *ploidy,
-                None => map.get("all").map(|ploidy| *ploidy).ok_or_else(|| {
-                    errors::Error::PloidyContigNotFound {
-                        contig: contig.to_owned(),
-                    }
-                })?,
-            },
+            PloidyDefinition::Map(map) => {
+                match map.get(contig) {
+                    Some(ploidy) => *ploidy,
+                    None => map.get("all").copied().ok_or_else(|| {
+                        errors::Error::PloidyContigNotFound {
+                            contig: contig.to_owned(),
+                        }
+                    })?,
+                }
+            }
         })
     }
 }
@@ -281,7 +371,7 @@ impl Species {
 }
 
 fn default_indel_fraction() -> f64 {
-    0.1
+    0.0125
 }
 
 fn default_mnv_fraction() -> f64 {
@@ -292,7 +382,12 @@ fn default_sv_fraction() -> f64 {
     0.01
 }
 
-#[derive(Deserialize, Getters)]
+/// Mutation rate reduciton factors (relative to SNVs) for variant types.
+/// Defaults:
+/// * mnvs: 0.001 (see https://www.nature.com/articles/s41467-019-12438-5)
+/// * indels: 0.0125 (see https://gatk.broadinstitute.org/hc/en-us/articles/360036826431-HaplotypeCaller, reduction in heterozygosity)
+/// * svs: 0.001 (predicted several hundred times less frequent that SNVs: https://doi.org/10.1038/s41588-018-0107-y)
+#[derive(Deserialize, Getters, Clone, Debug)]
 #[get = "pub(crate)"]
 #[serde(deny_unknown_fields)]
 pub(crate) struct VariantTypeFraction {
@@ -302,6 +397,19 @@ pub(crate) struct VariantTypeFraction {
     mnv: f64,
     #[serde(default = "default_sv_fraction")]
     sv: f64,
+}
+
+impl VariantTypeFraction {
+    pub(crate) fn get(&self, variant_type: &VariantType) -> f64 {
+        match variant_type {
+            VariantType::Insertion(_) | VariantType::Deletion(_) | VariantType::Replacement => {
+                self.indel
+            }
+            VariantType::Mnv => self.mnv,
+            VariantType::Inversion | VariantType::Breakend | VariantType::Duplication => self.sv,
+            _ => 1.0,
+        }
+    }
 }
 
 impl Default for VariantTypeFraction {
@@ -379,7 +487,14 @@ impl Sample {
         } else {
             let ploidy_derived_spectrum = |ploidy| -> BTreeSet<AlleleFreq> {
                 (0..=ploidy)
-                    .map(|n_alt| AlleleFreq(n_alt as f64 / ploidy as f64))
+                    .map(|n_alt| {
+                        if ploidy > 0 {
+                            AlleleFreq(n_alt as f64 / ploidy as f64)
+                        } else {
+                            assert_eq!(n_alt, 0);
+                            AlleleFreq(0.0)
+                        }
+                    })
                     .collect()
             };
             Ok(
@@ -420,10 +535,10 @@ impl Sample {
                         ));
                         universe
                     }
-                    (None, false) => return Err(errors::Error::InvalidPriorConfiguration{
+                    (None, false) => return Err(errors::Error::InvalidPriorConfiguration {
                         msg: "sample needs to define either universe, ploidy or somatic_mutation_rate".to_owned(),
                     }
-                    .into()),
+                        .into()),
                 },
             )
         }
@@ -449,7 +564,7 @@ impl Sample {
         } else {
             species
                 .as_ref()
-                .map_or(None, |species| species.germline_mutation_rate)
+                .and_then(|species| species.germline_mutation_rate)
         }
     }
 
@@ -459,7 +574,7 @@ impl Sample {
         } else {
             species
                 .as_ref()
-                .map_or(None, |species| species.somatic_effective_mutation_rate)
+                .and_then(|species| species.somatic_effective_mutation_rate)
         }
     }
 }

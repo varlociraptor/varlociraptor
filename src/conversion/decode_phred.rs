@@ -28,7 +28,7 @@ pub(crate) fn decode_phred() -> Result<()> {
         header.push_record(
             format!(
                 "##INFO=<ID={},Number=A,Type=Float,\
-                 Description={}>",
+                 Description=\"{}\">",
                 id, description
             )
             .as_bytes(),
@@ -45,7 +45,7 @@ pub(crate) fn decode_phred() -> Result<()> {
                     .iter()
                     .map(|v| *Prob::from(PHREDProb(*v as f64)) as f32)
                     .collect_vec();
-                record.push_info_float(&id, &converted)?;
+                record.push_info_float(id, &converted)?;
             }
         }
         outbcf.write(&record)?;

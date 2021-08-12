@@ -28,12 +28,18 @@ pub(crate) enum SkipReason {
 pub(crate) fn collect_variants(
     record: &mut bcf::Record,
     skip_imprecise: bool,
-    skips: &mut SimpleCounter<SkipReason>,
+    skips: Option<&mut SimpleCounter<SkipReason>>,
 ) -> Result<Vec<model::Variant>> {
     let imprecise = record.info(b"IMPRECISE").flag().ok().unwrap_or(false);
 
+    let skip_incr = |reason| {
+        if let Some(skips) = skips {
+            skips.incr(reason);
+        }
+    };
+
     if skip_imprecise && imprecise {
-        skips.incr(SkipReason::Imprecise);
+        skip_incr(SkipReason::Imprecise);
         return Ok(Vec::with_capacity(1));
     }
 
@@ -89,22 +95,22 @@ pub(crate) fn collect_variants(
         if svtype == b"INV" {
             let alleles = record.alleles();
             if alleles.len() != 2 {
-                skips.incr(SkipReason::InversionInvalidAlt);
+                skip_incr(SkipReason::InversionInvalidAlt);
             } else if let Some(end) = end {
                 let len = end + 1 - pos; // end is inclusive, pos as well.
                 variants.push(model::Variant::Inversion(len));
             } else {
-                skips.incr(SkipReason::InversionMissingEndTag);
+                skip_incr(SkipReason::InversionMissingEndTag);
             }
         } else if svtype == b"DUP" {
             let alleles = record.alleles();
             if alleles.len() != 2 {
-                skips.incr(SkipReason::DuplicationInvalidAlt);
+                skip_incr(SkipReason::DuplicationInvalidAlt);
             } else if let Some(end) = end {
                 let len = end + 1 - pos; // end is inclusive, pos as well.
                 variants.push(model::Variant::Duplication(len));
             } else {
-                skips.incr(SkipReason::DuplicationMissingEndTag)
+                skip_incr(SkipReason::DuplicationMissingEndTag)
             }
         } else if svtype == b"BND" {
             let alleles = record.alleles();
@@ -117,7 +123,7 @@ pub(crate) fn collect_variants(
                     })
                 }
             } else {
-                skips.incr(SkipReason::BreakendNoEvent);
+                skip_incr(SkipReason::BreakendNoEvent);
             }
         } else if svtype == b"INS" {
             // get sequence
@@ -190,10 +196,10 @@ pub(crate) fn collect_variants(
                 // skip any other special alleles
             } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 // SNV
-                variants.push(model::Variant::SNV(alt_allele[0]));
+                variants.push(model::Variant::Snv(alt_allele[0]));
             } else if alt_allele.len() == ref_allele.len() {
                 // MNV
-                variants.push(model::Variant::MNV(alt_allele.to_vec()));
+                variants.push(model::Variant::Mnv(alt_allele.to_vec()));
             } else {
                 // TODO fix position if variant is like this: cttt -> ct
                 if is_valid_deletion_alleles(ref_allele, alt_allele) {

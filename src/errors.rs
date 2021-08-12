@@ -38,7 +38,7 @@ pub(crate) enum Error {
     RecordMissingChrom { i: usize },
     #[error("inconsistent observations: input observation BCF files do not contain exactly the same records")]
     InconsistentObservations,
-    #[error("no observations given for sample {name}")]
+    #[error("sample {name} (given by --obs) cannot be found in the scenario")]
     InvalidObservationSampleName { name: String },
     #[error("invalid observations: varlociraptor cannot be parsed from given observations ({path}); either the file has not been preprocessed with varlociraptor or with a too old version")]
     InvalidObservations { path: PathBuf },
@@ -60,4 +60,6 @@ pub(crate) enum Error {
     InvalidStrandInfo { value: char },
     #[error("invalid read orientation information '{value}', must be 'F1R2', 'F2R1', etc.")]
     InvalidReadOrientationInfo { value: String },
+    #[error("the following events are not disjunct: {expressions}")]
+    OverlappingEvents { expressions: String },
 }

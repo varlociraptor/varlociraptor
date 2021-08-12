@@ -3,13 +3,13 @@
 expected:
   allelefreqs:
     # true AF=0.125
-  - tumor >= 0.09 && tumor <= 0.125
+  - tumor >= 0.06 && tumor <= 0.125
   - normal == 0.0
   posteriors:
     # There are some fragments with increased insert size that let prosic think
     # there is a bit of evidence for having a somatic normal call. This makes
     # the probability for somatic tumor weak.
-  - PROB_SOMATIC_TUMOR <= 0.12
+  - PROB_SOMATIC_TUMOR <= 0.9
 
 # necessary bam files
 samples:

@@ -11,11 +11,11 @@ use crate::grammar;
 use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
-use crate::variants::model::{bias::Biases, AlleleFreq, Contamination};
+use crate::variants::model::{bias::Biases, AlleleFreq, Contamination, VariantType};
 use crate::variants::sample::Pileup;
 
 #[derive(new, Clone, Debug)]
-pub(crate) struct SNV {
+pub(crate) struct Snv {
     refbase: u8,
     altbase: u8,
 }
@@ -24,7 +24,7 @@ pub(crate) struct SNV {
 #[get = "pub"]
 pub(crate) struct Data {
     pileups: Vec<Pileup>,
-    snv: Option<SNV>,
+    snv: Option<Snv>,
 }
 
 impl Data {
@@ -168,6 +168,7 @@ impl GenericPosterior {
         };
 
         match vaf_tree_node.kind() {
+            grammar::vaftree::NodeKind::False => LogProb::ln_zero(),
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
                 let push_base_event = |allele_freq, base_events: &mut VecMap<likelihood::Event>| {
                     base_events.insert(
@@ -283,7 +284,7 @@ impl GenericPosterior {
                 refbase: given_refbase,
                 altbase: given_altbase,
             } => {
-                if let Some(SNV { refbase, altbase }) = data.snv {
+                if let Some(Snv { refbase, altbase }) = data.snv {
                     let contains =
                         given_refbase.contains(refbase) && given_altbase.contains(altbase);
                     if (*positive && !contains) || (!*positive && contains) {
@@ -325,10 +326,12 @@ impl Posterior for GenericPosterior {
         };
 
         // METHOD: filter out biases that are impossible to observe, (e.g. + without any + observation).
-        let possible_biases = event
-            .biases
-            .iter()
-            .filter(|bias| bias.is_possible(&data.pileups) && bias.is_informative(&data.pileups));
+        let possible_biases = event.biases.iter().filter(|bias| {
+            bias.is_possible(&data.pileups)
+                && bias.is_informative(&data.pileups)
+                && bias.is_likely(&data.pileups)
+        });
+
         LogProb::ln_sum_exp(
             &possible_biases
                 .cartesian_product(vaf_tree)
@@ -439,12 +442,6 @@ pub(crate) struct FlatPrior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,
 }
 
-impl FlatPrior {
-    pub(crate) fn new() -> Self {
-        FlatPrior { universe: None }
-    }
-}
-
 impl Prior for FlatPrior {
     type Event = Vec<likelihood::Event>;
 
@@ -469,4 +466,6 @@ impl model::prior::UpdatablePrior for FlatPrior {
     ) {
         self.universe = Some(universe);
     }
+
+    fn set_variant_type(&mut self, _: VariantType) {}
 }

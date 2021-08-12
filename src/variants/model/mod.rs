@@ -25,7 +25,7 @@ pub(crate) struct Contamination {
     pub(crate) fraction: f64,
 }
 
-#[derive(Ord, Eq, PartialOrd, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub(crate) struct Event {
     pub(crate) name: String,
     pub(crate) vafs: grammar::VAFTree,
@@ -151,9 +151,9 @@ pub enum VariantType {
     #[strum(serialize = "DEL")]
     Deletion(Option<Range<u64>>),
     #[strum(serialize = "SNV")]
-    SNV,
+    Snv,
     #[strum(serialize = "MNV")]
-    MNV,
+    Mnv,
     #[strum(serialize = "BND")]
     Breakend,
     #[strum(serialize = "INV")]
@@ -171,7 +171,7 @@ impl From<&str> for VariantType {
         match string {
             "INS" => VariantType::Insertion(None),
             "DEL" => VariantType::Deletion(None),
-            "SNV" => VariantType::SNV,
+            "SNV" => VariantType::Snv,
             "REF" => VariantType::None,
             "INV" => VariantType::Inversion,
             "DUP" => VariantType::Duplication,
@@ -186,8 +186,8 @@ impl From<&str> for VariantType {
 pub(crate) enum Variant {
     Deletion(u64),
     Insertion(Vec<u8>),
-    SNV(u8),
-    MNV(Vec<u8>),
+    Snv(u8),
+    Mnv(Vec<u8>),
     Breakend {
         ref_allele: Vec<u8>,
         spec: Vec<u8>,
@@ -217,8 +217,8 @@ impl Variant {
             }
             (&Variant::Deletion(_), &VariantType::Deletion(None)) => true,
             (&Variant::Insertion(_), &VariantType::Insertion(None)) => true,
-            (&Variant::SNV(_), &VariantType::SNV) => true,
-            (&Variant::MNV(_), &VariantType::MNV) => true,
+            (&Variant::Snv(_), &VariantType::Snv) => true,
+            (&Variant::Mnv(_), &VariantType::Mnv) => true,
             (&Variant::None, &VariantType::None) => true,
             (&Variant::Breakend { .. }, &VariantType::Breakend) => true,
             (&Variant::Inversion { .. }, &VariantType::Inversion) => true,
@@ -228,12 +228,26 @@ impl Variant {
         }
     }
 
+    pub(crate) fn to_type(&self) -> VariantType {
+        match self {
+            Variant::Deletion(_) => VariantType::Deletion(None),
+            Variant::Insertion(_) => VariantType::Insertion(None),
+            Variant::Snv(_) => VariantType::Snv,
+            Variant::Mnv(_) => VariantType::Mnv,
+            Variant::Breakend { .. } => VariantType::Breakend,
+            Variant::Inversion(_) => VariantType::Inversion,
+            Variant::Duplication(_) => VariantType::Duplication,
+            Variant::Replacement { .. } => VariantType::Replacement,
+            Variant::None => VariantType::None,
+        }
+    }
+
     pub(crate) fn len(&self) -> u64 {
         match *self {
             Variant::Deletion(l) => l,
             Variant::Insertion(ref s) => s.len() as u64,
-            Variant::SNV(_) => 1,
-            Variant::MNV(ref alt) => alt.len() as u64,
+            Variant::Snv(_) => 1,
+            Variant::Mnv(ref alt) => alt.len() as u64,
             Variant::Breakend { .. } => 1,
             Variant::Inversion(l) => l,
             Variant::Duplication(l) => l,
@@ -268,6 +282,7 @@ mod tests {
             .read_position(ReadPosition::Some)
             .strand(Strand::Both)
             .softclipped(false)
+            .has_alt_indel_operations(false)
             .paired(true)
             .prob_hit_base(LogProb::from(0.01f64.ln()))
             .build()

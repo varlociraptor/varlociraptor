@@ -107,7 +107,6 @@ impl ops::BitOrAssign for Strand {
             *self = rhs;
         } else if let Strand::None = rhs {
             // no new information
-            return;
         } else if *self != rhs {
             *self = Strand::Both;
         }
@@ -193,11 +192,13 @@ where
     pub(crate) strand: Strand,
     /// Read orientation support this observation relies on
     pub(crate) read_orientation: SequenceReadPairOrientation,
-    /// True if obervation contains softclips
+    /// True if obervation contains s
     pub(crate) softclipped: bool,
     pub(crate) paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub(crate) read_position: P,
+    /// Whether the read contains indel operations agains the alt allele
+    pub(crate) has_alt_indel_operations: bool,
 }
 
 impl<P: Clone> ObservationBuilder<P> {
@@ -213,10 +214,7 @@ impl<P: Clone> ObservationBuilder<P> {
 }
 
 impl Observation<Option<u32>> {
-    pub(crate) fn process_read_position(
-        &self,
-        major_read_position: Option<u32>,
-    ) -> Observation<ReadPosition> {
+    pub(crate) fn process(&self, major_read_position: Option<u32>) -> Observation<ReadPosition> {
         Observation {
             prob_mapping: self.prob_mapping,
             prob_mismapping: self.prob_mismapping,
@@ -244,6 +242,7 @@ impl Observation<Option<u32>> {
                     ReadPosition::Some
                 }
             }),
+            has_alt_indel_operations: self.has_alt_indel_operations,
         }
     }
 }
@@ -271,16 +270,15 @@ impl<P: Clone> Observation<P> {
         omit_read_orientation_bias: bool,
     ) -> Vec<Self> {
         // METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
-        // solely driven by standard alignments, that are not clipped and in expected orientation.
+        // solely driven by standard alignments, that are in expected orientation.
         // Otherwise called SNVs can be artifacts of near SVs.
         pileup
             .into_iter()
             .filter(|obs| {
-                !obs.softclipped
-                    && (omit_read_orientation_bias
-                        || (obs.read_orientation == SequenceReadPairOrientation::F1R2
-                            || obs.read_orientation == SequenceReadPairOrientation::F2R1
-                            || obs.read_orientation == SequenceReadPairOrientation::None))
+                omit_read_orientation_bias
+                    || (obs.read_orientation == SequenceReadPairOrientation::F1R2
+                        || obs.read_orientation == SequenceReadPairOrientation::F2R1
+                        || obs.read_orientation == SequenceReadPairOrientation::None)
             })
             .collect()
     }
@@ -352,6 +350,12 @@ where
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation()?)
                     .softclipped(evidence.softclipped())
+                    .has_alt_indel_operations(if self.report_indel_operations() {
+                        allele_support.has_alt_indel_operations()
+                    } else {
+                        // METHOD: do not report any operations if the variant chooses to not report them.
+                        false
+                    })
                     .read_position(allele_support.read_position())
                     .paired(evidence.is_paired())
                     .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))

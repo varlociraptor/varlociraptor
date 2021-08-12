@@ -32,19 +32,25 @@ pub(crate) use deletion::Deletion;
 pub(crate) use duplication::Duplication;
 pub(crate) use insertion::Insertion;
 pub(crate) use inversion::Inversion;
-pub(crate) use mnv::MNV;
+pub(crate) use mnv::Mnv;
 pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
-pub(crate) use snv::SNV;
+pub(crate) use snv::Snv;
 
-#[derive(Debug, CopyGetters, Builder)]
-#[getset(get_copy = "pub")]
+#[derive(Debug, CopyGetters, Getters, Builder)]
 pub(crate) struct AlleleSupport {
+    #[getset(get_copy = "pub")]
     prob_ref_allele: LogProb,
+    #[getset(get_copy = "pub")]
     prob_alt_allele: LogProb,
+    #[getset(get_copy = "pub")]
     strand: Strand,
     #[builder(default)]
+    #[getset(get_copy = "pub")]
     read_position: Option<u32>,
+    #[builder(default)]
+    #[getset(get_copy = "pub")]
+    has_alt_indel_operations: bool,
 }
 
 impl AlleleSupport {
@@ -60,10 +66,15 @@ impl AlleleSupport {
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
         self.prob_ref_allele += other.prob_ref_allele;
         self.prob_alt_allele += other.prob_alt_allele;
+
         if self.strand == Strand::None {
             self.strand = other.strand;
-        } else if other.strand != Strand::None && self.strand != other.strand {
-            self.strand = Strand::Both;
+            self.has_alt_indel_operations = other.has_alt_indel_operations;
+        } else if other.strand != Strand::None {
+            if self.strand != other.strand {
+                self.strand = Strand::Both;
+            }
+            self.has_alt_indel_operations |= other.has_alt_indel_operations;
         }
 
         self
@@ -102,6 +113,11 @@ pub(crate) trait Variant {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb;
+
+    /// Whether the variant shall report indel operations for the DivIndelBias calculation.
+    fn report_indel_operations(&self) -> bool {
+        false
+    }
 }
 
 impl<V> Observable<SingleEndEvidence> for V
@@ -125,6 +141,11 @@ where
         let candidates: Vec<_> = buffer
             .iter()
             .filter_map(|record| {
+                // METHOD: First, we check whether the record contains an indel in the cigar.
+                // We store the maximum indel size to update the global estimates, in case
+                // it is larger in this region.
+                alignment_properties.update_max_cigar_ops_len(record.as_ref(), false);
+
                 let evidence = SingleEndEvidence::new(record);
                 if self
                     .is_valid_evidence(&evidence, alignment_properties)

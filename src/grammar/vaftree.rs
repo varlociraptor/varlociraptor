@@ -4,10 +4,10 @@ use anyhow::Result;
 use itertools::Itertools;
 
 use crate::errors;
-use crate::grammar::{formula::NormalizedFormula, formula::IUPAC, Scenario, VAFSpectrum};
+use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum};
 use crate::variants::model::AlleleFreq;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct VAFTree {
     inner: Vec<Node>,
 }
@@ -43,24 +43,25 @@ impl<'a> IntoIterator for &'a VAFTree {
     type IntoIter = std::slice::Iter<'a, Node>;
 
     fn into_iter(self) -> Self::IntoIter {
-        (&self.inner).into_iter()
+        (&self.inner).iter()
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum NodeKind {
     Variant {
-        refbase: IUPAC,
-        altbase: IUPAC,
+        refbase: Iupac,
+        altbase: Iupac,
         positive: bool,
     },
     Sample {
         sample: usize,
         vafs: VAFSpectrum,
     },
+    False,
 }
 
-#[derive(new, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Getters)]
+#[derive(new, Clone, Debug, PartialEq, Eq, Getters, Hash)]
 #[get = "pub"]
 pub(crate) struct Node {
     kind: NodeKind,
@@ -69,7 +70,7 @@ pub(crate) struct Node {
 }
 
 impl Node {
-    pub(crate) fn leafs<'a>(&'a mut self) -> Vec<&'a mut Node> {
+    pub(crate) fn leafs(&mut self) -> Vec<&mut Node> {
         fn collect_leafs<'a>(node: &'a mut Node, leafs: &mut Vec<&'a mut Node>) {
             if node.children.is_empty() {
                 leafs.push(node);
@@ -131,7 +132,7 @@ impl VAFTree {
                             _ => 0,
                         })
                         .collect_vec();
-                    let mut roots = from(&operands[0], scenario)?;
+                    let mut roots = from(operands[0], scenario)?;
                     for operand in &operands[1..] {
                         let subtrees = from(operand, scenario)?;
                         for subtree in &mut roots {
@@ -151,6 +152,7 @@ impl VAFTree {
                     refbase,
                     altbase,
                 })]),
+                NormalizedFormula::False => Ok(vec![Node::new(NodeKind::False)]),
             }
         }
 
@@ -160,6 +162,11 @@ impl VAFTree {
             scenario: &'a Scenario,
             contig: &str,
         ) -> Result<()> {
+            if let NodeKind::False = node.kind {
+                // METHOD: no need to add further missing samples as the formula is false anyways
+                return Ok(());
+            }
+
             if let NodeKind::Sample { sample, .. } = node.kind {
                 seen.insert(sample);
             }
