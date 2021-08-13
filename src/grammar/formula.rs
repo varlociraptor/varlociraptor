@@ -1027,7 +1027,7 @@ impl VAFRange {
     }
 
     pub(crate) fn observable_min(&self, n_obs: usize) -> AlleleFreq {
-        if n_obs < 10 {
+        let min_vaf = if n_obs < 10 {
             self.start
         } else {
             let obs_count = Self::expected_observation_count(self.start, n_obs);
@@ -1048,6 +1048,13 @@ impl VAFRange {
             }
 
             adjust_allelefreq(obs_count)
+        };
+        if min_vaf >= self.observable_max(n_obs) {
+            // If the adjustments destroys the order of the boundaries, we don't do it.
+            // This can happen if the two boundaries are close together and we have only few observations.
+            self.start
+        } else {
+            min_vaf
         }
     }
 
@@ -1063,7 +1070,13 @@ impl VAFRange {
             if self.right_exclusive && obs_count % 1.0 == 0.0 {
                 obs_count -= 1.0;
             }
-            AlleleFreq(obs_count.floor() / n_obs as f64)
+            obs_count = obs_count.floor();
+            if obs_count == 0.0 {
+                // too few observations to handle exclusiveness
+                self.end
+            } else {
+                AlleleFreq(obs_count.floor() / n_obs as f64)
+            }
         }
     }
 

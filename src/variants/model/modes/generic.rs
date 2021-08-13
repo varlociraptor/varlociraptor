@@ -131,7 +131,7 @@ impl GenericPosterior {
         joint_prob: &mut F,
     ) -> LogProb {
         let mut subdensity = |base_events: &mut VecMap<likelihood::Event>| {
-            if vaf_tree_node.is_leaf() {
+            let p = if vaf_tree_node.is_leaf() {
                 joint_prob(&base_events.values().cloned().collect(), data)
             } else if vaf_tree_node.is_branching() {
                 LogProb::ln_sum_exp(
@@ -159,7 +159,10 @@ impl GenericPosterior {
                     biases,
                     joint_prob,
                 )
-            }
+            };
+
+            assert!(!p.is_nan(), "bug: density has become NaN");
+            p
         };
 
         match vaf_tree_node.kind() {
@@ -195,7 +198,7 @@ impl GenericPosterior {
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
                         let n_obs = data.pileups[*sample].len();
-                        LogProb::ln_simpsons_integrate_exp(
+                        let p = LogProb::ln_simpsons_integrate_exp(
                             |_, vaf| {
                                 let mut base_events = base_events.clone();
                                 push_base_event(AlleleFreq(vaf), &mut base_events);
@@ -204,7 +207,9 @@ impl GenericPosterior {
                             *vafs.observable_min(n_obs),
                             *vafs.observable_max(n_obs),
                             sample_grid_points[*sample],
-                        )
+                        );
+                        assert!(!p.is_nan(), "bug: integration over empty allele frequency range.");
+                        p
                     }
                 }
             }
