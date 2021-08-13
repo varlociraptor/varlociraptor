@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::str;
 use std::sync::RwLock;
 
+use progress_logger::ProgressLogger;
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
 use derive_builder::Builder;
@@ -250,6 +251,10 @@ where
 
         // process calls
         let mut i = 0;
+        let mut progress_logger = ProgressLogger::builder()
+            .with_items_name("records")
+            .with_frequency(std::time::Duration::from_secs(20))
+            .start();
         loop {
             let mut records =
                 observations.map(|reader| reader.as_ref().map(|reader| reader.empty_record()));
@@ -327,12 +332,11 @@ where
             self.call_record(&mut work_item, _model, &events);
 
             work_item.call.write_final_record(&mut bcf_writer)?;
-            if (i + 1) % 100 == 0 {
-                info!("{} records processed.", i + 1);
-            }
+            progress_logger.update(1u64);
 
             i += 1;
         }
+        progress_logger.stop();
     }
 
     fn preprocess_record(

@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
+use progress_logger::ProgressLogger;
 use anyhow::{Context, Result};
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
@@ -146,7 +147,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut skips = utils::SimpleCounter::default();
         let mut bcf_writer = self.writer()?;
         bcf_writer.set_threads(1)?;
-        let mut processed = 0;
+        let mut progress_logger = ProgressLogger::builder()
+            .with_items_name("records")
+            .with_frequency(std::time::Duration::from_secs(20))
+            .start();
 
         let mut bam_reader =
             bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
@@ -177,6 +181,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             match bcf_reader.read(&mut record) {
                 None => {
                     display_skips(&skips);
+                    progress_logger.stop();
                     return Ok(());
                 }
                 Some(res) => res?,
@@ -199,11 +204,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
                 for call in calls.iter() {
                     call.write_preprocessed_record(&mut bcf_writer)?;
-                    processed += 1;
-
-                    if processed % 100 == 0 {
-                        info!("{} records processed.", processed);
-                    }
+                    progress_logger.update(1u64);
                 }
             }
 
