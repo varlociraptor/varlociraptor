@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
-use progress_logger::ProgressLogger;
 use anyhow::{Context, Result};
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractLocus};
@@ -17,6 +16,7 @@ use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Itertools;
+use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
 use rust_htslib::bcf::{self, Read as BCFRead};
 

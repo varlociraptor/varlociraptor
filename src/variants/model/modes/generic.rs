@@ -208,7 +208,10 @@ impl GenericPosterior {
                             *vafs.observable_max(n_obs),
                             sample_grid_points[*sample],
                         );
-                        assert!(!p.is_nan(), "bug: integration over empty allele frequency range.");
+                        assert!(
+                            !p.is_nan(),
+                            "bug: integration over empty allele frequency range."
+                        );
                         p
                     }
                 }

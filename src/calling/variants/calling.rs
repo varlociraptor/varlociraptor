@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use std::str;
 use std::sync::RwLock;
 
-use progress_logger::ProgressLogger;
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
 use derive_builder::Builder;
 use itertools::Itertools;
+use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
 
 use crate::calling::variants::preprocessing::{
