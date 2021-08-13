@@ -201,7 +201,7 @@ pub(crate) trait Testcase {
                 } => {
                     // prepare test bam
                     let test_bam = self.sample_bam(sample_name);
-                    bam::index::build(&test_bam, None, bam::index::Type::BAI, 1).unwrap();
+                    bam::index::build(&test_bam, None, bam::index::Type::Bai, 1).unwrap();
 
                     // prepare alignment properties
                     let props =
