@@ -126,8 +126,8 @@ impl Default for ReadPosition {
 }
 
 pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairOrientation> {
-    if let Some(ro) = record.aux(b"RO") {
-        let orientations = ro.string().split(|e| *e == b',').collect_vec();
+    if let Ok(bam::record::Aux::String(ro)) = record.aux(b"RO") {
+        let orientations = ro.as_bytes().split(|e| *e == b',').collect_vec();
         Ok(if orientations.len() != 1 {
             // more than one orientation, return None
             SequenceReadPairOrientation::None
