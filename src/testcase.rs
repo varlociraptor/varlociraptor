@@ -317,13 +317,15 @@ impl Testcase {
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
             let filename = Path::new(name).with_extension("bam");
 
-            // create header with just the modified sequence
-            let mut header = bam::header::Header::new();
-            header.push_record(
-                bam::header::HeaderRecord::new(b"SQ")
-                    .push_tag(b"SN", &str::from_utf8(chrom_name)?)
-                    .push_tag(b"LN", &format!("{}", ref_end - ref_start)),
-            );
+            let header = bam::header::Header::from_template(bam_reader.header());
+
+            // TODO: create header with just the modified sequence
+            // let mut header = bam::header::Header::new();
+            // header.push_record(
+            //     bam::header::HeaderRecord::new(b"SQ")
+            //         .push_tag(b"SN", &str::from_utf8(chrom_name)?)
+            //         .push_tag(b"LN", &format!("{}", ref_end - ref_start)),
+            // );
 
             let mut bam_writer =
                 bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::Bam)?;
@@ -336,6 +338,10 @@ impl Testcase {
                 // update mapping position to interval
                 rec.set_pos(rec.pos() - ref_start as i64);
                 rec.set_mpos(rec.mpos() - ref_start as i64);
+                rec.set_tid(bam_writer.header().tid(chrom_name).unwrap() as i32);
+                if let Err(_) = rec.remove_aux(b"RG") {
+                    debug!("No RG tag to remove in BAM record.");
+                }
                 if self.anonymize {
                     anonymizer.anonymize_bam_record(&mut rec);
                 }
