@@ -426,12 +426,36 @@ fn default_resolution() -> Resolution {
     Resolution::Adaptive
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Derefable)]
 #[serde(untagged)]
-pub(crate) enum Resolution {
-    Uniform(usize),
-    #[serde(rename = "adaptive")]
-    Adaptive
+pub(crate) struct Resolution(#[deref] AlleleFreq);
+
+struct ResolutionVisitor;
+
+impl<'de> de::Visitor<'de> for ResolutionVisitor {
+    type Value = Resolution;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(
+            "an allele frequency resolution given as floating point value between 0.0 and 1.0 (e.g. 0.01, 0.1, etc.)",
+        )
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        if let Ok(vaf) = v.parse::<f64>() {
+            if vaf >= 0.0 && vaf <= 1.0 {
+                return Ok(Resolution(vaf));
+            }
+        }
+
+        Err(de::Error::invalid_value(
+            serde::de::Unexpected::Other("invalid VAF resolution (must be float between 0.0 and 1.0)"),
+            &self,
+        ))
+    }
 }
 
 #[derive(Deserialize, Getters)]

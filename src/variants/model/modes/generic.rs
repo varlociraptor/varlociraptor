@@ -9,6 +9,7 @@ use itertools_num::linspace;
 
 use crate::grammar;
 use crate::utils::PROB_05;
+use crate::utils::adaptive_integration;
 use crate::variants::model;
 use crate::variants::model::likelihood;
 use crate::variants::model::{bias::Biases, AlleleFreq, Contamination, VariantType};
@@ -200,7 +201,7 @@ impl GenericPosterior {
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
                         let n_obs = data.pileups[*sample].len();
-                        let grid_points = sample_grid_points[*sample];
+                        let resolution = sample_grid_points[*sample];
                         let min_vaf = vafs.observable_min(n_obs);
                         let max_vaf = vafs.observable_max(n_obs);
                         let density = |vaf| {
@@ -208,15 +209,47 @@ impl GenericPosterior {
                             push_base_event(AlleleFreq(vaf), &mut base_events);
                             subdensity(&mut base_events)
                         };
-                        
-                        if let grammar::Resolution::Uniform(n) {
+
+                        if (max_vaf - min_vaf) < *resolution {
+                            // METHOD: Interval too small for desired resolution.
+                            // Just use 3 grid points.
                             LogProb::ln_simpsons_integrate_exp(
                                 |_, vaf| density,
                                 *min_vaf,
                                 *max_vaf,
-                                n,
+                                3,
+                            )
+                        } else if n_obs < 5 {
+                            // METHOD: Not enough observations to expect a unimodal density.
+                            // Use 11 grid points.
+                            LogProb::ln_simpsons_integrate_exp(
+                                |_, vaf| density,
+                                *min_vaf,
+                                *max_vaf,
+                                11,
                             )
                         } else {
+                            // METHOD: enough data and large enough interval, use adaptive integration
+                            // at the desired resolution.
+                            adaptive_integration::ln_integrate_exp(density, min_vaf, max_vaf, *resolution)
+                        }
+                        
+                        match sample_grid_points[*sample] {
+                            grammar::Resolution::Uniform(n) => {
+                                LogProb::ln_simpsons_integrate_exp(
+                                    |_, vaf| density,
+                                    *min_vaf,
+                                    *max_vaf,
+                                    n,
+                                )
+                            }
+                            grammar::Resolution::Adaptive if (max_vaf - min_vaf) > AlleleFreq(0.01)  => {
+                                
+                            }
+                            grammar::Resolution::
+                        }
+
+
                             // select number of points such that step size is 0.01, at least 5
                             let get_n = |min_vaf, max_vaf, step_size| {
                                 let n = cmp::max(((max_vaf - min_vaf) / step_size).round() as usize, 5);
