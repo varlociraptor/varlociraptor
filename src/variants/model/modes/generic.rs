@@ -6,7 +6,7 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use vec_map::VecMap;
 
-use crate::grammar::{self, VafOrdering};
+use crate::grammar::{self, LogFoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
@@ -101,16 +101,16 @@ where
 }
 
 #[derive(Debug, Clone)]
-struct SampleCmp {
+struct VafLfc {
     sample_a: usize,
     sample_b: usize,
-    ordering: VafOrdering,
+    predicate: LogFoldChangePredicate,
 }
 
 #[derive(Debug, Clone, Default)]
 struct LikelihoodOperands {
     events: VecMap<likelihood::Event>,
-    cmps: Vec<SampleCmp>,
+    lfcs: Vec<VafLfc>,
 }
 
 #[derive(new, Clone, Debug, Default)]
@@ -179,16 +179,16 @@ impl GenericPosterior {
         };
 
         match vaf_tree_node.kind() {
-            grammar::vaftree::NodeKind::Cmp {
+            grammar::vaftree::NodeKind::LogFoldChange {
                 sample_a,
                 sample_b,
-                ordering,
+                predicate,
             } => {
-                likelihood_operands.cmps.push(
-                    SampleCmp {
+                likelihood_operands.lfcs.push(
+                    VafLfc {
                         sample_a: *sample_a,
                         sample_b: *sample_b,
-                        ordering: *ordering,
+                        predicate: *predicate,
                     }
                 );
                 subdensity(likelihood_operands)
@@ -354,27 +354,31 @@ impl Likelihood<Cache> for GenericLikelihood {
     type Data = Data;
 
     fn compute(&self, operands: &Self::Event, data: &Self::Data, cache: &mut Cache) -> LogProb {
-        let mut p = LogProb::ln_one();
-
-        for cmp in operands.cmps {
-            let vaf_a = operands.events[cmp.sample_a].allele_freq;
-            let vaf_b = operands.events[cmp.sample_b].allele_freq;
-            match cmp.ordering {
-                VafOrdering::Equal => if vaf_a != vaf_b {
+        // Step 1: Check if sample VAFs are compliant with any defined log fold changes.
+        // If not, quickly return probability zero.
+        for lfc in operands.lfcs {
+            let vaf_a = operands.events[lfc.sample_a].allele_freq;
+            let vaf_b = operands.events[lfc.sample_b].allele_freq;
+            let this_lfc = vaf_a.ln() - vaf_b.ln();
+            match lfc.predicate {
+                LogFoldChangePredicate::Equal(value) => if this_lfc != *value {
+                    return LogProb::ln_zero();
+                },
+                LogFoldChangePredicate::NotEqual(value) => if this_lfc == *value {
                     return LogProb::ln_zero()
                 },
-                VafOrdering::NotEqual => if vaf_a == vaf_b {
+                LogFoldChangePredicate::Greater(value) => if this_lfc <= *value {
                     return LogProb::ln_zero()
                 },
-                VafOrdering::Less => if vaf_a < vaf_b {
+                LogFoldChangePredicate::Less(value) => if this_lfc >= *value {
                     return LogProb::ln_zero()
                 },
-                VafOrdering::Greater => if vaf_a > vaf_b {
-                    return LogProb::ln_zero()
-                }
             }
         }
 
+        let mut p = LogProb::ln_one();
+
+        // Step 2: Calculate joint likelihood of sample VAFs.
         for (((sample, event), pileup), inner) in operands.events
             .iter()
             .zip(data.pileups.iter())

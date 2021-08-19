@@ -8,6 +8,7 @@ use std::string::ToString;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
+use ordered_float::NotNan;
 use vec_map::VecMap;
 
 pub(crate) mod formula;
@@ -20,12 +21,12 @@ pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum VafOrdering {
-    Equal,
-    Greater,
-    Less,
-    NotEqual,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum LogFoldChangePredicate {
+    Equal(NotNan<f64>),
+    Greater(NotNan<f64>),
+    Less(NotNan<f64>),
+    NotEqual(NotNan<f64>),
 }
 
 /// Container for arbitrary sample information.
