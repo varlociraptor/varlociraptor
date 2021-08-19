@@ -1389,6 +1389,27 @@ where
                 operand: Box::new(parse_formula(inner.next().unwrap())?),
             }
         }
+        Rule::cmp => {
+            let mut inner = pair.into_inner();
+            let sample_a = inner.next().unwrap().as_str();
+            let operand = parse_cmp_op(inner.next().unwrap());
+            let sample_b = inner.next().unwrap().as_str();
+            todo!()
+        }
+        Rule::lfc => {
+            let mut inner = pair.into_inner();
+            let sample_a = inner.next().unwrap().as_str().to_owned();
+            let sample_b = inner.next().unwrap().as_str().to_owned();
+            let operand = parse_cmp_op(inner.next().unwrap());
+            let value = inner.next().unwrap().as_str().parse().unwrap();
+            let predicate = Log2FoldChangePredicate(operand, value);
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            })
+        }
+        Rule::cmp_ops => unreachable!(),
         Rule::formula => unreachable!(),
         Rule::subformula => unreachable!(),
         Rule::vafdef => unreachable!(),
@@ -1403,6 +1424,18 @@ where
         Rule::COMMENT => unreachable!(),
         Rule::iupac => unreachable!(),
     })
+}
+
+fn parse_cmp_op(pair: Pair<Rule>) -> Comparison {
+    match pair.as_str() {
+        "==" => Comparison::Equal,
+        "!=" => Comparison::NotEqual,
+        ">" => Comparison::Greater,
+        ">=" => Comparison::GreaterEqual,
+        "<" => Comparison::Less,
+        "<=" => Comparison::LessEqual,
+        _ => panic!(),
+    }
 }
 
 #[cfg(test)]
