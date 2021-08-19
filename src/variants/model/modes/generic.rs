@@ -6,7 +6,8 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use vec_map::VecMap;
 
-use crate::grammar::{self, Log2FoldChangePredicate};
+use crate::grammar;
+use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
@@ -358,28 +359,8 @@ impl Likelihood<Cache> for GenericLikelihood {
         for lfc in operands.lfcs {
             let vaf_a = operands.events[lfc.sample_a].allele_freq;
             let vaf_b = operands.events[lfc.sample_b].allele_freq;
-            let this_lfc = vaf_a.log2() - vaf_b.log2();
-            match lfc.predicate {
-                Log2FoldChangePredicate::Equal(value) => {
-                    if this_lfc != *value {
-                        return LogProb::ln_zero();
-                    }
-                }
-                Log2FoldChangePredicate::NotEqual(value) => {
-                    if this_lfc == *value {
-                        return LogProb::ln_zero();
-                    }
-                }
-                Log2FoldChangePredicate::Greater(value) => {
-                    if this_lfc <= *value {
-                        return LogProb::ln_zero();
-                    }
-                }
-                Log2FoldChangePredicate::Less(value) => {
-                    if this_lfc >= *value {
-                        return LogProb::ln_zero();
-                    }
-                }
+            if !lfc.predicate.is_true(&Log2FoldChange::new(vaf_a, vaf_b)) {
+                return LogProb::ln_zero();
             }
         }
 

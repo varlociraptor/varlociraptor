@@ -21,14 +21,6 @@ pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum LogFoldChangePredicate {
-    Equal(NotNan<f64>),
-    Greater(NotNan<f64>),
-    Less(NotNan<f64>),
-    NotEqual(NotNan<f64>),
-}
-
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
 #[derive(Clone, Debug)]

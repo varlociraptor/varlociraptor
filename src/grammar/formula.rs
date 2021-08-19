@@ -12,7 +12,8 @@ use serde::de;
 use serde::Deserialize;
 
 use crate::errors;
-use crate::grammar::{ExpressionIdentifier, Log2FoldChangePredicate, Scenario};
+use crate::grammar::{ExpressionIdentifier, Scenario};
+use crate::utils::log2_fold_change::Log2FoldChangePredicate;
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
