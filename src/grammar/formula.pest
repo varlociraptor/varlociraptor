@@ -14,6 +14,8 @@ expression = { "$" ~ identifier }
 identifier = { (ASCII_ALPHANUMERIC | "_" | "-" | ".")+ }
 variant = { iupac ~ ">" ~ iupac }
 
+cmp = { identifier ~ (">" | "<" | "==" | "<=" | ">=") ~ identifier }
+
 iupac = @{ "A" | "C" | "G" | "T" | "R" | "Y" | "S" | "W" | "K" | "M" | "B" | "D" | "H" | "V" | "N" }
 vaf = @{ ("0" ~ "." ~ ASCII_DIGIT+ | "1.0") }
 bound = @{ ( "[" | "]" ) }

@@ -12,7 +12,7 @@ use serde::de;
 use serde::Deserialize;
 
 use crate::errors;
-use crate::grammar::{ExpressionIdentifier, Scenario};
+use crate::grammar::{ExpressionIdentifier, Scenario, VafOrdering};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -81,6 +81,7 @@ impl From<NormalizedFormula> for Formula {
     }
 }
 
+
 #[derive(PartialEq, Eq, Clone, Debug, Hash, PartialOrd, Ord)]
 pub(crate) enum FormulaTerminal {
     Atom {
@@ -95,6 +96,11 @@ pub(crate) enum FormulaTerminal {
     Expression {
         identifier: ExpressionIdentifier,
         negated: bool,
+    },
+    Cmp {
+        sample_a: String,
+        sample_b: String,
+        ordering: VafOrdering,
     },
     False,
 }
@@ -841,6 +847,11 @@ pub(crate) enum NormalizedFormula {
         positive: bool,
         refbase: Iupac,
         altbase: Iupac,
+    },
+    Cmp {
+        sample_a: String,
+        sample_b: String,
+        ordering: Ordering,
     },
     False,
 }

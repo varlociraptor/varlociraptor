@@ -4,7 +4,7 @@ use anyhow::Result;
 use itertools::Itertools;
 
 use crate::errors;
-use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum};
+use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum, VafOrdering};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -57,6 +57,11 @@ pub(crate) enum NodeKind {
     Sample {
         sample: usize,
         vafs: VAFSpectrum,
+    },
+    Cmp {
+        sample_a: usize,
+        sample_b: usize,
+        ordering: VafOrdering,
     },
     False,
 }

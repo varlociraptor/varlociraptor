@@ -20,6 +20,14 @@ pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum VafOrdering {
+    Equal,
+    Greater,
+    Less,
+    NotEqual,
+}
+
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
 #[derive(Clone, Debug)]
