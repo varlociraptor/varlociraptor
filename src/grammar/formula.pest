@@ -16,7 +16,7 @@ variant = { iupac ~ ">" ~ iupac }
 
 cmp_ops = { (">" | "<" | "==" | "<=" | ">=" | "!=") }
 cmp = { identifier ~ cmp_ops ~ identifier }
-l2fc = { "l2fc(" ~ identifier ~ "," ~ identifier ~ ")" ~ cmp_ops }
+lfc = { "l2fc(" ~ identifier ~ "," ~ identifier ~ ")" ~ cmp_ops ~ vaf }
 
 iupac = @{ "A" | "C" | "G" | "T" | "R" | "Y" | "S" | "W" | "K" | "M" | "B" | "D" | "H" | "V" | "N" }
 vaf = @{ ("0" ~ "." ~ ASCII_DIGIT+ | "1.0") }
