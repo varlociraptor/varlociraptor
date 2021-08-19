@@ -358,7 +358,7 @@ impl Likelihood<Cache> for GenericLikelihood {
         for lfc in operands.lfcs {
             let vaf_a = operands.events[lfc.sample_a].allele_freq;
             let vaf_b = operands.events[lfc.sample_b].allele_freq;
-            let this_lfc = vaf_a.ln() - vaf_b.ln();
+            let this_lfc = vaf_a.log2() - vaf_b.log2();
             match lfc.predicate {
                 LogFoldChangePredicate::Equal(value) => {
                     if this_lfc != *value {
