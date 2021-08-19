@@ -184,26 +184,25 @@ impl GenericPosterior {
                 sample_b,
                 predicate,
             } => {
-                likelihood_operands.lfcs.push(
-                    VafLfc {
-                        sample_a: *sample_a,
-                        sample_b: *sample_b,
-                        predicate: *predicate,
-                    }
-                );
+                likelihood_operands.lfcs.push(VafLfc {
+                    sample_a: *sample_a,
+                    sample_b: *sample_b,
+                    predicate: *predicate,
+                });
                 subdensity(likelihood_operands)
-            },
+            }
             grammar::vaftree::NodeKind::False => LogProb::ln_zero(),
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
-                let push_base_event = |allele_freq, likelihood_operands: &mut LikelihoodOperands| {
-                    likelihood_operands.events.insert(
-                        *sample,
-                        likelihood::Event {
-                            allele_freq,
-                            biases: biases.clone(),
-                        },
-                    );
-                };
+                let push_base_event =
+                    |allele_freq, likelihood_operands: &mut LikelihoodOperands| {
+                        likelihood_operands.events.insert(
+                            *sample,
+                            likelihood::Event {
+                                allele_freq,
+                                biases: biases.clone(),
+                            },
+                        );
+                    };
 
                 match vafs {
                     grammar::VAFSpectrum::Set(vafs) => {
@@ -361,25 +360,34 @@ impl Likelihood<Cache> for GenericLikelihood {
             let vaf_b = operands.events[lfc.sample_b].allele_freq;
             let this_lfc = vaf_a.ln() - vaf_b.ln();
             match lfc.predicate {
-                LogFoldChangePredicate::Equal(value) => if this_lfc != *value {
-                    return LogProb::ln_zero();
-                },
-                LogFoldChangePredicate::NotEqual(value) => if this_lfc == *value {
-                    return LogProb::ln_zero()
-                },
-                LogFoldChangePredicate::Greater(value) => if this_lfc <= *value {
-                    return LogProb::ln_zero()
-                },
-                LogFoldChangePredicate::Less(value) => if this_lfc >= *value {
-                    return LogProb::ln_zero()
-                },
+                LogFoldChangePredicate::Equal(value) => {
+                    if this_lfc != *value {
+                        return LogProb::ln_zero();
+                    }
+                }
+                LogFoldChangePredicate::NotEqual(value) => {
+                    if this_lfc == *value {
+                        return LogProb::ln_zero();
+                    }
+                }
+                LogFoldChangePredicate::Greater(value) => {
+                    if this_lfc <= *value {
+                        return LogProb::ln_zero();
+                    }
+                }
+                LogFoldChangePredicate::Less(value) => {
+                    if this_lfc >= *value {
+                        return LogProb::ln_zero();
+                    }
+                }
             }
         }
 
         let mut p = LogProb::ln_one();
 
         // Step 2: Calculate joint likelihood of sample VAFs.
-        for (((sample, event), pileup), inner) in operands.events
+        for (((sample, event), pileup), inner) in operands
+            .events
             .iter()
             .zip(data.pileups.iter())
             .zip(self.inner.iter())

@@ -12,7 +12,7 @@ use serde::de;
 use serde::Deserialize;
 
 use crate::errors;
-use crate::grammar::{ExpressionIdentifier, Scenario, LogFoldChangePredicate};
+use crate::grammar::{ExpressionIdentifier, LogFoldChangePredicate, Scenario};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -80,7 +80,6 @@ impl From<NormalizedFormula> for Formula {
         from_normalized(formula)
     }
 }
-
 
 #[derive(PartialEq, Eq, Clone, Debug, Hash, PartialOrd, Ord)]
 pub(crate) enum FormulaTerminal {

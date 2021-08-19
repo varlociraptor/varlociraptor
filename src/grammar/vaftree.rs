@@ -4,7 +4,9 @@ use anyhow::Result;
 use itertools::Itertools;
 
 use crate::errors;
-use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum, LogFoldChangePredicate};
+use crate::grammar::{
+    formula::Iupac, formula::NormalizedFormula, LogFoldChangePredicate, Scenario, VAFSpectrum,
+};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
