@@ -159,7 +159,11 @@ impl VAFTree {
                     altbase,
                 })]),
                 NormalizedFormula::False => Ok(vec![Node::new(NodeKind::False)]),
-                NormalizedFormula::Log2FoldChange { sample_a, sample_b, predicate } => {
+                NormalizedFormula::Log2FoldChange {
+                    sample_a,
+                    sample_b,
+                    predicate,
+                } => {
                     todo!()
                 }
             }
