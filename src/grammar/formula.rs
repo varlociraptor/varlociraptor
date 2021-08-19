@@ -13,7 +13,7 @@ use serde::Deserialize;
 
 use crate::errors;
 use crate::grammar::{ExpressionIdentifier, Scenario};
-use crate::utils::log2_fold_change::Log2FoldChangePredicate;
+use crate::utils::log2_fold_change::{Comparison, Log2FoldChangePredicate};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -76,6 +76,15 @@ impl From<NormalizedFormula> for Formula {
                     refbase,
                 }),
                 NormalizedFormula::False => Formula::Terminal(FormulaTerminal::False),
+                NormalizedFormula::Log2FoldChange {
+                    sample_a,
+                    sample_b,
+                    predicate,
+                } => Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                    sample_a,
+                    sample_b,
+                    predicate: predicate,
+                }),
             }
         }
         from_normalized(formula)
@@ -100,7 +109,7 @@ pub(crate) enum FormulaTerminal {
     Log2FoldChange {
         sample_a: String,
         sample_b: String,
-        value: Log2FoldChangePredicate,
+        predicate: Log2FoldChangePredicate,
     },
     False,
 }
@@ -239,6 +248,13 @@ impl std::fmt::Display for Formula {
             Formula::Negation { operand } => format!("!{operand}", operand = fmt_operand(operand)),
             Formula::Conjunction { operands } => operands.iter().map(&fmt_operand).join(" & "),
             Formula::Disjunction { operands } => operands.iter().map(&fmt_operand).join(" | "),
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate: value,
+            }) => {
+                format!("lfc({}, {}) == {:?}", sample_a, sample_b, value)
+            }
         };
         write!(f, "{}", formatted)
     }
@@ -506,6 +522,15 @@ impl Formula {
                 panic!("bug: negations should have been applied before normalization")
             }
             Formula::Terminal(FormulaTerminal::False) => NormalizedFormula::False,
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate: value,
+            }) => NormalizedFormula::Log2FoldChange {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                predicate: value.clone(),
+            },
         }
     }
 
@@ -676,6 +701,13 @@ impl Formula {
                 identifier: identifier.clone(),
                 negated: !negated,
             }),
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate: value,
+            }) => {
+                todo!("Negation for Log2FoldChange terminal not yet implemented")
+            }
             Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => {
                 let universe = scenario
                     .samples()
@@ -827,6 +859,11 @@ impl Formula {
             Formula::Terminal(FormulaTerminal::False) => {
                 panic!("bug: false terminals may not appear in formula to be negated because this is not allowed in the grammar");
             }
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate: value,
+            }) => todo!(),
         })
     }
 }
@@ -906,6 +943,13 @@ impl std::fmt::Display for NormalizedFormula {
                 operands.iter().map(&fmt_operand).join(" | ")
             }
             NormalizedFormula::False => "false".to_owned(),
+            NormalizedFormula::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            } => {
+                format!("lfc({}, {}) {:?}", sample_a, sample_b, predicate)
+            }
         };
         write!(f, "{}", formatted)
     }
