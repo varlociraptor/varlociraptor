@@ -6,7 +6,7 @@ use derive_builder::Builder;
 use itertools::Itertools;
 use vec_map::VecMap;
 
-use crate::grammar::{self, LogFoldChangePredicate};
+use crate::grammar::{self, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
@@ -104,7 +104,7 @@ where
 struct VafLfc {
     sample_a: usize,
     sample_b: usize,
-    predicate: LogFoldChangePredicate,
+    predicate: Log2FoldChangePredicate,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -179,7 +179,7 @@ impl GenericPosterior {
         };
 
         match vaf_tree_node.kind() {
-            grammar::vaftree::NodeKind::LogFoldChange {
+            grammar::vaftree::NodeKind::Log2FoldChange {
                 sample_a,
                 sample_b,
                 predicate,
@@ -360,22 +360,22 @@ impl Likelihood<Cache> for GenericLikelihood {
             let vaf_b = operands.events[lfc.sample_b].allele_freq;
             let this_lfc = vaf_a.log2() - vaf_b.log2();
             match lfc.predicate {
-                LogFoldChangePredicate::Equal(value) => {
+                Log2FoldChangePredicate::Equal(value) => {
                     if this_lfc != *value {
                         return LogProb::ln_zero();
                     }
                 }
-                LogFoldChangePredicate::NotEqual(value) => {
+                Log2FoldChangePredicate::NotEqual(value) => {
                     if this_lfc == *value {
                         return LogProb::ln_zero();
                     }
                 }
-                LogFoldChangePredicate::Greater(value) => {
+                Log2FoldChangePredicate::Greater(value) => {
                     if this_lfc <= *value {
                         return LogProb::ln_zero();
                     }
                 }
-                LogFoldChangePredicate::Less(value) => {
+                Log2FoldChangePredicate::Less(value) => {
                     if this_lfc >= *value {
                         return LogProb::ln_zero();
                     }

@@ -12,7 +12,7 @@ use serde::de;
 use serde::Deserialize;
 
 use crate::errors;
-use crate::grammar::{ExpressionIdentifier, LogFoldChangePredicate, Scenario};
+use crate::grammar::{ExpressionIdentifier, Log2FoldChangePredicate, Scenario};
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -96,10 +96,10 @@ pub(crate) enum FormulaTerminal {
         identifier: ExpressionIdentifier,
         negated: bool,
     },
-    LogFoldChange {
+    Log2FoldChange {
         sample_a: String,
         sample_b: String,
-        value: LogFoldChangePredicate,
+        value: Log2FoldChangePredicate,
     },
     False,
 }
@@ -847,10 +847,10 @@ pub(crate) enum NormalizedFormula {
         refbase: Iupac,
         altbase: Iupac,
     },
-    LogFoldChange {
+    Log2FoldChange {
         sample_a: String,
         sample_b: String,
-        predicate: LogFoldChangePredicate,
+        predicate: Log2FoldChangePredicate,
     },
     False,
 }

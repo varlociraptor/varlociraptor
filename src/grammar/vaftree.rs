@@ -5,7 +5,7 @@ use itertools::Itertools;
 
 use crate::errors;
 use crate::grammar::{
-    formula::Iupac, formula::NormalizedFormula, LogFoldChangePredicate, Scenario, VAFSpectrum,
+    formula::Iupac, formula::NormalizedFormula, Log2FoldChangePredicate, Scenario, VAFSpectrum,
 };
 use crate::variants::model::AlleleFreq;
 
@@ -60,10 +60,10 @@ pub(crate) enum NodeKind {
         sample: usize,
         vafs: VAFSpectrum,
     },
-    LogFoldChange {
+    Log2FoldChange {
         sample_a: usize,
         sample_b: usize,
-        predicate: LogFoldChangePredicate,
+        predicate: Log2FoldChangePredicate,
     },
     False,
 }
