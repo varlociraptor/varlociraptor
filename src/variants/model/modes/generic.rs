@@ -4,15 +4,17 @@ use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
 use derive_builder::Builder;
 use itertools::Itertools;
-use vec_map::VecMap;
+use vec_map::{Values, VecMap};
 
 use crate::grammar;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
+use crate::variants::model::likelihood::Event;
 use crate::variants::model::{bias::Biases, AlleleFreq, Contamination, VariantType};
 use crate::variants::sample::Pileup;
+use std::ops::Index;
 
 #[derive(new, Clone, Debug)]
 pub(crate) struct Snv {
@@ -54,7 +56,7 @@ pub(crate) type Cache = VecMap<CacheEntry>;
 #[derive(Default, Debug, Clone, Builder)]
 pub(crate) struct GenericModelBuilder<P>
 where
-    P: Prior<Event = Vec<likelihood::Event>>,
+    P: Prior<Event = LikelihoodOperands>,
 {
     resolutions: Option<grammar::SampleInfo<usize>>,
     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
@@ -63,7 +65,7 @@ where
 
 impl<P> GenericModelBuilder<P>
 where
-    P: Prior<Event = Vec<likelihood::Event>>,
+    P: Prior<Event = LikelihoodOperands>,
 {
     pub(crate) fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
         self.resolutions = Some(resolutions);
@@ -101,17 +103,43 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 struct VafLfc {
     sample_a: usize,
     sample_b: usize,
     predicate: Log2FoldChangePredicate,
 }
 
-#[derive(Debug, Clone, Default)]
-struct LikelihoodOperands {
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
+pub(crate) struct LikelihoodOperands {
     events: VecMap<likelihood::Event>,
     lfcs: Vec<VafLfc>,
+}
+
+impl LikelihoodOperands {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.events.len()
+    }
+
+    pub(crate) fn push(&mut self, event: Event) {
+        self.events.insert(self.events.len(), event);
+    }
+
+    pub(crate) fn iter(&self) -> Values<Event> {
+        self.events.values()
+    }
+}
+
+impl Index<usize> for LikelihoodOperands {
+    type Output = likelihood::Event;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.events[index]
+    }
 }
 
 #[derive(new, Clone, Debug, Default)]
@@ -356,7 +384,7 @@ impl Likelihood<Cache> for GenericLikelihood {
     fn compute(&self, operands: &Self::Event, data: &Self::Data, cache: &mut Cache) -> LogProb {
         // Step 1: Check if sample VAFs are compliant with any defined log fold changes.
         // If not, quickly return probability zero.
-        for lfc in operands.lfcs {
+        for lfc in &operands.lfcs {
             let vaf_a = operands.events[lfc.sample_a].allele_freq;
             let vaf_b = operands.events[lfc.sample_b].allele_freq;
             if !lfc.predicate.is_true(&Log2FoldChange::new(vaf_a, vaf_b)) {
@@ -418,7 +446,7 @@ pub(crate) struct FlatPrior {
 }
 
 impl Prior for FlatPrior {
-    type Event = Vec<likelihood::Event>;
+    type Event = LikelihoodOperands;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
         if event

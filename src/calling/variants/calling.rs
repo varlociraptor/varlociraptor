@@ -22,6 +22,7 @@ use crate::grammar;
 use crate::utils;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model;
+use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
@@ -29,7 +30,7 @@ use crate::variants::model::Contamination;
 use crate::variants::model::{bias::Biases, AlleleFreq};
 use crate::variants::types::breakends::BreakendIndex;
 
-pub(crate) type AlleleFreqCombination = Vec<model::likelihood::Event>;
+pub(crate) type AlleleFreqCombination = LikelihoodOperands;
 
 pub(crate) type Model<Pr> =
     bayesian::Model<GenericLikelihood, Pr, GenericPosterior, generic::Cache>;
