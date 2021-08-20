@@ -1,6 +1,9 @@
-use crate::variants::model::AlleleFreq;
-use ordered_float::NotNan;
 use std::ops::Not;
+
+use ordered_float::NotNan;
+
+use crate::variants::model::AlleleFreq;
+use crate::utils::comparison::Comparison;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Log2FoldChange {
@@ -15,31 +18,6 @@ impl Log2FoldChange {
             vaf_a,
             vaf_b,
             l2fc: vaf_a.log2() - vaf_b.log2(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum Comparison {
-    Equal,
-    Greater,
-    GreaterEqual,
-    Less,
-    LessEqual,
-    NotEqual,
-}
-
-impl Not for Comparison {
-    type Output = Self;
-
-    fn not(self) -> Self::Output {
-        match self {
-            Comparison::Equal => Comparison::NotEqual,
-            Comparison::Greater => Comparison::LessEqual,
-            Comparison::GreaterEqual => Comparison::Less,
-            Comparison::Less => Comparison::GreaterEqual,
-            Comparison::LessEqual => Comparison::Greater,
-            Comparison::NotEqual => Comparison::Equal,
         }
     }
 }

@@ -28,6 +28,7 @@ use crate::Event;
 pub(crate) mod anonymize;
 pub(crate) mod collect_variants;
 pub(crate) mod log2_fold_change;
+pub(crate) mod comparison;
 
 pub(crate) use collect_variants::collect_variants;
 
