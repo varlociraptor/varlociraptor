@@ -1,0 +1,12 @@
+samples:
+  normal:
+    resolution: 10
+    universe: "0.0 | 0.5 | 1.0"
+  tumor:
+    resolution: 100
+    universe: "[0.0,1.0]"
+
+events:
+  small_change:   "l2fc(tumor, normal) != 0.0 & (l2fc(tumor, normal) < 0.5 | l2fc(tumor, normal) > -0.5)"
+  large_change:   "l2fc(tumor, normal) > 3.0 | l2fc(tumor, normal) < 3.0"
+
