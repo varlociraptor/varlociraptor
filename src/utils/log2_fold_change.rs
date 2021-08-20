@@ -47,6 +47,9 @@ impl Not for Log2FoldChangePredicate {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Self(!self.comparison, self.value)
+        Self {
+            comparison: !self.comparison,
+            value: self.value,
+        }
     }
 }
