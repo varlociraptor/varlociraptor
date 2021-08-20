@@ -84,7 +84,7 @@ impl From<NormalizedFormula> for Formula {
                 } => Formula::Terminal(FormulaTerminal::Log2FoldChange {
                     sample_a,
                     sample_b,
-                    predicate: predicate,
+                    predicate,
                 }),
             }
         }
