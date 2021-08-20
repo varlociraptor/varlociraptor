@@ -705,10 +705,12 @@ impl Formula {
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
-                predicate: value,
-            }) => {
-                todo!("Negation for Log2FoldChange terminal not yet implemented")
-            }
+                predicate,
+            }) => Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                predicate: !*predicate,
+            }),
             Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => {
                 let universe = scenario
                     .samples()
