@@ -164,7 +164,21 @@ impl VAFTree {
                     sample_b,
                     predicate,
                 } => {
-                    todo!()
+                    let sample_a = scenario.idx(sample_a.as_str()).ok_or_else(|| {
+                        errors::Error::InvalidSampleName {
+                            name: sample_a.to_owned(),
+                        }
+                    })?;
+                    let sample_b = scenario.idx(sample_b.as_str()).ok_or_else(|| {
+                        errors::Error::InvalidSampleName {
+                            name: sample_b.to_owned(),
+                        }
+                    })?;
+                    Ok(vec![Node::new(NodeKind::Log2FoldChange {
+                        sample_a,
+                        sample_b,
+                        predicate: *predicate,
+                    })])
                 }
             }
         }

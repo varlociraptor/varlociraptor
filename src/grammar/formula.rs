@@ -862,8 +862,12 @@ impl Formula {
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
-                predicate: value,
-            }) => todo!(),
+                predicate,
+            }) => Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                predicate: !*predicate,
+            }),
         })
     }
 }
