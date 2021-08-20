@@ -9,7 +9,7 @@ use crate::variants::model::AlleleFreq;
 pub(crate) struct Log2FoldChange {
     vaf_a: AlleleFreq,
     vaf_b: AlleleFreq,
-    l2fc: f64,
+    value: f64,
 }
 
 impl Log2FoldChange {
@@ -17,7 +17,7 @@ impl Log2FoldChange {
         Self {
             vaf_a,
             vaf_b,
-            l2fc: vaf_a.log2() - vaf_b.log2(),
+            value: vaf_a.log2() - vaf_b.log2(),
         }
     }
 }
@@ -30,12 +30,12 @@ impl Log2FoldChangePredicate {
         // FIXME: equality checks should probably allow for some error
         let v = *self.1;
         match self.0 {
-            Comparison::Equal => lfc.l2fc == v,
-            Comparison::Greater => lfc.l2fc > v,
-            Comparison::GreaterEqual => lfc.l2fc >= v,
-            Comparison::Less => lfc.l2fc < v,
-            Comparison::LessEqual => lfc.l2fc <= v,
-            Comparison::NotEqual => lfc.l2fc != v,
+            Comparison::Equal => lfc.value == v,
+            Comparison::Greater => lfc.value > v,
+            Comparison::GreaterEqual => lfc.value >= v,
+            Comparison::Less => lfc.value < v,
+            Comparison::LessEqual => lfc.value <= v,
+            Comparison::NotEqual => lfc.value != v,
         }
     }
 }
