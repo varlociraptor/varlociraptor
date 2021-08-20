@@ -1421,6 +1421,7 @@ where
         Rule::universe => unreachable!(),
         Rule::vafrange => unreachable!(),
         Rule::identifier => unreachable!(),
+        Rule::number => unreachable!(),
         Rule::vaf => unreachable!(),
         Rule::sample_vafdef => unreachable!(),
         Rule::EOI => unreachable!(),
