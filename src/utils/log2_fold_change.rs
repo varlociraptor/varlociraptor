@@ -30,15 +30,14 @@ pub(crate) struct Log2FoldChangePredicate {
 
 impl Log2FoldChangePredicate {
     pub(crate) fn is_true(&self, lfc: &Log2FoldChange) -> bool {
-        // FIXME: equality checks should probably allow for some error
         let v = *self.value;
         match self.comparison {
-            Comparison::Equal => lfc.value == v,
+            Comparison::Equal => relative_eq!(lfc.value, v),
             Comparison::Greater => lfc.value > v,
             Comparison::GreaterEqual => lfc.value >= v,
             Comparison::Less => lfc.value < v,
             Comparison::LessEqual => lfc.value <= v,
-            Comparison::NotEqual => lfc.value != v,
+            Comparison::NotEqual => relative_ne!(lfc.value, v),
         }
     }
 }
