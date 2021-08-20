@@ -2,8 +2,8 @@ use std::ops::Not;
 
 use ordered_float::NotNan;
 
-use crate::variants::model::AlleleFreq;
 use crate::utils::comparison::Comparison;
+use crate::variants::model::AlleleFreq;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Log2FoldChange {
