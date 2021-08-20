@@ -1,7 +1,8 @@
-# deletion of size 42
+# snv at position 380
 
 expected:
   allelefreqs:
+  - normal == 0.0
   - tumor >= 0.45 && tumor <= 0.55
   posteriors:
   - PROB_SMALL_CHANGE == inf
