@@ -23,13 +23,16 @@ impl Log2FoldChange {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct Log2FoldChangePredicate(pub(crate) Comparison, pub(crate) NotNan<f64>);
+pub(crate) struct Log2FoldChangePredicate {
+    pub(crate) comparison: Comparison,
+    pub(crate) value: NotNan<f64>,
+}
 
 impl Log2FoldChangePredicate {
     pub(crate) fn is_true(&self, lfc: &Log2FoldChange) -> bool {
         // FIXME: equality checks should probably allow for some error
-        let v = *self.1;
-        match self.0 {
+        let v = *self.value;
+        match self.comparison {
             Comparison::Equal => lfc.value == v,
             Comparison::Greater => lfc.value > v,
             Comparison::GreaterEqual => lfc.value >= v,
@@ -44,6 +47,6 @@ impl Not for Log2FoldChangePredicate {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        Self(!self.0, self.1)
+        Self(!self.comparison, self.value)
     }
 }

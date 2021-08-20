@@ -1407,7 +1407,10 @@ where
             let sample_b = inner.next().unwrap().as_str().to_owned();
             let operand = parse_cmp_op(inner.next().unwrap());
             let value = inner.next().unwrap().as_str().parse().unwrap();
-            let predicate = Log2FoldChangePredicate(operand, value);
+            let predicate = Log2FoldChangePredicate {
+                comparison: operand,
+                value: value,
+            };
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
