@@ -14,7 +14,7 @@ expression = { "$" ~ identifier }
 identifier = { (ASCII_ALPHANUMERIC | "_" | "-" | ".")+ }
 variant = { iupac ~ ">" ~ iupac }
 
-cmp_ops = { (">" | "<" | "==" | "<=" | ">=" | "!=") }
+cmp_ops = { ("<=" | "<" | ">=" | ">"  | "!=" | "==" ) }
 cmp = { identifier ~ cmp_ops ~ identifier }
 lfc = { "l2fc(" ~ identifier ~ "," ~ identifier ~ ")" ~ cmp_ops ~ number }
 
