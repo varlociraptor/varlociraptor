@@ -8,4 +8,5 @@ samples:
 
 events:
   no_change: "l2fc(sample_a,sample_b) < 1.0 | l2fc(sample_b,sample_a) < 1.0"
+#  l2fc_roughly_one: "(l2fc(sample_a,sample_b) > 0.9 | l2fc(sample_b,sample_a) > 0.9) & (l2fc(sample_a,sample_b) < 1.1 | l2fc(sample_b,sample_a) < 1.1)"
   change:    "l2fc(sample_a,sample_b) >= 1.0 | l2fc(sample_b,sample_a) >= 1.0"
