@@ -2,22 +2,21 @@
 
 expected:
   allelefreqs:
-  - normal == 0.0
-  - tumor >= 0.45 && tumor <= 0.55
+  - sample_a >= 0.95
+  - sample_b >= 0.45 && sample_b <= 0.55
   posteriors:
-  - PROB_SMALL_CHANGE == inf
-  - PROB_LARGE_CHANGE == 0.0
+  - PROB_CHANGE < PROB_NO_CHANGE
 
 # necessary bam files
 samples:
-  tumor:
-    path: 'tumor.bam'
+  sample_b:
+    path: 'sample_b.bam'
     properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":42,"max_ins_cigar_len":42,"frac_max_softclip":0.0,"max_read_len":101}'
-    options: '{"Preprocess":{"kind":{"Variants":{"reference":"ref.fasta","candidates":"simulated.variants.vcf","bam":"tumor.preprocessed.bam","alignment_properties":null,"output":"preprocess/tumor.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}'
-  normal:
-    path: 'normal.bam'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"ref.fasta","candidates":"simulated.variants.vcf","bam":"sample_b.preprocessed.bam","alignment_properties":null,"output":"preprocess/sample_b.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}'
+  sample_a:
+    path: 'sample_a.bam'
     properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":42,"max_ins_cigar_len":42,"frac_max_softclip":0.0,"max_read_len":101}'
-    options: '{"Preprocess":{"kind":{"Variants":{"reference":"ref.fasta","candidates":"simulated.variants.vcf","bam":"normal.preprocessed.bam","alignment_properties":null,"output":"preprocess/normal.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"ref.fasta","candidates":"simulated.variants.vcf","bam":"sample_a.preprocessed.bam","alignment_properties":null,"output":"preprocess/sample_a.bcf","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false}}}}'
 
 # candidate variant
 candidate: 'candidates.vcf'
