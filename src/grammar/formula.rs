@@ -13,7 +13,7 @@ use serde::Deserialize;
 
 use crate::errors;
 use crate::grammar::{ExpressionIdentifier, Scenario};
-use crate::utils::comparison::Comparison;
+use crate::utils::comparison::ComparisonOperator;
 use crate::utils::log2_fold_change::Log2FoldChangePredicate;
 use crate::variants::model::AlleleFreq;
 
@@ -86,6 +86,15 @@ impl From<NormalizedFormula> for Formula {
                     sample_b,
                     predicate,
                 }),
+                NormalizedFormula::Comparison {
+                    sample_a,
+                    sample_b,
+                    op,
+                } => Formula::Terminal(FormulaTerminal::Comparison {
+                    sample_a,
+                    sample_b,
+                    op,
+                }),
             }
         }
         from_normalized(formula)
@@ -111,6 +120,11 @@ pub(crate) enum FormulaTerminal {
         sample_a: String,
         sample_b: String,
         predicate: Log2FoldChangePredicate,
+    },
+    Comparison {
+        sample_a: String,
+        sample_b: String,
+        op: ComparisonOperator,
     },
     False,
 }
@@ -249,12 +263,19 @@ impl std::fmt::Display for Formula {
             Formula::Negation { operand } => format!("!{operand}", operand = fmt_operand(operand)),
             Formula::Conjunction { operands } => operands.iter().map(&fmt_operand).join(" & "),
             Formula::Disjunction { operands } => operands.iter().map(&fmt_operand).join(" | "),
+            Formula::Terminal(FormulaTerminal::Comparison {
+                sample_a,
+                sample_b,
+                op,
+            }) => {
+                format!("{} {:?} {}", sample_a, op, sample_b)
+            }
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
-                predicate: value,
+                predicate,
             }) => {
-                format!("lfc({}, {}) == {:?}", sample_a, sample_b, value)
+                format!("lfc({}, {}) {:?}", sample_a, sample_b, predicate)
             }
         };
         write!(f, "{}", formatted)
@@ -526,11 +547,20 @@ impl Formula {
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
-                predicate: value,
+                predicate,
             }) => NormalizedFormula::Log2FoldChange {
                 sample_a: sample_a.into(),
                 sample_b: sample_b.into(),
-                predicate: value.clone(),
+                predicate: predicate.clone(),
+            },
+            Formula::Terminal(FormulaTerminal::Comparison {
+                sample_a,
+                sample_b,
+                op,
+            }) => NormalizedFormula::Comparison {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                op: op.clone(),
             },
         }
     }
@@ -711,6 +741,15 @@ impl Formula {
                 sample_b: sample_b.into(),
                 predicate: !*predicate,
             }),
+            Formula::Terminal(FormulaTerminal::Comparison {
+                sample_a,
+                sample_b,
+                op,
+            }) => Formula::Terminal(FormulaTerminal::Comparison {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                op: !*op,
+            }),
             Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => {
                 let universe = scenario
                     .samples()
@@ -871,6 +910,15 @@ impl Formula {
                 sample_b: sample_b.into(),
                 predicate: !*predicate,
             }),
+            Formula::Terminal(FormulaTerminal::Comparison {
+                sample_a,
+                sample_b,
+                op,
+            }) => Formula::Terminal(FormulaTerminal::Comparison {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                op: !*op,
+            }),
         })
     }
 }
@@ -896,6 +944,11 @@ pub(crate) enum NormalizedFormula {
         sample_a: String,
         sample_b: String,
         predicate: Log2FoldChangePredicate,
+    },
+    Comparison {
+        sample_a: String,
+        sample_b: String,
+        op: ComparisonOperator,
     },
     False,
 }
@@ -956,6 +1009,13 @@ impl std::fmt::Display for NormalizedFormula {
                 predicate,
             } => {
                 format!("lfc({}, {}) {:?}", sample_a, sample_b, predicate)
+            }
+            NormalizedFormula::Comparison {
+                sample_a,
+                sample_b,
+                op,
+            } => {
+                format!("{} {:?} {}", sample_a, op, sample_b)
             }
         };
         write!(f, "{}", formatted)
@@ -1398,10 +1458,14 @@ where
         }
         Rule::cmp => {
             let mut inner = pair.into_inner();
-            let sample_a = inner.next().unwrap().as_str();
-            let operand = parse_cmp_op(inner.next().unwrap());
-            let sample_b = inner.next().unwrap().as_str();
-            todo!()
+            let sample_a = inner.next().unwrap().as_str().to_owned();
+            let op = parse_cmp_op(inner.next().unwrap());
+            let sample_b = inner.next().unwrap().as_str().to_owned();
+            Formula::Terminal(FormulaTerminal::Comparison {
+                sample_a,
+                sample_b,
+                op,
+            })
         }
         Rule::lfc => {
             let mut inner = pair.into_inner();
@@ -1411,7 +1475,7 @@ where
             let value = inner.next().unwrap().as_str().parse().unwrap();
             let predicate = Log2FoldChangePredicate {
                 comparison: operand,
-                value: value,
+                value,
             };
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
@@ -1437,14 +1501,14 @@ where
     })
 }
 
-fn parse_cmp_op(pair: Pair<Rule>) -> Comparison {
+fn parse_cmp_op(pair: Pair<Rule>) -> ComparisonOperator {
     match pair.as_str() {
-        "==" => Comparison::Equal,
-        "!=" => Comparison::NotEqual,
-        ">" => Comparison::Greater,
-        ">=" => Comparison::GreaterEqual,
-        "<" => Comparison::Less,
-        "<=" => Comparison::LessEqual,
+        "==" => ComparisonOperator::Equal,
+        "!=" => ComparisonOperator::NotEqual,
+        ">" => ComparisonOperator::Greater,
+        ">=" => ComparisonOperator::GreaterEqual,
+        "<" => ComparisonOperator::Less,
+        "<=" => ComparisonOperator::LessEqual,
         _ => panic!(),
     }
 }

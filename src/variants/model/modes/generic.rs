@@ -7,6 +7,7 @@ use itertools::Itertools;
 use vec_map::{Values, VecMap};
 
 use crate::grammar;
+use crate::utils::comparison::ComparisonOperator;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::model;
@@ -110,9 +111,17 @@ struct VafLfc {
     predicate: Log2FoldChangePredicate,
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+struct VafCmp {
+    sample_a: usize,
+    sample_b: usize,
+    op: ComparisonOperator,
+}
+
 #[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
 pub(crate) struct LikelihoodOperands {
     events: VecMap<likelihood::Event>,
+    cmps: Vec<VafCmp>,
     lfcs: Vec<VafLfc>,
 }
 
@@ -217,6 +226,18 @@ impl GenericPosterior {
                     sample_a: *sample_a,
                     sample_b: *sample_b,
                     predicate: *predicate,
+                });
+                subdensity(likelihood_operands)
+            }
+            grammar::vaftree::NodeKind::Comparison {
+                sample_a,
+                sample_b,
+                op,
+            } => {
+                likelihood_operands.cmps.push(VafCmp {
+                    sample_a: *sample_a,
+                    sample_b: *sample_b,
+                    op: *op,
                 });
                 subdensity(likelihood_operands)
             }
@@ -388,6 +409,13 @@ impl Likelihood<Cache> for GenericLikelihood {
             let vaf_a = operands.events[lfc.sample_a].allele_freq;
             let vaf_b = operands.events[lfc.sample_b].allele_freq;
             if !lfc.predicate.is_true(&Log2FoldChange::new(vaf_a, vaf_b)) {
+                return LogProb::ln_zero();
+            }
+        }
+        for cmp in &operands.cmps {
+            let vaf_a = operands.events[cmp.sample_a].allele_freq;
+            let vaf_b = operands.events[cmp.sample_b].allele_freq;
+            if !cmp.op.is_true(vaf_a, vaf_b) {
                 return LogProb::ln_zero();
             }
         }

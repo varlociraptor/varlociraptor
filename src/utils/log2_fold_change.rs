@@ -2,7 +2,7 @@ use std::ops::Not;
 
 use ordered_float::NotNan;
 
-use crate::utils::comparison::Comparison;
+use crate::utils::comparison::ComparisonOperator;
 use crate::variants::model::AlleleFreq;
 
 #[derive(Debug, Clone)]
@@ -24,20 +24,21 @@ impl Log2FoldChange {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct Log2FoldChangePredicate {
-    pub(crate) comparison: Comparison,
+    pub(crate) comparison: ComparisonOperator,
     pub(crate) value: NotNan<f64>,
 }
 
 impl Log2FoldChangePredicate {
     pub(crate) fn is_true(&self, lfc: &Log2FoldChange) -> bool {
         let v = *self.value;
+        // TODO: delegate to self.comparison
         match self.comparison {
-            Comparison::Equal => relative_eq!(lfc.value, v),
-            Comparison::Greater => lfc.value > v,
-            Comparison::GreaterEqual => lfc.value >= v,
-            Comparison::Less => lfc.value < v,
-            Comparison::LessEqual => lfc.value <= v,
-            Comparison::NotEqual => relative_ne!(lfc.value, v),
+            ComparisonOperator::Equal => relative_eq!(lfc.value, v),
+            ComparisonOperator::Greater => lfc.value > v,
+            ComparisonOperator::GreaterEqual => lfc.value >= v,
+            ComparisonOperator::Less => lfc.value < v,
+            ComparisonOperator::LessEqual => lfc.value <= v,
+            ComparisonOperator::NotEqual => relative_ne!(lfc.value, v),
         }
     }
 }
