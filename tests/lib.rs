@@ -197,21 +197,23 @@ fn control_fdr(test: &str, events: Vec<&str>, alpha: f64, local: bool) {
     let basedir = basedir(test);
     let output = format!("{}/calls.filtered.bcf", basedir);
     cleanup_file(&output);
-    for event_str in events {
-        varlociraptor::filtration::fdr::control_fdr(
-            &format!("{}/calls.matched.bcf", basedir),
-            Some(&output),
-            &[varlociraptor::SimpleEvent {
-                name: event_str.to_owned(),
-            }],
-            Some(&varlociraptor::variants::model::VariantType::Deletion(
-                Some(1..30),
-            )),
-            LogProb::from(Prob(alpha)),
-            local,
-        )
-        .unwrap();
-    }
+    let event_strs: Vec<varlociraptor::SimpleEvent> = events
+        .iter()
+        .map(|&event_str| varlociraptor::SimpleEvent {
+            name: event_str.to_owned(),
+        })
+        .collect();
+    varlociraptor::filtration::fdr::control_fdr(
+        &format!("{}/calls.matched.bcf", basedir),
+        Some(&output),
+        &event_strs,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+        LogProb::from(Prob(alpha)),
+        local,
+    )
+    .unwrap();
 }
 
 fn assert_call_number(test: &str, expected_calls: usize) {
