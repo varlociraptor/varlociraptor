@@ -39,7 +39,6 @@ impl Display for Log2FoldChangePredicate {
 impl Log2FoldChangePredicate {
     pub(crate) fn is_true(&self, lfc: &Log2FoldChange) -> bool {
         let v = *self.value;
-        // TODO: delegate to self.comparison
         match self.comparison {
             ComparisonOperator::Equal => relative_eq!(lfc.value, v),
             ComparisonOperator::Greater => lfc.value > v,

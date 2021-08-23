@@ -1,4 +1,3 @@
-use crate::variants::model::AlleleFreq;
 use core::ops::Not;
 use std::fmt::{Display, Formatter};
 
@@ -23,19 +22,6 @@ impl Display for ComparisonOperator {
             ComparisonOperator::NotEqual => "!=",
         };
         f.write_str(s)
-    }
-}
-
-impl ComparisonOperator {
-    pub(crate) fn is_true(&self, vaf_a: AlleleFreq, vaf_b: AlleleFreq) -> bool {
-        match self {
-            ComparisonOperator::Equal => relative_eq!(*vaf_a, *vaf_b),
-            ComparisonOperator::Greater => vaf_a > vaf_b,
-            ComparisonOperator::GreaterEqual => vaf_a >= vaf_b,
-            ComparisonOperator::Less => vaf_a < vaf_b,
-            ComparisonOperator::LessEqual => vaf_a <= vaf_b,
-            ComparisonOperator::NotEqual => relative_ne!(*vaf_a, *vaf_b),
-        }
     }
 }
 

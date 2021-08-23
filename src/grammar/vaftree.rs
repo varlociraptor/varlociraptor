@@ -5,7 +5,6 @@ use itertools::Itertools;
 
 use crate::errors;
 use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum};
-use crate::utils::comparison::ComparisonOperator;
 use crate::utils::log2_fold_change::Log2FoldChangePredicate;
 use crate::variants::model::AlleleFreq;
 
@@ -64,11 +63,6 @@ pub(crate) enum NodeKind {
         sample_a: usize,
         sample_b: usize,
         predicate: Log2FoldChangePredicate,
-    },
-    Comparison {
-        sample_a: usize,
-        sample_b: usize,
-        op: ComparisonOperator,
     },
     False,
 }
@@ -184,27 +178,6 @@ impl VAFTree {
                         sample_a,
                         sample_b,
                         predicate: *predicate,
-                    })])
-                }
-                NormalizedFormula::Comparison {
-                    sample_a,
-                    sample_b,
-                    op,
-                } => {
-                    let sample_a = scenario.idx(sample_a.as_str()).ok_or_else(|| {
-                        errors::Error::InvalidSampleName {
-                            name: sample_a.to_owned(),
-                        }
-                    })?;
-                    let sample_b = scenario.idx(sample_b.as_str()).ok_or_else(|| {
-                        errors::Error::InvalidSampleName {
-                            name: sample_b.to_owned(),
-                        }
-                    })?;
-                    Ok(vec![Node::new(NodeKind::Comparison {
-                        sample_a,
-                        sample_b,
-                        op: *op,
                     })])
                 }
             }

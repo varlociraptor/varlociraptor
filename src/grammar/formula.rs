@@ -86,15 +86,6 @@ impl From<NormalizedFormula> for Formula {
                     sample_b,
                     predicate,
                 }),
-                NormalizedFormula::Comparison {
-                    sample_a,
-                    sample_b,
-                    op,
-                } => Formula::Terminal(FormulaTerminal::Comparison {
-                    sample_a,
-                    sample_b,
-                    op,
-                }),
             }
         }
         from_normalized(formula)
@@ -120,11 +111,6 @@ pub(crate) enum FormulaTerminal {
         sample_a: String,
         sample_b: String,
         predicate: Log2FoldChangePredicate,
-    },
-    Comparison {
-        sample_a: String,
-        sample_b: String,
-        op: ComparisonOperator,
     },
     False,
 }
@@ -263,13 +249,6 @@ impl std::fmt::Display for Formula {
             Formula::Negation { operand } => format!("!{operand}", operand = fmt_operand(operand)),
             Formula::Conjunction { operands } => operands.iter().map(&fmt_operand).join(" & "),
             Formula::Disjunction { operands } => operands.iter().map(&fmt_operand).join(" | "),
-            Formula::Terminal(FormulaTerminal::Comparison {
-                sample_a,
-                sample_b,
-                op,
-            }) => {
-                format!("{} {} {}", sample_a, op, sample_b)
-            }
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
@@ -553,15 +532,6 @@ impl Formula {
                 sample_b: sample_b.into(),
                 predicate: predicate.clone(),
             },
-            Formula::Terminal(FormulaTerminal::Comparison {
-                sample_a,
-                sample_b,
-                op,
-            }) => NormalizedFormula::Comparison {
-                sample_a: sample_a.into(),
-                sample_b: sample_b.into(),
-                op: op.clone(),
-            },
         }
     }
 
@@ -741,15 +711,6 @@ impl Formula {
                 sample_b: sample_b.into(),
                 predicate: !*predicate,
             }),
-            Formula::Terminal(FormulaTerminal::Comparison {
-                sample_a,
-                sample_b,
-                op,
-            }) => Formula::Terminal(FormulaTerminal::Comparison {
-                sample_a: sample_a.into(),
-                sample_b: sample_b.into(),
-                op: !*op,
-            }),
             Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => {
                 let universe = scenario
                     .samples()
@@ -910,15 +871,6 @@ impl Formula {
                 sample_b: sample_b.into(),
                 predicate: !*predicate,
             }),
-            Formula::Terminal(FormulaTerminal::Comparison {
-                sample_a,
-                sample_b,
-                op,
-            }) => Formula::Terminal(FormulaTerminal::Comparison {
-                sample_a: sample_a.into(),
-                sample_b: sample_b.into(),
-                op: !*op,
-            }),
         })
     }
 }
@@ -944,11 +896,6 @@ pub(crate) enum NormalizedFormula {
         sample_a: String,
         sample_b: String,
         predicate: Log2FoldChangePredicate,
-    },
-    Comparison {
-        sample_a: String,
-        sample_b: String,
-        op: ComparisonOperator,
     },
     False,
 }
@@ -1009,13 +956,6 @@ impl std::fmt::Display for NormalizedFormula {
                 predicate,
             } => {
                 format!("lfc({}, {}) {:?}", sample_a, sample_b, predicate)
-            }
-            NormalizedFormula::Comparison {
-                sample_a,
-                sample_b,
-                op,
-            } => {
-                format!("{} {:?} {}", sample_a, op, sample_b)
             }
         };
         write!(f, "{}", formatted)
@@ -1208,6 +1148,7 @@ impl VAFRange {
 }
 
 use auto_ops::impl_op_ex;
+use ordered_float::NotNan;
 
 impl_op_ex!(&|a: &VAFRange, b: &VAFRange| -> VAFRange {
     match a.overlap(b) {
@@ -1461,10 +1402,13 @@ where
             let sample_a = inner.next().unwrap().as_str().to_owned();
             let op = parse_cmp_op(inner.next().unwrap());
             let sample_b = inner.next().unwrap().as_str().to_owned();
-            Formula::Terminal(FormulaTerminal::Comparison {
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
-                op,
+                predicate: Log2FoldChangePredicate {
+                    comparison: op,
+                    value: NotNan::new(0.0).unwrap(),
+                },
             })
         }
         Rule::lfc => {
