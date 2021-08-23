@@ -270,7 +270,6 @@ fn test_fdr_control_local3() {
     assert_call_number("test_fdr_local3", 1);
 }
 
-
 // TODO enable this test again once https://github.com/samtools/bcftools/issues/874 is truly fixed upstream
 // Then, also encode SVLEN as negative again for deletions.
 //#[test]
