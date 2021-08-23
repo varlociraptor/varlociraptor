@@ -268,14 +268,14 @@ impl std::fmt::Display for Formula {
                 sample_b,
                 op,
             }) => {
-                format!("{} {:?} {}", sample_a, op, sample_b)
+                format!("{} {} {}", sample_a, op, sample_b)
             }
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
                 predicate,
             }) => {
-                format!("lfc({}, {}) {:?}", sample_a, sample_b, predicate)
+                format!("lfc({}, {}) {}", sample_a, sample_b, predicate)
             }
         };
         write!(f, "{}", formatted)

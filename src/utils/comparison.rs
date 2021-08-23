@@ -1,5 +1,6 @@
 use crate::variants::model::AlleleFreq;
 use core::ops::Not;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ComparisonOperator {
@@ -9,6 +10,20 @@ pub enum ComparisonOperator {
     Less,
     LessEqual,
     NotEqual,
+}
+
+impl Display for ComparisonOperator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            ComparisonOperator::Equal => "==",
+            ComparisonOperator::Greater => ">",
+            ComparisonOperator::GreaterEqual => ">=",
+            ComparisonOperator::Less => "<",
+            ComparisonOperator::LessEqual => "<=",
+            ComparisonOperator::NotEqual => "!=",
+        };
+        f.write_str(s)
+    }
 }
 
 impl ComparisonOperator {
