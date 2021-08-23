@@ -266,7 +266,7 @@ fn test_fdr_control_local2() {
 
 #[test]
 fn test_fdr_control_local3() {
-    control_fdr("test_fdr_local3", "SOMATIC", 0.05, true);
+    control_fdr("test_fdr_local3", "SOMATIC_TUMOR_LOW", 0.05, true);
     assert_call_number("test_fdr_local3", 1);
 }
 
