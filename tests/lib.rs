@@ -211,7 +211,7 @@ fn control_fdr(test: &str, events: Vec<&str>, alpha: f64, local: bool) {
             local,
         )
         .unwrap();
-    } 
+    }
 }
 
 fn assert_call_number(test: &str, expected_calls: usize) {
@@ -268,7 +268,18 @@ fn test_fdr_control_local2() {
 
 #[test]
 fn test_fdr_control_local3() {
-    control_fdr("test_fdr_local3", vec!["GERMLINE", "SOMATIC_TUMOR_HIGH", "SOMATIC_TUMOR_LOW", "ARTIFACT", "FFPE_ARTIFACT", ], 0.05, true);
+    control_fdr(
+        "test_fdr_local3",
+        vec![
+            "GERMLINE",
+            "SOMATIC_TUMOR_HIGH",
+            "SOMATIC_TUMOR_LOW",
+            "ARTIFACT",
+            "FFPE_ARTIFACT",
+        ],
+        0.05,
+        true,
+    );
     assert_call_number("test_fdr_local3", 1);
 }
 
@@ -276,5 +287,10 @@ fn test_fdr_control_local3() {
 // Then, also encode SVLEN as negative again for deletions.
 //#[test]
 fn test_fdr_control5() {
-    control_fdr("test_fdr_control_out_of_bounds", vec!["PRESENT"], 0.05, false);
+    control_fdr(
+        "test_fdr_control_out_of_bounds",
+        vec!["PRESENT"],
+        0.05,
+        false,
+    );
 }
