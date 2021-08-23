@@ -8,3 +8,4 @@ samples:
 
 events:
   homhet: "sample_a > sample_b"
+  otherwise: "!($homhet | $absent)"
