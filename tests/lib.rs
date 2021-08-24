@@ -222,9 +222,16 @@ fn assert_call_number(test: &str, expected_calls: usize) {
     let mut reader = bcf::Reader::from_path(format!("{}/calls.filtered.bcf", basedir)).unwrap();
 
     let calls = reader.records().map(|r| r.unwrap()).collect_vec();
-    // allow one more or less, in order to be robust to numeric fluctuations
+
+    let ok = if expected_calls > 50 {
+        // allow one more or less, in order to be robust to numeric fluctuations
+        (calls.len() as i32 - expected_calls as i32).abs() <= 1
+    } else {
+        calls.len() == expected_calls
+    };
+
     assert!(
-        (calls.len() as i32 - expected_calls as i32).abs() <= 1,
+        ok,
         "unexpected number of calls ({} vs {})",
         calls.len(),
         expected_calls
