@@ -193,7 +193,7 @@ fn cleanup_file(f: &str) {
     }
 }
 
-fn control_fdr(test: &str, events: Vec<&str>, alpha: f64, local: bool) {
+fn control_fdr(test: &str, events: &[&str], alpha: f64, local: bool) {
     let basedir = basedir(test);
     let output = format!("{}/calls.filtered.bcf", basedir);
     cleanup_file(&output);
@@ -233,38 +233,38 @@ fn assert_call_number(test: &str, expected_calls: usize) {
 
 #[test]
 fn test_fdr_control1() {
-    control_fdr("test_fdr_ev_1", vec!["SOMATIC"], 0.05, false);
+    control_fdr("test_fdr_ev_1", &["SOMATIC"], 0.05, false);
     //assert_call_number("test_fdr_ev_1", 974);
 }
 
 #[test]
 fn test_fdr_control2() {
-    control_fdr("test_fdr_ev_2", vec!["SOMATIC"], 0.05, false);
+    control_fdr("test_fdr_ev_2", &["SOMATIC"], 0.05, false);
     assert_call_number("test_fdr_ev_2", 985);
 }
 
 /// same test, but low alpha
 #[test]
 fn test_fdr_control3() {
-    control_fdr("test_fdr_ev_3", vec!["ABSENT"], 0.001, false);
+    control_fdr("test_fdr_ev_3", &["ABSENT"], 0.001, false);
     assert_call_number("test_fdr_ev_3", 0);
 }
 
 #[test]
 fn test_fdr_control4() {
-    control_fdr("test_fdr_ev_4", vec!["SOMATIC_TUMOR"], 0.05, false);
+    control_fdr("test_fdr_ev_4", &["SOMATIC_TUMOR"], 0.05, false);
     assert_call_number("test_fdr_ev_4", 0);
 }
 
 #[test]
 fn test_fdr_control_local1() {
-    control_fdr("test_fdr_local1", vec!["SOMATIC"], 0.05, true);
+    control_fdr("test_fdr_local1", &["SOMATIC"], 0.05, true);
     assert_call_number("test_fdr_local1", 0);
 }
 
 #[test]
 fn test_fdr_control_local2() {
-    control_fdr("test_fdr_local2", vec!["SOMATIC"], 0.25, true);
+    control_fdr("test_fdr_local2", &["SOMATIC"], 0.25, true);
     assert_call_number("test_fdr_local2", 1);
 }
 
@@ -272,13 +272,7 @@ fn test_fdr_control_local2() {
 fn test_fdr_control_local3() {
     control_fdr(
         "test_fdr_local3",
-        vec![
-            "GERMLINE",
-            "SOMATIC_TUMOR_HIGH",
-            "SOMATIC_TUMOR_LOW",
-            "ARTIFACT",
-            "FFPE_ARTIFACT",
-        ],
+        &["GERMLINE", "SOMATIC_TUMOR_LOW"],
         0.05,
         true,
     );
@@ -289,10 +283,5 @@ fn test_fdr_control_local3() {
 // Then, also encode SVLEN as negative again for deletions.
 //#[test]
 fn test_fdr_control5() {
-    control_fdr(
-        "test_fdr_control_out_of_bounds",
-        vec!["PRESENT"],
-        0.05,
-        false,
-    );
+    control_fdr("test_fdr_control_out_of_bounds", &["PRESENT"], 0.05, false);
 }
