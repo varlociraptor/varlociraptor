@@ -3,10 +3,10 @@ samples:
     contamination:
       by: normal
       fraction: 0.25
-    resolution: 100
+    resolution: 0.01
     universe: "[0.0,1.0]"
   normal:
-    resolution: 5
+    resolution: 0.1
     universe: "[0.0,0.5[ | 0.5 | 1.0"
 
 events:

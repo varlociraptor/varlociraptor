@@ -131,7 +131,6 @@ impl Bias for DivIndelBias {
                 0.0
             })
             .unwrap();
-            dbg!((rate, &min_other_rate));
 
             *other_rate = cmp::max(rate, *min_other_rate);
         }

@@ -20,7 +20,7 @@ pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniv
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
-use serde::de;
+use serde::{Deserializer, de};
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -425,11 +425,27 @@ impl Default for VariantTypeFraction {
 }
 
 fn default_resolution() -> Resolution {
-    Resolution(AlleleFreq(0.01))
+    Resolution {
+        value: AlleleFreq(0.01)
+    }
 }
 
-#[derive(Deserialize, Derefable, Debug, Clone)]
-pub(crate) struct Resolution(#[deref] AlleleFreq);
+#[derive(Derefable, Debug, Clone)]
+pub(crate) struct Resolution {
+    // we use an attribute instead of a newtype struct because we need explicit 
+    // deserialization with serde.
+    #[deref] 
+    value: AlleleFreq 
+}
+
+impl<'de> de::Deserialize<'de> for Resolution {
+    fn deserialize<D>(deserializer: D) -> Result<Resolution, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(ResolutionVisitor)
+    }
+}
 
 struct ResolutionVisitor;
 
@@ -447,15 +463,13 @@ impl<'de> de::Visitor<'de> for ResolutionVisitor {
         E: de::Error,
     {
         if let Ok(vaf) = v.parse::<f64>() {
-            if vaf >= 0.0 && vaf <= 1.0 {
-                return Ok(Resolution(AlleleFreq(vaf)));
+            if vaf > 0.0 && vaf < 1.0 {
+                return Ok(Resolution { value: AlleleFreq(vaf) });
             }
         }
 
         Err(de::Error::invalid_value(
-            serde::de::Unexpected::Other(
-                "invalid VAF resolution (must be float between 0.0 and 1.0)",
-            ),
+            serde::de::Unexpected::Other("VAF resolution"),
             &self,
         ))
     }
