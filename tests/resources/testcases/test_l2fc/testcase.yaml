@@ -5,7 +5,7 @@ expected:
   - sample_a >= 0.95
   - sample_b >= 0.45 && sample_b <= 0.55
   posteriors:
-  - PROB_A_GREATER_B < 0.1
+  - PROB_A_GREATER_B < PROB_SIMILAR
 
 # necessary bam files
 samples:
