@@ -254,7 +254,7 @@ impl std::fmt::Display for Formula {
                 sample_b,
                 predicate,
             }) => {
-                format!("lfc({}, {}) {}", sample_a, sample_b, predicate)
+                format!("l2fc({}, {}) {}", sample_a, sample_b, predicate)
             }
         };
         write!(f, "{}", formatted)
@@ -869,7 +869,7 @@ impl Formula {
             }) => Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a: sample_a.into(),
                 sample_b: sample_b.into(),
-                predicate: !*predicate,
+                predicate: predicate.clone(),
             }),
         })
     }
@@ -955,7 +955,7 @@ impl std::fmt::Display for NormalizedFormula {
                 sample_b,
                 predicate,
             } => {
-                format!("lfc({}, {}) {:?}", sample_a, sample_b, predicate)
+                format!("l2fc({}, {}) {}", sample_a, sample_b, predicate)
             }
         };
         write!(f, "{}", formatted)

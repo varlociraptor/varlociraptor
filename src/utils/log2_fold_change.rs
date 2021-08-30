@@ -31,7 +31,7 @@ pub(crate) struct Log2FoldChangePredicate {
 impl Display for Log2FoldChangePredicate {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.comparison.fmt(f)?;
-        f.write_fmt(format_args!("{}", self.value))
+        f.write_fmt(format_args!(" {}", self.value))
     }
 }
 
