@@ -27,13 +27,6 @@ macro_rules! testcase {
                     // Poison error can be ignored here, because it just means that the other test failed
                     // and we are safe to go on.
                     let _guard = [<$name:upper _MUTEX>].lock();
-
-                    // fern::Dispatch::new()
-                    //     .level(log::LevelFilter::Info)
-                    //     .chain(std::io::stderr())
-                    //     .apply()
-                    //     .unwrap();
-
                     let name = stringify!($name);
                     let testcase = load_testcase(
                         &Path::new(file!())
