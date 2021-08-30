@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::TryFrom;
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
@@ -19,6 +20,7 @@ pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniv
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
+use serde::de;
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -423,11 +425,10 @@ impl Default for VariantTypeFraction {
 }
 
 fn default_resolution() -> Resolution {
-    Resolution::Adaptive
+    Resolution(AlleleFreq(0.01))
 }
 
-#[derive(Deserialize, Derefable)]
-#[serde(untagged)]
+#[derive(Deserialize, Derefable, Debug, Clone)]
 pub(crate) struct Resolution(#[deref] AlleleFreq);
 
 struct ResolutionVisitor;
@@ -447,12 +448,14 @@ impl<'de> de::Visitor<'de> for ResolutionVisitor {
     {
         if let Ok(vaf) = v.parse::<f64>() {
             if vaf >= 0.0 && vaf <= 1.0 {
-                return Ok(Resolution(vaf));
+                return Ok(Resolution(AlleleFreq(vaf)));
             }
         }
 
         Err(de::Error::invalid_value(
-            serde::de::Unexpected::Other("invalid VAF resolution (must be float between 0.0 and 1.0)"),
+            serde::de::Unexpected::Other(
+                "invalid VAF resolution (must be float between 0.0 and 1.0)",
+            ),
             &self,
         ))
     }
