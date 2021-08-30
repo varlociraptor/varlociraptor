@@ -4,14 +4,17 @@ use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
 use derive_builder::Builder;
 use itertools::Itertools;
-use vec_map::VecMap;
+use vec_map::{Values, VecMap};
 
 use crate::grammar;
+use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
+use crate::variants::model::likelihood::Event;
 use crate::variants::model::{bias::Biases, AlleleFreq, Contamination, VariantType};
 use crate::variants::sample::Pileup;
+use std::ops::Index;
 
 #[derive(new, Clone, Debug)]
 pub(crate) struct Snv {
@@ -53,7 +56,7 @@ pub(crate) type Cache = VecMap<CacheEntry>;
 #[derive(Default, Debug, Clone, Builder)]
 pub(crate) struct GenericModelBuilder<P>
 where
-    P: Prior<Event = Vec<likelihood::Event>>,
+    P: Prior<Event = LikelihoodOperands>,
 {
     resolutions: Option<grammar::SampleInfo<usize>>,
     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
@@ -62,7 +65,7 @@ where
 
 impl<P> GenericModelBuilder<P>
 where
-    P: Prior<Event = Vec<likelihood::Event>>,
+    P: Prior<Event = LikelihoodOperands>,
 {
     pub(crate) fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
         self.resolutions = Some(resolutions);
@@ -100,6 +103,45 @@ where
     }
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+struct VafLfc {
+    sample_a: usize,
+    sample_b: usize,
+    predicate: Log2FoldChangePredicate,
+}
+
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
+pub(crate) struct LikelihoodOperands {
+    events: VecMap<likelihood::Event>,
+    lfcs: Vec<VafLfc>,
+}
+
+impl LikelihoodOperands {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.events.len()
+    }
+
+    pub(crate) fn push(&mut self, event: Event) {
+        self.events.insert(self.events.len(), event);
+    }
+
+    pub(crate) fn iter(&self) -> Values<Event> {
+        self.events.values()
+    }
+}
+
+impl Index<usize> for LikelihoodOperands {
+    type Output = likelihood::Event;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.events[index]
+    }
+}
+
 #[derive(new, Clone, Debug, Default)]
 pub(crate) struct GenericPosterior {
     resolutions: grammar::SampleInfo<usize>,
@@ -124,15 +166,15 @@ impl GenericPosterior {
     fn density<F: FnMut(&<Self as Posterior>::BaseEvent, &<Self as Posterior>::Data) -> LogProb>(
         &self,
         vaf_tree_node: &grammar::vaftree::Node,
-        base_events: &mut VecMap<likelihood::Event>,
+        likelihood_operands: &mut LikelihoodOperands,
         sample_grid_points: &[usize],
         data: &<Self as Posterior>::Data,
         biases: &Biases,
         joint_prob: &mut F,
     ) -> LogProb {
-        let mut subdensity = |base_events: &mut VecMap<likelihood::Event>| {
+        let mut subdensity = |likelihood_operands: &mut LikelihoodOperands| {
             let p = if vaf_tree_node.is_leaf() {
-                joint_prob(&base_events.values().cloned().collect(), data)
+                joint_prob(&likelihood_operands, data)
             } else if vaf_tree_node.is_branching() {
                 LogProb::ln_sum_exp(
                     &vaf_tree_node
@@ -141,7 +183,7 @@ impl GenericPosterior {
                         .map(|child| {
                             self.density(
                                 child,
-                                &mut base_events.clone(),
+                                &mut likelihood_operands.clone(),
                                 sample_grid_points,
                                 data,
                                 biases,
@@ -153,7 +195,7 @@ impl GenericPosterior {
             } else {
                 self.density(
                     &vaf_tree_node.children()[0],
-                    base_events,
+                    likelihood_operands,
                     sample_grid_points,
                     data,
                     biases,
@@ -166,31 +208,44 @@ impl GenericPosterior {
         };
 
         match vaf_tree_node.kind() {
+            grammar::vaftree::NodeKind::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            } => {
+                likelihood_operands.lfcs.push(VafLfc {
+                    sample_a: *sample_a,
+                    sample_b: *sample_b,
+                    predicate: *predicate,
+                });
+                subdensity(likelihood_operands)
+            }
             grammar::vaftree::NodeKind::False => LogProb::ln_zero(),
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
-                let push_base_event = |allele_freq, base_events: &mut VecMap<likelihood::Event>| {
-                    base_events.insert(
-                        *sample,
-                        likelihood::Event {
-                            allele_freq,
-                            biases: biases.clone(),
-                        },
-                    );
-                };
+                let push_base_event =
+                    |allele_freq, likelihood_operands: &mut LikelihoodOperands| {
+                        likelihood_operands.events.insert(
+                            *sample,
+                            likelihood::Event {
+                                allele_freq,
+                                biases: biases.clone(),
+                            },
+                        );
+                    };
 
                 match vafs {
                     grammar::VAFSpectrum::Set(vafs) => {
                         if vafs.len() == 1 {
-                            push_base_event(*vafs.iter().next().unwrap(), base_events);
-                            subdensity(base_events)
+                            push_base_event(*vafs.iter().next().unwrap(), likelihood_operands);
+                            subdensity(likelihood_operands)
                         } else {
                             LogProb::ln_sum_exp(
                                 &vafs
                                     .iter()
                                     .map(|vaf| {
-                                        let mut base_events = base_events.clone();
-                                        push_base_event(*vaf, &mut base_events);
-                                        subdensity(&mut base_events)
+                                        let mut likelihood_operands = likelihood_operands.clone();
+                                        push_base_event(*vaf, &mut likelihood_operands);
+                                        subdensity(&mut likelihood_operands)
                                     })
                                     .collect_vec(),
                             )
@@ -200,9 +255,9 @@ impl GenericPosterior {
                         let n_obs = data.pileups[*sample].len();
                         let p = LogProb::ln_simpsons_integrate_exp(
                             |_, vaf| {
-                                let mut base_events = base_events.clone();
-                                push_base_event(AlleleFreq(vaf), &mut base_events);
-                                subdensity(&mut base_events)
+                                let mut likelihood_operands = likelihood_operands.clone();
+                                push_base_event(AlleleFreq(vaf), &mut likelihood_operands);
+                                subdensity(&mut likelihood_operands)
                             },
                             *vafs.observable_min(n_obs),
                             *vafs.observable_max(n_obs),
@@ -229,14 +284,14 @@ impl GenericPosterior {
                         LogProb::ln_zero()
                     } else {
                         // skip this node
-                        subdensity(base_events)
+                        subdensity(likelihood_operands)
                     }
                 } else if *positive {
                     // no SNV but branch requires the defined SNV, hence abort with prob 0
                     LogProb::ln_zero()
                 } else {
                     // skip this node, as we don't have the defined SNV but it is negated
-                    subdensity(base_events)
+                    subdensity(likelihood_operands)
                 }
             }
         }
@@ -244,7 +299,7 @@ impl GenericPosterior {
 }
 
 impl Posterior for GenericPosterior {
-    type BaseEvent = Vec<likelihood::Event>;
+    type BaseEvent = LikelihoodOperands;
     type Event = model::Event;
     type Data = Data;
 
@@ -273,11 +328,11 @@ impl Posterior for GenericPosterior {
             &possible_biases
                 .cartesian_product(vaf_tree)
                 .map(|(biases, node)| {
-                    let mut base_events = VecMap::with_capacity(data.pileups.len());
+                    let mut likelihood_operands = LikelihoodOperands::default();
                     bias_prior
                         + self.density(
                             node,
-                            &mut base_events,
+                            &mut likelihood_operands,
                             &grid_points,
                             data,
                             biases,
@@ -323,15 +378,26 @@ impl GenericLikelihood {
 }
 
 impl Likelihood<Cache> for GenericLikelihood {
-    type Event = Vec<likelihood::Event>;
+    type Event = LikelihoodOperands;
     type Data = Data;
 
-    fn compute(&self, events: &Self::Event, data: &Self::Data, cache: &mut Cache) -> LogProb {
+    fn compute(&self, operands: &Self::Event, data: &Self::Data, cache: &mut Cache) -> LogProb {
+        // Step 1: Check if sample VAFs are compliant with any defined log fold changes.
+        // If not, quickly return probability zero.
+        for lfc in &operands.lfcs {
+            let vaf_a = operands.events[lfc.sample_a].allele_freq;
+            let vaf_b = operands.events[lfc.sample_b].allele_freq;
+            if !lfc.predicate.is_true(&Log2FoldChange::new(vaf_a, vaf_b)) {
+                return LogProb::ln_zero();
+            }
+        }
+
         let mut p = LogProb::ln_one();
 
-        for (((sample, event), pileup), inner) in events
+        // Step 2: Calculate joint likelihood of sample VAFs.
+        for (((sample, event), pileup), inner) in operands
+            .events
             .iter()
-            .enumerate()
             .zip(data.pileups.iter())
             .zip(self.inner.iter())
         {
@@ -346,7 +412,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                         likelihood_model.compute(
                             &likelihood::ContaminatedSampleEvent {
                                 primary: event.clone(),
-                                secondary: events[by].clone(),
+                                secondary: operands.events[by].clone(),
                             },
                             pileup,
                             cache,
@@ -380,7 +446,7 @@ pub(crate) struct FlatPrior {
 }
 
 impl Prior for FlatPrior {
-    type Event = Vec<likelihood::Event>;
+    type Event = LikelihoodOperands;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
         if event
