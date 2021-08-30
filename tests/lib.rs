@@ -4,7 +4,6 @@ use std::str;
 use std::sync::Mutex;
 
 use bio::stats::{LogProb, Prob};
-use fern;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use paste::paste;
