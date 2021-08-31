@@ -1,16 +1,22 @@
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
   "data": {"values": []},
+  "title": "Empirical Cumulative Distribution of Bootstraps", 
+  "transform": [
+    {"calculate": "datum.ecdf - datum.ecdf + 0.1", "as": "y2"}],
   "layer": [
     {
       "mark": "tick",
-      "encoding": {"x": {"field": "bootstrap", "type": "quantitative"}}
+      "encoding": {
+        "x": {"field": "bootstrap", "type": "quantitative"},
+        "y": {"field": "y2", "type": "quantitative", "axis": {"title": ""}}
+      }
     },
     {
       "mark": "line",
       "encoding": {
         "x": {"field": "bootstrap", "type": "quantitative"},
-        "y": {"field": "ecdf", "type": "quantitative"}
+        "y": {"field": "ecdf", "type": "quantitative", "axis": {"title": "ecdf"}}
       }
     }
   ],

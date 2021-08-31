@@ -2,11 +2,11 @@ use anyhow::Result;
 use derive_builder::Builder;
 use hdf5;
 use kernel_density;
+use ordered_float::OrderedFloat;
 use rust_htslib::bcf;
 use serde_json::json;
 use std::fs::File;
 use std::path::PathBuf;
-use ordered_float::OrderedFloat;
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -26,7 +26,7 @@ pub(crate) struct ECDF {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct plot_ECDF {
     bootstrap: f64,
-    ecdf: f64
+    ecdf: f64,
 }
 
 impl Caller {
@@ -43,8 +43,10 @@ impl Caller {
             }
         }
         //let len = hdf5.dataset("aux/ids")?.dtype().unwrap().size();
-        let ids = hdf5.dataset("aux/ids")?.read_1d::<hdf5::types::FixedAscii<255>>()?;
-    
+        let ids = hdf5
+            .dataset("aux/ids")?
+            .read_1d::<hdf5::types::FixedAscii<255>>()?;
+
         let mut filtered: Vec<String> = Vec::new();
         for i in indices {
             filtered.push(ids[i].to_string());
@@ -64,14 +66,18 @@ impl Caller {
         let mut bootstraps = Vec::new();
         for i in 0..num_bootstraps[0] {
             let dataset = hdf5.dataset(&format!("bootstrap/bs{i}", i = i))?;
-            let est_counts = dataset.read_1d::<f64>()?; 
+            let est_counts = dataset.read_1d::<f64>()?;
             let norm_counts = est_counts / &seq_length;
             let norm_counts = norm_counts[index];
             bootstraps.push(norm_counts);
         }
-        let bootstraps_ordered_float: Vec<OrderedFloat<f64>> = bootstraps.iter().map(|&x| OrderedFloat(x)).collect();   
+        let bootstraps_ordered_float: Vec<OrderedFloat<f64>> =
+            bootstraps.iter().map(|&x| OrderedFloat(x)).collect();
         let ecdf = kernel_density::ecdf::Ecdf::new(&bootstraps_ordered_float); //the trait Ord is not implemented for f64!
-        let ecdf: Vec<f64> = bootstraps_ordered_float.iter().map(|&x| ecdf.value(x)).collect();
+        let ecdf: Vec<f64> = bootstraps_ordered_float
+            .iter()
+            .map(|&x| ecdf.value(x))
+            .collect();
         Ok(ECDF {
             seqname,
             bootstraps,
@@ -88,11 +94,11 @@ impl ECDF {
     pub(crate) fn plot_qc(&self, mut qc_plot: PathBuf) -> Result<()> {
         let json = include_str!("../../templates/plots/qc_cdf.json");
         let mut blueprint: serde_json::Value = serde_json::from_str(json)?;
-        
+
         let mut plot_data = Vec::new();
-        
-        for num in 0..self.bootstraps.to_vec().len(){
-            plot_data.push(plot_ECDF{
+
+        for num in 0..self.bootstraps.to_vec().len() {
+            plot_data.push(plot_ECDF {
                 bootstrap: self.bootstraps[num],
                 ecdf: self.ecdf[num],
             })
