@@ -425,18 +425,11 @@ impl Default for VariantTypeFraction {
 }
 
 fn default_resolution() -> Resolution {
-    Resolution {
-        value: AlleleFreq(0.01)
-    }
+    Resolution(AlleleFreq(0.01))
 }
 
 #[derive(Derefable, Debug, Clone)]
-pub(crate) struct Resolution {
-    // we use an attribute instead of a newtype struct because we need explicit 
-    // deserialization with serde.
-    #[deref] 
-    value: AlleleFreq 
-}
+pub(crate) struct Resolution(#[deref] AlleleFreq);
 
 impl<'de> de::Deserialize<'de> for Resolution {
     fn deserialize<D>(deserializer: D) -> Result<Resolution, D::Error>
@@ -454,7 +447,7 @@ impl<'de> de::Visitor<'de> for ResolutionVisitor {
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         formatter.write_str(
-            "an allele frequency resolution given as floating point value between 0.0 and 1.0 (e.g. 0.01, 0.1, etc.)",
+            "an allele frequency resolution given as floating point value between 0.0 and 1.0 (exclusive, e.g. 0.01, 0.1, etc.)",
         )
     }
 
@@ -464,7 +457,7 @@ impl<'de> de::Visitor<'de> for ResolutionVisitor {
     {
         if let Ok(vaf) = v.parse::<f64>() {
             if vaf > 0.0 && vaf < 1.0 {
-                return Ok(Resolution { value: AlleleFreq(vaf) });
+                return Ok(Resolution (AlleleFreq(vaf)));
             }
         }
 

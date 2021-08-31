@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::cmp;
 use std::collections::HashMap;
 use std::convert::Into;
 use std::hash::Hash;
@@ -13,6 +14,7 @@ use std::{
 
 use bio::stats::probs::LogProb;
 use itertools::Itertools;
+use itertools_num::linspace;
 use ordered_float::NotNan;
 
 /// Integrate over an interval of type T with a given density function while trying to minimize
@@ -53,29 +55,42 @@ where
     // Remember all points.
     let mut left = grid_point(min_point, &mut probs);
     let mut right = grid_point(max_point, &mut probs);
+    let mut first_middle = None;
+    let mut middle = None;
 
-    while ((right - left) >= max_resolution) || left < right {
-        let middle = grid_point(middle_grid_point(left, right), &mut probs);
+    while (((right - left) >= max_resolution) && left < right) || middle.is_none() {
+        middle = Some(grid_point(middle_grid_point(left, right), &mut probs));
+
+        if first_middle.is_none() {
+            first_middle = middle;
+        }
 
         let left_prob = probs.get(&left).unwrap();
         let right_prob = probs.get(&right).unwrap();
 
         if left_prob > right_prob {
             // investigate left window more closely
-            right = middle;
+            right = middle.unwrap();
         } else {
-            // investiage right window more closely
-            left = middle;
+            // investigate right window more closely
+            left = middle.unwrap();
         }
     }
+    // METHOD: add additional grid point in the initially abandoned arm
+    if middle < first_middle {
+        grid_point(middle_grid_point(first_middle.unwrap(), max_point), &mut probs);
+    } else {
+        grid_point(middle_grid_point(min_point, first_middle.unwrap()), &mut probs);
+    }
+    // METHOD additionally investigate small interval around the optimum
+    for point in linspace(cmp::max(middle.unwrap() - (max_resolution.into() * 3.0).into(), min_point).into(), middle.unwrap().into(), 4).take(3).chain(linspace(middle.unwrap().into(), cmp::min(middle.unwrap() + (max_resolution.into() * 3.0).into(), max_point).into(), 4).skip(1)) {
+        grid_point(point.into(), &mut probs);
+    }
+
     let sorted_grid_points: Vec<f64> = probs.keys().sorted().map(|point| (*point).into()).collect();
 
     // METHOD:
-    // Step 2: add additional grid points around optimum?
-    dbg!(&sorted_grid_points);
-
-    // METHOD:
-    // Step 3: integrate over grid points visited during the binary search.
+    // Step 2: integrate over grid points visited during the binary search.
     LogProb::ln_trapezoidal_integrate_grid_exp::<f64, _>(
         |_, g| *probs.get(&T::from(g)).unwrap(),
         &sorted_grid_points,

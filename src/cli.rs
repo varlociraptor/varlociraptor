@@ -914,13 +914,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     r#"
                             samples:
                               tumor:
-                                resolution: 100
+                                resolution: 0.01
                                 contamination:
                                   by: normal
                                   fraction: {impurity}
                                 universe: "[0.0,1.0]"
                               normal:
-                                resolution: 5
+                                resolution: 0.1
                                 universe: "[0.0,0.5[ | 0.5 | 1.0"
                             events:
                               somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"

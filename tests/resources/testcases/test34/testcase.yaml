@@ -5,7 +5,7 @@
 expected:
   allelefreqs:
     # true AF=0.125
-  - tumor >= 0.06 && tumor <= 0.125
+  - tumor >= 0.05 && tumor <= 0.125
   - normal == 0.0
   posteriors:
     # There are some fragments with increased insert size that let prosic think

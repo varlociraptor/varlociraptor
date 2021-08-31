@@ -185,7 +185,6 @@ impl GenericPosterior {
                         if (max_vaf - min_vaf) < **resolution {
                             // METHOD: Interval too small for desired resolution.
                             // Just use 3 grid points.
-                            dbg!((max_vaf, min_vaf, resolution));
                             LogProb::ln_simpsons_integrate_exp(
                                 |_, vaf| density(AlleleFreq(vaf)),
                                 *min_vaf,
@@ -193,7 +192,6 @@ impl GenericPosterior {
                                 3,
                             )
                         } else if n_obs < 5 {
-                            dbg!(n_obs);
                             // METHOD: Not enough observations to expect a unimodal density.
                             // Use 11 grid points.
                             LogProb::ln_simpsons_integrate_exp(
@@ -205,7 +203,6 @@ impl GenericPosterior {
                         } else {
                             // METHOD: enough data and large enough interval, use adaptive integration
                             // at the desired resolution.
-                            dbg!("adaptive");
                             adaptive_integration::ln_integrate_exp(
                                 density,
                                 min_vaf,
