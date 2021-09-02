@@ -56,7 +56,10 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
             true
         } else {
             pileups.iter().any(|pileup| {
-                let strong_all = pileup.iter().filter(|obs| obs.is_strong_alt_support()).count();
+                let strong_all = pileup
+                    .iter()
+                    .filter(|obs| obs.is_strong_alt_support())
+                    .count();
                 if strong_all >= 10 {
                     let strong_bias_evidence = pileup
                         .iter()

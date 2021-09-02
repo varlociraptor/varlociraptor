@@ -11,8 +11,8 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
-use bio::stats::LogProb;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
+use bio::stats::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 use rust_htslib::bam;
@@ -25,9 +25,9 @@ use itertools::Itertools;
 use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils;
+use crate::utils::PROB_095;
 use crate::variants::sample;
 use crate::variants::types::Variant;
-use crate::utils::PROB_095;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
 pub(crate) fn expected_depth(obs: &[Observation<ReadPosition>]) -> u32 {
