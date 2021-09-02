@@ -13,6 +13,8 @@ use serde::Deserialize;
 
 use crate::errors;
 use crate::grammar::{ExpressionIdentifier, Scenario};
+use crate::utils::comparison::ComparisonOperator;
+use crate::utils::log2_fold_change::Log2FoldChangePredicate;
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -75,6 +77,15 @@ impl From<NormalizedFormula> for Formula {
                     refbase,
                 }),
                 NormalizedFormula::False => Formula::Terminal(FormulaTerminal::False),
+                NormalizedFormula::Log2FoldChange {
+                    sample_a,
+                    sample_b,
+                    predicate,
+                } => Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                    sample_a,
+                    sample_b,
+                    predicate,
+                }),
             }
         }
         from_normalized(formula)
@@ -95,6 +106,11 @@ pub(crate) enum FormulaTerminal {
     Expression {
         identifier: ExpressionIdentifier,
         negated: bool,
+    },
+    Log2FoldChange {
+        sample_a: String,
+        sample_b: String,
+        predicate: Log2FoldChangePredicate,
     },
     False,
 }
@@ -233,6 +249,13 @@ impl std::fmt::Display for Formula {
             Formula::Negation { operand } => format!("!{operand}", operand = fmt_operand(operand)),
             Formula::Conjunction { operands } => operands.iter().map(&fmt_operand).join(" & "),
             Formula::Disjunction { operands } => operands.iter().map(&fmt_operand).join(" | "),
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            }) => {
+                format!("l2fc({}, {}) {}", sample_a, sample_b, predicate)
+            }
         };
         write!(f, "{}", formatted)
     }
@@ -500,6 +523,15 @@ impl Formula {
                 panic!("bug: negations should have been applied before normalization")
             }
             Formula::Terminal(FormulaTerminal::False) => NormalizedFormula::False,
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            }) => NormalizedFormula::Log2FoldChange {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                predicate: predicate.clone(),
+            },
         }
     }
 
@@ -670,6 +702,15 @@ impl Formula {
                 identifier: identifier.clone(),
                 negated: !negated,
             }),
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            }) => Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                predicate: !*predicate,
+            }),
             Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => {
                 let universe = scenario
                     .samples()
@@ -821,6 +862,15 @@ impl Formula {
             Formula::Terminal(FormulaTerminal::False) => {
                 panic!("bug: false terminals may not appear in formula to be negated because this is not allowed in the grammar");
             }
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            }) => Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                predicate: *predicate,
+            }),
         })
     }
 }
@@ -841,6 +891,11 @@ pub(crate) enum NormalizedFormula {
         positive: bool,
         refbase: Iupac,
         altbase: Iupac,
+    },
+    Log2FoldChange {
+        sample_a: String,
+        sample_b: String,
+        predicate: Log2FoldChangePredicate,
     },
     False,
 }
@@ -895,6 +950,13 @@ impl std::fmt::Display for NormalizedFormula {
                 operands.iter().map(&fmt_operand).join(" | ")
             }
             NormalizedFormula::False => "false".to_owned(),
+            NormalizedFormula::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            } => {
+                format!("l2fc({}, {}) {}", sample_a, sample_b, predicate)
+            }
         };
         write!(f, "{}", formatted)
     }
@@ -1086,6 +1148,7 @@ impl VAFRange {
 }
 
 use auto_ops::impl_op_ex;
+use ordered_float::NotNan;
 
 impl_op_ex!(&|a: &VAFRange, b: &VAFRange| -> VAFRange {
     match a.overlap(b) {
@@ -1334,6 +1397,37 @@ where
                 operand: Box::new(parse_formula(inner.next().unwrap())?),
             }
         }
+        Rule::cmp => {
+            let mut inner = pair.into_inner();
+            let sample_a = inner.next().unwrap().as_str().to_owned();
+            let op = parse_cmp_op(inner.next().unwrap());
+            let sample_b = inner.next().unwrap().as_str().to_owned();
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate: Log2FoldChangePredicate {
+                    comparison: op,
+                    value: NotNan::new(0.0).unwrap(),
+                },
+            })
+        }
+        Rule::lfc => {
+            let mut inner = pair.into_inner();
+            let sample_a = inner.next().unwrap().as_str().to_owned();
+            let sample_b = inner.next().unwrap().as_str().to_owned();
+            let operand = parse_cmp_op(inner.next().unwrap());
+            let value = inner.next().unwrap().as_str().parse().unwrap();
+            let predicate = Log2FoldChangePredicate {
+                comparison: operand,
+                value,
+            };
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            })
+        }
+        Rule::cmp_ops => unreachable!(),
         Rule::formula => unreachable!(),
         Rule::subformula => unreachable!(),
         Rule::vafdef => unreachable!(),
@@ -1341,6 +1435,7 @@ where
         Rule::universe => unreachable!(),
         Rule::vafrange => unreachable!(),
         Rule::identifier => unreachable!(),
+        Rule::number => unreachable!(),
         Rule::vaf => unreachable!(),
         Rule::sample_vafdef => unreachable!(),
         Rule::EOI => unreachable!(),
@@ -1348,6 +1443,18 @@ where
         Rule::COMMENT => unreachable!(),
         Rule::iupac => unreachable!(),
     })
+}
+
+fn parse_cmp_op(pair: Pair<Rule>) -> ComparisonOperator {
+    match pair.as_str() {
+        "==" => ComparisonOperator::Equal,
+        "!=" => ComparisonOperator::NotEqual,
+        ">" => ComparisonOperator::Greater,
+        ">=" => ComparisonOperator::GreaterEqual,
+        "<" => ComparisonOperator::Less,
+        "<=" => ComparisonOperator::LessEqual,
+        _ => panic!(),
+    }
 }
 
 #[cfg(test)]
