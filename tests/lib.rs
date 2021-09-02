@@ -154,6 +154,7 @@ testcase!(test65, exact);
 testcase!(test69, exact);
 testcase!(test70, exact);
 testcase!(test71, exact);
+testcase!(test72, exact);
 
 // Skip test_giab_01 for now as the call seems to be correct.
 // TODO try to find out what is wrong in the GIAB callset at that location.

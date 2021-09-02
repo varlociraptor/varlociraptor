@@ -252,6 +252,13 @@ impl<'a> EmissionParameters for ReplacementEmissionParams<'a> {
 
     #[inline]
     fn len_x(&self) -> usize {
-        self.ref_end - self.ref_offset + self.repl_alt_len - self.repl_ref_len
+        // The window is shrunken later on with shrink to hit.
+        // Therefore it can happen that the window does not cover the entire variant anymore.
+        // Hence, we have to consider that the first computation yields 0, in which case we
+        // will simply take the second solution.
+        cmp::max(
+            (self.ref_end - self.ref_offset + self.repl_alt_len).saturating_sub(self.repl_ref_len),
+            self.ref_end - self.ref_offset,
+        )
     }
 }
