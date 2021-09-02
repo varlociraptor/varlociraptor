@@ -167,7 +167,13 @@ impl GenericPosterior {
                         .children()
                         .iter()
                         .map(|child| {
-                            self.density(child, &mut likelihood_operands.clone(), data, biases, joint_prob)
+                            self.density(
+                                child,
+                                &mut likelihood_operands.clone(),
+                                data,
+                                biases,
+                                joint_prob,
+                            )
                         })
                         .collect_vec(),
                 )
@@ -329,13 +335,7 @@ impl Posterior for GenericPosterior {
                 .map(|(biases, node)| {
                     let mut likelihood_operands = LikelihoodOperands::default();
                     bias_prior
-                        + self.density(
-                            node,
-                            &mut likelihood_operands,
-                            data,
-                            biases,
-                            joint_prob,
-                        )
+                        + self.density(node, &mut likelihood_operands, data, biases, joint_prob)
                 })
                 .collect_vec(),
         )

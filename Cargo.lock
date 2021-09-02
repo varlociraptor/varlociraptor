@@ -2740,7 +2740,7 @@ dependencies = [
  "log 0.4.14",
  "lru",
  "lru_time_cache",
- "ndarray 0.13.1",
+ "ndarray",
  "num-traits",
  "ordered-float",
  "paste",

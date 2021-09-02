@@ -20,7 +20,7 @@ pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniv
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
-use serde::{Deserializer, de};
+use serde::{de, Deserializer};
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -457,7 +457,7 @@ impl<'de> de::Visitor<'de> for ResolutionVisitor {
     {
         if let Ok(vaf) = v.parse::<f64>() {
             if vaf > 0.0 && vaf < 1.0 {
-                return Ok(Resolution (AlleleFreq(vaf)));
+                return Ok(Resolution(AlleleFreq(vaf)));
             }
         }
 
