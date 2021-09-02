@@ -13,6 +13,7 @@ pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
 pub(crate) mod softclip_bias;
 pub(crate) mod strand_bias;
+pub(crate) mod prior;
 
 pub(crate) use divindel_bias::DivIndelBias;
 pub(crate) use read_orientation_bias::ReadOrientationBias;
