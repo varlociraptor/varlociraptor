@@ -516,8 +516,8 @@ impl Prior {
             match (origin, self.vartype_somatic_effective_mutation_rate(sample)) {
                 (grammar::SubcloneOrigin::SingleCell, None) => {
                     // METHOD: no de novo somatic mutation. total_vaf must reflect ploidy.
-                    if *parent_total_vaf == 1.0 {
-                        if *total_vaf == 1.0 {
+                    if (*parent_total_vaf - 1.0).abs() < f64::EPSILON {
+                        if (*total_vaf - 1.0).abs() < f64::EPSILON {
                             LogProb::ln_one()
                         } else {
                             // METHOD: impossible, since all parental allele copies host the variant.
@@ -538,8 +538,8 @@ impl Prior {
                     }
                 }
                 (grammar::SubcloneOrigin::MultiCell, None) => {
-                    if *parent_somatic_vaf == 1.0 {
-                        if *total_vaf == 1.0 {
+                    if (*parent_somatic_vaf - 1.0).abs() < f64::EPSILON {
+                        if (*total_vaf - 1.0).abs() < f64::EPSILON {
                             // METHOD: The parent has a VAF of 1.0.
                             // In this case, it must be inherited unmodified.
                             LogProb::ln_one()
