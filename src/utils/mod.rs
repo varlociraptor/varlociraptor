@@ -28,6 +28,8 @@ use crate::Event;
 pub(crate) mod adaptive_integration;
 pub(crate) mod anonymize;
 pub(crate) mod collect_variants;
+pub(crate) mod comparison;
+pub(crate) mod log2_fold_change;
 
 pub(crate) use collect_variants::collect_variants;
 
@@ -41,8 +43,8 @@ lazy_static! {
 }
 
 pub(crate) fn aux_tag_strand_info(record: &bam::Record) -> Option<&[u8]> {
-    if let Some(bam::record::Aux::String(strand_info)) = record.aux(b"SI") {
-        Some(strand_info)
+    if let Ok(bam::record::Aux::String(strand_info)) = record.aux(b"SI") {
+        Some(strand_info.as_bytes())
     } else {
         None
     }

@@ -17,6 +17,7 @@ use statrs::distribution::{self, Discrete};
 
 use crate::errors;
 use crate::grammar;
+use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::{bias::Biases, likelihood, AlleleFreq, VariantType};
 
 pub(crate) trait UpdatablePrior {
@@ -104,11 +105,7 @@ impl Prior {
         self.germline_mutation_rate.len()
     }
 
-    fn collect_events(
-        &self,
-        event: Vec<likelihood::Event>,
-        events: &mut Vec<Vec<likelihood::Event>>,
-    ) {
+    fn collect_events(&self, event: LikelihoodOperands, events: &mut Vec<LikelihoodOperands>) {
         if event.len() < self.universe.as_ref().unwrap().len() {
             let sample = event.len();
             let new_event = |vaf| likelihood::Event {
@@ -147,7 +144,7 @@ impl Prior {
         let mut blueprint =
             serde_json::from_str(include_str!("../../../templates/plots/prior.json"))?;
         let mut events = Vec::new();
-        self.collect_events(Vec::new(), &mut events);
+        self.collect_events(LikelihoodOperands::new(), &mut events);
 
         let mut visited = HashSet::new();
 
@@ -279,13 +276,13 @@ impl Prior {
     fn effective_somatic_vaf(
         &self,
         sample: usize,
-        event: &[likelihood::Event],
+        event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
     ) -> AlleleFreq {
         event[sample].allele_freq - germline_vafs[sample]
     }
 
-    fn calc_prob(&self, event: &[likelihood::Event], germline_vafs: Vec<AlleleFreq>) -> LogProb {
+    fn calc_prob(&self, event: &LikelihoodOperands, germline_vafs: Vec<AlleleFreq>) -> LogProb {
         if germline_vafs.len() == event.len() {
             // recursion end
 
@@ -459,7 +456,7 @@ impl Prior {
         &self,
         sample: usize,
         parent: usize,
-        event: &[likelihood::Event],
+        event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
         somatic: bool,
     ) -> LogProb {
@@ -504,7 +501,7 @@ impl Prior {
         &self,
         sample: usize,
         parent: usize,
-        event: &[likelihood::Event],
+        event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
         origin: grammar::SubcloneOrigin,
     ) -> LogProb {
@@ -756,7 +753,7 @@ impl Prior {
         &self,
         child: usize,
         parents: (usize, usize),
-        event: &[likelihood::Event],
+        event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
     ) -> LogProb {
         let ploidies = self.ploidies.as_ref().unwrap();
@@ -786,7 +783,7 @@ impl Prior {
 }
 
 impl bayesian::model::Prior for Prior {
-    type Event = Vec<likelihood::Event>;
+    type Event = LikelihoodOperands;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
         let key: Vec<_> = event

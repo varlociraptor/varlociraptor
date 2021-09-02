@@ -2,11 +2,11 @@ universe = _{ SOI ~ ( vafdef ~ ( "|" ~ vafdef )* ) ~ EOI }
 vafdef = _{ vaf | vafrange }
 vafrange = { bound ~ vaf ~ "," ~ vaf ~ bound }
 
-formula = _{ SOI ~ (conjunction | disjunction | negation | sample_vafdef | variant | expression) ~ EOI }
+formula = _{ SOI ~ (conjunction | disjunction | negation | sample_vafdef | variant | expression | cmp | lfc) ~ EOI }
 conjunction = { subformula ~ ( "&" ~ subformula )+ }
 disjunction = { subformula ~ ( "|" ~ subformula )+ }
 negation = { "!" ~ subformula }
-subformula = _{ variant | sample_vafdef | ("(" ~ conjunction ~ ")") | ("(" ~ disjunction ~ ")") | negation | expression | ("(" ~ subformula ~ ")") }
+subformula = _{ variant | sample_vafdef | ("(" ~ conjunction ~ ")") | ("(" ~ disjunction ~ ")") | negation | expression | cmp | lfc | ("(" ~ subformula ~ ")") }
 sample_vafdef = _{ sample_vaf | sample_vafrange }
 sample_vafrange = { identifier ~ ":" ~ vafrange }
 sample_vaf = { identifier ~ ":" ~ vaf }
@@ -14,8 +14,18 @@ expression = { "$" ~ identifier }
 identifier = { (ASCII_ALPHANUMERIC | "_" | "-" | ".")+ }
 variant = { iupac ~ ">" ~ iupac }
 
+cmp_ops = { ("<=" | "<" | ">=" | ">"  | "!=" | "==" ) }
+cmp = { identifier ~ cmp_ops ~ identifier }
+lfc = { "l2fc(" ~ identifier ~ "," ~ identifier ~ ")" ~ cmp_ops ~ number }
+
 iupac = @{ "A" | "C" | "G" | "T" | "R" | "Y" | "S" | "W" | "K" | "M" | "B" | "D" | "H" | "V" | "N" }
 vaf = @{ ("0" ~ "." ~ ASCII_DIGIT+ | "1.0") }
+number = @{
+    "-"?
+    ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*)
+    ~ ("." ~ ASCII_DIGIT*)?
+    ~ (^"e" ~ ("+" | "-")? ~ ASCII_DIGIT+)?
+}
 bound = @{ ( "[" | "]" ) }
 
 WHITESPACE = _{ " " }

@@ -2,6 +2,20 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.2.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.3...v4.2.0) (2021-08-30)
+
+
+### Features
+
+* added VAF log fold change and comparison operators to the scenario event grammar ([#202](https://www.github.com/varlociraptor/varlociraptor/issues/202)) ([0f6da9e](https://www.github.com/varlociraptor/varlociraptor/commit/0f6da9e0b7cd337b39035ed3d7f5803a3ec51416))
+
+### [4.1.3](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.2...v4.1.3) (2021-08-13)
+
+
+### Bug Fixes
+
+* erroneous integral boundary adjustment when having small VAF intervals and only very few observations. ([97f0124](https://www.github.com/varlociraptor/varlociraptor/commit/97f01244d97d24cd1eb22f89f1317da33b278a23))
+
 ### [4.1.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.1...v4.1.2) (2021-08-10)
 
 
