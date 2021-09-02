@@ -56,16 +56,19 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
             true
         } else {
             pileups.iter().any(|pileup| {
-                let strong_all = pileup.iter().filter(&Self::is_strong_obs).count();
+                let strong_all = pileup
+                    .iter()
+                    .filter(|obs| obs.is_strong_alt_support())
+                    .count();
                 if strong_all >= 10 {
                     let strong_bias_evidence = pileup
                         .iter()
-                        .filter(|obs| Self::is_strong_obs(obs) && self.is_bias_evidence(obs))
+                        .filter(|obs| obs.is_strong_alt_support() && self.is_bias_evidence(obs))
                         .count();
                     // METHOD: there is bias evidence if we have at least two third of the strong observations supporting the bias
                     let ratio = strong_bias_evidence as f64 / strong_all as f64;
                     ratio >= self.min_strong_evidence_ratio()
-                } else if pileup.iter().all(|obs| Self::is_ref_obs(obs)) {
+                } else if pileup.iter().all(|obs| obs.is_ref_support()) {
                     // METHOD: if all obs are towards REF allele, there is no need to consider biases.
                     // The variant will anyway be called as absent.
                     // This can safe a lot of time and also avoids unexpected reporting
@@ -84,16 +87,6 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
-    }
-
-    fn is_strong_obs(obs: &&Observation<ReadPosition>) -> bool {
-        obs.prob_mapping() >= *PROB_095
-            && BayesFactor::new(obs.prob_alt, obs.prob_ref).evidence_kass_raftery()
-                >= KassRaftery::Strong
-    }
-
-    fn is_ref_obs(obs: &Observation<ReadPosition>) -> bool {
-        obs.prob_ref > obs.prob_alt
     }
 }
 

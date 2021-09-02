@@ -112,7 +112,7 @@ impl Bias for DivIndelBias {
         {
             let strong_all = pileups
                 .iter()
-                .map(|pileup| pileup.iter().filter(&Self::is_strong_obs))
+                .map(|pileup| pileup.iter().filter(|obs| obs.is_strong_alt_support()))
                 .flatten()
                 .count();
             let strong_other = pileups
@@ -120,7 +120,7 @@ impl Bias for DivIndelBias {
                 .map(|pileup| {
                     pileup
                         .iter()
-                        .filter(|obs| Self::is_strong_obs(obs) && obs.has_alt_indel_operations)
+                        .filter(|obs| obs.is_strong_alt_support() && obs.has_alt_indel_operations)
                 })
                 .flatten()
                 .count();

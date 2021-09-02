@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::str;
 
 use anyhow::Result;
+use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
@@ -24,6 +25,7 @@ use itertools::Itertools;
 use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils;
+use crate::utils::PROB_095;
 use crate::variants::sample;
 use crate::variants::types::Variant;
 
@@ -281,6 +283,30 @@ impl<P: Clone> Observation<P> {
                         || obs.read_orientation == SequenceReadPairOrientation::None)
             })
             .collect()
+    }
+
+    pub(crate) fn is_uniquely_mapping(&self) -> bool {
+        self.prob_mapping() >= *PROB_095
+    }
+
+    pub(crate) fn is_strong_alt_support(&self) -> bool {
+        self.is_uniquely_mapping()
+            && BayesFactor::new(self.prob_alt, self.prob_ref).evidence_kass_raftery()
+                >= KassRaftery::Strong
+    }
+
+    pub(crate) fn is_ref_support(&self) -> bool {
+        self.prob_ref > self.prob_alt
+    }
+
+    pub(crate) fn is_strong_ref_support(&self) -> bool {
+        self.is_uniquely_mapping()
+            && BayesFactor::new(self.prob_ref, self.prob_alt).evidence_kass_raftery()
+                >= KassRaftery::Strong
+    }
+
+    pub(crate) fn is_alt_support(&self) -> bool {
+        self.prob_alt > self.prob_ref
     }
 }
 

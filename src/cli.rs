@@ -914,13 +914,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     r#"
                             samples:
                               tumor:
-                                resolution: 100
+                                resolution: 0.01
                                 contamination:
                                   by: normal
                                   fraction: {impurity}
                                 universe: "[0.0,1.0]"
                               normal:
-                                resolution: 5
+                                resolution: 0.1
                                 universe: "[0.0,0.5[ | 0.5 | 1.0"
                             events:
                               somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
@@ -1103,7 +1103,7 @@ pub(crate) fn est_or_load_alignment_properties(
 struct SampleInfos {
     uniform_prior: grammar::SampleInfo<bool>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
-    resolutions: grammar::SampleInfo<usize>,
+    resolutions: grammar::SampleInfo<grammar::Resolution>,
     germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
@@ -1138,7 +1138,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             };
             uniform_prior = uniform_prior.push(sample_name, sample.has_uniform_prior());
             contaminations = contaminations.push(sample_name, contamination);
-            resolutions = resolutions.push(sample_name, *sample.resolution());
+            resolutions = resolutions.push(sample_name, sample.resolution().to_owned());
             sample_names = sample_names.push(sample_name, sample_name.to_owned());
             germline_mutation_rates = germline_mutation_rates.push(
                 sample_name,

@@ -1,5 +1,3 @@
-use std::cmp;
-
 use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
 use derive_builder::Builder;
@@ -7,6 +5,7 @@ use itertools::Itertools;
 use vec_map::{Values, VecMap};
 
 use crate::grammar;
+use crate::utils::adaptive_integration;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
 use crate::variants::model;
@@ -58,7 +57,7 @@ pub(crate) struct GenericModelBuilder<P>
 where
     P: Prior<Event = LikelihoodOperands>,
 {
-    resolutions: Option<grammar::SampleInfo<usize>>,
+    resolutions: Option<grammar::SampleInfo<grammar::Resolution>>,
     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
     prior: P,
 }
@@ -67,7 +66,10 @@ impl<P> GenericModelBuilder<P>
 where
     P: Prior<Event = LikelihoodOperands>,
 {
-    pub(crate) fn resolutions(mut self, resolutions: grammar::SampleInfo<usize>) -> Self {
+    pub(crate) fn resolutions(
+        mut self,
+        resolutions: grammar::SampleInfo<grammar::Resolution>,
+    ) -> Self {
         self.resolutions = Some(resolutions);
 
         self
@@ -144,30 +146,14 @@ impl Index<usize> for LikelihoodOperands {
 
 #[derive(new, Clone, Debug, Default)]
 pub(crate) struct GenericPosterior {
-    resolutions: grammar::SampleInfo<usize>,
+    resolutions: grammar::SampleInfo<grammar::Resolution>,
 }
 
 impl GenericPosterior {
-    fn grid_points(&self, pileups: &[Pileup]) -> Vec<usize> {
-        pileups
-            .iter()
-            .zip(self.resolutions.iter())
-            .map(|(pileup, res)| {
-                let n_obs = pileup.len();
-                let mut n = cmp::min(cmp::max(n_obs + 1, 5), *res);
-                if n % 2 == 0 {
-                    n += 1;
-                }
-                n
-            })
-            .collect()
-    }
-
     fn density<F: FnMut(&<Self as Posterior>::BaseEvent, &<Self as Posterior>::Data) -> LogProb>(
         &self,
         vaf_tree_node: &grammar::vaftree::Node,
         likelihood_operands: &mut LikelihoodOperands,
-        sample_grid_points: &[usize],
         data: &<Self as Posterior>::Data,
         biases: &Biases,
         joint_prob: &mut F,
@@ -184,7 +170,6 @@ impl GenericPosterior {
                             self.density(
                                 child,
                                 &mut likelihood_operands.clone(),
-                                sample_grid_points,
                                 data,
                                 biases,
                                 joint_prob,
@@ -196,7 +181,6 @@ impl GenericPosterior {
                 self.density(
                     &vaf_tree_node.children()[0],
                     likelihood_operands,
-                    sample_grid_points,
                     data,
                     biases,
                     joint_prob,
@@ -253,21 +237,43 @@ impl GenericPosterior {
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
                         let n_obs = data.pileups[*sample].len();
-                        let p = LogProb::ln_simpsons_integrate_exp(
-                            |_, vaf| {
-                                let mut likelihood_operands = likelihood_operands.clone();
-                                push_base_event(AlleleFreq(vaf), &mut likelihood_operands);
-                                subdensity(&mut likelihood_operands)
-                            },
-                            *vafs.observable_min(n_obs),
-                            *vafs.observable_max(n_obs),
-                            sample_grid_points[*sample],
-                        );
-                        assert!(
-                            !p.is_nan(),
-                            "bug: integration over empty allele frequency range."
-                        );
-                        p
+                        let resolution = &self.resolutions[*sample];
+                        let min_vaf = vafs.observable_min(n_obs);
+                        let max_vaf = vafs.observable_max(n_obs);
+                        let mut density = |vaf| {
+                            let mut likelihood_operands = likelihood_operands.clone();
+                            push_base_event(vaf, &mut likelihood_operands);
+                            subdensity(&mut likelihood_operands)
+                        };
+
+                        if (max_vaf - min_vaf) < **resolution {
+                            // METHOD: Interval too small for desired resolution.
+                            // Just use 3 grid points.
+                            LogProb::ln_simpsons_integrate_exp(
+                                |_, vaf| density(AlleleFreq(vaf)),
+                                *min_vaf,
+                                *max_vaf,
+                                3,
+                            )
+                        } else if n_obs < 5 {
+                            // METHOD: Not enough observations to expect a unimodal density.
+                            // Use 11 grid points.
+                            LogProb::ln_simpsons_integrate_exp(
+                                |_, vaf| density(AlleleFreq(vaf)),
+                                *min_vaf,
+                                *max_vaf,
+                                11,
+                            )
+                        } else {
+                            // METHOD: enough data and large enough interval, use adaptive integration
+                            // at the desired resolution.
+                            adaptive_integration::ln_integrate_exp(
+                                density,
+                                min_vaf,
+                                max_vaf,
+                                **resolution,
+                            )
+                        }
                     }
                 }
             }
@@ -309,7 +315,6 @@ impl Posterior for GenericPosterior {
         data: &Self::Data,
         joint_prob: &mut F,
     ) -> LogProb {
-        let grid_points = self.grid_points(&data.pileups);
         let vaf_tree = &event.vafs;
         let bias_prior = if event.is_artifact() {
             *PROB_05 + LogProb((1.0 / event.biases.len() as f64).ln())
@@ -330,14 +335,7 @@ impl Posterior for GenericPosterior {
                 .map(|(biases, node)| {
                     let mut likelihood_operands = LikelihoodOperands::default();
                     bias_prior
-                        + self.density(
-                            node,
-                            &mut likelihood_operands,
-                            &grid_points,
-                            data,
-                            biases,
-                            joint_prob,
-                        )
+                        + self.density(node, &mut likelihood_operands, data, biases, joint_prob)
                 })
                 .collect_vec(),
         )

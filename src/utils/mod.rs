@@ -25,6 +25,7 @@ use rust_htslib::{bam, bam::record::Cigar, bcf};
 use crate::variants::model;
 use crate::Event;
 
+pub(crate) mod adaptive_integration;
 pub(crate) mod anonymize;
 pub(crate) mod collect_variants;
 pub(crate) mod comparison;

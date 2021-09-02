@@ -1488,7 +1488,7 @@ mod test {
         let scenario: Scenario = serde_yaml::from_str(
             r#"samples:
   normal:
-    resolution: 100
+    resolution: 0.01
     universe: "[0.0,1.0]"
 events:
   full: "normal:[0.0,1.0]"
@@ -1515,7 +1515,7 @@ events:
         let scenario: Scenario = serde_yaml::from_str(
             r#"samples:
   normal:
-    resolution: 100
+    resolution: 0.01
     universe: "[0.0,1.0]"
 events:
   full: "(normal:[0.0, 0.25] | normal:[0.5,0.75]) | (normal:[0.25,0.5] | normal:[0.75,1.0]) | normal:[0.1,0.4] | normal:0.1"
@@ -1533,7 +1533,7 @@ events:
         let scenario: Scenario = serde_yaml::from_str(
             r#"samples:
   normal:
-    resolution: 100
+    resolution: 0.01
     universe: "[0.0,1.0]"
 events:
   full: "(normal:[0.0, 0.25] | normal:[0.5,0.6]) | ((normal:[0.25,0.5] | normal:[0.7,0.9]) | normal:[0.9,1.0]) | normal:]0.8,0.9[ | normal:0.75"
