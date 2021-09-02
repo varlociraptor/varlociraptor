@@ -1,0 +1,11 @@
+samples:
+  sample_a:
+    resolution: 100
+    universe: "[0.0,1.0]"
+  sample_b:
+    resolution: 100
+    universe: "[0.0,1.0]"
+
+events:
+  homhet: "sample_a > sample_b"
+  otherwise: "!($homhet | $absent)"

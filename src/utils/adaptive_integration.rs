@@ -78,12 +78,39 @@ where
     }
     // METHOD: add additional grid point in the initially abandoned arm
     if middle < first_middle {
-        grid_point(middle_grid_point(first_middle.unwrap(), max_point), &mut probs);
+        grid_point(
+            middle_grid_point(first_middle.unwrap(), max_point),
+            &mut probs,
+        );
     } else {
-        grid_point(middle_grid_point(min_point, first_middle.unwrap()), &mut probs);
+        grid_point(
+            middle_grid_point(min_point, first_middle.unwrap()),
+            &mut probs,
+        );
     }
     // METHOD additionally investigate small interval around the optimum
-    for point in linspace(cmp::max(middle.unwrap() - (max_resolution.into() * 3.0).into(), min_point).into(), middle.unwrap().into(), 4).take(3).chain(linspace(middle.unwrap().into(), cmp::min(middle.unwrap() + (max_resolution.into() * 3.0).into(), max_point).into(), 4).skip(1)) {
+    for point in linspace(
+        cmp::max(
+            middle.unwrap() - (max_resolution.into() * 3.0).into(),
+            min_point,
+        )
+        .into(),
+        middle.unwrap().into(),
+        4,
+    )
+    .take(3)
+    .chain(
+        linspace(
+            middle.unwrap().into(),
+            cmp::min(
+                middle.unwrap() + (max_resolution.into() * 3.0).into(),
+                max_point,
+            )
+            .into(),
+            4,
+        )
+        .skip(1),
+    ) {
         grid_point(point.into(), &mut probs);
     }
 

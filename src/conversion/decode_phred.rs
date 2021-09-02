@@ -34,7 +34,7 @@ pub(crate) fn decode_phred() -> Result<()> {
             .as_bytes(),
         );
     }
-    let mut outbcf = bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?;
+    let mut outbcf = bcf::Writer::from_stdout(&header, false, bcf::Format::Bcf)?;
 
     for record in inbcf.records() {
         let mut record = record?;

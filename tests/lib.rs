@@ -183,6 +183,9 @@ testcase!(issue_154, exact, fast);
 testcase!(test_low_cov_vaf, exact);
 testcase_should_panic!(test_overlapping_events, exact);
 
+testcase!(test_l2fc, exact, fast);
+testcase!(test_cmp, exact, fast);
+
 fn basedir(test: &str) -> String {
     format!("tests/resources/{}", test)
 }
@@ -193,19 +196,27 @@ fn cleanup_file(f: &str) {
     }
 }
 
-fn control_fdr(test: &str, event_str: &str, alpha: f64, local: bool) {
+fn control_fdr(
+    test: &str,
+    events: &[&str],
+    alpha: f64,
+    local: bool,
+    vartype: Option<&varlociraptor::variants::model::VariantType>,
+) {
     let basedir = basedir(test);
     let output = format!("{}/calls.filtered.bcf", basedir);
     cleanup_file(&output);
+    let event_strs: Vec<varlociraptor::SimpleEvent> = events
+        .iter()
+        .map(|&event_str| varlociraptor::SimpleEvent {
+            name: event_str.to_owned(),
+        })
+        .collect();
     varlociraptor::filtration::fdr::control_fdr(
         &format!("{}/calls.matched.bcf", basedir),
         Some(&output),
-        &[varlociraptor::SimpleEvent {
-            name: event_str.to_owned(),
-        }],
-        Some(&varlociraptor::variants::model::VariantType::Deletion(
-            Some(1..30),
-        )),
+        &event_strs,
+        vartype,
         LogProb::from(Prob(alpha)),
         local,
     )
@@ -218,9 +229,16 @@ fn assert_call_number(test: &str, expected_calls: usize) {
     let mut reader = bcf::Reader::from_path(format!("{}/calls.filtered.bcf", basedir)).unwrap();
 
     let calls = reader.records().map(|r| r.unwrap()).collect_vec();
-    // allow one more or less, in order to be robust to numeric fluctuations
+
+    let ok = if expected_calls > 50 {
+        // allow one more or less, in order to be robust to numeric fluctuations
+        (calls.len() as i32 - expected_calls as i32).abs() <= 1
+    } else {
+        calls.len() == expected_calls
+    };
+
     assert!(
-        (calls.len() as i32 - expected_calls as i32).abs() <= 1,
+        ok,
         "unexpected number of calls ({} vs {})",
         calls.len(),
         expected_calls
@@ -229,44 +247,112 @@ fn assert_call_number(test: &str, expected_calls: usize) {
 
 #[test]
 fn test_fdr_control1() {
-    control_fdr("test_fdr_ev_1", "SOMATIC", 0.05, false);
+    control_fdr(
+        "test_fdr_ev_1",
+        &["SOMATIC"],
+        0.05,
+        false,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+    );
     //assert_call_number("test_fdr_ev_1", 974);
 }
 
 #[test]
 fn test_fdr_control2() {
-    control_fdr("test_fdr_ev_2", "SOMATIC", 0.05, false);
+    control_fdr(
+        "test_fdr_ev_2",
+        &["SOMATIC"],
+        0.05,
+        false,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+    );
     assert_call_number("test_fdr_ev_2", 985);
 }
 
 /// same test, but low alpha
 #[test]
 fn test_fdr_control3() {
-    control_fdr("test_fdr_ev_3", "ABSENT", 0.001, false);
+    control_fdr(
+        "test_fdr_ev_3",
+        &["ABSENT"],
+        0.001,
+        false,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+    );
     assert_call_number("test_fdr_ev_3", 0);
 }
 
 #[test]
 fn test_fdr_control4() {
-    control_fdr("test_fdr_ev_4", "SOMATIC_TUMOR", 0.05, false);
+    control_fdr(
+        "test_fdr_ev_4",
+        &["SOMATIC_TUMOR"],
+        0.05,
+        false,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+    );
     assert_call_number("test_fdr_ev_4", 0);
 }
 
 #[test]
 fn test_fdr_control_local1() {
-    control_fdr("test_fdr_local1", "SOMATIC", 0.05, true);
+    control_fdr(
+        "test_fdr_local1",
+        &["SOMATIC"],
+        0.05,
+        true,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+    );
     assert_call_number("test_fdr_local1", 0);
 }
 
 #[test]
 fn test_fdr_control_local2() {
-    control_fdr("test_fdr_local2", "SOMATIC", 0.25, true);
+    control_fdr(
+        "test_fdr_local2",
+        &["SOMATIC"],
+        0.25,
+        true,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+    );
     assert_call_number("test_fdr_local2", 1);
+}
+
+#[test]
+fn test_fdr_control_local3() {
+    control_fdr(
+        "test_fdr_local3",
+        &["GERMLINE", "SOMATIC_TUMOR_LOW"],
+        0.05,
+        true,
+        None,
+    );
+    assert_call_number("test_fdr_local3", 0);
 }
 
 // TODO enable this test again once https://github.com/samtools/bcftools/issues/874 is truly fixed upstream
 // Then, also encode SVLEN as negative again for deletions.
 //#[test]
 fn test_fdr_control5() {
-    control_fdr("test_fdr_control_out_of_bounds", "PRESENT", 0.05, false);
+    control_fdr(
+        "test_fdr_control_out_of_bounds",
+        &["PRESENT"],
+        0.05,
+        false,
+        Some(&varlociraptor::variants::model::VariantType::Deletion(
+            Some(1..30),
+        )),
+    );
 }

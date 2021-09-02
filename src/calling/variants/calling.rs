@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
 use derive_builder::Builder;
 use itertools::Itertools;
+use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
 
 use crate::calling::variants::preprocessing::{
@@ -21,6 +22,7 @@ use crate::grammar;
 use crate::utils;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model;
+use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
@@ -28,7 +30,7 @@ use crate::variants::model::Contamination;
 use crate::variants::model::{bias::Biases, AlleleFreq};
 use crate::variants::types::breakends::BreakendIndex;
 
-pub(crate) type AlleleFreqCombination = Vec<model::likelihood::Event>;
+pub(crate) type AlleleFreqCombination = LikelihoodOperands;
 
 pub(crate) type Model<Pr> =
     bayesian::Model<GenericLikelihood, Pr, GenericPosterior, generic::Cache>;
@@ -188,10 +190,10 @@ where
         let header = self.header();
 
         Ok(if let Some(ref path) = self.outbcf {
-            bcf::Writer::from_path(path, header.as_ref().unwrap(), false, bcf::Format::BCF)
+            bcf::Writer::from_path(path, header.as_ref().unwrap(), false, bcf::Format::Bcf)
                 .context(format!("Unable to write BCF to {}.", path.display()))?
         } else {
-            bcf::Writer::from_stdout(header.as_ref().unwrap(), false, bcf::Format::BCF)
+            bcf::Writer::from_stdout(header.as_ref().unwrap(), false, bcf::Format::Bcf)
                 .context("Unable to write BCF to STDOUT.")?
         })
     }
@@ -250,6 +252,10 @@ where
 
         // process calls
         let mut i = 0;
+        let mut progress_logger = ProgressLogger::builder()
+            .with_items_name("records")
+            .with_frequency(std::time::Duration::from_secs(20))
+            .start();
         loop {
             let mut records =
                 observations.map(|reader| reader.as_ref().map(|reader| reader.empty_record()));
@@ -327,12 +333,11 @@ where
             self.call_record(&mut work_item, _model, &events);
 
             work_item.call.write_final_record(&mut bcf_writer)?;
-            if (i + 1) % 100 == 0 {
-                info!("{} records processed.", i + 1);
-            }
+            progress_logger.update(1u64);
 
             i += 1;
         }
+        progress_logger.stop();
     }
 
     fn preprocess_record(
