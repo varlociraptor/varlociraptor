@@ -47,12 +47,10 @@ impl Bias for DivIndelBias {
                 if **other_rate == 0.0 {
                     // METHOD: if there are no other operations there is no artifact.
                     LogProb::ln_zero()
+                } else if observation.has_alt_indel_operations {
+                    LogProb(other_rate.ln())
                 } else {
-                    if observation.has_alt_indel_operations {
-                        LogProb(other_rate.ln())
-                    } else {
-                        LogProb((1.0 - **other_rate).ln())
-                    }
+                    LogProb((1.0 - **other_rate).ln())
                 }
             }
         }

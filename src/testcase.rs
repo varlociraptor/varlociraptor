@@ -339,7 +339,7 @@ impl Testcase {
                 rec.set_pos(rec.pos() - ref_start as i64);
                 rec.set_mpos(rec.mpos() - ref_start as i64);
                 rec.set_tid(bam_writer.header().tid(chrom_name).unwrap() as i32);
-                if let Err(_) = rec.remove_aux(b"RG") {
+                if rec.remove_aux(b"RG").is_err() {
                     debug!("No RG tag to remove in BAM record.");
                 }
                 if self.anonymize {

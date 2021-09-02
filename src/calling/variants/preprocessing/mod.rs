@@ -196,7 +196,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     variants,
                     record_id: record.id(),
                     record_mateid: utils::info_tag_mateid(&mut record)
-                        .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
+                        .map_or(None, |mateid| mateid.map(|mateid| mateid)),
                     record_index: i,
                 };
 

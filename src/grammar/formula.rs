@@ -530,7 +530,7 @@ impl Formula {
             }) => NormalizedFormula::Log2FoldChange {
                 sample_a: sample_a.into(),
                 sample_b: sample_b.into(),
-                predicate: predicate.clone(),
+                predicate: *predicate,
             },
         }
     }
