@@ -242,7 +242,7 @@ impl GenericPosterior {
                         let max_vaf = vafs.observable_max(n_obs);
                         let mut density = |vaf| {
                             let mut likelihood_operands = likelihood_operands.clone();
-                            push_base_event(AlleleFreq(vaf), &mut likelihood_operands);
+                            push_base_event(vaf, &mut likelihood_operands);
                             subdensity(&mut likelihood_operands)
                         };
 
