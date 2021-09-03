@@ -195,7 +195,7 @@ pub(crate) fn collect_estimates(
             let mut blueprint = serde_json::from_str(blueprint)?;
             if let Value::Object(ref mut blueprint) = blueprint {
                 blueprint["data"]["values"] = data;
-                if (cutpoint_mb - max_mb).abs() < 1e-6 {
+                if relative_eq!(cutpoint_mb, max_mb) {
                     blueprint["vconcat"][0]["encoding"]["y"]["scale"]["domain"] =
                         json!([0.0, max_mb]);
                 } else {
