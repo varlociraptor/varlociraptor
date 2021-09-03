@@ -160,7 +160,7 @@ impl GenericPosterior {
     ) -> LogProb {
         let mut subdensity = |likelihood_operands: &mut LikelihoodOperands| {
             let p = if vaf_tree_node.is_leaf() {
-                joint_prob(&likelihood_operands, data)
+                joint_prob(likelihood_operands, data)
             } else if vaf_tree_node.is_branching() {
                 LogProb::ln_sum_exp(
                     &vaf_tree_node
