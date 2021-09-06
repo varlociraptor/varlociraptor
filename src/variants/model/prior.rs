@@ -34,11 +34,6 @@ pub(crate) trait CheckablePrior {
     fn check(&self) -> Result<()>;
 }
 
-const SOMATIC_EPSILON: f64 = 0.0001;
-lazy_static! {
-    pub(crate) static ref MIN_PROB_SOMATIC: LogProb = LogProb::from(Prob(0.000001f64));
-}
-
 #[derive(Debug, Clone)]
 pub(crate) enum Inheritance {
     Mendelian {
