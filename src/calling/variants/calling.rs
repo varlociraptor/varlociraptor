@@ -273,6 +273,7 @@ where
             }
 
             if eof.iter().all(|v| *v) {
+                progress_logger.stop();
                 return Ok(());
             } else if !eof.iter().all(|v| !v) {
                 // only some are EOF, this is an error
@@ -337,7 +338,6 @@ where
 
             i += 1;
         }
-        progress_logger.stop();
     }
 
     fn preprocess_record(

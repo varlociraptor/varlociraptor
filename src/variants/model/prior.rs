@@ -35,6 +35,9 @@ pub(crate) trait CheckablePrior {
 }
 
 const SOMATIC_EPSILON: f64 = 0.0001;
+lazy_static! {
+    pub(crate) static ref MIN_PROB_SOMATIC: LogProb = LogProb::from(Prob(0.000001f64));
+}
 
 #[derive(Debug, Clone)]
 pub(crate) enum Inheritance {
@@ -367,6 +370,7 @@ impl Prior {
                 .sum(); // product in log space
 
             assert!(*prob <= 0.0);
+
             prob
         } else {
             // recursion
@@ -432,14 +436,19 @@ impl Prior {
         somatic_effective_mutation_rate: f64,
         somatic_vaf: AlleleFreq,
     ) -> LogProb {
-        let density = |vaf: f64| {
-            LogProb(
+        let density = |mut vaf: f64| {
+            let p = LogProb(
                 somatic_effective_mutation_rate.ln()
                     - (2.0 * vaf.ln() + (self.genome_size.unwrap()).ln()),
-            )
+            );
+            if p >= *MIN_PROB_SOMATIC {
+                p
+            } else {
+                *MIN_PROB_SOMATIC
+            }
         };
         // METHOD: we take the absolute of the vaf because it can be negative (indicating a back mutation).
-        if somatic_vaf.abs() <= SOMATIC_EPSILON {
+        let p = if somatic_vaf.abs() <= SOMATIC_EPSILON {
             LogProb::ln_simpsons_integrate_exp(
                 |_, vaf: f64| density(vaf.abs()),
                 SOMATIC_EPSILON,
@@ -449,7 +458,9 @@ impl Prior {
             .ln_one_minus_exp()
         } else {
             density(somatic_vaf.abs())
-        }
+        };
+
+        p
     }
 
     fn prob_clonal_inheritance(
