@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.4.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.3.0...v4.4.0) (2021-09-06)
+
+
+### Features
+
+* overhauled somatic prior ([#209](https://www.github.com/varlociraptor/varlociraptor/issues/209)) ([7530469](https://www.github.com/varlociraptor/varlociraptor/commit/7530469d2eb838baac897f27be2b7755c393ef54))
+
 ## [4.3.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.2.0...v4.3.0) (2021-09-02)
 
 
