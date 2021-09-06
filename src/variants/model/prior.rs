@@ -436,31 +436,17 @@ impl Prior {
         somatic_effective_mutation_rate: f64,
         somatic_vaf: AlleleFreq,
     ) -> LogProb {
-        let density = |mut vaf: f64| {
-            let p = LogProb(
-                somatic_effective_mutation_rate.ln()
-                    - (2.0 * vaf.ln() + (self.genome_size.unwrap()).ln()),
-            );
-            if p >= *MIN_PROB_SOMATIC {
-                p
-            } else {
-                *MIN_PROB_SOMATIC
-            }
-        };
-        // METHOD: we take the absolute of the vaf because it can be negative (indicating a back mutation).
-        let p = if somatic_vaf.abs() <= SOMATIC_EPSILON {
-            LogProb::ln_simpsons_integrate_exp(
-                |_, vaf: f64| density(vaf.abs()),
-                SOMATIC_EPSILON,
-                1.0,
-                11,
-            )
-            .ln_one_minus_exp()
+        // METHOD: we do not apply the model of Williams et al. The reason is that
+        // too much can happen in addition to the somatic mutation (e.g. an overlapping SV).
+        // Instead, we simply assume a flat prior over VAFs > 0.0, and distinguish between
+        // 0.0 and >0.0 via the given mutation rate. In other words, the mutation rate
+        // models the rate of loci with somatic mutations, but for those, any VAFs >0.0
+        // are a priori equally possible.
+        if relative_eq!(*somatic_vaf, 0.0) {
+            LogProb(somatic_effective_mutation_rate.ln()).ln_one_minus_exp()
         } else {
-            density(somatic_vaf.abs())
-        };
-
-        p
+            LogProb(somatic_effective_mutation_rate.ln())
+        }
     }
 
     fn prob_clonal_inheritance(
