@@ -1072,6 +1072,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .heterozygosity(scenario.species().as_ref().and_then(|species| {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
+                    .variant_type(Some(VariantType::Snv))
                     .build();
                 prior.check()?;
 

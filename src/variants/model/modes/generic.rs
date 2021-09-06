@@ -106,13 +106,14 @@ where
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-struct VafLfc {
+pub(crate) struct VafLfc {
     sample_a: usize,
     sample_b: usize,
     predicate: Log2FoldChangePredicate,
 }
 
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Hash, PartialEq, Eq, Getters)]
+#[getset(get = "pub(crate)")]
 pub(crate) struct LikelihoodOperands {
     events: VecMap<likelihood::Event>,
     lfcs: Vec<VafLfc>,
