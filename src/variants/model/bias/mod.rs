@@ -1,11 +1,9 @@
 use std::cmp;
 
-use bio::stats::bayesian::bayes_factors::{evidence::KassRaftery, BayesFactor};
 use bio::stats::probs::LogProb;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-use crate::utils::PROB_095;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 
 pub(crate) mod divindel_bias;
