@@ -141,9 +141,8 @@ impl EditDistanceCalculation {
                     alignment
                         .operations()
                         .iter()
-                        .group_by(|op| match op {
-                            AlignmentOperation::Del | AlignmentOperation::Ins => true,
-                            _ => false,
+                        .group_by(|op| {
+                            matches!(op, AlignmentOperation::Del | AlignmentOperation::Ins)
                         })
                         .into_iter()
                         .filter_map(|(is_indel, group)| {

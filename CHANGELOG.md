@@ -2,6 +2,25 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.4.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.3.0...v4.4.0) (2021-09-06)
+
+
+### Features
+
+* overhauled somatic prior ([#209](https://www.github.com/varlociraptor/varlociraptor/issues/209)) ([7530469](https://www.github.com/varlociraptor/varlociraptor/commit/7530469d2eb838baac897f27be2b7755c393ef54))
+
+## [4.3.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.2.0...v4.3.0) (2021-09-02)
+
+
+### Features
+
+* adaptive integration (speeding up the evaluation of complex scenarios) ([#199](https://www.github.com/varlociraptor/varlociraptor/issues/199)) ([8043f94](https://www.github.com/varlociraptor/varlociraptor/commit/8043f94702402c20c69ede78fb3bed981fb9915b))
+
+
+### Bug Fixes
+
+* fixed record count in preprocess progress logging; fixed alt allele allocation error with certain longer replacements ([#207](https://www.github.com/varlociraptor/varlociraptor/issues/207)) ([ba66c36](https://www.github.com/varlociraptor/varlociraptor/commit/ba66c363b4d549c92227b85b30080b01c9a9b7b4))
+
 ## [4.2.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.3...v4.2.0) (2021-08-30)
 
 

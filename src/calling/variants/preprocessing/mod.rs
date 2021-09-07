@@ -196,7 +196,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     variants,
                     record_id: record.id(),
                     record_mateid: utils::info_tag_mateid(&mut record)
-                        .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
+                        .map_or(None, |mateid| mateid.map(|mateid| mateid)),
                     record_index: i,
                 };
 
@@ -204,13 +204,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
                 for call in calls.iter() {
                     call.write_preprocessed_record(&mut bcf_writer)?;
-                    progress_logger.update(1u64);
                 }
             }
 
             if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
                 display_skips(&skips);
             }
+            progress_logger.update(1u64);
 
             i += 1;
         }

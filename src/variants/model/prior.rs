@@ -34,8 +34,6 @@ pub(crate) trait CheckablePrior {
     fn check(&self) -> Result<()>;
 }
 
-const SOMATIC_EPSILON: f64 = 0.0001;
-
 #[derive(Debug, Clone)]
 pub(crate) enum Inheritance {
     Mendelian {
@@ -367,6 +365,7 @@ impl Prior {
                 .sum(); // product in log space
 
             assert!(*prob <= 0.0);
+
             prob
         } else {
             // recursion
@@ -432,23 +431,16 @@ impl Prior {
         somatic_effective_mutation_rate: f64,
         somatic_vaf: AlleleFreq,
     ) -> LogProb {
-        let density = |vaf: f64| {
-            LogProb(
-                somatic_effective_mutation_rate.ln()
-                    - (2.0 * vaf.ln() + (self.genome_size.unwrap()).ln()),
-            )
-        };
-        // METHOD: we take the absolute of the vaf because it can be negative (indicating a back mutation).
-        if somatic_vaf.abs() <= SOMATIC_EPSILON {
-            LogProb::ln_simpsons_integrate_exp(
-                |_, vaf: f64| density(vaf.abs()),
-                SOMATIC_EPSILON,
-                1.0,
-                11,
-            )
-            .ln_one_minus_exp()
+        // METHOD: we do not apply the model of Williams et al. The reason is that
+        // too much can happen in addition to the somatic mutation (e.g. an overlapping SV).
+        // Instead, we simply assume a flat prior over VAFs > 0.0, and distinguish between
+        // 0.0 and >0.0 via the given mutation rate. In other words, the mutation rate
+        // models the rate of loci with somatic mutations, but for those, any VAFs >0.0
+        // are a priori equally possible.
+        if relative_eq!(*somatic_vaf, 0.0) {
+            LogProb(somatic_effective_mutation_rate.ln()).ln_one_minus_exp()
         } else {
-            density(somatic_vaf.abs())
+            LogProb(somatic_effective_mutation_rate.ln())
         }
     }
 
@@ -516,8 +508,8 @@ impl Prior {
             match (origin, self.vartype_somatic_effective_mutation_rate(sample)) {
                 (grammar::SubcloneOrigin::SingleCell, None) => {
                     // METHOD: no de novo somatic mutation. total_vaf must reflect ploidy.
-                    if *parent_total_vaf == 1.0 {
-                        if *total_vaf == 1.0 {
+                    if relative_eq!(*parent_total_vaf, 1.0) {
+                        if relative_eq!(*total_vaf, 1.0) {
                             LogProb::ln_one()
                         } else {
                             // METHOD: impossible, since all parental allele copies host the variant.
@@ -538,8 +530,8 @@ impl Prior {
                     }
                 }
                 (grammar::SubcloneOrigin::MultiCell, None) => {
-                    if *parent_somatic_vaf == 1.0 {
-                        if *total_vaf == 1.0 {
+                    if relative_eq!(*parent_somatic_vaf, 1.0) {
+                        if relative_eq!(*total_vaf, 1.0) {
                             // METHOD: The parent has a VAF of 1.0.
                             // In this case, it must be inherited unmodified.
                             LogProb::ln_one()
