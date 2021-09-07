@@ -6,6 +6,8 @@ use ordered_float::NotNan;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
+use super::NoAssumption;
+
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, Hash)]
 pub(crate) enum DivIndelBias {
     None,
@@ -34,6 +36,7 @@ impl Default for DivIndelBias {
 }
 
 impl Bias for DivIndelBias {
+    type Assumption = NoAssumption;
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match self {
             DivIndelBias::None => {

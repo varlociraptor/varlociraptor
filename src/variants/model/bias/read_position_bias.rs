@@ -3,6 +3,8 @@ use bio::stats::probs::LogProb;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
+use super::NoAssumption;
+
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
 pub(crate) enum ReadPositionBias {
     None,
@@ -16,6 +18,8 @@ impl Default for ReadPositionBias {
 }
 
 impl Bias for ReadPositionBias {
+    type Assumption = NoAssumption;
+
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.read_position) {
             (ReadPositionBias::None, _) => observation.prob_hit_base, // normal

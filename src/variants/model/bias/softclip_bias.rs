@@ -3,6 +3,8 @@ use bio::stats::probs::LogProb;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
+use super::NoAssumption;
+
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
 pub(crate) enum SoftclipBias {
     None,
@@ -16,6 +18,8 @@ impl Default for SoftclipBias {
 }
 
 impl Bias for SoftclipBias {
+    type Assumption = NoAssumption;
+
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.softclipped) {
             (SoftclipBias::Some, true) => LogProb::ln_one(),

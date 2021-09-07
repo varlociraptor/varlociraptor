@@ -1,8 +1,13 @@
+use bio::stats::hmm::forward;
 use bio::stats::probs::LogProb;
 
+use crate::grammar::{VAFRange, VAFSpectrum};
 use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model::bias::Bias;
+use crate::variants::model::AlleleFreq;
+
+use super::{BiasPriorHyperLikelihood, EqualDistributionAssumption};
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
 pub(crate) enum StrandBias {
@@ -18,6 +23,8 @@ impl Default for StrandBias {
 }
 
 impl Bias for StrandBias {
+    type Assumption = EqualDistributionAssumption;
+
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.strand) {
             (StrandBias::Forward, Strand::Forward) => LogProb::ln_one(),
@@ -38,5 +45,19 @@ impl Bias for StrandBias {
 
     fn is_artifact(&self) -> bool {
         *self != StrandBias::None
+    }
+}
+
+impl BiasPriorHyperLikelihood for StrandBias {
+    fn hyper_likelihood(
+        forward_allele_freq: AlleleFreq,
+        observation: &Observation<ReadPosition>,
+    ) -> LogProb {
+        match observation.strand {
+            Strand::Forward => LogProb(forward_allele_freq.ln()),
+            Strand::Reverse => LogProb(forward_allele_freq.ln()).ln_one_minus_exp(),
+            Strand::Both => LogProb::ln_one(),
+            Strand::None => LogProb::ln_one(),
+        }
     }
 }

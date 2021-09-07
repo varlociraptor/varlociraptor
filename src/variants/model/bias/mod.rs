@@ -4,14 +4,20 @@ use bio::stats::probs::LogProb;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::{
+    grammar::{VAFRange, VAFSpectrum},
+    variants::{
+        evidence::observation::{Observation, ReadPosition},
+        model::bias::prior::HyperLikelihood,
+    },
+};
 
 pub(crate) mod divindel_bias;
+pub(crate) mod prior;
 pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
 pub(crate) mod softclip_bias;
 pub(crate) mod strand_bias;
-pub(crate) mod prior;
 
 pub(crate) use divindel_bias::DivIndelBias;
 pub(crate) use read_orientation_bias::ReadOrientationBias;
@@ -19,7 +25,11 @@ pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
 
+use super::AlleleFreq;
+
 pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
+    type Assumption: BiasAssumption;
+
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;
 
     fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb;
@@ -89,7 +99,76 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 }
 
-#[derive(Builder, CopyGetters, Getters, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub(crate) trait BiasPrior<A>
+where
+    A: BiasAssumption,
+{
+    /// Prior probability for considering the bias. This should yield the probability
+    /// that the bias assumption is present in the data (e.g. both strands being equally present).
+    fn prior(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> LogProb;
+}
+
+pub(crate) trait BiasPriorHyperLikelihood {
+    fn hyper_likelihood(
+        allele_freq: AlleleFreq,
+        observation: &Observation<ReadPosition>,
+    ) -> LogProb;
+}
+
+impl<B> BiasPrior<NoAssumption> for B
+where
+    B: Bias<Assumption = NoAssumption>,
+{
+    fn prior(&self, _pileups: &[Vec<Observation<ReadPosition>>]) -> LogProb {
+        LogProb::ln_one()
+    }
+}
+
+impl<B> BiasPrior<EqualDistributionAssumption> for B
+where
+    B: Bias<Assumption = EqualDistributionAssumption> + BiasPriorHyperLikelihood,
+{
+    fn prior(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> LogProb {
+        if !self.is_artifact() {
+            return LogProb::ln_one();
+        }
+
+        let model = prior::model(|allele_freq, observation| {
+            Self::hyper_likelihood(allele_freq, observation)
+        });
+
+        // METHOD: this models the assumption underlying strand bias: both strands have to be equally distributed.
+        let is_equal = VAFSpectrum::singleton(AlleleFreq(0.5));
+        // METHOD: these two model deviations from the assumption.
+        let is_less = VAFSpectrum::Range(
+            VAFRange::builder()
+                .inner(AlleleFreq(0.0)..AlleleFreq(0.5))
+                .left_exclusive(false)
+                .right_exclusive(true)
+                .build(),
+        );
+        let is_more = VAFSpectrum::Range(
+            VAFRange::builder()
+                .inner(AlleleFreq(0.5)..AlleleFreq(1.0))
+                .left_exclusive(true)
+                .right_exclusive(false)
+                .build(),
+        );
+
+        // METHOD: we calculate how close the pileups match the assumption.
+        // If this probability becomes weak, strand bias will be accordingly downweighted.
+        pileups
+            .iter()
+            .map(|pileup| {
+                let instance =
+                    model.compute([is_equal.clone(), is_less.clone(), is_more.clone()], pileup);
+                instance.posterior(&is_equal).unwrap()
+            })
+            .sum()
+    }
+}
+
+#[derive(Builder, CopyGetters, Getters, Debug, Clone, Eq, PartialEq, Hash)]
 pub(crate) struct Biases {
     #[getset(get = "pub(crate)")]
     strand_bias: StrandBias,
@@ -235,6 +314,11 @@ impl Biases {
             + self.divindel_bias.prob_any(observation)
     }
 
+    pub(crate) fn prior_prob(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> LogProb {
+        self.strand_bias.prior(pileups) + self.read_position_bias.prior(pileups)
+        // the other biases do not have an informative prior
+    }
+
     pub(crate) fn is_artifact(&self) -> bool {
         self.strand_bias.is_artifact()
             || self.read_orientation_bias.is_artifact()
@@ -247,3 +331,13 @@ impl Biases {
         self.divindel_bias.learn_parameters(pileups)
     }
 }
+
+pub(crate) trait BiasAssumption {}
+
+pub(crate) struct EqualDistributionAssumption;
+
+pub(crate) struct NoAssumption;
+
+impl BiasAssumption for EqualDistributionAssumption {}
+
+impl BiasAssumption for NoAssumption {}
