@@ -335,7 +335,8 @@ impl Posterior for GenericPosterior {
                 .cartesian_product(vaf_tree)
                 .map(|(biases, node)| {
                     let mut likelihood_operands = LikelihoodOperands::default();
-                    biases.prior_prob(&data.pileups)
+                    bias_prior
+                        + biases.prior_prob(&data.pileups)
                         + self.density(node, &mut likelihood_operands, data, biases, joint_prob)
                 })
                 .collect_vec(),
