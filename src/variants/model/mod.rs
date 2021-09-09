@@ -35,7 +35,11 @@ pub(crate) struct Event {
 
 impl Event {
     pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup]) -> () {
-        if let Event { kind: EventKind::Biases(biases), .. } = self {
+        if let Event {
+            kind: EventKind::Biases(biases),
+            ..
+        } = self
+        {
             for bias in biases {
                 bias.learn_parameters(pileups);
             }

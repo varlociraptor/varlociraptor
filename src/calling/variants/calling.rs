@@ -477,7 +477,7 @@ where
             // register absent event
             events.push(model::Event {
                 name: "absent".to_owned(),
-                kind: model::EventKind::VAFTree(grammar::VAFTree::absent(self.n_samples()))
+                kind: model::EventKind::VAFTree(grammar::VAFTree::absent(self.n_samples())),
             });
 
             // add events from scenario

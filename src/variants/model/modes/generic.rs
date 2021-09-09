@@ -155,12 +155,29 @@ pub(crate) struct GenericPosterior {
 }
 
 impl GenericPosterior {
+    fn bias_density<
+        F: FnMut(&<Self as Posterior>::BaseEvent, &<Self as Posterior>::Data) -> LogProb,
+    >(
+        &self,
+        biases: &Biases,
+        data: &<Self as Posterior>::Data,
+        joint_prob: &mut F,
+    ) -> LogProb {
+        // METHOD: in the bias case, all samples can be treated independently.
+        let mut likelihood_operands = LikelihoodOperands::default();
+        for sample in 0..data.pileups.len() {
+            likelihood_operands
+                .events
+                .insert(sample, likelihood::Event::Biases(biases.to_owned()));
+        }
+        joint_prob(&likelihood_operands, data)
+    }
+
     fn density<F: FnMut(&<Self as Posterior>::BaseEvent, &<Self as Posterior>::Data) -> LogProb>(
         &self,
         vaf_tree_node: &grammar::vaftree::Node,
         likelihood_operands: &mut LikelihoodOperands,
         data: &<Self as Posterior>::Data,
-        biases: &Biases,
         joint_prob: &mut F,
     ) -> LogProb {
         let mut subdensity = |likelihood_operands: &mut LikelihoodOperands| {
@@ -172,13 +189,7 @@ impl GenericPosterior {
                         .children()
                         .iter()
                         .map(|child| {
-                            self.density(
-                                child,
-                                &mut likelihood_operands.clone(),
-                                data,
-                                biases,
-                                joint_prob,
-                            )
+                            self.density(child, &mut likelihood_operands.clone(), data, joint_prob)
                         })
                         .collect_vec(),
                 )
@@ -187,7 +198,6 @@ impl GenericPosterior {
                     &vaf_tree_node.children()[0],
                     likelihood_operands,
                     data,
-                    biases,
                     joint_prob,
                 )
             };
@@ -213,13 +223,9 @@ impl GenericPosterior {
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
                 let push_base_event =
                     |allele_freq, likelihood_operands: &mut LikelihoodOperands| {
-                        likelihood_operands.events.insert(
-                            *sample,
-                            likelihood::Event {
-                                allele_freq,
-                                biases: biases.clone(),
-                            },
-                        );
+                        likelihood_operands
+                            .events
+                            .insert(*sample, likelihood::Event::AlleleFreq(allele_freq));
                     };
 
                 match vafs {
@@ -251,16 +257,7 @@ impl GenericPosterior {
                             subdensity(&mut likelihood_operands)
                         };
 
-                        if biases.is_artifact() {
-                            // METHOD: for artifact events, the actual VAF is pretty irrelevant, we just
-                            // want to compute their likelihood.
-                            LogProb::ln_simpsons_integrate_exp(
-                                |_, vaf| density(AlleleFreq(vaf)),
-                                *min_vaf,
-                                *max_vaf,
-                                3, // TODO implement independence by allowing VAFSpectrum in likelihood events.
-                            )
-                        } else if (max_vaf - min_vaf) < **resolution {
+                        if (max_vaf - min_vaf) < **resolution {
                             // METHOD: Interval too small for desired resolution.
                             // Just use 3 grid points.
                             LogProb::ln_simpsons_integrate_exp(
@@ -329,31 +326,49 @@ impl Posterior for GenericPosterior {
         data: &Self::Data,
         joint_prob: &mut F,
     ) -> LogProb {
-        let vaf_tree = &event.vafs;
-        let bias_prior = if event.is_artifact() {
-            *PROB_05 + LogProb((1.0 / event.biases.len() as f64).ln())
-        } else {
-            *PROB_05
-        };
+        match event {
+            model::Event {
+                kind: model::EventKind::VAFTree(vaf_tree),
+                ..
+            } => {
+                let prob_non_bias = *PROB_05;
 
-        // METHOD: filter out biases that are impossible to observe, (e.g. + without any + observation).
-        let possible_biases = event.biases.iter().filter(|bias| {
-            bias.is_possible(&data.pileups)
-                && bias.is_informative(&data.pileups)
-                && bias.is_likely(&data.pileups)
-        });
+                prob_non_bias
+                    + LogProb::ln_sum_exp(
+                        &vaf_tree
+                            .into_iter()
+                            .map(|node| {
+                                let mut likelihood_operands = LikelihoodOperands::default();
+                                self.density(node, &mut likelihood_operands, data, joint_prob)
+                            })
+                            .collect_vec(),
+                    )
+            }
+            model::Event {
+                kind: model::EventKind::Biases(biases),
+                ..
+            } => {
+                assert!(
+                    !biases.is_empty(),
+                    "bug: bias event without any concrete bias"
+                );
+                let prob_bias = *PROB_05 + LogProb((1.0 / biases.len() as f64).ln());
+                // METHOD: filter out biases that are impossible to observe, (e.g. + without any + observation).
+                let possible_biases = biases.iter().filter(|bias| {
+                    bias.is_possible(&data.pileups)
+                        && bias.is_informative(&data.pileups)
+                        && bias.is_likely(&data.pileups)
+                });
 
-        LogProb::ln_sum_exp(
-            &possible_biases
-                .cartesian_product(vaf_tree)
-                .map(|(biases, node)| {
-                    let mut likelihood_operands = LikelihoodOperands::default();
-                    bias_prior
-                        + biases.prior_prob(&data.pileups)
-                        + self.density(node, &mut likelihood_operands, data, biases, joint_prob)
-                })
-                .collect_vec(),
-        )
+                prob_bias
+                    + LogProb::ln_sum_exp(
+                        &biases
+                            .iter()
+                            .map(|bias| self.bias_density(bias, data, joint_prob))
+                            .collect_vec(),
+                    )
+            }
+        }
     }
 }
 
@@ -398,8 +413,9 @@ impl Likelihood<Cache> for GenericLikelihood {
         // Step 1: Check if sample VAFs are compliant with any defined log fold changes.
         // If not, quickly return probability zero.
         for lfc in &operands.lfcs {
-            let vaf_a = operands.events[lfc.sample_a].allele_freq;
-            let vaf_b = operands.events[lfc.sample_b].allele_freq;
+            // by implementation, lfc cannot be combined with bias events!
+            let vaf_a = operands.events[lfc.sample_a].allele_freq().unwrap();
+            let vaf_b = operands.events[lfc.sample_b].allele_freq().unwrap();
             if !lfc.predicate.is_true(&Log2FoldChange::new(vaf_a, vaf_b)) {
                 return LogProb::ln_zero();
             }
@@ -425,7 +441,11 @@ impl Likelihood<Cache> for GenericLikelihood {
                         likelihood_model.compute(
                             &likelihood::ContaminatedSampleEvent {
                                 primary: event.clone(),
-                                secondary: if operands.is_artifact() { None } else { Some(operands.events[by].clone()) },
+                                secondary: if operands.is_artifact() {
+                                    None
+                                } else {
+                                    Some(operands.events[by].clone())
+                                },
                             },
                             pileup,
                             cache,
@@ -462,15 +482,19 @@ impl Prior for FlatPrior {
     type Event = LikelihoodOperands;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
-        if event
-            .iter()
-            .zip(self.universe.as_ref().unwrap().iter())
-            .any(|(e, u)| !u.contains(e.allele_freq))
-        {
-            // if any of the events is not allowed in the universe of the corresponding sample, return probability zero.
-            return LogProb::ln_zero();
+        if event.is_artifact() {
+            LogProb::ln_one()
+        } else {
+            if event
+                .iter()
+                .zip(self.universe.as_ref().unwrap().iter())
+                .any(|(e, u)| !u.contains(e.allele_freq().unwrap()))
+            {
+                // if any of the events is not allowed in the universe of the corresponding sample, return probability zero.
+                return LogProb::ln_zero();
+            }
+            LogProb::ln_one()
         }
-        LogProb::ln_one()
     }
 }
 

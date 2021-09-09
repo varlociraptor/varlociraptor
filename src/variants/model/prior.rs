@@ -383,7 +383,9 @@ impl Prior {
                 LogProb::ln_zero()
             } else if self.has_uniform_prior(sample) {
                 // sample has a uniform prior
-                if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq().unwrap()) {
+                if self.universe.as_ref().unwrap()[sample]
+                    .contains(event[sample].allele_freq().unwrap())
+                {
                     // no explicit info about germline VAF, assume 0.0
                     let germline_vafs = push_vafs(AlleleFreq(0.0));
                     self.calc_prob(event, germline_vafs)

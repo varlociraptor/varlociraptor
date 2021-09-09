@@ -110,16 +110,16 @@ impl ContaminatedSampleLikelihoodModel {
         // METHOD: Ignore purity/impurity in case of artifact event. The reason is
         // that artifacts happen during the sequencing and mapping process, and are not
         // propagated between samples via contamination.
-        let (purity, impurity, allele_freq_secondary) = if let Some(allele_freq_secondary) = allele_freq_secondary {
-            (self.purity, self.impurity, allele_freq_secondary)
-        } else {
-            (LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_zero())
-        };
+        let (purity, impurity, allele_freq_secondary) =
+            if let Some(allele_freq_secondary) = allele_freq_secondary {
+                (self.purity, self.impurity, allele_freq_secondary)
+            } else {
+                (LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_zero())
+            };
 
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
-        let prob_primary =
-            purity + likelihood_mapping(allele_freq_primary, biases, observation);
+        let prob_primary = purity + likelihood_mapping(allele_freq_primary, biases, observation);
         // Case 2: read comes from secondary sample and is correctly mapped
         let prob_secondary =
             impurity + likelihood_mapping(allele_freq_secondary, biases, observation);
@@ -271,22 +271,20 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
                 Event::AlleleFreq(allele_freq) => {
                     let ln_af = LogProb(allele_freq.ln());
                     let biases = Biases::none();
-                    pileup.iter().map(|obs| {
-                        self.likelihood_observation(ln_af, &biases, obs)
-                    }).sum()
-                },
+                    pileup
+                        .iter()
+                        .map(|obs| self.likelihood_observation(ln_af, &biases, obs))
+                        .sum()
+                }
                 Event::Biases(biases) => {
                     // METHOD: for biases, we integrate over [0,1], since any VAF is possible.
                     let (min_vaf, max_vaf) = VAFRange::present_observable_bounds(pileup.len());
                     let density = |i, vaf: f64| {
                         let vaf = LogProb(vaf.ln());
-                        pileup.iter().map(|obs| {
-                            self.likelihood_observation(
-                                vaf,
-                                biases,
-                                obs,
-                            )
-                        }).sum()
+                        pileup
+                            .iter()
+                            .map(|obs| self.likelihood_observation(vaf, biases, obs))
+                            .sum()
                     };
 
                     LogProb::ln_simpsons_integrate_exp(density, *min_vaf, *max_vaf, 11)

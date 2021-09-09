@@ -996,7 +996,11 @@ pub(crate) struct VAFRange {
 
 impl VAFRange {
     pub(crate) fn present_observable_bounds(n_obs: usize) -> (AlleleFreq, AlleleFreq) {
-        let present = VAFRange::builder().inner(AlleleFreq(0.0)..AlleleFreq(1.0)).left_exclusive(true).right_exclusive(false).build();
+        let present = VAFRange::builder()
+            .inner(AlleleFreq(0.0)..AlleleFreq(1.0))
+            .left_exclusive(true)
+            .right_exclusive(false)
+            .build();
         let min_vaf = present.observable_min(n_obs);
         let max_vaf = present.observable_max(n_obs);
         (min_vaf, max_vaf)
