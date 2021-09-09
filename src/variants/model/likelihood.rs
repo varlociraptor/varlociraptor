@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use bio::stats::{bayesian::model::Likelihood, LogProb};
 
 use crate::grammar::VAFRange;
-use crate::utils::NUMERICAL_EPSILON;
+use crate::utils::{NUMERICAL_EPSILON, adaptive_integration};
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Biases;
 use crate::variants::model::AlleleFreq;
@@ -172,7 +172,7 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
                     // Thereby, contamination is not considered, because the artifact indicated by the bias is generated
                     // during sequencing or mapping and thereby not propagated from sample to sample via contamination.
                     let (min_vaf, max_vaf) = VAFRange::present_observable_bounds(pileup.len());
-                    let density = |i, vaf: f64| {
+                    let density = |vaf: AlleleFreq| {
                         let vaf = LogProb(vaf.ln());
                         pileup.iter().map(|obs| {
                             self.likelihood_observation(
@@ -184,7 +184,12 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
                         }).sum()
                     };
 
-                    LogProb::ln_simpsons_integrate_exp(density, *min_vaf, *max_vaf, 11)
+                    adaptive_integration::ln_integrate_exp(
+                        density,
+                        min_vaf,
+                        max_vaf,
+                        AlleleFreq(0.01),
+                    )
                 },
                 _ => unreachable!("bug: contaminated sample event where primary is not a bias but no vaf for secondary given"),
             };
@@ -280,7 +285,7 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
                 Event::Biases(biases) => {
                     // METHOD: for biases, we integrate over [0,1], since any VAF is possible.
                     let (min_vaf, max_vaf) = VAFRange::present_observable_bounds(pileup.len());
-                    let density = |i, vaf: f64| {
+                    let density = |vaf: AlleleFreq| {
                         let vaf = LogProb(vaf.ln());
                         pileup
                             .iter()
@@ -288,7 +293,12 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
                             .sum()
                     };
 
-                    LogProb::ln_simpsons_integrate_exp(density, *min_vaf, *max_vaf, 11)
+                    adaptive_integration::ln_integrate_exp(
+                        density,
+                        min_vaf,
+                        max_vaf,
+                        AlleleFreq(0.01),
+                    )
                 }
             };
 

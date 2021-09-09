@@ -1,8 +1,9 @@
 # spurious variant on Y chromosome of female sample. The prior assumptions should yield a VAF of 0 here.
+# Alternatively, this can be determined as an artifact.
 
 expected:
   posteriors:
-    - PROB_ABSENT <= 0.05
+    - PROB_ABSENT <= 0.05 || PROB_ARTIFACT <= 0.05
 
 # necessary bam files
 samples:
