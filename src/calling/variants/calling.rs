@@ -414,7 +414,7 @@ where
             check_strand_bias: !self.omit_strand_bias,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias,
-            check_divindel_bias: !self.omit_divindel_bias,
+            check_divindel_bias: !is_snv_or_mnv && !self.omit_divindel_bias,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -621,7 +621,7 @@ where
         for (map_estimates, _) in model_instance.event_posteriors() {
             if map_estimates
                 .iter()
-                .any(|estimate| estimate.biases.is_artifact())
+                .any(|estimate| estimate.is_artifact())
                 && !is_artifact
             {
                 // METHOD: skip MAP that is an artifact if the overall artifact event is not the strongest one.
@@ -637,12 +637,12 @@ where
                     let mut sample_builder = SampleInfoBuilder::default();
                     sample_builder.observations(pileup);
                     match estimate {
-                        model::likelihood::Event { biases, .. } if biases.is_artifact() => {
+                        model::likelihood::Event::Biases(biases) => {
                             sample_builder
                                 .allelefreq_estimate(AlleleFreq(0.0))
                                 .biases(biases.clone());
                         }
-                        model::likelihood::Event { allele_freq, .. } => {
+                        model::likelihood::Event::AlleleFreq(allele_freq) => {
                             sample_builder
                                 .allelefreq_estimate(*allele_freq)
                                 .biases(Biases::none());

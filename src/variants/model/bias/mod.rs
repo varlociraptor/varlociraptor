@@ -157,14 +157,18 @@ where
 
         // METHOD: we calculate how close the pileups match the assumption.
         // If this probability becomes weak, strand bias will be accordingly downweighted.
-        pileups
+        let p = pileups
             .iter()
             .map(|pileup| {
                 let instance =
                     model.compute([is_equal.clone(), is_less.clone(), is_more.clone()], pileup);
                 instance.posterior(&is_equal).unwrap()
             })
-            .sum()
+            .sum();
+        
+        dbg!((self, p));
+
+        p
     }
 }
 

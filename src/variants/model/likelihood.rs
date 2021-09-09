@@ -191,6 +191,7 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
 
             assert!(!likelihood.is_nan());
             cache.insert(events.clone(), likelihood);
+            dbg!((events, likelihood));
 
             likelihood
         }

@@ -362,9 +362,8 @@ impl Posterior for GenericPosterior {
 
                 prob_bias
                     + LogProb::ln_sum_exp(
-                        &biases
-                            .iter()
-                            .map(|bias| self.bias_density(bias, data, joint_prob))
+                    &possible_biases
+                            .map(|bias| bias.prior_prob(&data.pileups) + self.bias_density(bias, data, joint_prob))
                             .collect_vec(),
                     )
             }
