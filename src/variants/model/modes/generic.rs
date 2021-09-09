@@ -135,6 +135,10 @@ impl LikelihoodOperands {
     pub(crate) fn iter(&self) -> Values<Event> {
         self.events.values()
     }
+
+    pub(crate) fn is_artifact(&self) -> bool {
+        self.events.values().any(|evt| evt.is_artifact())
+    }
 }
 
 impl Index<usize> for LikelihoodOperands {
@@ -247,7 +251,16 @@ impl GenericPosterior {
                             subdensity(&mut likelihood_operands)
                         };
 
-                        if (max_vaf - min_vaf) < **resolution {
+                        if biases.is_artifact() {
+                            // METHOD: for artifact events, the actual VAF is pretty irrelevant, we just
+                            // want to compute their likelihood.
+                            LogProb::ln_simpsons_integrate_exp(
+                                |_, vaf| density(AlleleFreq(vaf)),
+                                *min_vaf,
+                                *max_vaf,
+                                3, // TODO implement independence by allowing VAFSpectrum in likelihood events.
+                            )
+                        } else if (max_vaf - min_vaf) < **resolution {
                             // METHOD: Interval too small for desired resolution.
                             // Just use 3 grid points.
                             LogProb::ln_simpsons_integrate_exp(
@@ -412,7 +425,7 @@ impl Likelihood<Cache> for GenericLikelihood {
                         likelihood_model.compute(
                             &likelihood::ContaminatedSampleEvent {
                                 primary: event.clone(),
-                                secondary: operands.events[by].clone(),
+                                secondary: if operands.is_artifact() { None } else { Some(operands.events[by].clone()) },
                             },
                             pileup,
                             cache,

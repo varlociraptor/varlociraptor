@@ -335,6 +335,7 @@ impl Call {
         // set sample info
         if !no_obs {
             let dp = obs_counts.values().cloned().collect_vec();
+
             record.push_format_integer(b"DP", &dp)?;
 
             let afs = allelefreq_estimates.values().cloned().collect_vec();

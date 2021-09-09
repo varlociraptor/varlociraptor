@@ -778,6 +778,11 @@ impl bayesian::model::Prior for Prior {
     type Event = LikelihoodOperands;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
+        if event.is_artifact() {
+            // Flat prior in case of artifacts.
+            return LogProb::ln_one();
+        }
+
         let key: Vec<_> = event
             .iter()
             .map(|sample_event| sample_event.allele_freq)

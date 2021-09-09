@@ -484,28 +484,28 @@ where
             // add events from scenario
             for (event_name, vaftree) in self.scenario.vaftrees(contig)? {
                 events.push(model::Event {
-                    name: event_name.clone(),
-                    vafs: vaftree.clone(),
+                    name: event_name,
+                    vafs: vaftree,
                     biases: vec![Biases::none()],
                 });
+            }
 
-                let biases: Vec<_> = Biases::all_artifact_combinations(
-                    consider_read_orientation_bias,
-                    consider_strand_bias,
-                    consider_read_position_bias,
-                    consider_softclip_bias,
-                    consider_divindel_bias,
-                    self.min_divindel_other_rate,
-                )
-                .collect();
-                if !biases.is_empty() {
-                    // Corresponding biased event.
-                    events.push(model::Event {
-                        name: event_name.clone(),
-                        vafs: vaftree.clone(),
-                        biases,
-                    });
-                }
+            // add artifact event
+            let biases: Vec<_> = Biases::all_artifact_combinations(
+                consider_read_orientation_bias,
+                consider_strand_bias,
+                consider_read_position_bias,
+                consider_softclip_bias,
+                consider_divindel_bias,
+                self.min_divindel_other_rate,
+            )
+            .collect();
+            if !biases.is_empty() {
+                events.push(model::Event {
+                    name: "artifact".to_owned(),
+                    vafs: grammar::VAFTree::present_continuous(self.n_samples()),
+                    biases,
+                });
             }
 
             // update prior to the VAF universe of the current chromosome
@@ -653,6 +653,7 @@ where
                 // This ensures consistency between the events and the per sample MAPs.
                 continue;
             }
+
             return data
                 .into_pileups()
                 .into_iter()

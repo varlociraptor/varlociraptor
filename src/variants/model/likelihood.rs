@@ -22,6 +22,12 @@ pub(crate) struct Event {
     pub(crate) biases: Biases,
 }
 
+impl Event {
+    pub(crate) fn is_artifact(&self) -> bool {
+        self.biases.is_artifact()
+    }
+}
+
 fn prob_sample_alt(observation: &Observation<ReadPosition>, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
         // The effective sample probability for the alt allele is the allele frequency times
@@ -52,7 +58,13 @@ impl<T> ContaminatedSamplePairView<T> for Vec<T> {
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct ContaminatedSampleEvent {
     pub(crate) primary: Event,
-    pub(crate) secondary: Event,
+    pub(crate) secondary: Option<Event>,
+}
+
+impl ContaminatedSampleEvent {
+    pub(crate) fn is_artifact(&self) -> bool {
+        self.primary.is_artifact()
+    }
 }
 
 /// Variant calling model, taking purity and allele frequencies into account.
@@ -83,18 +95,27 @@ impl ContaminatedSampleLikelihoodModel {
     fn likelihood_observation(
         &self,
         allele_freq_primary: LogProb,
-        allele_freq_secondary: LogProb,
-        biases_primary: &Biases,
-        biases_secondary: &Biases,
+        allele_freq_secondary: Option<LogProb>,
+        biases: &Biases,
         observation: &Observation<ReadPosition>,
     ) -> LogProb {
+        // Obtain purity and impurity.
+        // METHOD: Ignore purity/impurity in case of artifact event. The reason is
+        // that artifacts happen during the sequencing and mapping process, and are not
+        // propagated between samples via contamination.
+        let (purity, impurity, allele_freq_secondary) = if let Some(allele_freq_secondary) = allele_freq_secondary {
+            (self.purity, self.impurity, allele_freq_secondary)
+        } else {
+            (LogProb::ln_one(), LogProb::ln_zero(), LogProb::ln_zero())
+        };
+
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
         let prob_primary =
-            self.purity + likelihood_mapping(allele_freq_primary, biases_primary, observation);
+            purity + likelihood_mapping(allele_freq_primary, biases, observation);
         // Case 2: read comes from secondary sample and is correctly mapped
-        let prob_secondary = self.impurity
-            + likelihood_mapping(allele_freq_secondary, biases_secondary, observation);
+        let prob_secondary =
+            impurity + likelihood_mapping(allele_freq_secondary, biases, observation);
 
         // Step 4: total probability
         // Important note: we need to multiply a probability for a hypothetical missed allele
@@ -105,7 +126,7 @@ impl ContaminatedSampleLikelihoodModel {
             .ln_add_exp(
                 observation.prob_mismapping()
                     + observation.prob_missed_allele
-                    + biases_primary.prob_any(observation),
+                    + biases.prob_any(observation),
             );
         assert!(!total.is_nan());
         total
@@ -126,7 +147,7 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
             *cache.get(events).unwrap()
         } else {
             let ln_af_primary = LogProb(events.primary.allele_freq.ln());
-            let ln_af_secondary = LogProb(events.secondary.allele_freq.ln());
+            let ln_af_secondary = events.secondary.as_ref().map(|evt| LogProb(evt.allele_freq.ln()));
 
             // calculate product of per-observation likelihoods in log space
             let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
@@ -134,7 +155,6 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
                     ln_af_primary,
                     ln_af_secondary,
                     &events.primary.biases,
-                    &events.secondary.biases,
                     obs,
                 );
                 prob + lh
@@ -273,8 +293,7 @@ mod tests {
 
         let lh = model.likelihood_observation(
             LogProb(AlleleFreq(0.0).ln()),
-            LogProb(AlleleFreq(0.0).ln()),
-            &biases(),
+            Some(LogProb(AlleleFreq(0.0).ln())),
             &biases(),
             &observation,
         );
@@ -297,7 +316,7 @@ mod tests {
         let lh = model.compute(
             &ContaminatedSampleEvent {
                 primary: event(0.0),
-                secondary: event(0.0),
+                secondary: Some(event(0.0)),
             },
             &observations,
             &mut cache,
@@ -358,7 +377,7 @@ mod tests {
         let lh = model.compute(
             &ContaminatedSampleEvent {
                 primary: event(0.5),
-                secondary: event(0.0),
+                secondary: Some(event(0.0)),
             },
             &observations,
             &mut cache,
@@ -367,7 +386,7 @@ mod tests {
             if af != 0.5 {
                 let evt = ContaminatedSampleEvent {
                     primary: event(af),
-                    secondary: event(0.0),
+                    secondary: Some(event(0.0)),
                 };
                 let l = model.compute(&evt, &observations, &mut cache);
                 assert!(lh > l);

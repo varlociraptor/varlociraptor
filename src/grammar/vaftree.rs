@@ -4,6 +4,7 @@ use anyhow::Result;
 use itertools::Itertools;
 
 use crate::errors;
+use crate::grammar::VAFRange;
 use crate::grammar::{formula::Iupac, formula::NormalizedFormula, Scenario, VAFSpectrum};
 use crate::utils::log2_fold_change::Log2FoldChangePredicate;
 use crate::variants::model::AlleleFreq;
@@ -35,6 +36,36 @@ impl VAFTree {
 
         VAFTree {
             inner: vec![absent(0, n_samples)],
+        }
+    }
+
+    pub(crate) fn present_continuous(n_samples: usize) -> Self {
+        assert!(n_samples > 0, "bug: n_samples must be > 0");
+
+        fn present(sample: usize, n_samples: usize) -> Node {
+            let children = if sample == n_samples - 1 {
+                Vec::new()
+            } else {
+                vec![present(sample + 1, n_samples)]
+            };
+
+            Node {
+                kind: NodeKind::Sample {
+                    sample,
+                    vafs: VAFSpectrum::Range(
+                        VAFRange::builder()
+                            .inner(AlleleFreq(0.0)..AlleleFreq(1.0))
+                            .left_exclusive(true)
+                            .right_exclusive(false)
+                            .build(),
+                    ),
+                },
+                children,
+            }
+        }
+
+        VAFTree {
+            inner: vec![present(0, n_samples)],
         }
     }
 }
