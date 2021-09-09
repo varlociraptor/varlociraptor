@@ -477,16 +477,14 @@ where
             // register absent event
             events.push(model::Event {
                 name: "absent".to_owned(),
-                vafs: grammar::VAFTree::absent(self.n_samples()),
-                biases: vec![Biases::none()],
+                kind: model::EventKind::VAFTree(grammar::VAFTree::absent(self.n_samples()))
             });
 
             // add events from scenario
             for (event_name, vaftree) in self.scenario.vaftrees(contig)? {
                 events.push(model::Event {
                     name: event_name,
-                    vafs: vaftree,
-                    biases: vec![Biases::none()],
+                    kind: model::EventKind::VAFTree(vaftree),
                 });
             }
 
@@ -503,8 +501,7 @@ where
             if !biases.is_empty() {
                 events.push(model::Event {
                     name: "artifact".to_owned(),
-                    vafs: grammar::VAFTree::present_continuous(self.n_samples()),
-                    biases,
+                    kind: model::EventKind::Biases(biases),
                 });
             }
 
@@ -559,14 +556,12 @@ where
                 work_item.snv.clone(),
             );
 
-            let mut event_universe: Vec<_> = event_universe.to_vec();
+            let mut event_universe: Vec<_> = event_universe.to_owned();
             for event in &mut event_universe {
                 // METHOD: learn parameters for each bias (if necessary).
                 // By this, we can avoid marginalization of them, which is
                 // unnecessarily expensive.
-                for bias in &mut event.biases {
-                    bias.learn_parameters(data.pileups());
-                }
+                event.learn_parameters(data.pileups());
             }
 
             // Compute probabilities for given events.
@@ -575,32 +570,12 @@ where
             // add calling results
             let mut event_probs: HashMap<String, LogProb> = event_universe
                 .iter()
-                .filter_map(|event| {
-                    if event.is_artifact() {
-                        None
-                    } else {
-                        let p = m.posterior(event).unwrap();
-                        Some((event.name.clone(), p))
-                    }
+                .map(|event| {
+                    let p = m.posterior(event).unwrap();
+                    (event.name.clone(), p)
                 })
                 .collect();
-
-            // generate artifact event
-            let prob_artifact = LogProb::ln_sum_exp(
-                &event_universe
-                    .iter()
-                    .filter_map(|event| {
-                        if event.is_artifact() {
-                            let p = m.posterior(event).unwrap();
-                            Some(p)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect_vec(),
-            );
-
-            event_probs.insert("artifact".to_owned(), prob_artifact);
+            let prob_artifact = event_probs["artifact"];
 
             let is_artifact = event_probs
                 .iter()

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use bio::stats::{bayesian::model::Likelihood, LogProb};
 
+use crate::grammar::VAFRange;
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Biases;
@@ -17,14 +18,26 @@ pub(crate) type ContaminatedSampleCache = HashMap<ContaminatedSampleEvent, LogPr
 pub(crate) type SingleSampleCache = HashMap<Event, LogProb>;
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
-pub(crate) struct Event {
-    pub(crate) allele_freq: AlleleFreq,
-    pub(crate) biases: Biases,
+pub(crate) enum Event {
+    AlleleFreq(AlleleFreq),
+    Biases(Biases),
 }
 
 impl Event {
+    pub(crate) fn allele_freq(&self) -> Option<AlleleFreq> {
+        if let Event::AlleleFreq(vaf) = self {
+            Some(*vaf)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn is_artifact(&self) -> bool {
-        self.biases.is_artifact()
+        if let Event::Biases(_) = self {
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -59,12 +72,6 @@ impl<T> ContaminatedSamplePairView<T> for Vec<T> {
 pub(crate) struct ContaminatedSampleEvent {
     pub(crate) primary: Event,
     pub(crate) secondary: Option<Event>,
-}
-
-impl ContaminatedSampleEvent {
-    pub(crate) fn is_artifact(&self) -> bool {
-        self.primary.is_artifact()
-    }
 }
 
 /// Variant calling model, taking purity and allele frequencies into account.
@@ -146,19 +153,41 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
         if cache.contains_key(events) {
             *cache.get(events).unwrap()
         } else {
-            let ln_af_primary = LogProb(events.primary.allele_freq.ln());
-            let ln_af_secondary = events.secondary.as_ref().map(|evt| LogProb(evt.allele_freq.ln()));
+            let likelihood = match events {
+                ContaminatedSampleEvent { primary: Event::AlleleFreq(primary_vaf), secondary: Some(Event::AlleleFreq(secondary_vaf)) } => {
+                    let ln_af_primary = LogProb(primary_vaf.ln());
+                    let ln_af_secondary = LogProb(secondary_vaf.ln());
+                    let biases = Biases::none();
+                    pileup.iter().map(|obs| {
+                        self.likelihood_observation(
+                            ln_af_primary,
+                            Some(ln_af_secondary),
+                            &biases,
+                            obs,
+                        )
+                    }).sum()
+                }
+                ContaminatedSampleEvent { primary: Event::Biases(biases), .. } => {
+                    // METHOD: for biases, we integrate over [0,1], since any VAF is possible.
+                    // Thereby, contamination is not considered, because the artifact indicated by the bias is generated
+                    // during sequencing or mapping and thereby not propagated from sample to sample via contamination.
+                    let (min_vaf, max_vaf) = VAFRange::present_observable_bounds(pileup.len());
+                    let density = |i, vaf: f64| {
+                        let vaf = LogProb(vaf.ln());
+                        pileup.iter().map(|obs| {
+                            self.likelihood_observation(
+                                vaf,
+                                None,
+                                biases,
+                                obs,
+                            )
+                        }).sum()
+                    };
 
-            // calculate product of per-observation likelihoods in log space
-            let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-                let lh = self.likelihood_observation(
-                    ln_af_primary,
-                    ln_af_secondary,
-                    &events.primary.biases,
-                    obs,
-                );
-                prob + lh
-            });
+                    LogProb::ln_simpsons_integrate_exp(density, *min_vaf, *max_vaf, 11)
+                },
+                _ => unreachable!("bug: contaminated sample event where primary is not a bias but no vaf for secondary given"),
+            };
 
             assert!(!likelihood.is_nan());
             cache.insert(events.clone(), likelihood);
@@ -238,13 +267,31 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
         if cache.contains_key(event) {
             *cache.get(event).unwrap()
         } else {
-            let ln_af = LogProb(event.allele_freq.ln());
+            let likelihood = match event {
+                Event::AlleleFreq(allele_freq) => {
+                    let ln_af = LogProb(allele_freq.ln());
+                    let biases = Biases::none();
+                    pileup.iter().map(|obs| {
+                        self.likelihood_observation(ln_af, &biases, obs)
+                    }).sum()
+                },
+                Event::Biases(biases) => {
+                    // METHOD: for biases, we integrate over [0,1], since any VAF is possible.
+                    let (min_vaf, max_vaf) = VAFRange::present_observable_bounds(pileup.len());
+                    let density = |i, vaf: f64| {
+                        let vaf = LogProb(vaf.ln());
+                        pileup.iter().map(|obs| {
+                            self.likelihood_observation(
+                                vaf,
+                                biases,
+                                obs,
+                            )
+                        }).sum()
+                    };
 
-            // calculate product of per-read likelihoods in log space
-            let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-                let lh = self.likelihood_observation(ln_af, &event.biases, obs);
-                prob + lh
-            });
+                    LogProb::ln_simpsons_integrate_exp(density, *min_vaf, *max_vaf, 11)
+                }
+            };
 
             assert!(!likelihood.is_nan());
 
@@ -269,10 +316,7 @@ mod tests {
     }
 
     fn event(allele_freq: f64) -> Event {
-        Event {
-            allele_freq: AlleleFreq(allele_freq),
-            biases: biases(),
-        }
+        Event::AlleleFreq(AlleleFreq(allele_freq))
     }
 
     #[test]

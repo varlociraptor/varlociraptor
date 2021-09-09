@@ -106,10 +106,7 @@ impl Prior {
     fn collect_events(&self, event: LikelihoodOperands, events: &mut Vec<LikelihoodOperands>) {
         if event.len() < self.universe.as_ref().unwrap().len() {
             let sample = event.len();
-            let new_event = |vaf| likelihood::Event {
-                allele_freq: vaf,
-                biases: Biases::none(),
-            };
+            let new_event = |vaf| likelihood::Event::AlleleFreq(vaf);
 
             for vaf_spectrum in self.universe.as_ref().unwrap()[sample].iter() {
                 match vaf_spectrum {
@@ -162,7 +159,7 @@ impl Prior {
                                     Some(
                                         json!({
                                             "sample": sample,
-                                            "vaf": *e.allele_freq,
+                                            "vaf": *e.allele_freq().unwrap(),
                                         })
                                         .to_string(),
                                     )
@@ -191,13 +188,13 @@ impl Prior {
                             Some(json!({
                                 "sample": sample.to_owned(),
                                 "prob": prob,
-                                "vaf": *e.allele_freq,
+                                "vaf": e.allele_freq().unwrap(),
                                 "hash": hash.clone(),
                             }))
                         } else if !visited.contains(&hash) {
                             Some(json!({
                                 "sample": sample.to_owned(),
-                                "vaf": *e.allele_freq,
+                                "vaf": e.allele_freq().unwrap(),
                                 "hash": hash.clone(),
                             }))
                         } else {
@@ -277,7 +274,7 @@ impl Prior {
         event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
     ) -> AlleleFreq {
-        event[sample].allele_freq - germline_vafs[sample]
+        event[sample].allele_freq().unwrap() - germline_vafs[sample]
     }
 
     fn calc_prob(&self, event: &LikelihoodOperands, germline_vafs: Vec<AlleleFreq>) -> LogProb {
@@ -380,13 +377,13 @@ impl Prior {
                 germline_vafs
             };
 
-            if sample_ploidy == Some(0) && *sample_event.allele_freq != 0.0 {
+            if sample_ploidy == Some(0) && *sample_event.allele_freq().unwrap() != 0.0 {
                 // Chromosome does not occur in sample (e.g. Y chromsome) but allele freq > 0,
                 // that's impossible, hence stop and return 0.
                 LogProb::ln_zero()
             } else if self.has_uniform_prior(sample) {
                 // sample has a uniform prior
-                if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq) {
+                if self.universe.as_ref().unwrap()[sample].contains(event[sample].allele_freq().unwrap()) {
                     // no explicit info about germline VAF, assume 0.0
                     let germline_vafs = push_vafs(AlleleFreq(0.0));
                     self.calc_prob(event, germline_vafs)
@@ -412,8 +409,8 @@ impl Prior {
                     unreachable!("bug: sample with somatic mutation rate but no ploidy")
                 }
             } else if sample_ploidy.is_some() && self.heterozygosity.is_some() {
-                if self.is_valid_germline_vaf(sample, sample_event.allele_freq) {
-                    let germline_vafs = push_vafs(sample_event.allele_freq);
+                if self.is_valid_germline_vaf(sample, sample_event.allele_freq().unwrap()) {
+                    let germline_vafs = push_vafs(sample_event.allele_freq().unwrap());
 
                     self.calc_prob(event, germline_vafs)
                 } else {
@@ -461,7 +458,7 @@ impl Prior {
             ) {
                 (true, Some(somatic_mutation_rate)) => {
                     // METHOD: de novo somatic variation in the sample, anything is possible.
-                    let denovo_vaf = event[sample].allele_freq
+                    let denovo_vaf = event[sample].allele_freq().unwrap()
                         - germline_vafs[sample]
                         - self.effective_somatic_vaf(parent, event, germline_vafs);
                     self.prob_somatic_mutation(somatic_mutation_rate, denovo_vaf)
@@ -498,13 +495,13 @@ impl Prior {
         origin: grammar::SubcloneOrigin,
     ) -> LogProb {
         warn!("subclonal inheritance implementation is not yet completed and will likely yield wrong results");
-        let total_vaf = event[sample].allele_freq;
+        let total_vaf = event[sample].allele_freq().unwrap();
         let germline_vaf = germline_vafs[sample];
         if !relative_eq!(*germline_vaf, *germline_vafs[parent]) {
             LogProb::ln_zero()
         } else {
             let parent_somatic_vaf = self.effective_somatic_vaf(parent, event, germline_vafs);
-            let parent_total_vaf = event[parent].allele_freq;
+            let parent_total_vaf = event[parent].allele_freq().unwrap();
             match (origin, self.vartype_somatic_effective_mutation_rate(sample)) {
                 (grammar::SubcloneOrigin::SingleCell, None) => {
                     // METHOD: no de novo somatic mutation. total_vaf must reflect ploidy.
@@ -785,7 +782,7 @@ impl bayesian::model::Prior for Prior {
 
         let key: Vec<_> = event
             .iter()
-            .map(|sample_event| sample_event.allele_freq)
+            .map(|sample_event| sample_event.allele_freq().unwrap())
             .collect();
 
         if let Some(prob) = self.cache.borrow_mut().get(&key) {

@@ -994,6 +994,15 @@ pub(crate) struct VAFRange {
     right_exclusive: bool,
 }
 
+impl VAFRange {
+    pub(crate) fn present_observable_bounds(n_obs: usize) -> (AlleleFreq, AlleleFreq) {
+        let present = VAFRange::builder().inner(AlleleFreq(0.0)..AlleleFreq(1.0)).left_exclusive(true).right_exclusive(false).build();
+        let min_vaf = present.observable_min(n_obs);
+        let max_vaf = present.observable_max(n_obs);
+        (min_vaf, max_vaf)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
 pub(crate) enum VAFRangeOverlap {
     Contained,

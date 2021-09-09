@@ -14,6 +14,8 @@ use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 use crate::grammar;
 use crate::variants::model::bias::Biases;
 
+use super::sample::Pileup;
+
 pub(crate) mod bias;
 pub(crate) mod likelihood;
 pub(crate) mod modes;
@@ -28,18 +30,23 @@ pub(crate) struct Contamination {
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub(crate) struct Event {
     pub(crate) name: String,
-    pub(crate) vafs: grammar::VAFTree,
-    pub(crate) biases: Vec<Biases>,
+    pub(crate) kind: EventKind,
 }
 
 impl Event {
-    pub(crate) fn is_artifact(&self) -> bool {
-        assert!(
-            self.biases.iter().all(|biases| biases.is_artifact())
-                || self.biases.iter().all(|biases| !biases.is_artifact())
-        );
-        self.biases.iter().any(|biases| biases.is_artifact())
+    pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup]) -> () {
+        if let Event { kind: EventKind::Biases(biases), .. } = self {
+            for bias in biases {
+                bias.learn_parameters(pileups);
+            }
+        }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) enum EventKind {
+    VAFTree(grammar::VAFTree),
+    Biases(Vec<Biases>),
 }
 
 pub(crate) type AlleleFreq = NotNan<f64>;
