@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use bio::stats::{bayesian::model::Likelihood, LogProb};
+use lru::LruCache;
 
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
@@ -13,8 +14,8 @@ use crate::variants::model::bias::Biases;
 use crate::variants::model::AlleleFreq;
 use crate::variants::sample::Pileup;
 
-pub(crate) type ContaminatedSampleCache = HashMap<ContaminatedSampleEvent, LogProb>;
-pub(crate) type SingleSampleCache = HashMap<Event, LogProb>;
+pub(crate) type ContaminatedSampleCache = LruCache<ContaminatedSampleEvent, LogProb>;
+pub(crate) type SingleSampleCache = LruCache<Event, LogProb>;
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct Event {
@@ -54,12 +55,6 @@ impl<T> ContaminatedSamplePairView<T> for Vec<T> {
 pub(crate) struct ContaminatedSampleEvent {
     pub(crate) primary: Event,
     pub(crate) secondary: Event,
-}
-
-impl ContaminatedSampleEvent {
-    pub(crate) fn is_discrete(&self) -> bool {
-        self.primary.is_discrete && self.secondary.is_discrete
-    }
 }
 
 /// Variant calling model, taking purity and allele frequencies into account.
@@ -129,8 +124,8 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
         pileup: &Self::Data,
         cache: &mut ContaminatedSampleCache,
     ) -> LogProb {
-        if events.is_discrete() && cache.contains_key(events) {
-            *cache.get(events).unwrap()
+        if let Some(prob) = cache.get(events) {
+            *prob
         } else {
             let ln_af_primary = LogProb(events.primary.allele_freq.ln());
             let ln_af_secondary = LogProb(events.secondary.allele_freq.ln());
@@ -150,9 +145,7 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
             assert!(!likelihood.is_nan());
 
             // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
-            if events.is_discrete() {
-                cache.insert(events.clone(), likelihood);
-            }
+            cache.put(events.clone(), likelihood);
 
             likelihood
         }
@@ -226,8 +219,8 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
     fn compute(&self, event: &Event, pileup: &Pileup, cache: &mut SingleSampleCache) -> LogProb {
-        if event.is_discrete && cache.contains_key(event) {
-            *cache.get(event).unwrap()
+        if let Some(prob) = cache.get(event) {
+            *prob
         } else {
             let ln_af = LogProb(event.allele_freq.ln());
 
@@ -239,10 +232,7 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 
             assert!(!likelihood.is_nan());
 
-            // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
-            if event.is_discrete {
-                cache.insert(event.clone(), likelihood);
-            }
+            cache.put(event.clone(), likelihood);
 
             likelihood
         }
@@ -307,7 +297,7 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let mut cache = likelihood::ContaminatedSampleCache::default();
+        let mut cache = likelihood::ContaminatedSampleCache::new(100);
 
         let lh = model.compute(
             &ContaminatedSampleEvent {
@@ -337,7 +327,7 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let mut cache = likelihood::SingleSampleCache::default();
+        let mut cache = likelihood::SingleSampleCache::new(100);
         let evt = event(0.0);
         let lh = model.compute(&evt, &observations, &mut cache);
         assert_relative_eq!(
@@ -347,7 +337,7 @@ mod tests {
                 .map(|observation| biases().prob_any(&observation))
                 .sum::<LogProb>()
         );
-        assert!(cache.contains_key(&evt))
+        assert!(cache.get(&evt).is_some())
     }
 
     #[test]
@@ -369,7 +359,7 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let mut cache = likelihood::ContaminatedSampleCache::default();
+        let mut cache = likelihood::ContaminatedSampleCache::new(100);
         let lh = model.compute(
             &ContaminatedSampleEvent {
                 primary: event(0.5),
@@ -386,7 +376,7 @@ mod tests {
                 };
                 let l = model.compute(&evt, &observations, &mut cache);
                 assert!(lh > l);
-                assert!(cache.contains_key(&evt));
+                assert!(cache.get(&evt).is_some());
             }
         }
     }

@@ -43,9 +43,9 @@ pub(crate) enum CacheEntry {
 impl CacheEntry {
     fn new(contaminated: bool) -> Self {
         if contaminated {
-            CacheEntry::ContaminatedSample(likelihood::ContaminatedSampleCache::default())
+            CacheEntry::ContaminatedSample(likelihood::ContaminatedSampleCache::new(10000))
         } else {
-            CacheEntry::SingleSample(likelihood::SingleSampleCache::default())
+            CacheEntry::SingleSample(likelihood::SingleSampleCache::new(10000))
         }
     }
 }
