@@ -135,6 +135,10 @@ impl LikelihoodOperands {
     pub(crate) fn iter(&self) -> Values<Event> {
         self.events.values()
     }
+
+    pub(crate) fn is_discrete(&self) -> bool {
+        self.events.values().all(|evt| evt.is_discrete)
+    }
 }
 
 impl Index<usize> for LikelihoodOperands {
@@ -208,20 +212,38 @@ impl GenericPosterior {
             grammar::vaftree::NodeKind::False => LogProb::ln_zero(),
             grammar::vaftree::NodeKind::Sample { sample, vafs } => {
                 let push_base_event =
-                    |allele_freq, likelihood_operands: &mut LikelihoodOperands| {
+                    |allele_freq, likelihood_operands: &mut LikelihoodOperands, is_discrete| {
                         likelihood_operands.events.insert(
                             *sample,
                             likelihood::Event {
                                 allele_freq,
                                 biases: biases.clone(),
+                                is_discrete,
                             },
                         );
                     };
 
+                let n_obs = data.pileups[*sample].len();
+                let is_clear_ref = n_obs > 10
+                    && data.pileups[*sample]
+                        .iter()
+                        .all(|obs| obs.is_positive_ref_support());
+
                 match vafs {
                     grammar::VAFSpectrum::Set(vafs) => {
+                        if is_clear_ref && vafs.iter().all(|vaf| **vaf > 0.0) {
+                            // METHOD: shortcut for the case that all obs support the reference but the vafs
+                            // in this event are > 0. Then, we don't need to recurse further and can
+                            // immediately stop, returning a probability of zero.
+                            return LogProb::ln_zero();
+                        }
+
                         if vafs.len() == 1 {
-                            push_base_event(*vafs.iter().next().unwrap(), likelihood_operands);
+                            push_base_event(
+                                *vafs.iter().next().unwrap(),
+                                likelihood_operands,
+                                true,
+                            );
                             subdensity(likelihood_operands)
                         } else {
                             LogProb::ln_sum_exp(
@@ -229,7 +251,7 @@ impl GenericPosterior {
                                     .iter()
                                     .map(|vaf| {
                                         let mut likelihood_operands = likelihood_operands.clone();
-                                        push_base_event(*vaf, &mut likelihood_operands);
+                                        push_base_event(*vaf, &mut likelihood_operands, true);
                                         subdensity(&mut likelihood_operands)
                                     })
                                     .collect_vec(),
@@ -237,13 +259,19 @@ impl GenericPosterior {
                         }
                     }
                     grammar::VAFSpectrum::Range(vafs) => {
-                        let n_obs = data.pileups[*sample].len();
+                        if is_clear_ref && *vafs.start > 0.0 {
+                            // METHOD: shortcut for the case that all obs support the reference but the vaf
+                            // range in this event is > 0. Then, we don't need to recurse further and can
+                            // immediately stop, returning a probability of zero.
+                            return LogProb::ln_zero();
+                        }
+
                         let resolution = &self.resolutions[*sample];
                         let min_vaf = vafs.observable_min(n_obs);
                         let max_vaf = vafs.observable_max(n_obs);
                         let mut density = |vaf| {
                             let mut likelihood_operands = likelihood_operands.clone();
-                            push_base_event(vaf, &mut likelihood_operands);
+                            push_base_event(vaf, &mut likelihood_operands, false);
                             subdensity(&mut likelihood_operands)
                         };
 

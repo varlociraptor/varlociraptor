@@ -20,6 +20,7 @@ pub(crate) type SingleSampleCache = HashMap<Event, LogProb>;
 pub(crate) struct Event {
     pub(crate) allele_freq: AlleleFreq,
     pub(crate) biases: Biases,
+    pub(crate) is_discrete: bool,
 }
 
 fn prob_sample_alt(observation: &Observation<ReadPosition>, allele_freq: LogProb) -> LogProb {
@@ -53,6 +54,12 @@ impl<T> ContaminatedSamplePairView<T> for Vec<T> {
 pub(crate) struct ContaminatedSampleEvent {
     pub(crate) primary: Event,
     pub(crate) secondary: Event,
+}
+
+impl ContaminatedSampleEvent {
+    pub(crate) fn is_discrete(&self) -> bool {
+        self.primary.is_discrete && self.secondary.is_discrete
+    }
 }
 
 /// Variant calling model, taking purity and allele frequencies into account.
@@ -122,7 +129,7 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
         pileup: &Self::Data,
         cache: &mut ContaminatedSampleCache,
     ) -> LogProb {
-        if cache.contains_key(events) {
+        if events.is_discrete() && cache.contains_key(events) {
             *cache.get(events).unwrap()
         } else {
             let ln_af_primary = LogProb(events.primary.allele_freq.ln());
@@ -141,7 +148,11 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
             });
 
             assert!(!likelihood.is_nan());
-            cache.insert(events.clone(), likelihood);
+
+            // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
+            if events.is_discrete() {
+                cache.insert(events.clone(), likelihood);
+            }
 
             likelihood
         }
@@ -215,7 +226,7 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
     fn compute(&self, event: &Event, pileup: &Pileup, cache: &mut SingleSampleCache) -> LogProb {
-        if cache.contains_key(event) {
+        if event.is_discrete && cache.contains_key(event) {
             *cache.get(event).unwrap()
         } else {
             let ln_af = LogProb(event.allele_freq.ln());
@@ -228,7 +239,10 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 
             assert!(!likelihood.is_nan());
 
-            cache.insert(event.clone(), likelihood);
+            // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
+            if event.is_discrete {
+                cache.insert(event.clone(), likelihood);
+            }
 
             likelihood
         }
@@ -252,6 +266,7 @@ mod tests {
         Event {
             allele_freq: AlleleFreq(allele_freq),
             biases: biases(),
+            is_discrete: true,
         }
     }
 
