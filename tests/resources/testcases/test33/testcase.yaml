@@ -29,3 +29,10 @@ options: '{"Call": {"kind": {"Variants": {"protocol_strandedness":"Opposite", "s
   null, "testcase_locus": "all", "testcase_prefix": "testcases/test33", "mode": {"TumorNormal":
   {"tumor": "test33/tumor.bam", "normal": "test33/normal.bam", "purity": 1.0, "tumor_alignment_properties":
   null, "normal_alignment_properties": null}}}}}}'
+
+
+omit_strand_bias: true
+omit_read_orientation_bias: true
+omit_softclip_bias: true
+omit_divindel_bias: true
+omit_read_position_bias: true

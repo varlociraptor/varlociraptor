@@ -470,8 +470,6 @@ impl Likelihood<Cache> for GenericLikelihood {
     }
 }
 
-// TODO: remove the following in favor of the new universal prior.
-
 #[derive(Default, Clone, Debug)]
 pub(crate) struct FlatPrior {
     universe: Option<grammar::SampleInfo<grammar::VAFUniverse>>,

@@ -575,7 +575,7 @@ where
                     (event.name.clone(), p)
                 })
                 .collect();
-            let prob_artifact = event_probs["artifact"];
+            let prob_artifact = *event_probs.entry("artifact".to_owned()).or_insert(LogProb::ln_zero());
 
             let is_artifact = event_probs
                 .iter()
