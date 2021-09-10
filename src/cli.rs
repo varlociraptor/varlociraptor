@@ -968,11 +968,11 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         .build()
                         .unwrap();
                     let seqnames = caller.filter_seqnames().unwrap();
-                    for seqname in seqnames {
-                        let nb = caller.app_neg_binom(seqname).unwrap();
-                        //let ecdf = caller.cdf(seqname).unwrap();
-                        //ecdf.plot_qc(qc_plot.clone()).unwrap();
-                    }
+                    //for seqname in seqnames {
+                    //let nb = caller.app_neg_binom(seqname).unwrap();
+                    //let ecdf = caller.cdf(seqname).unwrap();
+                    //ecdf.plot_qc(qc_plot.clone()).unwrap();
+                    //}
                 }
             }
         }
