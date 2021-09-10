@@ -109,6 +109,7 @@ impl Prior {
             let new_event = |vaf| likelihood::Event {
                 allele_freq: vaf,
                 biases: Biases::none(),
+                is_discrete: false,
             };
 
             for vaf_spectrum in self.universe.as_ref().unwrap()[sample].iter() {
@@ -778,18 +779,23 @@ impl bayesian::model::Prior for Prior {
     type Event = LikelihoodOperands;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
-        let key: Vec<_> = event
-            .iter()
-            .map(|sample_event| sample_event.allele_freq)
-            .collect();
+        if event.is_discrete() {
+            let key: Vec<_> = event
+                .iter()
+                .map(|sample_event| sample_event.allele_freq)
+                .collect();
 
-        if let Some(prob) = self.cache.borrow_mut().get(&key) {
-            return *prob;
+            if let Some(prob) = self.cache.borrow_mut().get(&key) {
+                return *prob;
+            }
+            let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
+            self.cache.borrow_mut().put(key, prob);
+
+            prob
+        } else {
+            // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
+            self.calc_prob(event, Vec::with_capacity(event.len()))
         }
-        let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
-        self.cache.borrow_mut().put(key, prob);
-
-        prob
     }
 }
 

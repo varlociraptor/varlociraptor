@@ -299,10 +299,9 @@ impl<P: Clone> Observation<P> {
         self.prob_ref > self.prob_alt
     }
 
-    pub(crate) fn is_strong_ref_support(&self) -> bool {
-        self.is_uniquely_mapping()
-            && BayesFactor::new(self.prob_ref, self.prob_alt).evidence_kass_raftery()
-                >= KassRaftery::Strong
+    pub(crate) fn is_positive_ref_support(&self) -> bool {
+        BayesFactor::new(self.prob_ref, self.prob_alt).evidence_kass_raftery()
+            >= KassRaftery::Positive
     }
 
     pub(crate) fn is_alt_support(&self) -> bool {
