@@ -363,7 +363,7 @@ impl Posterior for GenericPosterior {
                 prob_bias
                     + LogProb::ln_sum_exp(
                     &possible_biases
-                            .map(|bias| bias.prior_prob(&data.pileups) + self.bias_density(bias, data, joint_prob))
+                            .map(|bias| self.bias_density(bias, data, joint_prob))
                             .collect_vec(),
                     )
             }
@@ -383,6 +383,7 @@ enum SampleModel {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct GenericLikelihood {
     inner: grammar::SampleInfo<SampleModel>,
+    bias_model: likelihood::SampleLikelihoodModel,
 }
 
 impl GenericLikelihood {
@@ -400,7 +401,7 @@ impl GenericLikelihood {
             }
         });
 
-        GenericLikelihood { inner }
+        GenericLikelihood { inner, bias_model: likelihood::SampleLikelihoodModel::new() }
     }
 }
 
@@ -409,6 +410,13 @@ impl Likelihood<Cache> for GenericLikelihood {
     type Data = Data;
 
     fn compute(&self, operands: &Self::Event, data: &Self::Data, cache: &mut Cache) -> LogProb {
+
+        if operands.is_artifact() {
+            // TODO this is inefficient, find a better way.
+            let pileup = data.pileups.iter().cloned().flatten().collect();
+            return self.bias_model.compute(&operands[0], &pileup, &mut std::collections::HashMap::new());
+        }
+
         // Step 1: Check if sample VAFs are compliant with any defined log fold changes.
         // If not, quickly return probability zero.
         for lfc in &operands.lfcs {
