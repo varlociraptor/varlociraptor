@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.4.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.0...v4.4.1) (2021-09-10)
+
+
+### Performance Improvements
+
+* various speed improvements for scenario evaluations ([#212](https://www.github.com/varlociraptor/varlociraptor/issues/212)) ([f865e1b](https://www.github.com/varlociraptor/varlociraptor/commit/f865e1bc5ae7e4369d4c9a4ece104fc6f33d6447))
+
 ## [4.4.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.3.0...v4.4.0) (2021-09-06)
 
 
