@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.4.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.1...v4.4.2) (2021-09-14)
+
+
+### Performance Improvements
+
+* do not consider empty pileups for bias preprocessing ([#214](https://www.github.com/varlociraptor/varlociraptor/issues/214)) ([e9beec3](https://www.github.com/varlociraptor/varlociraptor/commit/e9beec3db1ed7cceb6a302f2fc1ecc0e7e612ad0))
+
 ### [4.4.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.0...v4.4.1) (2021-09-10)
 
 
