@@ -38,11 +38,11 @@ pub(crate) mod errors;
 pub(crate) mod estimation;
 pub mod filtration;
 pub(crate) mod grammar;
+pub mod haplotypes;
 pub(crate) mod reference;
 pub mod testcase;
 pub mod utils;
 pub mod variants;
-pub mod haplotypes;
 
 /// Event to call.
 pub trait Event {

@@ -1,6 +1,9 @@
-use bio::stats::{LogProb, bayesian::model};
+use bio::stats::{bayesian::model, LogProb};
 
-use crate::{calling::haplotypes::{KallistoEstimate, KallistoEstimates}, variants::model::AlleleFreq};
+use crate::{
+    calling::haplotypes::{KallistoEstimate, KallistoEstimates},
+    variants::model::AlleleFreq,
+};
 
 pub(crate) struct HaplotypeFractions(Vec<AlleleFreq>);
 
@@ -31,13 +34,24 @@ impl model::Likelihood<Cache> for Likelihood {
 }
 
 impl Likelihood {
-    fn compute_kallisto(&self, event: &Self::Event, data: &Self::Data, cache: &mut Cache) -> LogProb {
-        // TODO compute likelihood using neg_binom on the counts and dispersion 
+    fn compute_kallisto(
+        &self,
+        event: &Self::Event,
+        data: &Self::Data,
+        cache: &mut Cache,
+    ) -> LogProb {
+        // TODO compute likelihood using neg_binom on the counts and dispersion
         // in the data and the fractions in the events.
+        // Later: use the cache to avoid redundant computations.
         todo!()
     }
 
-    fn compute_varlociraptor(&self, event: &Self::Event, data: &Self::Data, cache: &mut Cache) -> LogProb {
+    fn compute_varlociraptor(
+        &self,
+        event: &Self::Event,
+        data: &Self::Data,
+        cache: &mut Cache,
+    ) -> LogProb {
         // TODO compute likelihood based on Varlociraptor VAFs.
         // Let us postpone this until we have a working version with kallisto only.
         LogProb::ln_one()

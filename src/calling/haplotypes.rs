@@ -104,7 +104,13 @@ impl KallistoEstimates {
             let mle_norm = mle_dataset / &seq_length; //normalized mle counts by length
             let m = mle_norm[index];
 
-            estimates.insert(Haplotype(seqname.clone()), KallistoEstimate {dispersion: t, count: m});
+            estimates.insert(
+                Haplotype(seqname.clone()),
+                KallistoEstimate {
+                    dispersion: t,
+                    count: m,
+                },
+            );
         }
 
         Ok(KallistoEstimates(estimates))
@@ -145,4 +151,3 @@ fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
     }
     LogProb((p1 - b + p2) - (x + n).ln())
 }
-
