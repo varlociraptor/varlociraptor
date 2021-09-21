@@ -39,6 +39,7 @@ impl Likelihood {
 
     fn compute_varlociraptor(&self, event: &Self::Event, data: &Self::Data, cache: &mut Cache) -> LogProb {
         // TODO compute likelihood based on Varlociraptor VAFs.
+        // Let us postpone this until we have a working version with kallisto only.
         LogProb::ln_one()
     }
 }
