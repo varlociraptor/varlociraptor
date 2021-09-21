@@ -961,18 +961,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     qc_plot,
                     min_norm_counts,
                 } => {
-                    let caller = calling::haplotype_abundances::CallerBuilder::default()
+                    let caller = calling::haplotypes::CallerBuilder::default()
                         .hdf5_reader(hdf5::File::open(&haplotype_counts)?)
                         .vcf_reader(bcf::Reader::from_path(&haplotype_variants)?)
                         .min_norm_counts(min_norm_counts)
                         .build()
                         .unwrap();
-                    let seqnames = caller.filter_seqnames().unwrap();
-                    //for seqname in seqnames {
-                    //let nb = caller.app_neg_binom(seqname).unwrap();
-                    //let ecdf = caller.cdf(seqname).unwrap();
-                    //ecdf.plot_qc(qc_plot.clone()).unwrap();
-                    //}
+                    caller.call()?;
                 }
             }
         }

@@ -1,3 +1,3 @@
 //pub(crate) mod cnvs;
-pub(crate) mod haplotype_abundances;
+pub(crate) mod haplotypes;
 pub(crate) mod variants;
