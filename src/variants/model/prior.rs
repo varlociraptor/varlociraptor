@@ -17,6 +17,7 @@ use statrs::distribution::{self, Discrete};
 
 use crate::errors;
 use crate::grammar;
+use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::{bias::Biases, likelihood, AlleleFreq, VariantType};
 
 pub(crate) trait UpdatablePrior {
@@ -32,8 +33,6 @@ pub(crate) trait UpdatablePrior {
 pub(crate) trait CheckablePrior {
     fn check(&self) -> Result<()>;
 }
-
-const SOMATIC_EPSILON: f64 = 0.0001;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Inheritance {
@@ -89,9 +88,9 @@ impl Clone for Prior {
             universe: self.universe.clone(),
             germline_mutation_rate: self.germline_mutation_rate.clone(),
             somatic_effective_mutation_rate: self.somatic_effective_mutation_rate.clone(),
-            heterozygosity: self.heterozygosity.clone(),
+            heterozygosity: self.heterozygosity,
             inheritance: self.inheritance.clone(),
-            genome_size: self.genome_size.clone(),
+            genome_size: self.genome_size,
             cache: RefCell::default(),
             variant_type_fractions: self.variant_type_fractions.clone(),
             variant_type: self.variant_type.clone(),
@@ -104,16 +103,13 @@ impl Prior {
         self.germline_mutation_rate.len()
     }
 
-    fn collect_events(
-        &self,
-        event: Vec<likelihood::Event>,
-        events: &mut Vec<Vec<likelihood::Event>>,
-    ) {
+    fn collect_events(&self, event: LikelihoodOperands, events: &mut Vec<LikelihoodOperands>) {
         if event.len() < self.universe.as_ref().unwrap().len() {
             let sample = event.len();
             let new_event = |vaf| likelihood::Event {
                 allele_freq: vaf,
                 biases: Biases::none(),
+                is_discrete: false,
             };
 
             for vaf_spectrum in self.universe.as_ref().unwrap()[sample].iter() {
@@ -147,7 +143,7 @@ impl Prior {
         let mut blueprint =
             serde_json::from_str(include_str!("../../../templates/plots/prior.json"))?;
         let mut events = Vec::new();
-        self.collect_events(Vec::new(), &mut events);
+        self.collect_events(LikelihoodOperands::new(), &mut events);
 
         let mut visited = HashSet::new();
 
@@ -279,13 +275,13 @@ impl Prior {
     fn effective_somatic_vaf(
         &self,
         sample: usize,
-        event: &[likelihood::Event],
+        event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
     ) -> AlleleFreq {
         event[sample].allele_freq - germline_vafs[sample]
     }
 
-    fn calc_prob(&self, event: &[likelihood::Event], germline_vafs: Vec<AlleleFreq>) -> LogProb {
+    fn calc_prob(&self, event: &LikelihoodOperands, germline_vafs: Vec<AlleleFreq>) -> LogProb {
         if germline_vafs.len() == event.len() {
             // recursion end
 
@@ -357,20 +353,20 @@ impl Prior {
                         }
                         None => {
                             // no inheritance pattern defined
-                            if let Some(r) = self.vartype_somatic_effective_mutation_rate(sample) {
-                                Some(self.prob_somatic_mutation(
-                                    r,
-                                    self.effective_somatic_vaf(sample, event, &germline_vafs),
-                                ))
-                            } else {
-                                None
-                            }
+                            self.vartype_somatic_effective_mutation_rate(sample)
+                                .map(|r| {
+                                    self.prob_somatic_mutation(
+                                        r,
+                                        self.effective_somatic_vaf(sample, event, &germline_vafs),
+                                    )
+                                })
                         }
                     }
                 })
                 .sum(); // product in log space
 
             assert!(*prob <= 0.0);
+
             prob
         } else {
             // recursion
@@ -436,23 +432,16 @@ impl Prior {
         somatic_effective_mutation_rate: f64,
         somatic_vaf: AlleleFreq,
     ) -> LogProb {
-        let density = |vaf: f64| {
-            LogProb(
-                somatic_effective_mutation_rate.ln()
-                    - (2.0 * vaf.ln() + (self.genome_size.unwrap()).ln()),
-            )
-        };
-        // METHOD: we take the absolute of the vaf because it can be negative (indicating a back mutation).
-        if somatic_vaf.abs() <= SOMATIC_EPSILON {
-            LogProb::ln_simpsons_integrate_exp(
-                |_, vaf: f64| density(vaf.abs()),
-                SOMATIC_EPSILON,
-                1.0,
-                11,
-            )
-            .ln_one_minus_exp()
+        // METHOD: we do not apply the model of Williams et al. The reason is that
+        // too much can happen in addition to the somatic mutation (e.g. an overlapping SV).
+        // Instead, we simply assume a flat prior over VAFs > 0.0, and distinguish between
+        // 0.0 and >0.0 via the given mutation rate. In other words, the mutation rate
+        // models the rate of loci with somatic mutations, but for those, any VAFs >0.0
+        // are a priori equally possible.
+        if relative_eq!(*somatic_vaf, 0.0) {
+            LogProb(somatic_effective_mutation_rate.ln()).ln_one_minus_exp()
         } else {
-            density(somatic_vaf.abs())
+            LogProb(somatic_effective_mutation_rate.ln())
         }
     }
 
@@ -460,7 +449,7 @@ impl Prior {
         &self,
         sample: usize,
         parent: usize,
-        event: &[likelihood::Event],
+        event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
         somatic: bool,
     ) -> LogProb {
@@ -505,7 +494,7 @@ impl Prior {
         &self,
         sample: usize,
         parent: usize,
-        event: &[likelihood::Event],
+        event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
         origin: grammar::SubcloneOrigin,
     ) -> LogProb {
@@ -520,32 +509,30 @@ impl Prior {
             match (origin, self.vartype_somatic_effective_mutation_rate(sample)) {
                 (grammar::SubcloneOrigin::SingleCell, None) => {
                     // METHOD: no de novo somatic mutation. total_vaf must reflect ploidy.
-                    if *parent_total_vaf == 1.0 {
-                        if *total_vaf == 1.0 {
+                    if relative_eq!(*parent_total_vaf, 1.0) {
+                        if relative_eq!(*total_vaf, 1.0) {
                             LogProb::ln_one()
                         } else {
                             // METHOD: impossible, since all parental allele copies host the variant.
                             LogProb::ln_zero()
                         }
-                    } else {
-                        if self.is_valid_germline_vaf(sample, total_vaf) {
-                            let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
-                            if *total_vaf > 0.0 {
-                                // METHOD: alt present, hence the cell has to come from the subclone with the alt allele.
-                                prob_alt
-                            } else {
-                                // METHOD: alt not present, hence the cell has to come from the ref subclone.
-                                prob_alt.ln_one_minus_exp()
-                            }
+                    } else if self.is_valid_germline_vaf(sample, total_vaf) {
+                        let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
+                        if *total_vaf > 0.0 {
+                            // METHOD: alt present, hence the cell has to come from the subclone with the alt allele.
+                            prob_alt
                         } else {
-                            // METHOD: VAF must reflect ploidy.
-                            LogProb::ln_zero()
+                            // METHOD: alt not present, hence the cell has to come from the ref subclone.
+                            prob_alt.ln_one_minus_exp()
                         }
+                    } else {
+                        // METHOD: VAF must reflect ploidy.
+                        LogProb::ln_zero()
                     }
                 }
                 (grammar::SubcloneOrigin::MultiCell, None) => {
-                    if *parent_somatic_vaf == 1.0 {
-                        if *total_vaf == 1.0 {
+                    if relative_eq!(*parent_somatic_vaf, 1.0) {
+                        if relative_eq!(*total_vaf, 1.0) {
                             // METHOD: The parent has a VAF of 1.0.
                             // In this case, it must be inherited unmodified.
                             LogProb::ln_one()
@@ -759,7 +746,7 @@ impl Prior {
         &self,
         child: usize,
         parents: (usize, usize),
-        event: &[likelihood::Event],
+        event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
     ) -> LogProb {
         let ploidies = self.ploidies.as_ref().unwrap();
@@ -780,7 +767,7 @@ impl Prior {
         if let Some(somatic_mutation_rate) = self.vartype_somatic_effective_mutation_rate(child) {
             prob += self.prob_somatic_mutation(
                 somatic_mutation_rate,
-                self.effective_somatic_vaf(child, event, &germline_vafs),
+                self.effective_somatic_vaf(child, event, germline_vafs),
             );
         }
 
@@ -789,21 +776,26 @@ impl Prior {
 }
 
 impl bayesian::model::Prior for Prior {
-    type Event = Vec<likelihood::Event>;
+    type Event = LikelihoodOperands;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
-        let key: Vec<_> = event
-            .iter()
-            .map(|sample_event| sample_event.allele_freq)
-            .collect();
+        if event.is_discrete() {
+            let key: Vec<_> = event
+                .iter()
+                .map(|sample_event| sample_event.allele_freq)
+                .collect();
 
-        if let Some(prob) = self.cache.borrow_mut().get(&key) {
-            return *prob;
+            if let Some(prob) = self.cache.borrow_mut().get(&key) {
+                return *prob;
+            }
+            let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
+            self.cache.borrow_mut().put(key, prob);
+
+            prob
+        } else {
+            // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
+            self.calc_prob(event, Vec::with_capacity(event.len()))
         }
-        let prob = self.calc_prob(event, Vec::with_capacity(event.len()));
-        self.cache.borrow_mut().put(key, prob);
-
-        prob
     }
 }
 

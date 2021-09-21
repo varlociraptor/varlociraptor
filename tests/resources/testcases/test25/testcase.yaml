@@ -5,7 +5,7 @@ expected:
   - tumor == 1.0
   - normal == 1.0
   posteriors:
-  - PROB_SOMATIC_TUMOR >= 2191.0
+  - PROB_SOMATIC_TUMOR >= 2180.0
   - PROB_GERMLINE_HOM < 1.0
 
 # necessary bam files

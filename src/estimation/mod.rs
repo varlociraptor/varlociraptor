@@ -5,4 +5,5 @@
 
 pub mod alignment_properties;
 pub mod effective_mutation_rate;
-pub mod tumor_mutational_burden;
+pub mod mutational_burden;
+pub mod sample_variants;

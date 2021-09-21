@@ -1,9 +1,9 @@
 samples:
   sample0:
-    resolution: 100
+    resolution: 0.01
     universe: "[0.0,1.0]"
   sample1:
-    resolution: 100
+    resolution: 0.01
     universe:
       all: "[0.0,1.0]"
       Y: "[0.0,1.0]"

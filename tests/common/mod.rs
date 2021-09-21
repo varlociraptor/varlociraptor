@@ -112,6 +112,14 @@ pub(crate) trait Testcase {
         }
     }
 
+    fn omit_divindel_bias(&self) -> bool {
+        if self.yaml()["omit_divindel_bias"].is_badvalue() {
+            false
+        } else {
+            self.yaml()["omit_divindel_bias"].as_bool().unwrap()
+        }
+    }
+
     fn yaml(&self) -> &Yaml {
         &self.inner()[0]
     }
@@ -193,7 +201,7 @@ pub(crate) trait Testcase {
                 } => {
                     // prepare test bam
                     let test_bam = self.sample_bam(sample_name);
-                    bam::index::build(&test_bam, None, bam::index::Type::BAI, 1).unwrap();
+                    bam::index::build(&test_bam, None, bam::index::Type::Bai, 1).unwrap();
 
                     // prepare alignment properties
                     let props =
@@ -225,6 +233,8 @@ pub(crate) trait Testcase {
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
                         omit_softclip_bias: self.omit_softclip_bias(),
+                        omit_divindel_bias: self.omit_divindel_bias(),
+                        min_divindel_other_rate: 0.05,
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -260,6 +270,8 @@ pub(crate) trait Testcase {
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
                         omit_softclip_bias: self.omit_softclip_bias(),
+                        omit_divindel_bias: self.omit_divindel_bias(),
+                        min_divindel_other_rate: 0.25,
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self

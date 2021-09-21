@@ -232,6 +232,7 @@ pub(crate) trait Realigner {
 
         let aux_strand_info = utils::aux_tag_strand_info(record);
         let mut strand = Strand::None;
+        let mut has_alt_indel_operations = false;
 
         for region in merged_regions {
             // read emission
@@ -245,7 +246,7 @@ pub(crate) trait Realigner {
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
 
             // ref allele
-            let mut prob_ref = self.prob_allele(
+            let (mut prob_ref, _) = self.prob_allele(
                 &mut [ReferenceEmissionParams {
                     ref_seq: Arc::clone(&ref_seq),
                     ref_offset: region.ref_interval.start,
@@ -255,7 +256,7 @@ pub(crate) trait Realigner {
                 &mut edit_dist,
             );
 
-            let mut prob_alt = self.prob_allele(
+            let (mut prob_alt, alt_hit) = self.prob_allele(
                 &mut variant.alt_emission_params(
                     Rc::clone(&read_emission),
                     Arc::clone(self.ref_buffer()),
@@ -309,6 +310,8 @@ pub(crate) trait Realigner {
                         return Err(Error::ReadPosOutOfBounds.into());
                     }
                 }
+
+                has_alt_indel_operations |= !alt_hit.best_indel_operations().is_empty();
             }
 
             // METHOD: probabilities of independent regions are combined here.
@@ -324,6 +327,7 @@ pub(crate) trait Realigner {
 
         Ok(AlleleSupportBuilder::default()
             .strand(strand)
+            .has_alt_indel_operations(has_alt_indel_operations)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
             .build()
@@ -335,7 +339,7 @@ pub(crate) trait Realigner {
         &mut self,
         candidate_allele_params: &mut [E],
         edit_dist: &mut edit_distance::EditDistanceCalculation,
-    ) -> LogProb
+    ) -> (LogProb, EditDistanceHit)
     where
         E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
     {
@@ -358,23 +362,26 @@ pub(crate) trait Realigner {
         }
 
         let mut prob = None;
+        let mut best_hit = None;
         // METHOD: for equal best edit dists, we have to compare the probabilities and take the best.
         for (hit, allele_params) in hits {
             if hit.dist() == 0 {
                 // METHOD: In case of a perfect match, we just take the base quality product.
                 // All alternative paths in the HMM will anyway be much worse.
                 prob = Some(allele_params.read_emission().certainty_est());
+                best_hit.replace(hit.clone());
             } else {
                 let p = self.calculate_prob_allele(&hit, allele_params);
 
                 if prob.map_or(true, |prob| p > prob) {
                     prob.replace(p);
+                    best_hit.replace(hit.clone());
                 }
             }
         }
 
         // This is safe, as there will be always one probability at least.
-        prob.unwrap()
+        (prob.unwrap(), best_hit.unwrap())
     }
 
     fn calculate_prob_allele<E>(&mut self, hit: &EditDistanceHit, allele_params: &mut E) -> LogProb
@@ -426,7 +433,7 @@ impl Realigner for PairHMMRealigner {
     {
         // METHOD: We shrink the area to run the HMM against to an environment around the best
         // edit distance hits.
-        allele_params.shrink_to_hit(&hit);
+        allele_params.shrink_to_hit(hit);
 
         // METHOD: Further, we run the HMM on a band around the best edit distance.
         self.pairhmm.prob_related(

@@ -16,6 +16,7 @@ use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
 use itertools::Itertools;
+use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
 use rust_htslib::bcf::{self, Read as BCFRead};
 
@@ -105,6 +106,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "READ_ORIENTATION",
             "READ_POSITION",
             "SOFTCLIPPED",
+            "ALT_INDEL_OPERATIONS",
             "PAIRED",
         ] {
             header.push_record(
@@ -131,10 +133,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         );
 
         Ok(if let Some(ref path) = self.outbcf {
-            bcf::Writer::from_path(path, &header, false, bcf::Format::BCF)
+            bcf::Writer::from_path(path, &header, false, bcf::Format::Bcf)
                 .context(format!("Unable to write BCF to {}.", path.display()))?
         } else {
-            bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)
+            bcf::Writer::from_stdout(&header, false, bcf::Format::Bcf)
                 .context("Unable to write BCF to STDOUT.")?
         })
     }
@@ -145,7 +147,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let mut skips = utils::SimpleCounter::default();
         let mut bcf_writer = self.writer()?;
         bcf_writer.set_threads(1)?;
-        let mut processed = 0;
+        let mut progress_logger = ProgressLogger::builder()
+            .with_items_name("records")
+            .with_frequency(std::time::Duration::from_secs(20))
+            .start();
 
         let mut bam_reader =
             bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
@@ -176,6 +181,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             match bcf_reader.read(&mut record) {
                 None => {
                     display_skips(&skips);
+                    progress_logger.stop();
                     return Ok(());
                 }
                 Some(res) => res?,
@@ -190,7 +196,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     variants,
                     record_id: record.id(),
                     record_mateid: utils::info_tag_mateid(&mut record)
-                        .map_or(None, |mateid| mateid.map(|mateid| mateid.to_owned())),
+                        .map_or(None, |mateid| mateid.map(|mateid| mateid)),
                     record_index: i,
                 };
 
@@ -198,17 +204,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
                 for call in calls.iter() {
                     call.write_preprocessed_record(&mut bcf_writer)?;
-                    processed += 1;
-
-                    if processed % 100 == 0 {
-                        info!("{} records processed.", processed);
-                    }
                 }
             }
 
             if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
                 display_skips(&skips);
             }
+            progress_logger.update(1u64);
 
             i += 1;
         }
@@ -252,12 +254,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 .unwrap();
 
                 let chrom_seq = self.reference_buffer.seq(&work_item.chrom)?;
-                let pileup = self.process_variant(&variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
+                let pileup = self.process_variant(variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
                 // add variant information
                 call.variant = Some(
                     VariantBuilder::default()
-                        .variant(&variant, work_item.start as usize, Some(chrom_seq.as_ref()))
+                        .variant(variant, work_item.start as usize, Some(chrom_seq.as_ref()))
                         .observations(Some(pileup))
                         .build()
                         .unwrap(),
@@ -331,15 +333,17 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         let start = work_item.start as usize;
 
         Ok(Some(match variant {
-            model::Variant::SNV(alt) => sample.extract_observations(&variants::types::SNV::new(
+            model::Variant::Snv(alt) => sample.extract_observations(&variants::types::Snv::new(
                 locus(),
                 self.reference_buffer.seq(&work_item.chrom)?[start],
                 *alt,
+                self.realigner.clone(),
             ))?,
-            model::Variant::MNV(alt) => sample.extract_observations(&variants::types::MNV::new(
+            model::Variant::Mnv(alt) => sample.extract_observations(&variants::types::Mnv::new(
                 locus(),
                 self.reference_buffer.seq(&work_item.chrom)?[start..start + alt.len()].to_owned(),
                 alt.to_owned(),
+                self.realigner.clone(),
             ))?,
             model::Variant::None => sample.extract_observations(&variants::types::None::new(
                 locus(),
@@ -372,7 +376,6 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 interval(ref_allele.len() as u64),
                 alt_allele.to_owned(),
                 self.realigner.clone(),
-                self.reference_buffer.seq(&work_item.chrom)?.as_ref(),
             ))?,
             model::Variant::Breakend {
                 ref_allele,
@@ -447,7 +450,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "7";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "9";
 
 /// Read observations from BCF record.
 pub(crate) fn read_observations(
@@ -491,6 +494,7 @@ pub(crate) fn read_observations(
         read_values(record, b"READ_ORIENTATION")?;
     let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION")?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED")?;
+    let alt_indel_operations: BitVec<u8> = read_values(record, b"ALT_INDEL_OPERATIONS")?;
     let paired: BitVec<u8> = read_values(record, b"PAIRED")?;
 
     let obs = (0..prob_mapping.len())
@@ -507,6 +511,7 @@ pub(crate) fn read_observations(
                 .read_orientation(read_orientation[i])
                 .read_position(read_position[i])
                 .softclipped(softclipped[i as u64])
+                .has_alt_indel_operations(alt_indel_operations[i as u64])
                 .paired(paired[i as u64])
                 .build()
                 .unwrap()
@@ -530,6 +535,7 @@ pub(crate) fn write_observations(
     let mut strand = Vec::with_capacity(observations.len());
     let mut read_orientation = Vec::with_capacity(observations.len());
     let mut softclipped: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
+    let mut alt_indel_operations: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut paired: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut read_position = Vec::with_capacity(observations.len());
     let mut prob_hit_base = vec();
@@ -545,6 +551,7 @@ pub(crate) fn write_observations(
         strand.push(obs.strand);
         read_orientation.push(obs.read_orientation);
         softclipped.push(obs.softclipped);
+        alt_indel_operations.push(obs.has_alt_indel_operations);
         paired.push(obs.paired);
         read_position.push(obs.read_position);
     }
@@ -582,6 +589,7 @@ pub(crate) fn write_observations(
     push_values(record, b"STRAND", &strand)?;
     push_values(record, b"READ_ORIENTATION", &read_orientation)?;
     push_values(record, b"SOFTCLIPPED", &softclipped)?;
+    push_values(record, b"ALT_INDEL_OPERATIONS", &alt_indel_operations)?;
     push_values(record, b"PAIRED", &paired)?;
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
@@ -599,6 +607,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"STRAND");
     header.remove_info(b"READ_ORIENTATION");
     header.remove_info(b"SOFTCLIPPED");
+    header.remove_info(b"ALT_INDEL_OPERATIONS");
     header.remove_info(b"PAIRED");
     header.remove_info(b"PROB_HIT_BASE");
     header.remove_info(b"READ_POSITION");

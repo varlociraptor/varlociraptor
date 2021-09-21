@@ -196,10 +196,10 @@ pub(crate) fn collect_variants(
                 // skip any other special alleles
             } else if alt_allele.len() == 1 && ref_allele.len() == 1 {
                 // SNV
-                variants.push(model::Variant::SNV(alt_allele[0]));
+                variants.push(model::Variant::Snv(alt_allele[0]));
             } else if alt_allele.len() == ref_allele.len() {
                 // MNV
-                variants.push(model::Variant::MNV(alt_allele.to_vec()));
+                variants.push(model::Variant::Mnv(alt_allele.to_vec()));
             } else {
                 // TODO fix position if variant is like this: cttt -> ct
                 if is_valid_deletion_alleles(ref_allele, alt_allele) {

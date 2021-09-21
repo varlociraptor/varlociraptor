@@ -194,9 +194,7 @@ impl Testcase {
 
                 for rec in &mut found {
                     if utils::is_bnd(rec)? {
-                        if let Some(event) =
-                            utils::info_tag_event(rec)?.map(|event| event.to_owned())
-                        {
+                        if let Some(event) = utils::info_tag_event(rec)? {
                             // METHOD: for breakend events, collect all the other breakends.
                             if breakend_index.is_none() {
                                 breakend_index = Some(BreakendIndex::new(&self.candidates)?);
@@ -280,8 +278,8 @@ impl Testcase {
             (Variant::Insertion(ref seq), _) => {
                 (pos.saturating_sub(1000), pos + seq.len() as u64 + 1000)
             }
-            (Variant::SNV(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
-            (Variant::MNV(ref bases), _) => {
+            (Variant::Snv(_), _) => (pos.saturating_sub(100), pos + 1 + 100),
+            (Variant::Mnv(ref bases), _) => {
                 (pos.saturating_sub(100), pos + bases.len() as u64 + 100)
             }
             (Variant::Breakend { .. }, _) => {
@@ -319,16 +317,18 @@ impl Testcase {
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
             let filename = Path::new(name).with_extension("bam");
 
-            // create header with just the modified sequence
-            let mut header = bam::header::Header::new();
-            header.push_record(
-                bam::header::HeaderRecord::new(b"SQ")
-                    .push_tag(b"SN", &str::from_utf8(&chrom_name)?)
-                    .push_tag(b"LN", &format!("{}", ref_end - ref_start)),
-            );
+            let header = bam::header::Header::from_template(bam_reader.header());
+
+            // TODO: create header with just the modified sequence
+            // let mut header = bam::header::Header::new();
+            // header.push_record(
+            //     bam::header::HeaderRecord::new(b"SQ")
+            //         .push_tag(b"SN", &str::from_utf8(chrom_name)?)
+            //         .push_tag(b"LN", &format!("{}", ref_end - ref_start)),
+            // );
 
             let mut bam_writer =
-                bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::BAM)?;
+                bam::Writer::from_path(self.prefix.join(&filename), &header, bam::Format::Bam)?;
 
             let tid = bam_reader.header().tid(chrom_name).unwrap();
 
@@ -338,6 +338,10 @@ impl Testcase {
                 // update mapping position to interval
                 rec.set_pos(rec.pos() - ref_start as i64);
                 rec.set_mpos(rec.mpos() - ref_start as i64);
+                rec.set_tid(bam_writer.header().tid(chrom_name).unwrap() as i32);
+                if rec.remove_aux(b"RG").is_err() {
+                    debug!("No RG tag to remove in BAM record.");
+                }
                 if self.anonymize {
                     anonymizer.anonymize_bam_record(&mut rec);
                 }
@@ -362,7 +366,7 @@ impl Testcase {
             self.prefix.join(candidate_filename),
             &header,
             true,
-            bcf::Format::VCF,
+            bcf::Format::Vcf,
         )?;
         let (_, mut candidate_record) = candidate;
         candidate_record.set_pos(candidate_record.pos() - ref_start as i64);
@@ -387,7 +391,7 @@ impl Testcase {
         };
 
         // fetch reference
-        let ref_name = str::from_utf8(&chrom_name)?;
+        let ref_name = str::from_utf8(chrom_name)?;
 
         // limit ref_end
         for seq in self.reference_reader.index.sequences() {

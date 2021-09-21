@@ -5,6 +5,7 @@
 
 use std::cell::RefCell;
 use std::cmp;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -113,11 +114,9 @@ impl<R: Realigner> SamplingBias for Deletion<R> {
                 }
             }
         }
-        if let Some(maxfrac) = alignment_properties.frac_max_softclip {
-            Some((read_len as f64 * maxfrac) as u64)
-        } else {
-            None
-        }
+        alignment_properties
+            .frac_max_softclip
+            .map(|maxfrac| (read_len as f64 * maxfrac) as u64)
     }
 
     fn enclosable_len(&self) -> Option<u64> {
@@ -157,6 +156,11 @@ impl<R: Realigner> Variant for Deletion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
+    fn report_indel_operations(&self) -> bool {
+        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
+        true
+    }
+
     fn is_valid_evidence(
         &self,
         evidence: &Self::Evidence,
@@ -187,14 +191,12 @@ impl<R: Realigner> Variant for Deletion<R> {
                     } else {
                         None
                     }
+                } else if !self.locus.overlap(left, true).is_none()
+                    || !self.locus.overlap(right, true).is_none()
+                {
+                    Some(vec![0])
                 } else {
-                    if !self.locus.overlap(left, true).is_none()
-                        || !self.locus.overlap(right, true).is_none()
-                    {
-                        Some(vec![0])
-                    } else {
-                        None
-                    }
+                    None
                 }
             }
         }
@@ -305,6 +307,10 @@ impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
         } else {
             self.ref_seq[i_ + self.del_len]
         }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        Some(self.del_start..self.del_start + self.del_len)
     }
 
     default_ref_base_emission!();

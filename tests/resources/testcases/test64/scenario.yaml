@@ -14,7 +14,7 @@ species:
 
 samples:
   brain:
-    resolution: 20
+    resolution: 0.05
     somatic-effective-mutation-rate: 1e-10
     sex: female
     inheritance:
@@ -23,7 +23,7 @@ samples:
           - mother
           - father
   blood:
-    resolution: 20
+    resolution: 0.05
     somatic-effective-mutation-rate: 1e-10
     sex: female
     inheritance:
@@ -32,10 +32,10 @@ samples:
           - mother
           - father
   mother:
-    resolution: 20
+    resolution: 0.05
     sex: female
   father:
-    resolution: 20
+    resolution: 0.05
     sex: male
 
 events:

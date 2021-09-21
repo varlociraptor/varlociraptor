@@ -3,37 +3,77 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::cell::RefCell;
+use std::cmp;
+use std::ops::Range;
+use std::rc::Rc;
+use std::sync::Arc;
+
 use anyhow::Result;
+use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::reference;
+use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observation::Strand;
+use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
+use crate::{default_emission, default_ref_base_emission};
 
-pub(crate) struct SNV {
+pub(crate) struct Snv<R: Realigner> {
     locus: SingleLocus,
     ref_base: u8,
     alt_base: u8,
+    realigner: RefCell<R>,
 }
 
-impl SNV {
-    pub(crate) fn new(locus: genome::Locus, ref_base: u8, alt_base: u8) -> Self {
-        SNV {
+impl<R: Realigner> Snv<R> {
+    pub(crate) fn new(locus: genome::Locus, ref_base: u8, alt_base: u8, realigner: R) -> Self {
+        Snv {
             locus: SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
             )),
             ref_base: ref_base.to_ascii_uppercase(),
             alt_base: alt_base.to_ascii_uppercase(),
+            realigner: RefCell::new(realigner),
         }
     }
 }
 
-impl Variant for SNV {
+impl<'a, R: Realigner> Realignable<'a> for Snv<R> {
+    type EmissionParams = SnvEmissionParams<'a>;
+
+    fn alt_emission_params(
+        &self,
+        read_emission_params: Rc<ReadEmission<'a>>,
+        ref_buffer: Arc<reference::Buffer>,
+        _: &genome::Interval,
+        ref_window: usize,
+    ) -> Result<Vec<SnvEmissionParams<'a>>> {
+        let start = self.locus.range().start as usize;
+
+        let ref_seq = ref_buffer.seq(self.locus.contig())?;
+
+        let ref_seq_len = ref_seq.len();
+        Ok(vec![SnvEmissionParams {
+            ref_seq,
+            ref_offset: start.saturating_sub(ref_window),
+            ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
+            alt_start: start,
+            alt_base: self.alt_base,
+            read_emission: read_emission_params,
+        }])
+    }
+}
+
+impl<R: Realigner> Variant for Snv<R> {
     type Evidence = SingleEndEvidence;
     type Loci = SingleLocus;
 
@@ -58,7 +98,16 @@ impl Variant for SNV {
         read: &SingleEndEvidence,
         _: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
-        if let Some(qpos) = read
+        if utils::contains_indel_op(&**read) {
+            // METHOD: reads containing indel operations should always be realigned,
+            // as their support or non-support of the SNV might be an artifact
+            // of the aligner.
+            Ok(Some(self.realigner.borrow_mut().allele_support(
+                &**read,
+                [&self.locus].iter(),
+                self,
+            )?))
+        } else if let Some(qpos) = read
             .cigar_cached()
             .unwrap()
             // TODO expect u64 in read_pos
@@ -102,8 +151,8 @@ impl Variant for SNV {
                     .unwrap(),
             ))
         } else {
-            // a read that spans an SNV might have the respective position deleted (Cigar op 'D')
-            // or reference skipped (Cigar op 'N'), and the library should not choke on those reads
+            // a read that spans an SNV might have the respective position in the
+            // reference skipped (Cigar op 'N'), and the library should not choke on those reads
             // but instead needs to know NOT to add those reads (as observations) further up
             Ok(None)
         }
@@ -111,6 +160,44 @@ impl Variant for SNV {
 
     fn prob_sample_alt(&self, _: &SingleEndEvidence, _: &AlignmentProperties) -> LogProb {
         LogProb::ln_one()
+    }
+}
+
+/// Emission parameters for PairHMM over insertion allele.
+pub(crate) struct SnvEmissionParams<'a> {
+    ref_seq: Arc<Vec<u8>>,
+    ref_offset: usize,
+    ref_end: usize,
+    alt_start: usize,
+    alt_base: u8,
+    read_emission: Rc<ReadEmission<'a>>,
+}
+
+impl<'a> RefBaseEmission for SnvEmissionParams<'a> {
+    #[inline]
+    fn ref_base(&self, i: usize) -> u8 {
+        let i_ = i + self.ref_offset;
+
+        if i_ != self.alt_start {
+            self.ref_seq[i_]
+        } else {
+            self.alt_base
+        }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        Some(self.alt_start..self.alt_start + 1)
+    }
+
+    default_ref_base_emission!();
+}
+
+impl<'a> EmissionParameters for SnvEmissionParams<'a> {
+    default_emission!();
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.ref_end - self.ref_offset
     }
 }
 

@@ -9,9 +9,9 @@ pub(crate) struct TumorNormalPair<T> {
     pub(crate) normal: T,
 }
 
-impl<T> Into<Vec<T>> for TumorNormalPair<T> {
-    fn into(self) -> Vec<T> {
-        vec![self.tumor, self.normal]
+impl<T> From<TumorNormalPair<T>> for Vec<T> {
+    fn from(tnp: TumorNormalPair<T>) -> Self {
+        vec![tnp.tumor, tnp.normal]
     }
 }
 

@@ -34,7 +34,7 @@ pub(crate) fn decode_phred() -> Result<()> {
             .as_bytes(),
         );
     }
-    let mut outbcf = bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?;
+    let mut outbcf = bcf::Writer::from_stdout(&header, false, bcf::Format::Bcf)?;
 
     for record in inbcf.records() {
         let mut record = record?;
@@ -45,7 +45,7 @@ pub(crate) fn decode_phred() -> Result<()> {
                     .iter()
                     .map(|v| *Prob::from(PHREDProb(*v as f64)) as f32)
                     .collect_vec();
-                record.push_info_float(&id, &converted)?;
+                record.push_info_float(id, &converted)?;
             }
         }
         outbcf.write(&record)?;
