@@ -6,15 +6,13 @@ use hdf5;
 //use ordered_float::OrderedFloat;
 use rust_htslib::bcf;
 //use serde_json::json;
-use statrs::function::beta::ln_beta;
 //use std::fs::File;
-use std::mem;
 //use std::path::PathBuf;
 use std::collections::HashMap;
 
 use bio::stats::bayesian::model::Model;
 
-use crate::haplotypes::model::{HaplotypeFractions, Likelihood};
+use crate::haplotypes::model::{Data, HaplotypeFractions, Likelihood, Posterior, Prior};
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -33,10 +31,10 @@ impl Caller {
         let model = Model::new(Likelihood::new(), Prior::new(), Posterior::new());
 
         let universe = HaplotypeFractions::likely(&kallisto_estimates);
-        let data = Data::new(kallisto_estimates.values().collect());
+        let data = Data::new(kallisto_estimates.values().cloned().collect());
 
         // Step 3: calculate posteriors.
-        let m = model.compute(&universe, &data);
+        let m = model.compute(universe, &data);
 
         // Step 4: print TSV table with results
         // TODO use csv crate
@@ -61,7 +59,7 @@ pub(crate) struct KallistoEstimates(#[deref] HashMap<Haplotype, KallistoEstimate
 
 impl KallistoEstimates {
     /// Generate new instance.
-    pub(crate) fn new(hdf5_reader: &xhdf5::File, min_norm_counts: f64) -> Result<Self> {
+    pub(crate) fn new(hdf5_reader: &hdf5::File, min_norm_counts: f64) -> Result<Self> {
         let seqnames = Self::filter_seqnames(hdf5_reader, min_norm_counts)?;
 
         let ids = hdf5_reader
@@ -100,7 +98,7 @@ impl KallistoEstimates {
             let t = std / m;
 
             //retrieval of mle
-            let mle_dataset = hdf5.dataset("est_counts")?.read_1d::<f64>()?;
+            let mle_dataset = hdf5_reader.dataset("est_counts")?.read_1d::<f64>()?;
             let mle_norm = mle_dataset / &seq_length; //normalized mle counts by length
             let m = mle_norm[index];
 
@@ -123,7 +121,7 @@ impl KallistoEstimates {
         let norm_counts = est_counts / seq_length;
         let mut indices = Vec::new();
         for (i, num) in norm_counts.iter().enumerate() {
-            if num > &self.min_norm_counts {
+            if num > &min_norm_counts {
                 indices.push(i);
             }
         }
@@ -137,17 +135,4 @@ impl KallistoEstimates {
         }
         Ok(filtered)
     }
-}
-// TODO move into model
-fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
-    let n = 1.0 / theta;
-    let p = n / (n + mu);
-    let mut p1 = if n > 0.0 { n * p.ln() } else { 0.0 };
-    let mut p2 = if x > 0.0 { x * (1.0 - p).ln() } else { 0.0 };
-    let b = ln_beta(x + 1.0, n);
-
-    if p1 < p2 {
-        mem::swap(&mut p1, &mut p2);
-    }
-    LogProb((p1 - b + p2) - (x + n).ln())
 }

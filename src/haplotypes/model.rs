@@ -1,10 +1,15 @@
-use bio::stats::{bayesian::model, LogProb};
-
 use crate::{
     calling::haplotypes::{KallistoEstimate, KallistoEstimates},
     variants::model::AlleleFreq,
 };
+use bio::stats::bayesian;
+use bio::stats::{bayesian::model, LogProb};
 
+use statrs::function::beta::ln_beta;
+use std::collections::HashMap;
+use std::mem;
+
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub(crate) struct HaplotypeFractions(Vec<AlleleFreq>);
 
 impl HaplotypeFractions {
@@ -29,32 +34,47 @@ impl model::Likelihood<Cache> for Likelihood {
     type Data = Data;
 
     fn compute(&self, event: &Self::Event, data: &Self::Data, payload: &mut Cache) -> LogProb {
-        self.compute_kallisto(event, data, cache) + self.compute_varlociraptor(event, data, cache)
+        self.compute_kallisto(event, data, payload)
+            + self.compute_varlociraptor(event, data, payload)
     }
 }
 
 impl Likelihood {
     fn compute_kallisto(
         &self,
-        event: &Self::Event,
-        data: &Self::Data,
+        event: &HaplotypeFractions,
+        data: &Data,
         cache: &mut Cache,
     ) -> LogProb {
         // TODO compute likelihood using neg_binom on the counts and dispersion
         // in the data and the fractions in the events.
         // Later: use the cache to avoid redundant computations.
+
         todo!()
     }
 
     fn compute_varlociraptor(
         &self,
-        event: &Self::Event,
-        data: &Self::Data,
+        event: &HaplotypeFractions,
+        data: &Data,
         cache: &mut Cache,
     ) -> LogProb {
         // TODO compute likelihood based on Varlociraptor VAFs.
         // Let us postpone this until we have a working version with kallisto only.
         LogProb::ln_one()
+    }
+
+    // TODO move into model
+    fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
+        let n = 1.0 / theta;
+        let p = n / (n + mu);
+        let mut p1 = if n > 0.0 { n * p.ln() } else { 0.0 };
+        let mut p2 = if x > 0.0 { x * (1.0 - p).ln() } else { 0.0 };
+        let b = ln_beta(x + 1.0, n);
+        if p1 < p2 {
+            mem::swap(&mut p1, &mut p2);
+        }
+        LogProb((p1 - b + p2) - (x + n).ln())
     }
 }
 
@@ -62,7 +82,7 @@ impl Likelihood {
 pub(crate) struct Prior;
 
 impl model::Prior for Prior {
-    type Event;
+    type Event = HaplotypeFractions;
 
     fn compute(&self, event: &Self::Event) -> LogProb {
         // flat prior for now
