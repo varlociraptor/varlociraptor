@@ -262,3 +262,17 @@ impl<'a> EmissionParameters for ReplacementEmissionParams<'a> {
         )
     }
 }
+
+impl<'a> bio::stats::pairhmm::Emission for ReplacementEmissionParams<'a> {
+    fn emission_x(&self, i: usize) -> u8 {
+        self.ref_base(i)
+    }
+
+    fn emission_y(&self, j: usize) -> u8 {
+        unsafe {
+            self.read_emission
+                .read_seq
+                .decoded_base_unchecked(self.read_emission.project_j(j))
+        }
+    }
+}
