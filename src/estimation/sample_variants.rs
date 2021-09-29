@@ -2,38 +2,11 @@ use std::collections::BTreeMap;
 use std::str;
 
 use anyhow::Result;
-use bio::stats::{LogProb, PHREDProb};
 use rust_htslib::bcf::{self, Read};
 use serde_json::{json, Value};
 
 use crate::errors;
 use crate::variants::model::AlleleFreq;
-use crate::{Event, SimpleEvent};
-
-/// Consider only variants in coding regions.
-/// We rely on the ANN field for this.
-fn is_valid_variant(rec: &mut bcf::Record) -> Result<bool> {
-    for ann in rec
-        .info(b"ANN")
-        .string()?
-        .expect("ANN field not found. Annotate VCF with e.g. snpEff.")
-        .iter()
-    {
-        let mut coding = false;
-        for (i, entry) in ann.split(|c| *c == b'|').enumerate() {
-            if i == 7 {
-                coding = entry == b"protein_coding";
-            }
-            if i == 13 {
-                coding &= entry != b"";
-            }
-        }
-        if coding {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
 
 #[derive(Debug, Clone, Serialize)]
 struct Scattervaf {
@@ -42,13 +15,8 @@ struct Scattervaf {
     tumor_vaf: f64,
 }
 
-pub(crate) fn vaf_scatter(
-    mutational_events: &[String],
-    sample_x: &str,
-    sample_y: &[String],
-) -> Result<()> {
+pub(crate) fn vaf_scatter(sample_x: &str, sample_y: &[String]) -> Result<()> {
     let mut bcf = bcf::Reader::from_stdin()?;
-    let header = bcf.header().to_owned();
 
     let mut plot_data = Vec::new();
 
@@ -68,41 +36,12 @@ pub(crate) fn vaf_scatter(
     }
 
     for record in bcf.records() {
-        let mut rec = record.unwrap();
-        let contig = str::from_utf8(header.rid2name(rec.rid().unwrap()).unwrap())?;
-        let vcfpos = rec.pos() + 1;
-
-        if !is_valid_variant(&mut rec)? {
-            info!(
-                "Skipping variant {}:{} because it is not coding.",
-                contig, vcfpos
-            );
-            continue;
-        }
+        let rec = record.unwrap();
 
         // obtain VAF estimates (do it here already to work around a segfault in htslib)
         let x_vafs = rec.format(b"AF").float()?[id_x].to_owned();
 
         let alt_allele_count = (rec.allele_count() - 1) as usize;
-
-        // collect allele probabilities for given events
-        let mut allele_probs = vec![LogProb::ln_zero(); alt_allele_count];
-        for e in mutational_events {
-            let e = SimpleEvent { name: e.to_owned() };
-            let tag_name = e.tag_name("PROB");
-            if let Some(probs) = rec.info(tag_name.as_bytes()).float()? {
-                for i in 0..alt_allele_count {
-                    allele_probs[i] =
-                        allele_probs[i].ln_add_exp(LogProb::from(PHREDProb(probs[i] as f64)));
-                }
-            } else {
-                info!(
-                    "Skipping variant {}:{} because it does not contain the required INFO tag {}.",
-                    contig, vcfpos, tag_name
-                );
-                continue;
-            }
-        }
 
         // push into MB function
 
@@ -110,8 +49,8 @@ pub(crate) fn vaf_scatter(
             for (y, id_y) in &ids_y {
                 let y_vafs = rec.format(b"AF").float()?[*id_y].to_owned();
                 // if all alt_alleles are NaN, the list will only contain one NaN, so check for size
-                if (i == x_vafs.len() && x_vafs[0].is_nan())
-                    || (i == y_vafs.len() && y_vafs[0].is_nan())
+                if (i >= x_vafs.len() && x_vafs[0].is_nan())
+                    || (i >= y_vafs.len() && y_vafs[0].is_nan())
                 {
                     continue;
                 }
@@ -137,12 +76,12 @@ pub(crate) fn vaf_scatter(
     }
 
     let print_plot =
-        |data: serde_json::Value, ylabel: serde_json::Value, blueprint: &str| -> Result<()> {
+        |data: serde_json::Value, xlabel: serde_json::Value, blueprint: &str| -> Result<()> {
             let mut blueprint = serde_json::from_str(blueprint)?;
             if let Value::Object(ref mut blueprint) = blueprint {
                 blueprint["data"][0]["values"] = data;
-                //blueprint["axes"][0]["title"] = xlabel;
-                blueprint["axes"][1]["title"] = ylabel;
+                blueprint["axes"][0]["title"] = xlabel;
+                //blueprint["axes"][1]["title"] = ylabel;
                 // print to STDOUT
                 println!("{}", serde_json::to_string_pretty(blueprint)?);
                 Ok(())

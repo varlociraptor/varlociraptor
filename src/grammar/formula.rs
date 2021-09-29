@@ -13,6 +13,8 @@ use serde::Deserialize;
 
 use crate::errors;
 use crate::grammar::{ExpressionIdentifier, Scenario};
+use crate::utils::comparison::ComparisonOperator;
+use crate::utils::log2_fold_change::Log2FoldChangePredicate;
 use crate::variants::model::AlleleFreq;
 
 #[derive(Shrinkwrap, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -75,6 +77,15 @@ impl From<NormalizedFormula> for Formula {
                     refbase,
                 }),
                 NormalizedFormula::False => Formula::Terminal(FormulaTerminal::False),
+                NormalizedFormula::Log2FoldChange {
+                    sample_a,
+                    sample_b,
+                    predicate,
+                } => Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                    sample_a,
+                    sample_b,
+                    predicate,
+                }),
             }
         }
         from_normalized(formula)
@@ -95,6 +106,11 @@ pub(crate) enum FormulaTerminal {
     Expression {
         identifier: ExpressionIdentifier,
         negated: bool,
+    },
+    Log2FoldChange {
+        sample_a: String,
+        sample_b: String,
+        predicate: Log2FoldChangePredicate,
     },
     False,
 }
@@ -233,6 +249,13 @@ impl std::fmt::Display for Formula {
             Formula::Negation { operand } => format!("!{operand}", operand = fmt_operand(operand)),
             Formula::Conjunction { operands } => operands.iter().map(&fmt_operand).join(" & "),
             Formula::Disjunction { operands } => operands.iter().map(&fmt_operand).join(" | "),
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            }) => {
+                format!("l2fc({}, {}) {}", sample_a, sample_b, predicate)
+            }
         };
         write!(f, "{}", formatted)
     }
@@ -500,6 +523,15 @@ impl Formula {
                 panic!("bug: negations should have been applied before normalization")
             }
             Formula::Terminal(FormulaTerminal::False) => NormalizedFormula::False,
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            }) => NormalizedFormula::Log2FoldChange {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                predicate: *predicate,
+            },
         }
     }
 
@@ -670,6 +702,15 @@ impl Formula {
                 identifier: identifier.clone(),
                 negated: !negated,
             }),
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            }) => Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                predicate: !*predicate,
+            }),
             Formula::Terminal(FormulaTerminal::Atom { sample, vafs }) => {
                 let universe = scenario
                     .samples()
@@ -821,6 +862,15 @@ impl Formula {
             Formula::Terminal(FormulaTerminal::False) => {
                 panic!("bug: false terminals may not appear in formula to be negated because this is not allowed in the grammar");
             }
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            }) => Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a: sample_a.into(),
+                sample_b: sample_b.into(),
+                predicate: *predicate,
+            }),
         })
     }
 }
@@ -841,6 +891,11 @@ pub(crate) enum NormalizedFormula {
         positive: bool,
         refbase: Iupac,
         altbase: Iupac,
+    },
+    Log2FoldChange {
+        sample_a: String,
+        sample_b: String,
+        predicate: Log2FoldChangePredicate,
     },
     False,
 }
@@ -863,7 +918,7 @@ impl std::fmt::Display for NormalizedFormula {
                 x if x > 1 => format!(
                     "{}:{{{}}}",
                     sample,
-                    vafs.iter().map(|vaf| format!("{:.1}", vaf)).join(", "),
+                    vafs.iter().map(|vaf| format!("{:.3}", vaf)).join(", "),
                 ),
                 _ => "false".to_owned(),
             },
@@ -874,7 +929,7 @@ impl std::fmt::Display for NormalizedFormula {
                 let left_bracket = if vafrange.left_exclusive { ']' } else { '[' };
                 let right_bracket = if vafrange.right_exclusive { '[' } else { ']' };
                 format!(
-                    "{}:{}{:.1},{:.1}{}",
+                    "{}:{}{:.3},{:.3}{}",
                     sample, left_bracket, vafrange.start, vafrange.end, right_bracket
                 )
             }
@@ -895,6 +950,13 @@ impl std::fmt::Display for NormalizedFormula {
                 operands.iter().map(&fmt_operand).join(" | ")
             }
             NormalizedFormula::False => "false".to_owned(),
+            NormalizedFormula::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            } => {
+                format!("l2fc({}, {}) {}", sample_a, sample_b, predicate)
+            }
         };
         write!(f, "{}", formatted)
     }
@@ -1027,7 +1089,7 @@ impl VAFRange {
     }
 
     pub(crate) fn observable_min(&self, n_obs: usize) -> AlleleFreq {
-        if n_obs < 10 {
+        let min_vaf = if n_obs < 10 {
             self.start
         } else {
             let obs_count = Self::expected_observation_count(self.start, n_obs);
@@ -1048,6 +1110,13 @@ impl VAFRange {
             }
 
             adjust_allelefreq(obs_count)
+        };
+        if min_vaf >= self.observable_max(n_obs) {
+            // If the adjustments destroys the order of the boundaries, we don't do it.
+            // This can happen if the two boundaries are close together and we have only few observations.
+            self.start
+        } else {
+            min_vaf
         }
     }
 
@@ -1063,7 +1132,13 @@ impl VAFRange {
             if self.right_exclusive && obs_count % 1.0 == 0.0 {
                 obs_count -= 1.0;
             }
-            AlleleFreq(obs_count.floor() / n_obs as f64)
+            obs_count = obs_count.floor();
+            if obs_count == 0.0 {
+                // too few observations to handle exclusiveness
+                self.end
+            } else {
+                AlleleFreq(obs_count.floor() / n_obs as f64)
+            }
         }
     }
 
@@ -1073,6 +1148,7 @@ impl VAFRange {
 }
 
 use auto_ops::impl_op_ex;
+use ordered_float::NotNan;
 
 impl_op_ex!(&|a: &VAFRange, b: &VAFRange| -> VAFRange {
     match a.overlap(b) {
@@ -1321,6 +1397,37 @@ where
                 operand: Box::new(parse_formula(inner.next().unwrap())?),
             }
         }
+        Rule::cmp => {
+            let mut inner = pair.into_inner();
+            let sample_a = inner.next().unwrap().as_str().to_owned();
+            let op = parse_cmp_op(inner.next().unwrap());
+            let sample_b = inner.next().unwrap().as_str().to_owned();
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate: Log2FoldChangePredicate {
+                    comparison: op,
+                    value: NotNan::new(0.0).unwrap(),
+                },
+            })
+        }
+        Rule::lfc => {
+            let mut inner = pair.into_inner();
+            let sample_a = inner.next().unwrap().as_str().to_owned();
+            let sample_b = inner.next().unwrap().as_str().to_owned();
+            let operand = parse_cmp_op(inner.next().unwrap());
+            let value = inner.next().unwrap().as_str().parse().unwrap();
+            let predicate = Log2FoldChangePredicate {
+                comparison: operand,
+                value,
+            };
+            Formula::Terminal(FormulaTerminal::Log2FoldChange {
+                sample_a,
+                sample_b,
+                predicate,
+            })
+        }
+        Rule::cmp_ops => unreachable!(),
         Rule::formula => unreachable!(),
         Rule::subformula => unreachable!(),
         Rule::vafdef => unreachable!(),
@@ -1328,6 +1435,7 @@ where
         Rule::universe => unreachable!(),
         Rule::vafrange => unreachable!(),
         Rule::identifier => unreachable!(),
+        Rule::number => unreachable!(),
         Rule::vaf => unreachable!(),
         Rule::sample_vafdef => unreachable!(),
         Rule::EOI => unreachable!(),
@@ -1335,6 +1443,18 @@ where
         Rule::COMMENT => unreachable!(),
         Rule::iupac => unreachable!(),
     })
+}
+
+fn parse_cmp_op(pair: Pair<Rule>) -> ComparisonOperator {
+    match pair.as_str() {
+        "==" => ComparisonOperator::Equal,
+        "!=" => ComparisonOperator::NotEqual,
+        ">" => ComparisonOperator::Greater,
+        ">=" => ComparisonOperator::GreaterEqual,
+        "<" => ComparisonOperator::Less,
+        "<=" => ComparisonOperator::LessEqual,
+        _ => panic!(),
+    }
 }
 
 #[cfg(test)]
@@ -1368,7 +1488,7 @@ mod test {
         let scenario: Scenario = serde_yaml::from_str(
             r#"samples:
   normal:
-    resolution: 100
+    resolution: 0.01
     universe: "[0.0,1.0]"
 events:
   full: "normal:[0.0,1.0]"
@@ -1395,7 +1515,7 @@ events:
         let scenario: Scenario = serde_yaml::from_str(
             r#"samples:
   normal:
-    resolution: 100
+    resolution: 0.01
     universe: "[0.0,1.0]"
 events:
   full: "(normal:[0.0, 0.25] | normal:[0.5,0.75]) | (normal:[0.25,0.5] | normal:[0.75,1.0]) | normal:[0.1,0.4] | normal:0.1"
@@ -1413,7 +1533,7 @@ events:
         let scenario: Scenario = serde_yaml::from_str(
             r#"samples:
   normal:
-    resolution: 100
+    resolution: 0.01
     universe: "[0.0,1.0]"
 events:
   full: "(normal:[0.0, 0.25] | normal:[0.5,0.6]) | ((normal:[0.25,0.5] | normal:[0.7,0.9]) | normal:[0.9,1.0]) | normal:]0.8,0.9[ | normal:0.75"

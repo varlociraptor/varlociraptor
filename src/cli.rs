@@ -133,7 +133,7 @@ fn default_min_bam_refetch_distance() -> u64 {
 }
 
 fn default_min_divindel_other_rate() -> f64 {
-    0.25
+    0.05
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -267,17 +267,11 @@ pub enum PlotKind {
     #[structopt(
         name = "scatter",
         about = "Plot variant allelic fraction scatter plot overlayed with a contour plot between two sample groups",
-        usage = "varlociraptor plot scatter --somatic-tumor-events SOMATIC_TUMOR \
-        --sample-y sample1 --sample-x sample2 sample3 < calls.bcf | vg2svg > scatter.svg",
+        usage = "varlociraptor plot scatter --sample-x sample1 \
+        --sample-y sample2 sample3 < calls.bcf | vg2svg > scatter.svg",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Scatter {
-        #[structopt(
-            long = "somatic-tumor-events",
-            default_value = "SOMATIC_TUMOR",
-            help = "Events to consider (e.g. SOMATIC_TUMOR)."
-        )]
-        somatic_tumor_events: Vec<String>,
         #[structopt(
             long = "sample-x",
             help = "Name of the first sample in the given VCF/BCF."
@@ -375,7 +369,7 @@ pub enum CallKind {
         #[structopt(
             long = "omit-divindel-bias",
             help = "Do not consider divindel bias when calculating the probability of an \
-                    artifact. Divindel bias is used to detect PCR homopolymer artifacts. \
+                    artifact. Divindel bias is used to e.g. detect PCR homopolymer artifacts. \
                     If you are sure that your protocol did not use any PCR or if you are \
                     running on data with lots of homopolymer errors from the sequencer (e.g. nanopore) \
                     you should use this flag to omit divindel bias consideration."
@@ -384,9 +378,9 @@ pub enum CallKind {
         omit_divindel_bias: bool,
         #[structopt(
             long = "min-divindel-rate",
-            default_value = "0.25",
-            help = "Minimum fraction of indel operations other than the primary and secondary combination \
-                    of indel operations associated with a variant allele. The smaller this value is chosen, \
+            default_value = "0.05",
+            help = "Minimum fraction of \
+                    of additional indel operations when realigning against a variant allele. The smaller this value is chosen, \
                     the more agressive will Varlociraptor be when marking a variant as being a divindel artifact \
                     (i.e., an artifact induced by various (slightly) different indels as it occurs in homopolymer \
                     runs that give rise to PCR errors)."
@@ -944,13 +938,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     r#"
                             samples:
                               tumor:
-                                resolution: 100
+                                resolution: 0.01
                                 contamination:
                                   by: normal
                                   fraction: {impurity}
                                 universe: "[0.0,1.0]"
                               normal:
-                                resolution: 5
+                                resolution: 0.1
                                 universe: "[0.0,0.5[ | 0.5 | 1.0"
                             events:
                               somatic_tumor:  "tumor:]0.0,1.0] & normal:0.0"
@@ -1102,20 +1096,15 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .heterozygosity(scenario.species().as_ref().and_then(|species| {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
+                    .variant_type(Some(VariantType::Snv))
                     .build();
                 prior.check()?;
 
                 prior.plot(&sample, &sample_infos.names)?;
             }
-            PlotKind::Scatter {
-                somatic_tumor_events,
-                sample_x,
-                sample_y,
-            } => estimation::sample_variants::vaf_scatter(
-                &somatic_tumor_events,
-                &sample_x,
-                &sample_y,
-            )?,
+            PlotKind::Scatter { sample_x, sample_y } => {
+                estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
+            }
         },
     }
     Ok(())
@@ -1139,7 +1128,7 @@ pub(crate) fn est_or_load_alignment_properties(
 struct SampleInfos {
     uniform_prior: grammar::SampleInfo<bool>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
-    resolutions: grammar::SampleInfo<usize>,
+    resolutions: grammar::SampleInfo<grammar::Resolution>,
     germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
     somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
@@ -1174,7 +1163,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
             };
             uniform_prior = uniform_prior.push(sample_name, sample.has_uniform_prior());
             contaminations = contaminations.push(sample_name, contamination);
-            resolutions = resolutions.push(sample_name, *sample.resolution());
+            resolutions = resolutions.push(sample_name, sample.resolution().to_owned());
             sample_names = sample_names.push(sample_name, sample_name.to_owned());
             germline_mutation_rates = germline_mutation_rates.push(
                 sample_name,

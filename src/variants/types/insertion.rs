@@ -5,6 +5,7 @@
 
 use std::cell::RefCell;
 use std::cmp;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -208,6 +209,10 @@ impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
         } else {
             self.ins_seq[i_ - (self.ins_start + 1)]
         }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        Some(self.ins_start..self.ins_end)
     }
 
     default_ref_base_emission!();

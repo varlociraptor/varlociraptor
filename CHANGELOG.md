@@ -2,6 +2,68 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.4.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.1...v4.4.2) (2021-09-14)
+
+
+### Performance Improvements
+
+* do not consider empty pileups for bias preprocessing ([#214](https://www.github.com/varlociraptor/varlociraptor/issues/214)) ([e9beec3](https://www.github.com/varlociraptor/varlociraptor/commit/e9beec3db1ed7cceb6a302f2fc1ecc0e7e612ad0))
+
+### [4.4.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.0...v4.4.1) (2021-09-10)
+
+
+### Performance Improvements
+
+* various speed improvements for scenario evaluations ([#212](https://www.github.com/varlociraptor/varlociraptor/issues/212)) ([f865e1b](https://www.github.com/varlociraptor/varlociraptor/commit/f865e1bc5ae7e4369d4c9a4ece104fc6f33d6447))
+
+## [4.4.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.3.0...v4.4.0) (2021-09-06)
+
+
+### Features
+
+* overhauled somatic prior ([#209](https://www.github.com/varlociraptor/varlociraptor/issues/209)) ([7530469](https://www.github.com/varlociraptor/varlociraptor/commit/7530469d2eb838baac897f27be2b7755c393ef54))
+
+## [4.3.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.2.0...v4.3.0) (2021-09-02)
+
+
+### Features
+
+* adaptive integration (speeding up the evaluation of complex scenarios) ([#199](https://www.github.com/varlociraptor/varlociraptor/issues/199)) ([8043f94](https://www.github.com/varlociraptor/varlociraptor/commit/8043f94702402c20c69ede78fb3bed981fb9915b))
+
+
+### Bug Fixes
+
+* fixed record count in preprocess progress logging; fixed alt allele allocation error with certain longer replacements ([#207](https://www.github.com/varlociraptor/varlociraptor/issues/207)) ([ba66c36](https://www.github.com/varlociraptor/varlociraptor/commit/ba66c363b4d549c92227b85b30080b01c9a9b7b4))
+
+## [4.2.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.3...v4.2.0) (2021-08-30)
+
+
+### Features
+
+* added VAF log fold change and comparison operators to the scenario event grammar ([#202](https://www.github.com/varlociraptor/varlociraptor/issues/202)) ([0f6da9e](https://www.github.com/varlociraptor/varlociraptor/commit/0f6da9e0b7cd337b39035ed3d7f5803a3ec51416))
+
+### [4.1.3](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.2...v4.1.3) (2021-08-13)
+
+
+### Bug Fixes
+
+* erroneous integral boundary adjustment when having small VAF intervals and only very few observations. ([97f0124](https://www.github.com/varlociraptor/varlociraptor/commit/97f01244d97d24cd1eb22f89f1317da33b278a23))
+
+### [4.1.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.1...v4.1.2) (2021-08-10)
+
+
+### Bug Fixes
+
+* improved divindel bias estimation precision (getting rid of false negatives due to erroneous divindel bias estimates) ([#196](https://www.github.com/varlociraptor/varlociraptor/issues/196)) ([6a0ac5d](https://www.github.com/varlociraptor/varlociraptor/commit/6a0ac5d2716c309cc88e1906412253e26bd4e5a2))
+
+### [4.1.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.1.0...v4.1.1) (2021-07-22)
+
+
+### Bug Fixes
+
+* display 3 digits in normalized formulae ([f5e5261](https://www.github.com/varlociraptor/varlociraptor/commit/f5e5261b82499beb14ec6f5df7f3d8d63992643e))
+* Removed check for coding variants ([#193](https://www.github.com/varlociraptor/varlociraptor/issues/193)) ([2f0f653](https://www.github.com/varlociraptor/varlociraptor/commit/2f0f653cc07479384f62e4f28ab75b347a40df6a))
+
 ## [4.1.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.0.1...v4.1.0) (2021-07-09)
 
 

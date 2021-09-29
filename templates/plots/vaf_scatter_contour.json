@@ -33,8 +33,8 @@
           "type": "kde2d",
           "groupby": ["sample"],
           "size": [{"signal": "width"}, {"signal": "height"}],
-          "x": {"expr": "scale('x', datum.tumor_vaf)"},
-          "y": {"expr": "scale('y', datum.normal_vaf)"},
+          "x": {"expr": "scale('x', datum.normal_vaf)"},
+          "y": {"expr": "scale('y', datum.tumor_vaf)"},
           "bandwidth": {"signal": "[bandwidth, bandwidth]"},
           "counts": {"signal": "counts"}
         }
@@ -61,7 +61,7 @@
       "round": true,
       "nice": true,
       "zero": true,
-      "domain": {"data": "source", "field": "tumor_vaf"},
+      "domain": [0, 1],
       "range": "width"
     },
     {
@@ -70,7 +70,7 @@
       "round": true,
       "nice": true,
       "zero": true,
-      "domain": {"data": "source", "field": "normal_vaf"},
+      "domain": [0, 1],
       "range": "height"
     },
     {
@@ -112,8 +112,8 @@
       "from": {"data": "source"},
       "encode": {
         "update": {
-          "x": {"scale": "x", "field": "tumor_vaf"},
-          "y": {"scale": "y", "field": "normal_vaf"},
+          "x": {"scale": "x", "field": "normal_vaf"},
+          "y": {"scale": "y", "field": "tumor_vaf"},
           "size": {"value": 4},
           "fill": {"value": "#ccc"}
         }

@@ -1,78 +1,131 @@
-use std::ops::Deref;
+// Copyright 2021 Johannes Köster.
+// Licensed under the GNU GPLv3 license (https://opensource.org/licenses/GPL-3.0)
+// This file may not be copied, modified, or distributed
+// except according to those terms.
+
+use std::cell::RefCell;
+use std::cmp;
+use std::ops::Range;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::Result;
+use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::realignment::Realigner;
-use crate::variants::types::breakends::{
-    Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
-};
-use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, Variant};
+use crate::reference;
+use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::variants::evidence::realignment::{Realignable, Realigner};
+use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
+use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
+use crate::{default_emission, default_ref_base_emission};
 
-pub(crate) struct Replacement<R: Realigner>(BreakendGroup<R>);
-
-impl<R: Realigner> Deref for Replacement<R> {
-    type Target = BreakendGroup<R>;
-
-    fn deref(&self) -> &BreakendGroup<R> {
-        &self.0
-    }
+pub(crate) struct Replacement<R: Realigner> {
+    locus: MultiLocus,
+    replacement: Rc<Vec<u8>>,
+    realigner: RefCell<R>,
 }
 
 impl<R: Realigner> Replacement<R> {
-    pub(crate) fn new(
-        interval: genome::Interval,
-        replacement: Vec<u8>,
-        realigner: R,
-        chrom_seq: &[u8],
-    ) -> Self {
-        let mut breakend_group_builder = BreakendGroupBuilder::new();
-        breakend_group_builder.realigner(realigner);
-
-        let get_ref_allele = |pos: u64| &chrom_seq[pos as usize..pos as usize + 1];
-        let get_locus = |pos| genome::Locus::new(interval.contig().to_owned(), pos);
-
-        // Encode replacement via breakends, see VCF spec.
-
-        let ref_allele = get_ref_allele(interval.range().start);
-        breakend_group_builder.push_breakend(Breakend::from_operations(
-            get_locus(interval.range().start),
-            ref_allele,
-            replacement.clone(),
-            Join::new(
-                genome::Locus::new(interval.contig().to_owned(), interval.range().end),
-                Side::RightOfPos,
-                ExtensionModification::None,
-            ),
-            true,
-            b"u",
-            b"w",
-        ));
-        // If replacement ends at the end of the contig, we do not need a right breakend.
-        if interval.range().end < chrom_seq.len() as u64 {
-            let ref_allele = get_ref_allele(interval.range().end);
-            let mut replacement = replacement;
-            replacement.push(ref_allele[0]);
-            breakend_group_builder.push_breakend(Breakend::from_operations(
-                get_locus(interval.range().end),
-                ref_allele,
-                replacement,
-                Join::new(
-                    genome::Locus::new(interval.contig().to_owned(), interval.range().start - 1),
-                    Side::LeftOfPos,
-                    ExtensionModification::None,
-                ),
-                false,
-                b"w",
-                b"u",
-            ));
+    pub(crate) fn new(locus: genome::Interval, replacement: Vec<u8>, realigner: R) -> Self {
+        Replacement {
+            locus: MultiLocus::new(vec![SingleLocus::new(locus)]),
+            replacement: Rc::new(replacement),
+            realigner: RefCell::new(realigner),
         }
+    }
 
-        Replacement(breakend_group_builder.build())
+    pub(crate) fn locus(&self) -> &SingleLocus {
+        &self.locus[0]
+    }
+
+    fn ref_len(&self) -> usize {
+        (self.locus().range().end - self.locus().range().start) as usize
+    }
+
+    fn is_deletion(&self) -> bool {
+        self.replacement.len() < self.ref_len()
+    }
+
+    fn is_insertion(&self) -> bool {
+        self.replacement.len() > self.ref_len()
     }
 }
+
+impl<'a, R: Realigner> Realignable<'a> for Replacement<R> {
+    type EmissionParams = ReplacementEmissionParams<'a>;
+
+    fn alt_emission_params(
+        &self,
+        read_emission_params: Rc<ReadEmission<'a>>,
+        ref_buffer: Arc<reference::Buffer>,
+        _: &genome::Interval,
+        ref_window: usize,
+    ) -> Result<Vec<ReplacementEmissionParams<'a>>> {
+        let repl_alt_len = self.replacement.len() as usize;
+        let repl_ref_len = self.ref_len();
+
+        let start = self.locus().range().start as usize;
+
+        let ref_seq = ref_buffer.seq(self.locus().contig())?;
+
+        let ref_seq_len = ref_seq.len();
+
+        Ok(vec![ReplacementEmissionParams {
+            ref_seq,
+            ref_offset: start.saturating_sub(ref_window),
+            ref_end: cmp::min(start + repl_ref_len + ref_window, ref_seq_len),
+            repl_start: start,
+            repl_alt_end: start + repl_alt_len,
+            repl_alt_len,
+            repl_ref_len,
+            repl_seq: Rc::clone(&self.replacement),
+            read_emission: read_emission_params,
+        }])
+    }
+}
+
+impl<R: Realigner> SamplingBias for Replacement<R> {
+    fn feasible_bases(
+        &self,
+        read_len: u64,
+        alignment_properties: &AlignmentProperties,
+    ) -> Option<u64> {
+        let len = self.enclosable_len().unwrap();
+        if self.is_insertion() {
+            if let Some(maxlen) = alignment_properties.max_ins_cigar_len {
+                if len <= (maxlen as u64) {
+                    return Some(read_len);
+                }
+            }
+        } else if self.is_deletion() {
+            if let Some(maxlen) = alignment_properties.max_del_cigar_len {
+                if len <= (maxlen as u64) {
+                    return Some(read_len);
+                }
+            }
+        }
+
+        alignment_properties
+            .frac_max_softclip
+            .map(|maxfrac| (read_len as f64 * maxfrac) as u64)
+    }
+
+    fn enclosable_len(&self) -> Option<u64> {
+        let len_diff = self.replacement.len() as isize - self.ref_len() as isize;
+        Some(if self.is_insertion() {
+            len_diff as u64
+        } else if self.is_deletion() {
+            (-len_diff) as u64
+        } else {
+            unreachable!("bug: replacements have to either delete or insert something")
+        })
+    }
+}
+
+impl<R: Realigner> ReadSamplingBias for Replacement<R> {}
 
 impl<R: Realigner> Variant for Replacement<R> {
     type Evidence = PairedEndEvidence;
@@ -86,23 +139,55 @@ impl<R: Realigner> Variant for Replacement<R> {
     fn is_valid_evidence(
         &self,
         evidence: &Self::Evidence,
-        alignment_properties: &AlignmentProperties,
+        _: &AlignmentProperties,
     ) -> Option<Vec<usize>> {
-        (**self).is_valid_evidence(evidence, alignment_properties)
+        if match evidence {
+            PairedEndEvidence::SingleEnd(read) => !self.locus().overlap(read, true).is_none(),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                !self.locus().overlap(left, true).is_none()
+                    || !self.locus().overlap(right, true).is_none()
+            }
+        } {
+            Some(vec![0])
+        } else {
+            None
+        }
     }
 
+    /// Return variant loci.
     fn loci(&self) -> &Self::Loci {
-        (**self).loci()
+        &self.locus
     }
 
+    /// Calculate probability for alt and reference allele.
     fn allele_support(
         &self,
         evidence: &Self::Evidence,
-        alignment_properties: &AlignmentProperties,
+        _alignment_properties: &AlignmentProperties,
     ) -> Result<Option<AlleleSupport>> {
-        let support = (**self).allele_support(evidence, alignment_properties)?;
+        match evidence {
+            PairedEndEvidence::SingleEnd(record) => Ok(Some(
+                self.realigner
+                    .borrow_mut()
+                    .allele_support(record, self.locus.iter(), self)?,
+            )),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let left_support =
+                    self.realigner
+                        .borrow_mut()
+                        .allele_support(left, self.locus.iter(), self)?;
+                let right_support =
+                    self.realigner
+                        .borrow_mut()
+                        .allele_support(right, self.locus.iter(), self)?;
 
-        Ok(support)
+                let mut support = left_support;
+
+                support.merge(&right_support);
+
+                Ok(Some(support))
+            }
+        }
     }
 
     fn prob_sample_alt(
@@ -110,6 +195,70 @@ impl<R: Realigner> Variant for Replacement<R> {
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
-        (**self).prob_sample_alt(evidence, alignment_properties)
+        match evidence {
+            PairedEndEvidence::PairedEnd { left, right } => {
+                // METHOD: we do not require the fragment to enclose the variant.
+                // Hence, we treat both reads independently.
+                (self
+                    .prob_sample_alt_read(left.seq().len() as u64, alignment_properties)
+                    .ln_one_minus_exp()
+                    + self
+                        .prob_sample_alt_read(right.seq().len() as u64, alignment_properties)
+                        .ln_one_minus_exp())
+                .ln_one_minus_exp()
+            }
+            PairedEndEvidence::SingleEnd(read) => {
+                self.prob_sample_alt_read(read.seq().len() as u64, alignment_properties)
+            }
+        }
+    }
+}
+
+/// Emission parameters for PairHMM over replacement allele.
+pub(crate) struct ReplacementEmissionParams<'a> {
+    ref_seq: Arc<Vec<u8>>,
+    ref_offset: usize,
+    ref_end: usize,
+    repl_start: usize,
+    repl_alt_end: usize,
+    repl_alt_len: usize,
+    repl_ref_len: usize,
+    repl_seq: Rc<Vec<u8>>,
+    read_emission: Rc<ReadEmission<'a>>,
+}
+
+impl<'a> RefBaseEmission for ReplacementEmissionParams<'a> {
+    #[inline]
+    fn ref_base(&self, i: usize) -> u8 {
+        let i_ = i + self.ref_offset;
+        if i_ < self.repl_start {
+            self.ref_seq[i_]
+        } else if i_ >= self.repl_alt_end {
+            self.ref_seq[i_ - self.repl_alt_len + self.repl_ref_len]
+        } else {
+            self.repl_seq[i_ - (self.repl_start)]
+        }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        Some(self.repl_start..self.repl_start + self.repl_ref_len)
+    }
+
+    default_ref_base_emission!();
+}
+
+impl<'a> EmissionParameters for ReplacementEmissionParams<'a> {
+    default_emission!();
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        // The window is shrunken later on with shrink to hit.
+        // Therefore it can happen that the window does not cover the entire variant anymore.
+        // Hence, we have to consider that the first computation yields 0, in which case we
+        // will simply take the second solution.
+        cmp::max(
+            (self.ref_end - self.ref_offset + self.repl_alt_len).saturating_sub(self.repl_ref_len),
+            self.ref_end - self.ref_offset,
+        )
     }
 }

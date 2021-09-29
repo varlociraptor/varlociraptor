@@ -55,8 +55,8 @@ where
     // setup output file
     let header = bcf::Header::from_template(inbcf_reader.header());
     let mut outbcf = match outbcf {
-        Some(p) => bcf::Writer::from_path(p, &header, false, bcf::Format::BCF)?,
-        None => bcf::Writer::from_stdout(&header, false, bcf::Format::BCF)?,
+        Some(p) => bcf::Writer::from_path(p, &header, false, bcf::Format::Bcf)?,
+        None => bcf::Writer::from_stdout(&header, false, bcf::Format::Bcf)?,
     };
 
     let filter = |record: &mut bcf::Record| {

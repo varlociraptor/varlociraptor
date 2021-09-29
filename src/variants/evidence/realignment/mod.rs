@@ -235,7 +235,7 @@ pub(crate) trait Realigner {
 
         let aux_strand_info = utils::aux_tag_strand_info(record);
         let mut strand = Strand::None;
-        let mut indel_operations = Vec::new();
+        let mut has_alt_indel_operations = false;
 
         for region in merged_regions {
             // read emission
@@ -313,8 +313,8 @@ pub(crate) trait Realigner {
                         return Err(Error::ReadPosOutOfBounds.into());
                     }
                 }
-                // record indel operations
-                indel_operations.extend(alt_hit.best_indel_operations().iter().cloned());
+
+                has_alt_indel_operations |= !alt_hit.best_indel_operations().is_empty();
             }
 
             // METHOD: probabilities of independent regions are combined here.
@@ -330,7 +330,7 @@ pub(crate) trait Realigner {
 
         Ok(AlleleSupportBuilder::default()
             .strand(strand)
-            .indel_operations(indel_operations)
+            .has_alt_indel_operations(has_alt_indel_operations)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
             .build()

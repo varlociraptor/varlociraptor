@@ -1,6 +1,5 @@
 samples:
   chm:
-    resolution: 5
     universe: "0.0 | 0.5 | 1.0"
 
 events:

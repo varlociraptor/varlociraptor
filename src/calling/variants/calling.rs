@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
 use derive_builder::Builder;
 use itertools::Itertools;
+use progress_logger::ProgressLogger;
 use rust_htslib::bcf::{self, Read};
 
 use crate::calling::variants::preprocessing::{
@@ -19,8 +20,9 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model;
+use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
@@ -28,7 +30,7 @@ use crate::variants::model::Contamination;
 use crate::variants::model::{bias::Biases, AlleleFreq};
 use crate::variants::types::breakends::BreakendIndex;
 
-pub(crate) type AlleleFreqCombination = Vec<model::likelihood::Event>;
+pub(crate) type AlleleFreqCombination = LikelihoodOperands;
 
 pub(crate) type Model<Pr> =
     bayesian::Model<GenericLikelihood, Pr, GenericPosterior, generic::Cache>;
@@ -50,7 +52,7 @@ where
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
-    resolutions: grammar::SampleInfo<usize>,
+    resolutions: grammar::SampleInfo<grammar::Resolution>,
     prior: Pr,
     breakend_index: BreakendIndex,
     #[builder(default)]
@@ -117,8 +119,8 @@ where
               O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
               X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
-              I denoting indel operations in the respective alignments (* = primary, most observed indel operation, \
-              # = other diverse indel operations, . = no indel or information irrelevant for variant type). \
+              I denoting indel operations in the respective alignments against the alt allele \
+              (* = some indel, . = no indel or information irrelevant for variant type). \
               Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
@@ -174,7 +176,7 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=DIB,Number=A,Type=String,\
-              Description=\"Divindel bias estimate: # indicates that ALT allele is associated with \
+              Description=\"Divindel bias estimate: * indicates that ALT allele is associated with \
               with indel operations of varying length, . indicates that there is no divindel bias.
               Divindel bias is indicative of systematic PCR amplification errors, e.g. induced by \
               homopolymers. Probability for divindel bias is captured by the ARTIFACT \
@@ -188,10 +190,10 @@ where
         let header = self.header();
 
         Ok(if let Some(ref path) = self.outbcf {
-            bcf::Writer::from_path(path, header.as_ref().unwrap(), false, bcf::Format::BCF)
+            bcf::Writer::from_path(path, header.as_ref().unwrap(), false, bcf::Format::Bcf)
                 .context(format!("Unable to write BCF to {}.", path.display()))?
         } else {
-            bcf::Writer::from_stdout(header.as_ref().unwrap(), false, bcf::Format::BCF)
+            bcf::Writer::from_stdout(header.as_ref().unwrap(), false, bcf::Format::Bcf)
                 .context("Unable to write BCF to STDOUT.")?
         })
     }
@@ -250,6 +252,10 @@ where
 
         // process calls
         let mut i = 0;
+        let mut progress_logger = ProgressLogger::builder()
+            .with_items_name("records")
+            .with_frequency(std::time::Duration::from_secs(20))
+            .start();
         loop {
             let mut records =
                 observations.map(|reader| reader.as_ref().map(|reader| reader.empty_record()));
@@ -267,6 +273,7 @@ where
             }
 
             if eof.iter().all(|v| *v) {
+                progress_logger.stop();
                 return Ok(());
             } else if !eof.iter().all(|v| !v) {
                 // only some are EOF, this is an error
@@ -327,9 +334,7 @@ where
             self.call_record(&mut work_item, _model, &events);
 
             work_item.call.write_final_record(&mut bcf_writer)?;
-            if (i + 1) % 100 == 0 {
-                info!("{} records processed.", i + 1);
-            }
+            progress_logger.update(1u64);
 
             i += 1;
         }
@@ -687,7 +692,7 @@ struct WorkItem {
     rid: u32,
     call: Call,
     variant_builder: VariantBuilder,
-    pileups: Option<Vec<Vec<Observation<ReadPosition, IndelOperations>>>>,
+    pileups: Option<Vec<Vec<Observation<ReadPosition>>>>,
     snv: Option<model::modes::generic::Snv>,
     bnd_event: Option<Vec<u8>>,
     index: usize,

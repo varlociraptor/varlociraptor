@@ -3,7 +3,7 @@ use std::cmp;
 use bio::stats::probs::LogProb;
 use ordered_float::NotNan;
 
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, Hash)]
@@ -34,27 +34,29 @@ impl Default for DivIndelBias {
 }
 
 impl Bias for DivIndelBias {
-    fn prob(&self, observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
+    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match self {
-            DivIndelBias::None => match observation.indel_operations {
-                IndelOperations::Other => LogProb::ln_zero(),
-                _ => LogProb::ln_one(),
-            },
-            DivIndelBias::Some { other_rate, .. } => {
-                if **other_rate == 0.0 {
-                    // METHOD: if there are no other operations than primary and secondary, there is no artifact.
+            DivIndelBias::None => {
+                if observation.has_alt_indel_operations {
                     LogProb::ln_zero()
                 } else {
-                    match observation.indel_operations {
-                        IndelOperations::Other => LogProb(other_rate.ln()),
-                        _ => LogProb((1.0 - **other_rate).ln()),
-                    }
+                    LogProb::ln_one()
+                }
+            }
+            DivIndelBias::Some { other_rate, .. } => {
+                if **other_rate == 0.0 {
+                    // METHOD: if there are no other operations there is no artifact.
+                    LogProb::ln_zero()
+                } else if observation.has_alt_indel_operations {
+                    LogProb(other_rate.ln())
+                } else {
+                    LogProb((1.0 - **other_rate).ln())
                 }
             }
         }
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition, IndelOperations>) -> LogProb {
+    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
         LogProb::ln_one() // TODO check this
     }
 
@@ -62,29 +64,31 @@ impl Bias for DivIndelBias {
         *self != DivIndelBias::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
+    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
         if !self.is_artifact() {
             return true;
         }
         // METHOD: this bias is only relevant if there is at least one recorded indel operation (indel operations are only recorded for some variants).
-        pileups.iter().any(|pileup| {
-            pileup
-                .iter()
-                .any(|obs| obs.indel_operations == IndelOperations::Other)
-        })
+        pileups
+            .iter()
+            .any(|pileup| pileup.iter().any(|obs| obs.has_alt_indel_operations))
     }
 
-    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) -> bool {
+    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        if !self.is_artifact() {
+            return true;
+        }
+
         pileups.iter().any(|pileup| {
             pileup.iter().any(|observation| match self {
-                DivIndelBias::Some { .. } => observation.indel_operations == IndelOperations::Other,
+                DivIndelBias::Some { .. } => observation.has_alt_indel_operations,
                 DivIndelBias::None => self.prob(observation) != LogProb::ln_zero(),
             })
         })
     }
 
-    fn is_bias_evidence(&self, observation: &Observation<ReadPosition, IndelOperations>) -> bool {
-        observation.indel_operations == IndelOperations::Other
+    fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
+        observation.has_alt_indel_operations
     }
 
     fn min_strong_evidence_ratio(&self) -> f64 {
@@ -95,7 +99,7 @@ impl Bias for DivIndelBias {
         }
     }
 
-    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition, IndelOperations>>]) {
+    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
@@ -106,28 +110,27 @@ impl Bias for DivIndelBias {
         {
             let strong_all = pileups
                 .iter()
-                .map(|pileup| pileup.iter().filter(&Self::is_strong_obs))
+                .map(|pileup| pileup.iter().filter(|obs| obs.is_strong_alt_support()))
                 .flatten()
                 .count();
             let strong_other = pileups
                 .iter()
                 .map(|pileup| {
-                    pileup.iter().filter(|obs| {
-                        Self::is_strong_obs(obs) && obs.indel_operations == IndelOperations::Other
-                    })
+                    pileup
+                        .iter()
+                        .filter(|obs| obs.is_strong_alt_support() && obs.has_alt_indel_operations)
                 })
                 .flatten()
                 .count();
 
-            *other_rate = cmp::max(
-                NotNan::new(if strong_all > 0 {
-                    strong_other as f64 / strong_all as f64
-                } else {
-                    0.0
-                })
-                .unwrap(),
-                *min_other_rate,
-            );
+            let rate = NotNan::new(if strong_all > 0 {
+                strong_other as f64 / strong_all as f64
+            } else {
+                0.0
+            })
+            .unwrap();
+
+            *other_rate = cmp::max(rate, *min_other_rate);
         }
     }
 }

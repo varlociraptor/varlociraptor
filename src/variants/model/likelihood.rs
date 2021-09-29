@@ -6,26 +6,25 @@
 use std::collections::HashMap;
 
 use bio::stats::{bayesian::model::Likelihood, LogProb};
+use lru::LruCache;
 
 use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::evidence::observation::{IndelOperations, Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Biases;
 use crate::variants::model::AlleleFreq;
 use crate::variants::sample::Pileup;
 
-pub(crate) type ContaminatedSampleCache = HashMap<ContaminatedSampleEvent, LogProb>;
-pub(crate) type SingleSampleCache = HashMap<Event, LogProb>;
+pub(crate) type ContaminatedSampleCache = LruCache<ContaminatedSampleEvent, LogProb>;
+pub(crate) type SingleSampleCache = LruCache<Event, LogProb>;
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct Event {
     pub(crate) allele_freq: AlleleFreq,
     pub(crate) biases: Biases,
+    pub(crate) is_discrete: bool,
 }
 
-fn prob_sample_alt(
-    observation: &Observation<ReadPosition, IndelOperations>,
-    allele_freq: LogProb,
-) -> LogProb {
+fn prob_sample_alt(observation: &Observation<ReadPosition>, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
         // The effective sample probability for the alt allele is the allele frequency times
         // the probability to obtain a feasible fragment (prob_sample_alt).
@@ -89,7 +88,7 @@ impl ContaminatedSampleLikelihoodModel {
         allele_freq_secondary: LogProb,
         biases_primary: &Biases,
         biases_secondary: &Biases,
-        observation: &Observation<ReadPosition, IndelOperations>,
+        observation: &Observation<ReadPosition>,
     ) -> LogProb {
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
@@ -125,8 +124,8 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
         pileup: &Self::Data,
         cache: &mut ContaminatedSampleCache,
     ) -> LogProb {
-        if cache.contains_key(events) {
-            *cache.get(events).unwrap()
+        if let Some(prob) = cache.get(events) {
+            *prob
         } else {
             let ln_af_primary = LogProb(events.primary.allele_freq.ln());
             let ln_af_secondary = LogProb(events.secondary.allele_freq.ln());
@@ -144,7 +143,9 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
             });
 
             assert!(!likelihood.is_nan());
-            cache.insert(events.clone(), likelihood);
+
+            // METHOD: No caching for events with continuous VAFs as they are unlikely to reoccur.
+            cache.put(events.clone(), likelihood);
 
             likelihood
         }
@@ -166,7 +167,7 @@ impl SampleLikelihoodModel {
         &self,
         allele_freq: LogProb,
         biases: &Biases,
-        observation: &Observation<ReadPosition, IndelOperations>,
+        observation: &Observation<ReadPosition>,
     ) -> LogProb {
         // Step 1: likelihood for the mapping case.
         let prob = likelihood_mapping(allele_freq, biases, observation);
@@ -191,7 +192,7 @@ impl SampleLikelihoodModel {
 fn likelihood_mapping(
     allele_freq: LogProb,
     biases: &Biases,
-    observation: &Observation<ReadPosition, IndelOperations>,
+    observation: &Observation<ReadPosition>,
 ) -> LogProb {
     // Step 1: calculate probability to sample from alt allele
     let prob_sample_alt = prob_sample_alt(observation, allele_freq);
@@ -218,8 +219,8 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 
     /// Likelihood to observe a pileup given allele frequencies for case and control.
     fn compute(&self, event: &Event, pileup: &Pileup, cache: &mut SingleSampleCache) -> LogProb {
-        if cache.contains_key(event) {
-            *cache.get(event).unwrap()
+        if let Some(prob) = cache.get(event) {
+            *prob
         } else {
             let ln_af = LogProb(event.allele_freq.ln());
 
@@ -229,15 +230,9 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
                 prob + lh
             });
 
-            // dbg!(pileup);
-            // panic!("test");
-            // if *events.secondary.allele_freq == 0.0 {
-            //     dbg!((events, likelihood));
-            // }
-
             assert!(!likelihood.is_nan());
 
-            cache.insert(event.clone(), likelihood);
+            cache.put(event.clone(), likelihood);
 
             likelihood
         }
@@ -261,6 +256,7 @@ mod tests {
         Event {
             allele_freq: AlleleFreq(allele_freq),
             biases: biases(),
+            is_discrete: true,
         }
     }
 
@@ -301,7 +297,7 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let mut cache = likelihood::ContaminatedSampleCache::default();
+        let mut cache = likelihood::ContaminatedSampleCache::new(100);
 
         let lh = model.compute(
             &ContaminatedSampleEvent {
@@ -331,7 +327,7 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let mut cache = likelihood::SingleSampleCache::default();
+        let mut cache = likelihood::SingleSampleCache::new(100);
         let evt = event(0.0);
         let lh = model.compute(&evt, &observations, &mut cache);
         assert_relative_eq!(
@@ -341,7 +337,7 @@ mod tests {
                 .map(|observation| biases().prob_any(&observation))
                 .sum::<LogProb>()
         );
-        assert!(cache.contains_key(&evt))
+        assert!(cache.get(&evt).is_some())
     }
 
     #[test]
@@ -363,7 +359,7 @@ mod tests {
                 LogProb::ln_one(),
             ));
         }
-        let mut cache = likelihood::ContaminatedSampleCache::default();
+        let mut cache = likelihood::ContaminatedSampleCache::new(100);
         let lh = model.compute(
             &ContaminatedSampleEvent {
                 primary: event(0.5),
@@ -380,7 +376,7 @@ mod tests {
                 };
                 let l = model.compute(&evt, &observations, &mut cache);
                 assert!(lh > l);
-                assert!(cache.contains_key(&evt));
+                assert!(cache.get(&evt).is_some());
             }
         }
     }

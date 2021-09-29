@@ -7,7 +7,7 @@
 
 samples:
   test:
-    resolution: 25
+    resolution: 0.05
     universe: "[0.0,1.0]"
 
 events:
