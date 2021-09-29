@@ -2,7 +2,7 @@
 
 samples:
   PaTu-S:
-    resolution: 100
+    resolution: 0.01
     universe: "[0.0,1.0]"
 
 events:

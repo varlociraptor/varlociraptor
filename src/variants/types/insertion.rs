@@ -5,6 +5,7 @@
 
 use std::cell::RefCell;
 use std::cmp;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -101,6 +102,11 @@ impl<R: Realigner> ReadSamplingBias for Insertion<R> {}
 impl<R: Realigner> Variant for Insertion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
+
+    fn report_indel_operations(&self) -> bool {
+        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
+        true
+    }
 
     fn is_valid_evidence(
         &self,
@@ -203,6 +209,10 @@ impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
         } else {
             self.ins_seq[i_ - (self.ins_start + 1)]
         }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        Some(self.ins_start..self.ins_end)
     }
 
     default_ref_base_emission!();

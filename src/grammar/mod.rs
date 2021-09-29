@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::TryFrom;
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::ops::{Deref, DerefMut};
@@ -19,6 +20,7 @@ pub(crate) use crate::grammar::formula::{Formula, VAFRange, VAFSpectrum, VAFUniv
 pub(crate) use crate::grammar::vaftree::VAFTree;
 use crate::variants::model::{AlleleFreq, VariantType};
 use itertools::Itertools;
+use serde::{de, Deserializer};
 
 /// Container for arbitrary sample information.
 /// Use `varlociraptor::grammar::Scenario::sample_info()` to create it.
@@ -422,8 +424,48 @@ impl Default for VariantTypeFraction {
     }
 }
 
-fn default_resolution() -> usize {
-    100
+fn default_resolution() -> Resolution {
+    Resolution(AlleleFreq(0.01))
+}
+
+#[derive(Derefable, Debug, Clone)]
+pub(crate) struct Resolution(#[deref] AlleleFreq);
+
+impl<'de> de::Deserialize<'de> for Resolution {
+    fn deserialize<D>(deserializer: D) -> Result<Resolution, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(ResolutionVisitor)
+    }
+}
+
+struct ResolutionVisitor;
+
+impl<'de> de::Visitor<'de> for ResolutionVisitor {
+    type Value = Resolution;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(
+            "an allele frequency resolution given as floating point value between 0.0 and 1.0 (exclusive, e.g. 0.01, 0.1, etc.)",
+        )
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        if let Ok(vaf) = v.parse::<f64>() {
+            if vaf > 0.0 && vaf < 1.0 {
+                return Ok(Resolution(AlleleFreq(vaf)));
+            }
+        }
+
+        Err(de::Error::invalid_value(
+            serde::de::Unexpected::Other("VAF resolution"),
+            &self,
+        ))
+    }
 }
 
 #[derive(Deserialize, Getters)]
@@ -435,7 +477,7 @@ pub(crate) struct Sample {
     /// grid point resolution for integration over continuous allele frequency ranges
     #[serde(default = "default_resolution")]
     #[get = "pub(crate)"]
-    resolution: usize,
+    resolution: Resolution,
     /// possible VAFs of given sample
     #[serde(default)]
     #[get = "pub(crate)"]

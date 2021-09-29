@@ -4,7 +4,7 @@ expected:
   allelefreqs:
   - tumor >= 0.14 && tumor <= 0.5
   posteriors:
-  - PROB_SOMATIC_TUMOR <= 0.17
+  - PROB_SOMATIC_TUMOR <= 0.7
 
 # necessary bam files
 samples:

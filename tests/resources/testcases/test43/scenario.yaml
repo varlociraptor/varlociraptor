@@ -1,6 +1,6 @@
 samples:
   simulated:
-    resolution: 5
+    resolution: 0.1
     universe: 0.0 | 0.5 | 1.0
 
 events:

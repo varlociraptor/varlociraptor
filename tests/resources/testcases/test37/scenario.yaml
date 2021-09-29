@@ -1,18 +1,15 @@
 samples:
   index:
-    resolution: 3
     universe:
       all: "0.0 | 0.5 | 1.0"
       X: "0.0 | 1.0"
       Y: "0.0 | 1.0"
   father:
-    resolution: 3
     universe:
       all: "0.0 | 0.5 | 1.0"
       X: "0.0 | 1.0"
       Y: "0.0 | 1.0"
   mother:
-    resolution: 3
     universe:
       all: "0.0 | 0.5 | 1.0"
       Y: "0.0"

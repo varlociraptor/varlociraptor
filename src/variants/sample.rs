@@ -237,7 +237,7 @@ impl Sample {
         let major_pos = major_read_position(&observations);
         Ok(observations
             .iter()
-            .map(|obs| obs.process_read_position(major_pos))
+            .map(|obs| obs.process(major_pos))
             .collect())
     }
 }

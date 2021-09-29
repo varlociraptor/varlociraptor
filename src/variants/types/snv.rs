@@ -5,6 +5,7 @@
 
 use std::cell::RefCell;
 use std::cmp;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -182,6 +183,10 @@ impl<'a> RefBaseEmission for SnvEmissionParams<'a> {
         } else {
             self.alt_base
         }
+    }
+
+    fn variant_ref_range(&self) -> Option<Range<usize>> {
+        Some(self.alt_start..self.alt_start + 1)
     }
 
     default_ref_base_emission!();
