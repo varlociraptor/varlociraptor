@@ -128,6 +128,10 @@ fn default_reference_buffer_size() -> usize {
     10
 }
 
+fn default_log_mode() -> String {
+    "default".to_owned()
+}
+
 fn default_min_bam_refetch_distance() -> u64 {
     1
 }
@@ -236,6 +240,9 @@ pub enum PreprocessKind {
         )]
         #[serde(default)]
         omit_insert_size: bool,
+
+        #[serde(default = "default_log_mode")]
+        log_mode: String,
     },
 }
 
@@ -599,6 +606,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_insert_size,
                     reference_buffer_size,
                     min_bam_refetch_distance,
+                    log_mode,
                 } => {
                     // TODO: handle testcases
 
@@ -664,6 +672,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         reference_buffer_size,
                     ));
 
+                    let log_each_record = if log_mode == "each-record" {
+                        true
+                    } else {
+                        false
+                    };
+
                     if model.spurious_hop_seq_rate > 0.0 || model.spurious_hop_ref_rate > 0.0 {
                         let hop_params = HopParams {
                             prob_seq_homopolymer: LogProb::from(Prob::checked(
@@ -697,6 +711,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     hop_params,
                                     realignment_window,
                                 ))
+                                .log_each_record(log_each_record)
                                 .build();
 
                         processor.process()?;
@@ -718,6 +733,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     realignment_window,
                                     reference_buffer,
                                 ))
+                                .log_each_record(log_each_record)
                                 .build();
 
                         processor.process()?;
@@ -739,6 +755,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     gap_params,
                                     realignment_window,
                                 ))
+                                .log_each_record(log_each_record)
                                 .build();
 
                         processor.process()?;

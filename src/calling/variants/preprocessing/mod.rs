@@ -56,6 +56,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
     >,
     #[builder(default)]
     breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
+    log_each_record: bool,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -199,6 +200,14 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         .map_or(None, |mateid| mateid.map(|mateid| mateid)),
                     record_index: i,
                 };
+
+                if self.log_each_record {
+                    info!(
+                        "Processing record at {}:{}",
+                        record.contig(),
+                        record.pos() + 1
+                    );
+                }
 
                 let calls = self.process_record(work_item, &mut sample)?;
 
