@@ -132,6 +132,10 @@ fn default_pairhmm_mode() -> String {
     "exact".to_owned()
 }
 
+fn default_log_mode() -> String {
+    "default".to_owned()
+}
+
 fn default_min_bam_refetch_distance() -> u64 {
     1
 }
@@ -279,6 +283,7 @@ pub enum PreprocessKind {
             Varlociraptor will additionally print contig and position of each processed candidate variant record. This is \
             useful for debugging."
         )]
+        #[serde(default = "default_log_mode")]
         log_mode: String,
     },
 }
