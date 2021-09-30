@@ -241,6 +241,14 @@ pub enum PreprocessKind {
         #[serde(default)]
         omit_insert_size: bool,
 
+        #[structopt(
+            long = "log-mode",
+            possible_values = &["default", "each-record"],
+            default_value = "default",
+            help = "Specify how progress should be logged. By default, a record count will be printed. With 'each-record', \
+            Varlociraptor will additionally print contig and position of each processed candidate variant record. This is \
+            useful for debugging."
+        )]
         #[serde(default = "default_log_mode")]
         log_mode: String,
     },
