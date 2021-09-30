@@ -271,6 +271,15 @@ pub enum PreprocessKind {
         )]
         #[serde(default = "default_pairhmm_mode")]
         pairhmm_mode: String,
+        #[structopt(
+            long = "log-mode",
+            possible_values = &["default", "each-record"],
+            default_value = "default",
+            help = "Specify how progress should be logged. By default, a record count will be printed. With 'each-record', \
+            Varlociraptor will additionally print contig and position of each processed candidate variant record. This is \
+            useful for debugging."
+        )]
+        log_mode: String,
     },
 }
 
@@ -638,6 +647,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     reference_buffer_size,
                     min_bam_refetch_distance,
                     pairhmm_mode,
+                    log_mode,
                 } => {
                     // TODO: handle testcases
 
@@ -676,9 +686,16 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         reference_buffer_size,
                     ));
 
+                    let log_each_record = if log_mode == "each-record" {
+                        true
+                    } else {
+                        false
+                    };
+
                     if pairhmm_mode == "fast" {
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
+                                .log_each_record(log_each_record)
                                 .alignment_properties(alignment_properties)
                                 .protocol_strandedness(protocol_strandedness)
                                 .max_depth(max_depth)
@@ -715,6 +732,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     gap_params,
                                     realignment_window,
                                 ))
+                                .log_each_record(log_each_record)
                                 .build();
 
                         processor.process()?;
