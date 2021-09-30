@@ -166,7 +166,7 @@ pub enum PreprocessKind {
             parse(from_os_str),
             long,
             required = true,
-            help = "VCF/BCF file to process (if omitted, read from STDIN)."
+            help = "sorted VCF/BCF file to process (if omitted, read from STDIN)."
         )]
         candidates: PathBuf,
         #[structopt(

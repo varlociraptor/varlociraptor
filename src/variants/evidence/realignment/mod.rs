@@ -19,12 +19,12 @@ use bio_types::genome::AbstractInterval;
 use rust_htslib::bam;
 
 use crate::errors::Error;
-use crate::reference;
 use crate::utils;
 use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
 use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, SingleLocus};
+use crate::{errors, reference};
 
 pub(crate) mod edit_distance;
 pub(crate) mod pairhmm;
@@ -209,6 +209,9 @@ pub(crate) trait Realigner {
                 merged_regions.push(region);
             } else {
                 let last = merged_regions.last_mut().unwrap();
+                if last.ref_interval.start > region.ref_interval.start {
+                    return Err(errors::Error::UnsortedVariantFile.into());
+                }
                 if region.ref_interval.start <= last.ref_interval.end {
                     // They overlap, hence merge.
                     last.ref_interval = last.ref_interval.start..region.ref_interval.end;
