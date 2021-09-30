@@ -209,9 +209,6 @@ pub(crate) trait Realigner {
                 merged_regions.push(region);
             } else {
                 let last = merged_regions.last_mut().unwrap();
-                if last.ref_interval.start > region.ref_interval.start {
-                    return Err(errors::Error::UnsortedVariantFile.into());
-                }
                 if region.ref_interval.start <= last.ref_interval.end {
                     // They overlap, hence merge.
                     last.ref_interval = last.ref_interval.start..region.ref_interval.end;
