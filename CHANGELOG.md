@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.4.3](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.2...v4.4.3) (2021-09-30)
+
+
+### Bug Fixes
+
+* fix out of bounds error when evaluating replacement records ([#216](https://www.github.com/varlociraptor/varlociraptor/issues/216)) ([7d5fde1](https://www.github.com/varlociraptor/varlociraptor/commit/7d5fde1e47b8ff7e1a514d16a830890112976449))
+
 ### [4.4.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.1...v4.4.2) (2021-09-14)
 
 
