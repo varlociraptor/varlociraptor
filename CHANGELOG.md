@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.4.4](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.3...v4.4.4) (2021-10-07)
+
+
+### Bug Fixes
+
+* Add check for order of records in bcf (before, coordinate sorting was implicitly assumed but not checked, leading to overflow errors upon violation) ([#218](https://www.github.com/varlociraptor/varlociraptor/issues/218)) ([c3d20a9](https://www.github.com/varlociraptor/varlociraptor/commit/c3d20a95b0616901978cdec81c1d80b8e87786b6))
+
 ### [4.4.3](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.2...v4.4.3) (2021-09-30)
 
 
