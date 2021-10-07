@@ -176,6 +176,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             }
         };
 
+        let mut last_item = None;
         let mut i = 0;
         loop {
             let mut record = bcf_reader.empty_record();
@@ -200,6 +201,12 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         .map_or(None, |mateid| mateid.map(|mateid| mateid)),
                     record_index: i,
                 };
+                if let Some((last_chrom, last_start)) = last_item {
+                    if last_chrom == work_item.chrom && last_start > work_item.start {
+                        return Err(errors::Error::UnsortedVariantFile.into());
+                    }
+                }
+                last_item = Some((work_item.chrom.clone(), work_item.start));
 
                 if self.log_each_record {
                     info!(

@@ -62,4 +62,6 @@ pub(crate) enum Error {
     InvalidReadOrientationInfo { value: String },
     #[error("the following events are not disjunct: {expressions}")]
     OverlappingEvents { expressions: String },
+    #[error("the input VCF/BCF is not sorted")]
+    UnsortedVariantFile,
 }

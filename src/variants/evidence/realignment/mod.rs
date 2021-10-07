@@ -19,12 +19,12 @@ use bio_types::genome::AbstractInterval;
 use rust_htslib::bam;
 
 use crate::errors::Error;
-use crate::reference;
 use crate::utils;
 use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceCalculation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, ReferenceEmissionParams};
 use crate::variants::types::{AlleleSupport, AlleleSupportBuilder, SingleLocus};
+use crate::{errors, reference};
 
 pub(crate) mod edit_distance;
 pub(crate) mod pairhmm;
