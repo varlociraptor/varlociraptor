@@ -75,6 +75,7 @@ pub enum Varlociraptor {
     #[structopt(
         name = "decode-phred",
         about = "Decode PHRED-scaled values to human readable probabilities.",
+        usage = "varlociraptor decode-phred < in.bcf > out.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     DecodePHRED,
@@ -96,6 +97,13 @@ pub enum Varlociraptor {
         #[structopt(subcommand)]
         kind: PlotKind,
     },
+    #[structopt(
+        name = "genotype",
+        about = "Infer classical genotypes from Varlociraptor's AF field (1.0: 1/1, 0.5: 0/1, 0.0: 0/0, otherwise: 0/1). This assumes diploid samples.",
+        usage = "varlociraptor genotype < in.bcf > out.bcf",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Genotype,
 }
 
 pub struct PreprocessInput {
@@ -1038,6 +1046,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
         },
         Varlociraptor::DecodePHRED => {
             conversion::decode_phred::decode_phred()?;
+        }
+        Varlociraptor::Genotype => {
+            conversion::genotype::genotype()?;
         }
         Varlociraptor::Estimate { kind } => match kind {
             EstimateKind::MutationalBurden {
