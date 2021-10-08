@@ -1,13 +1,10 @@
-# FP from giab data. Seems like a strong call at first sight.
+# FP from giab data (1:16388580). Seems like a strong call at first sight, freebayes and varvis agree.
+# We currently think that this is a cell line variant that has occurred after the giab experiments.
 
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - index == 0.0
 
 # necessary bam files
 samples:

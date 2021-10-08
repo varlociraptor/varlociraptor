@@ -147,7 +147,7 @@ impl Call {
                 strand_bias.insert(
                     i,
                     match sample_info.biases.strand_bias() {
-                        StrandBias::None => b'.',
+                        StrandBias::None { .. } => b'.',
                         StrandBias::Forward => b'+',
                         StrandBias::Reverse => b'-',
                     },

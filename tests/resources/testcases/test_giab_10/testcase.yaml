@@ -1,13 +1,12 @@
 # Homozygous GIAB variant that is currently wrongly called as heterozygous.
+# However, freebayes does that as well.
+# This might come from reads belonging to a homologous region, because many reads in this pileup have a lowered MAPQ.
+
 
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - index == 0.5
 
 # necessary bam files
 samples:

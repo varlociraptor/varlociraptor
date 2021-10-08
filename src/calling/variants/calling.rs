@@ -414,7 +414,7 @@ where
             check_strand_bias: !self.omit_strand_bias,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias,
-            check_divindel_bias: !self.omit_divindel_bias,
+            check_divindel_bias: !is_snv_or_mnv && !self.omit_divindel_bias,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -432,7 +432,10 @@ where
                 let mut pileup = read_observations(record)?;
                 if is_snv_or_mnv {
                     // METHOD: adjust MAPQ to get rid of stochastically inflated ones
-                    //Observation::adjust_prob_mapping(&mut pileup);
+                    // This takes the arithmetic mean of all MAPQs in the pileup.
+                    // By that, we effectively diminish high MAPQs of reads that just achieve them
+                    // because of e.g. randomly better matching bases in themselves or their mates.
+                    Observation::adjust_prob_mapping(&mut pileup);
                     // METHOD: remove non-standard alignments. They might come from near
                     // SVs and can induce artifactual SNVs or MNVs. By removing them,
                     // we just conservatively reduce the coverage to those which are

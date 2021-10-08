@@ -1,15 +1,11 @@
-# A giab variant that is currently determined as strand artifact, although it has been recognized as real in giab.
+# A giab variant (22:19956262) that has previously been determined as a strand artifact, although it has been recognized as real in giab.
 # Strands are here not equally distributed and there is a single alt obs from +, but all the rest is from -.
-# Possible option: allow for non equal distribution, but this is risky for new false positives elsewhere.
+# We now infer the ratio between forward and reverse from the ref reads such that this variant is correctly called.
 
 expected:
   allelefreqs:
     # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - index == 0.5
 
 # necessary bam files
 samples:

@@ -295,6 +295,12 @@ impl<P: Clone> Observation<P> {
                 >= KassRaftery::Strong
     }
 
+    pub(crate) fn is_strong_ref_support(&self) -> bool {
+        self.is_uniquely_mapping()
+            && BayesFactor::new(self.prob_ref, self.prob_alt).evidence_kass_raftery()
+                >= KassRaftery::Strong
+    }
+
     pub(crate) fn is_ref_support(&self) -> bool {
         self.prob_ref > self.prob_alt
     }
@@ -306,6 +312,17 @@ impl<P: Clone> Observation<P> {
 
     pub(crate) fn is_alt_support(&self) -> bool {
         self.prob_alt > self.prob_ref
+    }
+
+    pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
+        if !pileup.is_empty() {
+            let prob_sum = LogProb::ln_sum_exp(&pileup.iter().map(|obs| obs.prob_mapping_orig()).collect_vec());
+            let adjusted = LogProb(*prob_sum - (pileup.len() as f64).ln());
+            for obs in pileup {
+                obs.prob_mapping_adj = Some(adjusted);
+                obs.prob_mismapping_adj = Some(adjusted.ln_one_minus_exp());
+            }
+        }
     }
 }
 

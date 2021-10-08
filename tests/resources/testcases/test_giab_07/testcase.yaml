@@ -1,15 +1,9 @@
-# False positive from giab sample (confidently called as non-variant in giab).
-# This seems like an artifact of low coverage. It would be nice if we have a non-threshold approach to have somehow less strong probs on such low coverage cases.
-# It seems like two times the same mismatch is considered too unlikely to be an artifact by the model.
+# False positive from giab sample (confidently called as non-variant in giab) (1:6295845).
+# This seems like an artifact of low coverage.
 
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - index == 0.0
 
 # necessary bam files
 samples:

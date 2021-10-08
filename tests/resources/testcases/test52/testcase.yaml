@@ -27,5 +27,5 @@ reference:
   path: 'ref.fa'
 
 mode: Generic
-
+omit_strand_bias: true
 version: '4'
