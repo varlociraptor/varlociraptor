@@ -305,6 +305,7 @@ where
                 work_item.check_read_orientation_bias,
                 work_item.check_read_position_bias,
                 work_item.check_softclip_bias,
+                work_item.check_divindel_bias,
             );
             _model = models.entry(model_mode).or_insert_with(|| self.model());
             {
