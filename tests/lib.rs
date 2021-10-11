@@ -170,6 +170,13 @@ testcase!(test_giab_07, exact);
 testcase!(test_giab_08, exact);
 testcase!(test_giab_09, exact);
 testcase!(test_giab_10, exact);
+testcase!(test_giab_11, exact);
+testcase!(test_giab_12, exact);
+testcase!(test_giab_13, exact);
+testcase!(test_giab_14, exact);
+testcase!(test_giab_15, exact);
+testcase!(test_giab_16, exact);
+testcase!(test_giab_17, exact);
 
 testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);
