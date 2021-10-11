@@ -2,9 +2,6 @@
 # We currently think that this is a cell line variant that has occurred after the giab experiments.
 
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - index == 0.0
 
 # necessary bam files
 samples:

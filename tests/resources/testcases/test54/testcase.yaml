@@ -1,11 +1,8 @@
-# false positive from syndip benchmark
+# false positive from syndip benchmark.
 
 expected:
-  allelefreqs:
-    - chm == 0.0
   posteriors:
-    # write down a list of expressions of the form
-    - PROB_PRESENT >= 1.0
+    - PROB_PRESENT >= 0.39 # we just require a sufficiently weak probability here
 
 # necessary bam files
 samples:

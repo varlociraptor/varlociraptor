@@ -2,9 +2,6 @@
 # Apparently a cell line mutation.
 
 expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - index == 0.0
 
 # necessary bam files
 samples:
