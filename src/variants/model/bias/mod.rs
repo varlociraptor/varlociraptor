@@ -126,7 +126,7 @@ impl Biases {
         let strand_biases = if consider_strand_bias {
             StrandBias::iter().collect_vec()
         } else {
-            vec![StrandBias::None]
+            vec![StrandBias::default()]
         };
         let read_position_biases = if consider_read_position_bias {
             ReadPositionBias::iter().collect_vec()
@@ -188,7 +188,7 @@ impl Biases {
 
     pub(crate) fn none() -> Self {
         BiasesBuilder::default()
-            .strand_bias(StrandBias::None)
+            .strand_bias(StrandBias::default())
             .read_orientation_bias(ReadOrientationBias::None)
             .read_position_bias(ReadPositionBias::None)
             .softclip_bias(SoftclipBias::None)
@@ -246,6 +246,7 @@ impl Biases {
     }
 
     pub(crate) fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
-        self.divindel_bias.learn_parameters(pileups)
+        self.divindel_bias.learn_parameters(pileups);
+        self.strand_bias.learn_parameters(pileups);
     }
 }

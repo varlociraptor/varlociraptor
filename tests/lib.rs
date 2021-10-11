@@ -158,15 +158,18 @@ testcase!(test72, exact);
 
 // Skip test_giab_01 for now as the call seems to be correct.
 // TODO try to find out what is wrong in the GIAB callset at that location.
-//testcase!(test_giab_01, exact);
+testcase!(test_giab_01, exact);
 testcase!(test_giab_02, exact);
 testcase!(test_giab_03, exact);
-// Skip test_giab_04 because there is strand bias (but variant is known to be correct).
-// The bias seems like a WES artifact. But we cannot avoid such a case for now.
-// Otherwise we would risk false positives elsewhere.
-//testcase!(test_giab_04, exact);
+testcase!(test_giab_04, exact);
 
 testcase!(test_giab_05, exact);
+
+testcase!(test_giab_06, exact);
+testcase!(test_giab_07, exact);
+testcase!(test_giab_08, exact);
+testcase!(test_giab_09, exact);
+testcase!(test_giab_10, exact);
 
 testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);

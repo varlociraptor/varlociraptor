@@ -2,7 +2,7 @@
 
 expected:
   allelefreqs:
-    - test > 0.3 && test < 0.4
+    - test > 0.3 && test < 0.5
   posteriors:
     - PROB_PRESENT == 0.0
 
@@ -27,7 +27,6 @@ reference:
   path: 'ref.fa'
 
 mode: Generic
-omit_strand_bias: true
 omit_read_position_bias: true
-
+omit_strand_bias: true
 version: '4'
