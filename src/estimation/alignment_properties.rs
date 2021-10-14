@@ -20,6 +20,19 @@ use crate::utils::SimpleCounter;
 
 pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
+fn default_homopolymer_error_model() -> HashMap<i8, f64> {
+    let mut model = HashMap::new();
+    model.insert(0, 0.9975414130829068);
+    model.insert(1, 0.0010076175889726332);
+    model.insert(-1, 0.0010076175889726332);
+    model.insert(-2, 0.00020152351779452663);
+    model.insert(2, 0.00010076175889726332);
+    model.insert(3, 5.038087944863166e-05);
+    model.insert(-3, 9.068558300753699e-05);
+
+    model
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct AlignmentProperties {
     pub(crate) insert_size: Option<InsertSize>,
@@ -27,6 +40,7 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
+    #[serde(default = "default_homopolymer_error_model")]
     pub(crate) homopolymer_error_model: HashMap<i8, f64>,
     #[serde(default)]
     initial: bool,
@@ -195,12 +209,12 @@ impl AlignmentProperties {
         let mut n_soft_clip = 0;
         let mut n_not_useable = 0;
         let mut homopolymer_error_counts = SimpleCounter::default();
-        while i <= 10000 {
-            if skipped >= 100000 {
+        while i <= 1000000 {
+            if i < 1000 && skipped >= 100000 {
                 warn!(
-                    "\nWARNING: Stopping alignment property estimation after skipping 100.000\n\
+                    "\nWARNING: Stopping alignment property estimation after skipping 100,000\n\
                      records and inspecting {} records. You should have another look\n\
-                     at your reads (do the properly align to the reference?).\n",
+                     at your reads (do they properly align to the reference?).\n",
                     i
                 );
 
@@ -268,7 +282,10 @@ impl AlignmentProperties {
         }
 
         properties.homopolymer_error_model = {
-            let n = homopolymer_error_counts.values().sum::<usize>() as f64;
+            let n = homopolymer_error_counts
+                .values()
+                .filter(|count| **count >= 10)
+                .sum::<usize>() as f64;
             homopolymer_error_counts
                 .iter()
                 .map(|(len, count)| (*len, *count as f64 / n))
