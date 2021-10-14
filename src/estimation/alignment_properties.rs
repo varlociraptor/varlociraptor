@@ -96,6 +96,12 @@ impl AlignmentProperties {
                     qpos += l as usize;
                 }
                 Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
+                    let l = l as usize;
+                    for (_, stretch) in &refseq[rpos..rpos + l].iter().group_by(|c| **c) {
+                        if stretch.count() >= MIN_HOMOPOLYMER_LEN {
+                            counts.incr(0);
+                        }
+                    }
                     qpos += l as usize;
                     rpos += l as usize;
                 }
