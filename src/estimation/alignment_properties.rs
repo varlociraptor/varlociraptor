@@ -28,7 +28,7 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
-    pub(crate) homopolymer_error_model: HashMap<u8, f64>,
+    pub(crate) homopolymer_error_model: HashMap<i8, f64>,
     #[serde(default)]
     initial: bool,
 }
@@ -37,7 +37,7 @@ impl AlignmentProperties {
     pub(crate) fn update_homopolymer_error_model(
         &mut self,
         record: &bam::Record,
-        counts: &mut SimpleCounter<u8>,
+        counts: &mut SimpleCounter<i8>,
         refseq: &[u8],
     ) {
         let qseq = record.seq().as_bytes();
