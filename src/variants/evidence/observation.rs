@@ -310,10 +310,6 @@ impl<P: Clone> Observation<P> {
             >= KassRaftery::Positive
     }
 
-    pub(crate) fn is_alt_support(&self) -> bool {
-        self.prob_alt > self.prob_ref
-    }
-
     pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
         if !pileup.is_empty() {
             let prob_sum = LogProb::ln_sum_exp(

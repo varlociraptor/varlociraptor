@@ -10,7 +10,6 @@ use std::str;
 use std::u32;
 
 use anyhow::Result;
-use counter::Counter;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
@@ -21,6 +20,17 @@ use crate::utils::SimpleCounter;
 
 pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
+fn default_homopolymer_error_model() -> HashMap<i8, f64> {
+    let mut model = HashMap::new();
+    model.insert(0, 0.99);
+    model.insert(1, 0.0003);
+    model.insert(-1, 0.0009);
+    model.insert(-2, 0.0001);
+    model.insert(2, 0.0007);
+
+    model
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct AlignmentProperties {
     pub(crate) insert_size: Option<InsertSize>,
@@ -28,6 +38,7 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
+    #[serde(default = "default_homopolymer_error_model")]
     pub(crate) homopolymer_error_model: HashMap<i8, f64>,
     #[serde(default)]
     initial: bool,
@@ -111,7 +122,7 @@ impl AlignmentProperties {
                 Cigar::RefSkip(l) => {
                     rpos += l as usize;
                 }
-                Cigar::HardClip(l) | Cigar::Pad(l) => continue,
+                Cigar::HardClip(_) | Cigar::Pad(_) => continue,
             }
         }
     }
