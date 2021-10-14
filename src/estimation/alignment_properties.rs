@@ -10,7 +10,6 @@ use std::str;
 use std::u32;
 
 use anyhow::Result;
-use counter::Counter;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
@@ -111,7 +110,7 @@ impl AlignmentProperties {
                 Cigar::RefSkip(l) => {
                     rpos += l as usize;
                 }
-                Cigar::HardClip(l) | Cigar::Pad(l) => continue,
+                Cigar::HardClip(_) | Cigar::Pad(_) => continue,
             }
         }
     }
