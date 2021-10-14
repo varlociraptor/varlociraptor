@@ -209,12 +209,12 @@ impl AlignmentProperties {
         let mut n_soft_clip = 0;
         let mut n_not_useable = 0;
         let mut homopolymer_error_counts = SimpleCounter::default();
-        while i <= 10000 {
-            if skipped >= 100000 {
+        while i <= 1000000 {
+            if i < 1000 && skipped >= 100000 {
                 warn!(
-                    "\nWARNING: Stopping alignment property estimation after skipping 100.000\n\
+                    "\nWARNING: Stopping alignment property estimation after skipping 100,000\n\
                      records and inspecting {} records. You should have another look\n\
-                     at your reads (do the properly align to the reference?).\n",
+                     at your reads (do they properly align to the reference?).\n",
                     i
                 );
 
@@ -282,7 +282,10 @@ impl AlignmentProperties {
         }
 
         properties.homopolymer_error_model = {
-            let n = homopolymer_error_counts.values().sum::<usize>() as f64;
+            let n = homopolymer_error_counts
+                .values()
+                .filter(|count| **count >= 10)
+                .sum::<usize>() as f64;
             homopolymer_error_counts
                 .iter()
                 .map(|(len, count)| (*len, *count as f64 / n))
