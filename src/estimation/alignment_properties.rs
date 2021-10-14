@@ -4,27 +4,113 @@
 // except according to those terms.
 
 use std::cmp;
+use std::collections::HashMap;
 use std::f64;
+use std::str;
 use std::u32;
 
 use anyhow::Result;
+use counter::Counter;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
 use statrs::statistics::{OrderStatistics, Statistics};
 
-#[derive(Clone, Debug, Copy, Deserialize, Serialize)]
+use crate::reference;
+use crate::utils::SimpleCounter;
+
+pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct AlignmentProperties {
     pub(crate) insert_size: Option<InsertSize>,
     pub(crate) max_del_cigar_len: Option<u32>,
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
+    pub(crate) homopolymer_error_model: HashMap<u8, f64>,
     #[serde(default)]
     initial: bool,
 }
 
 impl AlignmentProperties {
+    pub(crate) fn update_homopolymer_error_model(
+        &mut self,
+        record: &bam::Record,
+        counts: &mut SimpleCounter<u8>,
+        refseq: &[u8],
+    ) {
+        let mut counts = SimpleCounter::default();
+        let qseq = record.seq().as_bytes();
+        let mut qpos = 0 as usize;
+        let mut rpos = record.pos() as usize;
+
+        let is_homopolymer_seq = |seq: &[u8]| seq[1..].iter().all(|c| *c == seq[0]);
+        let extend_homopolymer_stretch =
+            |base, seq: &mut dyn Iterator<Item = &u8>| seq.take_while(|c| **c == base).count();
+
+        for c in record.cigar_cached().unwrap().iter() {
+            match *c {
+                Cigar::Del(l) => {
+                    let l = l as usize;
+                    if l < 255 {
+                        if is_homopolymer_seq(&refseq[rpos..rpos + l]) {
+                            let mut len = l;
+                            if rpos + l < refseq.len() {
+                                len += extend_homopolymer_stretch(
+                                    refseq[rpos],
+                                    &mut refseq[rpos + l..].iter(),
+                                )
+                            }
+                            if rpos > 1 {
+                                len += extend_homopolymer_stretch(
+                                    refseq[rpos],
+                                    &mut refseq[..rpos - 1].iter().rev(),
+                                )
+                            }
+                            if len >= MIN_HOMOPOLYMER_LEN {
+                                counts.incr(-(l as i8));
+                            }
+                        }
+                    }
+                    rpos += l as usize;
+                }
+                Cigar::Ins(l) => {
+                    let l = l as usize;
+                    if l < 255 {
+                        if is_homopolymer_seq(&qseq[qpos..qpos + l]) {
+                            let mut len = l + extend_homopolymer_stretch(
+                                qseq[qpos],
+                                &mut refseq[rpos..].iter(),
+                            );
+                            if rpos > 0 {
+                                len += extend_homopolymer_stretch(
+                                    qseq[qpos],
+                                    &mut refseq[..rpos].iter().rev(),
+                                );
+                            }
+                            if len >= MIN_HOMOPOLYMER_LEN {
+                                counts.incr(l as i8)
+                            }
+                        }
+                    }
+                    qpos += l as usize;
+                }
+                Cigar::Match(l) | Cigar::Diff(l) | Cigar::Equal(l) => {
+                    qpos += l as usize;
+                    rpos += l as usize;
+                }
+                Cigar::SoftClip(l) => {
+                    qpos += l as usize;
+                }
+                Cigar::RefSkip(l) => {
+                    rpos += l as usize;
+                }
+                Cigar::HardClip(l) | Cigar::Pad(l) => continue,
+            }
+        }
+    }
+
     /// Update maximum observed cigar operation lengths. Return whether any D, I, S, or H operation
     /// was found in the cigar string.
     /// The argument `update_unknown` denotes whether unknown properties shall be updated as well.
@@ -81,14 +167,18 @@ impl AlignmentProperties {
     pub(crate) fn estimate<R: bam::Read>(
         bam: &mut R,
         omit_insert_size: bool,
-        allow_hardclips: bool,
+        reference_buffer: &mut reference::Buffer,
     ) -> Result<Self> {
+        // If we do not consider insert size, it is safe to also process hardclipped reads.
+        let allow_hardclips = omit_insert_size;
+
         let mut properties = AlignmentProperties {
             insert_size: None,
             max_del_cigar_len: None,
             max_ins_cigar_len: None,
             frac_max_softclip: None,
             max_read_len: 0,
+            homopolymer_error_model: HashMap::new(),
             initial: true,
         };
 
@@ -100,12 +190,13 @@ impl AlignmentProperties {
         let mut skipped = 0;
         let mut n_soft_clip = 0;
         let mut n_not_useable = 0;
+        let mut homopolymer_error_counts = SimpleCounter::default();
         while i <= 10000 {
             if skipped >= 100000 {
                 warn!(
                     "\nWARNING: Stopping alignment property estimation after skipping 100.000\n\
                      records and inspecting {} records. You should have another look\n\
-                     at your reads.\n",
+                     at your reads (do the properly align to the reference?).\n",
                     i
                 );
 
@@ -127,11 +218,19 @@ impl AlignmentProperties {
                 continue;
             }
 
+            let chrom = str::from_utf8(bam.header().tid2name(record.tid() as u32)).unwrap();
+
             max_mapq = cmp::max(max_mapq, record.mapq());
             max_read_len = cmp::max(max_read_len, record.seq().len() as u32);
 
             let (is_regular, has_soft_clip) =
                 properties.update_max_cigar_ops_len(&record, allow_hardclips);
+
+            properties.update_homopolymer_error_model(
+                &record,
+                &mut homopolymer_error_counts,
+                reference_buffer.seq(&chrom)?.as_ref(),
+            );
 
             // If we are not using the insert size, we do not need to estimate it
             if omit_insert_size {
@@ -161,6 +260,14 @@ impl AlignmentProperties {
 
             i += 1;
         }
+
+        properties.homopolymer_error_model = {
+            let n = homopolymer_error_counts.values().sum::<usize>() as f64;
+            homopolymer_error_counts
+                .iter()
+                .map(|(len, count)| (*len, *count as f64 / n))
+                .collect()
+        };
 
         properties.max_read_len = max_read_len;
 
@@ -242,13 +349,23 @@ pub(crate) struct InsertSize {
 
 #[cfg(test)]
 mod tests {
+    use bio::io::fasta;
+
     use super::*;
+
+    fn reference_buffer() -> reference::Buffer {
+        reference::Buffer::new(
+            fasta::IndexedReader::from_file(&"tests/resources/chr10.fa").unwrap(),
+            1,
+        )
+    }
 
     #[test]
     fn test_estimate() {
         let mut bam = bam::Reader::from_path("tests/resources/tumor-first30000.bam").unwrap();
+        let mut reference_buffer = reference_buffer();
 
-        let props = AlignmentProperties::estimate(&mut bam, false, false).unwrap();
+        let props = AlignmentProperties::estimate(&mut bam, false, &mut reference_buffer).unwrap();
         println!("{:?}", props);
 
         if let Some(isize) = props.insert_size {
@@ -267,8 +384,9 @@ mod tests {
         let mut bam =
             bam::Reader::from_path("tests/resources/tumor-first30000.reads_with_soft_clips.bam")
                 .unwrap();
+        let mut reference_buffer = reference_buffer();
 
-        let props = AlignmentProperties::estimate(&mut bam, false, false).unwrap();
+        let props = AlignmentProperties::estimate(&mut bam, false, &mut reference_buffer).unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());
@@ -284,8 +402,9 @@ mod tests {
             "tests/resources/tumor-first30000.bunch_of_reads_made_single_ended.bam",
         )
         .unwrap();
+        let mut reference_buffer = reference_buffer();
 
-        let props = AlignmentProperties::estimate(&mut bam, false, false).unwrap();
+        let props = AlignmentProperties::estimate(&mut bam, false, &mut reference_buffer).unwrap();
         println!("{:?}", props);
 
         assert!(props.insert_size.is_none());

@@ -18,6 +18,7 @@ use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
+use crate::reference;
 use crate::variants::evidence::observation::{
     self, major_read_position, Observable, Observation, ReadPosition,
 };
@@ -165,10 +166,14 @@ impl SubsampleCandidates {
 pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
     omit_insert_size: bool,
-    allow_hardclips: bool,
+    reference_buffer: &mut reference::Buffer,
 ) -> Result<alignment_properties::AlignmentProperties> {
     let mut bam = bam::Reader::from_path(path)?;
-    alignment_properties::AlignmentProperties::estimate(&mut bam, omit_insert_size, allow_hardclips)
+    alignment_properties::AlignmentProperties::estimate(
+        &mut bam,
+        omit_insert_size,
+        reference_buffer,
+    )
 }
 
 /// A sequenced sample, e.g., a tumor or a normal sample.

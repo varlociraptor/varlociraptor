@@ -15,13 +15,13 @@ use regex::Regex;
 use rust_htslib::bam::Read as BamRead;
 use rust_htslib::{bam, bcf, bcf::Read};
 
-use crate::cli;
 use crate::errors;
 use crate::utils;
 use crate::utils::anonymize::Anonymizer;
 use crate::variants::model::Variant;
 use crate::variants::sample;
 use crate::variants::types::breakends::BreakendIndex;
+use crate::{cli, reference};
 
 lazy_static! {
     static ref TESTCASE_RE: Regex =
@@ -64,7 +64,7 @@ pub struct Testcase {
     #[builder(private)]
     idx: usize,
     #[builder(private)]
-    reference_reader: fasta::IndexedReader<File>,
+    reference_buffer: reference::Buffer,
     candidates: PathBuf,
     #[builder(private)]
     bams: HashMap<String, PathBuf>,
@@ -79,7 +79,10 @@ pub struct Testcase {
 
 impl TestcaseBuilder {
     pub(crate) fn reference(self, path: impl AsRef<Path> + std::fmt::Debug) -> Result<Self> {
-        Ok(self.reference_reader(fasta::IndexedReader::from_file(&path)?))
+        Ok(self.reference_buffer(reference::Buffer::new(
+            fasta::IndexedReader::from_file(&path)?,
+            1,
+        )))
     }
 
     pub(crate) fn locus(self, locus: &str) -> Result<Self> {
@@ -272,6 +275,7 @@ impl Testcase {
 
         let chrom_name = self.chrom_name.as_ref().unwrap();
         let pos = self.pos.unwrap();
+        let ref_name = str::from_utf8(chrom_name)?;
 
         let (start, end) = match candidate {
             (Variant::Deletion(l), _) => (pos.saturating_sub(1000), pos + l as u64 + 1000),
@@ -313,7 +317,8 @@ impl Testcase {
         // second pass, write samples
         let mut samples = HashMap::new();
         for (name, path) in &self.bams {
-            let properties = sample::estimate_alignment_properties(path, false, false)?;
+            let properties =
+                sample::estimate_alignment_properties(path, false, &mut self.reference_buffer)?;
             let mut bam_reader = bam::IndexedReader::from_path(path)?;
             let filename = Path::new(name).with_extension("bam");
 
@@ -391,19 +396,15 @@ impl Testcase {
         };
 
         // fetch reference
-        let ref_name = str::from_utf8(chrom_name)?;
-
         // limit ref_end
-        for seq in self.reference_reader.index.sequences() {
+        for seq in self.reference_buffer.sequences() {
             if seq.name == ref_name {
                 ref_end = cmp::min(ref_end, seq.len);
             }
         }
 
-        self.reference_reader
-            .fetch(ref_name, ref_start as u64, ref_end as u64)?;
-        let mut ref_seq = Vec::new();
-        self.reference_reader.read(&mut ref_seq)?;
+        let mut ref_seq =
+            self.reference_buffer.seq(ref_name)?[ref_start as usize..ref_end as usize].to_owned();
 
         if self.anonymize {
             anonymizer.anonymize_seq(&mut ref_seq);

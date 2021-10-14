@@ -162,7 +162,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .protocol_strandedness(self.protocol_strandedness)
             .alignments(
                 bam_reader,
-                self.alignment_properties,
+                self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
             )
             .build()

@@ -345,6 +345,25 @@ pub enum PlotKind {
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum EstimateKind {
     #[structopt(
+        name = "alignment-properties",
+        about = "Estimate properties like insert size, maximum softclip length, and the PCR homopolymer error model.",
+        usage = "varlociraptor estimate alignment-properties reference.fasta --bam sample.bam > sample.alignment-properties.json",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    AlignmentProperties {
+        #[structopt(
+            parse(from_os_str),
+            help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
+        )]
+        reference: PathBuf,
+        #[structopt(
+            long,
+            required = true,
+            help = "BAM file with aligned reads from a single sample."
+        )]
+        bam: PathBuf,
+    },
+    #[structopt(
         name = "mutational-burden",
         about = "Estimate mutational burden. Takes Varlociraptor calls (must be annotated \
                  with e.g. VEP but using ANN instead of CSQ) from STDIN, prints mutational burden estimate in Vega-lite JSON format to STDOUT. \
@@ -677,13 +696,17 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         );
                     };
 
-                    // If we omit the insert size information for calculating the evidence, we can savely allow hardclips here.
-                    let allow_hardclips = omit_insert_size;
+                    let mut reference_buffer = Arc::new(reference::Buffer::new(
+                        fasta::IndexedReader::from_file(&reference)
+                            .context("Unable to read genome reference.")?,
+                        reference_buffer_size,
+                    ));
+
                     let alignment_properties = est_or_load_alignment_properties(
                         &alignment_properties,
                         &bam,
                         omit_insert_size,
-                        allow_hardclips,
+                        Arc::get_mut(&mut reference_buffer).unwrap(),
                     )?;
 
                     let gap_params = GapParams {
@@ -692,12 +715,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         prob_insertion_extend_artifact: LogProb::from(spurious_insext_rate),
                         prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
                     };
-
-                    let reference_buffer = Arc::new(reference::Buffer::new(
-                        fasta::IndexedReader::from_file(&reference)
-                            .context("Unable to read genome reference.")?,
-                        reference_buffer_size,
-                    ));
 
                     let log_each_record = if log_mode == "each-record" {
                         true
@@ -1064,6 +1081,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 mode,
                 cutoff as f64,
             )?,
+            EstimateKind::AlignmentProperties { reference, bam } => {
+                let mut reference_buffer =
+                    reference::Buffer::new(fasta::IndexedReader::from_file(&reference)?, 1);
+                let alignment_properties =
+                    estimate_alignment_properties(bam, false, &mut reference_buffer)?;
+                println!("{}", serde_json::to_string(&alignment_properties)?);
+            }
         },
         Varlociraptor::Plot { kind } => match kind {
             PlotKind::VariantCallingPrior {
@@ -1124,14 +1148,14 @@ pub(crate) fn est_or_load_alignment_properties(
     alignment_properties_file: &Option<impl AsRef<Path>>,
     bam_file: impl AsRef<Path>,
     omit_insert_size: bool,
-    allow_hardclips: bool,
+    reference_buffer: &mut reference::Buffer,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(bam_file, omit_insert_size, allow_hardclips)
+        estimate_alignment_properties(bam_file, omit_insert_size, reference_buffer)
     }
 }
 
