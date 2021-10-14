@@ -22,11 +22,13 @@ pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
 fn default_homopolymer_error_model() -> HashMap<i8, f64> {
     let mut model = HashMap::new();
-    model.insert(0, 0.99);
-    model.insert(1, 0.0003);
-    model.insert(-1, 0.0009);
-    model.insert(-2, 0.0001);
-    model.insert(2, 0.0007);
+    model.insert(0, 0.9975414130829068);
+    model.insert(1, 0.0010076175889726332);
+    model.insert(-1, 0.0010076175889726332);
+    model.insert(-2, 0.00020152351779452663);
+    model.insert(2, 0.00010076175889726332);
+    model.insert(3, 5.038087944863166e-05);
+    model.insert(-3, 9.068558300753699e-05);
 
     model
 }
