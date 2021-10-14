@@ -280,7 +280,10 @@ impl AlignmentProperties {
         }
 
         properties.homopolymer_error_model = {
-            let n = homopolymer_error_counts.values().sum::<usize>() as f64;
+            let n = homopolymer_error_counts
+                .values()
+                .filter(|count| **count >= 10)
+                .sum::<usize>() as f64;
             homopolymer_error_counts
                 .iter()
                 .map(|(len, count)| (*len, *count as f64 / n))
