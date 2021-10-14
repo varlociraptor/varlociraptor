@@ -40,7 +40,6 @@ impl AlignmentProperties {
         counts: &mut SimpleCounter<u8>,
         refseq: &[u8],
     ) {
-        let mut counts = SimpleCounter::default();
         let qseq = record.seq().as_bytes();
         let mut qpos = 0 as usize;
         let mut rpos = record.pos() as usize;
