@@ -8,7 +8,7 @@ use lru::LruCache;
 
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
-use crate::variants::model::bias::Biases;
+use crate::variants::model::bias::Artifacts;
 use crate::variants::model::AlleleFreq;
 use crate::variants::sample::Pileup;
 
@@ -18,7 +18,7 @@ pub(crate) type SingleSampleCache = LruCache<Event, LogProb>;
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub(crate) struct Event {
     pub(crate) allele_freq: AlleleFreq,
-    pub(crate) biases: Biases,
+    pub(crate) artifacts: Artifacts,
     pub(crate) is_discrete: bool,
 }
 
@@ -84,8 +84,8 @@ impl ContaminatedSampleLikelihoodModel {
         &self,
         allele_freq_primary: LogProb,
         allele_freq_secondary: LogProb,
-        biases_primary: &Biases,
-        biases_secondary: &Biases,
+        biases_primary: &Artifacts,
+        biases_secondary: &Artifacts,
         observation: &Observation<ReadPosition>,
     ) -> LogProb {
         // Step 1: likelihoods for the mapping case.
@@ -133,8 +133,8 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
                 let lh = self.likelihood_observation(
                     ln_af_primary,
                     ln_af_secondary,
-                    &events.primary.biases,
-                    &events.secondary.biases,
+                    &events.primary.artifacts,
+                    &events.secondary.artifacts,
                     obs,
                 );
                 prob + lh
@@ -164,7 +164,7 @@ impl SampleLikelihoodModel {
     fn likelihood_observation(
         &self,
         allele_freq: LogProb,
-        biases: &Biases,
+        biases: &Artifacts,
         observation: &Observation<ReadPosition>,
     ) -> LogProb {
         // Step 1: likelihood for the mapping case.
@@ -189,7 +189,7 @@ impl SampleLikelihoodModel {
 /// underlying fragment/read is mapped correctly.
 fn likelihood_mapping(
     allele_freq: LogProb,
-    biases: &Biases,
+    biases: &Artifacts,
     observation: &Observation<ReadPosition>,
 ) -> LogProb {
     // Step 1: calculate probability to sample from alt allele
@@ -224,7 +224,7 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 
             // calculate product of per-read likelihoods in log space
             let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-                let lh = self.likelihood_observation(ln_af, &event.biases, obs);
+                let lh = self.likelihood_observation(ln_af, &event.artifacts, obs);
                 prob + lh
             });
 
@@ -240,20 +240,20 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::variants::model::bias::Biases;
+    use crate::variants::model::bias::Artifacts;
     use crate::variants::model::likelihood;
     use crate::variants::model::tests::observation;
     use bio::stats::LogProb;
     use itertools_num::linspace;
 
-    fn biases() -> Biases {
-        Biases::none()
+    fn biases() -> Artifacts {
+        Artifacts::none()
     }
 
     fn event(allele_freq: f64) -> Event {
         Event {
             allele_freq: AlleleFreq(allele_freq),
-            biases: biases(),
+            artifacts: biases(),
             is_discrete: true,
         }
     }

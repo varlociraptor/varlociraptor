@@ -12,7 +12,7 @@ use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::grammar;
-use crate::variants::model::bias::Biases;
+use crate::variants::model::bias::Artifacts;
 
 pub(crate) mod bias;
 pub(crate) mod likelihood;
@@ -29,7 +29,7 @@ pub(crate) struct Contamination {
 pub(crate) struct Event {
     pub(crate) name: String,
     pub(crate) vafs: grammar::VAFTree,
-    pub(crate) biases: Vec<Biases>,
+    pub(crate) biases: Vec<Artifacts>,
 }
 
 impl Event {

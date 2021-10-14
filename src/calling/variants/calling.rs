@@ -27,7 +27,7 @@ use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
 use crate::variants::model::Contamination;
-use crate::variants::model::{bias::Biases, AlleleFreq};
+use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::types::breakends::BreakendIndex;
 
 pub(crate) type AlleleFreqCombination = LikelihoodOperands;
@@ -482,7 +482,7 @@ where
             events.push(model::Event {
                 name: "absent".to_owned(),
                 vafs: grammar::VAFTree::absent(self.n_samples()),
-                biases: vec![Biases::none()],
+                biases: vec![Artifacts::none()],
             });
 
             // add events from scenario
@@ -490,10 +490,10 @@ where
                 events.push(model::Event {
                     name: event_name.clone(),
                     vafs: vaftree.clone(),
-                    biases: vec![Biases::none()],
+                    biases: vec![Artifacts::none()],
                 });
 
-                let biases: Vec<_> = Biases::all_artifact_combinations(
+                let biases: Vec<_> = Artifacts::all_artifact_combinations(
                     consider_read_orientation_bias,
                     consider_strand_bias,
                     consider_read_position_bias,
@@ -650,7 +650,7 @@ where
         for (map_estimates, _) in model_instance.event_posteriors() {
             if map_estimates
                 .iter()
-                .any(|estimate| estimate.biases.is_artifact())
+                .any(|estimate| estimate.artifacts.is_artifact())
                 && !is_artifact
             {
                 // METHOD: skip MAP that is an artifact if the overall artifact event is not the strongest one.
@@ -665,15 +665,15 @@ where
                     let mut sample_builder = SampleInfoBuilder::default();
                     sample_builder.observations(pileup);
                     match estimate {
-                        model::likelihood::Event { biases, .. } if biases.is_artifact() => {
+                        model::likelihood::Event { artifacts: biases, .. } if biases.is_artifact() => {
                             sample_builder
                                 .allelefreq_estimate(AlleleFreq(0.0))
-                                .biases(biases.clone());
+                                .artifacts(biases.clone());
                         }
                         model::likelihood::Event { allele_freq, .. } => {
                             sample_builder
                                 .allelefreq_estimate(*allele_freq)
-                                .biases(Biases::none());
+                                .artifacts(Artifacts::none());
                         }
                     };
                     Some(sample_builder.build().unwrap())

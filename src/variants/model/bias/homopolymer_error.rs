@@ -7,7 +7,7 @@ use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, Hash)]
-pub(crate) enum DivIndelBias {
+pub(crate) enum HomopolymerError {
     None,
     Some {
         other_rate: NotNan<f64>,
@@ -15,11 +15,11 @@ pub(crate) enum DivIndelBias {
     },
 }
 
-impl DivIndelBias {
+impl HomopolymerError {
     pub(crate) fn values(min_other_rate: f64) -> Vec<Self> {
         vec![
-            DivIndelBias::None,
-            DivIndelBias::Some {
+            HomopolymerError::None,
+            HomopolymerError::Some {
                 other_rate: NotNan::new(0.0).unwrap(),
                 min_other_rate: NotNan::new(min_other_rate).unwrap(),
             },
@@ -27,23 +27,23 @@ impl DivIndelBias {
     }
 }
 
-impl Default for DivIndelBias {
+impl Default for HomopolymerError {
     fn default() -> Self {
-        DivIndelBias::None
+        HomopolymerError::None
     }
 }
 
-impl Bias for DivIndelBias {
+impl Bias for HomopolymerError {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match self {
-            DivIndelBias::None => {
+            HomopolymerError::None => {
                 if observation.has_alt_indel_operations {
                     LogProb::ln_zero()
                 } else {
                     LogProb::ln_one()
                 }
             }
-            DivIndelBias::Some { other_rate, .. } => {
+            HomopolymerError::Some { other_rate, .. } => {
                 if **other_rate == 0.0 {
                     // METHOD: if there are no other operations there is no artifact.
                     LogProb::ln_zero()
@@ -61,7 +61,7 @@ impl Bias for DivIndelBias {
     }
 
     fn is_artifact(&self) -> bool {
-        *self != DivIndelBias::None
+        *self != HomopolymerError::None
     }
 
     fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
@@ -81,8 +81,8 @@ impl Bias for DivIndelBias {
 
         pileups.iter().any(|pileup| {
             pileup.iter().any(|observation| match self {
-                DivIndelBias::Some { .. } => observation.has_alt_indel_operations,
-                DivIndelBias::None => self.prob(observation) != LogProb::ln_zero(),
+                HomopolymerError::Some { .. } => observation.has_alt_indel_operations,
+                HomopolymerError::None => self.prob(observation) != LogProb::ln_zero(),
             })
         })
     }
@@ -92,7 +92,7 @@ impl Bias for DivIndelBias {
     }
 
     fn min_strong_evidence_ratio(&self) -> f64 {
-        if let DivIndelBias::Some { other_rate, .. } = self {
+        if let HomopolymerError::Some { other_rate, .. } = self {
             0.66666 * **other_rate
         } else {
             unreachable!();
@@ -103,7 +103,7 @@ impl Bias for DivIndelBias {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
-        if let DivIndelBias::Some {
+        if let HomopolymerError::Some {
             ref mut other_rate,
             min_other_rate,
         } = self

@@ -6,13 +6,13 @@ use strum::IntoEnumIterator;
 
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 
-pub(crate) mod divindel_bias;
+pub(crate) mod homopolymer_error;
 pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
 pub(crate) mod softclip_bias;
 pub(crate) mod strand_bias;
 
-pub(crate) use divindel_bias::DivIndelBias;
+pub(crate) use homopolymer_error::HomopolymerError;
 pub(crate) use read_orientation_bias::ReadOrientationBias;
 pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use softclip_bias::SoftclipBias;
@@ -92,7 +92,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
 }
 
 #[derive(Builder, CopyGetters, Getters, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub(crate) struct Biases {
+pub(crate) struct Artifacts {
     #[getset(get = "pub(crate)")]
     strand_bias: StrandBias,
     #[getset(get = "pub(crate)")]
@@ -102,23 +102,23 @@ pub(crate) struct Biases {
     #[getset(get = "pub(crate)")]
     softclip_bias: SoftclipBias,
     #[getset(get = "pub(crate)")]
-    divindel_bias: DivIndelBias,
+    homopolymer_error: HomopolymerError,
 }
 
-impl Biases {
+impl Artifacts {
     pub(crate) fn all_artifact_combinations(
         consider_read_orientation_bias: bool,
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
         consider_softclip_bias: bool,
-        consider_divindel_bias: bool,
+        consider_homopolymer_error: bool,
         min_divindel_other_rate: f64,
     ) -> Box<dyn Iterator<Item = Self>> {
         if !consider_strand_bias
             && !consider_read_orientation_bias
             && !consider_read_position_bias
             && !consider_softclip_bias
-            && !consider_divindel_bias
+            && !consider_homopolymer_error
         {
             return Box::new(std::iter::empty());
         }
@@ -143,10 +143,10 @@ impl Biases {
         } else {
             vec![SoftclipBias::None]
         };
-        let divindel_biases = if consider_divindel_bias {
-            DivIndelBias::values(min_divindel_other_rate)
+        let homopolymer_error = if consider_homopolymer_error {
+            HomopolymerError::values(min_divindel_other_rate)
         } else {
-            vec![DivIndelBias::None]
+            vec![HomopolymerError::None]
         };
 
         Box::new(
@@ -155,7 +155,7 @@ impl Biases {
                 .cartesian_product(read_orientation_biases.into_iter())
                 .cartesian_product(read_position_biases.into_iter())
                 .cartesian_product(softclip_biases.into_iter())
-                .cartesian_product(divindel_biases.into_iter())
+                .cartesian_product(homopolymer_error.into_iter())
                 .filter_map(|((((sb, rob), rpb), scb), dib)| {
                     if [
                         sb.is_artifact(),
@@ -170,12 +170,12 @@ impl Biases {
                         == 1
                     {
                         Some(
-                            BiasesBuilder::default()
+                            ArtifactsBuilder::default()
                                 .strand_bias(sb)
                                 .read_orientation_bias(rob)
                                 .read_position_bias(rpb)
                                 .softclip_bias(scb)
-                                .divindel_bias(dib)
+                                .homopolymer_error(dib)
                                 .build()
                                 .unwrap(),
                         )
@@ -187,12 +187,12 @@ impl Biases {
     }
 
     pub(crate) fn none() -> Self {
-        BiasesBuilder::default()
+        ArtifactsBuilder::default()
             .strand_bias(StrandBias::default())
             .read_orientation_bias(ReadOrientationBias::None)
             .read_position_bias(ReadPositionBias::None)
             .softclip_bias(SoftclipBias::None)
-            .divindel_bias(DivIndelBias::None)
+            .homopolymer_error(HomopolymerError::None)
             .build()
             .unwrap()
     }
@@ -202,7 +202,7 @@ impl Biases {
             && self.read_orientation_bias.is_possible(pileups)
             && self.read_position_bias.is_possible(pileups)
             && self.softclip_bias.is_possible(pileups)
-            && self.divindel_bias.is_possible(pileups)
+            && self.homopolymer_error.is_possible(pileups)
     }
 
     pub(crate) fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
@@ -210,7 +210,7 @@ impl Biases {
             && self.read_orientation_bias.is_informative(pileups)
             && self.read_position_bias.is_informative(pileups)
             && self.softclip_bias.is_informative(pileups)
-            && self.divindel_bias.is_informative(pileups)
+            && self.homopolymer_error.is_informative(pileups)
     }
 
     pub(crate) fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
@@ -218,7 +218,7 @@ impl Biases {
             && self.read_orientation_bias.is_likely(pileups)
             && self.read_position_bias.is_likely(pileups)
             && self.softclip_bias.is_likely(pileups)
-            && self.divindel_bias.is_likely(pileups)
+            && self.homopolymer_error.is_likely(pileups)
     }
 
     pub(crate) fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
@@ -226,7 +226,7 @@ impl Biases {
             + self.read_orientation_bias.prob(observation)
             + self.read_position_bias.prob(observation)
             + self.softclip_bias.prob(observation)
-            + self.divindel_bias.prob(observation)
+            + self.homopolymer_error.prob(observation)
     }
 
     pub(crate) fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb {
@@ -234,7 +234,7 @@ impl Biases {
             + self.read_orientation_bias.prob_any(observation)
             + self.read_position_bias.prob_any(observation)
             + self.softclip_bias.prob_any(observation)
-            + self.divindel_bias.prob_any(observation)
+            + self.homopolymer_error.prob_any(observation)
     }
 
     pub(crate) fn is_artifact(&self) -> bool {
@@ -242,11 +242,11 @@ impl Biases {
             || self.read_orientation_bias.is_artifact()
             || self.read_position_bias.is_artifact()
             || self.softclip_bias.is_artifact()
-            || self.divindel_bias.is_artifact()
+            || self.homopolymer_error.is_artifact()
     }
 
     pub(crate) fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
-        self.divindel_bias.learn_parameters(pileups);
+        self.homopolymer_error.learn_parameters(pileups);
         self.strand_bias.learn_parameters(pileups);
     }
 }
