@@ -123,7 +123,7 @@ impl AlignmentProperties {
 
         let mut is_regular = true;
         let mut has_soft_clip = false;
-        for c in record.cigar().iter() {
+        for c in record.cigar_cached().unwrap().iter() {
             match *c {
                 Cigar::SoftClip(l) => {
                     let s = norm(l);
@@ -216,6 +216,8 @@ impl AlignmentProperties {
                 skipped += 1;
                 continue;
             }
+
+            record.cache_cigar();
 
             let chrom = str::from_utf8(bam.header().tid2name(record.tid() as u32)).unwrap();
 
