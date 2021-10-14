@@ -665,7 +665,9 @@ where
                     let mut sample_builder = SampleInfoBuilder::default();
                     sample_builder.observations(pileup);
                     match estimate {
-                        model::likelihood::Event { artifacts: biases, .. } if biases.is_artifact() => {
+                        model::likelihood::Event {
+                            artifacts: biases, ..
+                        } if biases.is_artifact() => {
                             sample_builder
                                 .allelefreq_estimate(AlleleFreq(0.0))
                                 .artifacts(biases.clone());
