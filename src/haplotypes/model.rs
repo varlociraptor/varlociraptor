@@ -5,6 +5,8 @@ use crate::{
 use bio::stats::bayesian;
 use bio::stats::{bayesian::model, LogProb};
 
+use crate::utils::adaptive_integration;
+use ordered_float::NotNaN;
 use statrs::function::beta::ln_beta;
 use std::collections::HashMap;
 use std::mem;
@@ -13,11 +15,54 @@ use std::mem;
 pub(crate) struct HaplotypeFractions(Vec<AlleleFreq>);
 
 impl HaplotypeFractions {
-    pub(crate) fn likely(kallisto_estimates: &KallistoEstimates) -> Vec<Self> {
-        // TODO: return all combinations of haplotype fractions that are somehow likely
-        // given the callisto estimates. E.g., omit fractions > 0 for haplotypes that
-        // do not occur at all.
-        todo!();
+    // pub(crate) fn likely(kallisto_estimates: &KallistoEstimates) -> Vec<Self> {
+    //     // TODO: return all combinations of haplotype fractions that are somehow likely
+    //     // given the callisto estimates. E.g., omit fractions > 0 for haplotypes that
+    //     // do not occur at all.
+    //     todo!();
+    // }
+}
+
+#[derive(Debug, new)]
+pub(crate) struct Marginal;
+
+impl Marginal {
+    pub(crate) fn calc_marginal<F: FnMut(usize, &mut Vec<AlleleFreq>) -> LogProb>(
+        &self,
+        haplotype_index: usize,
+        fractions: &mut Vec<AlleleFreq>,
+        joint_prob: &F,
+    ) -> LogProb {
+        let n = 10;
+        if haplotype_index == n {
+            joint_prob(n, fractions)
+        } else {
+            let density = |fraction| {
+                let mut fractions = fractions.clone();
+                fractions.push(fraction);
+                self.calc_marginal(haplotype_index + 1, &mut fractions, joint_prob)
+            };
+            adaptive_integration::ln_integrate_exp(
+                density,
+                NotNaN::new(0.0).unwrap(),
+                NotNaN::new(1.0).unwrap(),
+                NotNaN::new(0.1).unwrap(),
+            )
+        }
+    }
+}
+impl model::Marginal for Marginal {
+    type Event = HaplotypeFractions;
+    type Data = Data;
+    type BaseEvent = HaplotypeFractions;
+
+    fn compute<F: FnMut(&Self::Event, &Self::Data) -> LogProb>(
+        &self,
+        data: &Self::Data,
+        joint_prob: &mut F,
+    ) -> LogProb {
+        //self.calc_marginal()
+        LogProb::ln_one()
     }
 }
 
@@ -49,7 +94,13 @@ impl Likelihood {
         // TODO compute likelihood using neg_binom on the counts and dispersion
         // in the data and the fractions in the events.
         // Later: use the cache to avoid redundant computations.
-
+        // event
+        //     .0
+        //     .iter()
+        //     .zip(data.kallisto_estimates.iter())
+        //     .map(|(fraction, estimate)| {
+        //         Self::neg_binom(estimate.count, fraction, estimate.dispersion)
+        //     });
         todo!()
     }
 
@@ -62,19 +113,6 @@ impl Likelihood {
         // TODO compute likelihood based on Varlociraptor VAFs.
         // Let us postpone this until we have a working version with kallisto only.
         LogProb::ln_one()
-    }
-
-    // TODO move into model
-    fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
-        let n = 1.0 / theta;
-        let p = n / (n + mu);
-        let mut p1 = if n > 0.0 { n * p.ln() } else { 0.0 };
-        let mut p2 = if x > 0.0 { x * (1.0 - p).ln() } else { 0.0 };
-        let b = ln_beta(x + 1.0, n);
-        if p1 < p2 {
-            mem::swap(&mut p1, &mut p2);
-        }
-        LogProb((p1 - b + p2) - (x + n).ln())
     }
 }
 
@@ -113,3 +151,16 @@ impl model::Posterior for Posterior {
 
 #[derive(Debug, Derefable, Default)]
 pub(crate) struct Cache(#[deref] HashMap<usize, HashMap<AlleleFreq, LogProb>>);
+
+// TODO move into model
+pub(crate) fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
+    let n = 1.0 / theta;
+    let p = n / (n + mu);
+    let mut p1 = if n > 0.0 { n * p.ln() } else { 0.0 };
+    let mut p2 = if x > 0.0 { x * (1.0 - p).ln() } else { 0.0 };
+    let b = ln_beta(x + 1.0, n);
+    if p1 < p2 {
+        mem::swap(&mut p1, &mut p2);
+    }
+    LogProb((p1 - b + p2) - (x + n).ln())
+}

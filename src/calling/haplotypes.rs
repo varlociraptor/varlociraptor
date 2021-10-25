@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 use bio::stats::bayesian::model::Model;
 
-use crate::haplotypes::model::{Data, HaplotypeFractions, Likelihood, Posterior, Prior};
+use crate::haplotypes::model::{Data, HaplotypeFractions, Likelihood, Marginal, Posterior, Prior};
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -24,17 +24,18 @@ pub(crate) struct Caller {
 
 impl Caller {
     pub(crate) fn call(&self) -> Result<()> {
-        // Step 1: obtain callisto estimates.
+        // Step 1: obtain kallisto estimates.
         let kallisto_estimates = KallistoEstimates::new(&self.hdf5_reader, self.min_norm_counts)?;
 
         // Step 2: setup model.
         let model = Model::new(Likelihood::new(), Prior::new(), Posterior::new());
 
-        let universe = HaplotypeFractions::likely(&kallisto_estimates);
+        //let universe = HaplotypeFractions::likely(&kallisto_estimates);
         let data = Data::new(kallisto_estimates.values().cloned().collect());
 
         // Step 3: calculate posteriors.
-        let m = model.compute(universe, &data);
+        //let m = model.compute(universe, &data);
+        let m = model.compute_from_marginal(&Marginal::new(), &data);
 
         // Step 4: print TSV table with results
         // TODO use csv crate
