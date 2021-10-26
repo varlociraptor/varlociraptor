@@ -232,7 +232,7 @@ pub(crate) trait Realigner {
 
         let aux_strand_info = utils::aux_tag_strand_info(record);
         let mut strand = Strand::None;
-        let mut has_alt_indel_operations = false;
+        let mut homopolymer_indel_len = None;
 
         for region in merged_regions {
             // read emission
@@ -311,7 +311,11 @@ pub(crate) trait Realigner {
                     }
                 }
 
-                has_alt_indel_operations |= !alt_hit.best_indel_operations().is_empty();
+                if homopolymer_indel_len.is_none() {
+                    // METHOD: Only record homopolymer indel len if there is a single locus,
+                    // otherwise we omit it because we have a compley multi-locus event.
+                    homopolymer_indel_len = alt_hit.homopolymer_indel_len();
+                }
             }
 
             // METHOD: probabilities of independent regions are combined here.
@@ -327,7 +331,7 @@ pub(crate) trait Realigner {
 
         Ok(AlleleSupportBuilder::default()
             .strand(strand)
-            .has_alt_indel_operations(has_alt_indel_operations)
+            .homopolymer_indel_len(homopolymer_indel_len)
             .prob_ref_allele(prob_ref_all)
             .prob_alt_allele(prob_alt_all)
             .build()

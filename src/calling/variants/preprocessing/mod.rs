@@ -567,7 +567,7 @@ pub(crate) fn write_observations(
         strand.push(obs.strand);
         read_orientation.push(obs.read_orientation);
         softclipped.push(obs.softclipped);
-        alt_indel_operations.push(obs.has_alt_indel_operations);
+        alt_indel_operations.push(obs.homopolymer_indel_len);
         paired.push(obs.paired);
         read_position.push(obs.read_position);
     }

@@ -314,9 +314,9 @@ where
                 *entry = Some(work_item.rid);
             }
 
+            let variant = utils::collect_variants(records.first_not_none_mut()?, false, None)?[0];
             // obtain variant type
-            let variant_type =
-                utils::collect_variants(records.first_not_none_mut()?, false, None)?[0].to_type();
+            let variant_type = variant.to_type();
 
             self.configure_model(
                 work_item.rid,
@@ -499,7 +499,6 @@ where
                     consider_read_position_bias,
                     consider_softclip_bias,
                     consider_divindel_bias,
-                    self.min_divindel_other_rate,
                 )
                 .collect();
                 if !biases.is_empty() {

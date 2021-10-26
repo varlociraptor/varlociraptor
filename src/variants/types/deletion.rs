@@ -156,7 +156,7 @@ impl<R: Realigner> Variant for Deletion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn report_indel_operations(&self) -> bool {
+    fn consider_homopolymer_indels(&self) -> bool {
         // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
         true
     }

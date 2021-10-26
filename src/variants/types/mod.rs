@@ -50,7 +50,7 @@ pub(crate) struct AlleleSupport {
     read_position: Option<u32>,
     #[builder(default)]
     #[getset(get_copy = "pub")]
-    has_alt_indel_operations: bool,
+    homopolymer_indel_len: Option<i8>,
 }
 
 impl AlleleSupport {
@@ -115,7 +115,7 @@ pub(crate) trait Variant {
     ) -> LogProb;
 
     /// Whether the variant shall report indel operations for the DivIndelBias calculation.
-    fn report_indel_operations(&self) -> bool {
+    fn consider_homopolymer_indels(&self) -> bool {
         false
     }
 }

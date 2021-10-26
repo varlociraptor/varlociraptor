@@ -177,7 +177,7 @@ impl Call {
                 divindel_bias.insert(
                     i,
                     match sample_info.artifacts.homopolymer_error() {
-                        HomopolymerError::None => b'.',
+                        HomopolymerError::None { .. } => b'.',
                         HomopolymerError::Some { .. } => b'*',
                     },
                 );
@@ -216,7 +216,7 @@ impl Call {
                                     ReadPosition::Some => '*',
                                 },
                                 if obs.softclipped { '$' } else { '.' },
-                                if obs.has_alt_indel_operations {
+                                if obs.homopolymer_indel_len {
                                     '*'
                                 } else {
                                     '.'

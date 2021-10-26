@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use std::ops::{Deref, Range};
 use std::str;
 
+use bio_types::genome;
 use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
@@ -282,7 +283,7 @@ mod tests {
             .read_position(ReadPosition::Some)
             .strand(Strand::Both)
             .softclipped(false)
-            .has_alt_indel_operations(false)
+            .homopolymer_indel_len(None)
             .paired(true)
             .prob_hit_base(LogProb::from(0.01f64.ln()))
             .build()

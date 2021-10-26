@@ -1,9 +1,14 @@
 use bio::stats::probs::LogProb;
 use bio::stats::Prob;
+use bio_types::genome;
 use ordered_float::NotNan;
+use anyhow::Result;
 
+use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::reference;
 use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
+use crate::variants::model::{Variant, VariantType};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Ord, EnumIter, Hash)]
@@ -61,7 +66,7 @@ impl Bias for StrandBias {
         !self.is_artifact() || Self::estimate_forward_rate(pileups).is_some()
     }
 
-    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
+    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>], alignment_properties: &AlignmentProperties, variant: &Variant, locus: &genome::Locus, reference_buffer: &reference::Buffer) -> Result<()> {
         if let StrandBias::None {
             ref mut forward_rate,
         } = self
@@ -71,6 +76,8 @@ impl Bias for StrandBias {
             *forward_rate =
                 Self::estimate_forward_rate(pileups).unwrap_or(NotNan::new(0.5).unwrap());
         }
+
+        Ok(())
     }
 }
 

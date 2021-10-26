@@ -17,6 +17,8 @@ use statrs::statistics::{OrderStatistics, Statistics};
 
 use crate::reference;
 use crate::utils::SimpleCounter;
+use crate::utils::homopolymers::extend_homopolymer_stretch;
+use crate::utils::homopolymers::is_homopolymer_seq;
 
 pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
@@ -56,10 +58,6 @@ impl AlignmentProperties {
         let qseq = record.seq().as_bytes();
         let mut qpos = 0 as usize;
         let mut rpos = record.pos() as usize;
-
-        let is_homopolymer_seq = |seq: &[u8]| seq[1..].iter().all(|c| *c == seq[0]);
-        let extend_homopolymer_stretch =
-            |base, seq: &mut dyn Iterator<Item = &u8>| seq.take_while(|c| **c == base).count();
 
         for c in record.cigar_cached().unwrap().iter() {
             match *c {

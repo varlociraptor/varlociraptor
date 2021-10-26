@@ -1,22 +1,27 @@
-use std::cmp;
+use std::{cmp, rc::Rc};
 
 use bio::stats::probs::LogProb;
+use bio_types::genome;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
+use anyhow::Result;
 
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::{estimation::alignment_properties::AlignmentProperties, reference, variants::evidence::observation::{Observation, ReadPosition}};
 
 pub(crate) mod homopolymer_error;
 pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
 pub(crate) mod softclip_bias;
 pub(crate) mod strand_bias;
+pub(crate) mod parameters;
 
 pub(crate) use homopolymer_error::HomopolymerError;
 pub(crate) use read_orientation_bias::ReadOrientationBias;
 pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
+
+use super::{Variant, VariantType};
 
 pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;
@@ -84,14 +89,15 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 
     /// Learn parameters needed for estimation on current pileup.
-    fn learn_parameters(&mut self, _pileups: &[Vec<Observation<ReadPosition>>]) {
+    fn learn_parameters(&mut self, _pileups: &[Vec<Observation<ReadPosition>>], alignment_properties: &AlignmentProperties, variant: &Variant, locus: &genome::Locus, reference_buffer: &reference::Buffer) -> Result<()> {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
+        Ok(())
     }
 }
 
-#[derive(Builder, CopyGetters, Getters, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Builder, CopyGetters, Getters, Debug, Clone, Eq, PartialEq, Hash)]
 pub(crate) struct Artifacts {
     #[getset(get = "pub(crate)")]
     strand_bias: StrandBias,
@@ -112,7 +118,6 @@ impl Artifacts {
         consider_read_position_bias: bool,
         consider_softclip_bias: bool,
         consider_homopolymer_error: bool,
-        min_divindel_other_rate: f64,
     ) -> Box<dyn Iterator<Item = Self>> {
         if !consider_strand_bias
             && !consider_read_orientation_bias
@@ -144,9 +149,9 @@ impl Artifacts {
             vec![SoftclipBias::None]
         };
         let homopolymer_error = if consider_homopolymer_error {
-            HomopolymerError::values(min_divindel_other_rate)
+            HomopolymerError::values()
         } else {
-            vec![HomopolymerError::None]
+            vec![HomopolymerError::default()]
         };
 
         Box::new(
@@ -192,7 +197,7 @@ impl Artifacts {
             .read_orientation_bias(ReadOrientationBias::None)
             .read_position_bias(ReadPositionBias::None)
             .softclip_bias(SoftclipBias::None)
-            .homopolymer_error(HomopolymerError::None)
+            .homopolymer_error(HomopolymerError::default())
             .build()
             .unwrap()
     }
@@ -245,8 +250,10 @@ impl Artifacts {
             || self.homopolymer_error.is_artifact()
     }
 
-    pub(crate) fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
-        self.homopolymer_error.learn_parameters(pileups);
-        self.strand_bias.learn_parameters(pileups);
+    pub(crate) fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>], alignment_properties: &AlignmentProperties, variant: &Variant, locus: &genome::Locus, reference_buffer: &reference::Buffer) -> Result<()> {
+        self.homopolymer_error.learn_parameters(pileups, alignment_properties, variant, locus, reference_buffer)?;
+        self.strand_bias.learn_parameters(pileups, alignment_properties, variant, locus, reference_buffer)?;
+
+        Ok(())
     }
 }

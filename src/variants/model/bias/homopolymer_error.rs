@@ -1,57 +1,73 @@
 use std::cmp;
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::hash::Hash;
 
+use bio::stats::Prob;
 use bio::stats::probs::LogProb;
+use bio_types::genome;
 use ordered_float::NotNan;
+use anyhow::Result;
 
+use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::reference;
+use crate::utils::homopolymers::homopolymer_indel_len;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::model::{Variant, VariantType};
 use crate::variants::model::bias::Bias;
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, Hash)]
+pub(crate) type HomopolymerErrorModel = HashMap<i8, LogProb>;
+
+#[derive(Clone, Debug)]
 pub(crate) enum HomopolymerError {
-    None,
-    Some {
-        other_rate: NotNan<f64>,
-        min_other_rate: NotNan<f64>,
-    },
+    None { error_model: Option<HomopolymerErrorModel> },
+    Some { error_model: Option<HomopolymerErrorModel> },
+}
+
+impl PartialEq for HomopolymerError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::None { .. }, Self::None { .. }) => true,
+            (Self::Some { .. }, Self::Some { .. }) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for HomopolymerError {}
+
+impl Hash for HomopolymerError {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        core::mem::discriminant(self).hash(state);
+    }
 }
 
 impl HomopolymerError {
-    pub(crate) fn values(min_other_rate: f64) -> Vec<Self> {
+    pub(crate) fn values() -> Vec<Self> {
         vec![
-            HomopolymerError::None,
-            HomopolymerError::Some {
-                other_rate: NotNan::new(0.0).unwrap(),
-                min_other_rate: NotNan::new(min_other_rate).unwrap(),
-            },
+            HomopolymerError::None { error_model: None },
+            HomopolymerError::Some { error_model: None },
         ]
     }
 }
 
 impl Default for HomopolymerError {
     fn default() -> Self {
-        HomopolymerError::None
+        HomopolymerError::None { error_model: None }
     }
 }
 
 impl Bias for HomopolymerError {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match self {
-            HomopolymerError::None => {
-                if observation.has_alt_indel_operations {
-                    LogProb::ln_zero()
-                } else {
-                    LogProb::ln_one()
-                }
+            HomopolymerError::None { error_model: Some(error_model) } => {
+                error_model.get(&observation.homopolymer_indel_len.unwrap_or(0)).cloned().unwrap_or(LogProb::ln_zero())
             }
-            HomopolymerError::Some { other_rate, .. } => {
-                if **other_rate == 0.0 {
-                    // METHOD: if there are no other operations there is no artifact.
-                    LogProb::ln_zero()
-                } else if observation.has_alt_indel_operations {
-                    LogProb(other_rate.ln())
-                } else {
-                    LogProb((1.0 - **other_rate).ln())
-                }
+            HomopolymerError::Some { error_model: Some(error_model) } => {
+                error_model.get(&observation.homopolymer_indel_len.unwrap_or(0)).cloned().unwrap_or(LogProb::ln_zero())
+            }
+            _ => {
+                unreachable!("bug: no error model learned for homopolymer errors.");
             }
         }
     }
@@ -71,7 +87,7 @@ impl Bias for HomopolymerError {
         // METHOD: this bias is only relevant if there is at least one recorded indel operation (indel operations are only recorded for some variants).
         pileups
             .iter()
-            .any(|pileup| pileup.iter().any(|obs| obs.has_alt_indel_operations))
+            .any(|pileup| pileup.iter().any(|obs| obs.homopolymer_indel_len))
     }
 
     fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
@@ -81,56 +97,33 @@ impl Bias for HomopolymerError {
 
         pileups.iter().any(|pileup| {
             pileup.iter().any(|observation| match self {
-                HomopolymerError::Some { .. } => observation.has_alt_indel_operations,
+                HomopolymerError::Some { .. } => observation.homopolymer_indel_len,
                 HomopolymerError::None => self.prob(observation) != LogProb::ln_zero(),
             })
         })
     }
 
     fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
-        observation.has_alt_indel_operations
+        observation.homopolymer_indel_len
     }
 
-    fn min_strong_evidence_ratio(&self) -> f64 {
-        if let HomopolymerError::Some { other_rate, .. } = self {
-            0.66666 * **other_rate
-        } else {
-            unreachable!();
+    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>], alignment_properties: &AlignmentProperties, variant: &Variant, locus: &genome::Locus, reference_buffer: &reference::Buffer) -> Result<()> {
+        match self {
+            HomopolymerError::None { ref mut error_model } => {
+                error_model.replace(alignment_properties.homopolymer_error_model.iter().map(|(error, prob)| (*error, LogProb::from(Prob(*prob)))).collect());
+            }
+            HomopolymerError::Some { ref mut error_model } => {
+                let indel_len = homopolymer_indel_len(variant, locus, reference_buffer)?;
+                if let Some(indel_len) = indel_len {
+                    error_model.replace(alignment_properties.homopolymer_error_model.iter().map(|(error, prob)| {
+                        (*error - indel_len, LogProb::from(Prob(*prob)))
+                    }).collect());
+                } else {
+                    *error_model = None;
+                }
+                
+            }
         }
-    }
-
-    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
-        // METHOD: by default, there is nothing to learn, however, a bias can use this to
-        // infer some parameters over which we would otherwise need to integrate (which would hamper
-        // performance too much).
-        if let HomopolymerError::Some {
-            ref mut other_rate,
-            min_other_rate,
-        } = self
-        {
-            let strong_all = pileups
-                .iter()
-                .map(|pileup| pileup.iter().filter(|obs| obs.is_strong_alt_support()))
-                .flatten()
-                .count();
-            let strong_other = pileups
-                .iter()
-                .map(|pileup| {
-                    pileup
-                        .iter()
-                        .filter(|obs| obs.is_strong_alt_support() && obs.has_alt_indel_operations)
-                })
-                .flatten()
-                .count();
-
-            let rate = NotNan::new(if strong_all > 0 {
-                strong_other as f64 / strong_all as f64
-            } else {
-                0.0
-            })
-            .unwrap();
-
-            *other_rate = cmp::max(rate, *min_other_rate);
-        }
+        Ok(())
     }
 }

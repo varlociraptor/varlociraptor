@@ -199,8 +199,8 @@ where
     pub(crate) paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub(crate) read_position: P,
-    /// Whether the read contains indel operations agains the alt allele
-    pub(crate) has_alt_indel_operations: bool,
+    /// Whether the read contains homopolymer indel operations agains the alt allele
+    pub(crate) homopolymer_indel_len: Option<i8>,
 }
 
 impl<P: Clone> ObservationBuilder<P> {
@@ -244,7 +244,7 @@ impl Observation<Option<u32>> {
                     ReadPosition::Some
                 }
             }),
-            has_alt_indel_operations: self.has_alt_indel_operations,
+            homopolymer_indel_len: self.homopolymer_indel_len,
         }
     }
 }
@@ -395,11 +395,11 @@ where
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation()?)
                     .softclipped(evidence.softclipped())
-                    .has_alt_indel_operations(if self.report_indel_operations() {
-                        allele_support.has_alt_indel_operations()
+                    .homopolymer_indel_len(if self.consider_homopolymer_indels() {
+                        allele_support.homopolymer_indel_len()
                     } else {
                         // METHOD: do not report any operations if the variant chooses to not report them.
-                        false
+                        None
                     })
                     .read_position(allele_support.read_position())
                     .paired(evidence.is_paired())
