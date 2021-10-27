@@ -42,15 +42,12 @@ impl EditDistanceCalculation {
         let read_seq = read_seq.collect();
 
         let myers = if l <= 128 {
-            Myers::Short(myers::Myers::new(read_seq))
+            Myers::Short(myers::Myers::new(&read_seq))
         } else {
-            Myers::Long(long::Myers::new(read_seq))
+            Myers::Long(long::Myers::new(&read_seq))
         };
 
-        EditDistanceCalculation {
-            myers,
-            read_seq,
-        }
+        EditDistanceCalculation { myers, read_seq }
     }
 
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
@@ -134,11 +131,17 @@ impl EditDistanceCalculation {
             let homopolymer_indel_len = alignments
                 .iter()
                 .filter_map(|alignment| {
-                    if let Some(operation) = HomopolymerIndelOperation::extract(&ref_seq.collect::<Vec<_>>(), &self.read_seq, &alignment.operations) {
+                    if let Some(operation) = HomopolymerIndelOperation::extract(
+                        &ref_seq.collect::<Vec<_>>(),
+                        &self.read_seq,
+                        &alignment.operations,
+                    ) {
                         if let Some(variant_ref_range) = emission_params.variant_ref_range() {
                             let mut ref_pos = emission_params.ref_offset() + operation.text_pos();
                             // METHOD: check whether the operation is within the variant range.
-                            if variant_ref_range.contains(&ref_pos) && variant_ref_range.contains(&(ref_pos + operation.len() as usize)) {
+                            if variant_ref_range.contains(&ref_pos)
+                                && variant_ref_range.contains(&(ref_pos + operation.len() as usize))
+                            {
                                 Some(operation.len())
                             } else {
                                 None
@@ -181,7 +184,7 @@ pub(crate) struct EditDistanceHit {
     dist: usize,
     #[getset(get = "pub(crate)")]
     alignments: Vec<Alignment>,
-    #[getset(get = "pub(crate)")]
+    #[getset(get_copy = "pub(crate)")]
     homopolymer_indel_len: Option<i8>,
 }
 

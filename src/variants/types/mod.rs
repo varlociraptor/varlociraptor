@@ -69,12 +69,18 @@ impl AlleleSupport {
 
         if self.strand == Strand::None {
             self.strand = other.strand;
-            self.has_alt_indel_operations = other.has_alt_indel_operations;
+            self.homopolymer_indel_len = other.homopolymer_indel_len;
         } else if other.strand != Strand::None {
             if self.strand != other.strand {
                 self.strand = Strand::Both;
             }
-            self.has_alt_indel_operations |= other.has_alt_indel_operations;
+            self.homopolymer_indel_len =
+                match (self.homopolymer_indel_len, other.homopolymer_indel_len) {
+                    (Some(indel_len), Some(other_indel_len)) => Some(indel_len), // just keep one of them
+                    (Some(indel_len), None) => Some(indel_len),
+                    (None, Some(indel_len)) => Some(indel_len),
+                    (None, None) => None,
+                }
         }
 
         self

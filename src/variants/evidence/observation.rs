@@ -199,8 +199,10 @@ where
     pub(crate) paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub(crate) read_position: P,
-    /// Whether the read contains homopolymer indel operations agains the alt allele
-    pub(crate) homopolymer_indel_len: Option<i8>,
+    /// Probability for harboring homopolymer error from artifact homopolymer error model
+    pub(crate) prob_artifact_homopolymer_error: Option<LogProb>,
+    /// Probability for harboring homopolymer error from wildtype homopolymer error model
+    pub(crate) prob_wildtype_homopolymer_error: Option<LogProb>,
 }
 
 impl<P: Clone> ObservationBuilder<P> {
@@ -244,7 +246,8 @@ impl Observation<Option<u32>> {
                     ReadPosition::Some
                 }
             }),
-            homopolymer_indel_len: self.homopolymer_indel_len,
+            prob_wildtype_homopolymer_error: self.prob_wildtype_homopolymer_error,
+            prob_artifact_homopolymer_error: self.prob_artifact_homopolymer_error,
         }
     }
 }
@@ -327,6 +330,12 @@ impl<P: Clone> Observation<P> {
             }
         }
     }
+
+    pub(crate) fn has_homopolymer_error(&self) -> bool {
+        self.prob_artifact_homopolymer_error
+            .map(|prob| prob != LogProb::ln_zero())
+            .unwrap_or(false)
+    }
 }
 
 pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option<u32> {
@@ -374,7 +383,7 @@ where
     fn evidence_to_observation(
         &self,
         evidence: &E,
-        alignment_properties: &AlignmentProperties,
+        alignment_properties: &mut AlignmentProperties,
     ) -> Result<Option<Observation>> {
         Ok(match self.allele_support(evidence, alignment_properties)? {
             // METHOD: only consider allele support if it comes either from forward or reverse strand.
@@ -395,8 +404,18 @@ where
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation()?)
                     .softclipped(evidence.softclipped())
-                    .homopolymer_indel_len(if self.consider_homopolymer_indels() {
-                        allele_support.homopolymer_indel_len()
+                    .prob_wildtype_homopolymer_error(if self.consider_homopolymer_indels() {
+                        allele_support.homopolymer_indel_len().map(|indel_len| {
+                            alignment_properties.prob_wildtype_homopolymer_error(indel_len)
+                        })
+                    } else {
+                        // METHOD: do not report any operations if the variant chooses to not report them.
+                        None
+                    })
+                    .prob_artifact_homopolymer_error(if self.consider_homopolymer_indels() {
+                        allele_support.homopolymer_indel_len().map(|indel_len| {
+                            alignment_properties.prob_artifact_homopolymer_error(indel_len)
+                        })
                     } else {
                         // METHOD: do not report any operations if the variant chooses to not report them.
                         None

@@ -10,15 +10,17 @@ use std::str;
 use std::u32;
 
 use anyhow::Result;
+use bio::stats::LogProb;
+use bio::stats::Prob;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
 use statrs::statistics::{OrderStatistics, Statistics};
 
 use crate::reference;
-use crate::utils::SimpleCounter;
 use crate::utils::homopolymers::extend_homopolymer_stretch;
 use crate::utils::homopolymers::is_homopolymer_seq;
+use crate::utils::SimpleCounter;
 
 pub(crate) const MIN_HOMOPOLYMER_LEN: usize = 4;
 
@@ -43,12 +45,44 @@ pub(crate) struct AlignmentProperties {
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
     #[serde(default = "default_homopolymer_error_model")]
-    pub(crate) homopolymer_error_model: HashMap<i8, f64>,
+    wildtype_homopolymer_error_model: HashMap<i8, f64>,
+    #[serde(skip, default)]
+    artifact_homopolymer_error_model: Option<HashMap<i8, LogProb>>,
     #[serde(default)]
     initial: bool,
 }
 
 impl AlignmentProperties {
+    pub(crate) fn prob_wildtype_homopolymer_error(&self, indel_len: i8) -> LogProb {
+        self.wildtype_homopolymer_error_model
+            .get(&indel_len)
+            .map(|prob| LogProb::from(Prob(*prob)))
+            .unwrap_or(LogProb::ln_zero())
+    }
+
+    pub(crate) fn prob_artifact_homopolymer_error(&self, indel_len: i8) -> LogProb {
+        if self.artifact_homopolymer_error_model.is_none() {
+            let mut adjusted: HashMap<_, _> = self
+                .wildtype_homopolymer_error_model
+                .iter()
+                .map(|(item_indel_len, prob)| {
+                    let prob = if indel_len == 0 { 0.0 } else { *prob };
+                    (item_indel_len - indel_len, LogProb::from(Prob(prob)))
+                })
+                .collect();
+            let prob_total = LogProb::ln_sum_exp(&adjusted.values().cloned().collect::<Vec<_>>());
+            for prob in adjusted.values_mut() {
+                *prob -= prob_total;
+            }
+            self.artifact_homopolymer_error_model = Some(adjusted);
+        }
+        self.artifact_homopolymer_error_model
+            .unwrap()
+            .get(&indel_len)
+            .cloned()
+            .unwrap_or(LogProb::ln_zero())
+    }
+
     pub(crate) fn update_homopolymer_error_model(
         &mut self,
         record: &bam::Record,
@@ -194,7 +228,8 @@ impl AlignmentProperties {
             max_ins_cigar_len: None,
             frac_max_softclip: None,
             max_read_len: 0,
-            homopolymer_error_model: HashMap::new(),
+            wildtype_homopolymer_error_model: HashMap::new(),
+            artifact_homopolymer_error_model: None,
             initial: true,
         };
 
@@ -279,7 +314,7 @@ impl AlignmentProperties {
             i += 1;
         }
 
-        properties.homopolymer_error_model = {
+        properties.wildtype_homopolymer_error_model = {
             let n = homopolymer_error_counts
                 .values()
                 .filter(|count| **count >= 10)

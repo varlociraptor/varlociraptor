@@ -216,7 +216,7 @@ impl Call {
                                     ReadPosition::Some => '*',
                                 },
                                 if obs.softclipped { '$' } else { '.' },
-                                if obs.homopolymer_indel_len {
+                                if obs.has_homopolymer_error() {
                                     '*'
                                 } else {
                                     '.'
