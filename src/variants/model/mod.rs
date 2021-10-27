@@ -8,7 +8,6 @@ use std::fmt::Debug;
 use std::ops::{Deref, Range};
 use std::str;
 
-
 use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 

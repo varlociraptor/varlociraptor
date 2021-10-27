@@ -57,8 +57,9 @@ impl EditDistanceCalculation {
         emission_params: &E,
         max_dist: Option<usize>,
     ) -> Option<EditDistanceHit> {
-        let ref_seq =
-            || (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase());
+        let ref_seq = || {
+            (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase())
+        };
         let mut best_dist = usize::max_value();
         let mut positions = Vec::new();
         let alignments: Vec<Alignment>;

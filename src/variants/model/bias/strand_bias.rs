@@ -4,12 +4,9 @@ use bio::stats::Prob;
 
 use ordered_float::NotNan;
 
-
-
 use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model::bias::Bias;
-
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Ord, EnumIter, Hash)]
 pub(crate) enum StrandBias {

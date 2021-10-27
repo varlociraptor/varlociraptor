@@ -1,4 +1,4 @@
-use std::{cmp};
+use std::cmp;
 
 use anyhow::Result;
 use bio::stats::probs::LogProb;
@@ -6,9 +6,7 @@ use bio::stats::probs::LogProb;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-use crate::{
-    variants::evidence::observation::{Observation, ReadPosition},
-};
+use crate::variants::evidence::observation::{Observation, ReadPosition};
 
 pub(crate) mod homopolymer_error;
 pub(crate) mod parameters;
@@ -22,8 +20,6 @@ pub(crate) use read_orientation_bias::ReadOrientationBias;
 pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
-
-
 
 pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;

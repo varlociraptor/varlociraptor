@@ -1,20 +1,9 @@
-
-
 use std::hash::Hash;
-
-
 
 use bio::stats::probs::LogProb;
 
-
-
-
-
-
-
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
-
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub(crate) enum HomopolymerError {
