@@ -1,15 +1,15 @@
 use anyhow::Result;
 use bio::stats::probs::LogProb;
 use bio::stats::Prob;
-use bio_types::genome;
+
 use ordered_float::NotNan;
 
-use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::reference;
+
+
 use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model::bias::Bias;
-use crate::variants::model::{Variant, VariantType};
+
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Ord, EnumIter, Hash)]
 pub(crate) enum StrandBias {

@@ -76,7 +76,7 @@ impl AlleleSupport {
             }
             self.homopolymer_indel_len =
                 match (self.homopolymer_indel_len, other.homopolymer_indel_len) {
-                    (Some(indel_len), Some(other_indel_len)) => Some(indel_len), // just keep one of them
+                    (Some(indel_len), Some(_other_indel_len)) => Some(indel_len), // just keep one of them
                     (Some(indel_len), None) => Some(indel_len),
                     (None, Some(indel_len)) => Some(indel_len),
                     (None, None) => None,

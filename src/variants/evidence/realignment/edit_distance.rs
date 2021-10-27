@@ -137,7 +137,7 @@ impl EditDistanceCalculation {
                         &alignment.operations,
                     ) {
                         if let Some(variant_ref_range) = emission_params.variant_ref_range() {
-                            let mut ref_pos = emission_params.ref_offset() + operation.text_pos();
+                            let ref_pos = emission_params.ref_offset() + operation.text_pos();
                             // METHOD: check whether the operation is within the variant range.
                             if variant_ref_range.contains(&ref_pos)
                                 && variant_ref_range.contains(&(ref_pos + operation.len() as usize))

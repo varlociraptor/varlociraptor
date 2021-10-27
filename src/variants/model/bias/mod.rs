@@ -1,14 +1,12 @@
-use std::{cmp, rc::Rc};
+use std::{cmp};
 
 use anyhow::Result;
 use bio::stats::probs::LogProb;
-use bio_types::genome;
+
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
 use crate::{
-    estimation::alignment_properties::AlignmentProperties,
-    reference,
     variants::evidence::observation::{Observation, ReadPosition},
 };
 
@@ -25,7 +23,7 @@ pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
 
-use super::{Variant, VariantType};
+
 
 pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;

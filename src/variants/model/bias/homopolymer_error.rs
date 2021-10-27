@@ -1,20 +1,20 @@
-use std::cmp;
-use std::collections::HashMap;
+
+
 use std::hash::Hash;
-use std::rc::Rc;
 
-use anyhow::Result;
+
+
 use bio::stats::probs::LogProb;
-use bio::stats::Prob;
-use bio_types::genome;
-use ordered_float::NotNan;
 
-use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::reference;
-use crate::utils::homopolymers::homopolymer_indel_len;
+
+
+
+
+
+
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
-use crate::variants::model::{Variant, VariantType};
+
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub(crate) enum HomopolymerError {
