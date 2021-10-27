@@ -112,11 +112,13 @@ pub(crate) trait Testcase {
         }
     }
 
-    fn omit_divindel_bias(&self) -> bool {
-        if self.yaml()["omit_divindel_bias"].is_badvalue() {
+    fn omit_homopolymer_artifact_detection(&self) -> bool {
+        if self.yaml()["omit_homopolymer_artifact_detection"].is_badvalue() {
             false
         } else {
-            self.yaml()["omit_divindel_bias"].as_bool().unwrap()
+            self.yaml()["omit_homopolymer_artifact_detection"]
+                .as_bool()
+                .unwrap()
         }
     }
 
@@ -233,8 +235,8 @@ pub(crate) trait Testcase {
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
                         omit_softclip_bias: self.omit_softclip_bias(),
-                        omit_divindel_bias: self.omit_divindel_bias(),
-                        min_divindel_other_rate: 0.05,
+                        omit_homopolymer_artifact_detection: self
+                            .omit_homopolymer_artifact_detection(),
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -270,8 +272,8 @@ pub(crate) trait Testcase {
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
                         omit_softclip_bias: self.omit_softclip_bias(),
-                        omit_divindel_bias: self.omit_divindel_bias(),
-                        min_divindel_other_rate: 0.25,
+                        omit_homopolymer_artifact_detection: self
+                            .omit_homopolymer_artifact_detection(),
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self
