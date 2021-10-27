@@ -120,9 +120,9 @@ pub(crate) trait Variant {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb;
 
-    /// Whether the variant shall report indel operations for the DivIndelBias calculation.
-    fn consider_homopolymer_indels(&self) -> bool {
-        false
+    /// Return the homopolymer indel len of the variant, if any.
+    fn homopolymer_indel_len(&self) -> Option<i8> {
+        None
     }
 }
 

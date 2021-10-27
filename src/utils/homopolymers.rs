@@ -1,3 +1,5 @@
+use std::mem;
+
 use anyhow::Result;
 use bio::{
     alignment::{Alignment, AlignmentOperation},
@@ -8,78 +10,6 @@ use itertools::Itertools;
 
 use crate::{reference, variants::model::Variant};
 
-/// Return true if variant deletes bases from the reference (even if it is encoded as a replacement).
-pub(crate) fn homopolymer_indel_len(
-    variant: &Variant,
-    locus: &genome::Locus,
-    reference_buffer: &reference::Buffer,
-) -> Result<Option<i8>> {
-    let seq = reference_buffer.seq(locus.contig())?;
-    let rpos = locus.pos() as usize;
-    match variant {
-        Variant::Deletion(l) => {
-            if is_homopolymer_seq(&seq[rpos..rpos + *l as usize]) && *l < 256 {
-                Ok(Some(-(*l as i8)))
-            } else {
-                Ok(None)
-            }
-        }
-        Variant::Insertion(insseq) => {
-            if is_homopolymer_seq(&insseq)
-                && ((rpos < seq.len()
-                    && extend_homopolymer_stretch(insseq[0], &mut seq[rpos..].iter()) > 0)
-                    || (rpos > 0
-                        && extend_homopolymer_stretch(insseq[0], &mut seq[..rpos].iter().rev())
-                            > 0))
-                && insseq.len() < 256
-            {
-                Ok(Some(insseq.len() as i8))
-            } else {
-                Ok(None)
-            }
-        }
-        Variant::Replacement {
-            ref ref_allele,
-            ref alt_allele,
-        } => {
-            let (pattern, text) = if ref_allele.len() > alt_allele.len() {
-                // deletion
-                (alt_allele, ref_allele)
-            } else {
-                // insertion
-                (ref_allele, alt_allele)
-            };
-            if pattern.len() <= 64 {
-                let mut myers = Myers::<u64>::new(pattern);
-                let mut aln = Alignment::default();
-                let mut matches = myers.find_all(text, pattern.len() as u8);
-                let mut best_dist = None;
-                let mut best_aln = None;
-
-                while matches.next_alignment(&mut aln) {
-                    if best_dist.is_none() || best_dist.unwrap() > aln.score {
-                        best_dist = Some(aln.score);
-                        best_aln = Some(aln.clone());
-                    }
-                }
-                if let Some(best_aln) = best_aln {
-                    Ok(
-                        HomopolymerIndelOperation::extract(text, pattern, &best_aln.operations)
-                            .map(|op| op.len),
-                    )
-                } else {
-                    // Pattern too long, unlikely as hell that this is a homopolymer artifact, hence just ignore.
-                    Ok(None)
-                }
-            } else {
-                // no similarity, cannot be a homopolymer error
-                Ok(None)
-            }
-        }
-        _ => Ok(None),
-    }
-}
-
 #[derive(Clone, Debug, CopyGetters)]
 #[getset(get_copy = "pub(crate)")]
 pub(crate) struct HomopolymerIndelOperation {
@@ -88,8 +18,47 @@ pub(crate) struct HomopolymerIndelOperation {
 }
 
 impl HomopolymerIndelOperation {
+    pub(crate) fn from_text_and_pattern(mut text: &[u8], mut pattern: &[u8]) -> Option<Self> {
+        let (text, pattern, reverse_direction) = if text.len() < pattern.len() {
+            (pattern, text, true)
+        } else {
+            (text, pattern, false)
+        };
+
+        if pattern.len() <= 64 {
+            let mut myers = Myers::<u64>::new(pattern);
+            let mut aln = Alignment::default();
+            let mut matches = myers.find_all(text, pattern.len() as u8);
+            let mut best_dist = None;
+            let mut best_aln = None;
+
+            while matches.next_alignment(&mut aln) {
+                if best_dist.is_none() || best_dist.unwrap() > aln.score {
+                    best_dist = Some(aln.score);
+                    best_aln = Some(aln.clone());
+                }
+            }
+            if let Some(best_aln) = best_aln {
+                let mut ret =
+                    HomopolymerIndelOperation::from_alignment(text, pattern, &best_aln.operations);
+                if reverse_direction {
+                    if let Some(op) = ret.as_mut() {
+                        op.len *= -1;
+                    }
+                }
+                ret
+            } else {
+                // Pattern too long, unlikely as hell that this is a homopolymer artifact, hence just ignore.
+                None
+            }
+        } else {
+            // no similarity, cannot be a homopolymer error
+            None
+        }
+    }
+
     /// Extract the homopolymer indel operation if there is exactly one in the given pattern compared to the text.
-    pub(crate) fn extract(
+    pub(crate) fn from_alignment(
         text: &[u8],
         pattern: &[u8],
         alignment: &[AlignmentOperation],

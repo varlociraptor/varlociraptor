@@ -132,7 +132,7 @@ impl EditDistanceCalculation {
             let homopolymer_indel_len = alignments
                 .iter()
                 .filter_map(|alignment| {
-                    if let Some(operation) = HomopolymerIndelOperation::extract(
+                    if let Some(operation) = HomopolymerIndelOperation::from_alignment(
                         &ref_seq().collect::<Vec<_>>(),
                         &self.read_seq,
                         &alignment.operations,

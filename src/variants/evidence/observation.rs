@@ -404,22 +404,31 @@ where
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation()?)
                     .softclipped(evidence.softclipped())
-                    .prob_wildtype_homopolymer_error(if self.consider_homopolymer_indels() {
-                        allele_support.homopolymer_indel_len().map(|indel_len| {
-                            alignment_properties.prob_wildtype_homopolymer_error(indel_len)
-                        })
+                    .prob_wildtype_homopolymer_error(if self.homopolymer_indel_len().is_some() {
+                        allele_support
+                            .homopolymer_indel_len()
+                            .map(|read_indel_len| {
+                                alignment_properties.prob_wildtype_homopolymer_error(read_indel_len)
+                            })
                     } else {
                         // METHOD: do not report any operations if the variant chooses to not report them.
                         None
                     })
-                    .prob_artifact_homopolymer_error(if self.consider_homopolymer_indels() {
-                        allele_support.homopolymer_indel_len().map(|indel_len| {
-                            alignment_properties.prob_artifact_homopolymer_error(indel_len)
-                        })
-                    } else {
-                        // METHOD: do not report any operations if the variant chooses to not report them.
-                        None
-                    })
+                    .prob_artifact_homopolymer_error(
+                        if let Some(variant_indel_len) = self.homopolymer_indel_len() {
+                            allele_support
+                                .homopolymer_indel_len()
+                                .map(|read_indel_len| {
+                                    alignment_properties.prob_artifact_homopolymer_error(
+                                        read_indel_len,
+                                        variant_indel_len,
+                                    )
+                                })
+                        } else {
+                            // METHOD: do not report any operations if the variant chooses to not report them.
+                            None
+                        },
+                    )
                     .read_position(allele_support.read_position())
                     .paired(evidence.is_paired())
                     .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))

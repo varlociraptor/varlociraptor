@@ -16,6 +16,7 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
+use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
@@ -26,18 +27,31 @@ pub(crate) struct Insertion<R: Realigner> {
     locus: MultiLocus,
     ins_seq: Rc<Vec<u8>>,
     realigner: RefCell<R>,
+    is_homopolymer_insertion: bool,
 }
 
 impl<R: Realigner> Insertion<R> {
-    pub(crate) fn new(locus: genome::Locus, ins_seq: Vec<u8>, realigner: R) -> Self {
-        Insertion {
+    pub(crate) fn new(locus: genome::Locus, ins_seq: Vec<u8>, realigner: R) -> Result<Self> {
+        let start = locus.pos() as usize;
+        let ref_seq = &realigner.ref_buffer().seq(locus.contig())?;
+
+        let is_homopolymer_insertion = ins_seq.len() < 256
+            && is_homopolymer_seq(&ins_seq)
+            && ((start < ref_seq.len()
+                && extend_homopolymer_stretch(ins_seq[0], &mut ref_seq[start..].iter()) > 0)
+                || (start > 0
+                    && extend_homopolymer_stretch(ins_seq[0], &mut ref_seq[..start].iter().rev())
+                        > 0));
+
+        Ok(Insertion {
             locus: MultiLocus::new(vec![SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
             ))]),
             ins_seq: Rc::new(ins_seq),
             realigner: RefCell::new(realigner),
-        }
+            is_homopolymer_insertion,
+        })
     }
 
     pub(crate) fn locus(&self) -> &SingleLocus {
@@ -103,9 +117,12 @@ impl<R: Realigner> Variant for Insertion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn consider_homopolymer_indels(&self) -> bool {
-        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
-        true
+    fn homopolymer_indel_len(&self) -> Option<i8> {
+        if self.is_homopolymer_insertion {
+            Some(self.ins_seq.len() as i8)
+        } else {
+            None
+        }
     }
 
     fn is_valid_evidence(

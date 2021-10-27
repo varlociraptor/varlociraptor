@@ -1,4 +1,3 @@
-use anyhow::Result;
 use bio::stats::probs::LogProb;
 use bio::stats::Prob;
 
@@ -63,7 +62,7 @@ impl Bias for StrandBias {
         !self.is_artifact() || Self::estimate_forward_rate(pileups).is_some()
     }
 
-    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) -> Result<()> {
+    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
         if let StrandBias::None {
             ref mut forward_rate,
         } = self
@@ -73,8 +72,6 @@ impl Bias for StrandBias {
             *forward_rate =
                 Self::estimate_forward_rate(pileups).unwrap_or(NotNan::new(0.5).unwrap());
         }
-
-        Ok(())
     }
 }
 

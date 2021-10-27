@@ -1,6 +1,5 @@
 use std::cmp;
 
-use anyhow::Result;
 use bio::stats::probs::LogProb;
 
 use itertools::Itertools;
@@ -87,11 +86,10 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 
     /// Learn parameters needed for estimation on current pileup.
-    fn learn_parameters(&mut self, _pileups: &[Vec<Observation<ReadPosition>>]) -> Result<()> {
+    fn learn_parameters(&mut self, _pileups: &[Vec<Observation<ReadPosition>>]) {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
-        Ok(())
     }
 }
 
@@ -248,13 +246,8 @@ impl Artifacts {
             || self.homopolymer_error.is_artifact()
     }
 
-    pub(crate) fn learn_parameters(
-        &mut self,
-        pileups: &[Vec<Observation<ReadPosition>>],
-    ) -> Result<()> {
-        self.homopolymer_error.learn_parameters(pileups)?;
-        self.strand_bias.learn_parameters(pileups)?;
-
-        Ok(())
+    pub(crate) fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
+        self.homopolymer_error.learn_parameters(pileups);
+        self.strand_bias.learn_parameters(pileups);
     }
 }

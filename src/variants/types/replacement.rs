@@ -16,6 +16,7 @@ use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
+use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
@@ -26,15 +27,24 @@ pub(crate) struct Replacement<R: Realigner> {
     locus: MultiLocus,
     replacement: Rc<Vec<u8>>,
     realigner: RefCell<R>,
+    homopolymer_indel_len: Option<i8>,
 }
 
 impl<R: Realigner> Replacement<R> {
-    pub(crate) fn new(locus: genome::Interval, replacement: Vec<u8>, realigner: R) -> Self {
-        Replacement {
+    pub(crate) fn new(locus: genome::Interval, replacement: Vec<u8>, realigner: R) -> Result<Self> {
+        let ref_seq = &realigner.ref_buffer().seq(locus.contig())?;
+        let homopolymer_indel_len = HomopolymerIndelOperation::from_text_and_pattern(
+            &ref_seq[locus.range().start as usize..locus.range().end as usize],
+            &replacement,
+        )
+        .map(|op| op.len());
+
+        Ok(Replacement {
             locus: MultiLocus::new(vec![SingleLocus::new(locus)]),
             replacement: Rc::new(replacement),
             realigner: RefCell::new(realigner),
-        }
+            homopolymer_indel_len,
+        })
     }
 
     pub(crate) fn locus(&self) -> &SingleLocus {
@@ -131,9 +141,8 @@ impl<R: Realigner> Variant for Replacement<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn consider_homopolymer_indels(&self) -> bool {
-        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
-        true
+    fn homopolymer_indel_len(&self) -> Option<i8> {
+        self.homopolymer_indel_len
     }
 
     fn is_valid_evidence(

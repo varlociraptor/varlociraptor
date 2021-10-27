@@ -60,14 +60,24 @@ impl AlignmentProperties {
             .unwrap_or(LogProb::ln_zero())
     }
 
-    pub(crate) fn prob_artifact_homopolymer_error(&mut self, indel_len: i8) -> LogProb {
+    pub(crate) fn prob_artifact_homopolymer_error(
+        &mut self,
+        read_indel_len: i8,
+        variant_indel_len: i8,
+    ) -> LogProb {
+        // METHOD: we infer the distribution for the artifact case by setting the prob of 0 to 0, and projecting
+        // all other items to the case where the alt allele is the homopolymer error (i.e. item_indel_len - variant_indel_len).
+        // E.g. a deletion (len -1), leads to a projection of -1 to 0, -2 to -1, etc.
         if self.artifact_homopolymer_error_model.is_none() {
             let mut adjusted: HashMap<_, _> = self
                 .wildtype_homopolymer_error_model
                 .iter()
                 .map(|(item_indel_len, prob)| {
-                    let prob = if indel_len == 0 { 0.0 } else { *prob };
-                    (item_indel_len - indel_len, LogProb::from(Prob(prob)))
+                    let prob = if *item_indel_len == 0 { 0.0 } else { *prob };
+                    (
+                        item_indel_len - variant_indel_len,
+                        LogProb::from(Prob(prob)),
+                    )
                 })
                 .collect();
             let prob_total = LogProb::ln_sum_exp(&adjusted.values().cloned().collect::<Vec<_>>());
@@ -79,7 +89,7 @@ impl AlignmentProperties {
         self.artifact_homopolymer_error_model
             .as_ref()
             .unwrap()
-            .get(&indel_len)
+            .get(&read_indel_len)
             .cloned()
             .unwrap_or(LogProb::ln_zero())
     }

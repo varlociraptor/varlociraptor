@@ -5,6 +5,7 @@ use std::sync::RwLock;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
+use bio_types::genome;
 use derive_builder::Builder;
 use itertools::Itertools;
 use progress_logger::ProgressLogger;
@@ -21,14 +22,16 @@ use crate::errors;
 use crate::grammar;
 use crate::utils;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
-use crate::variants::model;
 use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
 use crate::variants::model::Contamination;
+use crate::variants::model::{self, Variant};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::types::breakends::BreakendIndex;
+
+use super::preprocessing::Observations;
 
 pub(crate) type AlleleFreqCombination = LikelihoodOperands;
 
@@ -47,8 +50,7 @@ where
     omit_read_orientation_bias: bool,
     omit_read_position_bias: bool,
     omit_softclip_bias: bool,
-    omit_divindel_bias: bool,
-    min_divindel_other_rate: f64,
+    omit_homopolymer_artifact_detection: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -294,6 +296,10 @@ where
                 }
             }
 
+            // obtain variant type
+            let variant_type =
+                utils::collect_variants(records.first_not_none_mut()?, false, None)?[0].to_type();
+
             let mut work_item = self.preprocess_record(&mut records, i, &observations)?;
 
             // process work item
@@ -305,7 +311,7 @@ where
                 work_item.check_read_orientation_bias,
                 work_item.check_read_position_bias,
                 work_item.check_softclip_bias,
-                work_item.check_divindel_bias,
+                work_item.check_homopolymer_artifact_detection,
             );
             _model = models.entry(model_mode).or_insert_with(|| self.model());
             {
@@ -313,10 +319,6 @@ where
                 _last_rid = *entry;
                 *entry = Some(work_item.rid);
             }
-
-            // obtain variant type
-            let variant_type =
-                utils::collect_variants(records.first_not_none_mut()?, false, None)?[0].to_type();
 
             self.configure_model(
                 work_item.rid,
@@ -329,7 +331,7 @@ where
                 work_item.check_strand_bias,
                 work_item.check_read_position_bias,
                 work_item.check_softclip_bias,
-                work_item.check_divindel_bias,
+                work_item.check_homopolymer_artifact_detection,
             )?;
 
             self.call_record(&mut work_item, _model, &events);
@@ -351,6 +353,8 @@ where
             let first_record = records.first_not_none_mut()?;
             let start = first_record.pos() as u64;
             let chrom = chrom(observations.first_not_none()?, first_record);
+
+            let locus = genome::Locus::new(str::from_utf8(chrom).unwrap().to_owned(), start);
 
             let call = CallBuilder::default()
                 .chrom(chrom.to_owned())
@@ -415,7 +419,7 @@ where
             check_strand_bias: !self.omit_strand_bias,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias,
-            check_divindel_bias: !is_snv_or_mnv && !self.omit_divindel_bias,
+            check_homopolymer_artifact_detection: false,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -430,7 +434,14 @@ where
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
             let pileup = if let Some(record) = record {
-                let mut pileup = read_observations(record)?;
+                let Observations {
+                    observations: mut pileup,
+                    is_homopolymer_indel,
+                } = read_observations(record)?;
+                if is_homopolymer_indel && !self.omit_homopolymer_artifact_detection {
+                    // METHOD: check for homopolymer artifacts if at least one pileup contains the corresponding information.
+                    work_item.check_homopolymer_artifact_detection |= true;
+                }
                 if is_snv_or_mnv {
                     // METHOD: adjust MAPQ to get rid of stochastically inflated ones
                     // This takes the arithmetic mean of all MAPQs in the pileup.
@@ -471,7 +482,7 @@ where
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
         consider_softclip_bias: bool,
-        consider_divindel_bias: bool,
+        consider_homopolymer_error: bool,
     ) -> Result<()> {
         if !rid.map_or(false, |rid: u32| current_rid == rid) {
             // rid is not the same as before, obtain event universe
@@ -498,7 +509,7 @@ where
                     consider_strand_bias,
                     consider_read_position_bias,
                     consider_softclip_bias,
-                    consider_divindel_bias,
+                    consider_homopolymer_error,
                 )
                 .collect();
                 if !biases.is_empty() {
@@ -705,5 +716,5 @@ struct WorkItem {
     check_strand_bias: bool,
     check_read_position_bias: bool,
     check_softclip_bias: bool,
-    check_divindel_bias: bool,
+    check_homopolymer_artifact_detection: bool,
 }

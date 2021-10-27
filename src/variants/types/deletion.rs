@@ -17,6 +17,7 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
+use crate::utils::homopolymers::is_homopolymer_seq;
 use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
@@ -31,15 +32,20 @@ pub(crate) struct Deletion<R: Realigner> {
     locus: SingleLocus,
     fetch_loci: MultiLocus,
     realigner: RefCell<R>,
+    is_homopolymer_deletion: bool,
 }
 
 impl<R: Realigner> Deletion<R> {
-    pub(crate) fn new(locus: genome::Interval, realigner: R) -> Self {
+    pub(crate) fn new(locus: genome::Interval, realigner: R) -> Result<Self> {
         let start = locus.range().start;
         let end = locus.range().end;
         let len = end - start;
         let centerpoint = start + (len as f64 / 2.0).round() as u64;
         let contig = locus.contig().to_owned();
+        let is_homopolymer_deletion = len < 256
+            && is_homopolymer_seq(
+                &realigner.ref_buffer().seq(&contig)?[start as usize..end as usize],
+            ); // TODO check end (exclusive or not?)
 
         let fetch_loci = MultiLocus::new(vec![
             SingleLocus::new(genome::Interval::new(contig.clone(), start..start + 1)),
@@ -50,11 +56,12 @@ impl<R: Realigner> Deletion<R> {
             SingleLocus::new(genome::Interval::new(contig, end - 1..end)),
         ]);
 
-        Deletion {
+        Ok(Deletion {
             locus: SingleLocus::new(locus),
             fetch_loci,
             realigner: RefCell::new(realigner),
-        }
+            is_homopolymer_deletion,
+        })
     }
 
     pub(crate) fn centerpoint(&self) -> u64 {
@@ -156,9 +163,13 @@ impl<R: Realigner> Variant for Deletion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn consider_homopolymer_indels(&self) -> bool {
-        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
-        true
+    fn homopolymer_indel_len(&self) -> Option<i8> {
+        // METHOD: enable HomopolymerArtifact to detect e.g. homopolymer errors due to PCR
+        if self.is_homopolymer_deletion {
+            Some(-(self.len() as i8))
+        } else {
+            None
+        }
     }
 
     fn is_valid_evidence(
