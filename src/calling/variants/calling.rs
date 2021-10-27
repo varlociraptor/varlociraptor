@@ -314,9 +314,8 @@ where
                 *entry = Some(work_item.rid);
             }
 
-            let variant = utils::collect_variants(records.first_not_none_mut()?, false, None)?[0];
             // obtain variant type
-            let variant_type = variant.to_type();
+            let variant_type = utils::collect_variants(records.first_not_none_mut()?, false, None)?[0].to_type();
 
             self.configure_model(
                 work_item.rid,

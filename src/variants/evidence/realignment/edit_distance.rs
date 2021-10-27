@@ -58,7 +58,7 @@ impl EditDistanceCalculation {
         max_dist: Option<usize>,
     ) -> Option<EditDistanceHit> {
         let ref_seq =
-            (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase());
+            || (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase());
         let mut best_dist = usize::max_value();
         let mut positions = Vec::new();
         let alignments: Vec<Alignment>;
@@ -78,7 +78,7 @@ impl EditDistanceCalculation {
 
         match &mut self.myers {
             Myers::Short(myers) => {
-                let mut matches = myers.find_all_lazy(ref_seq, max_dist as u8);
+                let mut matches = myers.find_all_lazy(ref_seq(), max_dist as u8);
                 for (pos, dist) in &mut matches {
                     handle_match(pos, dist as usize);
                 }
@@ -96,7 +96,7 @@ impl EditDistanceCalculation {
                     .collect();
             }
             Myers::Long(myers) => {
-                let mut matches = myers.find_all_lazy(ref_seq, max_dist);
+                let mut matches = myers.find_all_lazy(ref_seq(), max_dist);
                 for (pos, dist) in &mut matches {
                     handle_match(pos, dist);
                 }
@@ -132,7 +132,7 @@ impl EditDistanceCalculation {
                 .iter()
                 .filter_map(|alignment| {
                     if let Some(operation) = HomopolymerIndelOperation::extract(
-                        &ref_seq.collect::<Vec<_>>(),
+                        &ref_seq().collect::<Vec<_>>(),
                         &self.read_seq,
                         &alignment.operations,
                     ) {
@@ -153,7 +153,7 @@ impl EditDistanceCalculation {
                         None
                     }
                 })
-                .min_by_key(|indel_len| indel_len);
+                .min_by_key(|indel_len| *indel_len);
 
             Some(EditDistanceHit {
                 start,

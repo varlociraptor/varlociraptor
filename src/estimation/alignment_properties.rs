@@ -60,7 +60,7 @@ impl AlignmentProperties {
             .unwrap_or(LogProb::ln_zero())
     }
 
-    pub(crate) fn prob_artifact_homopolymer_error(&self, indel_len: i8) -> LogProb {
+    pub(crate) fn prob_artifact_homopolymer_error(&mut self, indel_len: i8) -> LogProb {
         if self.artifact_homopolymer_error_model.is_none() {
             let mut adjusted: HashMap<_, _> = self
                 .wildtype_homopolymer_error_model
@@ -77,6 +77,7 @@ impl AlignmentProperties {
             self.artifact_homopolymer_error_model = Some(adjusted);
         }
         self.artifact_homopolymer_error_model
+            .as_ref()
             .unwrap()
             .get(&indel_len)
             .cloned()
