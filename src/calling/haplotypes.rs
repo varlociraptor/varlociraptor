@@ -31,8 +31,9 @@ impl Caller {
         let model = Model::new(Likelihood::new(), Prior::new(), Posterior::new());
 
         //let universe = HaplotypeFractions::likely(&kallisto_estimates);
+        //let data = Data::new(kallisto_estimates.values().cloned().collect());
         let data = Data::new(kallisto_estimates.values().cloned().collect());
-
+        
         // Step 3: calculate posteriors.
         //let m = model.compute(universe, &data);
         let m = model.compute_from_marginal(&Marginal::new(), &data);
