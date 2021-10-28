@@ -111,6 +111,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "PAIRED",
             "PROB_WILDTYPE_HOMOPOLYMER_ERROR",
             "PROB_ARTIFACT_HOMOPOLYMER_ERROR",
+            "HOMOPOLYMER_INDEL_LEN",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\"", name).as_bytes()
@@ -520,6 +521,8 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
         read_values(record, b"PROB_WILDTYPE_HOMOPOLYMER_ERROR", true)?;
     let prob_artifact_homopolymer_error: Vec<MiniLogProb> =
         read_values(record, b"PROB_ARTIFACT_HOMOPOLYMER_ERROR", true)?;
+    let homopolymer_indel_len: Vec<i8> = read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
+
     let is_homopolymer_indel = !prob_artifact_homopolymer_error.is_empty();
 
     let obs = (0..prob_mapping.len())
@@ -543,6 +546,11 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
                 })
                 .prob_artifact_homopolymer_error(if is_homopolymer_indel {
                     Some(prob_artifact_homopolymer_error[i].to_logprob())
+                } else {
+                    None
+                })
+                .homopolymer_indel_len(if is_homopolymer_indel {
+                    Some(homopolymer_indel_len[i])
                 } else {
                     None
                 })
@@ -577,6 +585,8 @@ pub(crate) fn write_observations(
     let mut prob_hit_base = vec();
     let mut prob_wildtype_homopolymer_error = Vec::with_capacity(observations.len());
     let mut prob_artifact_homopolymer_error = Vec::with_capacity(observations.len());
+    let mut homopolymer_indel_len: Vec<i8> = Vec::with_capacity(observations.len());
+
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
     for obs in observations {
         prob_mapping.push(encode_logprob(obs.prob_mapping_orig()));
@@ -592,11 +602,16 @@ pub(crate) fn write_observations(
         paired.push(obs.paired);
         read_position.push(obs.read_position);
 
+        dbg!(obs.prob_wildtype_homopolymer_error);
+
         if let Some(prob) = obs.prob_wildtype_homopolymer_error {
             prob_wildtype_homopolymer_error.push(encode_logprob(prob));
         }
         if let Some(prob) = obs.prob_artifact_homopolymer_error {
             prob_artifact_homopolymer_error.push(encode_logprob(prob));
+        }
+        if let Some(indel_len) = obs.homopolymer_indel_len {
+            homopolymer_indel_len.push(indel_len);
         }
     }
 
@@ -636,16 +651,20 @@ pub(crate) fn write_observations(
     push_values(record, b"PAIRED", &paired)?;
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
-    push_values(
-        record,
-        b"PROB_WILDTYPE_HOMOPOLYMER_ERROR",
-        &prob_wildtype_homopolymer_error,
-    )?;
-    push_values(
-        record,
-        b"PROB_ARTIFACT_HOMOPOLYMER_ERROR",
-        &prob_artifact_homopolymer_error,
-    )?;
+
+    if !prob_wildtype_homopolymer_error.is_empty() {
+        push_values(
+            record,
+            b"PROB_WILDTYPE_HOMOPOLYMER_ERROR",
+            &prob_wildtype_homopolymer_error,
+        )?;
+        push_values(
+            record,
+            b"PROB_ARTIFACT_HOMOPOLYMER_ERROR",
+            &prob_artifact_homopolymer_error,
+        )?;
+        push_values(record, b"HOMOPOLYMER_INDEL_LEN", &homopolymer_indel_len)?;
+    }
 
     Ok(())
 }
@@ -665,6 +684,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"READ_POSITION");
     header.remove_info(b"PROB_WILDTYPE_HOMOPOLYMER_ERROR");
     header.remove_info(b"PROB_ARTIFACT_HOMOPOLYMER_ERROR");
+    header.remove_info(b"HOMOPOLYMER_INDEL_LEN");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

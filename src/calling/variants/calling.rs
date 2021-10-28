@@ -177,11 +177,11 @@ where
               event (PROB_ARTIFACT).\">",
         );
         header.push_record(
-            b"##FORMAT=<ID=DIB,Number=A,Type=String,\
-              Description=\"Divindel bias estimate: * indicates that ALT allele is associated with \
-              with indel operations of varying length, . indicates that there is no divindel bias.
-              Divindel bias is indicative of systematic PCR amplification errors, e.g. induced by \
-              homopolymers. Probability for divindel bias is captured by the ARTIFACT \
+            b"##FORMAT=<ID=HE,Number=A,Type=String,\
+              Description=\"Homopolymer error estimate: * indicates that ALT allele is associated with \
+              with homopolymer indel operations of varying length, . indicates that there is no homopolymer error.
+              Homopolymer error is indicative of systematic PCR amplification errors. \
+              Probability for such homopolymer artifacts is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
         );
 

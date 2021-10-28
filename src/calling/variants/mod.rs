@@ -119,7 +119,7 @@ impl Call {
         let mut read_orientation_bias = VecMap::new();
         let mut read_position_bias = VecMap::new();
         let mut softclip_bias = VecMap::new();
-        let mut divindel_bias = VecMap::new();
+        let mut homopolymer_error = VecMap::new();
         let mut alleles = Vec::new();
         let mut svlens = Vec::new();
         let mut events = Vec::new();
@@ -174,7 +174,7 @@ impl Call {
                         SoftclipBias::Some => b'$',
                     },
                 );
-                divindel_bias.insert(
+                homopolymer_error.insert(
                     i,
                     match sample_info.artifacts.homopolymer_error() {
                         HomopolymerError::None { .. } => b'.',
@@ -370,8 +370,8 @@ impl Call {
             let scb = softclip_bias.values().map(|scb| vec![*scb]).collect_vec();
             record.push_format_string(b"SCB", &scb)?;
 
-            let dib = divindel_bias.values().map(|dib| vec![*dib]).collect_vec();
-            record.push_format_string(b"DIB", &dib)?;
+            let he = homopolymer_error.values().map(|he| vec![*he]).collect_vec();
+            record.push_format_string(b"HE", &he)?;
 
             let sobs = simple_observations
                 .values()

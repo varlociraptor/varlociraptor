@@ -141,7 +141,10 @@ impl EditDistanceCalculation {
                             let ref_pos = emission_params.ref_offset() + operation.text_pos();
                             // METHOD: check whether the operation is within the variant range.
                             if variant_ref_range.contains(&ref_pos)
-                                && variant_ref_range.contains(&(ref_pos + operation.len() as usize))
+                                && (operation.len() > 0
+                                    || variant_ref_range
+                                        .contains(&(ref_pos + operation.len().abs() as usize)))
+                            // check for deletion end
                             {
                                 Some(operation.len())
                             } else {
