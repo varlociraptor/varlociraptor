@@ -392,9 +392,7 @@ where
             // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
             // any information (e.g. no overlap).
             Some(allele_support) if allele_support.strand() != Strand::None => {
-                let read_indel_len = allele_support
-                    .homopolymer_indel_len()
-                    .unwrap_or(0);
+                let read_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
                 let obs = ObservationBuilder::default()
                     .prob_mapping_mismapping(self.prob_mapping(evidence))
@@ -418,10 +416,12 @@ where
                     })
                     .prob_artifact_homopolymer_error(
                         if let Some(variant_indel_len) = self.homopolymer_indel_len() {
-                            Some(alignment_properties.prob_artifact_homopolymer_error(
-                                read_indel_len,
-                                variant_indel_len,
-                            ))
+                            Some(
+                                alignment_properties.prob_artifact_homopolymer_error(
+                                    read_indel_len,
+                                    variant_indel_len,
+                                ),
+                            )
                         } else {
                             // METHOD: do not report any operations if the variant chooses to not report them.
                             None
