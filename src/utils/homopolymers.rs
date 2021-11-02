@@ -1,14 +1,14 @@
-use std::mem;
 
-use anyhow::Result;
+
+
 use bio::{
     alignment::{Alignment, AlignmentOperation},
     pattern_matching::myers::Myers,
 };
-use bio_types::genome::{self, AbstractLocus};
+
 use itertools::Itertools;
 
-use crate::{reference, variants::model::Variant};
+
 
 #[derive(Clone, Debug, CopyGetters)]
 #[getset(get_copy = "pub(crate)")]
@@ -18,7 +18,7 @@ pub(crate) struct HomopolymerIndelOperation {
 }
 
 impl HomopolymerIndelOperation {
-    pub(crate) fn from_text_and_pattern(mut text: &[u8], mut pattern: &[u8]) -> Option<Self> {
+    pub(crate) fn from_text_and_pattern(text: &[u8], pattern: &[u8]) -> Option<Self> {
         let (text, pattern, reverse_direction) = if text.len() < pattern.len() {
             (pattern, text, true)
         } else {

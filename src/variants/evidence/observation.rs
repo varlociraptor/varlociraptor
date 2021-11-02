@@ -16,7 +16,7 @@ use bio::stats::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 use rust_htslib::bam;
-use serde::ser::{SerializeStruct, Serializer};
+
 use serde::Serialize;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;

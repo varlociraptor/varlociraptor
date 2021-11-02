@@ -27,7 +27,7 @@ use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
 use crate::variants::model::Contamination;
-use crate::variants::model::{self, Variant};
+use crate::variants::model::{self};
 use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::types::breakends::BreakendIndex;
 
@@ -354,7 +354,7 @@ where
             let start = first_record.pos() as u64;
             let chrom = chrom(observations.first_not_none()?, first_record);
 
-            let locus = genome::Locus::new(str::from_utf8(chrom).unwrap().to_owned(), start);
+            let _locus = genome::Locus::new(str::from_utf8(chrom).unwrap().to_owned(), start);
 
             let call = CallBuilder::default()
                 .chrom(chrom.to_owned())
