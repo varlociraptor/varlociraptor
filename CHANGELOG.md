@@ -2,6 +2,19 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.6.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.5.0...v4.6.0) (2021-11-02)
+
+
+### Features
+
+* better homopolymer error detection ([#226](https://www.github.com/varlociraptor/varlociraptor/issues/226)) ([b95d03d](https://www.github.com/varlociraptor/varlociraptor/commit/b95d03d99519cb00c0a59aa61ab834a56e5f3777))
+* eliminate false positives and false negatives: MAPQ adjustment (adjust MAPQ by mean pileup MAPQ; this gets rid of stochastically inflated MAPQs), do not estimate strand bias if all reads come from the same strand, infer wildtype forward strand rate from non-alt reads if possible ([#222](https://www.github.com/varlociraptor/varlociraptor/issues/222)) ([d54ccb0](https://www.github.com/varlociraptor/varlociraptor/commit/d54ccb07b02788d026ee1defe540a84587d63998))
+
+
+### Bug Fixes
+
+* properly handle reads with both allele probs -inf ([6b04fd6](https://www.github.com/varlociraptor/varlociraptor/commit/6b04fd6a118524eb27ba469309c620771e4a7760))
+
 ## [4.5.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.4.3...v4.5.0) (2021-10-07)
 
 
