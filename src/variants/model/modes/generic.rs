@@ -358,7 +358,7 @@ impl Posterior for GenericPosterior {
                 && bias.is_likely(&data.pileups)
         });
 
-        LogProb::ln_sum_exp(
+        let p = LogProb::ln_sum_exp(
             &possible_biases
                 .cartesian_product(vaf_tree)
                 .map(|(biases, node)| {
@@ -367,7 +367,8 @@ impl Posterior for GenericPosterior {
                         + self.density(node, &mut likelihood_operands, data, biases, joint_prob)
                 })
                 .collect_vec(),
-        )
+        );
+        p
     }
 }
 

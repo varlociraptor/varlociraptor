@@ -14,6 +14,7 @@ use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
+use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{
     Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
 };
@@ -40,9 +41,7 @@ pub(crate) use snv::Snv;
 
 #[derive(Debug, CopyGetters, Getters, Builder)]
 pub(crate) struct AlleleSupport {
-    #[getset(get_copy = "pub")]
     prob_ref_allele: LogProb,
-    #[getset(get_copy = "pub")]
     prob_alt_allele: LogProb,
     #[getset(get_copy = "pub")]
     strand: Strand,
@@ -55,6 +54,26 @@ pub(crate) struct AlleleSupport {
 }
 
 impl AlleleSupport {
+    fn both_alleles_impossible(&self) -> bool {
+        *self.prob_ref_allele == f64::NEG_INFINITY && *self.prob_alt_allele == f64::NEG_INFINITY
+    }
+
+    pub(crate) fn prob_ref_allele(&self) -> LogProb {
+        if self.both_alleles_impossible() {
+            *PROB_05
+        } else {
+            self.prob_ref_allele
+        }
+    }
+
+    pub(crate) fn prob_alt_allele(&self) -> LogProb {
+        if self.both_alleles_impossible() {
+            *PROB_05
+        } else {
+            self.prob_alt_allele
+        }
+    }
+
     /// METHOD: This is an estimate of the allele likelihood at the true location in case
     /// the read is mismapped. The value has to be approximately in the range of prob_alt
     /// and prob_ref. Otherwise it could cause numerical problems, by dominating the
