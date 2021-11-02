@@ -10,8 +10,6 @@ use std::str;
 use std::u32;
 
 use anyhow::Result;
-use bio::stats::LogProb;
-use bio::stats::Prob;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
@@ -45,65 +43,12 @@ pub(crate) struct AlignmentProperties {
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
     #[serde(default = "default_homopolymer_error_model")]
-    wildtype_homopolymer_error_model: HashMap<i8, f64>,
-    #[serde(skip, default)]
-    artifact_homopolymer_error_model: Option<HashMap<i8, LogProb>>,
+    pub(crate) wildtype_homopolymer_error_model: HashMap<i8, f64>,
     #[serde(default)]
     initial: bool,
 }
 
 impl AlignmentProperties {
-    pub(crate) fn prob_wildtype_homopolymer_error(&self, indel_len: i8) -> LogProb {
-        self.wildtype_homopolymer_error_model
-            .get(&indel_len)
-            .map(|prob| LogProb::from(Prob(*prob)))
-            .unwrap_or(LogProb::ln_zero())
-    }
-
-    pub(crate) fn prob_artifact_homopolymer_error(
-        &mut self,
-        read_indel_len: i8,
-        variant_indel_len: i8,
-    ) -> LogProb {
-        // METHOD: we infer the distribution for the artifact case by setting the prob of 0 to 0, and projecting
-        // all other items to the case where the alt allele is the homopolymer error (i.e. item_indel_len - variant_indel_len).
-        // E.g. a deletion (len -1), leads to a projection of -1 to 0, -2 to -1, etc.
-        if self.artifact_homopolymer_error_model.is_none() {
-            let mut adjusted: HashMap<_, _> = self
-                .wildtype_homopolymer_error_model
-                .iter()
-                .map(|(item_indel_len, prob)| {
-                    // METHOD: do not consider any indel lens that are not in the same direction as the variant indel (they will be attributed to the ref allele
-                    // and should therefore not be expected to be associated with the alt allele).
-                    let prob = if *item_indel_len == 0
-                        || (variant_indel_len < 0 && *item_indel_len > 0)
-                        || (variant_indel_len > 0 && *item_indel_len < 0)
-                    {
-                        0.0
-                    } else {
-                        *prob
-                    };
-                    (
-                        item_indel_len - variant_indel_len,
-                        LogProb::from(Prob(prob)),
-                    )
-                })
-                .collect();
-
-            let prob_total = LogProb::ln_sum_exp(&adjusted.values().cloned().collect::<Vec<_>>());
-            for prob in adjusted.values_mut() {
-                *prob -= prob_total;
-            }
-            self.artifact_homopolymer_error_model = Some(adjusted);
-        }
-        self.artifact_homopolymer_error_model
-            .as_ref()
-            .unwrap()
-            .get(&read_indel_len)
-            .cloned()
-            .unwrap_or(LogProb::ln_zero())
-    }
-
     pub(crate) fn update_homopolymer_error_model(
         &mut self,
         record: &bam::Record,
@@ -250,7 +195,6 @@ impl AlignmentProperties {
             frac_max_softclip: None,
             max_read_len: 0,
             wildtype_homopolymer_error_model: HashMap::new(),
-            artifact_homopolymer_error_model: None,
             initial: true,
         };
 
