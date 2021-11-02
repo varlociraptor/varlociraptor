@@ -1,14 +1,9 @@
-
-
-
 use bio::{
     alignment::{Alignment, AlignmentOperation},
     pattern_matching::myers::Myers,
 };
 
 use itertools::Itertools;
-
-
 
 #[derive(Clone, Debug, CopyGetters)]
 #[getset(get_copy = "pub(crate)")]
