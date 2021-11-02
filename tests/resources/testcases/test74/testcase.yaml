@@ -1,11 +1,4 @@
-expected:
-  allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+# A variant that has caused NaN posteriors previously (now fixed), because one read (the only one we keep here) has -inf for both the ref and the alt allele.
 
 # necessary bam files
 samples:
