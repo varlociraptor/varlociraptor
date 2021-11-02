@@ -157,7 +157,8 @@ pub enum PreprocessKind {
                  The obtained observations are printed to STDOUT in BCF format. Note that the resulting BCFs \
                  will be very large and are only intended for internal use (e.g. for piping into 'varlociraptor \
                  call variants generic').",
-        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam > sample.observations.bcf",
+        usage = "varlociraptor preprocess variants reference.fasta --alignment-properties alignment-properties.json \
+                 --candidates candidates.bcf --bam sample.bam > sample.observations.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Variants {
@@ -203,7 +204,8 @@ pub enum PreprocessKind {
         #[structopt(
             long = "alignment-properties",
             help = "Alignment properties JSON file for sample. If not provided, properties \
-                    will be estimated from the given BAM file."
+                    will be estimated from the given BAM file. It is recommended to estimate alignment \
+                    properties separately, see 'varlociraptor estimate alignment-properties --help'."
         )]
         alignment_properties: Option<PathBuf>,
         #[structopt(
