@@ -15,6 +15,7 @@ use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
+use csv;
 use itertools::Itertools;
 use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
@@ -57,6 +58,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
     #[builder(default)]
     breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
     log_each_record: bool,
+    raw_observation_output: Option<PathBuf>,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -109,6 +111,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "SOFTCLIPPED",
             "ALT_INDEL_OPERATIONS",
             "PAIRED",
+            "PROB_WILDTYPE_HOMOPOLYMER_ERROR",
+            "PROB_ARTIFACT_HOMOPOLYMER_ERROR",
+            "HOMOPOLYMER_INDEL_LEN",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\"", name).as_bytes()
@@ -162,7 +167,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .protocol_strandedness(self.protocol_strandedness)
             .alignments(
                 bam_reader,
-                self.alignment_properties,
+                self.alignment_properties.clone(),
                 self.min_bam_refetch_distance,
             )
             .build()
@@ -272,6 +277,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 let chrom_seq = self.reference_buffer.seq(&work_item.chrom)?;
                 let pileup = self.process_variant(variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
+                if let Some(path) = &self.raw_observation_output {
+                    let mut wrt = csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
+                    for obs in &pileup {
+                        wrt.serialize(obs)?;
+                    }
+                }
+
                 // add variant information
                 call.variant = Some(
                     VariantBuilder::default()
@@ -366,10 +378,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 self.reference_buffer.seq(&work_item.chrom)?[start],
             ))?,
             model::Variant::Deletion(l) => sample.extract_observations(
-                &variants::types::Deletion::new(interval(*l), self.realigner.clone()),
+                &variants::types::Deletion::new(interval(*l), self.realigner.clone())?,
             )?,
             model::Variant::Insertion(seq) => sample.extract_observations(
-                &variants::types::Insertion::new(locus(), seq.to_owned(), self.realigner.clone()),
+                &variants::types::Insertion::new(locus(), seq.to_owned(), self.realigner.clone())?,
             )?,
             model::Variant::Inversion(len) => {
                 sample.extract_observations(&variants::types::Inversion::new(
@@ -392,7 +404,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 interval(ref_allele.len() as u64),
                 alt_allele.to_owned(),
                 self.realigner.clone(),
-            ))?,
+            )?)?,
             model::Variant::Breakend {
                 ref_allele,
                 spec,
@@ -466,23 +478,26 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "9";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "10";
+
+pub(crate) struct Observations {
+    pub(crate) observations: Vec<Observation<ReadPosition>>,
+    pub(crate) is_homopolymer_indel: bool,
+}
 
 /// Read observations from BCF record.
-pub(crate) fn read_observations(
-    record: &mut bcf::Record,
-) -> Result<Vec<Observation<ReadPosition>>> {
-    fn read_values<T>(record: &mut bcf::Record, tag: &[u8]) -> Result<T>
+pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations> {
+    fn read_values<T>(record: &mut bcf::Record, tag: &[u8], allow_missing: bool) -> Result<T>
     where
-        T: serde::de::DeserializeOwned + Debug,
+        T: serde::de::DeserializeOwned + Debug + Default,
     {
-        let raw_values =
-            record
-                .info(tag)
-                .integer()?
-                .ok_or_else(|| errors::Error::InvalidBCFRecord {
-                    msg: "No varlociraptor observations found in record.".to_owned(),
-                })?;
+        let info = record.info(tag).integer()?;
+        if allow_missing && info.is_none() {
+            return Ok(T::default());
+        }
+        let raw_values = info.ok_or_else(|| errors::Error::InvalidBCFRecord {
+            msg: "No varlociraptor observations found in record.".to_owned(),
+        })?;
 
         // decode from i32 to u16 to u8
         let mut values_u8 = Vec::new();
@@ -498,24 +513,31 @@ pub(crate) fn read_observations(
         Ok(values)
     }
 
-    let prob_mapping: Vec<MiniLogProb> = read_values(record, b"PROB_MAPPING")?;
-    let prob_ref: Vec<MiniLogProb> = read_values(record, b"PROB_REF")?;
-    let prob_alt: Vec<MiniLogProb> = read_values(record, b"PROB_ALT")?;
-    let prob_missed_allele: Vec<MiniLogProb> = read_values(record, b"PROB_MISSED_ALLELE")?;
-    let prob_sample_alt: Vec<MiniLogProb> = read_values(record, b"PROB_SAMPLE_ALT")?;
-    let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP")?;
-    let prob_hit_base: Vec<MiniLogProb> = read_values(record, b"PROB_HIT_BASE")?;
-    let strand: Vec<Strand> = read_values(record, b"STRAND")?;
+    let prob_mapping: Vec<MiniLogProb> = read_values(record, b"PROB_MAPPING", false)?;
+    let prob_ref: Vec<MiniLogProb> = read_values(record, b"PROB_REF", false)?;
+    let prob_alt: Vec<MiniLogProb> = read_values(record, b"PROB_ALT", false)?;
+    let prob_missed_allele: Vec<MiniLogProb> = read_values(record, b"PROB_MISSED_ALLELE", false)?;
+    let prob_sample_alt: Vec<MiniLogProb> = read_values(record, b"PROB_SAMPLE_ALT", false)?;
+    let prob_double_overlap: Vec<MiniLogProb> = read_values(record, b"PROB_DOUBLE_OVERLAP", false)?;
+    let prob_hit_base: Vec<MiniLogProb> = read_values(record, b"PROB_HIT_BASE", false)?;
+    let strand: Vec<Strand> = read_values(record, b"STRAND", false)?;
     let read_orientation: Vec<SequenceReadPairOrientation> =
-        read_values(record, b"READ_ORIENTATION")?;
-    let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION")?;
-    let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED")?;
-    let alt_indel_operations: BitVec<u8> = read_values(record, b"ALT_INDEL_OPERATIONS")?;
-    let paired: BitVec<u8> = read_values(record, b"PAIRED")?;
+        read_values(record, b"READ_ORIENTATION", false)?;
+    let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION", false)?;
+    let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED", false)?;
+    let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
+    let prob_wildtype_homopolymer_error: Vec<MiniLogProb> =
+        read_values(record, b"PROB_WILDTYPE_HOMOPOLYMER_ERROR", true)?;
+    let prob_artifact_homopolymer_error: Vec<MiniLogProb> =
+        read_values(record, b"PROB_ARTIFACT_HOMOPOLYMER_ERROR", true)?;
+    let homopolymer_indel_len: Vec<i8> = read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
+
+    let is_homopolymer_indel = !prob_artifact_homopolymer_error.is_empty();
 
     let obs = (0..prob_mapping.len())
         .map(|i| {
             ObservationBuilder::default()
+                .name(None) // we do not pass the read names to the calling process
                 .prob_mapping_mismapping(prob_mapping[i].to_logprob())
                 .prob_alt(prob_alt[i].to_logprob())
                 .prob_ref(prob_ref[i].to_logprob())
@@ -527,14 +549,31 @@ pub(crate) fn read_observations(
                 .read_orientation(read_orientation[i])
                 .read_position(read_position[i])
                 .softclipped(softclipped[i as u64])
-                .has_alt_indel_operations(alt_indel_operations[i as u64])
+                .prob_wildtype_homopolymer_error(if is_homopolymer_indel {
+                    Some(prob_wildtype_homopolymer_error[i].to_logprob())
+                } else {
+                    None
+                })
+                .prob_artifact_homopolymer_error(if is_homopolymer_indel {
+                    Some(prob_artifact_homopolymer_error[i].to_logprob())
+                } else {
+                    None
+                })
+                .homopolymer_indel_len(if is_homopolymer_indel {
+                    Some(homopolymer_indel_len[i])
+                } else {
+                    None
+                })
                 .paired(paired[i as u64])
                 .build()
                 .unwrap()
         })
         .collect_vec();
 
-    Ok(obs)
+    Ok(Observations {
+        observations: obs,
+        is_homopolymer_indel,
+    })
 }
 
 pub(crate) fn write_observations(
@@ -551,10 +590,13 @@ pub(crate) fn write_observations(
     let mut strand = Vec::with_capacity(observations.len());
     let mut read_orientation = Vec::with_capacity(observations.len());
     let mut softclipped: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
-    let mut alt_indel_operations: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut paired: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut read_position = Vec::with_capacity(observations.len());
     let mut prob_hit_base = vec();
+    let mut prob_wildtype_homopolymer_error = Vec::with_capacity(observations.len());
+    let mut prob_artifact_homopolymer_error = Vec::with_capacity(observations.len());
+    let mut homopolymer_indel_len: Vec<i8> = Vec::with_capacity(observations.len());
+
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
     for obs in observations {
         prob_mapping.push(encode_logprob(obs.prob_mapping_orig()));
@@ -567,9 +609,18 @@ pub(crate) fn write_observations(
         strand.push(obs.strand);
         read_orientation.push(obs.read_orientation);
         softclipped.push(obs.softclipped);
-        alt_indel_operations.push(obs.has_alt_indel_operations);
         paired.push(obs.paired);
         read_position.push(obs.read_position);
+
+        if let Some(prob) = obs.prob_wildtype_homopolymer_error {
+            prob_wildtype_homopolymer_error.push(encode_logprob(prob));
+        }
+        if let Some(prob) = obs.prob_artifact_homopolymer_error {
+            prob_artifact_homopolymer_error.push(encode_logprob(prob));
+        }
+        if let Some(indel_len) = obs.homopolymer_indel_len {
+            homopolymer_indel_len.push(indel_len);
+        }
     }
 
     fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
@@ -605,10 +656,23 @@ pub(crate) fn write_observations(
     push_values(record, b"STRAND", &strand)?;
     push_values(record, b"READ_ORIENTATION", &read_orientation)?;
     push_values(record, b"SOFTCLIPPED", &softclipped)?;
-    push_values(record, b"ALT_INDEL_OPERATIONS", &alt_indel_operations)?;
     push_values(record, b"PAIRED", &paired)?;
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
+
+    if !prob_wildtype_homopolymer_error.is_empty() {
+        push_values(
+            record,
+            b"PROB_WILDTYPE_HOMOPOLYMER_ERROR",
+            &prob_wildtype_homopolymer_error,
+        )?;
+        push_values(
+            record,
+            b"PROB_ARTIFACT_HOMOPOLYMER_ERROR",
+            &prob_artifact_homopolymer_error,
+        )?;
+        push_values(record, b"HOMOPOLYMER_INDEL_LEN", &homopolymer_indel_len)?;
+    }
 
     Ok(())
 }
@@ -623,10 +687,12 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"STRAND");
     header.remove_info(b"READ_ORIENTATION");
     header.remove_info(b"SOFTCLIPPED");
-    header.remove_info(b"ALT_INDEL_OPERATIONS");
     header.remove_info(b"PAIRED");
     header.remove_info(b"PROB_HIT_BASE");
     header.remove_info(b"READ_POSITION");
+    header.remove_info(b"PROB_WILDTYPE_HOMOPOLYMER_ERROR");
+    header.remove_info(b"PROB_ARTIFACT_HOMOPOLYMER_ERROR");
+    header.remove_info(b"HOMOPOLYMER_INDEL_LEN");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

@@ -12,7 +12,7 @@ use ordered_float::NotNan;
 use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 use crate::grammar;
-use crate::variants::model::bias::Biases;
+use crate::variants::model::bias::Artifacts;
 
 pub(crate) mod bias;
 pub(crate) mod likelihood;
@@ -29,7 +29,7 @@ pub(crate) struct Contamination {
 pub(crate) struct Event {
     pub(crate) name: String,
     pub(crate) vafs: grammar::VAFTree,
-    pub(crate) biases: Vec<Biases>,
+    pub(crate) biases: Vec<Artifacts>,
 }
 
 impl Event {
@@ -272,6 +272,7 @@ mod tests {
         prob_ref: LogProb,
     ) -> Observation<ReadPosition> {
         ObservationBuilder::default()
+            .name(None)
             .prob_mapping_mismapping(prob_mapping)
             .prob_alt(prob_alt)
             .prob_ref(prob_ref)
@@ -282,7 +283,9 @@ mod tests {
             .read_position(ReadPosition::Some)
             .strand(Strand::Both)
             .softclipped(false)
-            .has_alt_indel_operations(false)
+            .prob_wildtype_homopolymer_error(None)
+            .prob_artifact_homopolymer_error(None)
+            .homopolymer_indel_len(None)
             .paired(true)
             .prob_hit_base(LogProb::from(0.01f64.ln()))
             .build()

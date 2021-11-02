@@ -356,14 +356,14 @@ fn test_fdr_control_local3() {
 // TODO enable this test again once https://github.com/samtools/bcftools/issues/874 is truly fixed upstream
 // Then, also encode SVLEN as negative again for deletions.
 //#[test]
-fn test_fdr_control5() {
-    control_fdr(
-        "test_fdr_control_out_of_bounds",
-        &["PRESENT"],
-        0.05,
-        false,
-        Some(&varlociraptor::variants::model::VariantType::Deletion(
-            Some(1..30),
-        )),
-    );
-}
+// fn test_fdr_control5() {
+//     control_fdr(
+//         "test_fdr_control_out_of_bounds",
+//         &["PRESENT"],
+//         0.05,
+//         false,
+//         Some(&varlociraptor::variants::model::VariantType::Deletion(
+//             Some(1..30),
+//         )),
+//     );
+// }
