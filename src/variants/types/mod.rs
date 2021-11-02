@@ -13,6 +13,7 @@ use rust_htslib::bam;
 use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
+use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::variants::evidence::observation::{
     Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
 };
@@ -124,6 +125,10 @@ pub(crate) trait Variant {
     fn homopolymer_indel_len(&self) -> Option<i8> {
         None
     }
+
+    fn is_homopolymer_indel(&self) -> bool {
+        self.homopolymer_indel_len().is_some()
+    }
 }
 
 impl<V> Observable<SingleEndEvidence> for V
@@ -143,6 +148,8 @@ where
     ) -> Result<Vec<Observation>> {
         let locus = self.loci();
         buffer.fetch(locus, false)?;
+
+        let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
 
         let candidates: Vec<_> = buffer
             .iter()
@@ -169,7 +176,11 @@ where
         let mut observations = Vec::new();
         for evidence in candidates {
             if subsampler.keep() {
-                if let Some(obs) = self.evidence_to_observation(&evidence, alignment_properties)? {
+                if let Some(obs) = self.evidence_to_observation(
+                    &evidence,
+                    alignment_properties,
+                    &homopolymer_error_model,
+                )? {
                     observations.push(obs);
                 }
             }
@@ -211,6 +222,8 @@ where
         // in a deterministic order. Otherwise, subsampling high-depth regions will result
         // in slightly different probabilities each time.
         let mut candidate_records = BTreeMap::new();
+
+        let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
 
         let mut fetches = buffer.build_fetches(true);
         for locus in self.loci().iter() {
@@ -298,7 +311,11 @@ where
         let mut observations = Vec::new();
         for evidence in &candidates {
             if !subsample || subsampler.keep() {
-                if let Some(obs) = self.evidence_to_observation(evidence, alignment_properties)? {
+                if let Some(obs) = self.evidence_to_observation(
+                    evidence,
+                    alignment_properties,
+                    &homopolymer_error_model,
+                )? {
                     observations.push(obs);
                 }
             }

@@ -25,6 +25,7 @@ use itertools::Itertools;
 use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils;
+use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_095;
 use crate::variants::sample;
 use crate::variants::types::Variant;
@@ -373,6 +374,7 @@ where
         &self,
         evidence: &E,
         alignment_properties: &mut AlignmentProperties,
+        homopolymer_error_model: &Option<HomopolymerErrorModel>,
     ) -> Result<Option<Observation>> {
         Ok(match self.allele_support(evidence, alignment_properties)? {
             // METHOD: only consider allele support if it comes either from forward or reverse strand.
@@ -381,8 +383,8 @@ where
             Some(allele_support) if allele_support.strand() != Strand::None => {
                 let read_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
-                let obs = ObservationBuilder::default()
-                    .name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
+                let mut obs = ObservationBuilder::default();
+                obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
                     .prob_mapping_mismapping(self.prob_mapping(evidence))
                     .prob_alt(allele_support.prob_alt_allele())
                     .prob_ref(allele_support.prob_ref_allele())
@@ -396,36 +398,25 @@ where
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation()?)
                     .softclipped(evidence.softclipped())
-                    .prob_wildtype_homopolymer_error(if self.homopolymer_indel_len().is_some() {
-                        Some(alignment_properties.prob_wildtype_homopolymer_error(read_indel_len))
-                    } else {
-                        // METHOD: do not report any operations if the variant chooses to not report them.
-                        None
-                    })
-                    .prob_artifact_homopolymer_error(
-                        if let Some(variant_indel_len) = self.homopolymer_indel_len() {
-                            Some(
-                                alignment_properties.prob_artifact_homopolymer_error(
-                                    read_indel_len,
-                                    variant_indel_len,
-                                ),
-                            )
-                        } else {
-                            // METHOD: do not report any operations if the variant chooses to not report them.
-                            None
-                        },
-                    )
-                    .homopolymer_indel_len(if self.homopolymer_indel_len().is_some() {
-                        Some(read_indel_len)
-                    } else {
-                        None
-                    })
                     .read_position(allele_support.read_position())
                     .paired(evidence.is_paired())
-                    .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
-                    .build()
-                    .unwrap();
-                Some(obs)
+                    .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()));
+
+                if let Some(homopolymer_error_model) = homopolymer_error_model {
+                    obs.homopolymer_indel_len(Some(read_indel_len))
+                        .prob_wildtype_homopolymer_error(Some(
+                            homopolymer_error_model.prob_wildtype_homopolymer_error(read_indel_len),
+                        ))
+                        .prob_artifact_homopolymer_error(Some(
+                            homopolymer_error_model.prob_artifact_homopolymer_error(read_indel_len),
+                        ));
+                } else {
+                    obs.homopolymer_indel_len(None)
+                        .prob_wildtype_homopolymer_error(None)
+                        .prob_artifact_homopolymer_error(None);
+                }
+
+                Some(obs.build().unwrap())
             }
             _ => None,
         })

@@ -8,7 +8,6 @@ use strum::IntoEnumIterator;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 
 pub(crate) mod homopolymer_error;
-pub(crate) mod parameters;
 pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
 pub(crate) mod softclip_bias;

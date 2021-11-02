@@ -1,4 +1,6 @@
-# True variant in complicated region in GIAB (1:1920434).
+# True variant in complicated region in GIAB (1:1920434). This is called as an homopolymer artifact currently.
+# The reason is that there are actually homopolymer artifacts on top of this variant, which happen to fit better to the homopolymer error model
+# than the wildtype assumption (there are more AA insertions than expected in the wildtype case). It is just bad luck that this looks like an error.
 
 expected:
   allelefreqs:

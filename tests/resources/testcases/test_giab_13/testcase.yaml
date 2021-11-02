@@ -1,8 +1,8 @@
-# False positive deletion in complicated region in GIAB (1:1920434). Correctly discarded by freebayes.
+# False positive deletion in complicated region in GIAB (1:1920434). Also judged weakly by freebayes, but our probability is even lower than freebayes' ones.
 
 expected:
-  allelefreqs:
-    - index == 0.0
+  posteriors:
+    - PROB_HET >= 0.18
 
 # necessary bam files
 samples:
