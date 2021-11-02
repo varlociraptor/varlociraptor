@@ -50,7 +50,7 @@ pub(crate) struct AlleleSupport {
     read_position: Option<u32>,
     #[builder(default)]
     #[getset(get_copy = "pub")]
-    has_alt_indel_operations: bool,
+    homopolymer_indel_len: Option<i8>,
 }
 
 impl AlleleSupport {
@@ -69,12 +69,18 @@ impl AlleleSupport {
 
         if self.strand == Strand::None {
             self.strand = other.strand;
-            self.has_alt_indel_operations = other.has_alt_indel_operations;
+            self.homopolymer_indel_len = other.homopolymer_indel_len;
         } else if other.strand != Strand::None {
             if self.strand != other.strand {
                 self.strand = Strand::Both;
             }
-            self.has_alt_indel_operations |= other.has_alt_indel_operations;
+            self.homopolymer_indel_len =
+                match (self.homopolymer_indel_len, other.homopolymer_indel_len) {
+                    (Some(indel_len), Some(_other_indel_len)) => Some(indel_len), // just keep one of them
+                    (Some(indel_len), None) => Some(indel_len),
+                    (None, Some(indel_len)) => Some(indel_len),
+                    (None, None) => None,
+                }
         }
 
         self
@@ -114,9 +120,9 @@ pub(crate) trait Variant {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb;
 
-    /// Whether the variant shall report indel operations for the DivIndelBias calculation.
-    fn report_indel_operations(&self) -> bool {
-        false
+    /// Return the homopolymer indel len of the variant, if any.
+    fn homopolymer_indel_len(&self) -> Option<i8> {
+        None
     }
 }
 

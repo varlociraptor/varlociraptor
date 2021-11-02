@@ -3,8 +3,10 @@
 # read could be a mismapper from an homologous region, but its MAPQ is 60 (hence, the homology is likely not properly represented in the reference.
 
 expected:
+  allele_freqs:
+    - NA12878 == 1.0 
   posteriors:
-    - PROB_PRESENT == 0.0
+    - PROB_PRESENT <= 1.0
 
 # necessary bam files
 samples:

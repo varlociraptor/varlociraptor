@@ -1,5 +1,6 @@
 use bio::stats::probs::LogProb;
 use bio::stats::Prob;
+
 use ordered_float::NotNan;
 
 use crate::utils::PROB_05;

@@ -6,7 +6,7 @@ expected:
     - tumor > 0.4 && tumor < 0.6
   posteriors:
     # write down a list of expressions of the form
-    - PROB_PRESENT == 0.0
+    - PROB_PRESENT <= 0.001
 
 # necessary bam files
 samples:

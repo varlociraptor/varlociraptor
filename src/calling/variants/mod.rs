@@ -24,7 +24,7 @@ use crate::variants::evidence::observation::expected_depth;
 use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::{
-    bias::Biases, bias::DivIndelBias, bias::ReadOrientationBias, bias::ReadPositionBias,
+    bias::Artifacts, bias::HomopolymerError, bias::ReadOrientationBias, bias::ReadPositionBias,
     bias::SoftclipBias, bias::StrandBias, AlleleFreq,
 };
 
@@ -119,7 +119,7 @@ impl Call {
         let mut read_orientation_bias = VecMap::new();
         let mut read_position_bias = VecMap::new();
         let mut softclip_bias = VecMap::new();
-        let mut divindel_bias = VecMap::new();
+        let mut homopolymer_error = VecMap::new();
         let mut alleles = Vec::new();
         let mut svlens = Vec::new();
         let mut events = Vec::new();
@@ -146,7 +146,7 @@ impl Call {
             if let Some(ref sample_info) = sample_info {
                 strand_bias.insert(
                     i,
-                    match sample_info.biases.strand_bias() {
+                    match sample_info.artifacts.strand_bias() {
                         StrandBias::None { .. } => b'.',
                         StrandBias::Forward => b'+',
                         StrandBias::Reverse => b'-',
@@ -154,7 +154,7 @@ impl Call {
                 );
                 read_orientation_bias.insert(
                     i,
-                    match sample_info.biases.read_orientation_bias() {
+                    match sample_info.artifacts.read_orientation_bias() {
                         ReadOrientationBias::None => b'.',
                         ReadOrientationBias::F1R2 => b'>',
                         ReadOrientationBias::F2R1 => b'<',
@@ -162,23 +162,23 @@ impl Call {
                 );
                 read_position_bias.insert(
                     i,
-                    match sample_info.biases.read_position_bias() {
+                    match sample_info.artifacts.read_position_bias() {
                         ReadPositionBias::None => b'.',
                         ReadPositionBias::Some => b'^',
                     },
                 );
                 softclip_bias.insert(
                     i,
-                    match sample_info.biases.softclip_bias() {
+                    match sample_info.artifacts.softclip_bias() {
                         SoftclipBias::None => b'.',
                         SoftclipBias::Some => b'$',
                     },
                 );
-                divindel_bias.insert(
+                homopolymer_error.insert(
                     i,
-                    match sample_info.biases.divindel_bias() {
-                        DivIndelBias::None => b'.',
-                        DivIndelBias::Some { .. } => b'*',
+                    match sample_info.artifacts.homopolymer_error() {
+                        HomopolymerError::None { .. } => b'.',
+                        HomopolymerError::Some { .. } => b'*',
                     },
                 );
 
@@ -216,7 +216,7 @@ impl Call {
                                     ReadPosition::Some => '*',
                                 },
                                 if obs.softclipped { '$' } else { '.' },
-                                if obs.has_alt_indel_operations {
+                                if obs.has_homopolymer_error() {
                                     '*'
                                 } else {
                                     '.'
@@ -370,8 +370,8 @@ impl Call {
             let scb = softclip_bias.values().map(|scb| vec![*scb]).collect_vec();
             record.push_format_string(b"SCB", &scb)?;
 
-            let dib = divindel_bias.values().map(|dib| vec![*dib]).collect_vec();
-            record.push_format_string(b"DIB", &dib)?;
+            let he = homopolymer_error.values().map(|he| vec![*he]).collect_vec();
+            record.push_format_string(b"HE", &he)?;
 
             let sobs = simple_observations
                 .values()
@@ -513,7 +513,7 @@ pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     #[builder(default = "Vec::new()")]
     observations: Vec<Observation<ReadPosition>>,
-    biases: Biases,
+    artifacts: Artifacts,
 }
 
 /// Wrapper for comparing alleles for compatibility in BCF files.

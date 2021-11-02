@@ -18,7 +18,7 @@ use statrs::distribution::{self, Discrete};
 use crate::errors;
 use crate::grammar;
 use crate::variants::model::modes::generic::LikelihoodOperands;
-use crate::variants::model::{bias::Biases, likelihood, AlleleFreq, VariantType};
+use crate::variants::model::{bias::Artifacts, likelihood, AlleleFreq, VariantType};
 
 pub(crate) trait UpdatablePrior {
     fn set_universe_and_ploidies(
@@ -108,7 +108,7 @@ impl Prior {
             let sample = event.len();
             let new_event = |vaf| likelihood::Event {
                 allele_freq: vaf,
-                biases: Biases::none(),
+                artifacts: Artifacts::none(),
                 is_discrete: false,
             };
 

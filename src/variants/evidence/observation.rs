@@ -16,7 +16,7 @@ use bio::stats::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 use rust_htslib::bam;
-use serde::ser::{SerializeStruct, Serializer};
+
 use serde::Serialize;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::bayesian::BayesFactor;
@@ -158,11 +158,12 @@ pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairO
 }
 
 /// An observation for or against a variant.
-#[derive(Clone, Debug, Builder, Default)]
+#[derive(Clone, Debug, Builder, Default, Serialize)]
 pub(crate) struct Observation<P = Option<u32>>
 where
     P: Clone,
 {
+    name: Option<String>,
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
@@ -199,8 +200,11 @@ where
     pub(crate) paired: bool,
     /// Read position of the variant in the read (for SNV and MNV)
     pub(crate) read_position: P,
-    /// Whether the read contains indel operations agains the alt allele
-    pub(crate) has_alt_indel_operations: bool,
+    /// Probability for harboring homopolymer error from artifact homopolymer error model
+    pub(crate) prob_artifact_homopolymer_error: Option<LogProb>,
+    /// Probability for harboring homopolymer error from wildtype homopolymer error model
+    pub(crate) prob_wildtype_homopolymer_error: Option<LogProb>,
+    pub(crate) homopolymer_indel_len: Option<i8>,
 }
 
 impl<P: Clone> ObservationBuilder<P> {
@@ -218,6 +222,7 @@ impl<P: Clone> ObservationBuilder<P> {
 impl Observation<Option<u32>> {
     pub(crate) fn process(&self, major_read_position: Option<u32>) -> Observation<ReadPosition> {
         Observation {
+            name: self.name.clone(),
             prob_mapping: self.prob_mapping,
             prob_mismapping: self.prob_mismapping,
             prob_mapping_adj: self.prob_mapping_adj,
@@ -244,7 +249,9 @@ impl Observation<Option<u32>> {
                     ReadPosition::Some
                 }
             }),
-            has_alt_indel_operations: self.has_alt_indel_operations,
+            prob_wildtype_homopolymer_error: self.prob_wildtype_homopolymer_error,
+            prob_artifact_homopolymer_error: self.prob_artifact_homopolymer_error,
+            homopolymer_indel_len: self.homopolymer_indel_len,
         }
     }
 }
@@ -310,10 +317,6 @@ impl<P: Clone> Observation<P> {
             >= KassRaftery::Positive
     }
 
-    pub(crate) fn is_alt_support(&self) -> bool {
-        self.prob_alt > self.prob_ref
-    }
-
     pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
         if !pileup.is_empty() {
             let prob_sum = LogProb::ln_sum_exp(
@@ -331,6 +334,12 @@ impl<P: Clone> Observation<P> {
             }
         }
     }
+
+    pub(crate) fn has_homopolymer_error(&self) -> bool {
+        self.homopolymer_indel_len
+            .map(|indel_len| indel_len != 0)
+            .unwrap_or(false)
+    }
 }
 
 pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option<u32> {
@@ -340,21 +349,6 @@ pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option
         None
     } else {
         Some(most_common[0].0)
-    }
-}
-
-impl Serialize for Observation {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("Observation", 3)?;
-        s.serialize_field("prob_mapping", &self.prob_mapping)?;
-        s.serialize_field("prob_mismapping", &self.prob_mismapping)?;
-        s.serialize_field("prob_alt", &self.prob_alt)?;
-        s.serialize_field("prob_ref", &self.prob_ref)?;
-        s.serialize_field("prob_sample_alt", &self.prob_sample_alt)?;
-        s.end()
     }
 }
 
@@ -378,14 +372,17 @@ where
     fn evidence_to_observation(
         &self,
         evidence: &E,
-        alignment_properties: &AlignmentProperties,
+        alignment_properties: &mut AlignmentProperties,
     ) -> Result<Option<Observation>> {
         Ok(match self.allele_support(evidence, alignment_properties)? {
             // METHOD: only consider allele support if it comes either from forward or reverse strand.
             // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
             // any information (e.g. no overlap).
             Some(allele_support) if allele_support.strand() != Strand::None => {
+                let read_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
+
                 let obs = ObservationBuilder::default()
+                    .name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
                     .prob_mapping_mismapping(self.prob_mapping(evidence))
                     .prob_alt(allele_support.prob_alt_allele())
                     .prob_ref(allele_support.prob_ref_allele())
@@ -399,11 +396,29 @@ where
                     .strand(allele_support.strand())
                     .read_orientation(evidence.read_orientation()?)
                     .softclipped(evidence.softclipped())
-                    .has_alt_indel_operations(if self.report_indel_operations() {
-                        allele_support.has_alt_indel_operations()
+                    .prob_wildtype_homopolymer_error(if self.homopolymer_indel_len().is_some() {
+                        Some(alignment_properties.prob_wildtype_homopolymer_error(read_indel_len))
                     } else {
                         // METHOD: do not report any operations if the variant chooses to not report them.
-                        false
+                        None
+                    })
+                    .prob_artifact_homopolymer_error(
+                        if let Some(variant_indel_len) = self.homopolymer_indel_len() {
+                            Some(
+                                alignment_properties.prob_artifact_homopolymer_error(
+                                    read_indel_len,
+                                    variant_indel_len,
+                                ),
+                            )
+                        } else {
+                            // METHOD: do not report any operations if the variant chooses to not report them.
+                            None
+                        },
+                    )
+                    .homopolymer_indel_len(if self.homopolymer_indel_len().is_some() {
+                        Some(read_indel_len)
+                    } else {
+                        None
                     })
                     .read_position(allele_support.read_position())
                     .paired(evidence.is_paired())
@@ -425,6 +440,8 @@ pub(crate) trait Evidence {
     fn is_paired(&self) -> bool;
 
     fn len(&self) -> usize;
+
+    fn name(&self) -> &[u8];
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -458,6 +475,10 @@ impl Evidence for SingleEndEvidence {
 
     fn len(&self) -> usize {
         self.inner.seq_len()
+    }
+
+    fn name(&self) -> &[u8] {
+        self.inner.qname()
     }
 }
 
@@ -518,6 +539,13 @@ impl Evidence for PairedEndEvidence {
         match self {
             PairedEndEvidence::SingleEnd(rec) => rec.seq_len(),
             PairedEndEvidence::PairedEnd { left, right } => left.seq_len() + right.seq_len(),
+        }
+    }
+
+    fn name(&self) -> &[u8] {
+        match self {
+            PairedEndEvidence::PairedEnd { left, .. } => left.qname(),
+            PairedEndEvidence::SingleEnd(rec) => rec.qname(),
         }
     }
 }

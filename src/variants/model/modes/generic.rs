@@ -11,7 +11,7 @@ use crate::utils::PROB_05;
 use crate::variants::model;
 use crate::variants::model::likelihood;
 use crate::variants::model::likelihood::Event;
-use crate::variants::model::{bias::Biases, AlleleFreq, Contamination, VariantType};
+use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination, VariantType};
 use crate::variants::sample::Pileup;
 use std::ops::Index;
 
@@ -160,7 +160,7 @@ impl GenericPosterior {
         vaf_tree_node: &grammar::vaftree::Node,
         likelihood_operands: &mut LikelihoodOperands,
         data: &<Self as Posterior>::Data,
-        biases: &Biases,
+        biases: &Artifacts,
         joint_prob: &mut F,
     ) -> LogProb {
         let mut subdensity = |likelihood_operands: &mut LikelihoodOperands| {
@@ -217,7 +217,7 @@ impl GenericPosterior {
                             *sample,
                             likelihood::Event {
                                 allele_freq,
-                                biases: biases.clone(),
+                                artifacts: biases.clone(),
                                 is_discrete,
                             },
                         );
