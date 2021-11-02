@@ -293,6 +293,14 @@ pub enum PreprocessKind {
         )]
         #[serde(default = "default_log_mode")]
         log_mode: String,
+        #[structopt(
+            parse(from_os_str),
+            long = "output-raw-observations",
+            help = "Output raw observations to the given TSV file path. Attention, only use this for debugging when processing \
+            a single variant. Otherwise it will cause a huge file and significant performance hits."
+        )]
+        #[serde(default)]
+        output_raw_observations: Option<PathBuf>,
     },
 }
 
@@ -666,6 +674,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     min_bam_refetch_distance,
                     pairhmm_mode,
                     log_mode,
+                    output_raw_observations,
                 } => {
                     // TODO: handle testcases
 
@@ -727,6 +736,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     realignment_window,
                                     reference_buffer,
                                 ))
+                                .raw_observation_output(output_raw_observations)
                                 .build();
 
                         processor.process()?;
@@ -749,6 +759,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     realignment_window,
                                 ))
                                 .log_each_record(log_each_record)
+                                .raw_observation_output(output_raw_observations)
                                 .build();
 
                         processor.process()?;

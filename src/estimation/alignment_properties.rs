@@ -73,13 +73,23 @@ impl AlignmentProperties {
                 .wildtype_homopolymer_error_model
                 .iter()
                 .map(|(item_indel_len, prob)| {
-                    let prob = if *item_indel_len == 0 { 0.0 } else { *prob };
+                    // METHOD: do not consider any indel lens that are not in the same direction as the variant indel (they will be attributed to the ref allele
+                    // and should therefore not be expected to be associated with the alt allele).
+                    let prob = if *item_indel_len == 0
+                        || (variant_indel_len < 0 && *item_indel_len > 0)
+                        || (variant_indel_len > 0 && *item_indel_len < 0)
+                    {
+                        0.0
+                    } else {
+                        *prob
+                    };
                     (
                         item_indel_len - variant_indel_len,
                         LogProb::from(Prob(prob)),
                     )
                 })
                 .collect();
+
             let prob_total = LogProb::ln_sum_exp(&adjusted.values().cloned().collect::<Vec<_>>());
             for prob in adjusted.values_mut() {
                 *prob -= prob_total;
@@ -436,8 +446,8 @@ mod tests {
         println!("{:?}", props);
 
         if let Some(isize) = props.insert_size {
-            assert_relative_eq!(isize.mean, 311.9736111111111);
-            assert_relative_eq!(isize.sd, 11.9001225301502);
+            assert_relative_eq!(isize.mean.round(), 312.0);
+            assert_relative_eq!(isize.sd.round(), 12.0);
         } else {
             panic!("test_estimate(): props.insert_size was None. Something is wrong, here.");
         }

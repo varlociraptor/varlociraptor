@@ -129,22 +129,25 @@ impl EditDistanceCalculation {
             );
 
             // METHOD: obtain indel operations for homopolymer error model
-            let homopolymer_indel_len = alignments
+            let homopolymer_indel_lens: Vec<_> = alignments
                 .iter()
                 .filter_map(|alignment| {
                     if let Some(operation) = HomopolymerIndelOperation::from_alignment(
-                        &ref_seq().collect::<Vec<_>>(),
+                        &ref_seq().skip(alignment.start).collect::<Vec<_>>(),
                         &self.read_seq,
                         &alignment.operations,
                     ) {
                         if let Some(variant_ref_range) = emission_params.variant_ref_range() {
-                            let ref_pos = emission_params.ref_offset() + operation.text_pos();
+                            let ref_pos = emission_params.ref_offset()
+                                + alignment.start
+                                + operation.text_pos();
                             // METHOD: check whether the operation is within the variant range.
+                            // In case of a deletion (operation.len() < 0) we also check whether the
+                            // end of the deletion is within the variant ref range.
                             if variant_ref_range.contains(&ref_pos)
                                 && (operation.len() > 0
                                     || variant_ref_range
                                         .contains(&(ref_pos + operation.len().abs() as usize)))
-                            // check for deletion end
                             {
                                 Some(operation.len())
                             } else {
@@ -157,7 +160,11 @@ impl EditDistanceCalculation {
                         None
                     }
                 })
-                .min_by_key(|indel_len| *indel_len);
+                .collect();
+            let homopolymer_indel_len = homopolymer_indel_lens
+                .iter()
+                .min_by_key(|indel_len| *indel_len)
+                .cloned();
 
             Some(EditDistanceHit {
                 start,

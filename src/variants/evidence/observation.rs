@@ -158,11 +158,12 @@ pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairO
 }
 
 /// An observation for or against a variant.
-#[derive(Clone, Debug, Builder, Default)]
+#[derive(Clone, Debug, Builder, Default, Serialize)]
 pub(crate) struct Observation<P = Option<u32>>
 where
     P: Clone,
 {
+    name: Option<String>,
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
     prob_mapping: LogProb,
     /// Posterior probability that the read/read-pair has been mapped incorrectly (MAPQ).
@@ -221,6 +222,7 @@ impl<P: Clone> ObservationBuilder<P> {
 impl Observation<Option<u32>> {
     pub(crate) fn process(&self, major_read_position: Option<u32>) -> Observation<ReadPosition> {
         Observation {
+            name: self.name.clone(),
             prob_mapping: self.prob_mapping,
             prob_mismapping: self.prob_mismapping,
             prob_mapping_adj: self.prob_mapping_adj,
@@ -350,21 +352,6 @@ pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option
     }
 }
 
-impl Serialize for Observation {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct("Observation", 3)?;
-        s.serialize_field("prob_mapping", &self.prob_mapping)?;
-        s.serialize_field("prob_mismapping", &self.prob_mismapping)?;
-        s.serialize_field("prob_alt", &self.prob_alt)?;
-        s.serialize_field("prob_ref", &self.prob_ref)?;
-        s.serialize_field("prob_sample_alt", &self.prob_sample_alt)?;
-        s.end()
-    }
-}
-
 /// Something that can be converted into observations.
 pub(crate) trait Observable<E>: Variant<Evidence = E>
 where
@@ -395,6 +382,7 @@ where
                 let read_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
                 let obs = ObservationBuilder::default()
+                    .name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
                     .prob_mapping_mismapping(self.prob_mapping(evidence))
                     .prob_alt(allele_support.prob_alt_allele())
                     .prob_ref(allele_support.prob_ref_allele())
@@ -452,6 +440,8 @@ pub(crate) trait Evidence {
     fn is_paired(&self) -> bool;
 
     fn len(&self) -> usize;
+
+    fn name(&self) -> &[u8];
 }
 
 #[derive(new, Clone, Eq, Debug)]
@@ -485,6 +475,10 @@ impl Evidence for SingleEndEvidence {
 
     fn len(&self) -> usize {
         self.inner.seq_len()
+    }
+
+    fn name(&self) -> &[u8] {
+        self.inner.qname()
     }
 }
 
@@ -545,6 +539,13 @@ impl Evidence for PairedEndEvidence {
         match self {
             PairedEndEvidence::SingleEnd(rec) => rec.seq_len(),
             PairedEndEvidence::PairedEnd { left, right } => left.seq_len() + right.seq_len(),
+        }
+    }
+
+    fn name(&self) -> &[u8] {
+        match self {
+            PairedEndEvidence::PairedEnd { left, .. } => left.qname(),
+            PairedEndEvidence::SingleEnd(rec) => rec.qname(),
         }
     }
 }

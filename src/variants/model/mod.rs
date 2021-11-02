@@ -272,6 +272,7 @@ mod tests {
         prob_ref: LogProb,
     ) -> Observation<ReadPosition> {
         ObservationBuilder::default()
+            .name(None)
             .prob_mapping_mismapping(prob_mapping)
             .prob_alt(prob_alt)
             .prob_ref(prob_ref)
@@ -284,6 +285,7 @@ mod tests {
             .softclipped(false)
             .prob_wildtype_homopolymer_error(None)
             .prob_artifact_homopolymer_error(None)
+            .homopolymer_indel_len(None)
             .paired(true)
             .prob_hit_base(LogProb::from(0.01f64.ln()))
             .build()

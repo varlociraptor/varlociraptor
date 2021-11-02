@@ -7,7 +7,7 @@ expected:
     - NA12878 == 0.0
   posteriors:
     # write down a list of expressions of the form
-    - PROB_ARTIFACT < 1.0
+    - PROB_ARTIFACT < 2.0
 
 # necessary bam files
 samples:

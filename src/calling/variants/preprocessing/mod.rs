@@ -15,6 +15,7 @@ use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use bv::BitVec;
 use byteorder::{ByteOrder, LittleEndian};
+use csv;
 use itertools::Itertools;
 use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
@@ -57,6 +58,7 @@ pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
     #[builder(default)]
     breakend_groups: RwLock<HashMap<Vec<u8>, Mutex<variants::types::breakends::BreakendGroup<R>>>>,
     log_each_record: bool,
+    raw_observation_output: Option<PathBuf>,
 }
 
 impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
@@ -274,6 +276,13 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
                 let chrom_seq = self.reference_buffer.seq(&work_item.chrom)?;
                 let pileup = self.process_variant(variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
+
+                if let Some(path) = &self.raw_observation_output {
+                    let mut wrt = csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
+                    for obs in &pileup {
+                        wrt.serialize(obs)?;
+                    }
+                }
 
                 // add variant information
                 call.variant = Some(
@@ -528,6 +537,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
     let obs = (0..prob_mapping.len())
         .map(|i| {
             ObservationBuilder::default()
+                .name(None) // we do not pass the read names to the calling process
                 .prob_mapping_mismapping(prob_mapping[i].to_logprob())
                 .prob_alt(prob_alt[i].to_logprob())
                 .prob_ref(prob_ref[i].to_logprob())
@@ -601,8 +611,6 @@ pub(crate) fn write_observations(
         softclipped.push(obs.softclipped);
         paired.push(obs.paired);
         read_position.push(obs.read_position);
-
-        dbg!(obs.prob_wildtype_homopolymer_error);
 
         if let Some(prob) = obs.prob_wildtype_homopolymer_error {
             prob_wildtype_homopolymer_error.push(encode_logprob(prob));

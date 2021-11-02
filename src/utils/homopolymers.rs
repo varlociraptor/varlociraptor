@@ -39,8 +39,11 @@ impl HomopolymerIndelOperation {
                 }
             }
             if let Some(best_aln) = best_aln {
-                let mut ret =
-                    HomopolymerIndelOperation::from_alignment(text, pattern, &best_aln.operations);
+                let mut ret = HomopolymerIndelOperation::from_alignment(
+                    &text[best_aln.xstart..],
+                    pattern,
+                    &best_aln.operations,
+                );
                 if reverse_direction {
                     if let Some(op) = ret.as_mut() {
                         op.len *= -1;
