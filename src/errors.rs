@@ -26,8 +26,12 @@ pub(crate) enum Error {
     MissingPrefix,
     #[error("expected tag {name} missing from BCF record")]
     MissingBCFTag { name: String },
-    #[error("invalid BCF record: {msg}")]
-    InvalidBCFRecord { msg: String },
+    #[error("invalid BCF record at {chrom}:{pos}: {msg}")]
+    InvalidBCFRecord {
+        chrom: String,
+        pos: i64,
+        msg: String,
+    },
     #[error("unable to estimate TMB because no valid records were found in the given BCF/VCF")]
     NoRecordsFound,
     #[error("contig {contig} not found in universe definition and no 'all' defined")]
@@ -64,4 +68,12 @@ pub(crate) enum Error {
     OverlappingEvents { expressions: String },
     #[error("the input VCF/BCF is not sorted")]
     UnsortedVariantFile,
+}
+
+pub(crate) fn invalid_bcf_record(chrom: &str, pos: i64, msg: &str) -> Error {
+    Error::InvalidBCFRecord {
+        chrom: chrom.to_owned(),
+        pos,
+        msg: msg.to_owned(),
+    }
 }
