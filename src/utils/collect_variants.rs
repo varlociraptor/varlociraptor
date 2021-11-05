@@ -1,4 +1,5 @@
 use anyhow::Result;
+use bio_types::genome::AbstractLocus;
 use itertools::Itertools;
 use rust_htslib::{bcf, bcf::record::Numeric};
 
@@ -129,9 +130,11 @@ pub(crate) fn collect_variants(
             // get sequence
             let alleles = record.alleles();
             if alleles.len() > 2 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
-                }
+                return Err(errors::invalid_bcf_record(
+                    record.contig(),
+                    record.pos(),
+                    "SVTYPE=INS but more than one ALT allele",
+                )
                 .into());
             }
             let ref_allele = alleles[0];
@@ -157,17 +160,20 @@ pub(crate) fn collect_variants(
                 }
             };
             if svlen == 0 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "Absolute value of SVLEN or END - POS must be greater than zero."
-                        .to_owned(),
-                }
+                return Err(errors::invalid_bcf_record(
+                    record.contig(),
+                    record.pos(),
+                    "Absolute value of SVLEN or END - POS must be greater than zero.",
+                )
                 .into());
             }
             let alleles = record.alleles();
             if alleles.len() > 2 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
-                }
+                return Err(errors::invalid_bcf_record(
+                    record.contig(),
+                    record.pos(),
+                    "SVTYPE=DEL but more than one ALT allele",
+                )
                 .into());
             }
             let ref_allele = alleles[0];

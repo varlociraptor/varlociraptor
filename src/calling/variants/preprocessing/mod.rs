@@ -360,23 +360,51 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         };
         let start = work_item.start as usize;
 
+        let ref_base = || {
+            self.reference_buffer
+                .seq(&work_item.chrom)?
+                .get(start)
+                .cloned()
+                .ok_or_else(|| -> anyhow::Error {
+                    errors::invalid_bcf_record(
+                        locus().contig(),
+                        locus().pos() as i64,
+                        "position larger than reference length",
+                    )
+                    .into()
+                })
+        };
+
         Ok(Some(match variant {
-            model::Variant::Snv(alt) => sample.extract_observations(&variants::types::Snv::new(
-                locus(),
-                self.reference_buffer.seq(&work_item.chrom)?[start],
-                *alt,
-                self.realigner.clone(),
-            ))?,
+            model::Variant::Snv(alt) => {
+                let locus = locus();
+                sample.extract_observations(&variants::types::Snv::new(
+                    locus,
+                    ref_base()?,
+                    *alt,
+                    self.realigner.clone(),
+                ))?
+            }
             model::Variant::Mnv(alt) => sample.extract_observations(&variants::types::Mnv::new(
                 locus(),
-                self.reference_buffer.seq(&work_item.chrom)?[start..start + alt.len()].to_owned(),
+                self.reference_buffer
+                    .seq(&work_item.chrom)?
+                    .get(start..start + alt.len())
+                    .ok_or_else(|| -> anyhow::Error {
+                        errors::invalid_bcf_record(
+                            locus().contig(),
+                            locus().pos() as i64,
+                            "MNV exceeds reference length",
+                        )
+                        .into()
+                    })?
+                    .to_owned(),
                 alt.to_owned(),
                 self.realigner.clone(),
             ))?,
-            model::Variant::None => sample.extract_observations(&variants::types::None::new(
-                locus(),
-                self.reference_buffer.seq(&work_item.chrom)?[start],
-            ))?,
+            model::Variant::None => {
+                sample.extract_observations(&variants::types::None::new(locus(), ref_base()?))?
+            }
             model::Variant::Deletion(l) => sample.extract_observations(
                 &variants::types::Deletion::new(interval(*l), self.realigner.clone())?,
             )?,
@@ -495,8 +523,12 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
         if allow_missing && info.is_none() {
             return Ok(T::default());
         }
-        let raw_values = info.ok_or_else(|| errors::Error::InvalidBCFRecord {
-            msg: "No varlociraptor observations found in record.".to_owned(),
+        let raw_values = info.ok_or_else(|| {
+            errors::invalid_bcf_record(
+                record.contig(),
+                record.pos(),
+                "No varlociraptor observations found in record.",
+            )
         })?;
 
         // decode from i32 to u16 to u8
