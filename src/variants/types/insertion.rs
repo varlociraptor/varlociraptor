@@ -17,7 +17,9 @@ use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
-use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::variants::evidence::realignment::pairhmm::{
+    ReadEmission, RefBaseEmission, VariantEmission,
+};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
@@ -27,7 +29,7 @@ pub(crate) struct Insertion<R: Realigner> {
     locus: MultiLocus,
     ins_seq: Rc<Vec<u8>>,
     realigner: RefCell<R>,
-    is_homopolymer_insertion: bool,
+    homopolymer: Option<Range<u64>>,
 }
 
 impl<R: Realigner> Insertion<R> {
@@ -35,13 +37,18 @@ impl<R: Realigner> Insertion<R> {
         let start = locus.pos() as usize;
         let ref_seq = &realigner.ref_buffer().seq(locus.contig())?;
 
-        let is_homopolymer_insertion = ins_seq.len() < 256
-            && is_homopolymer_seq(&ins_seq)
-            && ((start < ref_seq.len()
-                && extend_homopolymer_stretch(ins_seq[0], &mut ref_seq[start..].iter()) > 0)
-                || (start > 0
-                    && extend_homopolymer_stretch(ins_seq[0], &mut ref_seq[..start].iter().rev())
-                        > 0));
+        let homopolymer = if is_homopolymer_seq(&ins_seq) {
+            let end = (start
+                + ins_seq.len()
+                + extend_homopolymer_stretch(ins_seq[0], &mut ref_seq[start + 1..].iter()))
+                as u64;
+            let start = start as u64 + 1
+                - extend_homopolymer_stretch(ins_seq[0], &mut ref_seq[..start + 1].iter().rev())
+                    as u64;
+            Some(start..end)
+        } else {
+            None
+        };
 
         Ok(Insertion {
             locus: MultiLocus::new(vec![SingleLocus::new(genome::Interval::new(
@@ -50,7 +57,7 @@ impl<R: Realigner> Insertion<R> {
             ))]),
             ins_seq: Rc::new(ins_seq),
             realigner: RefCell::new(realigner),
-            is_homopolymer_insertion,
+            homopolymer,
         })
     }
 
@@ -84,6 +91,7 @@ impl<'a, R: Realigner> Realignable<'a> for Insertion<R> {
             ins_end: start + l,
             ins_seq: Rc::clone(&self.ins_seq),
             read_emission: read_emission_params,
+            homopolymer: self.homopolymer.clone(),
         }])
     }
 }
@@ -118,7 +126,7 @@ impl<R: Realigner> Variant for Insertion<R> {
     type Loci = MultiLocus;
 
     fn homopolymer_indel_len(&self) -> Option<i8> {
-        if self.is_homopolymer_insertion {
+        if self.homopolymer.is_some() {
             Some(self.ins_seq.len() as i8)
         } else {
             None
@@ -213,6 +221,7 @@ pub(crate) struct InsertionEmissionParams<'a> {
     ins_len: usize,
     ins_seq: Rc<Vec<u8>>,
     read_emission: Rc<ReadEmission<'a>>,
+    homopolymer: Option<Range<u64>>,
 }
 
 impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
@@ -228,8 +237,8 @@ impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
         }
     }
 
-    fn variant_ref_range(&self) -> Option<Range<usize>> {
-        Some(self.ins_start..self.ins_end)
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        self.homopolymer.clone()
     }
 
     default_ref_base_emission!();
@@ -241,5 +250,11 @@ impl<'a> EmissionParameters for InsertionEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset + self.ins_len
+    }
+}
+
+impl<'a> VariantEmission for InsertionEmissionParams<'a> {
+    fn is_homopolymer_indel(&self) -> bool {
+        self.homopolymer.is_some()
     }
 }

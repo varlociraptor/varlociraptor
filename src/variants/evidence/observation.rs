@@ -202,9 +202,15 @@ where
     /// Read position of the variant in the read (for SNV and MNV)
     pub(crate) read_position: P,
     /// Probability for harboring homopolymer error from artifact homopolymer error model
-    pub(crate) prob_artifact_homopolymer_error: Option<LogProb>,
+    pub(crate) prob_artifact_homopolymer_error_alt: Option<LogProb>,
     /// Probability for harboring homopolymer error from wildtype homopolymer error model
-    pub(crate) prob_wildtype_homopolymer_error: Option<LogProb>,
+    pub(crate) prob_wildtype_homopolymer_error_alt: Option<LogProb>,
+    /// Probability for harboring homopolymer error from artifact homopolymer error model
+    /// Probability for harboring homopolymer error from artifact homopolymer error model
+    pub(crate) prob_artifact_homopolymer_error_ref: Option<LogProb>,
+    /// Probability for harboring homopolymer error from wildtype homopolymer error model
+    pub(crate) prob_wildtype_homopolymer_error_ref: Option<LogProb>,
+    /// Probability for harboring homopolymer error from artifact homopolymer error model
     pub(crate) homopolymer_indel_len: Option<i8>,
 }
 
@@ -250,8 +256,10 @@ impl Observation<Option<u32>> {
                     ReadPosition::Some
                 }
             }),
-            prob_wildtype_homopolymer_error: self.prob_wildtype_homopolymer_error,
-            prob_artifact_homopolymer_error: self.prob_artifact_homopolymer_error,
+            prob_wildtype_homopolymer_error_alt: self.prob_wildtype_homopolymer_error_alt,
+            prob_artifact_homopolymer_error_alt: self.prob_artifact_homopolymer_error_alt,
+            prob_wildtype_homopolymer_error_ref: self.prob_wildtype_homopolymer_error_ref,
+            prob_artifact_homopolymer_error_ref: self.prob_artifact_homopolymer_error_ref,
             homopolymer_indel_len: self.homopolymer_indel_len,
         }
     }
@@ -404,16 +412,28 @@ where
 
                 if let Some(homopolymer_error_model) = homopolymer_error_model {
                     obs.homopolymer_indel_len(Some(read_indel_len))
-                        .prob_wildtype_homopolymer_error(Some(
-                            homopolymer_error_model.prob_wildtype_homopolymer_error(read_indel_len),
+                        .prob_wildtype_homopolymer_error_alt(Some(
+                            homopolymer_error_model
+                                .prob_wildtype_homopolymer_error_alt(read_indel_len),
                         ))
-                        .prob_artifact_homopolymer_error(Some(
-                            homopolymer_error_model.prob_artifact_homopolymer_error(read_indel_len),
+                        .prob_artifact_homopolymer_error_alt(Some(
+                            homopolymer_error_model
+                                .prob_artifact_homopolymer_error_alt(read_indel_len),
+                        ))
+                        .prob_wildtype_homopolymer_error_ref(Some(
+                            homopolymer_error_model
+                                .prob_wildtype_homopolymer_error_ref(read_indel_len),
+                        ))
+                        .prob_artifact_homopolymer_error_ref(Some(
+                            homopolymer_error_model
+                                .prob_artifact_homopolymer_error_ref(read_indel_len),
                         ));
                 } else {
                     obs.homopolymer_indel_len(None)
-                        .prob_wildtype_homopolymer_error(None)
-                        .prob_artifact_homopolymer_error(None);
+                        .prob_wildtype_homopolymer_error_alt(None)
+                        .prob_artifact_homopolymer_error_alt(None)
+                        .prob_wildtype_homopolymer_error_ref(None)
+                        .prob_artifact_homopolymer_error_ref(None);
                 }
 
                 Some(obs.build().unwrap())

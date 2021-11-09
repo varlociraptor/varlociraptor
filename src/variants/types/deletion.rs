@@ -17,10 +17,12 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
-use crate::utils::homopolymers::is_homopolymer_seq;
+use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
 use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::observation::Strand;
-use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::variants::evidence::realignment::pairhmm::{
+    ReadEmission, RefBaseEmission, VariantEmission,
+};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
@@ -32,7 +34,7 @@ pub(crate) struct Deletion<R: Realigner> {
     locus: SingleLocus,
     fetch_loci: MultiLocus,
     realigner: RefCell<R>,
-    is_homopolymer_deletion: bool,
+    homopolymer: Option<Range<u64>>,
 }
 
 impl<R: Realigner> Deletion<R> {
@@ -42,10 +44,27 @@ impl<R: Realigner> Deletion<R> {
         let len = end - start;
         let centerpoint = start + (len as f64 / 2.0).round() as u64;
         let contig = locus.contig().to_owned();
-        let is_homopolymer_deletion = len < 256
-            && is_homopolymer_seq(
-                &realigner.ref_buffer().seq(&contig)?[start as usize..end as usize],
-            ); // TODO check end (exclusive or not?)
+        let ref_seq = realigner.ref_buffer().seq(&contig)?;
+        let del_seq = &ref_seq[start as usize + 1..end as usize + 1];
+
+        let homopolymer = if is_homopolymer_seq(del_seq) {
+            let start = start + 1
+                - extend_homopolymer_stretch(
+                    del_seq[0],
+                    &mut ref_seq[..start as usize + 1].iter().rev(),
+                ) as u64;
+            let end = end
+                + 1
+                + extend_homopolymer_stretch(del_seq[0], &mut ref_seq[end as usize + 1..].iter())
+                    as u64;
+            if end - start > 1 {
+                Some(start..end)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         let fetch_loci = MultiLocus::new(vec![
             SingleLocus::new(genome::Interval::new(contig.clone(), start..start + 1)),
@@ -60,7 +79,7 @@ impl<R: Realigner> Deletion<R> {
             locus: SingleLocus::new(locus),
             fetch_loci,
             realigner: RefCell::new(realigner),
-            is_homopolymer_deletion,
+            homopolymer,
         })
     }
 
@@ -155,6 +174,7 @@ impl<'a, R: Realigner> Realignable<'a> for Deletion<R> {
             ref_end: cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
             ref_seq,
             read_emission: read_emission_params,
+            homopolymer: self.homopolymer.clone(),
         }])
     }
 }
@@ -165,7 +185,7 @@ impl<R: Realigner> Variant for Deletion<R> {
 
     fn homopolymer_indel_len(&self) -> Option<i8> {
         // METHOD: enable HomopolymerArtifact to detect e.g. homopolymer errors due to PCR
-        if self.is_homopolymer_deletion {
+        if self.homopolymer.is_some() {
             Some(-(self.len() as i8))
         } else {
             None
@@ -307,6 +327,7 @@ pub(crate) struct DeletionEmissionParams<'a> {
     del_start: usize,
     del_len: usize,
     read_emission: Rc<ReadEmission<'a>>,
+    homopolymer: Option<Range<u64>>,
 }
 
 impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
@@ -320,8 +341,8 @@ impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
         }
     }
 
-    fn variant_ref_range(&self) -> Option<Range<usize>> {
-        Some(self.del_start..self.del_start + self.del_len)
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        self.homopolymer.clone()
     }
 
     default_ref_base_emission!();
@@ -333,5 +354,11 @@ impl<'a> EmissionParameters for DeletionEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
+    }
+}
+
+impl<'a> VariantEmission for DeletionEmissionParams<'a> {
+    fn is_homopolymer_indel(&self) -> bool {
+        self.homopolymer.is_some()
     }
 }

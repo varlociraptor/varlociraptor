@@ -20,7 +20,11 @@ pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
 
 pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
-    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb;
+    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb;
+
+    fn prob_ref(&self, observation: &Observation<ReadPosition>) -> LogProb {
+        self.prob_any(observation)
+    }
 
     fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb;
 
@@ -34,7 +38,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
         pileups.iter().any(|pileup| {
             pileup
                 .iter()
-                .any(|observation| self.prob(observation) != LogProb::ln_zero())
+                .any(|observation| self.prob_alt(observation) != LogProb::ln_zero())
         })
     }
 
@@ -43,7 +47,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 
     fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
-        self.prob(observation) != LogProb::ln_zero()
+        self.prob_alt(observation) != LogProb::ln_zero()
     }
 
     fn min_strong_evidence_ratio(&self) -> f64 {
@@ -221,12 +225,20 @@ impl Artifacts {
             && self.homopolymer_error.is_likely(pileups)
     }
 
-    pub(crate) fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
-        self.strand_bias.prob(observation)
-            + self.read_orientation_bias.prob(observation)
-            + self.read_position_bias.prob(observation)
-            + self.softclip_bias.prob(observation)
-            + self.homopolymer_error.prob(observation)
+    pub(crate) fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
+        self.strand_bias.prob_alt(observation)
+            + self.read_orientation_bias.prob_alt(observation)
+            + self.read_position_bias.prob_alt(observation)
+            + self.softclip_bias.prob_alt(observation)
+            + self.homopolymer_error.prob_alt(observation)
+    }
+
+    pub(crate) fn prob_ref(&self, observation: &Observation<ReadPosition>) -> LogProb {
+        self.strand_bias.prob_ref(observation)
+            + self.read_orientation_bias.prob_ref(observation)
+            + self.read_position_bias.prob_ref(observation)
+            + self.softclip_bias.prob_ref(observation)
+            + self.homopolymer_error.prob_ref(observation)
     }
 
     pub(crate) fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb {

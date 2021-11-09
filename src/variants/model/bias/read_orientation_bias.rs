@@ -19,7 +19,7 @@ impl Default for ReadOrientationBias {
 }
 
 impl Bias for ReadOrientationBias {
-    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.read_orientation) {
             (ReadOrientationBias::None, SequenceReadPairOrientation::F1R2) => *PROB_05, // normal
             (ReadOrientationBias::None, SequenceReadPairOrientation::F2R1) => *PROB_05, // normal

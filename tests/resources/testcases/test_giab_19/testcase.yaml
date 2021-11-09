@@ -1,8 +1,8 @@
 # False positive homopolymer induced call from GIAB exome sample (15:33631301)
 
 expected:
-  allelefreqs:
-    - NA12878 == 0.0
+  posteriors:
+    - PROB_PRESENT >= 0.55 
 
 # necessary bam files
 samples:

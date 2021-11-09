@@ -336,8 +336,9 @@ pub(crate) trait Testcase {
                             bcf::HeaderRecord::Info { values, .. } => {
                                 let id = values.get("ID").unwrap().clone();
                                 if id.starts_with("PROB_") {
-                                    let values = call.info(id.as_bytes()).float().unwrap().unwrap();
-                                    expr = expr.value(id.clone(), values[0])
+                                    if let Ok(Some(values)) = call.info(id.as_bytes()).float() {
+                                        expr = expr.value(id.clone(), values[0])
+                                    }
                                 }
                             }
                             _ => (), // ignore other tags

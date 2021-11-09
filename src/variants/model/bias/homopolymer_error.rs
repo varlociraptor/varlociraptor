@@ -24,13 +24,24 @@ impl Default for HomopolymerError {
 }
 
 impl Bias for HomopolymerError {
-    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match self {
             HomopolymerError::None => observation
-                .prob_wildtype_homopolymer_error
+                .prob_wildtype_homopolymer_error_alt
                 .unwrap_or(LogProb::ln_one()),
             HomopolymerError::Some => observation
-                .prob_artifact_homopolymer_error
+                .prob_artifact_homopolymer_error_alt
+                .unwrap_or(LogProb::ln_zero()),
+        }
+    }
+
+    fn prob_ref(&self, observation: &Observation<ReadPosition>) -> LogProb {
+        match self {
+            HomopolymerError::None => observation
+                .prob_wildtype_homopolymer_error_ref
+                .unwrap_or(LogProb::ln_one()),
+            HomopolymerError::Some => observation
+                .prob_artifact_homopolymer_error_ref
                 .unwrap_or(LogProb::ln_zero()),
         }
     }
@@ -58,10 +69,7 @@ impl Bias for HomopolymerError {
     }
 
     fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
-        observation
-            .prob_artifact_homopolymer_error
-            .map(|prob| prob != LogProb::ln_zero())
-            .unwrap_or(false)
+        observation.homopolymer_indel_len.unwrap_or(0) != 0
     }
 
     fn min_strong_evidence_ratio(&self) -> f64 {

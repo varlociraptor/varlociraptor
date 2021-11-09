@@ -16,7 +16,7 @@ impl Default for SoftclipBias {
 }
 
 impl Bias for SoftclipBias {
-    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.softclipped) {
             (SoftclipBias::Some, true) => LogProb::ln_one(),
             (SoftclipBias::Some, false) => LogProb::ln_zero(),

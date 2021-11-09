@@ -2,7 +2,7 @@
 
 expected:
   posteriors:
-    - PROB_HET >= 0.18
+    - PROB_HET >= 0.14
 
 # necessary bam files
 samples:

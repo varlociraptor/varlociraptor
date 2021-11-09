@@ -27,7 +27,9 @@ use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::variants::evidence::realignment::pairhmm::{
+    ReadEmission, RefBaseEmission, VariantEmission,
+};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
@@ -614,12 +616,6 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                     ref_end: alt_allele.len(),
                     alt_allele: Arc::clone(alt_allele),
                     read_emission: Rc::clone(&read_emission_params),
-                    variant_ref_range: self.enclosable_ref_interval.as_ref().map(|_| {
-                        // Ref_offset is set to zero here (since we build a new reference),
-                        // so we just have to report the range
-                        // relative to the alt allele sequence which includes the necessary prefixes.
-                        alt_allele.prefix_len..alt_allele.len() - alt_allele.suffix_len
-                    }),
                 });
             }
         }
@@ -660,7 +656,6 @@ pub(crate) struct BreakendEmissionParams<'a> {
     ref_offset: usize,
     ref_end: usize,
     read_emission: Rc<ReadEmission<'a>>,
-    variant_ref_range: Option<Range<usize>>,
 }
 
 impl<'a> RefBaseEmission for BreakendEmissionParams<'a> {
@@ -669,8 +664,8 @@ impl<'a> RefBaseEmission for BreakendEmissionParams<'a> {
         self.alt_allele[i]
     }
 
-    fn variant_ref_range(&self) -> Option<Range<usize>> {
-        self.variant_ref_range.clone()
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        None
     }
 
     default_ref_base_emission!();
@@ -682,6 +677,12 @@ impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.alt_allele.len()
+    }
+}
+
+impl<'a> VariantEmission for BreakendEmissionParams<'a> {
+    fn is_homopolymer_indel(&self) -> bool {
+        false
     }
 }
 

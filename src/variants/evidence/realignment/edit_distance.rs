@@ -14,6 +14,8 @@ use bio::stats::pairhmm;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
+use super::pairhmm::VariantEmission;
+
 enum Myers {
     Short(myers::Myers<u128>),
     Long(long::Myers<u64>),
@@ -51,7 +53,9 @@ impl EditDistanceCalculation {
 
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
     /// We use the best edit distance and add 5.
-    pub(crate) fn calc_best_hit<E: pairhmm::EmissionParameters + RefBaseEmission>(
+    pub(crate) fn calc_best_hit<
+        E: pairhmm::EmissionParameters + RefBaseEmission + VariantEmission,
+    >(
         &mut self,
         emission_params: &E,
         max_dist: Option<usize>,
@@ -128,42 +132,45 @@ impl EditDistanceCalculation {
             );
 
             // METHOD: obtain indel operations for homopolymer error model
-            let homopolymer_indel_lens: Vec<_> = alignments
-                .iter()
-                .filter_map(|alignment| {
-                    if let Some(operation) = HomopolymerIndelOperation::from_alignment(
-                        &ref_seq().skip(alignment.start).collect::<Vec<_>>(),
-                        &self.read_seq,
-                        &alignment.operations,
-                    ) {
-                        if let Some(variant_ref_range) = emission_params.variant_ref_range() {
-                            let ref_pos = emission_params.ref_offset()
-                                + alignment.start
-                                + operation.text_pos();
-                            // METHOD: check whether the operation is within the variant range.
-                            // In case of a deletion (operation.len() < 0) we also check whether the
-                            // end of the deletion is within the variant ref range.
-                            if variant_ref_range.contains(&ref_pos)
-                                && (operation.len() > 0
-                                    || variant_ref_range
-                                        .contains(&(ref_pos + operation.len().abs() as usize)))
+            let homopolymer_indel_len = if emission_params.is_homopolymer_indel() {
+                alignments
+                    .iter()
+                    .filter_map(|alignment| {
+                        if let Some(operation) = HomopolymerIndelOperation::from_alignment(
+                            &ref_seq().skip(alignment.start).collect::<Vec<_>>(),
+                            &self.read_seq,
+                            &alignment.operations,
+                        ) {
+                            if let Some(variant_ref_range) =
+                                emission_params.variant_homopolymer_ref_range()
                             {
-                                Some(operation.len())
+                                let ref_pos = (emission_params.ref_offset()
+                                    + alignment.start
+                                    + operation.text_pos())
+                                    as u64;
+                                // METHOD: check whether the operation is within the homopolymer variant range.
+                                // In case of a deletion (operation.len() < 0) we also check whether the
+                                // end of the deletion is within the variant ref range.
+                                if variant_ref_range.contains(&(ref_pos))
+                                    && (operation.len() > 0
+                                        || variant_ref_range
+                                            .contains(&(ref_pos + operation.len().abs() as u64)))
+                                {
+                                    Some(operation.len())
+                                } else {
+                                    None
+                                }
                             } else {
                                 None
                             }
                         } else {
                             None
                         }
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            let homopolymer_indel_len = homopolymer_indel_lens
-                .iter()
-                .min_by_key(|indel_len| *indel_len)
-                .cloned();
+                    })
+                    .min_by_key(|indel_len| *indel_len)
+            } else {
+                None
+            };
 
             Some(EditDistanceHit {
                 start,

@@ -196,15 +196,15 @@ fn likelihood_mapping(
     let prob_sample_alt = prob_sample_alt(observation, allele_freq);
     let prob_sample_ref = prob_sample_alt.ln_one_minus_exp();
 
-    let prob_bias = biases.prob(observation);
-    let prob_any_bias = biases.prob_any(observation);
+    let prob_bias_alt = biases.prob_alt(observation);
+    let prob_bias_ref = biases.prob_ref(observation);
 
     // Step 2: read comes from case sample and is correctly mapped
     let prob = LogProb::ln_sum_exp(&[
         // alt allele
-        prob_sample_alt + prob_bias + observation.prob_alt,
-        // ref allele (we don't care about the strand)
-        prob_sample_ref + observation.prob_ref + prob_any_bias,
+        prob_sample_alt + prob_bias_alt + observation.prob_alt,
+        // ref allele
+        prob_sample_ref + observation.prob_ref + prob_bias_ref,
     ]);
     assert!(!prob.is_nan());
 
@@ -266,7 +266,7 @@ mod tests {
 
         let lh =
             model.likelihood_observation(LogProb(AlleleFreq(0.0).ln()), &biases(), &observation);
-        assert_relative_eq!(*lh, *biases().prob_any(&observation));
+        assert_relative_eq!(*lh, *biases().prob_ref(&observation));
     }
 
     #[test]
@@ -281,7 +281,7 @@ mod tests {
             &biases(),
             &observation,
         );
-        assert_relative_eq!(*lh, *biases().prob_any(&observation));
+        assert_relative_eq!(*lh, *biases().prob_ref(&observation));
     }
 
     #[test]
@@ -309,7 +309,7 @@ mod tests {
             *lh,
             *observations
                 .iter()
-                .map(|observation| biases().prob_any(&observation))
+                .map(|observation| biases().prob_ref(&observation))
                 .sum::<LogProb>()
         );
     }
@@ -332,7 +332,7 @@ mod tests {
             *lh,
             *observations
                 .iter()
-                .map(|observation| biases().prob_any(&observation))
+                .map(|observation| biases().prob_ref(&observation))
                 .sum::<LogProb>()
         );
         assert!(cache.get(&evt).is_some())
