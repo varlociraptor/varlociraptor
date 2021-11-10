@@ -401,20 +401,18 @@ where
                     .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()));
 
                 if let Some(homopolymer_error_model) = homopolymer_error_model {
-                    if read_indel_len - homopolymer_error_model.variant_homopolymer_indel_len() == 0 {
+                    if read_indel_len - homopolymer_error_model.variant_homopolymer_indel_len() == 0
+                    {
                         // no homopolymer indel in read compared to reference
-                        obs
-                            .homopolymer_indel_len(None)
-                            .prob_homopolymer_error(None);
+                        obs.homopolymer_indel_len(None).prob_homopolymer_error(None);
                     } else {
-                        obs
-                            .homopolymer_indel_len(Some(read_indel_len))
-                            .prob_homopolymer_error(Some(homopolymer_error_model.prob_homopolymer_error()));
+                        obs.homopolymer_indel_len(Some(read_indel_len))
+                            .prob_homopolymer_error(Some(
+                                homopolymer_error_model.prob_homopolymer_error(),
+                            ));
                     }
                 } else {
-                    obs
-                        .homopolymer_indel_len(None)
-                        .prob_homopolymer_error(None);
+                    obs.homopolymer_indel_len(None).prob_homopolymer_error(None);
                 }
 
                 Some(obs.build().unwrap())

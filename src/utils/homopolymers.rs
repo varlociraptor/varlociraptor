@@ -162,13 +162,19 @@ impl HomopolymerErrorModel {
     {
         if let Some(variant_homopolymer_indel_len) = variant.homopolymer_indel_len() {
             let model = Some(HomopolymerErrorModel {
-                prob_homopolymer_error: LogProb::ln_sum_exp(&alignment_properties.wildtype_homopolymer_error_model.iter().filter_map(|(item_len, prob)| {
-                    if *item_len != 0 {
-                        Some(LogProb::from(Prob(*prob)))
-                    } else {
-                        None
-                    }
-                }).collect_vec()),
+                prob_homopolymer_error: LogProb::ln_sum_exp(
+                    &alignment_properties
+                        .wildtype_homopolymer_error_model
+                        .iter()
+                        .filter_map(|(item_len, prob)| {
+                            if *item_len != 0 {
+                                Some(LogProb::from(Prob(*prob)))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec(),
+                ),
                 variant_homopolymer_indel_len,
             });
 

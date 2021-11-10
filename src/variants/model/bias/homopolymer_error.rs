@@ -2,9 +2,9 @@ use std::hash::Hash;
 
 use bio::stats::probs::LogProb;
 
+use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
-use crate::utils::PROB_05;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub(crate) enum HomopolymerError {
@@ -27,16 +27,23 @@ impl Default for HomopolymerError {
 impl Bias for HomopolymerError {
     fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.homopolymer_indel_len) {
-            (HomopolymerError::None, Some(len)) => if len != 0 {
-                LogProb::ln_zero()
-            } else {
-                LogProb::ln_one()
-            },
-            (HomopolymerError::Some, Some(len)) => if len != 0 {
-                observation.prob_homopolymer_error.unwrap()
-            } else {
-                observation.prob_homopolymer_error.unwrap().ln_one_minus_exp()
-            },
+            (HomopolymerError::None, Some(len)) => {
+                if len != 0 {
+                    LogProb::ln_zero()
+                } else {
+                    LogProb::ln_one()
+                }
+            }
+            (HomopolymerError::Some, Some(len)) => {
+                if len != 0 {
+                    observation.prob_homopolymer_error.unwrap()
+                } else {
+                    observation
+                        .prob_homopolymer_error
+                        .unwrap()
+                        .ln_one_minus_exp()
+                }
+            }
             (HomopolymerError::None, None) => *PROB_05,
             (HomopolymerError::Some, None) => *PROB_05,
         }

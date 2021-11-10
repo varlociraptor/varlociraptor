@@ -559,7 +559,8 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
     let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
     let prob_homopolymer_error: Vec<Option<MiniLogProb>> =
         read_values(record, b"PROB_HOMOPOLYMER_ERROR", true)?;
-    let homopolymer_indel_len: Vec<Option<i8>> = read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
+    let homopolymer_indel_len: Vec<Option<i8>> =
+        read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
 
     let is_homopolymer_indel = !prob_homopolymer_error.is_empty();
 
@@ -581,12 +582,12 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
                 .paired(paired[i as u64]);
 
             if is_homopolymer_indel {
-                obs
-                    .homopolymer_indel_len(homopolymer_indel_len[i])
-                    .prob_homopolymer_error(prob_homopolymer_error[i].map(|prob| prob.to_logprob()));
+                obs.homopolymer_indel_len(homopolymer_indel_len[i])
+                    .prob_homopolymer_error(
+                        prob_homopolymer_error[i].map(|prob| prob.to_logprob()),
+                    );
             } else {
-                obs.homopolymer_indel_len(None)
-                    .prob_homopolymer_error(None);
+                obs.homopolymer_indel_len(None).prob_homopolymer_error(None);
             }
             obs.build().unwrap()
         })
@@ -615,7 +616,8 @@ pub(crate) fn write_observations(
     let mut paired: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut read_position = Vec::with_capacity(observations.len());
     let mut prob_hit_base = vec();
-    let mut prob_homopolymer_error: Vec<Option<MiniLogProb>> = Vec::with_capacity(observations.len());
+    let mut prob_homopolymer_error: Vec<Option<MiniLogProb>> =
+        Vec::with_capacity(observations.len());
     let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(observations.len());
 
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
@@ -676,11 +678,7 @@ pub(crate) fn write_observations(
 
     if prob_homopolymer_error.iter().any(|prob| prob.is_some()) {
         // only record values if there is any homopolymer error observation
-        push_values(
-            record,
-            b"PROB_HOMOPOLYMER_ERROR",
-            &prob_homopolymer_error,
-        )?;
+        push_values(record, b"PROB_HOMOPOLYMER_ERROR", &prob_homopolymer_error)?;
         push_values(record, b"HOMOPOLYMER_INDEL_LEN", &homopolymer_indel_len)?;
     }
 
