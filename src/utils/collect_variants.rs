@@ -81,13 +81,15 @@ pub(crate) fn collect_variants(
     let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
         alt_allele == b"<INS>"
             || (ref_allele.len() < alt_allele.len()
-                && ref_allele == &alt_allele[..ref_allele.len()])
+                && ref_allele == &alt_allele[..ref_allele.len()]
+                && ref_allele.len() == 1)
     };
 
     let is_valid_deletion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
         alt_allele == b"<DEL>"
             || (ref_allele.len() > alt_allele.len()
-                && &ref_allele[..alt_allele.len()] == alt_allele)
+                && &ref_allele[..alt_allele.len()] == alt_allele
+                && alt_allele.len() == 1)
     };
 
     let mut variants = Vec::new();
@@ -207,7 +209,6 @@ pub(crate) fn collect_variants(
                 // MNV
                 variants.push(model::Variant::Mnv(alt_allele.to_vec()));
             } else {
-                // TODO fix position if variant is like this: cttt -> ct
                 if is_valid_deletion_alleles(ref_allele, alt_allele) {
                     variants.push(model::Variant::Deletion(
                         (ref_allele.len() - alt_allele.len()) as u64,
