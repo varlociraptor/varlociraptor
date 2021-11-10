@@ -401,26 +401,25 @@ where
                     .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()));
 
                 if let Some(homopolymer_error_model) = homopolymer_error_model {
-                    let ref_indel_len = read_indel_len + homopolymer_error_model.variant_homopolymer_indel_len();
-                    if ref_indel_len == 0
-                    {
+                    let ref_indel_len =
+                        read_indel_len + homopolymer_error_model.variant_homopolymer_indel_len();
+                    if ref_indel_len == 0 {
                         // no homopolymer indel in read compared to reference
-                        obs.homopolymer_indel_len(None).prob_observable_at_homopolymer_artifact(None);
+                        obs.homopolymer_indel_len(None)
+                            .prob_observable_at_homopolymer_artifact(None);
                     } else {
-                        obs
-                            .homopolymer_indel_len(Some(read_indel_len))
-                            .prob_observable_at_homopolymer_artifact(
-                                if ref_indel_len == 0 {
-                                    None
-                                } else if ref_indel_len > 0 {
-                                    Some(homopolymer_error_model.prob_homopolymer_insertion())
-                                } else {
-                                    Some(homopolymer_error_model.prob_homopolymer_deletion())
-                                }
-                            );
+                        obs.homopolymer_indel_len(Some(read_indel_len))
+                            .prob_observable_at_homopolymer_artifact(if ref_indel_len == 0 {
+                                unreachable!("caught above");
+                            } else if ref_indel_len > 0 {
+                                Some(homopolymer_error_model.prob_homopolymer_insertion())
+                            } else {
+                                Some(homopolymer_error_model.prob_homopolymer_deletion())
+                            });
                     }
                 } else {
-                    obs.homopolymer_indel_len(None).prob_observable_at_homopolymer_artifact(None);
+                    obs.homopolymer_indel_len(None)
+                        .prob_observable_at_homopolymer_artifact(None);
                 }
 
                 Some(obs.build().unwrap())

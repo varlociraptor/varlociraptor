@@ -587,7 +587,8 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
                         prob_observable_at_homopolymer_artifact[i].map(|prob| prob.to_logprob()),
                     );
             } else {
-                obs.homopolymer_indel_len(None).prob_observable_at_homopolymer_artifact(None);
+                obs.homopolymer_indel_len(None)
+                    .prob_observable_at_homopolymer_artifact(None);
             }
             obs.build().unwrap()
         })
@@ -635,7 +636,10 @@ pub(crate) fn write_observations(
         paired.push(obs.paired);
         read_position.push(obs.read_position);
 
-        prob_observable_at_homopolymer_artifact.push(obs.prob_observable_at_homopolymer_artifact.map(|prob| encode_logprob(prob)));
+        prob_observable_at_homopolymer_artifact.push(
+            obs.prob_observable_at_homopolymer_artifact
+                .map(|prob| encode_logprob(prob)),
+        );
         homopolymer_indel_len.push(obs.homopolymer_indel_len);
     }
 
@@ -676,9 +680,16 @@ pub(crate) fn write_observations(
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
 
-    if prob_observable_at_homopolymer_artifact.iter().any(|prob| prob.is_some()) {
+    if prob_observable_at_homopolymer_artifact
+        .iter()
+        .any(|prob| prob.is_some())
+    {
         // only record values if there is any homopolymer error observation
-        push_values(record, b"PROB_HOMOPOLYMER_OBSERVABLE", &prob_observable_at_homopolymer_artifact)?;
+        push_values(
+            record,
+            b"PROB_HOMOPOLYMER_OBSERVABLE",
+            &prob_observable_at_homopolymer_artifact,
+        )?;
         push_values(record, b"HOMOPOLYMER_INDEL_LEN", &homopolymer_indel_len)?;
     }
 
