@@ -4,6 +4,7 @@ use bio::stats::probs::LogProb;
 
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
+use crate::utils::PROB_05;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub(crate) enum HomopolymerError {
@@ -25,25 +26,24 @@ impl Default for HomopolymerError {
 
 impl Bias for HomopolymerError {
     fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
-        match self {
-            HomopolymerError::None => observation
-                .prob_wildtype_homopolymer_error_alt
-                .unwrap_or(LogProb::ln_one()),
-            HomopolymerError::Some => observation
-                .prob_artifact_homopolymer_error_alt
-                .unwrap_or(LogProb::ln_zero()),
+        match (self, observation.homopolymer_indel_len) {
+            (HomopolymerError::None, Some(len)) => if len != 0 {
+                LogProb::ln_zero()
+            } else {
+                LogProb::ln_one()
+            },
+            (HomopolymerError::Some, Some(len)) => if len != 0 {
+                observation.prob_homopolymer_error.unwrap()
+            } else {
+                observation.prob_homopolymer_error.unwrap().ln_one_minus_exp()
+            },
+            (HomopolymerError::None, None) => *PROB_05,
+            (HomopolymerError::Some, None) => *PROB_05,
         }
     }
 
     fn prob_ref(&self, observation: &Observation<ReadPosition>) -> LogProb {
-        match self {
-            HomopolymerError::None => observation
-                .prob_wildtype_homopolymer_error_ref
-                .unwrap_or(LogProb::ln_one()),
-            HomopolymerError::Some => observation
-                .prob_artifact_homopolymer_error_ref
-                .unwrap_or(LogProb::ln_zero()),
-        }
+        self.prob_alt(observation)
     }
 
     fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {

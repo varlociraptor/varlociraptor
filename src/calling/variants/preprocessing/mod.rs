@@ -111,10 +111,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "SOFTCLIPPED",
             "ALT_INDEL_OPERATIONS",
             "PAIRED",
-            "PROB_WILDTYPE_HOMOPOLYMER_ERROR_ALT",
-            "PROB_ARTIFACT_HOMOPOLYMER_ERROR_ALT",
-            "PROB_WILDTYPE_HOMOPOLYMER_ERROR_REF",
-            "PROB_ARTIFACT_HOMOPOLYMER_ERROR_REF",
+            "PROB_HOMOPOLYMER_ERROR",
             "HOMOPOLYMER_INDEL_LEN",
         ] {
             header.push_record(
@@ -560,17 +557,11 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
     let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION", false)?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED", false)?;
     let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
-    let prob_wildtype_homopolymer_error_alt: Vec<MiniLogProb> =
-        read_values(record, b"PROB_WILDTYPE_HOMOPOLYMER_ERROR_ALT", true)?;
-    let prob_artifact_homopolymer_error_alt: Vec<MiniLogProb> =
-        read_values(record, b"PROB_ARTIFACT_HOMOPOLYMER_ERROR_ALT", true)?;
-    let prob_wildtype_homopolymer_error_ref: Vec<MiniLogProb> =
-        read_values(record, b"PROB_WILDTYPE_HOMOPOLYMER_ERROR_REF", true)?;
-    let prob_artifact_homopolymer_error_ref: Vec<MiniLogProb> =
-        read_values(record, b"PROB_ARTIFACT_HOMOPOLYMER_ERROR_REF", true)?;
-    let homopolymer_indel_len: Vec<i8> = read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
+    let prob_homopolymer_error: Vec<Option<MiniLogProb>> =
+        read_values(record, b"PROB_HOMOPOLYMER_ERROR", true)?;
+    let homopolymer_indel_len: Vec<Option<i8>> = read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
 
-    let is_homopolymer_indel = !prob_artifact_homopolymer_error_alt.is_empty();
+    let is_homopolymer_indel = !prob_homopolymer_error.is_empty();
 
     let obs = (0..prob_mapping.len())
         .map(|i| {
@@ -590,25 +581,12 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
                 .paired(paired[i as u64]);
 
             if is_homopolymer_indel {
-                obs.prob_wildtype_homopolymer_error_alt(Some(
-                    prob_wildtype_homopolymer_error_alt[i].to_logprob(),
-                ))
-                .prob_wildtype_homopolymer_error_ref(Some(
-                    prob_wildtype_homopolymer_error_ref[i].to_logprob(),
-                ))
-                .prob_artifact_homopolymer_error_alt(Some(
-                    prob_artifact_homopolymer_error_alt[i].to_logprob(),
-                ))
-                .prob_artifact_homopolymer_error_ref(Some(
-                    prob_artifact_homopolymer_error_ref[i].to_logprob(),
-                ))
-                .homopolymer_indel_len(Some(homopolymer_indel_len[i]));
+                obs
+                    .homopolymer_indel_len(homopolymer_indel_len[i])
+                    .prob_homopolymer_error(prob_homopolymer_error[i].map(|prob| prob.to_logprob()));
             } else {
                 obs.homopolymer_indel_len(None)
-                    .prob_wildtype_homopolymer_error_alt(None)
-                    .prob_artifact_homopolymer_error_alt(None)
-                    .prob_wildtype_homopolymer_error_ref(None)
-                    .prob_artifact_homopolymer_error_ref(None);
+                    .prob_homopolymer_error(None);
             }
             obs.build().unwrap()
         })
@@ -637,11 +615,8 @@ pub(crate) fn write_observations(
     let mut paired: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut read_position = Vec::with_capacity(observations.len());
     let mut prob_hit_base = vec();
-    let mut prob_wildtype_homopolymer_error_alt = Vec::with_capacity(observations.len());
-    let mut prob_artifact_homopolymer_error_alt = Vec::with_capacity(observations.len());
-    let mut prob_wildtype_homopolymer_error_ref = Vec::with_capacity(observations.len());
-    let mut prob_artifact_homopolymer_error_ref = Vec::with_capacity(observations.len());
-    let mut homopolymer_indel_len: Vec<i8> = Vec::with_capacity(observations.len());
+    let mut prob_homopolymer_error: Vec<Option<MiniLogProb>> = Vec::with_capacity(observations.len());
+    let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(observations.len());
 
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
     for obs in observations {
@@ -658,21 +633,8 @@ pub(crate) fn write_observations(
         paired.push(obs.paired);
         read_position.push(obs.read_position);
 
-        if let Some(prob) = obs.prob_wildtype_homopolymer_error_alt {
-            prob_wildtype_homopolymer_error_alt.push(encode_logprob(prob));
-        }
-        if let Some(prob) = obs.prob_artifact_homopolymer_error_alt {
-            prob_artifact_homopolymer_error_alt.push(encode_logprob(prob));
-        }
-        if let Some(prob) = obs.prob_wildtype_homopolymer_error_ref {
-            prob_wildtype_homopolymer_error_ref.push(encode_logprob(prob));
-        }
-        if let Some(prob) = obs.prob_artifact_homopolymer_error_ref {
-            prob_artifact_homopolymer_error_ref.push(encode_logprob(prob));
-        }
-        if let Some(indel_len) = obs.homopolymer_indel_len {
-            homopolymer_indel_len.push(indel_len);
-        }
+        prob_homopolymer_error.push(obs.prob_homopolymer_error.map(|prob| encode_logprob(prob)));
+        homopolymer_indel_len.push(obs.homopolymer_indel_len);
     }
 
     fn push_values<T>(record: &mut bcf::Record, tag: &[u8], values: &T) -> Result<()>
@@ -712,26 +674,12 @@ pub(crate) fn write_observations(
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
 
-    if !prob_wildtype_homopolymer_error_alt.is_empty() {
+    if prob_homopolymer_error.iter().any(|prob| prob.is_some()) {
+        // only record values if there is any homopolymer error observation
         push_values(
             record,
-            b"PROB_WILDTYPE_HOMOPOLYMER_ERROR_ALT",
-            &prob_wildtype_homopolymer_error_alt,
-        )?;
-        push_values(
-            record,
-            b"PROB_ARTIFACT_HOMOPOLYMER_ERROR_ALT",
-            &prob_artifact_homopolymer_error_alt,
-        )?;
-        push_values(
-            record,
-            b"PROB_WILDTYPE_HOMOPOLYMER_ERROR_REF",
-            &prob_wildtype_homopolymer_error_ref,
-        )?;
-        push_values(
-            record,
-            b"PROB_ARTIFACT_HOMOPOLYMER_ERROR_REF",
-            &prob_artifact_homopolymer_error_ref,
+            b"PROB_HOMOPOLYMER_ERROR",
+            &prob_homopolymer_error,
         )?;
         push_values(record, b"HOMOPOLYMER_INDEL_LEN", &homopolymer_indel_len)?;
     }
@@ -752,8 +700,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PAIRED");
     header.remove_info(b"PROB_HIT_BASE");
     header.remove_info(b"READ_POSITION");
-    header.remove_info(b"PROB_WILDTYPE_HOMOPOLYMER_ERROR");
-    header.remove_info(b"PROB_ARTIFACT_HOMOPOLYMER_ERROR");
+    header.remove_info(b"PROB_HOMOPOLYMER_ERROR");
     header.remove_info(b"HOMOPOLYMER_INDEL_LEN");
 }
 

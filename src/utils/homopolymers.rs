@@ -148,12 +148,11 @@ pub(crate) fn extend_homopolymer_stretch(base: u8, seq: &mut dyn Iterator<Item =
     seq.take_while(|c| c.to_ascii_uppercase() == base).count()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, CopyGetters)]
+#[getset(get_copy = "pub(crate)")]
 pub(crate) struct HomopolymerErrorModel {
-    wildtype_ref: HashMap<i8, LogProb>,
-    wildtype_alt: HashMap<i8, LogProb>,
-    artifact_ref: HashMap<i8, LogProb>,
-    artifact_alt: HashMap<i8, LogProb>,
+    prob_homopolymer_error: LogProb,
+    variant_homopolymer_indel_len: i8,
 }
 
 impl HomopolymerErrorModel {
@@ -161,82 +160,21 @@ impl HomopolymerErrorModel {
     where
         V: Variant,
     {
-        if let Some(variant_indel_len) = variant.homopolymer_indel_len() {
-            // METHOD: We infer case specific homopolymer error probabilities from the wildtype distribution.
-            // Let delta_x be the original homopolymer error rate of indel len x (negative in case of deletion).
-            // not HE, alt allele: \frac{s(x, y) * \delta_x}{\sum_{x': s(x',y) = 1 \lor x' = 0} \delta_{x'}}
-            // not HE, ref allele: \frac{\delta_{x - y}}{\sum_{x': s(x',-y) = 1 \lor x' = 0} \delta_{x'}}
-            // HE, alt allele: \frac{\delta_{x-y}}{\sum_{x': s(x',y) = 1} \delta_{x'}}
-            // HE, ref allele: \frac{\delta_{x-y}}{\sum_{x': s(x',-y) = 1 \lor x' = 0} \delta_{x'}}
-            let is_same_sign = |x: i8, y: i8| (x < 0 && y < 0) || (x > 0 && y > 0);
-            let consider_item_len = |item_len, compare_indel_len, include_zero| {
-                is_same_sign(item_len, compare_indel_len) || (include_zero && item_len == 0)
-            };
-            let prob_total = |compare_indel_len, include_zero: bool| {
-                LogProb::ln_sum_exp(
-                    &alignment_properties
-                        .wildtype_homopolymer_error_model
-                        .iter()
-                        .filter_map(|(item_len, prob)| {
-                            if consider_item_len(*item_len, compare_indel_len, include_zero) {
-                                Some(LogProb::from(Prob(*prob)))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect_vec(),
-                )
-            };
-
-            let adjust_dist = |compare_indel_len, include_zero, adjust_item_len| {
-                let total = prob_total(compare_indel_len, include_zero);
-                alignment_properties
-                    .wildtype_homopolymer_error_model
-                    .iter()
-                    .filter_map(|(item_len, prob)| {
-                        if consider_item_len(*item_len, compare_indel_len, include_zero) {
-                            Some((
-                                item_len - adjust_item_len,
-                                LogProb::from(Prob(*prob)) - total,
-                            ))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            };
-
+        if let Some(variant_homopolymer_indel_len) = variant.homopolymer_indel_len() {
             let model = Some(HomopolymerErrorModel {
-                artifact_alt: adjust_dist(variant_indel_len, false, variant_indel_len),
-                artifact_ref: adjust_dist(-variant_indel_len, true, variant_indel_len),
-                wildtype_alt: adjust_dist(variant_indel_len, true, 0),
-                wildtype_ref: adjust_dist(-variant_indel_len, false, variant_indel_len),
+                prob_homopolymer_error: LogProb::ln_sum_exp(&alignment_properties.wildtype_homopolymer_error_model.iter().filter_map(|(item_len, prob)| {
+                    if *item_len != 0 {
+                        Some(LogProb::from(Prob(*prob)))
+                    } else {
+                        None
+                    }
+                }).collect_vec()),
+                variant_homopolymer_indel_len,
             });
-            dbg!(&model);
 
             model
         } else {
             None
         }
-    }
-
-    fn prob(indel_len: i8, model: &HashMap<i8, LogProb>) -> LogProb {
-        model.get(&indel_len).cloned().unwrap_or(LogProb::ln_one())
-    }
-
-    pub(crate) fn prob_wildtype_homopolymer_error_alt(&self, indel_len: i8) -> LogProb {
-        Self::prob(indel_len, &self.wildtype_alt)
-    }
-
-    pub(crate) fn prob_artifact_homopolymer_error_alt(&self, indel_len: i8) -> LogProb {
-        Self::prob(indel_len, &self.artifact_alt)
-    }
-
-    pub(crate) fn prob_wildtype_homopolymer_error_ref(&self, indel_len: i8) -> LogProb {
-        Self::prob(indel_len, &self.wildtype_ref)
-    }
-
-    pub(crate) fn prob_artifact_homopolymer_error_ref(&self, indel_len: i8) -> LogProb {
-        Self::prob(indel_len, &self.artifact_ref)
     }
 }
