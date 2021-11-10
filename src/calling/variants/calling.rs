@@ -249,7 +249,7 @@ where
         // data structures
         // For SNVs and MNVs we need a special model as here read orientation bias and read position bias needs to be considered.
         let mut models = HashMap::new();
-        let mut events = Vec::new();
+        let mut events = HashMap::new();
         let mut last_rids = HashMap::new();
 
         // process calls
@@ -305,6 +305,7 @@ where
             // process work item
             let contig = str::from_utf8(work_item.call.chrom()).unwrap();
             let _model;
+            let _events;
             let _last_rid;
 
             let model_mode = (
@@ -314,6 +315,7 @@ where
                 work_item.check_homopolymer_artifact_detection,
             );
             _model = models.entry(model_mode).or_insert_with(|| self.model());
+            _events = events.entry(model_mode).or_insert_with(Vec::new);
             {
                 let entry = last_rids.entry(model_mode).or_insert(None);
                 _last_rid = *entry;
@@ -324,7 +326,7 @@ where
                 work_item.rid,
                 _last_rid,
                 _model,
-                &mut events,
+                _events,
                 contig,
                 variant_type,
                 work_item.check_read_orientation_bias,
@@ -334,7 +336,7 @@ where
                 work_item.check_homopolymer_artifact_detection,
             )?;
 
-            self.call_record(&mut work_item, _model, &events);
+            self.call_record(&mut work_item, _model, &_events);
 
             work_item.call.write_final_record(&mut bcf_writer)?;
             progress_logger.update(1u64);
@@ -484,8 +486,8 @@ where
         consider_softclip_bias: bool,
         consider_homopolymer_error: bool,
     ) -> Result<()> {
-        if !rid.map_or(false, |rid: u32| current_rid == rid) {
-            // rid is not the same as before, obtain event universe
+        if !rid.map_or(false, |rid: u32| current_rid == rid) || events.is_empty() {
+            // rid is not the same as before or the model mode has changed to something new, obtain event universe
             // clear old events
             events.clear();
 
