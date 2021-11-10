@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.6.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.6.0...v4.6.1) (2021-11-10)
+
+
+### Bug Fixes
+
+* always keep replacements as they are, even if they are just simple insertions or deletions ([4a8e6ed](https://www.github.com/varlociraptor/varlociraptor/commit/4a8e6edda70e2e132853fcdbea100cc4d621428c))
+* fixed update of possible events when switching between variant types. ([f9037f7](https://www.github.com/varlociraptor/varlociraptor/commit/f9037f764ad9c8af9bc5fb2c9812ee50bcff30e6))
+* simplified but more accurate homopolymer error model ([#230](https://www.github.com/varlociraptor/varlociraptor/issues/230)) ([7f8cbd8](https://www.github.com/varlociraptor/varlociraptor/commit/7f8cbd885b5d397799d23fcc7362be7afbda4342))
+* understandable error message if BCF record contains invalid positions ([#228](https://www.github.com/varlociraptor/varlociraptor/issues/228)) ([6533a70](https://www.github.com/varlociraptor/varlociraptor/commit/6533a70b881282adc8a7e857f91b506e6dc548e1))
+
 ## [4.6.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.5.0...v4.6.0) (2021-11-02)
 
 
