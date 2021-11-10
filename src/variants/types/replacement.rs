@@ -17,7 +17,9 @@ use bio_types::genome::{self, AbstractInterval};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
-use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::variants::evidence::realignment::pairhmm::{
+    ReadEmission, RefBaseEmission, VariantEmission,
+};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
@@ -93,6 +95,7 @@ impl<'a, R: Realigner> Realignable<'a> for Replacement<R> {
             repl_ref_len,
             repl_seq: Rc::clone(&self.replacement),
             read_emission: read_emission_params,
+            is_homopolymer_indel: self.homopolymer_indel_len.is_some(),
         }])
     }
 }
@@ -234,6 +237,7 @@ pub(crate) struct ReplacementEmissionParams<'a> {
     repl_ref_len: usize,
     repl_seq: Rc<Vec<u8>>,
     read_emission: Rc<ReadEmission<'a>>,
+    is_homopolymer_indel: bool,
 }
 
 impl<'a> RefBaseEmission for ReplacementEmissionParams<'a> {
@@ -249,8 +253,12 @@ impl<'a> RefBaseEmission for ReplacementEmissionParams<'a> {
         }
     }
 
-    fn variant_ref_range(&self) -> Option<Range<usize>> {
-        Some(self.repl_start..self.repl_start + self.repl_ref_len)
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        if self.is_homopolymer_indel {
+            Some(self.repl_start as u64..(self.repl_start + self.repl_ref_len) as u64)
+        } else {
+            None
+        }
     }
 
     default_ref_base_emission!();
@@ -272,5 +280,11 @@ impl<'a> EmissionParameters for ReplacementEmissionParams<'a> {
         } else {
             altered_len
         }
+    }
+}
+
+impl<'a> VariantEmission for ReplacementEmissionParams<'a> {
+    fn is_homopolymer_indel(&self) -> bool {
+        self.is_homopolymer_indel
     }
 }

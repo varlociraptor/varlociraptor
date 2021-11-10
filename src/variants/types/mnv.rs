@@ -20,6 +20,7 @@ use crate::reference;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observation::Strand;
+use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::types::{
@@ -225,8 +226,8 @@ impl<'a> RefBaseEmission for MnvEmissionParams<'a> {
         }
     }
 
-    fn variant_ref_range(&self) -> Option<Range<usize>> {
-        Some(self.alt_start..self.alt_end)
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        None
     }
 
     default_ref_base_emission!();
@@ -238,5 +239,11 @@ impl<'a> EmissionParameters for MnvEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
+    }
+}
+
+impl<'a> VariantEmission for MnvEmissionParams<'a> {
+    fn is_homopolymer_indel(&self) -> bool {
+        false
     }
 }

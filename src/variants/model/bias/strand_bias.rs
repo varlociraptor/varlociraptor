@@ -23,7 +23,7 @@ impl Default for StrandBias {
 }
 
 impl Bias for StrandBias {
-    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
         match (self, observation.strand) {
             (StrandBias::Forward, Strand::Forward) => LogProb::ln_one(),
             (StrandBias::Reverse, Strand::Forward) => LogProb::ln_zero(),

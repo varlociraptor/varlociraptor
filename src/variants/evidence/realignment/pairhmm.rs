@@ -38,7 +38,7 @@ pub(crate) trait RefBaseEmission {
 
     /// Reference area that is altered by the variant.
     /// Can return None if not applicable (default).
-    fn variant_ref_range(&self) -> Option<Range<usize>>;
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>>;
 
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
         self.set_ref_end(cmp::min(
@@ -47,6 +47,10 @@ pub(crate) trait RefBaseEmission {
         ));
         self.set_ref_offset(self.ref_offset() + hit.start().saturating_sub(EDIT_BAND));
     }
+}
+
+pub(crate) trait VariantEmission {
+    fn is_homopolymer_indel(&self) -> bool;
 }
 
 #[macro_export]
@@ -229,7 +233,7 @@ impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
         self.ref_seq[i + self.ref_offset]
     }
 
-    fn variant_ref_range(&self) -> Option<Range<usize>> {
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
         None
     }
 
@@ -242,5 +246,11 @@ impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
+    }
+}
+
+impl<'a> VariantEmission for ReferenceEmissionParams<'a> {
+    fn is_homopolymer_indel(&self) -> bool {
+        false
     }
 }

@@ -38,7 +38,9 @@ pub(crate) struct CandidateRegion {
 }
 
 pub(crate) trait Realignable<'a> {
-    type EmissionParams: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission;
+    type EmissionParams: stats::pairhmm::EmissionParameters
+        + pairhmm::RefBaseEmission
+        + pairhmm::VariantEmission;
 
     fn alt_emission_params(
         &self,
@@ -345,7 +347,7 @@ pub(crate) trait Realigner {
         edit_dist: &mut edit_distance::EditDistanceCalculation,
     ) -> (LogProb, EditDistanceHit)
     where
-        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission,
+        E: stats::pairhmm::EmissionParameters + pairhmm::RefBaseEmission + pairhmm::VariantEmission,
     {
         let mut hits = Vec::new();
         let mut best_dist = None;

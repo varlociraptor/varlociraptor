@@ -2,6 +2,7 @@ use std::hash::Hash;
 
 use bio::stats::probs::LogProb;
 
+use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 
@@ -24,15 +25,25 @@ impl Default for HomopolymerError {
 }
 
 impl Bias for HomopolymerError {
-    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
-        match self {
-            HomopolymerError::None => observation
-                .prob_wildtype_homopolymer_error
-                .unwrap_or(LogProb::ln_one()),
-            HomopolymerError::Some => observation
-                .prob_artifact_homopolymer_error
-                .unwrap_or(LogProb::ln_zero()),
+    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
+        match (observation.homopolymer_indel_len, self) {
+            (Some(_), HomopolymerError::Some) => {
+                observation.prob_observable_at_homopolymer_artifact.unwrap()
+            }
+            (Some(len), HomopolymerError::None) => {
+                if len == 0 {
+                    LogProb::ln_one()
+                } else {
+                    LogProb::ln_zero()
+                }
+            }
+            (None, HomopolymerError::None) => LogProb::ln_one(), // No error means all observations need to be free of homopolymer indels
+            (None, HomopolymerError::Some) => LogProb::ln_one(), // ignore observations without homopolymer indel
         }
+    }
+
+    fn prob_ref(&self, observation: &Observation<ReadPosition>) -> LogProb {
+        self.prob_alt(observation)
     }
 
     fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
@@ -58,10 +69,7 @@ impl Bias for HomopolymerError {
     }
 
     fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
-        observation
-            .prob_artifact_homopolymer_error
-            .map(|prob| prob != LogProb::ln_zero())
-            .unwrap_or(false)
+        observation.homopolymer_indel_len.unwrap_or(0) != 0
     }
 
     fn min_strong_evidence_ratio(&self) -> f64 {
