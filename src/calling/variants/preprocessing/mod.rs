@@ -111,7 +111,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "SOFTCLIPPED",
             "ALT_INDEL_OPERATIONS",
             "PAIRED",
-            "PROB_HOMOPOLYMER_ERROR",
+            "PROB_HOMOPOLYMER_OBSERVABLE",
             "HOMOPOLYMER_INDEL_LEN",
         ] {
             header.push_record(
@@ -557,12 +557,12 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
     let read_position: Vec<ReadPosition> = read_values(record, b"READ_POSITION", false)?;
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED", false)?;
     let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
-    let prob_homopolymer_error: Vec<Option<MiniLogProb>> =
-        read_values(record, b"PROB_HOMOPOLYMER_ERROR", true)?;
+    let prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
+        read_values(record, b"PROB_HOMOPOLYMER_OBSERVABLE", true)?;
     let homopolymer_indel_len: Vec<Option<i8>> =
         read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
 
-    let is_homopolymer_indel = !prob_homopolymer_error.is_empty();
+    let is_homopolymer_indel = !prob_observable_at_homopolymer_artifact.is_empty();
 
     let obs = (0..prob_mapping.len())
         .map(|i| {
@@ -583,11 +583,11 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
 
             if is_homopolymer_indel {
                 obs.homopolymer_indel_len(homopolymer_indel_len[i])
-                    .prob_homopolymer_error(
-                        prob_homopolymer_error[i].map(|prob| prob.to_logprob()),
+                    .prob_observable_at_homopolymer_artifact(
+                        prob_observable_at_homopolymer_artifact[i].map(|prob| prob.to_logprob()),
                     );
             } else {
-                obs.homopolymer_indel_len(None).prob_homopolymer_error(None);
+                obs.homopolymer_indel_len(None).prob_observable_at_homopolymer_artifact(None);
             }
             obs.build().unwrap()
         })
@@ -616,7 +616,7 @@ pub(crate) fn write_observations(
     let mut paired: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut read_position = Vec::with_capacity(observations.len());
     let mut prob_hit_base = vec();
-    let mut prob_homopolymer_error: Vec<Option<MiniLogProb>> =
+    let mut prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
         Vec::with_capacity(observations.len());
     let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(observations.len());
 
@@ -635,7 +635,7 @@ pub(crate) fn write_observations(
         paired.push(obs.paired);
         read_position.push(obs.read_position);
 
-        prob_homopolymer_error.push(obs.prob_homopolymer_error.map(|prob| encode_logprob(prob)));
+        prob_observable_at_homopolymer_artifact.push(obs.prob_observable_at_homopolymer_artifact.map(|prob| encode_logprob(prob)));
         homopolymer_indel_len.push(obs.homopolymer_indel_len);
     }
 
@@ -676,9 +676,9 @@ pub(crate) fn write_observations(
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
 
-    if prob_homopolymer_error.iter().any(|prob| prob.is_some()) {
+    if prob_observable_at_homopolymer_artifact.iter().any(|prob| prob.is_some()) {
         // only record values if there is any homopolymer error observation
-        push_values(record, b"PROB_HOMOPOLYMER_ERROR", &prob_homopolymer_error)?;
+        push_values(record, b"PROB_HOMOPOLYMER_OBSERVABLE", &prob_observable_at_homopolymer_artifact)?;
         push_values(record, b"HOMOPOLYMER_INDEL_LEN", &homopolymer_indel_len)?;
     }
 
@@ -698,7 +698,7 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PAIRED");
     header.remove_info(b"PROB_HIT_BASE");
     header.remove_info(b"READ_POSITION");
-    header.remove_info(b"PROB_HOMOPOLYMER_ERROR");
+    header.remove_info(b"PROB_HOMOPOLYMER_OBSERVABLE");
     header.remove_info(b"HOMOPOLYMER_INDEL_LEN");
 }
 

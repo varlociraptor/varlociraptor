@@ -26,26 +26,11 @@ impl Default for HomopolymerError {
 
 impl Bias for HomopolymerError {
     fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
-        match (self, observation.homopolymer_indel_len) {
-            (HomopolymerError::None, Some(len)) => {
-                if len != 0 {
-                    LogProb::ln_zero()
-                } else {
-                    LogProb::ln_one()
-                }
-            }
-            (HomopolymerError::Some, Some(len)) => {
-                if len != 0 {
-                    observation.prob_homopolymer_error.unwrap()
-                } else {
-                    observation
-                        .prob_homopolymer_error
-                        .unwrap()
-                        .ln_one_minus_exp()
-                }
-            }
-            (HomopolymerError::None, None) => *PROB_05,
-            (HomopolymerError::Some, None) => *PROB_05,
+        match (observation.homopolymer_indel_len, self) {
+            (Some(len), HomopolymerError::Some) => observation.prob_observable_at_homopolymer_artifact.unwrap(),
+            (Some(len), HomopolymerError::None) => LogProb::ln_zero(),
+            (None, HomopolymerError::None) => LogProb::ln_one(), // No error means all observations need to be free of homopolymer indels
+            (None, HomopolymerError::Some) => LogProb::ln_one(), // ignore observations without homopolymer indel
         }
     }
 

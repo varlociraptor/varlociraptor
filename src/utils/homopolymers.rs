@@ -151,7 +151,8 @@ pub(crate) fn extend_homopolymer_stretch(base: u8, seq: &mut dyn Iterator<Item =
 #[derive(Debug, Clone, CopyGetters)]
 #[getset(get_copy = "pub(crate)")]
 pub(crate) struct HomopolymerErrorModel {
-    prob_homopolymer_error: LogProb,
+    prob_homopolymer_insertion: LogProb,
+    prob_homopolymer_deletion: LogProb,
     variant_homopolymer_indel_len: i8,
 }
 
@@ -161,20 +162,30 @@ impl HomopolymerErrorModel {
         V: Variant,
     {
         if let Some(variant_homopolymer_indel_len) = variant.homopolymer_indel_len() {
-            let model = Some(HomopolymerErrorModel {
-                prob_homopolymer_error: LogProb::ln_sum_exp(
+
+            let prob_homopolymer_error = |condition: &dyn Fn(i8) -> bool| {
+                LogProb::ln_sum_exp(
                     &alignment_properties
                         .wildtype_homopolymer_error_model
                         .iter()
                         .filter_map(|(item_len, prob)| {
-                            if *item_len != 0 {
+                            if condition(*item_len) {
                                 Some(LogProb::from(Prob(*prob)))
                             } else {
                                 None
                             }
                         })
                         .collect_vec(),
-                ),
+                )
+            };
+
+            let prob_homopolymer_insertion = prob_homopolymer_error(&|item_len| item_len > 0);
+            let prob_homopolymer_deletion = prob_homopolymer_error(&|item_len| item_len < 0);
+            let prob_total = prob_homopolymer_insertion.ln_add_exp(prob_homopolymer_deletion);
+
+            let model = Some(HomopolymerErrorModel {
+                prob_homopolymer_insertion: prob_homopolymer_insertion - prob_total,
+                prob_homopolymer_deletion: prob_homopolymer_deletion - prob_total,
                 variant_homopolymer_indel_len,
             });
 
