@@ -357,6 +357,10 @@ pub(crate) struct Species {
     variant_type_fractions: VariantTypeFraction,
     #[serde(default)]
     ploidy: Option<SexPloidyDefinition>,
+    #[serde(default, rename = "genome-size")]
+    #[allow(dead_code)]
+    // genome size is deprecated but we keep allowing it to not break old scenarios
+    genome_size: Option<f64>,
 }
 
 impl Species {
