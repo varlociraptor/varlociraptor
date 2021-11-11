@@ -357,9 +357,6 @@ pub(crate) struct Species {
     variant_type_fractions: VariantTypeFraction,
     #[serde(default)]
     ploidy: Option<SexPloidyDefinition>,
-    #[serde(default)]
-    #[serde(rename = "genome-size")]
-    genome_size: Option<f64>,
 }
 
 impl Species {

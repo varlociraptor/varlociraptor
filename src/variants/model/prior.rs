@@ -72,7 +72,6 @@ pub(crate) struct Prior {
     somatic_effective_mutation_rate: grammar::SampleInfo<Option<f64>>,
     heterozygosity: Option<LogProb>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
-    genome_size: Option<f64>,
     variant_type_fractions: grammar::VariantTypeFraction,
     #[builder(default)]
     variant_type: Option<VariantType>,
@@ -90,7 +89,6 @@ impl Clone for Prior {
             somatic_effective_mutation_rate: self.somatic_effective_mutation_rate.clone(),
             heterozygosity: self.heterozygosity,
             inheritance: self.inheritance.clone(),
-            genome_size: self.genome_size,
             cache: RefCell::default(),
             variant_type_fractions: self.variant_type_fractions.clone(),
             variant_type: self.variant_type.clone(),
@@ -824,9 +822,6 @@ impl CheckablePrior for Prior {
             .into())
         };
         for sample in 0..self.n_samples() {
-            if self.has_somatic_variation(sample) && self.genome_size.is_none() {
-                return err("somatic variation defined but unknown genome size: define genome size in the scenario");
-            }
             if let Some(inheritance) = &self.inheritance[sample] {
                 if match inheritance {
                     Inheritance::Mendelian { from: (p1, p2) }
