@@ -1,0 +1,33 @@
+# False positive call from GIAB (15:40036395). Freebayes calls this with a weak posterior:
+# 15      40036395        .       GTGCTGCTGCTGCTGCTGCTGCTGCTGCT   GTGCTGCTGCTGCTGCTGCTGCTGCT      0       .       AB=0;ABP=0;AC=0;AF=0;AN=2;AO=5;CIGAR=1M3D25M;DP=86;DPB=85.4138;DPRA=0;EPP=3.44459;EPPR=10.9517;GTI=0;LEN=3;MEANALT=9;MQM=60;MQMR=60;NS=1;NUMALT=1;ODDS=68.3624;PAIRED=1;PAIREDR=1;PAO=0.5;PQA=1;PQR=1;PRO=0.5;QA=141;QR=2437;RO=70;RPL=0;RPP=13.8677;RPPR=9.09042;RPR=5;RUN=1;SAF=2;SAP=3.44459;SAR=3;SRF=29;SRP=7.47733;SRR=41;TYPE=del;technology.ILLUMINA=1  GT:DP:AD:RO:QR:AO:QA:GL 0/0:86:70,5:70:2437:5:141:0,-9.83374,-206.698
+
+# The evidence is pretty clear though. Hence, we currently think this must be a somatic mutation in the cultured cell line. It is clearly not diploid, but Varlociraptor has to be informed of the possibility of such events between 0.0 and 0.5 by introducing a somatic mutation rate in the scenario and adding a corresponding event.
+
+expected:
+  posteriors:
+    - PROB_SOMATIC < 0.1
+
+# necessary bam files
+samples:
+  NA12878:
+    path: 'NA12878.bam'
+    properties: '{"insert_size":{"mean":201.87603817108015,"sd":66.43886297991429},"max_del_cigar_len":38,"max_ins_cigar_len":45,"frac_max_softclip":0.8741721854304636,"max_read_len":151,"wildtype_homopolymer_error_model":{"-33":2.2479396509129557e-7,"13":8.991758603651823e-7,"11":4.4958793018259113e-7,"12":2.2479396509129557e-7,"5":5.395055162191094e-6,"-17":8.991758603651823e-7,"-15":2.0231456858216603e-6,"1":0.0015717594039183387,"-23":2.2479396509129557e-7,"8":1.7983517207303645e-6,"-3":0.0001623012427959154,"-11":2.697527581095547e-6,"-18":1.1239698254564778e-6,"-10":4.9454672320085026e-6,"-5":0.000027649657706229356,"14":4.4958793018259113e-7,"4":0.000025626512020407696,"-2":0.0004880276982132027,"-32":2.2479396509129557e-7,"-19":8.991758603651823e-7,"-4":0.0000762051541659492,"-26":4.4958793018259113e-7,"-7":8.766964638560527e-6,"-8":0.000010115728429108301,"7":2.4727336160042513e-6,"-6":0.000013937225835660325,"9":1.573557755639069e-6,"3":0.00007328283261976236,"-9":5.395055162191094e-6,"2":0.0002834651899801237,"-13":4.4958793018259113e-7,"-1":0.0023176257800912575,"-27":4.4958793018259113e-7,"0":0.994913137363949,"10":8.991758603651823e-7,"6":2.2479396509129556e-6,"-14":1.7983517207303645e-6,"-12":4.9454672320085026e-6},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":".test/results/alignment-properties/NA12878/NA12878.json","output":"?","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":300,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":"test.obs.tsv"}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'

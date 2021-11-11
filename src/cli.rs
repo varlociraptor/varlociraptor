@@ -833,12 +833,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 sample_infos.somatic_effective_mutation_rates,
                             )
                             .inheritance(sample_infos.inheritance)
-                            .genome_size(
-                                scenario
-                                    .species()
-                                    .as_ref()
-                                    .and_then(|species| *species.genome_size()),
-                            )
                             .heterozygosity(scenario.species().as_ref().and_then(|species| {
                                 species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                             }))
@@ -1116,12 +1110,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .germline_mutation_rate(sample_infos.germline_mutation_rates)
                     .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
                     .inheritance(sample_infos.inheritance)
-                    .genome_size(
-                        scenario
-                            .species()
-                            .as_ref()
-                            .and_then(|species| *species.genome_size()),
-                    )
                     .heterozygosity(scenario.species().as_ref().and_then(|species| {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
