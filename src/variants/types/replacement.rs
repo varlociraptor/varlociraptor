@@ -35,7 +35,7 @@ pub(crate) struct Replacement<R: Realigner> {
 impl<R: Realigner> Replacement<R> {
     pub(crate) fn new(locus: genome::Interval, replacement: Vec<u8>, realigner: R) -> Result<Self> {
         let ref_seq = &realigner.ref_buffer().seq(locus.contig())?;
-        let homopolymer_indel_len = HomopolymerIndelOperation::from_text_and_pattern(
+        let homopolymer_indel_len = HomopolymerIndelOperation::from_text_and_pattern_global(
             &ref_seq[locus.range().start as usize..locus.range().end as usize],
             &replacement,
         )
