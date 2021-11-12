@@ -481,7 +481,7 @@ pub enum CallKind {
             long,
             help = "Folder to store quality control plots for the inference of a CDF from Kallisto bootstraps for each haplotype of interest."
         )]
-        qc_plot: PathBuf,
+        output: Option<PathBuf>,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -1003,13 +1003,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 CallKind::HaplotypeCalls {
                     haplotype_counts,
                     haplotype_variants,
-                    qc_plot,
+                    output,
                     min_norm_counts,
                 } => {
                     let caller = calling::haplotypes::CallerBuilder::default()
                         .hdf5_reader(hdf5::File::open(&haplotype_counts)?)
                         .vcf_reader(bcf::Reader::from_path(&haplotype_variants)?)
                         .min_norm_counts(min_norm_counts)
+                        .outcsv(output)
                         .build()
                         .unwrap();
                     caller.call()?;

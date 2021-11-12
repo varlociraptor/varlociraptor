@@ -1,5 +1,5 @@
 use anyhow::Result;
-use bio::stats::probs::LogProb;
+use bio::stats::probs::{LogProb, Prob};
 use derive_builder::Builder;
 use hdf5;
 //use kernel_density;
@@ -7,8 +7,9 @@ use hdf5;
 use rust_htslib::bcf;
 //use serde_json::json;
 //use std::fs::File;
-//use std::path::PathBuf;
 use std::collections::HashMap;
+use std::io;
+use std::path::PathBuf;
 
 use bio::stats::bayesian::model::Model;
 
@@ -20,6 +21,7 @@ pub(crate) struct Caller {
     hdf5_reader: hdf5::File,
     vcf_reader: bcf::Reader,
     min_norm_counts: f64,
+    outcsv: Option<PathBuf>,
 }
 
 impl Caller {
@@ -31,18 +33,37 @@ impl Caller {
         let model = Model::new(Likelihood::new(), Prior::new(), Posterior::new());
 
         //let universe = HaplotypeFractions::likely(&kallisto_estimates);
-        //let data = Data::new(kallisto_estimates.values().cloned().collect());
         let data = Data::new(kallisto_estimates.values().cloned().collect());
-        
+
         // Step 3: calculate posteriors.
         //let m = model.compute(universe, &data);
-        let m = model.compute_from_marginal(&Marginal::new(), &data);
+        let m = model.compute_from_marginal(&Marginal::new(3), &data);
+
+        let posterior = m.event_posteriors();
 
         // Step 4: print TSV table with results
         // TODO use csv crate
         // Columns: posterior_prob, haplotype_a, haplotype_b, haplotype_c, ...
         // with each column after the first showing the fraction of the respective haplotype
-
+        let mut wtr = csv::Writer::from_path(self.outcsv.as_ref().unwrap())?;
+        wtr.write_record(&[
+            "posterior_prob(log)",
+            "haplotype_a",
+            "haplotype_b",
+            "haplotype_c",
+        ])?; //depends upon the number of haplotypes
+        for i in posterior {
+            let mut rec = Vec::new();
+            let logprob = i.1;
+            rec.push(logprob.0.to_string());
+            for j in 0..3 {
+                //the number depends upon the number of haplotypes
+                let fractions = i.0;
+                rec.push(fractions[j].to_string());
+            }
+            wtr.write_record(&rec)?;
+        }
+        wtr.flush()?;
         Ok(())
     }
 }
@@ -52,8 +73,8 @@ pub(crate) struct Haplotype(#[deref] String);
 
 #[derive(Debug, Clone)]
 pub(crate) struct KallistoEstimate {
-    count: f64,
-    dispersion: f64,
+    pub count: f64,
+    pub dispersion: f64,
 }
 
 #[derive(Debug, Clone, Derefable)]

@@ -11,8 +11,8 @@ use statrs::function::beta::ln_beta;
 use std::collections::HashMap;
 use std::mem;
 
-#[derive(Hash, PartialEq, Eq, Clone)]
-pub(crate) struct HaplotypeFractions(Vec<AlleleFreq>);
+#[derive(Hash, PartialEq, Eq, Clone, Debug, Derefable)]
+pub(crate) struct HaplotypeFractions(#[deref] Vec<AlleleFreq>);
 
 impl HaplotypeFractions {
     // pub(crate) fn likely(kallisto_estimates: &KallistoEstimates) -> Vec<Self> {
@@ -25,32 +25,33 @@ impl HaplotypeFractions {
 
 #[derive(Debug, new)]
 pub(crate) struct Marginal {
-    #[new(default)]
-    n_haplotypes: usize
+    n_haplotypes: usize,
 }
 
 impl Marginal {
-    pub(crate) fn calc_marginal<F: FnMut(&<Self as model::Marginal>::Event, &<Self as model::Marginal>::Data) -> LogProb>(
+    pub(crate) fn calc_marginal<
+        F: FnMut(&<Self as model::Marginal>::Event, &<Self as model::Marginal>::Data) -> LogProb,
+    >(
         &self,
         data: &Data,
         haplotype_index: usize,
         fractions: &mut Vec<AlleleFreq>,
-        joint_prob: &F,
+        joint_prob: &mut F,
     ) -> LogProb {
         if haplotype_index == self.n_haplotypes {
             let event = HaplotypeFractions(fractions.to_vec());
-            joint_prob(&event,data)
+            joint_prob(&event, data)
         } else {
             let density = |fraction| {
                 let mut fractions = fractions.clone();
                 fractions.push(fraction);
-                self.calc_marginal(data,haplotype_index + 1, &mut fractions, joint_prob)
+                self.calc_marginal(data, haplotype_index + 1, &mut fractions, joint_prob)
             };
             adaptive_integration::ln_integrate_exp(
                 density,
                 NotNaN::new(0.0).unwrap(),
                 NotNaN::new(1.0).unwrap(),
-                NotNaN::new(0.1).unwrap(),
+                NotNaN::new(0.01).unwrap(),
             )
         }
     }
@@ -68,7 +69,7 @@ impl model::Marginal for Marginal {
     ) -> LogProb {
         let mut fractions: Vec<AlleleFreq> = Vec::new();
         self.calc_marginal(data, 0, &mut fractions, joint_prob)
-        }
+    }
 }
 
 #[derive(Debug, new)]
@@ -98,15 +99,19 @@ impl Likelihood {
     ) -> LogProb {
         // TODO compute likelihood using neg_binom on the counts and dispersion
         // in the data and the fractions in the events.
-        // Later: use the cache to avoid redundant computations.
-        // event
-        //     .0
-        //     .iter()
-        //     .zip(data.kallisto_estimates.iter())
-        //     .map(|(fraction, estimate)| {
-        //         Self::neg_binom(estimate.count, fraction, estimate.dispersion)
-        //     });
-        todo!()
+        //Later: use the cache to avoid redundant computations.
+        event
+            .0
+            .iter()
+            .zip(data.kallisto_estimates.iter())
+            .map(|(fraction, estimate)| {
+                neg_binom(
+                    estimate.count,
+                    NotNaN::into_inner(*fraction),
+                    estimate.dispersion,
+                )
+            })
+            .sum()
     }
 
     fn compute_varlociraptor(
