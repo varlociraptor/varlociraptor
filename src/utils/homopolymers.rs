@@ -60,9 +60,6 @@ impl HomopolymerIndelOperation {
                 || (rpos > 0
                     && extend_homopolymer_stretch(base, &mut text[..rpos].iter().rev()) > 0)
         };
-        dbg!(alignment);
-        dbg!(text);
-        dbg!(pattern);
 
         for (op, stretch) in &alignment.iter().group_by(|op| *op) {
             let len = stretch.count();
