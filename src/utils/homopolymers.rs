@@ -28,7 +28,7 @@ impl HomopolymerIndelOperation {
 
         if pattern.len() <= 256 {
             let mut aligner = Aligner::with_scoring(Scoring::from_scores(-1, -1, 1, -1));
-            let mut best_aln = aligner.global(text, pattern);
+            let mut best_aln = aligner.global(pattern, text);
 
             let mut ret =
                 HomopolymerIndelOperation::from_alignment(&text, &pattern, &best_aln.operations);
@@ -54,6 +54,21 @@ impl HomopolymerIndelOperation {
         let mut homopolymer_indel_len = None;
         let mut homopolymer_base = None;
         let mut text_pos = 0;
+
+        let extend_stretch = |rpos, base| {
+            (rpos < text.len()
+                            && extend_homopolymer_stretch(base, &mut text[rpos..].iter())
+                                > 0)
+                            || (rpos > 0
+                                && extend_homopolymer_stretch(
+                                    base,
+                                    &mut text[..rpos].iter().rev(),
+                                ) > 0)
+        };
+        dbg!(alignment);
+        dbg!(text);
+        dbg!(pattern);
+
         for (op, stretch) in &alignment.iter().group_by(|op| *op) {
             let len = stretch.count();
             match op {
@@ -66,8 +81,9 @@ impl HomopolymerIndelOperation {
                     rpos += len;
                 }
                 AlignmentOperation::Del => {
-                    dbg!((len, std::str::from_utf8(&text[rpos..rpos + len])));
-                    if len < 256 && is_homopolymer_seq(&text[rpos..rpos + len]) {
+                    if len < 256 
+                        && is_homopolymer_seq(&text[rpos..rpos + len])
+                    {
                         if homopolymer_indel_len.is_none() {
                             homopolymer_indel_len = Some(-(len as i8));
                             homopolymer_base = Some(text[rpos]);
