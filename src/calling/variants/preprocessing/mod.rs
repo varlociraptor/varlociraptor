@@ -561,7 +561,6 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
         read_values(record, b"PROB_HOMOPOLYMER_OBSERVABLE", true)?;
     let homopolymer_indel_len: Vec<Option<i8>> =
         read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
-
     let is_homopolymer_indel = !prob_observable_at_homopolymer_artifact.is_empty();
 
     let obs = (0..prob_mapping.len())
