@@ -55,15 +55,10 @@ impl HomopolymerIndelOperation {
         let mut homopolymer_base = None;
         let mut text_pos = 0;
 
-        let extend_stretch = |rpos, base| {
-            (rpos < text.len()
-                            && extend_homopolymer_stretch(base, &mut text[rpos..].iter())
-                                > 0)
-                            || (rpos > 0
-                                && extend_homopolymer_stretch(
-                                    base,
-                                    &mut text[..rpos].iter().rev(),
-                                ) > 0)
+        let is_extendable_stretch = |rpos, base| {
+            (rpos < text.len() && extend_homopolymer_stretch(base, &mut text[rpos..].iter()) > 0)
+                || (rpos > 0
+                    && extend_homopolymer_stretch(base, &mut text[..rpos].iter().rev()) > 0)
         };
         dbg!(alignment);
         dbg!(text);
@@ -81,8 +76,9 @@ impl HomopolymerIndelOperation {
                     rpos += len;
                 }
                 AlignmentOperation::Del => {
-                    if len < 256 
+                    if len < 256
                         && is_homopolymer_seq(&text[rpos..rpos + len])
+                        && is_extendable_stretch(rpos, text[rpos])
                     {
                         if homopolymer_indel_len.is_none() {
                             homopolymer_indel_len = Some(-(len as i8));
@@ -98,14 +94,7 @@ impl HomopolymerIndelOperation {
                 AlignmentOperation::Ins => {
                     if len <= 256
                         && is_homopolymer_seq(&pattern[qpos..qpos + len])
-                        && ((rpos < text.len()
-                            && extend_homopolymer_stretch(pattern[qpos], &mut text[rpos..].iter())
-                                > 0)
-                            || (rpos > 0
-                                && extend_homopolymer_stretch(
-                                    pattern[qpos],
-                                    &mut text[..rpos].iter().rev(),
-                                ) > 0))
+                        && is_extendable_stretch(rpos, pattern[qpos])
                     {
                         if homopolymer_indel_len.is_none() {
                             homopolymer_indel_len = Some(len as i8);
