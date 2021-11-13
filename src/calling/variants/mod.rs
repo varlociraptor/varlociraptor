@@ -114,6 +114,7 @@ impl Call {
         let mut allelefreq_estimates = VecMap::new();
         let mut observations = VecMap::new();
         let mut simple_observations = VecMap::new();
+        let mut vaf_densities = VecMap::new();
         let mut obs_counts = VecMap::new();
         let mut strand_bias = VecMap::new();
         let mut read_orientation_bias = VecMap::new();
@@ -262,6 +263,8 @@ impl Call {
                         },
                     ),
                 );
+
+                vaf_densities.insert(i, sample_info.vaf_dist.clone());
             }
         }
 
@@ -384,6 +387,25 @@ impl Call {
                 })
                 .collect_vec();
             record.push_format_string(b"SOBS", &sobs)?;
+
+            let vaf_densities = vaf_densities
+                .values()
+                .map(|vaf_dist| {
+                    vaf_dist.as_ref().map_or_else(
+                        || b".".to_vec(),
+                        |dist| {
+                            dist.iter()
+                                .sorted_by_key(|(vaf, _)| *vaf)
+                                .map(|(vaf, prob)| {
+                                    format!("{:.2}={:.2}", *vaf, *PHREDProb::from(*prob))
+                                })
+                                .join(",")
+                                .into_bytes()
+                        },
+                    )
+                })
+                .collect_vec();
+            record.push_format_string(b"AFD", &vaf_densities)?;
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
@@ -392,6 +414,7 @@ impl Call {
             record.push_format_string(b"SB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"ROB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"AFD", &vec![b".".to_vec(); variant.sample_info.len()])?;
         }
 
         bcf_writer.write(&record)?;
@@ -514,6 +537,7 @@ pub(crate) struct SampleInfo {
     #[builder(default = "Vec::new()")]
     observations: Vec<Observation<ReadPosition>>,
     artifacts: Artifacts,
+    vaf_dist: Option<HashMap<AlleleFreq, LogProb>>,
 }
 
 /// Wrapper for comparing alleles for compatibility in BCF files.

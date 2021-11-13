@@ -138,6 +138,13 @@ where
               a term for equality between the evidence of the two alleles (E=equal).\">",
         );
         header.push_record(
+            b"##FORMAT=<ID=AFD,Number=A,Type=String,\
+              Description=\"Sampled posterior probability densities of allele frequencies in PHRED scale \
+              (the smaller the higher, with 0 being equal to an unscaled probability of 1). \
+              In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
+              these can be seen as posterior probabilities. Note that densities can be greater than one.\">",
+        );
+        header.push_record(
             b"##FORMAT=<ID=AF,Number=A,Type=Float,\
               Description=\"Maximum a posteriori probability estimate of allele frequency\">",
         );
@@ -669,11 +676,13 @@ where
                 // This ensures consistency between the events and the per sample MAPs.
                 continue;
             }
+            // This is the MAP estimate we want to report, build sample information with it.
             return data
                 .into_pileups()
                 .into_iter()
                 .zip(map_estimates.iter())
-                .map(|(pileup, estimate)| {
+                .enumerate()
+                .map(|(sample, (pileup, estimate))| {
                     let mut sample_builder = SampleInfoBuilder::default();
                     sample_builder.observations(pileup);
                     match estimate {
@@ -690,6 +699,49 @@ where
                                 .artifacts(Artifacts::none());
                         }
                     };
+
+                    // METHOD: Collect VAF dist for sample by looking at all alternative VAFs with the same VAFs for the other samples as the MAP.
+                    sample_builder.vaf_dist(if !estimate.is_artifact() {
+                        Some(
+                            model_instance
+                                .event_posteriors()
+                                .filter_map(|(estimate, prob)| {
+                                    let event = estimate.events().get(sample).unwrap();
+                                    let others_equal_map = || {
+                                        map_estimates.events().iter().all(
+                                            |(other_sample, map_event)| {
+                                                //dbg!((other_sample, sample, estimate.events().get(other_sample).unwrap(), map_event));
+                                                if other_sample != sample {
+                                                    // check if other event is the same as the map event
+                                                    let other_event = estimate
+                                                        .events()
+                                                        .get(other_sample)
+                                                        .unwrap();
+                                                    dbg!((
+                                                        event.allele_freq,
+                                                        other_event.allele_freq,
+                                                        other_event == map_event
+                                                    ));
+                                                    other_event == map_event
+                                                } else {
+                                                    // don't do that for our current sample
+                                                    true
+                                                }
+                                            },
+                                        )
+                                    };
+                                    if !event.is_artifact() && others_equal_map() {
+                                        Some((event.allele_freq, prob))
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect(),
+                        )
+                    } else {
+                        None
+                    });
+
                     Some(sample_builder.build().unwrap())
                 })
                 .collect_vec();

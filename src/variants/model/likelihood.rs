@@ -22,6 +22,12 @@ pub(crate) struct Event {
     pub(crate) is_discrete: bool,
 }
 
+impl Event {
+    pub(crate) fn is_artifact(&self) -> bool {
+        self.artifacts.is_artifact()
+    }
+}
+
 fn prob_sample_alt(observation: &Observation<ReadPosition>, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
         // The effective sample probability for the alt allele is the allele frequency times
