@@ -68,6 +68,10 @@ impl Bias for HomopolymerError {
         self.is_informative(pileups)
     }
 
+    fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+        self.is_informative(pileups)
+    }
+
     fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
         observation.homopolymer_indel_len.unwrap_or(0) != 0
     }

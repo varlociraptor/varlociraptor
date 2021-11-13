@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bio::{
-    alignment::{Alignment, AlignmentOperation},
+    alignment::{pairwise::Aligner, pairwise::Scoring, Alignment, AlignmentOperation},
     pattern_matching::myers::Myers,
     stats::{LogProb, Prob},
 };
@@ -19,44 +19,26 @@ pub(crate) struct HomopolymerIndelOperation {
 }
 
 impl HomopolymerIndelOperation {
-    pub(crate) fn from_text_and_pattern(text: &[u8], pattern: &[u8]) -> Option<Self> {
+    pub(crate) fn from_text_and_pattern_global(text: &[u8], pattern: &[u8]) -> Option<Self> {
         let (text, pattern, reverse_direction) = if text.len() < pattern.len() {
             (pattern, text, true)
         } else {
             (text, pattern, false)
         };
 
-        if pattern.len() <= 64 {
-            let mut myers = Myers::<u64>::new(pattern);
-            let mut aln = Alignment::default();
-            let mut matches = myers.find_all(text, pattern.len() as u8);
-            let mut best_dist = None;
-            let mut best_aln = None;
+        if pattern.len() <= 256 {
+            let mut aligner = Aligner::with_scoring(Scoring::from_scores(-1, -1, 1, -1));
+            let mut best_aln = aligner.global(pattern, text);
 
-            while matches.next_alignment(&mut aln) {
-                if best_dist.is_none() || best_dist.unwrap() > aln.score {
-                    best_dist = Some(aln.score);
-                    best_aln = Some(aln.clone());
+            let mut ret =
+                HomopolymerIndelOperation::from_alignment(&text, &pattern, &best_aln.operations);
+            if reverse_direction {
+                if let Some(op) = ret.as_mut() {
+                    op.len *= -1;
                 }
             }
-            if let Some(best_aln) = best_aln {
-                let mut ret = HomopolymerIndelOperation::from_alignment(
-                    &text[best_aln.xstart..],
-                    pattern,
-                    &best_aln.operations,
-                );
-                if reverse_direction {
-                    if let Some(op) = ret.as_mut() {
-                        op.len *= -1;
-                    }
-                }
-                ret
-            } else {
-                // Pattern too long, unlikely as hell that this is a homopolymer artifact, hence just ignore.
-                None
-            }
+            ret
         } else {
-            // no similarity, cannot be a homopolymer error
             None
         }
     }
@@ -72,6 +54,13 @@ impl HomopolymerIndelOperation {
         let mut homopolymer_indel_len = None;
         let mut homopolymer_base = None;
         let mut text_pos = 0;
+
+        let is_extendable_stretch = |rpos, base| {
+            (rpos < text.len() && extend_homopolymer_stretch(base, &mut text[rpos..].iter()) > 0)
+                || (rpos > 0
+                    && extend_homopolymer_stretch(base, &mut text[..rpos].iter().rev()) > 0)
+        };
+
         for (op, stretch) in &alignment.iter().group_by(|op| *op) {
             let len = stretch.count();
             match op {
@@ -84,7 +73,10 @@ impl HomopolymerIndelOperation {
                     rpos += len;
                 }
                 AlignmentOperation::Del => {
-                    if len < 256 && is_homopolymer_seq(&text[rpos..rpos + len]) {
+                    if len < 256
+                        && is_homopolymer_seq(&text[rpos..rpos + len])
+                        && is_extendable_stretch(rpos, text[rpos])
+                    {
                         if homopolymer_indel_len.is_none() {
                             homopolymer_indel_len = Some(-(len as i8));
                             homopolymer_base = Some(text[rpos]);
@@ -99,14 +91,7 @@ impl HomopolymerIndelOperation {
                 AlignmentOperation::Ins => {
                     if len <= 256
                         && is_homopolymer_seq(&pattern[qpos..qpos + len])
-                        && ((rpos < text.len()
-                            && extend_homopolymer_stretch(pattern[qpos], &mut text[rpos..].iter())
-                                > 0)
-                            || (rpos > 0
-                                && extend_homopolymer_stretch(
-                                    pattern[qpos],
-                                    &mut text[..rpos].iter().rev(),
-                                ) > 0))
+                        && is_extendable_stretch(rpos, pattern[qpos])
                     {
                         if homopolymer_indel_len.is_none() {
                             homopolymer_indel_len = Some(len as i8);
