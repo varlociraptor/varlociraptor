@@ -343,6 +343,18 @@ impl Call {
             let afs = allelefreq_estimates.values().cloned().collect_vec();
             record.push_format_float(b"AF", &afs)?;
 
+            let sobs = simple_observations
+                .values()
+                .map(|sample_obs| {
+                    if sample_obs.is_empty() {
+                        b"."
+                    } else {
+                        sample_obs.as_bytes()
+                    }
+                })
+                .collect_vec();
+            record.push_format_string(b"SOBS", &sobs)?;
+
             let obs = observations
                 .values()
                 .map(|sample_obs| {
@@ -376,18 +388,6 @@ impl Call {
             let he = homopolymer_error.values().map(|he| vec![*he]).collect_vec();
             record.push_format_string(b"HE", &he)?;
 
-            let sobs = simple_observations
-                .values()
-                .map(|sample_obs| {
-                    if sample_obs.is_empty() {
-                        b"."
-                    } else {
-                        sample_obs.as_bytes()
-                    }
-                })
-                .collect_vec();
-            record.push_format_string(b"SOBS", &sobs)?;
-
             let vaf_densities = vaf_densities
                 .values()
                 .map(|vaf_dist| {
@@ -409,8 +409,8 @@ impl Call {
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
-            record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"ROB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;

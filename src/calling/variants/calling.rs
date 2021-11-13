@@ -114,6 +114,19 @@ where
               Description=\"Expected sequencing depth, while considering mapping uncertainty\">",
         );
         header.push_record(
+            b"##FORMAT=<ID=AF,Number=A,Type=Float,\
+              Description=\"Maximum a posteriori probability estimate of allele frequency\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=SOBS,Number=A,Type=String,\
+              Description=\"Summary of simplified observations. Each entry is encoded as CB, with C being a count, \
+              B being the posterior odds for the alt allele. \
+              Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
+              scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
+              probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
+              a term for equality between the evidence of the two alleles (E=equal).\">",
+        );
+        header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
               Description=\"Summary of observations. Each entry is encoded as CBTSOPXI, with C being a count, \
               B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
@@ -127,26 +140,6 @@ where
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
               probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
               a term for equality between the evidence of the two alleles (E=equal).\">",
-        );
-        header.push_record(
-            b"##FORMAT=<ID=SOBS,Number=A,Type=String,\
-              Description=\"Summary of simplified observations. Each entry is encoded as CB, with C being a count, \
-              B being the posterior odds for the alt allele. \
-              Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
-              scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
-              probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
-              a term for equality between the evidence of the two alleles (E=equal).\">",
-        );
-        header.push_record(
-            b"##FORMAT=<ID=AFD,Number=A,Type=String,\
-              Description=\"Sampled posterior probability densities of allele frequencies in PHRED scale \
-              (the smaller the higher, with 0 being equal to an unscaled probability of 1). \
-              In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
-              these can be seen as posterior probabilities. Note that densities can be greater than one.\">",
-        );
-        header.push_record(
-            b"##FORMAT=<ID=AF,Number=A,Type=Float,\
-              Description=\"Maximum a posteriori probability estimate of allele frequency\">",
         );
         header.push_record(
             b"##FORMAT=<ID=SB,Number=A,Type=String,\
@@ -190,6 +183,13 @@ where
               Homopolymer error is indicative of systematic PCR amplification errors. \
               Probability for such homopolymer artifacts is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=AFD,Number=A,Type=String,\
+              Description=\"Sampled posterior probability densities of allele frequencies in PHRED scale \
+              (the smaller the higher, with 0 being equal to an unscaled probability of 1). \
+              In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
+              these can be seen as posterior probabilities. Note that densities can be greater than one.\">",
         );
 
         Ok(header)
