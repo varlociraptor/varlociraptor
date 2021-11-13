@@ -185,6 +185,7 @@ testcase!(test_giab_19, exact);
 testcase!(test_giab_20, exact);
 testcase!(test_giab_21, exact);
 testcase!(test_giab_22, exact);
+testcase!(test_giab_23, exact);
 
 testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);
