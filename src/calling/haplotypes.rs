@@ -17,7 +17,7 @@ use crate::haplotypes::model::{Data, HaplotypeFractions, Likelihood, Marginal, P
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
-pub(crate) struct Caller {
+pub struct Caller {
     hdf5_reader: hdf5::File,
     vcf_reader: bcf::Reader,
     min_norm_counts: f64,
@@ -25,7 +25,7 @@ pub(crate) struct Caller {
 }
 
 impl Caller {
-    pub(crate) fn call(&self) -> Result<()> {
+    pub fn call(&self) -> Result<()> {
         // Step 1: obtain kallisto estimates.
         let kallisto_estimates = KallistoEstimates::new(&self.hdf5_reader, self.min_norm_counts)?;
 
