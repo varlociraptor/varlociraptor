@@ -1,0 +1,35 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "data": {
+    "values": []
+  },
+  "mark": {
+    "type": "point",
+    "size": 1
+  },
+  "encoding": {
+    "facet": {
+      "field": "chromosome",
+      "type": "nominal",
+      "title": "Chromsome",
+      "columns": 3
+    },
+    "x": {
+      "field": "pos",
+      "type": "quantitative",
+      "title": "Position",
+      "axis": {"grid": false}
+    },
+    "y": {
+      "field": "prob",
+      "type": "quantitative",
+      "title": "Probability",
+      "axis": {"grid": false},
+      "scale": {
+        "type": "log"
+      }
+    },
+    "color": {"field": "event", "type": "nominal"}
+  }
+}
+

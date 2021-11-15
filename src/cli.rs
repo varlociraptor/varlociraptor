@@ -28,6 +28,7 @@ use crate::filtration;
 use crate::grammar;
 use crate::reference;
 use crate::testcase;
+use crate::variants;
 use crate::variants::evidence::realignment;
 use crate::variants::evidence::realignment::pairhmm::GapParams;
 
@@ -346,6 +347,13 @@ pub enum PlotKind {
         )]
         sample_y: Vec<String>,
     },
+    #[structopt(
+        name = "probabilities",
+        about = "Plot variant probabilities versus genomic position scatter plot with chromosomewise panels",
+        usage = "varlociraptor plot probabilites < calls.bcf | vg2svg > probabilities.svg",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Probabilities {},
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -1122,6 +1130,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
             PlotKind::Scatter { sample_x, sample_y } => {
                 estimation::sample_variants::vaf_scatter(&sample_x, &sample_y)?
             }
+            PlotKind::Probabilities {} => variants::variant_probabilities::variant_probabilities()?,
         },
     }
     Ok(())
