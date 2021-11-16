@@ -1,7 +1,7 @@
 # False positive call from GIAB (15:40036395). Freebayes calls this with a weak posterior:
 # 15      40036395        .       GTGCTGCTGCTGCTGCTGCTGCTGCTGCT   GTGCTGCTGCTGCTGCTGCTGCTGCT      0       .       AB=0;ABP=0;AC=0;AF=0;AN=2;AO=5;CIGAR=1M3D25M;DP=86;DPB=85.4138;DPRA=0;EPP=3.44459;EPPR=10.9517;GTI=0;LEN=3;MEANALT=9;MQM=60;MQMR=60;NS=1;NUMALT=1;ODDS=68.3624;PAIRED=1;PAIREDR=1;PAO=0.5;PQA=1;PQR=1;PRO=0.5;QA=141;QR=2437;RO=70;RPL=0;RPP=13.8677;RPPR=9.09042;RPR=5;RUN=1;SAF=2;SAP=3.44459;SAR=3;SRF=29;SRP=7.47733;SRR=41;TYPE=del;technology.ILLUMINA=1  GT:DP:AD:RO:QR:AO:QA:GL 0/0:86:70,5:70:2437:5:141:0,-9.83374,-206.698
 
-# The evidence is pretty clear though. Hence, we currently think this must be a somatic mutation in the cultured cell line. It is clearly not diploid, but Varlociraptor has to be informed of the possibility of such events between 0.0 and 0.5 by introducing a somatic mutation rate in the scenario and adding a corresponding event.
+# The evidence is pretty clear at first sight, but there are two fragments with small MAPQ. Varlociraptors MAPQ adjustment leads to small enough (still high) MAPQs such that this is not anymore called as a somatic variant. Apart from that, it could also be a somatic mutation in the cultured cell line. It is clearly not diploid, but Varlociraptor has to be informed of the possibility of such events between 0.0 and 0.5 by introducing a somatic mutation rate in the scenario and adding a corresponding event in order to capute this.
 
 expected:
   posteriors:

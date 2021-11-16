@@ -247,6 +247,7 @@ pub(crate) trait Testcase {
                         omit_homopolymer_artifact_detection: self
                             .omit_homopolymer_artifact_detection(),
                         output: Some(self.output()),
+                        min_depth: 5,
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
                             sample_observations: self
@@ -284,6 +285,7 @@ pub(crate) trait Testcase {
                         omit_homopolymer_artifact_detection: self
                             .omit_homopolymer_artifact_detection(),
                         output: Some(self.output()),
+                        min_depth: 5,
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self
                                 .sample_preprocessed_path("tumor", &temp_preprocess),

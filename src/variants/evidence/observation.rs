@@ -26,7 +26,7 @@ use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils;
 use crate::utils::homopolymers::HomopolymerErrorModel;
-use crate::utils::PROB_095;
+use crate::utils::{PROB_095, PROB_05};
 use crate::variants::sample;
 use crate::variants::types::Variant;
 
@@ -316,17 +316,37 @@ impl<P: Clone> Observation<P> {
             >= KassRaftery::Positive
     }
 
-    pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
+    pub(crate) fn adjust_prob_mapping(pileup: &mut [Self], min_depth: usize) {
         if !pileup.is_empty() {
-            let prob_sum = LogProb::ln_sum_exp(
-                &pileup
-                    .iter()
-                    .map(|obs| obs.prob_mapping_orig())
-                    .collect_vec(),
-            );
-            let adjusted = LogProb(*prob_sum - (pileup.len() as f64).ln());
-            for obs in pileup {
-                if adjusted < obs.prob_mapping_orig() {
+            if pileup.len() >= min_depth {
+                // METHOD: adjust MAPQ to get rid of stochastically inflated ones
+                // This takes the arithmetic mean of all MAPQs in the pileup.
+                // By that, we effectively diminish high MAPQs of reads that just achieve them
+                // because of e.g. randomly better matching bases in themselves or their mates.
+                let prob_sum = LogProb::ln_sum_exp(
+                    &pileup
+                        .iter()
+                        .map(|obs| obs.prob_mapping_orig())
+                        .collect_vec(),
+                );
+                let adjusted = LogProb(*prob_sum - (pileup.len() as f64).ln());
+                for obs in pileup {
+                    if adjusted < obs.prob_mapping_orig() {
+                        obs.prob_mapping_adj = Some(adjusted);
+                        obs.prob_mismapping_adj = Some(adjusted.ln_one_minus_exp());
+                    }
+                }
+            } else {
+                // METHOD: assume that reads could be artifacts that in fact would map 
+                // some variant allele or happen to have an unfortunate combination of
+                // sequencing errors. The read mappers MAPQ might not properly reflect that because
+                // it was calculated only under the consideration of the reference genome.
+                // Hence, we'll try to make that MAPQ more uncertain, via the following argument.
+                for obs in pileup {
+                    // METHOD: Flat prior between two cases:
+                    // (a) No unknown alternative allele of origin, MAPQ was correct.
+                    // (b) There is an unknown alternative allele of origin with a similar sequence: MAPQ has to be 0.5.
+                    let adjusted = (*PROB_05 + obs.prob_mapping_orig()).ln_add_exp(*PROB_05 + *PROB_05);
                     obs.prob_mapping_adj = Some(adjusted);
                     obs.prob_mismapping_adj = Some(adjusted.ln_one_minus_exp());
                 }

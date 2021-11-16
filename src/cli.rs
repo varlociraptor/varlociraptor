@@ -136,6 +136,10 @@ fn default_reference_buffer_size() -> usize {
     10
 }
 
+fn default_min_depth() -> usize {
+    5
+}
+
 fn default_pairhmm_mode() -> String {
     "exact".to_owned()
 }
@@ -480,6 +484,15 @@ pub enum CallKind {
             help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
         )]
         output: Option<PathBuf>,
+        #[structopt(
+            long = "min-depth",
+            default_value = "5",
+            help = "Minimum depth of trust. Below that, we consider it uncertain whether reads with their MAPQs \
+            are actually reliable or rather come from unkown variant alleles that the mapper did not consider when \
+            calculating the MAPQ. For such cases, we recalibrate the MAPQ to reflect this uncertainty."
+        )]
+        #[serde(default = "default_min_depth")]
+        min_depth: usize,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -778,6 +791,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     testcase_prefix,
                     testcase_anonymous,
                     output,
+                    min_depth,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -856,6 +870,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .resolutions(sample_infos.resolutions)
                             .breakend_index(breakend_index)
                             .outbcf(output)
+                            .min_depth(min_depth)
                             .build()
                             .unwrap();
 

@@ -59,6 +59,7 @@ where
     breakend_index: BreakendIndex,
     #[builder(default)]
     breakend_results: RwLock<HashMap<Vec<u8>, BreakendResult>>,
+    min_depth: usize,
 }
 
 impl<Pr> Caller<Pr>
@@ -451,12 +452,8 @@ where
                     // METHOD: check for homopolymer artifacts if at least one pileup contains the corresponding information.
                     work_item.check_homopolymer_artifact_detection |= true;
                 }
+                Observation::adjust_prob_mapping(&mut pileup, self.min_depth);
                 if is_snv_or_mnv {
-                    // METHOD: adjust MAPQ to get rid of stochastically inflated ones
-                    // This takes the arithmetic mean of all MAPQs in the pileup.
-                    // By that, we effectively diminish high MAPQs of reads that just achieve them
-                    // because of e.g. randomly better matching bases in themselves or their mates.
-                    Observation::adjust_prob_mapping(&mut pileup);
                     // METHOD: remove non-standard alignments. They might come from near
                     // SVs and can induce artifactual SNVs or MNVs. By removing them,
                     // we just conservatively reduce the coverage to those which are
@@ -717,11 +714,6 @@ where
                                                         .events()
                                                         .get(other_sample)
                                                         .unwrap();
-                                                    dbg!((
-                                                        event.allele_freq,
-                                                        other_event.allele_freq,
-                                                        other_event == map_event
-                                                    ));
                                                     other_event == map_event
                                                 } else {
                                                     // don't do that for our current sample
