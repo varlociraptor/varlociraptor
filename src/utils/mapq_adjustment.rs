@@ -1,12 +1,17 @@
-use bio::stats::{bayesian, LogProb, PHREDProb};
+use bio::stats::{LogProb, PHREDProb, Prob, bayesian};
 use counter::Counter;
 use itertools::Itertools;
-use rgsl::randist::multinomial::multinomial_lnpdf;
+use rgsl::randist::{binomial::binomial_pdf, multinomial::multinomial_lnpdf};
 
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::{evidence::observation::{Observation, ReadPosition}, model::AlleleFreq};
 
 pub(crate) type Mapq = u32;
-pub(crate) type ObservedMapqs = Vec<Mapq>;
+
+#[derive(Debug, Clone)]
+pub(crate) struct ObservedFragments {
+    unique: u32,
+    total: u32,
+}
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub(crate) enum LocusType {
@@ -18,7 +23,7 @@ pub(crate) enum LocusType {
 pub(crate) struct Prior;
 
 impl bayesian::model::Prior for Prior {
-    type Event = LocusType;
+    type Event = AlleleFreq;
 
     fn compute(&self, _event: &Self::Event) -> bio::stats::LogProb {
         LogProb::ln_one() // flat prior
@@ -31,9 +36,9 @@ pub(crate) struct Posterior;
 impl bayesian::model::Posterior for Posterior {
     type Event = LocusType;
 
-    type BaseEvent = LocusType;
+    type BaseEvent = AlleleFreq;
 
-    type Data = ObservedMapqs;
+    type Data = ObservedFragments;
 
     fn compute<F: FnMut(&Self::BaseEvent, &Self::Data) -> LogProb>(
         &self,
@@ -41,41 +46,29 @@ impl bayesian::model::Posterior for Posterior {
         data: &Self::Data,
         joint_prob: &mut F,
     ) -> LogProb {
-        joint_prob(event, data)
+        match event {
+            LocusType::Unique => joint_prob(&AlleleFreq(1.0), data),
+            LocusType::Homologous => LogProb::ln_simpsons_integrate_exp(|i, freq| {
+                dbg!(freq);
+                joint_prob(&AlleleFreq(freq), data)
+            }, 0.0, 1.0, 11)
+        }
+        
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Likelihood {
-    p_unique: Vec<f64>,
-    p_homologous: Vec<f64>,
-}
-
-impl Likelihood {
-    pub(crate) fn new(max_mapq: Mapq) -> Self {
-        let mut p_unique = (0..max_mapq).into_iter().map(|mapq| 0.0).collect_vec();
-        p_unique.push(1.0);
-        Likelihood {
-            p_unique,
-            p_homologous: (0..=max_mapq)
-                .into_iter()
-                .map(|mapq| 1.0 / max_mapq as f64)
-                .collect_vec(),
-        }
-    }
-}
+pub(crate) struct Likelihood;
 
 impl bayesian::model::Likelihood for Likelihood {
-    type Event = LocusType;
+    type Event = AlleleFreq;
 
-    type Data = ObservedMapqs;
+    type Data = ObservedFragments;
 
     fn compute(&self, event: &Self::Event, data: &Self::Data, _payload: &mut ()) -> LogProb {
-        let p = match event {
-            LocusType::Unique => LogProb(multinomial_lnpdf(&self.p_unique, data)),
-            LocusType::Homologous => LogProb(multinomial_lnpdf(&self.p_homologous, data)),
-        };
-        dbg!((data, p, &self.p_unique, &self.p_homologous));
+        let p = LogProb::from(Prob(binomial_pdf(data.unique, **event, data.total)));
+        dbg!(p);
+
         p
     }
 }
@@ -88,20 +81,23 @@ pub(crate) fn adjust_prob_mapping(pileup: &mut [Observation<ReadPosition>]) {
         // The rationale for the former case is that we always expect some noise of artificially high MAPQs because alleles can be unknown by the mapper
         // and sometimes base errors make a read randomly fit better than it should.
 
-        let mapqs: Counter<_> = pileup
+        let mapqs: Vec<_> = pileup
             .iter()
             .map(|obs| {PHREDProb::from(obs.prob_mapping_orig().ln_one_minus_exp()).round() as u32})
             .collect();
-        let max_mapq = *mapqs.keys().max().unwrap();
+        let max_mapq = *mapqs.iter().max().unwrap();
         dbg!(max_mapq);
-        let data = (0..=max_mapq)
-            .into_iter()
-            .map(|mapq| mapqs.get(&mapq).cloned().unwrap_or(0) as u32)
-            .collect_vec();
+        assert!(mapqs.len() <= std::u32::MAX as usize);
 
-        let model = bayesian::model::Model::new(Likelihood::new(max_mapq), Prior, Posterior);
+        let data = ObservedFragments {
+            unique: mapqs.iter().filter(|mapq| **mapq == max_mapq).count() as u32,
+            total: mapqs.len() as u32,
+        };
+        dbg!(&data);
 
-        let m = model.compute(vec![LocusType::Unique, LocusType::Unique], &data);
+        let model = bayesian::model::Model::new(Likelihood, Prior, Posterior);
+
+        let m = model.compute(vec![LocusType::Unique, LocusType::Homologous], &data);
 
         // Calculate expected value of MAPQ given the two posteriors and their repective MAPQs (0 and max_mapq).
         let adjusted =
