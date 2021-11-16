@@ -83,9 +83,14 @@ impl bayesian::model::Likelihood for Likelihood {
     type Data = ObservedMapqs;
 
     fn compute(&self, event: &Self::Event, data: &Self::Data, _payload: &mut ()) -> LogProb {
-        LogProb(data.iter()
-            .map(|(mapq, count)| *beta_binomial_pmf(*mapq, self.max_mapq, *event.alpha, *event.beta) * (*count as f64).ln())
-            .sum())
+        LogProb(
+            data.iter()
+                .map(|(mapq, count)| {
+                    *beta_binomial_pmf(*mapq, self.max_mapq, *event.alpha, *event.beta)
+                        * (*count as f64).ln()
+                })
+                .sum(),
+        )
     }
 }
 
@@ -124,27 +129,21 @@ fn calc_adjusted(mapqs: &Counter<Mapq>, max_mapq: u64) -> LogProb {
     let m = model.compute(1..=max_mapq, mapqs);
 
     dbg!((1..=max_mapq)
-    .into_iter()
-    .map(|mapq| {
-        m.posterior(&mapq).unwrap().exp()
-    })
-    .collect_vec());
+        .into_iter()
+        .map(|mapq| { m.posterior(&mapq).unwrap().exp() })
+        .collect_vec());
 
     let exp_values = (1..=max_mapq)
-    .into_iter()
-    .map(|mapq| {
-        m.posterior(&mapq).unwrap().exp() * (mapq as f64)
-    })
-    .collect_vec();
+        .into_iter()
+        .map(|mapq| m.posterior(&mapq).unwrap().exp() * (mapq as f64))
+        .collect_vec();
     dbg!(&exp_values);
     dbg!(exp_values.iter().cloned().sum::<f64>());
 
     let adjusted = (1..=max_mapq)
-    .into_iter()
-    .map(|mapq| {
-        m.posterior(&mapq).unwrap().exp() * (mapq as f64)
-    })
-    .sum();
+        .into_iter()
+        .map(|mapq| m.posterior(&mapq).unwrap().exp() * (mapq as f64))
+        .sum();
     let adjusted = LogProb::from(PHREDProb(adjusted)).ln_one_minus_exp();
 
     dbg!(adjusted);
