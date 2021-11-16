@@ -1,29 +1,32 @@
 use bio::stats::{LogProb, PHREDProb, Prob, bayesian};
 use counter::Counter;
 use itertools::Itertools;
+use ordered_float::NotNan;
 use rgsl::randist::{binomial::binomial_pdf, multinomial::multinomial_lnpdf};
+use statrs::function::{beta::ln_beta, factorial::ln_binomial};
 
 use crate::variants::{evidence::observation::{Observation, ReadPosition}, model::AlleleFreq};
 
-pub(crate) type Mapq = u32;
+use super::adaptive_integration;
 
-#[derive(Debug, Clone)]
-pub(crate) struct ObservedFragments {
-    unique: u32,
-    total: u32,
-}
+pub(crate) type Mapq = u64;
+pub(crate) type ObservedMapqs = Counter<Mapq>;
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
-pub(crate) enum LocusType {
-    Unique,
-    Homologous,
+pub(crate) struct Shape {
+    alpha: NotNan<f64>,
+    beta: NotNan<f64>,
+}
+
+pub(crate) fn beta_binomial_pmf(k: u64, n: u64, alpha: f64, beta: f64) -> LogProb {
+    LogProb(ln_binomial(n, k) + ln_beta(k as f64 + alpha, (n - k) as f64 + beta) - ln_beta(alpha, beta))
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct Prior;
 
 impl bayesian::model::Prior for Prior {
-    type Event = AlleleFreq;
+    type Event = Shape;
 
     fn compute(&self, _event: &Self::Event) -> bio::stats::LogProb {
         LogProb::ln_one() // flat prior
@@ -31,14 +34,16 @@ impl bayesian::model::Prior for Prior {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Posterior;
+pub(crate) struct Posterior {
+    max_mapq: Mapq,
+}
 
 impl bayesian::model::Posterior for Posterior {
-    type Event = LocusType;
+    type Event = Mapq;
 
-    type BaseEvent = AlleleFreq;
+    type BaseEvent = Shape;
 
-    type Data = ObservedFragments;
+    type Data = ObservedMapqs;
 
     fn compute<F: FnMut(&Self::BaseEvent, &Self::Data) -> LogProb>(
         &self,
@@ -46,32 +51,32 @@ impl bayesian::model::Posterior for Posterior {
         data: &Self::Data,
         joint_prob: &mut F,
     ) -> LogProb {
-        match event {
-            LocusType::Unique => joint_prob(&AlleleFreq(1.0), data),
-            LocusType::Homologous => LogProb::ln_simpsons_integrate_exp(|i, freq| {
-                dbg!(freq);
-                joint_prob(&AlleleFreq(freq), data)
-            }, 0.0, 1.0, 11)
-        }
-        
+        adaptive_integration::ln_integrate_exp(|alpha| {
+                // TODO what about event == 0?? this leads to a division by zero here. I guess we need an offset of 1 in the distribution
+                let beta = NotNan::new((self.max_mapq as f64 * *alpha - *event as f64 * *alpha) / *event as f64).unwrap();
+                joint_prob(&Shape { alpha, beta }, data)
+            }, NotNan::new(0.0).unwrap(), NotNan::new(200.0).unwrap(), NotNan::new(0.1).unwrap()
+        )
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Likelihood;
+pub(crate) struct Likelihood {
+    max_mapq: u64,
+}
 
 impl bayesian::model::Likelihood for Likelihood {
-    type Event = AlleleFreq;
+    type Event = Shape;
 
-    type Data = ObservedFragments;
+    type Data = ObservedMapqs;
 
     fn compute(&self, event: &Self::Event, data: &Self::Data, _payload: &mut ()) -> LogProb {
-        let p = LogProb::from(Prob(binomial_pdf(data.unique, **event, data.total)));
-        dbg!(p);
-
-        p
+        data.iter().map(|(mapq, count)| {
+            beta_binomial_pmf(*mapq, self.max_mapq, *event.alpha, *event.beta)
+        }).sum()
     }
 }
+
 
 pub(crate) fn adjust_prob_mapping(pileup: &mut [Observation<ReadPosition>]) {
     if !pileup.is_empty() {
@@ -81,32 +86,42 @@ pub(crate) fn adjust_prob_mapping(pileup: &mut [Observation<ReadPosition>]) {
         // The rationale for the former case is that we always expect some noise of artificially high MAPQs because alleles can be unknown by the mapper
         // and sometimes base errors make a read randomly fit better than it should.
 
-        let mapqs: Vec<_> = pileup
+        let mapqs: Counter<_> = pileup
             .iter()
-            .map(|obs| {PHREDProb::from(obs.prob_mapping_orig().ln_one_minus_exp()).round() as u32})
+            .map(|obs| {PHREDProb::from(obs.prob_mapping_orig().ln_one_minus_exp()).round() as u64})
             .collect();
-        let max_mapq = *mapqs.iter().max().unwrap();
-        dbg!(max_mapq);
-        assert!(mapqs.len() <= std::u32::MAX as usize);
-
-        let data = ObservedFragments {
-            unique: mapqs.iter().filter(|mapq| **mapq == max_mapq).count() as u32,
-            total: mapqs.len() as u32,
-        };
-        dbg!(&data);
-
-        let model = bayesian::model::Model::new(Likelihood, Prior, Posterior);
-
-        let m = model.compute(vec![LocusType::Unique, LocusType::Homologous], &data);
-
-        // Calculate expected value of MAPQ given the two posteriors and their repective MAPQs (0 and max_mapq).
-        let adjusted =
-            m.posterior(&LocusType::Unique).unwrap() + LogProb::from(PHREDProb(max_mapq as f64));
-        dbg!(adjusted);
+        let adjusted = calc_adjusted(&mapqs);
         for obs in pileup {
             if adjusted < obs.prob_mapping_orig() {
                 obs.set_prob_mapping_adj(adjusted);
             }
         }
+    }
+}
+
+fn calc_adjusted(mapqs: &Counter<Mapq>) -> LogProb {
+    let max_mapq = *mapqs.keys().max().unwrap();
+    dbg!(max_mapq);
+
+    let model = bayesian::model::Model::new(Likelihood { max_mapq }, Prior, Posterior { max_mapq });
+
+    let m = model.compute(0..=max_mapq, mapqs);
+
+    let adjusted = LogProb::ln_sum_exp(&(0..=max_mapq).into_iter().map(|mapq| m.posterior(&mapq).unwrap() + LogProb::from(PHREDProb(mapq as f64))).collect_vec()).ln_one_minus_exp();
+    dbg!(adjusted);
+    adjusted
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_calc_adjusted() {
+        let mut mapqs = Counter::default();
+        mapqs.insert(60, 4);
+
+        calc_adjusted(&mapqs);
     }
 }
