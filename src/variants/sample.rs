@@ -19,6 +19,7 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
 use crate::reference;
+use crate::utils::mapq_adjustment::adjust_prob_mapping;
 use crate::variants::evidence::observation::{
     self, major_read_position, Observable, Observation, ReadPosition,
 };
@@ -240,9 +241,13 @@ impl Sample {
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
-        Ok(observations
+        let mut observations: Vec<_> = observations
             .iter()
             .map(|obs| obs.process(major_pos))
-            .collect())
+            .collect();
+
+        adjust_prob_mapping(&mut observations, self.alignment_properties.max_mapq as u64);
+
+        Ok(observations)
     }
 }

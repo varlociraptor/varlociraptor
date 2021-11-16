@@ -35,6 +35,10 @@ fn default_homopolymer_error_model() -> HashMap<i8, f64> {
     model
 }
 
+fn default_max_mapq() -> u8 {
+    60
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct AlignmentProperties {
     pub(crate) insert_size: Option<InsertSize>,
@@ -42,6 +46,8 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
+    #[serde(default = "default_max_mapq")]
+    pub(crate) max_mapq: u8,
     #[serde(default = "default_homopolymer_error_model")]
     pub(crate) wildtype_homopolymer_error_model: HashMap<i8, f64>,
     #[serde(default)]
@@ -194,6 +200,7 @@ impl AlignmentProperties {
             max_ins_cigar_len: None,
             frac_max_softclip: None,
             max_read_len: 0,
+            max_mapq: 0,
             wildtype_homopolymer_error_model: HashMap::new(),
             initial: true,
         };
@@ -310,6 +317,7 @@ impl AlignmentProperties {
                 Varlociraptor will be unable to estimate the sampling bias for larger indels."
             )
         }
+        properties.max_mapq = max_mapq;
 
         // Mark initial estimation as done.
         properties.initial = false;

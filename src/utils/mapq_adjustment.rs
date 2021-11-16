@@ -1,11 +1,14 @@
-use bio::stats::{LogProb, PHREDProb, Prob, bayesian};
+use bio::stats::{bayesian, LogProb, PHREDProb, Prob};
 use counter::Counter;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rgsl::randist::{binomial::binomial_pdf, multinomial::multinomial_lnpdf};
 use statrs::function::{beta::ln_beta, factorial::ln_binomial};
 
-use crate::variants::{evidence::observation::{Observation, ReadPosition}, model::AlleleFreq};
+use crate::variants::{
+    evidence::observation::{Observation, ReadPosition},
+    model::AlleleFreq,
+};
 
 use super::adaptive_integration;
 
@@ -19,7 +22,9 @@ pub(crate) struct Shape {
 }
 
 pub(crate) fn beta_binomial_pmf(k: u64, n: u64, alpha: f64, beta: f64) -> LogProb {
-    LogProb(ln_binomial(n, k) + ln_beta(k as f64 + alpha, (n - k) as f64 + beta) - ln_beta(alpha, beta))
+    LogProb(
+        ln_binomial(n, k) + ln_beta(k as f64 + alpha, (n - k) as f64 + beta) - ln_beta(alpha, beta),
+    )
 }
 
 #[derive(Clone, Debug)]
@@ -51,11 +56,18 @@ impl bayesian::model::Posterior for Posterior {
         data: &Self::Data,
         joint_prob: &mut F,
     ) -> LogProb {
-        adaptive_integration::ln_integrate_exp(|alpha| {
+        adaptive_integration::ln_integrate_exp(
+            |alpha| {
                 // TODO what about event == 0?? this leads to a division by zero here. I guess we need an offset of 1 in the distribution
-                let beta = NotNan::new((self.max_mapq as f64 * *alpha - *event as f64 * *alpha) / *event as f64).unwrap();
+                let beta = NotNan::new(
+                    (self.max_mapq as f64 * *alpha - *event as f64 * *alpha) / *event as f64,
+                )
+                .unwrap();
                 joint_prob(&Shape { alpha, beta }, data)
-            }, NotNan::new(0.0).unwrap(), NotNan::new(200.0).unwrap(), NotNan::new(0.1).unwrap()
+            },
+            NotNan::new(0.01).unwrap(),
+            NotNan::new(200.0).unwrap(),
+            NotNan::new(0.01).unwrap(),
         )
     }
 }
@@ -71,14 +83,13 @@ impl bayesian::model::Likelihood for Likelihood {
     type Data = ObservedMapqs;
 
     fn compute(&self, event: &Self::Event, data: &Self::Data, _payload: &mut ()) -> LogProb {
-        data.iter().map(|(mapq, count)| {
-            beta_binomial_pmf(*mapq, self.max_mapq, *event.alpha, *event.beta)
-        }).sum()
+        LogProb(data.iter()
+            .map(|(mapq, count)| *beta_binomial_pmf(*mapq, self.max_mapq, *event.alpha, *event.beta) * (*count as f64).ln())
+            .sum())
     }
 }
 
-
-pub(crate) fn adjust_prob_mapping(pileup: &mut [Observation<ReadPosition>]) {
+pub(crate) fn adjust_prob_mapping(pileup: &mut [Observation<ReadPosition>], max_mapq: u64) {
     if !pileup.is_empty() {
         // METHOD: we use a simple multinomial model to represent two cases:
         // (a) the locus is a homolog of something else: this means that MAPQs can be expected to be somehow uniformly distributed.
@@ -88,9 +99,9 @@ pub(crate) fn adjust_prob_mapping(pileup: &mut [Observation<ReadPosition>]) {
 
         let mapqs: Counter<_> = pileup
             .iter()
-            .map(|obs| {PHREDProb::from(obs.prob_mapping_orig().ln_one_minus_exp()).round() as u64})
+            .map(|obs| PHREDProb::from(obs.prob_mapping_orig().ln_one_minus_exp()).round() as u64)
             .collect();
-        let adjusted = calc_adjusted(&mapqs);
+        let adjusted = calc_adjusted(&mapqs, max_mapq);
         for obs in pileup {
             if adjusted < obs.prob_mapping_orig() {
                 obs.set_prob_mapping_adj(adjusted);
@@ -99,19 +110,46 @@ pub(crate) fn adjust_prob_mapping(pileup: &mut [Observation<ReadPosition>]) {
     }
 }
 
-fn calc_adjusted(mapqs: &Counter<Mapq>) -> LogProb {
-    let max_mapq = *mapqs.keys().max().unwrap();
-    dbg!(max_mapq);
+fn calc_adjusted(mapqs: &Counter<Mapq>, max_mapq: u64) -> LogProb {
+    let model = bayesian::model::Model::new(
+        Likelihood {
+            max_mapq: max_mapq + 1,
+        },
+        Prior,
+        Posterior {
+            max_mapq: max_mapq + 1,
+        },
+    );
 
-    let model = bayesian::model::Model::new(Likelihood { max_mapq }, Prior, Posterior { max_mapq });
+    let m = model.compute(1..=max_mapq, mapqs);
 
-    let m = model.compute(0..=max_mapq, mapqs);
+    dbg!((1..=max_mapq)
+    .into_iter()
+    .map(|mapq| {
+        m.posterior(&mapq).unwrap().exp()
+    })
+    .collect_vec());
 
-    let adjusted = LogProb::ln_sum_exp(&(0..=max_mapq).into_iter().map(|mapq| m.posterior(&mapq).unwrap() + LogProb::from(PHREDProb(mapq as f64))).collect_vec()).ln_one_minus_exp();
+    let exp_values = (1..=max_mapq)
+    .into_iter()
+    .map(|mapq| {
+        m.posterior(&mapq).unwrap().exp() * (mapq as f64)
+    })
+    .collect_vec();
+    dbg!(&exp_values);
+    dbg!(exp_values.iter().cloned().sum::<f64>());
+
+    let adjusted = (1..=max_mapq)
+    .into_iter()
+    .map(|mapq| {
+        m.posterior(&mapq).unwrap().exp() * (mapq as f64)
+    })
+    .sum();
+    let adjusted = LogProb::from(PHREDProb(adjusted)).ln_one_minus_exp();
+
     dbg!(adjusted);
     adjusted
 }
-
 
 #[cfg(test)]
 mod test {
@@ -120,8 +158,10 @@ mod test {
     #[test]
     fn test_calc_adjusted() {
         let mut mapqs = Counter::default();
-        mapqs.insert(60, 4);
+        //mapqs.insert(60, 4);
+        mapqs.insert(0, 4);
+        //mapqs.insert(28, 0);
 
-        calc_adjusted(&mapqs);
+        calc_adjusted(&mapqs, 60);
     }
 }
