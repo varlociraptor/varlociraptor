@@ -12,7 +12,7 @@ use std::str;
 
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::LogProb;
+use bio::stats::{LogProb, PHREDProb};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 use rust_htslib::bam;
@@ -256,6 +256,11 @@ impl Observation<Option<u32>> {
 }
 
 impl<P: Clone> Observation<P> {
+    pub(crate) fn set_prob_mapping_adj(&mut self, prob_mapping: LogProb) {
+        self.prob_mapping_adj = Some(prob_mapping);
+        self.prob_mismapping_adj = Some(prob_mapping.ln_one_minus_exp());
+    }
+
     pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
@@ -314,24 +319,6 @@ impl<P: Clone> Observation<P> {
     pub(crate) fn is_positive_ref_support(&self) -> bool {
         BayesFactor::new(self.prob_ref, self.prob_alt).evidence_kass_raftery()
             >= KassRaftery::Positive
-    }
-
-    pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
-        if !pileup.is_empty() {
-            let prob_sum = LogProb::ln_sum_exp(
-                &pileup
-                    .iter()
-                    .map(|obs| obs.prob_mapping_orig())
-                    .collect_vec(),
-            );
-            let adjusted = LogProb(*prob_sum - (pileup.len() as f64).ln());
-            for obs in pileup {
-                if adjusted < obs.prob_mapping_orig() {
-                    obs.prob_mapping_adj = Some(adjusted);
-                    obs.prob_mismapping_adj = Some(adjusted.ln_one_minus_exp());
-                }
-            }
-        }
     }
 
     pub(crate) fn has_homopolymer_error(&self) -> bool {

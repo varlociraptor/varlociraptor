@@ -21,6 +21,7 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
+use crate::utils::mapq_adjustment::adjust_prob_mapping;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
@@ -451,12 +452,9 @@ where
                     // METHOD: check for homopolymer artifacts if at least one pileup contains the corresponding information.
                     work_item.check_homopolymer_artifact_detection |= true;
                 }
+                // METHOD: adjust MAPQ to get rid of stochastically inflated ones.
+                adjust_prob_mapping(&mut pileup);
                 if is_snv_or_mnv {
-                    // METHOD: adjust MAPQ to get rid of stochastically inflated ones
-                    // This takes the arithmetic mean of all MAPQs in the pileup.
-                    // By that, we effectively diminish high MAPQs of reads that just achieve them
-                    // because of e.g. randomly better matching bases in themselves or their mates.
-                    Observation::adjust_prob_mapping(&mut pileup);
                     // METHOD: remove non-standard alignments. They might come from near
                     // SVs and can induce artifactual SNVs or MNVs. By removing them,
                     // we just conservatively reduce the coverage to those which are
