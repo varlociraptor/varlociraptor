@@ -2,7 +2,7 @@
 
 expected:
   posteriors:
-  - PROB_SOMATIC_TUMOR >= 11.08
+  - PROB_SOMATIC_TUMOR >= 5.0
 
 samples:
   normal:
