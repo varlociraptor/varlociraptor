@@ -5,8 +5,6 @@ use hdf5;
 //use kernel_density;
 //use ordered_float::OrderedFloat;
 use rust_htslib::bcf;
-//use serde_json::json;
-//use std::fs::File;
 use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
@@ -39,7 +37,7 @@ impl Caller {
         //let m = model.compute(universe, &data);
         let m = model.compute_from_marginal(&Marginal::new(3), &data);
 
-        let posterior = m.event_posteriors();
+        let mut posterior = m.event_posteriors();
 
         // Step 4: print TSV table with results
         // TODO use csv crate
@@ -48,20 +46,38 @@ impl Caller {
         let mut wtr = csv::Writer::from_path(self.outcsv.as_ref().unwrap())?;
         wtr.write_record(&[
             "posterior_prob(log)",
+            "odds ratio",
             "haplotype_a",
             "haplotype_b",
             "haplotype_c",
         ])?; //depends upon the number of haplotypes
+
+        //write best record on top
+        let mut first_rec = Vec::new();
+        let best = posterior.next().unwrap();
+        let best_density = best.1 .0.exp();
+        let best_odds = 1;
+        first_rec.push(best_density.to_string());
+        first_rec.push(best_odds.to_string());
+        for j in 0..3 {
+            //the number depends upon the number of haplotypes
+            let fractions = best.0;
+            first_rec.push(fractions[j].to_string());
+        }
+        wtr.write_record(first_rec)?;
+
+        //write the rest of the records
         for i in posterior {
-            let mut rec = Vec::new();
-            let logprob = i.1;
-            rec.push(logprob.0.to_string());
+            let mut other_rec = Vec::new();
+            let density = i.1 .0.exp();
+            let odds = density / best_density;
+            other_rec.push(density.to_string());
+            other_rec.push(odds.to_string());
             for j in 0..3 {
-                //the number depends upon the number of haplotypes
                 let fractions = i.0;
-                rec.push(fractions[j].to_string());
+                other_rec.push(fractions[j].to_string());
             }
-            wtr.write_record(&rec)?;
+            wtr.write_record(other_rec)?;
         }
         wtr.flush()?;
         Ok(())
