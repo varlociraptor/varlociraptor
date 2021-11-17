@@ -26,7 +26,7 @@ use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils;
 use crate::utils::homopolymers::HomopolymerErrorModel;
-use crate::utils::PROB_095;
+use crate::utils::{PROB_05, PROB_09, PROB_095};
 use crate::variants::sample;
 use crate::variants::types::Variant;
 
@@ -318,13 +318,30 @@ impl<P: Clone> Observation<P> {
 
     pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
         if !pileup.is_empty() {
-            let prob_sum = LogProb::ln_sum_exp(
+            // METHOD: adjust MAPQ to get rid of stochastically inflated ones
+            // This takes the arithmetic mean of all MAPQs in the pileup.
+            // By that, we effectively diminish high MAPQs of reads that just achieve them
+            // because of e.g. randomly better matching bases in themselves or their mates.
+            let mut prob_sum = LogProb::ln_sum_exp(
                 &pileup
                     .iter()
                     .map(|obs| obs.prob_mapping_orig())
                     .collect_vec(),
             );
-            let adjusted = LogProb(*prob_sum - (pileup.len() as f64).ln());
+
+            let calc_adjusted = |prob_sum: LogProb, n| LogProb(*prob_sum - (n as f64).ln());
+            let mut adjusted = calc_adjusted(prob_sum, pileup.len());
+
+            if pileup.len() < 20 {
+                // METHOD: for low depths, this method does not reliably work because it can be that by accident the
+                // low MAPQ reads are not in the pileup. In order to correct for this sampling issue,
+                // we add one pseudo low MAPQ observation. The higher the depth becomes, the less this observation
+                // plays a role.
+                prob_sum = prob_sum.ln_add_exp(adjusted + *PROB_09);
+
+                adjusted = calc_adjusted(prob_sum, pileup.len() + 1);
+            }
+
             for obs in pileup {
                 if adjusted < obs.prob_mapping_orig() {
                     obs.prob_mapping_adj = Some(adjusted);
