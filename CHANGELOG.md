@@ -2,6 +2,23 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.7.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.6.0...v4.7.0) (2021-11-17)
+
+
+### Features
+
+* do not anymore require genome size definition in scenarios ([#231](https://www.github.com/varlociraptor/varlociraptor/issues/231)) ([a707d02](https://www.github.com/varlociraptor/varlociraptor/commit/a707d02fb90e5f75182579f6c2bfc5ac06820e56))
+* output sampled VAF densities (in the AFD format tag) ([#234](https://www.github.com/varlociraptor/varlociraptor/issues/234)) ([35ced8f](https://www.github.com/varlociraptor/varlociraptor/commit/35ced8f3066bc00367aafc8d2e76b8a0630d061d))
+
+
+### Bug Fixes
+
+* always keep replacements as they are, even if they are just simple insertions or deletions ([4a8e6ed](https://www.github.com/varlociraptor/varlociraptor/commit/4a8e6edda70e2e132853fcdbea100cc4d621428c))
+* fixed determination of homopolymer indels from replacements ([#233](https://www.github.com/varlociraptor/varlociraptor/issues/233)) ([4318e5f](https://www.github.com/varlociraptor/varlociraptor/commit/4318e5fc2ce3231264772a708a365aa854aea010))
+* fixed update of possible events when switching between variant types. ([f9037f7](https://www.github.com/varlociraptor/varlociraptor/commit/f9037f764ad9c8af9bc5fb2c9812ee50bcff30e6))
+* simplified but more accurate homopolymer error model ([#230](https://www.github.com/varlociraptor/varlociraptor/issues/230)) ([7f8cbd8](https://www.github.com/varlociraptor/varlociraptor/commit/7f8cbd885b5d397799d23fcc7362be7afbda4342))
+* understandable error message if BCF record contains invalid positions ([#228](https://www.github.com/varlociraptor/varlociraptor/issues/228)) ([6533a70](https://www.github.com/varlociraptor/varlociraptor/commit/6533a70b881282adc8a7e857f91b506e6dc548e1))
+
 ## [4.6.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.5.0...v4.6.0) (2021-11-02)
 
 
