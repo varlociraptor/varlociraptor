@@ -4,7 +4,6 @@ use derive_builder::Builder;
 use hdf5;
 use ordered_float::NotNaN;
 use rust_htslib::bcf;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
@@ -20,15 +19,6 @@ pub struct Caller {
     vcf_reader: bcf::Reader,
     min_norm_counts: f64,
     outcsv: Option<PathBuf>,
-}
-
-#[derive(Serialize)]
-struct Output {
-    haplotype_a: NotNaN<f64>,
-    haplotype_b: NotNaN<f64>,
-    haplotype_c: NotNaN<f64>,
-    posterior: f64,
-    odds_ratio: f64,
 }
 
 impl Caller {
@@ -53,36 +43,39 @@ impl Caller {
         // with each column after the first showing the fraction of the respective haplotype
         let mut posterior = m.event_posteriors();
         let mut wtr = csv::Writer::from_path(self.outcsv.as_ref().unwrap())?;
-        let mut haplotype_fractions = Vec::new();
+        wtr.write_record(&[
+            "density",
+            "odds",
+            "haplotype_a",
+            "haplotype_b",
+            "haplotype_c",
+        ])?; //depends upon the number of haplotypes
+
+        //write best record on top
+        let mut records = Vec::new();
         let best = posterior.next().unwrap();
         let best_density = best.1 .0.exp();
+        let best_odds = 1;
+        records.push(best_density.to_string());
+        records.push(best_odds.to_string());
 
         for haplotype in 0..n_of_haplotypes {
-            let frequencies = best.0;
-            haplotype_fractions.push(frequencies[haplotype]);
+            let haplotype_frequencies = best.0;
+            records.push(haplotype_frequencies[haplotype].to_string());
         }
-        wtr.serialize(Output {
-            haplotype_a: haplotype_fractions[0],
-            haplotype_b: haplotype_fractions[1],
-            haplotype_c: haplotype_fractions[2],
-            posterior: best_density,
-            odds_ratio: 1.0, //for the best record
-        })?;
+        wtr.write_record(records)?;
 
+        //write the rest of the records
         for (haplotype_frequencies, logprob) in posterior {
+            let mut records = Vec::new();
             let density = logprob.0.exp();
             let odds = density / best_density;
-            let mut haplotype_fractions = Vec::new();
+            records.push(density.to_string());
+            records.push(odds.to_string());
             for frequency in haplotype_frequencies.iter() {
-                haplotype_fractions.push(frequency);
+                records.push(frequency.to_string());
             }
-            wtr.serialize(Output {
-                haplotype_a: *haplotype_fractions[0],
-                haplotype_b: *haplotype_fractions[1],
-                haplotype_c: *haplotype_fractions[2],
-                posterior: density,
-                odds_ratio: odds,
-            })?;
+            wtr.write_record(records)?;
         }
         Ok(())
     }
