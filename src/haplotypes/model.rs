@@ -101,7 +101,6 @@ impl Likelihood {
         // in the data and the fractions in the events.
         //Later: use the cache to avoid redundant computations.
         event
-            .0
             .iter()
             .zip(data.kallisto_estimates.iter())
             .map(|(fraction, estimate)| {
