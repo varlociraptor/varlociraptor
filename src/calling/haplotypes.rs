@@ -34,11 +34,7 @@ impl Caller {
 
         // Step 3: calculate posteriors.
         //let m = model.compute(universe, &data);
-        //let n_of_haplotypes = 3;
-        let mut haplotypes = Vec::new();
-        for key in kallisto_estimates.keys() {
-            haplotypes.push(key);
-        }
+        let haplotypes: Vec<_> = kallisto_estimates.keys().map(|x| x.to_string()).collect();
         let m = model.compute_from_marginal(&Marginal::new(haplotypes.len()), &data);
 
         // Step 4: print TSV table with results
@@ -47,30 +43,28 @@ impl Caller {
         // with each column after the first showing the fraction of the respective haplotype
         let mut posterior = m.event_posteriors();
         let mut wtr = csv::Writer::from_path(self.outcsv.as_ref().unwrap())?;
-        let mut headers = vec!["density", "odds"];
-        for h in &haplotypes {
-            headers.push(h);   
-        }
-        wtr.write_record(&headers)?; //depends upon the number of haplotypes
+        let mut headers: Vec<_> = vec!["density".to_string(), "odds".to_string()];
+        headers.extend(haplotypes);
+        wtr.write_record(&headers)?;
 
         //write best record on top
         let mut records = Vec::new();
         let best = posterior.next().unwrap();
-        let best_density = best.1 .0.exp();
+        let (haplotype_frequencies, best_density) = posterior.next().unwrap();
+        let best_density = best_density.exp();
         let best_odds = 1;
         records.push(best_density.to_string());
         records.push(best_odds.to_string());
 
-        for haplotype in 0..haplotypes.len() {
-            let haplotype_frequencies = best.0;
-            records.push(haplotype_frequencies[haplotype].to_string());
+        for frequency in haplotype_frequencies.iter() {
+            records.push(frequency.to_string());
         }
         wtr.write_record(records)?;
 
         //write the rest of the records
-        for (haplotype_frequencies, logprob) in posterior {
+        for (haplotype_frequencies, density) in posterior {
             let mut records = Vec::new();
-            let density = logprob.0.exp();
+            let density = density.exp();
             let odds = density / best_density;
             records.push(density.to_string());
             records.push(odds.to_string());
