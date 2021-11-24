@@ -51,7 +51,7 @@ impl Marginal {
                 density,
                 NotNaN::new(0.0).unwrap(),
                 NotNaN::new(1.0).unwrap(),
-                NotNaN::new(0.01).unwrap(),
+                NotNaN::new(0.1).unwrap(),
             )
         }
     }

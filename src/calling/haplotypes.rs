@@ -34,8 +34,12 @@ impl Caller {
 
         // Step 3: calculate posteriors.
         //let m = model.compute(universe, &data);
-        let n_of_haplotypes = 3;
-        let m = model.compute_from_marginal(&Marginal::new(n_of_haplotypes), &data);
+        //let n_of_haplotypes = 3;
+        let mut haplotypes = Vec::new();
+        for key in kallisto_estimates.keys() {
+            haplotypes.push(key);
+        }
+        let m = model.compute_from_marginal(&Marginal::new(haplotypes.len()), &data);
 
         // Step 4: print TSV table with results
         // TODO use csv crate
@@ -43,13 +47,11 @@ impl Caller {
         // with each column after the first showing the fraction of the respective haplotype
         let mut posterior = m.event_posteriors();
         let mut wtr = csv::Writer::from_path(self.outcsv.as_ref().unwrap())?;
-        wtr.write_record(&[
-            "density",
-            "odds",
-            "haplotype_a",
-            "haplotype_b",
-            "haplotype_c",
-        ])?; //depends upon the number of haplotypes
+        let mut headers = vec!["density", "odds"];
+        for h in &haplotypes {
+            headers.push(h);   
+        }
+        wtr.write_record(&headers)?; //depends upon the number of haplotypes
 
         //write best record on top
         let mut records = Vec::new();
@@ -59,7 +61,7 @@ impl Caller {
         records.push(best_density.to_string());
         records.push(best_odds.to_string());
 
-        for haplotype in 0..n_of_haplotypes {
+        for haplotype in 0..haplotypes.len() {
             let haplotype_frequencies = best.0;
             records.push(haplotype_frequencies[haplotype].to_string());
         }
