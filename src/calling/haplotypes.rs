@@ -51,9 +51,8 @@ impl Caller {
         let mut records = Vec::new();
         let best = posterior.next().unwrap();
         let (haplotype_frequencies, best_density) = posterior.next().unwrap();
-        let best_density = best_density.exp();
         let best_odds = 1;
-        records.push(best_density.to_string());
+        records.push(best_density.exp().to_string());
         records.push(best_odds.to_string());
 
         for frequency in haplotype_frequencies.iter() {
@@ -64,9 +63,8 @@ impl Caller {
         //write the rest of the records
         for (haplotype_frequencies, density) in posterior {
             let mut records = Vec::new();
-            let density = density.exp();
-            let odds = density / best_density;
-            records.push(density.to_string());
+            let odds = (density - best_density).exp();
+            records.push(density.exp().to_string());
             records.push(odds.to_string());
             for frequency in haplotype_frequencies.iter() {
                 records.push(frequency.to_string());
