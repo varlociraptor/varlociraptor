@@ -84,6 +84,7 @@ impl Strand {
             b'+' => Strand::Forward,
             b'-' => Strand::Reverse,
             b'*' => Strand::Both,
+            b'.' => Strand::None,
             _ => {
                 return Err(Error::InvalidStrandInfo {
                     value: char::from_u32(item as u32).unwrap(),
