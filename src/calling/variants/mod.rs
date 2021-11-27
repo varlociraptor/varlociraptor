@@ -15,6 +15,7 @@ use bio::stats::{LogProb, PHREDProb};
 use bio_types::sequence::SequenceReadPairOrientation;
 use derive_builder::Builder;
 use itertools::Itertools;
+use ordered_float::OrderedFloat;
 use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
@@ -110,7 +111,7 @@ impl Call {
             record.set_id(id)?;
         }
 
-        let mut event_probs = HashMap::new();
+        let mut event_probs = Vec::new();
         let mut allelefreq_estimates = VecMap::new();
         let mut observations = VecMap::new();
         let mut simple_observations = VecMap::new();
@@ -135,8 +136,9 @@ impl Call {
             .as_ref()
             .expect("bug: event probs must be set")
         {
-            event_probs.insert(event, *prob);
+            event_probs.push((event, *prob));
         }
+        event_probs.sort_unstable_by_key(|(_, prob)| OrderedFloat(-prob.0));
 
         let no_obs = variant
             .sample_info
@@ -319,12 +321,12 @@ impl Call {
             |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob]);
         if is_missing_data {
             // missing data
-            for event in event_probs.keys() {
+            for (event, _) in event_probs {
                 push_prob(event, f32::missing())?;
             }
         } else {
             assert!(
-                !event_probs.values().any(|prob| prob.is_nan()),
+                !event_probs.iter().any(|(_, prob)| prob.is_nan()),
                 "bug: event probability is NaN but not all observations are empty for record at {}:{}",
                 str::from_utf8(&self.chrom).unwrap(),
                 self.pos + 1,
