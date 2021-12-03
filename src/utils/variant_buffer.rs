@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use anyhow::Result;
 use bio_types::genome::{AbstractLocus, Locus};
 use progress_logger::ProgressLogger;
@@ -13,11 +15,12 @@ pub(crate) struct VariantBuffer {
     variant_index: usize,
     record_infos: VecMap<RecordInfo>,
     locus: Option<Locus>,
-    next_locus_record: Option<bcf::Record>,
+    next_locus_record: Option<Cell<bcf::Record>>,
     progress_logger: ProgressLogger,
     skips: utils::SimpleCounter<utils::collect_variants::SkipReason>,
     log_each_record: bool,
-    record_index: usize,
+    record_index: isize,
+    state: State,
 }
 
 impl VariantBuffer {
@@ -36,118 +39,205 @@ impl VariantBuffer {
             progress_logger,
             skips: utils::SimpleCounter::default(),
             log_each_record,
-            record_index: 0,
+            record_index: -1,
+            state: State::Init,
         }
     }
 
     pub(crate) fn next(&mut self) -> Result<Option<Variants>> {
+        if self.skips.total_count() > 0 && self.skips.total_count() % 100 == 0 {
+            self.display_skips();
+        }
         loop {
-            if self.variants.is_empty() {
-                // Step 1: start new locus
-                if let Some(mut record) = self.next_locus_record.take() {
-                    self.add_variants(&mut record)?;
-                    self.locus = Some(self.locus(&record));
-                    self.next_locus_record = None;
-                }
-            }
-
-            let mut end_of_file = false;
-
-            // Step 2: read until next locus is reached
-            loop {
-                let mut record = self.reader.empty_record();
-                match self.reader.read(&mut record) {
-                    None => {
-                        end_of_file = true;
-                        break;
-                    }
-                    Some(res) => res?,
-                }
-                let record_locus = self.locus(&record);
-                self.progress_logger.update(1u64);
-                dbg!(&self.variants);
-
-                if self.log_each_record {
-                    info!(
-                        "Processing record at {}:{}",
-                        record.contig(),
-                        record.pos() + 1
-                    );
-                }
-
-                if let Some(ref current_locus) = self.locus {
-                    if record_locus != *current_locus {
-                        if record_locus.contig() == current_locus.contig()
-                            && record_locus.pos() > current_locus.pos()
-                        {
-                            return Err(errors::Error::UnsortedVariantFile.into());
-                        }
-                        // new locus, store and stop
-                        self.next_locus_record = Some(record);
-                        self.record_index += 1;
-                        break;
-                    }
-                } else {
-                    // no locus yet, record this one
-                    self.locus = Some(record_locus);
-                }
-
-                self.add_variants(&mut record)?;
-
-                if self.skips.total_count() > 0 && self.skips.total_count() % 100 == 0 {
-                    self.display_skips();
-                }
-                self.record_index += 1;
-            }
-            dbg!(&self.variants);
-
-            if let Some(ref locus) = self.locus {
-                // Step 3: return slices
-                let variant_index = self.variant_index;
-                dbg!((variant_index, self.variants.len()));
-                self.variant_index += 1; // move to next for next call
-
-                if variant_index >= self.variants.len() {
-                    // all variants returned, clear and prepare for next locus
-                    self.variants.clear();
-
-                    if variant_index > 0 {
-                        self.variant_index = 0;
-                        
-                    }
-                    continue;
-                }
-
-                if end_of_file {
-                    self.display_skips();
-                }
-                dbg!(&self.variants);
-
-                return Ok(Some(Variants {
-                    variant_of_interest: &self.variants[variant_index],
-                    before: &self.variants[..variant_index],
-                    after: if variant_index < self.variants.len() {
-                        &self.variants[variant_index + 1..]
+            dbg!(self.state);
+            match self.state {
+                State::Init => {
+                    self.next_locus_record = self.next_record()?;
+                    if self.next_locus_record.is_none() {
+                        return Ok(None); // empty file
                     } else {
-                        &self.variants[..0] // generate empty slice
-                    },
-                    locus: locus.clone(),
-                    record_info: self.record_infos.get(variant_index).unwrap(),
-                }));
-            } else {
-                if end_of_file {
-                    self.display_skips();
+                        self.state = State::InitLocus;
+                    }
                 }
-                return Ok(None);
+                State::InitLocus => {
+                    self.variants.clear();
+                    self.variant_index = 0;
+                    self.locus = Some(self.locus(self.next_locus_record.as_ref().unwrap()));
+                    self.add_variants(self.next_locus_record.as_mut().unwrap())?;
+                    self.state = State::LocusInProgress;
+                }
+                State::LocusInProgress => {
+                    if let Some(mut record) = self.next_record()? {
+                        let locus = self.locus(&record);
+
+                        if locus != *self.locus.as_ref().unwrap() {
+                            self.state = State::LocusComplete;
+                            self.next_locus_record = Some(record);
+                        } else {
+                            self.add_variants(&mut record)?;
+                        }
+                    } else {
+                        self.state = State::LocusComplete;
+                    }
+                }
+                State::LocusComplete => {
+                    if self.variant_index < self.variants.len() {
+                        // yield next variant
+                        let variant_index = self.variant_index;
+                        self.variant_index += 1;
+
+                        return Ok(Some(Variants {
+                            variant_of_interest: &self.variants[variant_index],
+                            before: &self.variants[..variant_index],
+                            after: if variant_index < self.variants.len() {
+                                &self.variants[variant_index + 1..]
+                            } else {
+                                &self.variants[..0] // generate empty slice
+                            },
+                            locus: self.locus.clone().unwrap(),
+                            record_info: self.record_infos.get(variant_index).unwrap(),
+                        }));
+                    } else if self.next_locus_record.is_some() {
+                        self.state = State::InitLocus;
+                    } else {
+                        self.display_skips();
+                        return Ok(None); // end of file
+                    }
+                }
             }
         }
     }
+    
+    fn next_record(&mut self) -> Result<Option<bcf::Record>> {
+        let mut record = self.reader.empty_record();
+        match self.reader.read(&mut record) {
+            None => {
+                Ok(None)
+            }
+            Some(res) => {
+                res?;
+                self.record_index += 1;
+                if self.log_each_record {
+                    info!(
+                        "Processing record {} at {}:{}",
+                        self.record_index,
+                        record.contig(),
+                        record.pos() + 1,
+                    );
+                }
+                self.progress_logger.update(1u64);
+                Ok(Some(record))
+            },
+        }
+    }
+
+    // pub(crate) fn next(&mut self) -> Result<Option<Variants>> {
+    //     loop {
+    //         if self.variants.is_empty() {
+    //             // Step 1: start new locus
+    //             if let Some(mut record) = self.next_locus_record.take() {
+    //                 self.add_variants(&mut record)?;
+    //                 self.locus = Some(self.locus(&record));
+    //                 self.next_locus_record = None;
+    //             }
+    //         }
+
+    //         let mut end_of_file = false;
+
+    //         // Step 2: read until next locus is reached
+    //         loop {
+    //             let mut record = self.reader.empty_record();
+    //             match self.reader.read(&mut record) {
+    //                 None => {
+    //                     end_of_file = true;
+    //                     break;
+    //                 }
+    //                 Some(res) => res?,
+    //             }
+    //             let record_locus = self.locus(&record);
+    //             self.progress_logger.update(1u64);
+    //             dbg!(&self.variants);
+
+    //             if self.log_each_record {
+    //                 info!(
+    //                     "Processing record at {}:{}",
+    //                     record.contig(),
+    //                     record.pos() + 1
+    //                 );
+    //             }
+
+    //             if let Some(ref current_locus) = self.locus {
+    //                 if record_locus != *current_locus {
+    //                     if record_locus.contig() == current_locus.contig()
+    //                         && record_locus.pos() > current_locus.pos()
+    //                     {
+    //                         return Err(errors::Error::UnsortedVariantFile.into());
+    //                     }
+    //                     // new locus, store and stop
+    //                     self.next_locus_record = Some(record);
+    //                     self.record_index += 1;
+    //                     break;
+    //                 }
+    //             } else {
+    //                 // no locus yet, record this one
+    //                 self.locus = Some(record_locus);
+    //             }
+
+    //             self.add_variants(&mut record)?;
+
+    //             if self.skips.total_count() > 0 && self.skips.total_count() % 100 == 0 {
+    //                 self.display_skips();
+    //             }
+    //             self.record_index += 1;
+    //         }
+    //         dbg!(&self.variants);
+
+    //         if let Some(ref locus) = self.locus {
+    //             // Step 3: return slices
+    //             let variant_index = self.variant_index;
+    //             dbg!((variant_index, self.variants.len()));
+    //             self.variant_index += 1; // move to next for next call
+
+    //             if variant_index >= self.variants.len() {
+    //                 // all variants returned, clear and prepare for next locus
+    //                 self.variants.clear();
+
+    //                 if variant_index > 0 {
+    //                     self.variant_index = 0;
+                        
+    //                 }
+    //                 continue;
+    //             }
+
+    //             if end_of_file {
+    //                 self.display_skips();
+    //             }
+    //             dbg!(&self.variants);
+
+    //             return Ok(Some(Variants {
+    //                 variant_of_interest: &self.variants[variant_index],
+    //                 before: &self.variants[..variant_index],
+    //                 after: if variant_index < self.variants.len() {
+    //                     &self.variants[variant_index + 1..]
+    //                 } else {
+    //                     &self.variants[..0] // generate empty slice
+    //                 },
+    //                 locus: locus.clone(),
+    //                 record_info: self.record_infos.get(variant_index).unwrap(),
+    //             }));
+    //         } else {
+    //             if end_of_file {
+    //                 self.display_skips();
+    //             }
+    //             return Ok(None);
+    //         }
+    //     }
+    // }
 
     fn add_variants(&mut self, record: &mut bcf::Record) -> Result<()> {
         let variants = utils::collect_variants(record, true, Some(&mut self.skips))?;
-        dbg!(&variants);
         let record_info = RecordInfo::new(
-            self.record_index,
+            self.record_index as usize,
             record.id(),
             utils::info_tag_mateid(record).unwrap_or(None),
         );
@@ -156,7 +246,6 @@ impl VariantBuffer {
         }
 
         self.variants.extend(variants);
-        dbg!(&self.variants);
 
         Ok(())
     }
@@ -199,8 +288,10 @@ pub(crate) struct RecordInfo {
 }
 
 
+#[derive(Debug, Clone, Copy)]
 enum State {
     Init,
+    InitLocus,
     LocusInProgress,
     LocusComplete,
 }
