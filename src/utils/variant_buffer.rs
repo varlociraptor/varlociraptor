@@ -68,10 +68,16 @@ impl VariantBuffer {
                 State::LocusInProgress => {
                     self.next_record()?;
                     if self.current_record.is_none() {
+                        // EOF
                         self.state = State::LocusComplete;
                     } else {
+                        let previous_locus = self.locus.as_ref().unwrap();
                         let locus = self.locus(self.current_record.as_ref().unwrap());
-                        if locus != *self.locus.as_ref().unwrap() {
+                        if locus != *previous_locus {
+                            if locus.contig() == previous_locus.contig() && locus.pos() < previous_locus.pos() {
+                                // unsorted input file, fail with an error
+                                return Err(errors::Error::UnsortedVariantFile.into());
+                            }
                             self.state = State::LocusComplete;
                         } else {
                             self.add_variants()?;
