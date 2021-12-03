@@ -35,7 +35,6 @@ pub(crate) struct Deletion<R: Realigner> {
     fetch_loci: MultiLocus,
     realigner: RefCell<R>,
     homopolymer: Option<Range<u64>>,
-    alt_variants: Vec<Box<dyn Realignable<EmissionParams = dyn RefBaseVariantEmission>>>,
 }
 
 impl<R: Realigner> Deletion<R> {
@@ -81,7 +80,6 @@ impl<R: Realigner> Deletion<R> {
             fetch_loci,
             realigner: RefCell::new(realigner),
             homopolymer,
-            alt_variants: Vec::new(), // TODO
         })
     }
 
