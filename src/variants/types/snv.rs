@@ -14,6 +14,7 @@ use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
+use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
@@ -25,7 +26,6 @@ use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
-use crate::{default_emission, default_ref_base_emission};
 
 pub(crate) struct Snv<R: Realigner> {
     locus: SingleLocus,
@@ -48,16 +48,15 @@ impl<R: Realigner> Snv<R> {
     }
 }
 
-impl<'a, R: Realigner> Realignable<'a> for Snv<R> {
-    type EmissionParams = SnvEmissionParams<'a>;
+impl<R: Realigner> Realignable for Snv<R> {
+    type EmissionParams = SnvEmissionParams;
 
     fn alt_emission_params(
         &self,
-        read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<SnvEmissionParams<'a>>> {
+    ) -> Result<Vec<SnvEmissionParams>> {
         let start = self.locus.range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
@@ -69,7 +68,6 @@ impl<'a, R: Realigner> Realignable<'a> for Snv<R> {
             ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
             alt_start: start,
             alt_base: self.alt_base,
-            read_emission: read_emission_params,
         }])
     }
 }
@@ -165,16 +163,15 @@ impl<R: Realigner> Variant for Snv<R> {
 }
 
 /// Emission parameters for PairHMM over insertion allele.
-pub(crate) struct SnvEmissionParams<'a> {
+pub(crate) struct SnvEmissionParams {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
     alt_start: usize,
     alt_base: u8,
-    read_emission: Rc<ReadEmission<'a>>,
 }
 
-impl<'a> RefBaseEmission for SnvEmissionParams<'a> {
+impl RefBaseEmission for SnvEmissionParams {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -190,19 +187,15 @@ impl<'a> RefBaseEmission for SnvEmissionParams<'a> {
         None
     }
 
-    default_ref_base_emission!();
-}
-
-impl<'a> EmissionParameters for SnvEmissionParams<'a> {
-    default_emission!();
-
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
     }
+
+    default_ref_base_emission!();
 }
 
-impl<'a> VariantEmission for SnvEmissionParams<'a> {
+impl VariantEmission for SnvEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         false
     }

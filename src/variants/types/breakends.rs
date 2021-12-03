@@ -23,6 +23,7 @@ use rust_htslib::bam;
 use rust_htslib::bcf::{self, Read};
 use vec_map::VecMap;
 
+use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
@@ -36,7 +37,6 @@ use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
     AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, SingleLocusBuilder, Variant,
 };
-use crate::{default_emission, default_ref_base_emission};
 
 const MIN_REF_BASES: u64 = 10;
 
@@ -398,8 +398,8 @@ impl<R: Realigner> SamplingBias for BreakendGroup<R> {
 
 impl<R: Realigner> ReadSamplingBias for BreakendGroup<R> {}
 
-impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
-    type EmissionParams = BreakendEmissionParams<'a>;
+impl<R: Realigner> Realignable for BreakendGroup<R> {
+    type EmissionParams = BreakendEmissionParams;
 
     fn maybe_revcomp(&self) -> bool {
         self.breakends.values().any(|bnd| bnd.emits_revcomp())
@@ -407,11 +407,10 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
 
     fn alt_emission_params(
         &self,
-        read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<BreakendEmissionParams<'a>>> {
+    ) -> Result<Vec<BreakendEmissionParams>> {
         // Step 1: fetch contained breakends
         let mut emission_params = Vec::new();
 
@@ -615,7 +614,6 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
                     ref_offset: 0,
                     ref_end: alt_allele.len(),
                     alt_allele: Arc::clone(alt_allele),
-                    read_emission: Rc::clone(&read_emission_params),
                 });
             }
         }
@@ -651,14 +649,13 @@ impl AltAllele {
     }
 }
 
-pub(crate) struct BreakendEmissionParams<'a> {
+pub(crate) struct BreakendEmissionParams {
     alt_allele: Arc<AltAllele>,
     ref_offset: usize,
     ref_end: usize,
-    read_emission: Rc<ReadEmission<'a>>,
 }
 
-impl<'a> RefBaseEmission for BreakendEmissionParams<'a> {
+impl RefBaseEmission for BreakendEmissionParams {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         self.alt_allele[i]
@@ -668,19 +665,15 @@ impl<'a> RefBaseEmission for BreakendEmissionParams<'a> {
         None
     }
 
-    default_ref_base_emission!();
-}
-
-impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
-    default_emission!();
-
     #[inline]
     fn len_x(&self) -> usize {
         self.alt_allele.len()
     }
+
+    default_ref_base_emission!();
 }
 
-impl<'a> VariantEmission for BreakendEmissionParams<'a> {
+impl VariantEmission for BreakendEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         false
     }

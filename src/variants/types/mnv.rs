@@ -14,6 +14,7 @@ use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
+use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
@@ -26,7 +27,6 @@ use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, Overlap, SingleEndEvidence, SingleLocus, Variant,
 };
-use crate::{default_emission, default_ref_base_emission};
 
 pub(crate) struct Mnv<R: Realigner> {
     locus: SingleLocus,
@@ -54,16 +54,15 @@ impl<R: Realigner> Mnv<R> {
     }
 }
 
-impl<'a, R: Realigner> Realignable<'a> for Mnv<R> {
-    type EmissionParams = MnvEmissionParams<'a>;
+impl<R: Realigner> Realignable for Mnv<R> {
+    type EmissionParams = MnvEmissionParams;
 
     fn alt_emission_params(
         &self,
-        read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<MnvEmissionParams<'a>>> {
+    ) -> Result<Vec<MnvEmissionParams>> {
         let start = self.locus.range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
@@ -76,7 +75,6 @@ impl<'a, R: Realigner> Realignable<'a> for Mnv<R> {
             alt_start: start,
             alt_end: self.locus.range().end as usize,
             alt_seq: Rc::clone(&self.alt_bases),
-            read_emission: read_emission_params,
         }])
     }
 }
@@ -204,17 +202,16 @@ impl<R: Realigner> Variant for Mnv<R> {
 }
 
 /// Emission parameters for PairHMM over insertion allele.
-pub(crate) struct MnvEmissionParams<'a> {
+pub(crate) struct MnvEmissionParams {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
     alt_start: usize,
     alt_end: usize, // exclusive end
     alt_seq: Rc<Vec<u8>>,
-    read_emission: Rc<ReadEmission<'a>>,
 }
 
-impl<'a> RefBaseEmission for MnvEmissionParams<'a> {
+impl RefBaseEmission for MnvEmissionParams {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -230,19 +227,15 @@ impl<'a> RefBaseEmission for MnvEmissionParams<'a> {
         None
     }
 
-    default_ref_base_emission!();
-}
-
-impl<'a> EmissionParameters for MnvEmissionParams<'a> {
-    default_emission!();
-
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
     }
+
+    default_ref_base_emission!();
 }
 
-impl<'a> VariantEmission for MnvEmissionParams<'a> {
+impl VariantEmission for MnvEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         false
     }

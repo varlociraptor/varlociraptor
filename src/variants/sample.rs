@@ -233,6 +233,7 @@ impl Sample {
         L: variants::types::Loci,
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
+        dbg!("extract");
         let observations = variant.extract_observations(
             &mut self.record_buffer,
             &mut self.alignment_properties,
