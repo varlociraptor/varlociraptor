@@ -27,8 +27,8 @@ use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
-use crate::utils::MiniLogProb;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
+use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{
     Observation, ObservationBuilder, ReadPosition, Strand,
@@ -155,10 +155,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .with_frequency(std::time::Duration::from_secs(20))
             .start();
 
-        let mut variant_buffer = VariantBuffer::new(bcf_reader, progress_logger, self.log_each_record);
+        let mut variant_buffer =
+            VariantBuffer::new(bcf_reader, progress_logger, self.log_each_record);
         let mut bcf_writer = self.writer()?;
         bcf_writer.set_threads(1)?;
-        
 
         let mut bam_reader =
             bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
@@ -220,7 +220,11 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             // add variant information
             call.variant = Some(
                 VariantBuilder::default()
-                    .variant(variants.variant_of_interest(), variants.locus().pos() as usize, Some(chrom_seq.as_ref()))
+                    .variant(
+                        variants.variant_of_interest(),
+                        variants.locus().pos() as usize,
+                        Some(chrom_seq.as_ref()),
+                    )
                     .observations(Some(pileup))
                     .build()
                     .unwrap(),
@@ -315,7 +319,10 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 variants.locus().clone(),
                 self.reference_buffer
                     .seq(variants.locus().contig())?
-                    .get(variants.locus().pos() as usize..variants.locus().pos() as usize + alt.len())
+                    .get(
+                        variants.locus().pos() as usize
+                            ..variants.locus().pos() as usize + alt.len(),
+                    )
                     .ok_or_else(|| -> anyhow::Error {
                         errors::invalid_bcf_record(
                             variants.locus().contig(),
@@ -328,27 +335,36 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 alt.to_owned(),
                 self.realigner.clone(),
             ))?,
-            model::Variant::None => {
-                sample.extract_observations(&variants::types::None::new(variants.locus().clone(), ref_base()?))?
-            }
+            model::Variant::None => sample.extract_observations(&variants::types::None::new(
+                variants.locus().clone(),
+                ref_base()?,
+            ))?,
             model::Variant::Deletion(l) => sample.extract_observations(
                 &variants::types::Deletion::new(interval(*l), self.realigner.clone())?,
             )?,
-            model::Variant::Insertion(seq) => sample.extract_observations(
-                &variants::types::Insertion::new(variants.locus().clone(), seq.to_owned(), self.realigner.clone())?,
-            )?,
+            model::Variant::Insertion(seq) => {
+                sample.extract_observations(&variants::types::Insertion::new(
+                    variants.locus().clone(),
+                    seq.to_owned(),
+                    self.realigner.clone(),
+                )?)?
+            }
             model::Variant::Inversion(len) => {
                 sample.extract_observations(&variants::types::Inversion::new(
                     interval(*len),
                     self.realigner.clone(),
-                    self.reference_buffer.seq(variants.locus().contig())?.as_ref(),
+                    self.reference_buffer
+                        .seq(variants.locus().contig())?
+                        .as_ref(),
                 ))?
             }
             model::Variant::Duplication(len) => {
                 sample.extract_observations(&variants::types::Duplication::new(
                     interval(*len),
                     self.realigner.clone(),
-                    self.reference_buffer.seq(variants.locus().contig())?.as_ref(),
+                    self.reference_buffer
+                        .seq(variants.locus().contig())?
+                        .as_ref(),
                 ))?
             }
             model::Variant::Replacement {
