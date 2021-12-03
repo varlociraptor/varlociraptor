@@ -473,6 +473,13 @@ pub enum CallKind {
             )]
         haplotype_variants: PathBuf,
         #[structopt(
+            parse(from_os_str),
+            long = "haplotype-calls",
+            required = true,
+            help = "Haplotype calls"
+        )]
+        haplotype_calls: PathBuf,
+        #[structopt(
             default_value = "0.001",
             help = "Minimum value for normalized Kallisto counts."
         )]
@@ -1003,12 +1010,14 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 CallKind::HaplotypeCalls {
                     haplotype_counts,
                     haplotype_variants,
+                    haplotype_calls,
                     output,
                     min_norm_counts,
                 } => {
-                    let caller = calling::haplotypes::CallerBuilder::default()
+                    let mut caller = calling::haplotypes::CallerBuilder::default()
                         .hdf5_reader(hdf5::File::open(&haplotype_counts)?)
-                        .vcf_reader(bcf::Reader::from_path(&haplotype_variants)?)
+                        .haplotype_variants(bcf::Reader::from_path(&haplotype_variants)?)
+                        .haplotype_calls(bcf::Reader::from_path(&haplotype_calls)?)
                         .min_norm_counts(min_norm_counts)
                         .outcsv(output)
                         .build()
