@@ -102,6 +102,7 @@ impl<R: Realigner> Variant for Mnv<R> {
         &self,
         read: &SingleEndEvidence,
         _: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         if utils::contains_indel_op(&**read) {
             // METHOD: reads containing indel operations should always be realigned,
@@ -111,6 +112,7 @@ impl<R: Realigner> Variant for Mnv<R> {
                 &**read,
                 [&self.locus].iter(),
                 self,
+                alt_variants,
             )?))
         } else {
             let mut prob_ref = LogProb::ln_one();

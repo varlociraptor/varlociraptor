@@ -118,8 +118,9 @@ impl<R: Realigner> Variant for Duplication<R> {
         &self,
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
-        let support = (**self).allele_support(evidence, alignment_properties)?;
+        let support = (**self).allele_support(evidence, alignment_properties, alt_variants)?;
 
         Ok(support)
     }

@@ -397,58 +397,60 @@ where
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<Observation>> {
-        Ok(match self.allele_support(evidence, alignment_properties)? {
-            // METHOD: only consider allele support if it comes either from forward or reverse strand.
-            // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
-            // any information (e.g. no overlap).
-            Some(allele_support) if allele_support.strand() != Strand::None => {
-                let read_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
+        Ok(
+            match self.allele_support(evidence, alignment_properties, alt_variants)? {
+                // METHOD: only consider allele support if it comes either from forward or reverse strand.
+                // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
+                // any information (e.g. no overlap).
+                Some(allele_support) if allele_support.strand() != Strand::None => {
+                    let read_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
-                let mut obs = ObservationBuilder::default();
-                obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
-                    .prob_mapping_mismapping(self.prob_mapping(evidence))
-                    .prob_alt(allele_support.prob_alt_allele())
-                    .prob_ref(allele_support.prob_ref_allele())
-                    .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
-                    .prob_missed_allele(allele_support.prob_missed_allele())
-                    .prob_overlap(if allele_support.strand() == Strand::Both {
-                        LogProb::ln_one()
+                    let mut obs = ObservationBuilder::default();
+                    obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
+                        .prob_mapping_mismapping(self.prob_mapping(evidence))
+                        .prob_alt(allele_support.prob_alt_allele())
+                        .prob_ref(allele_support.prob_ref_allele())
+                        .prob_sample_alt(self.prob_sample_alt(evidence, alignment_properties))
+                        .prob_missed_allele(allele_support.prob_missed_allele())
+                        .prob_overlap(if allele_support.strand() == Strand::Both {
+                            LogProb::ln_one()
+                        } else {
+                            LogProb::ln_zero()
+                        })
+                        .strand(allele_support.strand())
+                        .read_orientation(evidence.read_orientation()?)
+                        .softclipped(evidence.softclipped())
+                        .read_position(allele_support.read_position())
+                        .paired(evidence.is_paired())
+                        .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()));
+
+                    if let Some(homopolymer_error_model) = homopolymer_error_model {
+                        let ref_indel_len = read_indel_len
+                            + homopolymer_error_model.variant_homopolymer_indel_len();
+                        if ref_indel_len == 0 {
+                            // no homopolymer indel in read compared to reference
+                            obs.homopolymer_indel_len(None)
+                                .prob_observable_at_homopolymer_artifact(None);
+                        } else {
+                            obs.homopolymer_indel_len(Some(read_indel_len))
+                                .prob_observable_at_homopolymer_artifact(if ref_indel_len == 0 {
+                                    unreachable!("caught above");
+                                } else if ref_indel_len > 0 {
+                                    Some(homopolymer_error_model.prob_homopolymer_insertion())
+                                } else {
+                                    Some(homopolymer_error_model.prob_homopolymer_deletion())
+                                });
+                        }
                     } else {
-                        LogProb::ln_zero()
-                    })
-                    .strand(allele_support.strand())
-                    .read_orientation(evidence.read_orientation()?)
-                    .softclipped(evidence.softclipped())
-                    .read_position(allele_support.read_position())
-                    .paired(evidence.is_paired())
-                    .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()));
-
-                if let Some(homopolymer_error_model) = homopolymer_error_model {
-                    let ref_indel_len =
-                        read_indel_len + homopolymer_error_model.variant_homopolymer_indel_len();
-                    if ref_indel_len == 0 {
-                        // no homopolymer indel in read compared to reference
                         obs.homopolymer_indel_len(None)
                             .prob_observable_at_homopolymer_artifact(None);
-                    } else {
-                        obs.homopolymer_indel_len(Some(read_indel_len))
-                            .prob_observable_at_homopolymer_artifact(if ref_indel_len == 0 {
-                                unreachable!("caught above");
-                            } else if ref_indel_len > 0 {
-                                Some(homopolymer_error_model.prob_homopolymer_insertion())
-                            } else {
-                                Some(homopolymer_error_model.prob_homopolymer_deletion())
-                            });
                     }
-                } else {
-                    obs.homopolymer_indel_len(None)
-                        .prob_observable_at_homopolymer_artifact(None);
-                }
 
-                Some(obs.build().unwrap())
-            }
-            _ => None,
-        })
+                    Some(obs.build().unwrap())
+                }
+                _ => None,
+            },
+        )
     }
 }
 

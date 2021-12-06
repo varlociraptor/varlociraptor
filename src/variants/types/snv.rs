@@ -95,6 +95,7 @@ impl<R: Realigner> Variant for Snv<R> {
         &self,
         read: &SingleEndEvidence,
         _: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         if utils::contains_indel_op(&**read) {
             // METHOD: reads containing indel operations should always be realigned,
@@ -104,6 +105,7 @@ impl<R: Realigner> Variant for Snv<R> {
                 &**read,
                 [&self.locus].iter(),
                 self,
+                alt_variants,
             )?))
         } else if let Some(qpos) = read
             .cigar_cached()

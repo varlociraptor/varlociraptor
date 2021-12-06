@@ -238,13 +238,17 @@ impl<R: Realigner> Variant for Deletion<R> {
         &self,
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => Ok(Some(
-                self.realigner
-                    .borrow_mut()
-                    .allele_support(record, &[&self.locus], self)?,
-            )),
+            PairedEndEvidence::SingleEnd(record) => {
+                Ok(Some(self.realigner.borrow_mut().allele_support(
+                    record,
+                    &[&self.locus],
+                    self,
+                    alt_variants,
+                )?))
+            }
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
                 // Here we calculate the product of insert size based and alignment based probabilities.
@@ -260,14 +264,18 @@ impl<R: Realigner> Variant for Deletion<R> {
                 // * Since there is only one observation per fragment, there is no double counting when
                 //   estimating allele frequencies. Before, we had one observation for an overlapping read
                 //   and potentially another observation for the corresponding fragment.
-                let left_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(left, &[&self.locus], self)?;
-                let right_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(right, &[&self.locus], self)?;
+                let left_support = self.realigner.borrow_mut().allele_support(
+                    left,
+                    &[&self.locus],
+                    self,
+                    alt_variants,
+                )?;
+                let right_support = self.realigner.borrow_mut().allele_support(
+                    right,
+                    &[&self.locus],
+                    self,
+                    alt_variants,
+                )?;
 
                 let mut support = left_support;
                 support.merge(&right_support);

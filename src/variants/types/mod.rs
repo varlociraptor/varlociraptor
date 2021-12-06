@@ -134,6 +134,7 @@ pub(crate) trait Variant {
         &self,
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>>;
 
     /// Calculate probability to sample a record length like the given one from the alt allele.

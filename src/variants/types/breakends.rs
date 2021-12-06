@@ -302,22 +302,30 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
         &self,
         evidence: &Self::Evidence,
         _: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => Ok(Some(
-                self.realigner
-                    .borrow_mut()
-                    .allele_support(record, self.loci.iter(), self)?,
-            )),
+            PairedEndEvidence::SingleEnd(record) => {
+                Ok(Some(self.realigner.borrow_mut().allele_support(
+                    record,
+                    self.loci.iter(),
+                    self,
+                    alt_variants,
+                )?))
+            }
             PairedEndEvidence::PairedEnd { left, right } => {
-                let left_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(left, self.loci.iter(), self)?;
-                let right_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(right, self.loci.iter(), self)?;
+                let left_support = self.realigner.borrow_mut().allele_support(
+                    left,
+                    self.loci.iter(),
+                    self,
+                    alt_variants,
+                )?;
+                let right_support = self.realigner.borrow_mut().allele_support(
+                    right,
+                    self.loci.iter(),
+                    self,
+                    alt_variants,
+                )?;
 
                 let mut support = left_support;
 

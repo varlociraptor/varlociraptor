@@ -168,6 +168,7 @@ pub(crate) trait Realigner {
         record: &'a bam::Record,
         loci: L,
         variant: &V,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<AlleleSupport>
     where
         V: Realignable,
@@ -247,18 +248,35 @@ pub(crate) trait Realigner {
             let mut edit_dist =
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
 
-            // ref allele
-            let (mut prob_ref, _) = self.prob_allele(
-                &mut [ReadVsAlleleEmission::new(
-                    &read_emission,
-                    Box::new(ReferenceEmissionParams {
-                        ref_seq: Arc::clone(&ref_seq),
-                        ref_offset: region.ref_interval.start,
-                        ref_end: region.ref_interval.end,
-                    }),
-                )],
-                &mut edit_dist,
-            );
+            // Prepare reference alleles (the actual reference and any alt variants).
+            let mut ref_emissions = vec![ReadVsAlleleEmission::new(
+                &read_emission,
+                Box::new(ReferenceEmissionParams {
+                    ref_seq: Arc::clone(&ref_seq),
+                    ref_offset: region.ref_interval.start,
+                    ref_end: region.ref_interval.end,
+                }),
+            )];
+            for variant in alt_variants {
+                ref_emissions.extend(
+                    variant
+                        .alt_emission_params(
+                            Arc::clone(self.ref_buffer()),
+                            &genome::Interval::new(
+                                record.contig().to_owned(),
+                                region.ref_interval.start as u64..region.ref_interval.end as u64,
+                            ),
+                            self.ref_window(),
+                        )?
+                        .into_iter()
+                        .map(|allele_emission| {
+                            ReadVsAlleleEmission::new(&read_emission, allele_emission)
+                        }),
+                );
+            }
+
+            // ref allele (or one of the alt variants)
+            let (mut prob_ref, _) = self.prob_allele(&mut ref_emissions, &mut edit_dist);
 
             let (mut prob_alt, alt_hit) = self.prob_allele(
                 &mut variant
