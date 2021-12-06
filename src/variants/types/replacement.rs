@@ -19,7 +19,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{
-    ReadEmission, RefBaseEmission, VariantEmission,
+    ReadEmission, RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
@@ -67,14 +67,12 @@ impl<R: Realigner> Replacement<R> {
 }
 
 impl<R: Realigner> Realignable for Replacement<R> {
-    type EmissionParams = ReplacementEmissionParams;
-
     fn alt_emission_params(
         &self,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<ReplacementEmissionParams>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         let repl_alt_len = self.replacement.len() as usize;
         let repl_ref_len = self.ref_len();
 
@@ -84,7 +82,7 @@ impl<R: Realigner> Realignable for Replacement<R> {
 
         let ref_seq_len = ref_seq.len();
 
-        Ok(vec![ReplacementEmissionParams {
+        Ok(vec![Box::new(ReplacementEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + repl_ref_len + ref_window, ref_seq_len),
@@ -94,7 +92,7 @@ impl<R: Realigner> Realignable for Replacement<R> {
             repl_ref_len,
             repl_seq: Rc::clone(&self.replacement),
             is_homopolymer_indel: self.homopolymer_indel_len.is_some(),
-        }])
+        })])
     }
 }
 

@@ -53,14 +53,11 @@ impl EditDistanceCalculation {
 
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
     /// We use the best edit distance and add 5.
-    pub(crate) fn calc_best_hit<E>(
+    pub(crate) fn calc_best_hit(
         &mut self,
-        emission_params: &ReadVsAlleleEmission<E>,
+        emission_params: &ReadVsAlleleEmission,
         max_dist: Option<usize>,
-    ) -> Option<EditDistanceHit>
-    where
-        E: RefBaseVariantEmission,
-    {
+    ) -> Option<EditDistanceHit> {
         let ref_seq = || {
             (0..emission_params.len_x()).map(|i| emission_params.ref_base(i).to_ascii_uppercase())
         };

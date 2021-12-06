@@ -21,6 +21,7 @@ use crate::reference;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observation::Strand;
+use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
@@ -55,27 +56,25 @@ impl<R: Realigner> Mnv<R> {
 }
 
 impl<R: Realigner> Realignable for Mnv<R> {
-    type EmissionParams = MnvEmissionParams;
-
     fn alt_emission_params(
         &self,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<MnvEmissionParams>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         let start = self.locus.range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
         let ref_seq_len = ref_seq.len();
-        Ok(vec![MnvEmissionParams {
+        Ok(vec![Box::new(MnvEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + self.alt_bases.len() + ref_window, ref_seq_len),
             alt_start: start,
             alt_end: self.locus.range().end as usize,
             alt_seq: Rc::clone(&self.alt_bases),
-        }])
+        })])
     }
 }
 

@@ -30,6 +30,9 @@ use crate::utils::{PROB_05, PROB_09, PROB_095};
 use crate::variants::sample;
 use crate::variants::types::Variant;
 
+use super::realignment::pairhmm::RefBaseVariantEmission;
+use super::realignment::Realignable;
+
 /// Calculate expected value of sequencing depth, considering mapping quality.
 pub(crate) fn expected_depth(obs: &[Observation<ReadPosition>]) -> u32 {
     LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec())
@@ -379,6 +382,7 @@ where
         buffer: &mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Vec<Observation>>;
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
@@ -391,6 +395,7 @@ where
         evidence: &E,
         alignment_properties: &mut AlignmentProperties,
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<Observation>> {
         Ok(match self.allele_support(evidence, alignment_properties)? {
             // METHOD: only consider allele support if it comes either from forward or reverse strand.

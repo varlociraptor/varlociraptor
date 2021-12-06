@@ -154,26 +154,24 @@ impl<R: Realigner> FragmentSamplingBias for Deletion<R> {}
 impl<R: Realigner> ReadSamplingBias for Deletion<R> {}
 
 impl<R: Realigner> Realignable for Deletion<R> {
-    type EmissionParams = DeletionEmissionParams;
-
     fn alt_emission_params(
         &self,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<DeletionEmissionParams>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         let start = self.locus.range().start as usize;
         let end = self.locus.range().end as usize;
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
-        Ok(vec![DeletionEmissionParams {
+        Ok(vec![Box::new(DeletionEmissionParams {
             del_start: start,
             del_len: end - start,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
             ref_seq,
             homopolymer: self.homopolymer.clone(),
-        }])
+        })])
     }
 }
 

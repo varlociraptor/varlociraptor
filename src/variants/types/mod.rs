@@ -39,6 +39,9 @@ pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
 pub(crate) use snv::Snv;
 
+use super::evidence::realignment::pairhmm::RefBaseVariantEmission;
+use super::evidence::realignment::Realignable;
+
 #[derive(Debug, CopyGetters, Getters, Builder)]
 pub(crate) struct AlleleSupport {
     prob_ref_allele: LogProb,
@@ -164,6 +167,7 @@ where
         buffer: &mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Vec<Observation>> {
         let locus = self.loci();
         buffer.fetch(locus, false)?;
@@ -199,6 +203,7 @@ where
                     &evidence,
                     alignment_properties,
                     &homopolymer_error_model,
+                    alt_variants,
                 )? {
                     observations.push(obs);
                 }
@@ -236,6 +241,7 @@ where
         buffer: &mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Vec<Observation>> {
         // We cannot use a hash function here because candidates have to be considered
         // in a deterministic order. Otherwise, subsampling high-depth regions will result
@@ -334,6 +340,7 @@ where
                     evidence,
                     alignment_properties,
                     &homopolymer_error_model,
+                    alt_variants,
                 )? {
                     observations.push(obs);
                 }

@@ -126,19 +126,13 @@ impl pairhmm::StartEndGapParameters for GapParams {
 }
 
 #[derive(Getters, new)]
-pub(crate) struct ReadVsAlleleEmission<'a, E>
-where
-    E: RefBaseVariantEmission,
-{
+pub(crate) struct ReadVsAlleleEmission<'a> {
     #[getset(get = "pub(crate)")]
     read_emission: &'a ReadEmission<'a>,
-    allele_emission: E,
+    allele_emission: Box<dyn RefBaseVariantEmission>,
 }
 
-impl<'a, E> RefBaseEmission for ReadVsAlleleEmission<'a, E>
-where
-    E: RefBaseVariantEmission,
-{
+impl<'a> RefBaseEmission for ReadVsAlleleEmission<'a> {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         self.allele_emission.ref_base(i)
@@ -175,20 +169,14 @@ where
     }
 }
 
-impl<'a, E> VariantEmission for ReadVsAlleleEmission<'a, E>
-where
-    E: RefBaseVariantEmission,
-{
+impl<'a> VariantEmission for ReadVsAlleleEmission<'a> {
     #[inline]
     fn is_homopolymer_indel(&self) -> bool {
         self.allele_emission.is_homopolymer_indel()
     }
 }
 
-impl<'a, E> pairhmm::EmissionParameters for ReadVsAlleleEmission<'a, E>
-where
-    E: RefBaseVariantEmission,
-{
+impl<'a> pairhmm::EmissionParameters for ReadVsAlleleEmission<'a> {
     #[inline]
     fn prob_emit_xy(&self, i: usize, j: usize) -> bio::stats::pairhmm::XYEmission {
         let r = self.allele_emission.ref_base(i);

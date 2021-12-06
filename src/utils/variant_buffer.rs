@@ -172,14 +172,18 @@ impl VariantBuffer {
 pub(crate) struct Variants<'a> {
     #[getset(get_copy = "pub(crate)")]
     variant_of_interest: &'a model::Variant,
-    #[getset(get_copy = "pub(crate)")]
     before: &'a [model::Variant],
-    #[getset(get_copy = "pub(crate)")]
     after: &'a [model::Variant],
     #[getset(get = "pub(crate)")]
     locus: Locus,
     #[getset(get_copy = "pub(crate)")]
     record_info: &'a RecordInfo,
+}
+
+impl<'a> Variants<'a> {
+    pub(crate) fn alt_variants(&self) -> impl Iterator<Item = &'a model::Variant> {
+        self.before.iter().chain(self.after.iter())
+    }
 }
 
 #[derive(Clone, Debug, new, Getters, CopyGetters)]

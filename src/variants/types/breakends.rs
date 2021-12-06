@@ -29,7 +29,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::realignment::pairhmm::{
-    ReadEmission, RefBaseEmission, VariantEmission,
+    ReadEmission, RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
@@ -399,8 +399,6 @@ impl<R: Realigner> SamplingBias for BreakendGroup<R> {
 impl<R: Realigner> ReadSamplingBias for BreakendGroup<R> {}
 
 impl<R: Realigner> Realignable for BreakendGroup<R> {
-    type EmissionParams = BreakendEmissionParams;
-
     fn maybe_revcomp(&self) -> bool {
         self.breakends.values().any(|bnd| bnd.emits_revcomp())
     }
@@ -410,9 +408,9 @@ impl<R: Realigner> Realignable for BreakendGroup<R> {
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<BreakendEmissionParams>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         // Step 1: fetch contained breakends
-        let mut emission_params = Vec::new();
+        let mut emission_params: Vec<Box<dyn RefBaseVariantEmission>> = Vec::new();
 
         // METHOD: we consider all breakends, even if they don't overlap.
         // The reason is that the mapper may put reads at the wrong end of a breakend pair.
@@ -610,11 +608,11 @@ impl<R: Realigner> Realignable for BreakendGroup<R> {
             }
 
             for alt_allele in self.alt_alleles.borrow().get(bnd_idx).unwrap() {
-                emission_params.push(BreakendEmissionParams {
+                emission_params.push(Box::new(BreakendEmissionParams {
                     ref_offset: 0,
                     ref_end: alt_allele.len(),
                     alt_allele: Arc::clone(alt_allele),
-                });
+                }));
             }
         }
 

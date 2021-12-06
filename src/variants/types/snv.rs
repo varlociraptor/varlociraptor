@@ -20,6 +20,7 @@ use crate::reference;
 use crate::utils;
 use crate::variants::evidence::bases::prob_read_base;
 use crate::variants::evidence::observation::Strand;
+use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use crate::variants::evidence::realignment::pairhmm::VariantEmission;
 use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
@@ -49,26 +50,24 @@ impl<R: Realigner> Snv<R> {
 }
 
 impl<R: Realigner> Realignable for Snv<R> {
-    type EmissionParams = SnvEmissionParams;
-
     fn alt_emission_params(
         &self,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<SnvEmissionParams>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         let start = self.locus.range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
         let ref_seq_len = ref_seq.len();
-        Ok(vec![SnvEmissionParams {
+        Ok(vec![Box::new(SnvEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + 1 + ref_window, ref_seq_len),
             alt_start: start,
             alt_base: self.alt_base,
-        }])
+        })])
     }
 }
 

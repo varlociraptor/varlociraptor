@@ -33,14 +33,15 @@ use crate::variants;
 use crate::variants::evidence::observation::{
     Observation, ObservationBuilder, ReadPosition, Strand,
 };
-use crate::variants::evidence::realignment;
+use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
+use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model;
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::breakends::{Breakend, BreakendIndex};
 
 #[derive(TypedBuilder)]
-pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
+pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'static> {
     alignment_properties: AlignmentProperties,
     max_depth: usize,
     protocol_strandedness: ProtocolStrandedness,
@@ -305,17 +306,18 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                 })
         };
 
-        Ok(Some(match variants.variant_of_interest() {
-            model::Variant::Snv(alt) => {
-                let locus = variants.locus().clone();
-                sample.extract_observations(&variants::types::Snv::new(
-                    locus,
-                    ref_base()?,
-                    *alt,
-                    self.realigner.clone(),
-                ))?
-            }
-            model::Variant::Mnv(alt) => sample.extract_observations(&variants::types::Mnv::new(
+        let parse_snv = |alt| -> Result<variants::types::Snv<R>> {
+            let locus = variants.locus().clone();
+            Ok(variants::types::Snv::new(
+                locus,
+                ref_base()?,
+                alt,
+                self.realigner.clone(),
+            ))
+        };
+
+        let parse_mnv = |alt: &Vec<u8>| -> Result<variants::types::Mnv<R>> {
+            Ok(variants::types::Mnv::new(
                 variants.locus().clone(),
                 self.reference_buffer
                     .seq(variants.locus().contig())?
@@ -334,47 +336,107 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     .to_owned(),
                 alt.to_owned(),
                 self.realigner.clone(),
-            ))?,
-            model::Variant::None => sample.extract_observations(&variants::types::None::new(
+            ))
+        };
+
+        let parse_none = || -> Result<variants::types::None> {
+            Ok(variants::types::None::new(
                 variants.locus().clone(),
                 ref_base()?,
-            ))?,
-            model::Variant::Deletion(l) => sample.extract_observations(
-                &variants::types::Deletion::new(interval(*l), self.realigner.clone())?,
-            )?,
+            ))
+        };
+
+        let parse_deletion =
+            |len| variants::types::Deletion::new(interval(len), self.realigner.clone());
+
+        let parse_insertion = |seq: &Vec<u8>| {
+            variants::types::Insertion::new(
+                variants.locus().clone(),
+                seq.to_owned(),
+                self.realigner.clone(),
+            )
+        };
+
+        let parse_inversion = |len| -> Result<variants::types::Inversion<R>> {
+            Ok(variants::types::Inversion::new(
+                interval(len),
+                self.realigner.clone(),
+                self.reference_buffer
+                    .seq(variants.locus().contig())?
+                    .as_ref(),
+            ))
+        };
+
+        let parse_duplication = |len| -> Result<variants::types::Duplication<R>> {
+            Ok(variants::types::Duplication::new(
+                interval(len),
+                self.realigner.clone(),
+                self.reference_buffer
+                    .seq(variants.locus().contig())?
+                    .as_ref(),
+            ))
+        };
+
+        let parse_replacement = |ref_allele: &Vec<u8>,
+                                 alt_allele: &Vec<u8>|
+         -> Result<variants::types::Replacement<R>> {
+            variants::types::Replacement::new(
+                interval(ref_allele.len() as u64),
+                alt_allele.to_owned(),
+                self.realigner.clone(),
+            )
+        };
+
+        let alt_variants = variants
+            .alt_variants()
+            .filter(|variant| !variant.is_breakend() && !variant.is_none())
+            .map(|variant| -> Result<Box<dyn Realignable>> {
+                Ok(match variant {
+                    model::Variant::Snv(alt) => Box::new(parse_snv(*alt)?),
+                    model::Variant::Mnv(alt) => Box::new(parse_mnv(alt)?),
+                    model::Variant::Deletion(l) => Box::new(parse_deletion(*l)?),
+                    model::Variant::Insertion(seq) => Box::new(parse_insertion(seq)?),
+                    model::Variant::Inversion(len) => Box::new(parse_inversion(*len)?),
+                    model::Variant::Duplication(len) => Box::new(parse_duplication(*len)?),
+                    model::Variant::Replacement {
+                        ref_allele,
+                        alt_allele,
+                    } => Box::new(parse_replacement(ref_allele, alt_allele)?),
+                    model::Variant::Breakend { .. } => {
+                        unreachable!();
+                    }
+                    model::Variant::None => {
+                        unreachable!();
+                    }
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Some(match variants.variant_of_interest() {
+            model::Variant::Snv(alt) => {
+                sample.extract_observations(&parse_snv(*alt)?, &Vec::new())?
+            }
+            model::Variant::Mnv(alt) => {
+                sample.extract_observations(&parse_mnv(alt)?, &alt_variants)?
+            }
+            model::Variant::None => sample.extract_observations(&parse_none()?, &alt_variants)?,
+            model::Variant::Deletion(l) => {
+                sample.extract_observations(&parse_deletion(*l)?, &alt_variants)?
+            }
             model::Variant::Insertion(seq) => {
-                sample.extract_observations(&variants::types::Insertion::new(
-                    variants.locus().clone(),
-                    seq.to_owned(),
-                    self.realigner.clone(),
-                )?)?
+                sample.extract_observations(&parse_insertion(seq)?, &alt_variants)?
             }
             model::Variant::Inversion(len) => {
-                sample.extract_observations(&variants::types::Inversion::new(
-                    interval(*len),
-                    self.realigner.clone(),
-                    self.reference_buffer
-                        .seq(variants.locus().contig())?
-                        .as_ref(),
-                ))?
+                sample.extract_observations(&parse_inversion(*len)?, &alt_variants)?
             }
             model::Variant::Duplication(len) => {
-                sample.extract_observations(&variants::types::Duplication::new(
-                    interval(*len),
-                    self.realigner.clone(),
-                    self.reference_buffer
-                        .seq(variants.locus().contig())?
-                        .as_ref(),
-                ))?
+                sample.extract_observations(&parse_duplication(*len)?, &alt_variants)?
             }
             model::Variant::Replacement {
                 ref_allele,
                 alt_allele,
-            } => sample.extract_observations(&variants::types::Replacement::new(
-                interval(ref_allele.len() as u64),
-                alt_allele.to_owned(),
-                self.realigner.clone(),
-            )?)?,
+            } => sample
+                .extract_observations(&parse_replacement(ref_allele, alt_allele)?, &alt_variants)?,
             model::Variant::Breakend {
                 ref_allele,
                 spec,
@@ -427,6 +489,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     .unwrap()
                                     .lock()
                                     .unwrap(),
+                                &Vec::new(), // Do not consider alt variants in case of breakends
                             )?
                         } else {
                             return Ok(None);

@@ -207,6 +207,10 @@ impl Variant {
         matches!(self, Variant::Breakend { .. })
     }
 
+    pub(crate) fn is_none(&self) -> bool {
+        matches!(self, Variant::None)
+    }
+
     pub(crate) fn is_type(&self, vartype: &VariantType) -> bool {
         match (self, vartype) {
             (&Variant::Deletion(l), &VariantType::Deletion(Some(ref range))) => {

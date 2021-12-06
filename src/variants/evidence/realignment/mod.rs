@@ -43,14 +43,12 @@ pub(crate) struct CandidateRegion {
 }
 
 pub(crate) trait Realignable {
-    type EmissionParams: pairhmm::RefBaseEmission + pairhmm::VariantEmission;
-
     fn alt_emission_params(
         &self,
         ref_buffer: Arc<reference::Buffer>,
         ref_interval: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<Self::EmissionParams>>;
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>>;
 
     /// Returns true if reads emitted from alt allele
     /// may be interpreted as revcomp reads by the mapper.
@@ -253,11 +251,11 @@ pub(crate) trait Realigner {
             let (mut prob_ref, _) = self.prob_allele(
                 &mut [ReadVsAlleleEmission::new(
                     &read_emission,
-                    ReferenceEmissionParams {
+                    Box::new(ReferenceEmissionParams {
                         ref_seq: Arc::clone(&ref_seq),
                         ref_offset: region.ref_interval.start,
                         ref_end: region.ref_interval.end,
-                    },
+                    }),
                 )],
                 &mut edit_dist,
             );
@@ -350,14 +348,11 @@ pub(crate) trait Realigner {
     }
 
     /// Calculate probability of a certain allele.
-    fn prob_allele<E>(
+    fn prob_allele(
         &mut self,
-        candidate_allele_params: &mut [ReadVsAlleleEmission<E>],
+        candidate_allele_params: &mut [ReadVsAlleleEmission],
         edit_dist: &mut edit_distance::EditDistanceCalculation,
-    ) -> (LogProb, EditDistanceHit)
-    where
-        E: RefBaseVariantEmission,
-    {
+    ) -> (LogProb, EditDistanceHit) {
         let mut hits = Vec::new();
         let mut best_dist = None;
         for params in candidate_allele_params.iter_mut() {
@@ -399,13 +394,11 @@ pub(crate) trait Realigner {
         (prob.unwrap(), best_hit.unwrap())
     }
 
-    fn calculate_prob_allele<E>(
+    fn calculate_prob_allele(
         &mut self,
         hit: &EditDistanceHit,
-        allele_params: &mut ReadVsAlleleEmission<E>,
-    ) -> LogProb
-    where
-        E: RefBaseVariantEmission;
+        allele_params: &mut ReadVsAlleleEmission,
+    ) -> LogProb;
 
     fn ref_buffer(&self) -> &Arc<reference::Buffer>;
 
@@ -446,14 +439,11 @@ impl Realigner for PairHMMRealigner {
         self.max_window
     }
 
-    fn calculate_prob_allele<E>(
+    fn calculate_prob_allele(
         &mut self,
         hit: &EditDistanceHit,
-        allele_params: &mut ReadVsAlleleEmission<E>,
-    ) -> LogProb
-    where
-        E: RefBaseVariantEmission,
-    {
+        allele_params: &mut ReadVsAlleleEmission,
+    ) -> LogProb {
         // METHOD: We shrink the area to run the HMM against to an environment around the best
         // edit distance hits.
         allele_params.shrink_to_hit(hit);
@@ -519,14 +509,11 @@ impl Realigner for PathHMMRealigner {
         self.max_window
     }
 
-    fn calculate_prob_allele<E>(
+    fn calculate_prob_allele(
         &mut self,
         hit: &EditDistanceHit,
-        allele_params: &mut ReadVsAlleleEmission<E>,
-    ) -> LogProb
-    where
-        E: RefBaseVariantEmission,
-    {
+        allele_params: &mut ReadVsAlleleEmission,
+    ) -> LogProb {
         let mut best_prob = None;
         for alignment in hit.alignments() {
             let mut prob = LogProb::ln_one();

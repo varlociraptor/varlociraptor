@@ -5,7 +5,7 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::realignment::Realigner;
+use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::types::breakends::{
     Breakend, BreakendGroup, BreakendGroupBuilder, ExtensionModification, Join, Side,
 };
@@ -126,5 +126,17 @@ impl<R: Realigner> Variant for Inversion<R> {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb {
         (**self).prob_sample_alt(evidence, alignment_properties)
+    }
+}
+
+impl<R: Realigner> Realignable for Inversion<R> {
+    fn alt_emission_params(
+        &self,
+        ref_buffer: std::sync::Arc<crate::reference::Buffer>,
+        ref_interval: &genome::Interval,
+        ref_window: usize,
+    ) -> Result<Vec<Box<dyn crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission>>>
+    {
+        (**self).alt_emission_params(ref_buffer, ref_interval, ref_window)
     }
 }

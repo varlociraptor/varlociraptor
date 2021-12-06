@@ -19,7 +19,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
 use crate::variants::evidence::realignment::pairhmm::{
-    ReadEmission, RefBaseEmission, VariantEmission,
+    ReadEmission, RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
@@ -67,21 +67,19 @@ impl<R: Realigner> Insertion<R> {
 }
 
 impl<R: Realigner> Realignable for Insertion<R> {
-    type EmissionParams = InsertionEmissionParams;
-
     fn alt_emission_params(
         &self,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<InsertionEmissionParams>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         let l = self.ins_seq.len() as usize;
         let start = self.locus().range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus().contig())?;
 
         let ref_seq_len = ref_seq.len();
-        Ok(vec![InsertionEmissionParams {
+        Ok(vec![Box::new(InsertionEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + l + ref_window, ref_seq_len),
@@ -90,7 +88,7 @@ impl<R: Realigner> Realignable for Insertion<R> {
             ins_end: start + l,
             ins_seq: Rc::clone(&self.ins_seq),
             homopolymer: self.homopolymer.clone(),
-        }])
+        })])
     }
 }
 
