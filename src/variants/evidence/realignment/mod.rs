@@ -249,6 +249,13 @@ pub(crate) trait Realigner {
                 EditDistanceCalculation::new(region.read_interval.clone().map(|i| read_seq[i]));
 
             // Prepare reference alleles (the actual reference and any alt variants).
+            // METHOD: here, we consider all alternative variants, together with the reference allele.
+            // The method prob_allele below then chooses the most likely allele of origin via edit distance.
+            // On ties, it computes the full likelihoods via pair HMMs and chooses the maximum.
+            // This is an approximation of calculating full VAFs for all possible variants at a locus,
+            // under the assumption that in reality usually there will be just one of them with a high
+            // probability, and if not, the highest is still a good representative for comparison
+            // with the variant allele.
             let mut ref_emissions = vec![ReadVsAlleleEmission::new(
                 &read_emission,
                 Box::new(ReferenceEmissionParams {
