@@ -8,6 +8,7 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 ### Features
 
 * accurate consideration of multiallelic variants ([#239](https://www.github.com/varlociraptor/varlociraptor/issues/239)) ([d8e646e](https://www.github.com/varlociraptor/varlociraptor/commit/d8e646e567317bf02bf665c173ec6d58d3f06a0e))
+* ability to display each processed record in the logging output of `varlociraptor call` via --log-mode each-record.
 
 ## [4.7.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.6.0...v4.7.0) (2021-11-17)
 
