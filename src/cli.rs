@@ -480,6 +480,16 @@ pub enum CallKind {
             help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
         )]
         output: Option<PathBuf>,
+        #[structopt(
+            long = "log-mode",
+            possible_values = &["default", "each-record"],
+            default_value = "default",
+            help = "Specify how progress should be logged. By default, a record count will be printed. With 'each-record', \
+            Varlociraptor will additionally print contig and position of each processed candidate variant record. This is \
+            useful for debugging."
+        )]
+        #[serde(default = "default_log_mode")]
+        log_mode: String,
     },
     // #[structopt(
     //     name = "cnvs",
@@ -778,6 +788,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     testcase_prefix,
                     testcase_anonymous,
                     output,
+                    log_mode,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -793,6 +804,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         }
                     } else {
                         None
+                    };
+
+                    let log_each_record = if log_mode == "each-record" {
+                        true
+                    } else {
+                        false
                     };
 
                     let call_generic = |scenario: grammar::Scenario,
@@ -856,6 +873,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .resolutions(sample_infos.resolutions)
                             .breakend_index(breakend_index)
                             .outbcf(output)
+                            .log_each_record(log_each_record)
                             .build()
                             .unwrap();
 

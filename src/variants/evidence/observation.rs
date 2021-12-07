@@ -26,7 +26,7 @@ use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils;
 use crate::utils::homopolymers::HomopolymerErrorModel;
-use crate::utils::{PROB_05, PROB_09, PROB_095};
+use crate::utils::{PROB_09, PROB_095};
 use crate::variants::sample;
 use crate::variants::types::Variant;
 

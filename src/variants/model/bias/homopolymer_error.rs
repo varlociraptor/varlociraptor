@@ -2,7 +2,6 @@ use std::hash::Hash;
 
 use bio::stats::probs::LogProb;
 
-use crate::utils::PROB_05;
 use crate::variants::evidence::observation::{Observation, ReadPosition};
 use crate::variants::model::bias::Bias;
 

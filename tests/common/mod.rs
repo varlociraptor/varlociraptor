@@ -266,6 +266,7 @@ pub(crate) trait Testcase {
                                 })
                                 .collect_vec(),
                         },
+                        log_mode: "default".to_owned(),
                     },
                 };
 
@@ -291,6 +292,7 @@ pub(crate) trait Testcase {
                                 .sample_preprocessed_path("normal", &temp_preprocess),
                             purity: self.purity().unwrap(),
                         },
+                        log_mode: "default".to_owned(),
                     },
                 };
 

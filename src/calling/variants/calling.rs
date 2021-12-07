@@ -6,6 +6,7 @@ use std::sync::RwLock;
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
 use bio_types::genome;
+use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use itertools::Itertools;
 use progress_logger::ProgressLogger;
@@ -59,6 +60,7 @@ where
     breakend_index: BreakendIndex,
     #[builder(default)]
     breakend_results: RwLock<HashMap<Vec<u8>, BreakendResult>>,
+    log_each_record: bool,
 }
 
 impl<Pr> Caller<Pr>
@@ -301,6 +303,14 @@ where
                 {
                     return Err(errors::Error::InconsistentObservations.into());
                 }
+            }
+
+            if self.log_each_record {
+                info!(
+                    "Processing record at {}:{}",
+                    first_record.contig(),
+                    first_record.pos() + 1
+                );
             }
 
             // obtain variant type

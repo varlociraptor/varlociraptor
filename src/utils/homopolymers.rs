@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-
 use bio::{
-    alignment::{pairwise::Aligner, pairwise::Scoring, Alignment, AlignmentOperation},
-    pattern_matching::myers::Myers,
+    alignment::{pairwise::Aligner, pairwise::Scoring, AlignmentOperation},
     stats::{LogProb, Prob},
 };
 
@@ -28,7 +25,7 @@ impl HomopolymerIndelOperation {
 
         if pattern.len() <= 256 {
             let mut aligner = Aligner::with_scoring(Scoring::from_scores(-1, -1, 1, -1));
-            let mut best_aln = aligner.global(pattern, text);
+            let best_aln = aligner.global(pattern, text);
 
             let mut ret =
                 HomopolymerIndelOperation::from_alignment(&text, &pattern, &best_aln.operations);
