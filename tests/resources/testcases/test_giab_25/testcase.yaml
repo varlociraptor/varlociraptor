@@ -1,4 +1,5 @@
 # GIAB testcase (1:158686557) of indel that has been called with the wrong genotype.
+# Here, consideration of all alternative alleles is necessary to recognize that the VAF is not 1.0.
 
 expected:
   allelefreqs:
