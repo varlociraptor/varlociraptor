@@ -14,16 +14,16 @@ use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
+use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{
-    ReadEmission, RefBaseEmission, VariantEmission,
+    ReadEmission, RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
-use crate::{default_emission, default_ref_base_emission};
 
 pub(crate) struct Replacement<R: Realigner> {
     locus: MultiLocus,
@@ -66,16 +66,13 @@ impl<R: Realigner> Replacement<R> {
     }
 }
 
-impl<'a, R: Realigner> Realignable<'a> for Replacement<R> {
-    type EmissionParams = ReplacementEmissionParams<'a>;
-
+impl<R: Realigner> Realignable for Replacement<R> {
     fn alt_emission_params(
         &self,
-        read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<ReplacementEmissionParams<'a>>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         let repl_alt_len = self.replacement.len() as usize;
         let repl_ref_len = self.ref_len();
 
@@ -85,7 +82,7 @@ impl<'a, R: Realigner> Realignable<'a> for Replacement<R> {
 
         let ref_seq_len = ref_seq.len();
 
-        Ok(vec![ReplacementEmissionParams {
+        Ok(vec![Box::new(ReplacementEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + repl_ref_len + ref_window, ref_seq_len),
@@ -94,9 +91,8 @@ impl<'a, R: Realigner> Realignable<'a> for Replacement<R> {
             repl_alt_len,
             repl_ref_len,
             repl_seq: Rc::clone(&self.replacement),
-            read_emission: read_emission_params,
             is_homopolymer_indel: self.homopolymer_indel_len.is_some(),
-        }])
+        })])
     }
 }
 
@@ -176,22 +172,30 @@ impl<R: Realigner> Variant for Replacement<R> {
         &self,
         evidence: &Self::Evidence,
         _alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => Ok(Some(
-                self.realigner
-                    .borrow_mut()
-                    .allele_support(record, self.locus.iter(), self)?,
-            )),
+            PairedEndEvidence::SingleEnd(record) => {
+                Ok(Some(self.realigner.borrow_mut().allele_support(
+                    record,
+                    self.locus.iter(),
+                    self,
+                    alt_variants,
+                )?))
+            }
             PairedEndEvidence::PairedEnd { left, right } => {
-                let left_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(left, self.locus.iter(), self)?;
-                let right_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(right, self.locus.iter(), self)?;
+                let left_support = self.realigner.borrow_mut().allele_support(
+                    left,
+                    self.locus.iter(),
+                    self,
+                    alt_variants,
+                )?;
+                let right_support = self.realigner.borrow_mut().allele_support(
+                    right,
+                    self.locus.iter(),
+                    self,
+                    alt_variants,
+                )?;
 
                 let mut support = left_support;
 
@@ -227,7 +231,7 @@ impl<R: Realigner> Variant for Replacement<R> {
 }
 
 /// Emission parameters for PairHMM over replacement allele.
-pub(crate) struct ReplacementEmissionParams<'a> {
+pub(crate) struct ReplacementEmissionParams {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
@@ -236,11 +240,10 @@ pub(crate) struct ReplacementEmissionParams<'a> {
     repl_alt_len: usize,
     repl_ref_len: usize,
     repl_seq: Rc<Vec<u8>>,
-    read_emission: Rc<ReadEmission<'a>>,
     is_homopolymer_indel: bool,
 }
 
-impl<'a> RefBaseEmission for ReplacementEmissionParams<'a> {
+impl RefBaseEmission for ReplacementEmissionParams {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -261,12 +264,6 @@ impl<'a> RefBaseEmission for ReplacementEmissionParams<'a> {
         }
     }
 
-    default_ref_base_emission!();
-}
-
-impl<'a> EmissionParameters for ReplacementEmissionParams<'a> {
-    default_emission!();
-
     #[inline]
     fn len_x(&self) -> usize {
         // The window is shrunken later on with shrink to hit.
@@ -281,9 +278,11 @@ impl<'a> EmissionParameters for ReplacementEmissionParams<'a> {
             altered_len
         }
     }
+
+    default_ref_base_emission!();
 }
 
-impl<'a> VariantEmission for ReplacementEmissionParams<'a> {
+impl VariantEmission for ReplacementEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         self.is_homopolymer_indel
     }

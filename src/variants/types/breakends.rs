@@ -23,12 +23,13 @@ use rust_htslib::bam;
 use rust_htslib::bcf::{self, Read};
 use vec_map::VecMap;
 
+use crate::default_ref_base_emission;
 use crate::errors::Error;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
 use crate::variants::evidence::realignment::pairhmm::{
-    ReadEmission, RefBaseEmission, VariantEmission,
+    ReadEmission, RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::model;
@@ -36,7 +37,6 @@ use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
     AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, SingleLocusBuilder, Variant,
 };
-use crate::{default_emission, default_ref_base_emission};
 
 const MIN_REF_BASES: u64 = 10;
 
@@ -302,22 +302,30 @@ impl<R: Realigner> Variant for BreakendGroup<R> {
         &self,
         evidence: &Self::Evidence,
         _: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => Ok(Some(
-                self.realigner
-                    .borrow_mut()
-                    .allele_support(record, self.loci.iter(), self)?,
-            )),
+            PairedEndEvidence::SingleEnd(record) => {
+                Ok(Some(self.realigner.borrow_mut().allele_support(
+                    record,
+                    self.loci.iter(),
+                    self,
+                    alt_variants,
+                )?))
+            }
             PairedEndEvidence::PairedEnd { left, right } => {
-                let left_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(left, self.loci.iter(), self)?;
-                let right_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(right, self.loci.iter(), self)?;
+                let left_support = self.realigner.borrow_mut().allele_support(
+                    left,
+                    self.loci.iter(),
+                    self,
+                    alt_variants,
+                )?;
+                let right_support = self.realigner.borrow_mut().allele_support(
+                    right,
+                    self.loci.iter(),
+                    self,
+                    alt_variants,
+                )?;
 
                 let mut support = left_support;
 
@@ -398,22 +406,19 @@ impl<R: Realigner> SamplingBias for BreakendGroup<R> {
 
 impl<R: Realigner> ReadSamplingBias for BreakendGroup<R> {}
 
-impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
-    type EmissionParams = BreakendEmissionParams<'a>;
-
+impl<R: Realigner> Realignable for BreakendGroup<R> {
     fn maybe_revcomp(&self) -> bool {
         self.breakends.values().any(|bnd| bnd.emits_revcomp())
     }
 
     fn alt_emission_params(
         &self,
-        read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<BreakendEmissionParams<'a>>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         // Step 1: fetch contained breakends
-        let mut emission_params = Vec::new();
+        let mut emission_params: Vec<Box<dyn RefBaseVariantEmission>> = Vec::new();
 
         // METHOD: we consider all breakends, even if they don't overlap.
         // The reason is that the mapper may put reads at the wrong end of a breakend pair.
@@ -611,12 +616,11 @@ impl<'a, R: Realigner> Realignable<'a> for BreakendGroup<R> {
             }
 
             for alt_allele in self.alt_alleles.borrow().get(bnd_idx).unwrap() {
-                emission_params.push(BreakendEmissionParams {
+                emission_params.push(Box::new(BreakendEmissionParams {
                     ref_offset: 0,
                     ref_end: alt_allele.len(),
                     alt_allele: Arc::clone(alt_allele),
-                    read_emission: Rc::clone(&read_emission_params),
-                });
+                }));
             }
         }
 
@@ -651,14 +655,13 @@ impl AltAllele {
     }
 }
 
-pub(crate) struct BreakendEmissionParams<'a> {
+pub(crate) struct BreakendEmissionParams {
     alt_allele: Arc<AltAllele>,
     ref_offset: usize,
     ref_end: usize,
-    read_emission: Rc<ReadEmission<'a>>,
 }
 
-impl<'a> RefBaseEmission for BreakendEmissionParams<'a> {
+impl RefBaseEmission for BreakendEmissionParams {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         self.alt_allele[i]
@@ -668,19 +671,15 @@ impl<'a> RefBaseEmission for BreakendEmissionParams<'a> {
         None
     }
 
-    default_ref_base_emission!();
-}
-
-impl<'a> EmissionParameters for BreakendEmissionParams<'a> {
-    default_emission!();
-
     #[inline]
     fn len_x(&self) -> usize {
         self.alt_allele.len()
     }
+
+    default_ref_base_emission!();
 }
 
-impl<'a> VariantEmission for BreakendEmissionParams<'a> {
+impl VariantEmission for BreakendEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         false
     }

@@ -560,7 +560,7 @@ impl<'a> PartialEq for BCFGrouper<'a> {
     }
 }
 
-fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
+pub(crate) fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
     inbcf.header().rid2name(record.rid().unwrap()).unwrap()
 }
 

@@ -27,19 +27,21 @@ use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils;
+use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{
     Observation, ObservationBuilder, ReadPosition, Strand,
 };
-use crate::variants::evidence::realignment;
+use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
+use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model;
 use crate::variants::sample::Sample;
 use crate::variants::sample::{ProtocolStrandedness, SampleBuilder};
 use crate::variants::types::breakends::{Breakend, BreakendIndex};
 
 #[derive(TypedBuilder)]
-pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone> {
+pub(crate) struct ObservationProcessor<R: realignment::Realigner + Clone + 'static> {
     alignment_properties: AlignmentProperties,
     max_depth: usize,
     protocol_strandedness: ProtocolStrandedness,
@@ -149,13 +151,15 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     pub(crate) fn process(&mut self) -> Result<()> {
         let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
         bcf_reader.set_threads(1)?;
-        let mut skips = utils::SimpleCounter::default();
-        let mut bcf_writer = self.writer()?;
-        bcf_writer.set_threads(1)?;
         let mut progress_logger = ProgressLogger::builder()
             .with_items_name("records")
             .with_frequency(std::time::Duration::from_secs(20))
             .start();
+
+        let mut variant_buffer =
+            VariantBuffer::new(bcf_reader, progress_logger, self.log_each_record);
+        let mut bcf_writer = self.writer()?;
+        bcf_writer.set_threads(1)?;
 
         let mut bam_reader =
             bam::IndexedReader::from_path(&self.inbam).context("Unable to read BAM/CRAM file.")?;
@@ -172,75 +176,17 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .build()
             .unwrap();
 
-        let display_skips = |skips: &utils::SimpleCounter<utils::collect_variants::SkipReason>| {
-            for (reason, &count) in skips.iter() {
-                if count > 0 && count % 100 == 0 {
-                    info!("Skipped {} {}.", count, reason);
-                }
+        while let Some(variants) = variant_buffer.next()? {
+            let calls = self.process_variant(variants, &mut sample)?;
+            for call in calls {
+                call.write_preprocessed_record(&mut bcf_writer)?;
             }
-        };
-
-        let mut last_item = None;
-        let mut i = 0;
-        loop {
-            let mut record = bcf_reader.empty_record();
-            match bcf_reader.read(&mut record) {
-                None => {
-                    display_skips(&skips);
-                    progress_logger.stop();
-                    return Ok(());
-                }
-                Some(res) => res?,
-            }
-
-            let variants = utils::collect_variants(&mut record, true, Some(&mut skips))?;
-            if !variants.is_empty() {
-                // process record
-                let work_item = WorkItem {
-                    start: record.pos() as u64,
-                    chrom: String::from_utf8(chrom(&bcf_reader, &record).to_owned()).unwrap(),
-                    variants,
-                    record_id: record.id(),
-                    record_mateid: utils::info_tag_mateid(&mut record)
-                        .map_or(None, |mateid| mateid.map(|mateid| mateid)),
-                    record_index: i,
-                };
-                if let Some((last_chrom, last_start)) = last_item {
-                    if last_chrom == work_item.chrom && last_start > work_item.start {
-                        return Err(errors::Error::UnsortedVariantFile.into());
-                    }
-                }
-                last_item = Some((work_item.chrom.clone(), work_item.start));
-
-                if self.log_each_record {
-                    info!(
-                        "Processing record at {}:{}",
-                        record.contig(),
-                        record.pos() + 1
-                    );
-                }
-
-                let calls = self.process_record(work_item, &mut sample)?;
-
-                for call in calls.iter() {
-                    call.write_preprocessed_record(&mut bcf_writer)?;
-                }
-            }
-
-            if skips.total_count() > 0 && skips.total_count() % 100 == 0 {
-                display_skips(&skips);
-            }
-            progress_logger.update(1u64);
-
-            i += 1;
         }
+
+        Ok(())
     }
 
-    fn process_record(&self, work_item: WorkItem, sample: &mut Sample) -> Result<Calls> {
-        if work_item.variants.is_empty() {
-            return Ok(Calls::new(work_item.record_index, vec![]));
-        }
-
+    fn process_variant(&self, variants: Variants, sample: &mut Sample) -> Result<Vec<Call>> {
         let call_builder = |chrom, start, id| {
             let mut builder = CallBuilder::default();
             builder.chrom(chrom).pos(start).id({
@@ -253,146 +199,136 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             builder
         };
 
-        if work_item
-            .variants
-            .iter()
-            .all(|variant| !variant.is_breakend())
-        {
-            let mut calls = Vec::new();
+        if !variants.variant_of_interest().is_breakend() {
+            let mut call = call_builder(
+                variants.locus().contig().as_bytes().to_owned(),
+                variants.locus().pos(),
+                variants.record_info().id().clone(),
+            )
+            .build()
+            .unwrap();
 
-            for variant in work_item
-                .variants
-                .iter()
-                .filter(|variant| !variant.is_breakend())
-            {
-                let mut call = call_builder(
-                    work_item.chrom.as_bytes().to_owned(),
-                    work_item.start,
-                    work_item.record_id.clone(),
-                )
-                .build()
-                .unwrap();
+            let chrom_seq = self.reference_buffer.seq(variants.locus().contig())?;
+            let pileup = self.process_pileup(&variants, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
 
-                let chrom_seq = self.reference_buffer.seq(&work_item.chrom)?;
-                let pileup = self.process_variant(variant, &work_item, sample)?.unwrap(); // only breakends can lead to None, and they are handled below
-
-                if let Some(path) = &self.raw_observation_output {
-                    let mut wrt = csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
-                    for obs in &pileup {
-                        wrt.serialize(obs)?;
-                    }
+            if let Some(path) = &self.raw_observation_output {
+                let mut wrt = csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
+                for obs in &pileup {
+                    wrt.serialize(obs)?;
                 }
-
-                // add variant information
-                call.variant = Some(
-                    VariantBuilder::default()
-                        .variant(variant, work_item.start as usize, Some(chrom_seq.as_ref()))
-                        .observations(Some(pileup))
-                        .build()
-                        .unwrap(),
-                );
-                calls.push(call);
             }
 
-            Ok(Calls::new(work_item.record_index, calls))
+            // add variant information
+            call.variant = Some(
+                VariantBuilder::default()
+                    .variant(
+                        variants.variant_of_interest(),
+                        variants.locus().pos() as usize,
+                        Some(chrom_seq.as_ref()),
+                    )
+                    .observations(Some(pileup))
+                    .build()
+                    .unwrap(),
+            );
+            Ok(vec![call])
         } else {
             let mut calls = Vec::new();
-            for variant in work_item.variants.iter() {
-                if let model::Variant::Breakend { event, .. } = variant {
-                    if let Some(pileup) = self.process_variant(variant, &work_item, sample)? {
-                        let pileup = Some(pileup);
-                        for breakend in self
-                            .breakend_groups
-                            .read()
-                            .unwrap()
-                            .get(event)
-                            .as_ref()
-                            .unwrap()
-                            .lock()
-                            .unwrap()
-                            .breakends()
-                        {
-                            let mut call = call_builder(
-                                breakend.locus().contig().as_bytes().to_owned(),
-                                breakend.locus().pos(),
-                                breakend.id().to_owned(),
-                            )
-                            .mateid(breakend.mateid().to_owned())
-                            .build()
-                            .unwrap();
+            // process breakend
+            if let model::Variant::Breakend { event, .. } = variants.variant_of_interest() {
+                if let Some(pileup) = self.process_pileup(&variants, sample)? {
+                    let pileup = Some(pileup);
+                    for breakend in self
+                        .breakend_groups
+                        .read()
+                        .unwrap()
+                        .get(event)
+                        .as_ref()
+                        .unwrap()
+                        .lock()
+                        .unwrap()
+                        .breakends()
+                    {
+                        let mut call = call_builder(
+                            breakend.locus().contig().as_bytes().to_owned(),
+                            breakend.locus().pos(),
+                            breakend.id().to_owned(),
+                        )
+                        .mateid(breakend.mateid().to_owned())
+                        .build()
+                        .unwrap();
 
-                            // add variant information
-                            call.variant = Some(
-                                VariantBuilder::default()
-                                    .variant(
-                                        &breakend.to_variant(event),
-                                        breakend.locus().pos() as usize,
-                                        None,
-                                    )
-                                    .observations(pileup.clone())
-                                    .build()
-                                    .unwrap(),
-                            );
-                            calls.push(call);
-                        }
-                        // As all records a written, the breakend group can be discarded.
-                        self.breakend_groups.write().unwrap().remove(event);
+                        // add variant information
+                        call.variant = Some(
+                            VariantBuilder::default()
+                                .variant(
+                                    &breakend.to_variant(event),
+                                    breakend.locus().pos() as usize,
+                                    None,
+                                )
+                                .observations(pileup.clone())
+                                .build()
+                                .unwrap(),
+                        );
+                        calls.push(call);
                     }
+                    // As all records a written, the breakend group can be discarded.
+                    self.breakend_groups.write().unwrap().remove(event);
                 }
             }
-            Ok(Calls::new(work_item.record_index, calls))
+            Ok(calls)
         }
     }
 
-    fn process_variant(
+    fn process_pileup(
         &self,
-        variant: &model::Variant,
-        work_item: &WorkItem,
+        variants: &Variants,
         sample: &mut Sample,
     ) -> Result<Option<Vec<Observation<ReadPosition>>>> {
-        let locus = || genome::Locus::new(work_item.chrom.clone(), work_item.start);
         let interval = |len: u64| {
             genome::Interval::new(
-                work_item.chrom.clone(),
-                work_item.start..work_item.start + len,
+                variants.locus().contig().to_owned(),
+                variants.locus().pos()..variants.locus().pos() + len,
             )
         };
-        let start = work_item.start as usize;
 
         let ref_base = || {
             self.reference_buffer
-                .seq(&work_item.chrom)?
-                .get(start)
+                .seq(variants.locus().contig())?
+                .get(variants.locus().pos() as usize)
                 .cloned()
                 .ok_or_else(|| -> anyhow::Error {
                     errors::invalid_bcf_record(
-                        locus().contig(),
-                        locus().pos() as i64,
+                        variants.locus().contig(),
+                        variants.locus().pos() as i64,
                         "position larger than reference length",
                     )
                     .into()
                 })
         };
 
-        Ok(Some(match variant {
-            model::Variant::Snv(alt) => {
-                let locus = locus();
-                sample.extract_observations(&variants::types::Snv::new(
-                    locus,
-                    ref_base()?,
-                    *alt,
-                    self.realigner.clone(),
-                ))?
-            }
-            model::Variant::Mnv(alt) => sample.extract_observations(&variants::types::Mnv::new(
-                locus(),
+        let parse_snv = |alt| -> Result<variants::types::Snv<R>> {
+            let locus = variants.locus().clone();
+            Ok(variants::types::Snv::new(
+                locus,
+                ref_base()?,
+                alt,
+                self.realigner.clone(),
+            ))
+        };
+
+        let parse_mnv = |alt: &Vec<u8>| -> Result<variants::types::Mnv<R>> {
+            Ok(variants::types::Mnv::new(
+                variants.locus().clone(),
                 self.reference_buffer
-                    .seq(&work_item.chrom)?
-                    .get(start..start + alt.len())
+                    .seq(variants.locus().contig())?
+                    .get(
+                        variants.locus().pos() as usize
+                            ..variants.locus().pos() as usize + alt.len(),
+                    )
                     .ok_or_else(|| -> anyhow::Error {
                         errors::invalid_bcf_record(
-                            locus().contig(),
-                            locus().pos() as i64,
+                            variants.locus().contig(),
+                            variants.locus().pos() as i64,
                             "MNV exceeds reference length",
                         )
                         .into()
@@ -400,38 +336,107 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                     .to_owned(),
                 alt.to_owned(),
                 self.realigner.clone(),
-            ))?,
-            model::Variant::None => {
-                sample.extract_observations(&variants::types::None::new(locus(), ref_base()?))?
+            ))
+        };
+
+        let parse_none = || -> Result<variants::types::None> {
+            Ok(variants::types::None::new(
+                variants.locus().clone(),
+                ref_base()?,
+            ))
+        };
+
+        let parse_deletion =
+            |len| variants::types::Deletion::new(interval(len), self.realigner.clone());
+
+        let parse_insertion = |seq: &Vec<u8>| {
+            variants::types::Insertion::new(
+                variants.locus().clone(),
+                seq.to_owned(),
+                self.realigner.clone(),
+            )
+        };
+
+        let parse_inversion = |len| -> Result<variants::types::Inversion<R>> {
+            Ok(variants::types::Inversion::new(
+                interval(len),
+                self.realigner.clone(),
+                self.reference_buffer
+                    .seq(variants.locus().contig())?
+                    .as_ref(),
+            ))
+        };
+
+        let parse_duplication = |len| -> Result<variants::types::Duplication<R>> {
+            Ok(variants::types::Duplication::new(
+                interval(len),
+                self.realigner.clone(),
+                self.reference_buffer
+                    .seq(variants.locus().contig())?
+                    .as_ref(),
+            ))
+        };
+
+        let parse_replacement = |ref_allele: &Vec<u8>,
+                                 alt_allele: &Vec<u8>|
+         -> Result<variants::types::Replacement<R>> {
+            variants::types::Replacement::new(
+                interval(ref_allele.len() as u64),
+                alt_allele.to_owned(),
+                self.realigner.clone(),
+            )
+        };
+
+        let alt_variants = variants
+            .alt_variants()
+            .filter(|variant| !variant.is_breakend() && !variant.is_none())
+            .map(|variant| -> Result<Box<dyn Realignable>> {
+                Ok(match variant {
+                    model::Variant::Snv(alt) => Box::new(parse_snv(*alt)?),
+                    model::Variant::Mnv(alt) => Box::new(parse_mnv(alt)?),
+                    model::Variant::Deletion(l) => Box::new(parse_deletion(*l)?),
+                    model::Variant::Insertion(seq) => Box::new(parse_insertion(seq)?),
+                    model::Variant::Inversion(len) => Box::new(parse_inversion(*len)?),
+                    model::Variant::Duplication(len) => Box::new(parse_duplication(*len)?),
+                    model::Variant::Replacement {
+                        ref_allele,
+                        alt_allele,
+                    } => Box::new(parse_replacement(ref_allele, alt_allele)?),
+                    model::Variant::Breakend { .. } => {
+                        unreachable!();
+                    }
+                    model::Variant::None => {
+                        unreachable!();
+                    }
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(Some(match variants.variant_of_interest() {
+            model::Variant::Snv(alt) => {
+                sample.extract_observations(&parse_snv(*alt)?, &Vec::new())?
             }
-            model::Variant::Deletion(l) => sample.extract_observations(
-                &variants::types::Deletion::new(interval(*l), self.realigner.clone())?,
-            )?,
-            model::Variant::Insertion(seq) => sample.extract_observations(
-                &variants::types::Insertion::new(locus(), seq.to_owned(), self.realigner.clone())?,
-            )?,
+            model::Variant::Mnv(alt) => {
+                sample.extract_observations(&parse_mnv(alt)?, &alt_variants)?
+            }
+            model::Variant::None => sample.extract_observations(&parse_none()?, &alt_variants)?,
+            model::Variant::Deletion(l) => {
+                sample.extract_observations(&parse_deletion(*l)?, &alt_variants)?
+            }
+            model::Variant::Insertion(seq) => {
+                sample.extract_observations(&parse_insertion(seq)?, &alt_variants)?
+            }
             model::Variant::Inversion(len) => {
-                sample.extract_observations(&variants::types::Inversion::new(
-                    interval(*len),
-                    self.realigner.clone(),
-                    self.reference_buffer.seq(&work_item.chrom)?.as_ref(),
-                ))?
+                sample.extract_observations(&parse_inversion(*len)?, &alt_variants)?
             }
             model::Variant::Duplication(len) => {
-                sample.extract_observations(&variants::types::Duplication::new(
-                    interval(*len),
-                    self.realigner.clone(),
-                    self.reference_buffer.seq(&work_item.chrom)?.as_ref(),
-                ))?
+                sample.extract_observations(&parse_duplication(*len)?, &alt_variants)?
             }
             model::Variant::Replacement {
                 ref_allele,
                 alt_allele,
-            } => sample.extract_observations(&variants::types::Replacement::new(
-                interval(ref_allele.len() as u64),
-                alt_allele.to_owned(),
-                self.realigner.clone(),
-            )?)?,
+            } => sample
+                .extract_observations(&parse_replacement(ref_allele, alt_allele)?, &alt_variants)?,
             model::Variant::Breakend {
                 ref_allele,
                 spec,
@@ -458,16 +463,16 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
                 if let Some(group) = group.as_mut() {
                     if let Some(breakend) = Breakend::new(
-                        locus(),
+                        variants.locus().clone(),
                         ref_allele,
                         spec,
-                        &work_item.record_id,
-                        work_item.record_mateid.clone(),
+                        variants.record_info().id(),
+                        variants.record_info().mateid().clone(),
                     )? {
                         group.push_breakend(breakend);
 
                         if self.breakend_index.last_record_index(event).unwrap()
-                            == work_item.record_index
+                            == variants.record_info().index()
                         {
                             // METHOD: last record of the breakend event. Hence, we can extract observations.
                             let breakend_group = Mutex::new(group.build());
@@ -484,6 +489,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     .unwrap()
                                     .lock()
                                     .unwrap(),
+                                &Vec::new(), // Do not consider alt variants in case of breakends
                             )?
                         } else {
                             return Ok(None);
@@ -734,11 +740,4 @@ struct WorkItem {
     record_id: Vec<u8>,
     record_mateid: Option<Vec<u8>>,
     record_index: usize,
-}
-
-#[derive(Derefable, new, Debug)]
-struct Calls {
-    index: usize,
-    #[deref]
-    inner: Vec<Call>,
 }

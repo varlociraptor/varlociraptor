@@ -14,7 +14,7 @@ use bio::stats::pairhmm;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
-use super::pairhmm::VariantEmission;
+use super::pairhmm::{ReadVsAlleleEmission, RefBaseVariantEmission, VariantEmission};
 
 enum Myers {
     Short(myers::Myers<u128>),
@@ -53,11 +53,9 @@ impl EditDistanceCalculation {
 
     /// Returns a reasonable upper bound for the edit distance in order to band the pairHMM computation.
     /// We use the best edit distance and add 5.
-    pub(crate) fn calc_best_hit<
-        E: pairhmm::EmissionParameters + RefBaseEmission + VariantEmission,
-    >(
+    pub(crate) fn calc_best_hit(
         &mut self,
-        emission_params: &E,
+        emission_params: &ReadVsAlleleEmission,
         max_dist: Option<usize>,
     ) -> Option<EditDistanceHit> {
         let ref_seq = || {

@@ -15,20 +15,20 @@ use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
 
+use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
 use crate::variants::evidence::insert_size::estimate_insert_size;
 use crate::variants::evidence::observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{
-    ReadEmission, RefBaseEmission, VariantEmission,
+    RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{FragmentSamplingBias, ReadSamplingBias, SamplingBias};
 use crate::variants::types::{
     AlleleSupport, AlleleSupportBuilder, MultiLocus, PairedEndEvidence, SingleLocus, Variant,
 };
-use crate::{default_emission, default_ref_base_emission};
 
 pub(crate) struct Deletion<R: Realigner> {
     locus: SingleLocus,
@@ -153,29 +153,25 @@ impl<R: Realigner> SamplingBias for Deletion<R> {
 impl<R: Realigner> FragmentSamplingBias for Deletion<R> {}
 impl<R: Realigner> ReadSamplingBias for Deletion<R> {}
 
-impl<'a, R: Realigner> Realignable<'a> for Deletion<R> {
-    type EmissionParams = DeletionEmissionParams<'a>;
-
+impl<R: Realigner> Realignable for Deletion<R> {
     fn alt_emission_params(
         &self,
-        read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<DeletionEmissionParams<'a>>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         let start = self.locus.range().start as usize;
         let end = self.locus.range().end as usize;
         let ref_seq = ref_buffer.seq(self.locus.contig())?;
 
-        Ok(vec![DeletionEmissionParams {
+        Ok(vec![Box::new(DeletionEmissionParams {
             del_start: start,
             del_len: end - start,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + ref_window, ref_seq.len() - self.len() as usize),
             ref_seq,
-            read_emission: read_emission_params,
             homopolymer: self.homopolymer.clone(),
-        }])
+        })])
     }
 }
 
@@ -242,13 +238,17 @@ impl<R: Realigner> Variant for Deletion<R> {
         &self,
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => Ok(Some(
-                self.realigner
-                    .borrow_mut()
-                    .allele_support(record, &[&self.locus], self)?,
-            )),
+            PairedEndEvidence::SingleEnd(record) => {
+                Ok(Some(self.realigner.borrow_mut().allele_support(
+                    record,
+                    &[&self.locus],
+                    self,
+                    alt_variants,
+                )?))
+            }
             PairedEndEvidence::PairedEnd { left, right } => {
                 // METHOD: Extract insert size information for fragments (e.g. read pairs) spanning an indel of interest
                 // Here we calculate the product of insert size based and alignment based probabilities.
@@ -264,14 +264,18 @@ impl<R: Realigner> Variant for Deletion<R> {
                 // * Since there is only one observation per fragment, there is no double counting when
                 //   estimating allele frequencies. Before, we had one observation for an overlapping read
                 //   and potentially another observation for the corresponding fragment.
-                let left_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(left, &[&self.locus], self)?;
-                let right_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(right, &[&self.locus], self)?;
+                let left_support = self.realigner.borrow_mut().allele_support(
+                    left,
+                    &[&self.locus],
+                    self,
+                    alt_variants,
+                )?;
+                let right_support = self.realigner.borrow_mut().allele_support(
+                    right,
+                    &[&self.locus],
+                    self,
+                    alt_variants,
+                )?;
 
                 let mut support = left_support;
                 support.merge(&right_support);
@@ -320,17 +324,16 @@ impl<R: Realigner> Variant for Deletion<R> {
 }
 
 /// Emission parameters for PairHMM over deletion allele.
-pub(crate) struct DeletionEmissionParams<'a> {
+pub(crate) struct DeletionEmissionParams {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
     del_start: usize,
     del_len: usize,
-    read_emission: Rc<ReadEmission<'a>>,
     homopolymer: Option<Range<u64>>,
 }
 
-impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
+impl RefBaseEmission for DeletionEmissionParams {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -345,19 +348,15 @@ impl<'a> RefBaseEmission for DeletionEmissionParams<'a> {
         self.homopolymer.clone()
     }
 
-    default_ref_base_emission!();
-}
-
-impl<'a> EmissionParameters for DeletionEmissionParams<'a> {
-    default_emission!();
-
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
     }
+
+    default_ref_base_emission!();
 }
 
-impl<'a> VariantEmission for DeletionEmissionParams<'a> {
+impl VariantEmission for DeletionEmissionParams {
     fn is_homopolymer_indel(&self) -> bool {
         self.homopolymer.is_some()
     }

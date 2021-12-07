@@ -25,6 +25,9 @@ use crate::variants::evidence::observation::{
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 
+use super::evidence::realignment::pairhmm::RefBaseVariantEmission;
+use super::evidence::realignment::Realignable;
+
 #[derive(new, Getters, Debug)]
 pub(crate) struct RecordBuffer {
     inner: bam::RecordBuffer,
@@ -227,7 +230,11 @@ fn is_valid_record(record: &bam::Record) -> bool {
 
 impl Sample {
     /// Extract observations for the given variant.
-    pub(crate) fn extract_observations<V, E, L>(&mut self, variant: &V) -> Result<Pileup>
+    pub(crate) fn extract_observations<V, E, L>(
+        &mut self,
+        variant: &V,
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Pileup>
     where
         E: observation::Evidence + Eq + Hash,
         L: variants::types::Loci,
@@ -237,6 +244,7 @@ impl Sample {
             &mut self.record_buffer,
             &mut self.alignment_properties,
             self.max_depth,
+            alt_variants,
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
