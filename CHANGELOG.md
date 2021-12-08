@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.8.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.8.0...v4.8.1) (2021-12-08)
+
+
+### Bug Fixes
+
+* fixed bug causing NaN likelihoods when dealing with samples that do not contain any homopolyer indels. ([795b02d](https://www.github.com/varlociraptor/varlociraptor/commit/795b02d6c0093eceda7ad297da24a8c9fe4b83dc))
+
 ## [4.8.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.7.0...v4.8.0) (2021-12-07)
 
 
