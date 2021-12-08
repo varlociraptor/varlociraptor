@@ -160,13 +160,17 @@ impl HomopolymerErrorModel {
                 )
             };
 
-            let prob_homopolymer_insertion = prob_homopolymer_error(&|item_len| item_len > 0);
-            let prob_homopolymer_deletion = prob_homopolymer_error(&|item_len| item_len < 0);
+            let mut prob_homopolymer_insertion = prob_homopolymer_error(&|item_len| item_len > 0);
+            let mut prob_homopolymer_deletion = prob_homopolymer_error(&|item_len| item_len < 0);
             let prob_total = prob_homopolymer_insertion.ln_add_exp(prob_homopolymer_deletion);
+            if prob_total != LogProb::ln_zero() {
+                prob_homopolymer_insertion -= prob_total;
+                prob_homopolymer_deletion -= prob_total;
+            } // else both of them are already zero, nothing to do.
 
             let model = Some(HomopolymerErrorModel {
-                prob_homopolymer_insertion: prob_homopolymer_insertion - prob_total,
-                prob_homopolymer_deletion: prob_homopolymer_deletion - prob_total,
+                prob_homopolymer_insertion,
+                prob_homopolymer_deletion,
                 variant_homopolymer_indel_len,
             });
 

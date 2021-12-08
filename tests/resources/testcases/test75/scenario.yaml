@@ -1,0 +1,11 @@
+samples:
+  read-sample-D-2_READ_NUMBER_1000_READ_LENGTH_150_STATE_polished_scaffold:
+    resolution: 0.01
+    universe: "[0.0,1.0]"
+
+events:
+  low: "read-sample-D-2_READ_NUMBER_1000_READ_LENGTH_150_STATE_polished_scaffold:]0.0,0.1["
+  subclonal_minor: "read-sample-D-2_READ_NUMBER_1000_READ_LENGTH_150_STATE_polished_scaffold:[0.1,0.5["
+  subclonal_major: "read-sample-D-2_READ_NUMBER_1000_READ_LENGTH_150_STATE_polished_scaffold:[0.5,0.9["
+  subclonal_high: "read-sample-D-2_READ_NUMBER_1000_READ_LENGTH_150_STATE_polished_scaffold:[0.9,1.0["
+  clonal: "read-sample-D-2_READ_NUMBER_1000_READ_LENGTH_150_STATE_polished_scaffold:1.0"
