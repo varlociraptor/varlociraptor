@@ -1,11 +1,12 @@
 use crate::{
-    calling::haplotypes::{KallistoEstimate, KallistoEstimates},
+    calling::haplotypes::{HaplotypeCalls, HaplotypeVariants, KallistoEstimate, KallistoEstimates},
     variants::model::AlleleFreq,
 };
 use bio::stats::bayesian;
 use bio::stats::{bayesian::model, LogProb};
 
 use crate::utils::adaptive_integration;
+use bv::BitVec;
 use ordered_float::NotNaN;
 use statrs::function::beta::ln_beta;
 use std::collections::HashMap;
@@ -75,6 +76,8 @@ impl model::Marginal for Marginal {
 #[derive(Debug, new)]
 pub(crate) struct Data {
     kallisto_estimates: Vec<KallistoEstimate>,
+    haplotype_variants: HaplotypeVariants,
+    haplotype_calls: HaplotypeCalls,
 }
 
 #[derive(Debug, new)]

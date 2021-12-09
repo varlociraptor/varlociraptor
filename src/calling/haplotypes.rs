@@ -2,6 +2,7 @@ use anyhow::Result;
 use bio::stats::bayesian::model::Model;
 use bio::stats::probs::{LogProb, Prob};
 use bio_types::genome::AbstractLocus;
+use bv::BitVec;
 use derive_builder::Builder;
 use hdf5;
 use ordered_float::NotNaN;
@@ -10,6 +11,7 @@ use rust_htslib::bcf::record::GenotypeAllele::Unphased;
 use rust_htslib::bcf::Read;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::io;
 use std::io::Read as OtherRead;
 use std::path::PathBuf;
@@ -31,12 +33,17 @@ impl Caller {
         // Step 1: obtain kallisto estimates.
         let kallisto_estimates = KallistoEstimates::new(&self.hdf5_reader, self.min_norm_counts)?;
         let haplotype_variants = HaplotypeVariants::new(&mut self.haplotype_variants)?;
+        let haplotype_calls = HaplotypeCalls::new(&mut self.haplotype_calls)?;
 
         // Step 2: setup model.
         let model = Model::new(Likelihood::new(), Prior::new(), Posterior::new());
 
         //let universe = HaplotypeFractions::likely(&kallisto_estimates);
-        let data = Data::new(kallisto_estimates.values().cloned().collect());
+        let data = Data::new(
+            kallisto_estimates.values().cloned().collect(),
+            haplotype_variants,
+            haplotype_calls,
+        );
 
         // Step 3: calculate posteriors.
         //let m = model.compute(universe, &data);
@@ -177,13 +184,13 @@ impl KallistoEstimates {
 pub(crate) struct Variant(#[deref] String);
 
 #[derive(Derefable, Debug, Clone, PartialEq, Eq)]
-pub(crate) struct HaplotypeVariants(#[deref] HashMap<Variant, Vec<Haplotype>>);
+pub(crate) struct HaplotypeVariants(#[deref] HashMap<Variant, BitVec>);
 
 impl HaplotypeVariants {
-    pub(crate) fn new(haplotype_variants: &mut bcf::Reader) -> Result<Vec<HaplotypeVariants>> {
-        let mut vec_haplotype_variants = Vec::new();
+    pub(crate) fn new(haplotype_variants: &mut bcf::Reader) -> Result<Self> {
+        let mut candidate_variants = HashMap::new();
         for record_result in haplotype_variants.records() {
-            let record = record_result.expect("Failed to read record");
+            let record = record_result?;
 
             //store the variant
             let mut variant = String::new();
@@ -191,35 +198,79 @@ impl HaplotypeVariants {
             let pos = record.pos().to_string();
             variant.push_str(&format!("{}{}", pos, "_"));
             for allele in record.alleles() {
-                for c in allele {
-                    let base = char::from(*c).to_string();
-                    variant.push_str(&format!("{}{}", base, "_"));
+                if allele.len() == 1 {
+                    for c in allele {
+                        let base = char::from(*c).to_string();
+                        variant.push_str(&format!("{}{}", base, "_"));
+                    }
+                } else {
+                    //the case for structural variants
+                    for c in allele {
+                        let base = char::from(*c).to_string();
+                        variant.push_str(&base);
+                    }
+                    variant.push_str("_")
                 }
             }
 
             //store the haplotypes that carry the variant
             let header = record.header();
-            let gts = record.genotypes().expect("Error reading genotypes"); //genotypes of all samples
-            let sample_count = usize::try_from(record.sample_count()).unwrap();
-            let sample = (0..sample_count).collect::<Vec<_>>();
-            let mut haplotypes: Vec<Haplotype> = Vec::new();
+            let gts = record.genotypes()?; //genotypes of all samples
 
-            for (sample_index, mut x) in sample.iter().zip(header.samples().into_iter()) {
-                for gta in gts.get(*sample_index).iter() {
+            let mut bv: BitVec<usize> = BitVec::new();
+            for (sample_index, x) in header.samples().into_iter().enumerate() {
+                for gta in gts.get(sample_index).iter() {
                     if gta == &Unphased(1) {
-                        let mut s = String::new();
-                        x.read_to_string(&mut s);
-                        haplotypes.push(Haplotype(s));
+                        bv.push(true);
                     } else {
+                        bv.push(false);
                         break;
                     }
                 }
             }
-            let mut haplotype_variants = HashMap::new();
-            haplotype_variants.insert(Variant(variant.clone()), haplotypes);
-            let haplotype_variants = HaplotypeVariants(haplotype_variants);
-            vec_haplotype_variants.push(haplotype_variants);
+            candidate_variants.insert(Variant(variant.clone()), bv);
         }
-        Ok(vec_haplotype_variants)
+        Ok(HaplotypeVariants(candidate_variants))
+    }
+}
+
+#[derive(Derefable, Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HaplotypeCalls(#[deref] HashMap<Variant, String>);
+
+impl HaplotypeCalls {
+    pub(crate) fn new(haplotype_calls: &mut bcf::Reader) -> Result<Self> {
+        let mut calls = HashMap::new();
+        for record_result in haplotype_calls.records() {
+            let record = record_result?;
+
+            //store the variant and the afd if the prob_present field is not nan (to save space)
+            if !record.info(b"PROB_PRESENT").float()?.unwrap()[0].is_nan() {
+                let mut variant = String::new();
+                variant.push_str(&format!("{}{}", record.contig(), "_"));
+                let pos = record.pos().to_string();
+                variant.push_str(&format!("{}{}", pos, "_"));
+                for allele in record.alleles() {
+                    if allele.len() == 1 {
+                        for c in allele {
+                            let base = char::from(*c).to_string();
+                            variant.push_str(&format!("{}{}", base, "_"));
+                        }
+                    } else {
+                        //the case for structural variants
+                        for c in allele {
+                            let base = char::from(*c).to_string();
+                            variant.push_str(&base);
+                        }
+                        variant.push_str("_")
+                    }
+                }
+
+                //store the afd string
+                let afd_utf = record.format(b"AFD").string()?[0];
+                let afd = std::str::from_utf8(afd_utf).unwrap();
+                calls.insert(Variant(variant.clone()), afd.to_string());
+            }
+        }
+        Ok(HaplotypeCalls(calls))
     }
 }
