@@ -3,7 +3,7 @@
 
 expected:
   posteriors:
-    - PROB_PRESENT >= 60
+    - PROB_PRESENT >= 50.0
 
 # necessary bam files
 samples:
