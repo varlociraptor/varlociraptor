@@ -1,8 +1,6 @@
 # a false positive from syndip benchmark. Likely an artifact caused by homology.
 
 expected:
-  allelefreqs:
-    - chm == 0.0
   posteriors:
     - PROB_PRESENT > 2.0
 

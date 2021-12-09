@@ -248,9 +248,11 @@ impl Sample {
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
-        Ok(observations
+        let mut observations: Vec<_> = observations
             .iter()
             .map(|obs| obs.process(major_pos))
-            .collect())
+            .collect();
+        Observation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
+        Ok(observations)
     }
 }

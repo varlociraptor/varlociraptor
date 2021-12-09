@@ -628,7 +628,7 @@ pub(crate) fn write_observations(
 
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
     for obs in observations {
-        prob_mapping.push(encode_logprob(obs.prob_mapping_orig()));
+        prob_mapping.push(encode_logprob(obs.prob_mapping()));
         prob_ref.push(encode_logprob(obs.prob_ref));
         prob_alt.push(encode_logprob(obs.prob_alt));
         prob_missed_allele.push(encode_logprob(obs.prob_missed_allele));
