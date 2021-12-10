@@ -35,6 +35,10 @@ fn default_homopolymer_error_model() -> HashMap<i8, f64> {
     model
 }
 
+fn default_max_mapq() -> u8 {
+    60
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct AlignmentProperties {
     pub(crate) insert_size: Option<InsertSize>,
@@ -42,6 +46,8 @@ pub(crate) struct AlignmentProperties {
     pub(crate) max_ins_cigar_len: Option<u32>,
     pub(crate) frac_max_softclip: Option<f64>,
     pub(crate) max_read_len: u32,
+    #[serde(default = "default_max_mapq")]
+    pub(crate) max_mapq: u8,
     #[serde(default = "default_homopolymer_error_model")]
     pub(crate) wildtype_homopolymer_error_model: HashMap<i8, f64>,
     #[serde(default)]
@@ -194,6 +200,7 @@ impl AlignmentProperties {
             max_ins_cigar_len: None,
             frac_max_softclip: None,
             max_read_len: 0,
+            max_mapq: 0,
             wildtype_homopolymer_error_model: HashMap::new(),
             initial: true,
         };
@@ -201,7 +208,6 @@ impl AlignmentProperties {
         let mut record = bam::Record::new();
         let mut tlens = Vec::new();
         let mut max_read_len = 0;
-        let mut max_mapq = 0;
         let mut i = 0;
         let mut skipped = 0;
         let mut n_soft_clip = 0;
@@ -238,7 +244,7 @@ impl AlignmentProperties {
 
             let chrom = str::from_utf8(bam.header().tid2name(record.tid() as u32)).unwrap();
 
-            max_mapq = cmp::max(max_mapq, record.mapq());
+            properties.max_mapq = cmp::max(properties.max_mapq, record.mapq());
             max_read_len = cmp::max(max_read_len, record.seq().len() as u32);
 
             let (is_regular, has_soft_clip) =

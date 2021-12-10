@@ -191,6 +191,8 @@ testcase!(test_giab_23, exact);
 // At least our probability is weaker than Freebayes's already.
 // testcase!(test_giab_24, exact);
 testcase!(test_giab_25, exact);
+testcase!(test_giab_26, exact);
+testcase!(test_giab_27, exact);
 
 testcase!(test_pcr_homopolymer_error1, exact);
 testcase!(test_pcr_homopolymer_error2, exact);

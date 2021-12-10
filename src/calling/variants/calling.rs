@@ -461,7 +461,6 @@ where
                     // METHOD: check for homopolymer artifacts if at least one pileup contains the corresponding information.
                     work_item.check_homopolymer_artifact_detection |= true;
                 }
-                Observation::adjust_prob_mapping(&mut pileup);
                 if is_snv_or_mnv {
                     // METHOD: remove non-standard alignments. They might come from near
                     // SVs and can induce artifactual SNVs or MNVs. By removing them,

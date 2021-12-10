@@ -12,10 +12,12 @@ use std::str;
 
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::LogProb;
+use bio::stats::{LogProb, PHREDProb, Prob};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
+use ordered_float::NotNan;
 use rust_htslib::bam;
+use statrs::statistics::OrderStatistics;
 
 use serde::Serialize;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -24,8 +26,8 @@ use itertools::Itertools;
 
 use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::utils;
 use crate::utils::homopolymers::HomopolymerErrorModel;
+use crate::utils::{self, PROB_05};
 use crate::utils::{PROB_09, PROB_095};
 use crate::variants::sample;
 use crate::variants::types::Variant;
@@ -320,37 +322,51 @@ impl<P: Clone> Observation<P> {
             >= KassRaftery::Positive
     }
 
-    pub(crate) fn adjust_prob_mapping(pileup: &mut [Self]) {
+    pub(crate) fn adjust_prob_mapping(
+        pileup: &mut [Self],
+        alignment_properties: &AlignmentProperties,
+    ) {
         if !pileup.is_empty() {
-            // METHOD: adjust MAPQ to get rid of stochastically inflated ones
-            // This takes the arithmetic mean of all MAPQs in the pileup.
-            // By that, we effectively diminish high MAPQs of reads that just achieve them
-            // because of e.g. randomly better matching bases in themselves or their mates.
-            let mut prob_sum = LogProb::ln_sum_exp(
-                &pileup
-                    .iter()
-                    .map(|obs| obs.prob_mapping_orig())
-                    .collect_vec(),
-            );
+            // METHOD: adjust MAPQ to get rid of stochastically inflated ones.
+            // The idea here is to estimate the probability that this locus is
+            // actually filled with reads from a homolog (e.g. induced by another variant somewhere else), say ph.
+            // We do this by considering all non-max MAPQs as indicative of this.
+            // Conservatively, we recalibrate those to a probability of 0.5.
+            // Then, adjusted MAPQs are calculated as ph * 0.5 + 1-ph * max_mapq.
+            // Technically, we just compute the mean here, which yields the same result.
 
-            let calc_adjusted = |prob_sum: LogProb, n| LogProb(*prob_sum - (n as f64).ln());
-            let mut adjusted = calc_adjusted(prob_sum, pileup.len());
+            let max_prob_mapping =
+                LogProb::from(PHREDProb(alignment_properties.max_mapq as f64)).ln_one_minus_exp();
+
+            let probs = pileup
+                .iter()
+                .map(|obs| {
+                    if relative_eq!(*obs.prob_mapping_orig(), *max_prob_mapping) {
+                        obs.prob_mapping_orig()
+                    } else {
+                        *PROB_05
+                    }
+                })
+                .collect_vec();
+
+            let mut prob_sum = LogProb::ln_sum_exp(&probs);
+
+            let calc_average = |prob_sum: LogProb, n| LogProb(*prob_sum - (n as f64).ln());
+            let mut average = calc_average(prob_sum, pileup.len());
 
             if pileup.len() < 20 {
                 // METHOD: for low depths, this method does not reliably work because it can be that by accident the
                 // low MAPQ reads are not in the pileup. In order to correct for this sampling issue,
                 // we add one pseudo low MAPQ observation. The higher the depth becomes, the less this observation
                 // plays a role.
-                prob_sum = prob_sum.ln_add_exp(adjusted + *PROB_09);
+                prob_sum = prob_sum.ln_add_exp(*PROB_05);
 
-                adjusted = calc_adjusted(prob_sum, pileup.len() + 1);
+                average = calc_average(prob_sum, pileup.len() + 1);
             }
 
             for obs in pileup {
-                if adjusted < obs.prob_mapping_orig() {
-                    obs.prob_mapping_adj = Some(adjusted);
-                    obs.prob_mismapping_adj = Some(adjusted.ln_one_minus_exp());
-                }
+                obs.prob_mapping_adj = Some(average);
+                obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
             }
         }
     }
