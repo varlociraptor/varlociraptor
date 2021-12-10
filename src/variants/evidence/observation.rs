@@ -328,12 +328,12 @@ impl<P: Clone> Observation<P> {
     ) {
         if !pileup.is_empty() {
             // METHOD: adjust MAPQ to get rid of stochastically inflated ones.
-            // Via looking at the median, we first distinguish whether the MAPQs are representing variance around
-            // a confident high value or if they are rather varying around something smaller.
-            // In the latter case, we take the minimum MAPQ as a conservative adjustment.
-            // In the former case, we take the mean MAPQ as an adjustment (in case it is smaller than the actual MAPQ).
-            // By that, we effectively diminish high MAPQs of reads that just achieve them
-            // because of e.g. randomly better matching bases in themselves or their mates.
+            // The idea here is to estimate the probability that this locus is 
+            // actually filled with reads from a homolog (e.g. induced by another variant somewhere else), say ph.
+            // We do this by considering all non-max MAPQs as indicative of this.
+            // Conservatively, we recalibrate those to a probability of 0.5.
+            // Then, adjusted MAPQs are calculated as ph * 0.5 + 1-ph * max_mapq.
+            // Technically, we just compute the mean here, which yields the same result.
 
             let max_prob_mapping =
                 LogProb::from(PHREDProb(alignment_properties.max_mapq as f64)).ln_one_minus_exp();
