@@ -328,7 +328,7 @@ impl<P: Clone> Observation<P> {
     ) {
         if !pileup.is_empty() {
             // METHOD: adjust MAPQ to get rid of stochastically inflated ones.
-            // The idea here is to estimate the probability that this locus is 
+            // The idea here is to estimate the probability that this locus is
             // actually filled with reads from a homolog (e.g. induced by another variant somewhere else), say ph.
             // We do this by considering all non-max MAPQs as indicative of this.
             // Conservatively, we recalibrate those to a probability of 0.5.
