@@ -350,20 +350,6 @@ impl<P: Clone> Observation<P> {
                 .collect_vec();
 
             let mut prob_sum = LogProb::ln_sum_exp(&probs);
-            let mut prob_min = LogProb(
-                *probs
-                    .iter()
-                    .map(|prob| NotNan::new(**prob).unwrap())
-                    .min()
-                    .unwrap_or_else(|| NotNan::new(0.0).unwrap()),
-            );
-            let prob_median = LogProb::from(Prob(
-                probs
-                    .iter()
-                    .map(|prob| *Prob::from(*prob))
-                    .collect_vec()
-                    .median(),
-            ));
 
             let calc_average = |prob_sum: LogProb, n| LogProb(*prob_sum - (n as f64).ln());
             let mut average = calc_average(prob_sum, pileup.len());
@@ -373,45 +359,15 @@ impl<P: Clone> Observation<P> {
                 // low MAPQ reads are not in the pileup. In order to correct for this sampling issue,
                 // we add one pseudo low MAPQ observation. The higher the depth becomes, the less this observation
                 // plays a role.
-                prob_sum = prob_sum.ln_add_exp(prob_min + *PROB_09);
+                prob_sum = prob_sum.ln_add_exp(*PROB_05);
 
                 average = calc_average(prob_sum, pileup.len() + 1);
             }
 
-            if true || prob_min == LogProb::ln_zero() {
-                // METHOD: a MAPQ of 0 is technically a probability of 1 for not being the correct locus.
-                // However, statistically it makes more sense to assume a probability of 0.5 for multi-mappers.
-                prob_min = *PROB_05;
-            }
-            let prod: LogProb = probs.iter().sum();
-
             for obs in pileup {
-                if true || relative_eq!(*obs.prob_mapping_orig(), *max_prob_mapping) {
-                    obs.prob_mapping_adj = Some(average);
-                    obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
-                } else {
-                    obs.prob_mapping_adj = Some(prob_min);
-                    obs.prob_mismapping_adj = Some(prob_min.ln_one_minus_exp());
-                }
+                obs.prob_mapping_adj = Some(average);
+                obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
             }
-
-            // if false && relative_eq!(*prob_median, *max_prob_mapping) {
-            //     for obs in pileup {
-            //         // maximum MAPQ is median, reduce to average as (a bit less) conservative estimate
-            //         if average < obs.prob_mapping_orig() {
-            //             obs.prob_mapping_adj = Some(average);
-            //             obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
-            //         }
-            //     }
-            // } else {
-            //     for obs in pileup {
-            //         // smaller MAPQ, use the minimum as conservative estimate because usually
-            //         // the mapper overestimates MAPQs in such cases
-            //         obs.prob_mapping_adj = Some(prob_min);
-            //         obs.prob_mismapping_adj = Some(prob_min.ln_one_minus_exp());
-            //         dbg!(prob_min);
-            //     }
-            // }
         }
     }
 
