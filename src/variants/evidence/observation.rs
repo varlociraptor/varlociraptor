@@ -337,11 +337,12 @@ impl<P: Clone> Observation<P> {
 
             let max_prob_mapping =
                 LogProb::from(PHREDProb(alignment_properties.max_mapq as f64)).ln_one_minus_exp();
+            let is_max_prob_mapping = |obs: &Observation<P>| relative_eq!(*obs.prob_mapping_orig(), *max_prob_mapping);
 
             let probs = pileup
                 .iter()
                 .map(|obs| {
-                    if relative_eq!(*obs.prob_mapping_orig(), *max_prob_mapping) {
+                    if is_max_prob_mapping(obs) {
                         obs.prob_mapping_orig()
                     } else {
                         *PROB_05
@@ -363,10 +364,11 @@ impl<P: Clone> Observation<P> {
 
                 average = calc_average(prob_sum, pileup.len() + 1);
             }
-
             for obs in pileup {
-                obs.prob_mapping_adj = Some(average);
-                obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
+                if obs.prob_mapping_orig() > average {
+                    obs.prob_mapping_adj = Some(average);
+                    obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
+                }
             }
         }
     }

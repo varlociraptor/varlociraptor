@@ -17,7 +17,7 @@ pub(crate) enum StrandBias {
 impl Default for StrandBias {
     fn default() -> Self {
         StrandBias::None {
-            forward_rate: NotNan::new(0.5).unwrap(),
+            forward_rate: NotNan::new(0.5).unwrap(), // TODO remove
         }
     }
 }
@@ -91,23 +91,13 @@ impl StrandBias {
             })
             .flatten()
             .count();
-        if strong_all > 10 && strong_forward > 0 && strong_forward != strong_all {
-            Some(NotNan::new(strong_forward as f64 / strong_all as f64).unwrap())
-        } else if pileups
-            .iter()
-            .flatten()
-            .all(|obs| obs.strand == Strand::Forward)
-            || pileups
-                .iter()
-                .flatten()
-                .all(|obs| obs.strand == Strand::Reverse)
-        {
-            // If all reads are either forward or reverse, the bias cannot be estimated at all,
-            // and we record that by returning None here.
-            None
-        } else {
-            // If there are not enough strong ref reads, we just assume the default 0.5.
-            Some(NotNan::new(0.5).unwrap())
-        }
+        
+        if strong_all > 2 {
+            let forward_fraction = strong_forward as f64 / strong_all as f64;
+            if  forward_fraction >= 0.3 && forward_fraction <= 0.7 {
+                return Some(NotNan::new(0.5).unwrap())
+            }
+        } 
+        None
     }
 }
