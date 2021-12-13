@@ -79,7 +79,7 @@ impl StrandBias {
     fn estimate_forward_rate(pileups: &[Vec<Observation<ReadPosition>>]) -> Option<NotNan<f64>> {
         let strong_all = pileups
             .iter()
-            .map(|pileup| pileup.iter().filter(|obs| obs.is_strong_ref_support()))
+            .map(|pileup| pileup.iter().filter(|obs| obs.is_strong_ref_support() && obs.strand != Strand::Both))
             .flatten()
             .count();
         let strong_forward = pileups
@@ -94,7 +94,7 @@ impl StrandBias {
         
         if strong_all > 2 {
             let forward_fraction = strong_forward as f64 / strong_all as f64;
-            if  forward_fraction >= 0.3 && forward_fraction <= 0.7 {
+            if  forward_fraction >= 0.4 && forward_fraction <= 0.6 {
                 return Some(NotNan::new(0.5).unwrap())
             }
         } 
