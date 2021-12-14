@@ -1,3 +1,5 @@
+# True GIAB variant (1:948929), which is very clean and should get a strong call.
+
 expected:
   allelefreqs:
     - NA12878 == 0.5
