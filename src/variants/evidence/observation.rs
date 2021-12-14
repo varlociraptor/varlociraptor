@@ -13,6 +13,7 @@ use std::str;
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
 use bio::stats::{LogProb, PHREDProb, Prob};
+use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
 use ordered_float::NotNan;
@@ -36,7 +37,7 @@ use super::realignment::pairhmm::RefBaseVariantEmission;
 use super::realignment::Realignable;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
-pub(crate) fn expected_depth(obs: &[Observation<ReadPosition>]) -> u32 {
+pub(crate) fn expected_depth(obs: &[ProcessedObservation]) -> u32 {
     LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec())
         .exp()
         .round() as u32
@@ -164,11 +165,63 @@ pub(crate) fn read_orientation(record: &bam::Record) -> Result<SequenceReadPairO
     }
 }
 
+#[derive(Debug, Clone, Derefable, Default)]
+pub(crate) struct ExactAltLoci {
+    #[deref]
+    inner: Vec<genome::Locus>
+}
+
+impl<'a> From<&'a bam::Record> for ExactAltLoci {
+    fn from(record: &'a bam::Record) -> Self {
+        match record.aux(b"XA") {
+            Ok(bam::record::Aux::String(xa)) => {
+                ExactAltLoci {
+                    inner: xa.split(';').filter_map(|xa| {
+                        let items: Vec<_> = xa.split(',').collect();
+                        if items.len() == 4 {
+                            let contig = items[0];
+                            let mut pos = items[1];
+                            if pos.starts_with('-') || pos.starts_with('-') {
+                                pos = &pos[1..];
+                            }
+                            if let Ok(pos) = pos.parse() {
+                                Some(genome::Locus::new(contig.to_owned(), pos))
+                            } else {
+                                None
+                            }
+                        } else {
+                            warn!("{}", INVALID_XA_FORMAT_MSG);
+                            None
+                        }
+                    }).collect()
+                }
+            }
+            Ok(_) => {
+                warn!("{}", INVALID_XA_FORMAT_MSG);
+                ExactAltLoci::default()
+            }
+            Err(e) => {
+                // no XA tag found, return empty.
+                ExactAltLoci::default()
+            }
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum AltLocus {
+    Major,
+    Some,
+    None,
+}
+
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default, Serialize)]
-pub(crate) struct Observation<P = Option<u32>>
+pub(crate) struct Observation<P = Option<u32>, A = ExactAltLoci>
 where
     P: Clone,
+    A: Clone,
 {
     name: Option<String>,
     /// Posterior probability that the read/read-pair has been mapped correctly (1 - MAPQ).
@@ -211,9 +264,13 @@ where
     pub(crate) prob_observable_at_homopolymer_artifact: Option<LogProb>,
     /// Homopolymer indel length (None if there is no homopolymer indel compared to reference)
     pub(crate) homopolymer_indel_len: Option<i8>,
+    pub(crate) is_max_mapq: bool,
+    pub(crate) alt_locus: A,
 }
 
-impl<P: Clone> ObservationBuilder<P> {
+pub(crate) type ProcessedObservation = Observation<ReadPosition, AltLocus>;
+
+impl<P: Clone, A: Clone> ObservationBuilder<P, A> {
     pub(crate) fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self.prob_mapping(prob_mapping)
             .prob_mismapping(prob_mapping.ln_one_minus_exp())
@@ -225,8 +282,8 @@ impl<P: Clone> ObservationBuilder<P> {
     }
 }
 
-impl Observation<Option<u32>> {
-    pub(crate) fn process(&self, major_read_position: Option<u32>) -> Observation<ReadPosition> {
+impl Observation<Option<u32>, ExactAltLoci> {
+    pub(crate) fn process(&self, major_read_position: Option<u32>, major_alt_locus: &Option<genome::Locus>, alignment_properties: &AlignmentProperties) -> Observation<ReadPosition, AltLocus> {
         Observation {
             name: self.name.clone(),
             prob_mapping: self.prob_mapping,
@@ -257,11 +314,25 @@ impl Observation<Option<u32>> {
             }),
             prob_observable_at_homopolymer_artifact: self.prob_observable_at_homopolymer_artifact,
             homopolymer_indel_len: self.homopolymer_indel_len,
+            is_max_mapq: self.is_max_mapq,
+            alt_locus: if let Some(major_alt_locus) = major_alt_locus {
+                if self.alt_locus.iter().any(|alt_locus| locus_to_bucket(alt_locus, alignment_properties) == *major_alt_locus) {
+                    AltLocus::Major
+                } else {
+                    if self.alt_locus.is_empty() {
+                        AltLocus::None
+                    } else {
+                        AltLocus::Some
+                    }
+                }
+            } else {
+                AltLocus::None
+            }
         }
     }
 }
 
-impl<P: Clone> Observation<P> {
+impl<P: Clone, A: Clone> Observation<P, A> {
     pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
@@ -337,7 +408,7 @@ impl<P: Clone> Observation<P> {
 
             let max_prob_mapping =
                 LogProb::from(PHREDProb(alignment_properties.max_mapq as f64)).ln_one_minus_exp();
-            let is_max_prob_mapping = |obs: &Observation<P>| relative_eq!(*obs.prob_mapping_orig(), *max_prob_mapping);
+            let is_max_prob_mapping = |obs: &Observation<P, A>| relative_eq!(*obs.prob_mapping_orig(), *max_prob_mapping);
 
             let probs = pileup
                 .iter()
@@ -380,7 +451,7 @@ impl<P: Clone> Observation<P> {
     }
 }
 
-pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option<u32> {
+pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>, ExactAltLoci>]) -> Option<u32> {
     let counter: Counter<_> = pileup.iter().filter_map(|obs| obs.read_position).collect();
     let most_common = counter.most_common();
     if most_common.is_empty() {
@@ -388,6 +459,25 @@ pub(crate) fn major_read_position(pileup: &[Observation<Option<u32>>]) -> Option
     } else {
         Some(most_common[0].0)
     }
+}
+
+pub(crate) fn major_alt_locus(pileup: &[Observation<Option<u32>, ExactAltLoci>], alignment_properties: &AlignmentProperties) -> Option<genome::Locus> {
+    let counter: Counter<_> = pileup.iter().map(|obs| obs.alt_locus.iter().map(|locus| locus_to_bucket(locus, alignment_properties))).flatten().collect();
+    let most_common = counter.most_common();
+    if most_common.is_empty() {
+        None
+    } else {
+        Some(most_common[0].0.clone())
+    }
+}
+
+pub(crate) fn locus_to_bucket(locus: &genome::Locus, alignment_properties: &AlignmentProperties) -> genome::Locus {
+    // METHOD: map each locus to the nearest multiple of the read len from the left.
+    // This way, varying reads become comparable
+    genome::Locus::new(
+        locus.contig().to_owned(),
+        (locus.pos() / alignment_properties.max_read_len as u64) * alignment_properties.max_read_len as u64
+    )
 }
 
 /// Something that can be converted into observations.
@@ -406,6 +496,9 @@ where
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
     /// correctly.
     fn prob_mapping(&self, evidence: &E) -> LogProb;
+
+    /// Return the minimum MAPQ of all records involved in the given evidence.
+    fn min_mapq(&self, evidence: &E) -> u8;
 
     /// Calculate an observation from the given evidence.
     fn evidence_to_observation(
@@ -440,7 +533,9 @@ where
                         .softclipped(evidence.softclipped())
                         .read_position(allele_support.read_position())
                         .paired(evidence.is_paired())
-                        .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()));
+                        .prob_hit_base(LogProb::ln_one() - LogProb((evidence.len() as f64).ln()))
+                        .is_max_mapq(self.min_mapq(evidence) == alignment_properties.max_mapq)
+                        .alt_locus(evidence.alt_loci());
 
                     if let Some(homopolymer_error_model) = homopolymer_error_model {
                         let ref_indel_len = read_indel_len
@@ -473,6 +568,8 @@ where
 }
 
 pub(crate) trait Evidence {
+    fn alt_loci(&self) -> ExactAltLoci;
+
     fn read_orientation(&self) -> Result<SequenceReadPairOrientation>;
 
     fn softclipped(&self) -> bool;
@@ -497,6 +594,8 @@ impl Deref for SingleEndEvidence {
     }
 }
 
+const INVALID_XA_FORMAT_MSG: &'static str = "XA tag of bam records in unexpected format. Expecting string (type Z) in bwa format (chr,pos,CIGAR,NM;).";
+
 impl Evidence for SingleEndEvidence {
     fn read_orientation(&self) -> Result<SequenceReadPairOrientation> {
         // Single end evidence can just mean that we only need to consider each read alone,
@@ -519,6 +618,10 @@ impl Evidence for SingleEndEvidence {
 
     fn name(&self) -> &[u8] {
         self.inner.qname()
+    }
+
+    fn alt_loci(&self) -> ExactAltLoci {
+        ExactAltLoci::from(self.inner.as_ref())
     }
 }
 
@@ -587,6 +690,18 @@ impl Evidence for PairedEndEvidence {
             PairedEndEvidence::PairedEnd { left, .. } => left.qname(),
             PairedEndEvidence::SingleEnd(rec) => rec.qname(),
         }
+    }
+
+    fn alt_loci(&self) -> ExactAltLoci {
+        match self {
+            PairedEndEvidence::SingleEnd(rec) => ExactAltLoci::from(rec.as_ref()),
+            PairedEndEvidence::PairedEnd { left, right } => {
+                let mut left = ExactAltLoci::from(left.as_ref());
+                left.inner.extend(ExactAltLoci::from(right.as_ref()).inner);
+                left
+            }
+        }
+        
     }
 }
 

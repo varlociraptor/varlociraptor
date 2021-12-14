@@ -1,4 +1,5 @@
-# True homozygous GIAB variant (1:1653028).
+# True homozygous GIAB variant (1:1653028). However, it seems to have a homologous region somewhere else, with lots of low MAPQ reads and
+# consistent XA tags. Better not call this for now. It is just bad luck that this looks like an artifact.
 
 expected:
   allelefreqs:

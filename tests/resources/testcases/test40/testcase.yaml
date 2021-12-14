@@ -2,7 +2,7 @@
 # This is likely an artifact.
 expected:
   posteriors:
-    - PROB_ARTIFACT <= 2.6
+    - PROB_ARTIFACT <= 2.9
 
 # necessary bam files
 samples:

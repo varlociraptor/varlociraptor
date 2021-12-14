@@ -31,7 +31,7 @@ use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{
-    Observation, ObservationBuilder, ReadPosition, Strand,
+    Observation, ObservationBuilder, ReadPosition, Strand, AltLocus, ProcessedObservation,
 };
 use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use crate::variants::evidence::realignment::{self, Realignable};
@@ -115,6 +115,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "PAIRED",
             "PROB_HOMOPOLYMER_OBSERVABLE",
             "HOMOPOLYMER_INDEL_LEN",
+            "IS_MAX_MAPQ",
+            "ALT_LOCUS",
         ] {
             header.push_record(
                 format!("##INFO=<ID={},Number=.,Type=Integer,Description=\"Varlociraptor observations (binary encoded, meant for internal use only).\"", name).as_bytes()
@@ -283,7 +285,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         &self,
         variants: &Variants,
         sample: &mut Sample,
-    ) -> Result<Option<Vec<Observation<ReadPosition>>>> {
+    ) -> Result<Option<Vec<ProcessedObservation>>> {
         let interval = |len: u64| {
             genome::Interval::new(
                 variants.locus().contig().to_owned(),
@@ -514,7 +516,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "11";
 
 pub(crate) struct Observations {
-    pub(crate) observations: Vec<Observation<ReadPosition>>,
+    pub(crate) observations: Vec<ProcessedObservation>,
     pub(crate) is_homopolymer_indel: bool,
 }
 
@@ -568,6 +570,8 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
     let homopolymer_indel_len: Vec<Option<i8>> =
         read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
     let is_homopolymer_indel = !prob_observable_at_homopolymer_artifact.is_empty();
+    let is_max_mapq: BitVec<u8> = read_values(record, b"IS_MAX_MAPQ", false)?;
+    let alt_locus: Vec<AltLocus> = read_values(record, b"ALT_LOCUS", false)?;
 
     let obs = (0..prob_mapping.len())
         .map(|i| {
@@ -584,7 +588,9 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
                 .read_orientation(read_orientation[i])
                 .read_position(read_position[i])
                 .softclipped(softclipped[i as u64])
-                .paired(paired[i as u64]);
+                .paired(paired[i as u64])
+                .is_max_mapq(is_max_mapq[i as u64])
+                .alt_locus(alt_locus[i]);
 
             if is_homopolymer_indel {
                 obs.homopolymer_indel_len(homopolymer_indel_len[i])
@@ -606,7 +612,7 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
 }
 
 pub(crate) fn write_observations(
-    observations: &[Observation<ReadPosition>],
+    observations: &[ProcessedObservation],
     record: &mut bcf::Record,
 ) -> Result<()> {
     let vec = || Vec::with_capacity(observations.len());
@@ -625,6 +631,8 @@ pub(crate) fn write_observations(
     let mut prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
         Vec::with_capacity(observations.len());
     let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(observations.len());
+    let mut is_max_mapq: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
+    let mut alt_locus = Vec::with_capacity(observations.len());
 
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
     for obs in observations {
@@ -640,6 +648,8 @@ pub(crate) fn write_observations(
         softclipped.push(obs.softclipped);
         paired.push(obs.paired);
         read_position.push(obs.read_position);
+        is_max_mapq.push(obs.is_max_mapq);
+        alt_locus.push(obs.alt_locus);
 
         prob_observable_at_homopolymer_artifact.push(
             obs.prob_observable_at_homopolymer_artifact
@@ -684,6 +694,8 @@ pub(crate) fn write_observations(
     push_values(record, b"PAIRED", &paired)?;
     push_values(record, b"READ_POSITION", &read_position)?;
     push_values(record, b"PROB_HIT_BASE", &prob_hit_base)?;
+    push_values(record, b"IS_MAX_MAPQ", &is_max_mapq)?;
+    push_values(record, b"ALT_LOCUS", &alt_locus)?;
 
     if prob_observable_at_homopolymer_artifact
         .iter()
@@ -716,6 +728,8 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"READ_POSITION");
     header.remove_info(b"PROB_HOMOPOLYMER_OBSERVABLE");
     header.remove_info(b"HOMOPOLYMER_INDEL_LEN");
+    header.remove_info(b"IS_MAX_MAPQ");
+    header.remove_info(b"ALT_LOCUS");
 }
 
 pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli::Varlociraptor> {

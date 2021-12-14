@@ -4,7 +4,8 @@ use bio::stats::Prob;
 use ordered_float::NotNan;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
+use crate::variants::evidence::observation::ProcessedObservation;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Ord, EnumIter, Hash)]
@@ -23,7 +24,7 @@ impl Default for StrandBias {
 }
 
 impl Bias for StrandBias {
-    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
         match (self, observation.strand) {
             (StrandBias::Forward, Strand::Forward) => LogProb::ln_one(),
             (StrandBias::Reverse, Strand::Forward) => LogProb::ln_zero(),
@@ -44,7 +45,7 @@ impl Bias for StrandBias {
         }
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_any(&self, _observation: &ProcessedObservation) -> LogProb {
         *PROB_05
     }
 
@@ -56,13 +57,13 @@ impl Bias for StrandBias {
         }
     }
 
-    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         // METHOD: if all reads come from the forward or reverse strand,
         // we cannot estimate a strand bias and None is the only informative one.
         !self.is_artifact() || Self::estimate_forward_rate(pileups).is_some()
     }
 
-    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
+    fn learn_parameters(&mut self, pileups: &[Vec<ProcessedObservation>]) {
         if let StrandBias::None {
             ref mut forward_rate,
         } = self
@@ -76,7 +77,7 @@ impl Bias for StrandBias {
 }
 
 impl StrandBias {
-    fn estimate_forward_rate(pileups: &[Vec<Observation<ReadPosition>>]) -> Option<NotNan<f64>> {
+    fn estimate_forward_rate(pileups: &[Vec<ProcessedObservation>]) -> Option<NotNan<f64>> {
         let strong_all = pileups
             .iter()
             .map(|pileup| pileup.iter().filter(|obs| obs.is_strong_ref_support() && obs.strand != Strand::Both))

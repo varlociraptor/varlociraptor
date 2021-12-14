@@ -21,9 +21,11 @@ use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
+use crate::variants::evidence::observation::AltLocus;
 use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
+use crate::variants::evidence::observation::{Observation, ProcessedObservation, ReadPosition, Strand};
 use crate::variants::model;
+use crate::variants::model::bias::AltLocusBias;
 use crate::variants::model::{
     bias::Artifacts, bias::HomopolymerError, bias::ReadOrientationBias, bias::ReadPositionBias,
     bias::SoftclipBias, bias::StrandBias, AlleleFreq,
@@ -122,6 +124,7 @@ impl Call {
         let mut read_position_bias = VecMap::new();
         let mut softclip_bias = VecMap::new();
         let mut homopolymer_error = VecMap::new();
+        let mut alt_locus_bias = VecMap::new();
         let mut alleles = Vec::new();
         let mut svlens = Vec::new();
         let mut events = Vec::new();
@@ -184,6 +187,13 @@ impl Call {
                         HomopolymerError::Some { .. } => b'*',
                     },
                 );
+                alt_locus_bias.insert(
+                    i,
+                    match sample_info.artifacts.alt_locus_bias() {
+                        AltLocusBias::None => b'.',
+                        AltLocusBias::Some => b'*',
+                    }
+                );
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
 
@@ -195,13 +205,18 @@ impl Call {
                         sample_info.observations.iter().map(|obs| {
                             let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                             format!(
-                                "{}{}{}{}{}{}{}",
-                                if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
-                                    score.to_ascii_lowercase()
-                                } else {
+                                "{}{}{}{}{}{}{}{}",
+                                if obs.is_max_mapq {
                                     score.to_ascii_uppercase()
+                                } else {
+                                    score.to_ascii_lowercase()
                                 },
                                 if obs.paired { 'p' } else { 's' },
+                                match obs.alt_locus {
+                                    AltLocus::Major => '#',
+                                    AltLocus::Some => '*',
+                                    AltLocus::None => '.',
+                                },
                                 match obs.strand {
                                     Strand::Both => '*',
                                     Strand::Reverse => '-',
@@ -246,10 +261,10 @@ impl Call {
                             let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                             format!(
                                 "{}",
-                                if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
-                                    score.to_ascii_lowercase()
-                                } else {
+                                if obs.is_max_mapq {
                                     score.to_ascii_uppercase()
+                                } else {
+                                    score.to_ascii_lowercase()
                                 }
                             )
                         }),
@@ -390,6 +405,9 @@ impl Call {
             let he = homopolymer_error.values().map(|he| vec![*he]).collect_vec();
             record.push_format_string(b"HE", &he)?;
 
+            let alb = alt_locus_bias.values().map(|alb| vec![*alb]).collect_vec();
+            record.push_format_string(b"ALB", &alb)?;
+
             let vaf_densities = vaf_densities
                 .values()
                 .map(|vaf_dist| {
@@ -442,7 +460,7 @@ pub(crate) struct Variant {
     #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
-    observations: Option<Vec<Observation<ReadPosition>>>,
+    observations: Option<Vec<ProcessedObservation>>,
     #[builder(default)]
     #[getset(get = "pub(crate)")]
     sample_info: Vec<Option<SampleInfo>>,
@@ -537,7 +555,7 @@ impl VariantBuilder {
 pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
     #[builder(default = "Vec::new()")]
-    observations: Vec<Observation<ReadPosition>>,
+    observations: Vec<ProcessedObservation>,
     artifacts: Artifacts,
     vaf_dist: Option<HashMap<AlleleFreq, LogProb>>,
 }

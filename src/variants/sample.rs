@@ -25,6 +25,7 @@ use crate::variants::evidence::observation::{
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 
+use super::evidence::observation::{major_alt_locus, ProcessedObservation};
 use super::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use super::evidence::realignment::Realignable;
 
@@ -130,7 +131,7 @@ impl Default for ProtocolStrandedness {
     }
 }
 
-pub(crate) type Pileup = Vec<Observation<ReadPosition>>;
+pub(crate) type Pileup = Vec<ProcessedObservation>;
 
 pub(crate) enum SubsampleCandidates {
     Necessary {
@@ -248,9 +249,10 @@ impl Sample {
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
+        let major_alt_locus = major_alt_locus(&observations, &self.alignment_properties);
         let mut observations: Vec<_> = observations
             .iter()
-            .map(|obs| obs.process(major_pos))
+            .map(|obs| obs.process(major_pos, &major_alt_locus, &self.alignment_properties))
             .collect();
         Observation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
         Ok(observations)

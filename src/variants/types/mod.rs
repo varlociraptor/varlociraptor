@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::cmp;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -163,6 +164,10 @@ where
         prob_mismapping.ln_one_minus_exp()
     }
 
+    fn min_mapq(&self, evidence: &SingleEndEvidence) -> u8 {
+        evidence.mapq()
+    }
+
     fn extract_observations(
         &self,
         buffer: &mut sample::RecordBuffer,
@@ -234,6 +239,13 @@ where
                 }
                 p.ln_one_minus_exp()
             }
+        }
+    }
+
+    fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
+        match evidence {
+            PairedEndEvidence::SingleEnd(record) => record.mapq(),
+            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
         }
     }
 

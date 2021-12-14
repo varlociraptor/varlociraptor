@@ -22,7 +22,7 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ProcessedObservation};
 use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
@@ -130,9 +130,11 @@ where
         );
         header.push_record(
             b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBTSOPXI, with C being a count, \
+              Description=\"Summary of observations. Each entry is encoded as CBTASOPXI, with C being a count, \
               B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
-              as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
+              as s=single end and p=paired end, A denoting whether the observations also map to an alternative locus \
+              (# = most found alternative locus, * = other locus, . = no locus), \
+              S being the strand that supports the observation (+, -, or * for both), \
               O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
               P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
               X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
@@ -140,7 +142,8 @@ where
               (* = some indel, . = no indel or information irrelevant for variant type). \
               Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
               scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
-              probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
+              probability for correct mapping of fragment does not correspond to the maximum reported value by the mapper \
+              (for bwa, this is usually 60 in PHRED scale)). Note that we extend Kass Raftery scores with \
               a term for equality between the evidence of the two alleles (E=equal).\">",
         );
         header.push_record(
@@ -184,6 +187,16 @@ where
               with homopolymer indel operations of varying length, . indicates that there is no homopolymer error.
               Homopolymer error is indicative of systematic PCR amplification errors. \
               Probability for such homopolymer artifacts is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=ALB,Number=A,Type=String,\
+              Description=\"Alt locus bias estimate: * indicates that ALT allele is systematically associated \
+              with either MAPQs smaller than the maximum MAPQ or a major alternative alignment (XA tag) \
+              reported by the used read mapper. \
+              This would be indicative of ALT reads actually coming from another locus (e.g. some repeat, \
+              a homology, a distant variant allele, or a CNV). \
+              Probability for mapping quality bias is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
         );
         header.push_record(
@@ -762,7 +775,7 @@ struct WorkItem {
     rid: u32,
     call: Call,
     variant_builder: VariantBuilder,
-    pileups: Option<Vec<Vec<Observation<ReadPosition>>>>,
+    pileups: Option<Vec<Vec<ProcessedObservation>>>,
     snv: Option<model::modes::generic::Snv>,
     bnd_event: Option<Vec<u8>>,
     index: usize,
