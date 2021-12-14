@@ -1,0 +1,33 @@
+expected:
+  allelefreqs:
+    # write down a list of expressions of the form
+    - sample_name > 0.45 && sample_name < 0.55
+  posteriors:
+    # write down a list of expressions of the form
+    - PROB_SOMATIC_TUMOR <= 0.05
+    - PROB_GERMLINE_HET > 0.05
+
+# necessary bam files
+samples:
+  tumor:
+    path: 'tumor.bam'
+    properties: '{"insert_size":{"mean":281.75101466960234,"sd":65.57199076916991},"max_del_cigar_len":54,"max_ins_cigar_len":21,"frac_max_softclip":0.81,"max_read_len":200,"wildtype_homopolymer_error_model":{"6":1.0517778200492292e-6,"-2":0.0001673829273621202,"1":0.0006029691988367938,"-8":3.0050794858549407e-6,"2":0.000058448795999878594,"-14":6.010158971709881e-7,"-13":2.2538096143912054e-6,"9":3.0050794858549406e-7,"-12":1.5025397429274703e-6,"-11":4.05685730590417e-6,"3":0.000012921841789176244,"-6":3.305587434440435e-6,"7":1.5025397429274703e-7,"10":1.5025397429274703e-7,"-4":0.000016377683197909425,"-1":0.001219912017282813,"-7":6.3106669202953755e-6,"-17":4.507619228782411e-7,"-5":7.212190766051858e-6,"15":1.5025397429274703e-7,"5":1.3522857686347233e-6,"-15":1.3522857686347233e-6,"-16":1.5025397429274703e-7,"16":1.5025397429274703e-7,"0":0.9978437052149248,"-10":1.5025397429274703e-7,"-19":1.5025397429274703e-7,"4":2.8548255115621936e-6,"-3":0.000046278224082166085,"-9":1.5025397429274703e-6},"initial":false}'
+    options: '{"Preprocess":{"kind":{"Variants":{"reference":"?","candidates":"?","bam":"?","reference_buffer_size":10,"min_bam_refetch_distance":1,"alignment_properties":"results/alignment-properties/S5/S5.json","output":"?","spurious_ins_rate":2.8e-6,"spurious_del_rate":5.1e-6,"spurious_insext_rate":0.0,"spurious_delext_rate":0.0,"protocol_strandedness":"Opposite","realignment_window":64,"max_depth":200,"omit_insert_size":false,"pairhmm_mode":"exact","log_mode":"default","output_raw_observations":null}}}}'
+  
+
+# candidate variant
+candidate: 'candidates.vcf'
+
+scenario: 'scenario.yaml'
+
+
+
+
+
+# reference sequence
+reference:
+  path: 'ref.fa'
+
+mode: Generic
+
+version: '4'
