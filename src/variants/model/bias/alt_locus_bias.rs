@@ -1,7 +1,7 @@
 use bio::stats::probs::LogProb;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{ProcessedObservation, AltLocus};
+use crate::variants::evidence::observation::{AltLocus, ProcessedObservation};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
@@ -25,7 +25,7 @@ impl Bias for AltLocusBias {
             (AltLocusBias::None, _, _) => *PROB_05, // normal
             (AltLocusBias::Some, true, AltLocus::Some | AltLocus::None) => LogProb::ln_zero(), // no bias
             (AltLocusBias::Some, true, AltLocus::Major) => LogProb::ln_one(), // bias
-            (AltLocusBias::Some, false, _) => LogProb::ln_one(), // bias
+            (AltLocusBias::Some, false, _) => LogProb::ln_one(),              // bias
         }
     }
 

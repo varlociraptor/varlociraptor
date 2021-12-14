@@ -73,19 +73,17 @@ impl Bias for ReadOrientationBias {
             .iter()
             .flatten()
             .filter(|observation| {
-                observation.is_strong_ref_support() && (
-                observation.read_orientation == SequenceReadPairOrientation::F1R2
-                    || observation.read_orientation == SequenceReadPairOrientation::F2R1
-                )
+                observation.is_strong_ref_support()
+                    && (observation.read_orientation == SequenceReadPairOrientation::F1R2
+                        || observation.read_orientation == SequenceReadPairOrientation::F2R1)
             })
             .count();
         let strong_ref_f1r2 = pileups
             .iter()
             .flatten()
             .filter(|observation| {
-                observation.is_strong_ref_support() && (
-                observation.read_orientation == SequenceReadPairOrientation::F1R2
-                )
+                observation.is_strong_ref_support()
+                    && (observation.read_orientation == SequenceReadPairOrientation::F1R2)
             })
             .count();
         let uniform_distribution = if strong_ref_total_count > 2 {

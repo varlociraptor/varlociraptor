@@ -107,7 +107,7 @@ impl<R: Realigner> Variant for Mnv<R> {
         if utils::contains_indel_op(&**read) || !alt_variants.is_empty() {
             // METHOD: reads containing indel operations should always be realigned,
             // as their support or non-support of the MNV might be an artifact
-            // of the aligner. Also, if we have alt alignments here, we need to 
+            // of the aligner. Also, if we have alt alignments here, we need to
             // realign as well since we need the multi-allelic case handling in the
             // realigner.
             Ok(Some(self.realigner.borrow_mut().allele_support(

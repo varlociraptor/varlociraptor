@@ -1,6 +1,7 @@
 use bio::stats::probs::LogProb;
 use bio::stats::Prob;
 
+use itertools::Itertools;
 use ordered_float::NotNan;
 
 use crate::utils::PROB_05;
@@ -78,25 +79,43 @@ impl Bias for StrandBias {
 
 impl StrandBias {
     fn estimate_forward_rate(pileups: &[Vec<ProcessedObservation>]) -> Option<NotNan<f64>> {
-        let strong_all = pileups
-            .iter()
-            .map(|pileup| pileup.iter().filter(|obs| obs.is_strong_ref_support() && obs.strand != Strand::Both))
-            .flatten()
-            .count();
-        let strong_forward = pileups
-            .iter()
-            .map(|pileup| {
-                pileup
-                    .iter()
-                    .filter(|obs| obs.is_strong_ref_support() && obs.strand == Strand::Forward)
-            })
-            .flatten()
-            .count();
-        
-        if strong_all > 2 {
-            let forward_fraction = strong_forward as f64 / strong_all as f64;
-            if  forward_fraction >= 0.4 && forward_fraction <= 0.6 {
-                return Some(NotNan::new(0.5).unwrap())
+        let strong_all = LogProb::ln_sum_exp(
+            &pileups
+                .iter()
+                .map(|pileup| {
+                    pileup.iter().filter_map(|obs| {
+                        if obs.is_strong_ref_support() && obs.strand != Strand::Both {
+                            Some(obs.prob_mapping())
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .flatten()
+                .collect_vec(),
+        )
+        .exp();
+        let strong_forward = LogProb::ln_sum_exp(
+            &pileups
+                .iter()
+                .map(|pileup| {
+                    pileup.iter().filter_map(|obs| {
+                        if obs.is_strong_ref_support() && obs.strand == Strand::Forward {
+                            Some(obs.prob_mapping())
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .flatten()
+                .collect_vec(),
+        )
+        .exp();
+
+        if strong_all > 2.0 {
+            let forward_fraction = strong_forward / strong_all;
+            if forward_fraction >= 0.4 && forward_fraction <= 0.6 {
+                return Some(NotNan::new(0.5).unwrap());
             }
         }
         None

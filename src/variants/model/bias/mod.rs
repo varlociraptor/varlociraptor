@@ -7,19 +7,19 @@ use strum::IntoEnumIterator;
 
 use crate::variants::evidence::observation::ProcessedObservation;
 
+pub(crate) mod alt_locus_bias;
 pub(crate) mod homopolymer_error;
 pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
 pub(crate) mod softclip_bias;
 pub(crate) mod strand_bias;
-pub(crate) mod alt_locus_bias;
 
+pub(crate) use alt_locus_bias::AltLocusBias;
 pub(crate) use homopolymer_error::HomopolymerError;
 pub(crate) use read_orientation_bias::ReadOrientationBias;
 pub(crate) use read_position_bias::ReadPositionBias;
 pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
-pub(crate) use alt_locus_bias::AltLocusBias;
 
 pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb;
@@ -235,7 +235,6 @@ impl Artifacts {
             && self.softclip_bias.is_likely(pileups)
             && self.homopolymer_error.is_likely(pileups)
             && self.alt_locus_bias.is_likely(pileups)
-
     }
 
     pub(crate) fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {

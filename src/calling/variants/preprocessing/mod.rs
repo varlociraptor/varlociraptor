@@ -31,7 +31,7 @@ use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observation::{
-    Observation, ObservationBuilder, ReadPosition, Strand, AltLocus, ProcessedObservation,
+    AltLocus, Observation, ObservationBuilder, ProcessedObservation, ReadPosition, Strand,
 };
 use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use crate::variants::evidence::realignment::{self, Realignable};

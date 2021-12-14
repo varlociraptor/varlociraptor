@@ -21,9 +21,11 @@ use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
-use crate::variants::evidence::observation::AltLocus;
 use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::{Observation, ProcessedObservation, ReadPosition, Strand};
+use crate::variants::evidence::observation::AltLocus;
+use crate::variants::evidence::observation::{
+    Observation, ProcessedObservation, ReadPosition, Strand,
+};
 use crate::variants::model;
 use crate::variants::model::bias::AltLocusBias;
 use crate::variants::model::{
@@ -192,7 +194,7 @@ impl Call {
                     match sample_info.artifacts.alt_locus_bias() {
                         AltLocusBias::None => b'.',
                         AltLocusBias::Some => b'*',
-                    }
+                    },
                 );
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);

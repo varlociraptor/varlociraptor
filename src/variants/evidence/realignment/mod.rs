@@ -302,6 +302,7 @@ pub(crate) trait Realigner {
                     .collect_vec(),
                 &mut edit_dist,
             );
+            dbg!((prob_ref, prob_alt));
 
             assert!(!prob_ref.is_nan());
             assert!(!prob_alt.is_nan());
@@ -363,6 +364,8 @@ pub(crate) trait Realigner {
             strand = Strand::from_record(record);
         }
 
+        dbg!((prob_ref_all, prob_alt_all));
+
         Ok(AlleleSupportBuilder::default()
             .strand(strand)
             .homopolymer_indel_len(homopolymer_indel_len)
@@ -407,6 +410,7 @@ pub(crate) trait Realigner {
                 best_hit.replace(hit.clone());
             } else {
                 let p = self.calculate_prob_allele(&hit, allele_params);
+                dbg!((p, hit.dist()));
 
                 if prob.map_or(true, |prob| p > prob) {
                     prob.replace(p);
@@ -474,6 +478,8 @@ impl Realigner for PairHMMRealigner {
         allele_params.shrink_to_hit(hit);
 
         // METHOD: Further, we run the HMM on a band around the best edit distance.
+        // Just to be sure that we don't miss some ambiguity, we add some additional
+        // edit operations to the band.
         self.pairhmm.prob_related(
             allele_params,
             &self.gap_params,

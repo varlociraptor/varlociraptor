@@ -7,7 +7,7 @@ use bio::stats::{bayesian::model::Likelihood, LogProb};
 use lru::LruCache;
 
 use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::evidence::observation::{Observation, ReadPosition, ProcessedObservation};
+use crate::variants::evidence::observation::{Observation, ProcessedObservation, ReadPosition};
 use crate::variants::model::bias::Artifacts;
 use crate::variants::model::AlleleFreq;
 use crate::variants::sample::Pileup;

@@ -104,7 +104,10 @@ impl VariantBuffer {
                             record_info: self.record_infos.get(variant_index).unwrap(),
                         };
                         if self.log_each_record {
-                            info!("Alt variants at previous locus: {}", variants.n_alt_variants());
+                            info!(
+                                "Alt variants at previous locus: {}",
+                                variants.n_alt_variants()
+                            );
                         }
 
                         return Ok(Some(variants));
