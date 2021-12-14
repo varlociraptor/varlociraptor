@@ -539,6 +539,7 @@ where
                     consider_homopolymer_error,
                 )
                 .collect();
+
                 if !biases.is_empty() {
                     // Corresponding biased event.
                     events.push(model::Event {

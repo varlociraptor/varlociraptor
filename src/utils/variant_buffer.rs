@@ -184,6 +184,10 @@ impl<'a> Variants<'a> {
     pub(crate) fn alt_variants(&self) -> impl Iterator<Item = &'a model::Variant> {
         self.before.iter().chain(self.after.iter())
     }
+
+    pub(crate) fn n_alt_variants(&self) -> usize {
+        self.before.len() + self.after.len()
+    }
 }
 
 #[derive(Clone, Debug, new, Getters, CopyGetters)]

@@ -179,6 +179,9 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             .unwrap();
 
         while let Some(variants) = variant_buffer.next()? {
+            if self.log_each_record {
+                info!("Alt variants at same locus: {}", variants.n_alt_variants());
+            }
             let calls = self.process_variant(variants, &mut sample)?;
             for call in calls {
                 call.write_preprocessed_record(&mut bcf_writer)?;

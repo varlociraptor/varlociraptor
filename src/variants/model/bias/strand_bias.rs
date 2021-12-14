@@ -98,7 +98,7 @@ impl StrandBias {
             if  forward_fraction >= 0.4 && forward_fraction <= 0.6 {
                 return Some(NotNan::new(0.5).unwrap())
             }
-        } 
+        }
         None
     }
 }
