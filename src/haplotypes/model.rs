@@ -6,10 +6,12 @@ use bio::stats::bayesian;
 use bio::stats::{bayesian::model, LogProb};
 
 use crate::utils::adaptive_integration;
+use bio::stats::{PHREDProb, Prob};
 use bv::BitVec;
 use ordered_float::NotNaN;
 use statrs::function::beta::ln_beta;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::mem;
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug, Derefable)]
@@ -124,7 +126,41 @@ impl Likelihood {
     ) -> LogProb {
         // TODO compute likelihood based on Varlociraptor VAFs.
         // Let us postpone this until we have a working version with kallisto only.
-        LogProb::ln_one()
+        let variant_matrix: Vec<BitVec> = data.haplotype_variants.values().cloned().collect();
+        let likelihood = Prob(1.0);
+        for (variant, bv) in data.haplotype_variants.iter() {
+            let variant_sum = 0.0;
+            for (i, fraction) in event.iter().enumerate() {
+                if bv[i.try_into().unwrap()] == true {
+                    let variant_sum = variant_sum + NotNaN::into_inner(*fraction);
+                }
+            }
+            let mut vafs = Vec::new();
+            let mut densities = Vec::new();
+            if data.haplotype_calls.contains_key(variant) {
+                let afd = data.haplotype_calls[variant].split(",");
+                for pair in afd {
+                    let (vaf, density) = pair.split_once("=").unwrap();
+                    let (vaf, density): (f64, f64) =
+                        (vaf.parse().unwrap(), density.parse().unwrap());
+                    vafs.push(vaf);
+                    densities.push(density);
+                }
+                for (i, (vaf, density)) in vafs.iter().zip(densities.iter()).enumerate() {
+                    let vaf_sum = f64::from(Prob::from(PHREDProb(variant_sum)));
+                    if vaf == &vaf_sum {
+                        let likelihood = likelihood * Prob::from(PHREDProb(*density));
+                    } else {
+                        let density = densities[i - 1]
+                            + (vaf_sum - vafs[i - 1]) * (densities[i + 1] - densities[i - 1])
+                                / (vafs[i + 1] - vafs[i - 1]);
+                        let likelihood = likelihood * Prob::from(PHREDProb(density));
+                    }
+                }
+            }
+        }
+        LogProb::from(likelihood)
+        //LogProb::ln_one()
     }
 }
 

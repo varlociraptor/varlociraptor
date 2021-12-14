@@ -32,7 +32,9 @@ impl Caller {
     pub fn call(&mut self) -> Result<()> {
         // Step 1: obtain kallisto estimates.
         let kallisto_estimates = KallistoEstimates::new(&self.hdf5_reader, self.min_norm_counts)?;
-        let haplotype_variants = HaplotypeVariants::new(&mut self.haplotype_variants)?;
+        let haplotypes: Vec<_> = kallisto_estimates.keys().map(|x| x.to_string()).collect();
+
+        let haplotype_variants = HaplotypeVariants::new(&mut self.haplotype_variants, &haplotypes)?;
         let haplotype_calls = HaplotypeCalls::new(&mut self.haplotype_calls)?;
 
         // Step 2: setup model.
@@ -47,7 +49,6 @@ impl Caller {
 
         // Step 3: calculate posteriors.
         //let m = model.compute(universe, &data);
-        let haplotypes: Vec<_> = kallisto_estimates.keys().map(|x| x.to_string()).collect();
         let m = model.compute_from_marginal(&Marginal::new(haplotypes.len()), &data);
 
         // Step 4: print TSV table with results
@@ -187,7 +188,10 @@ pub(crate) struct Variant(#[deref] String);
 pub(crate) struct HaplotypeVariants(#[deref] HashMap<Variant, BitVec>);
 
 impl HaplotypeVariants {
-    pub(crate) fn new(haplotype_variants: &mut bcf::Reader) -> Result<Self> {
+    pub(crate) fn new(
+        haplotype_variants: &mut bcf::Reader,
+        haplotypes: &Vec<String>,
+    ) -> Result<Self> {
         let mut candidate_variants = HashMap::new();
         for record_result in haplotype_variants.records() {
             let record = record_result?;
@@ -216,10 +220,18 @@ impl HaplotypeVariants {
             //store the haplotypes that carry the variant
             let header = record.header();
             let gts = record.genotypes()?; //genotypes of all samples
-
+            let mut haplotype_indices = Vec::new();
+            for (sample_index, mut x) in header.samples().into_iter().enumerate() {
+                let mut s = String::new();
+                x.read_to_string(&mut s);
+                if haplotypes.contains(&s) {
+                    haplotype_indices.push(sample_index);
+                }
+            }
             let mut bv: BitVec<usize> = BitVec::new();
-            for (sample_index, x) in header.samples().into_iter().enumerate() {
-                for gta in gts.get(sample_index).iter() {
+
+            for sample_index in haplotype_indices.iter() {
+                for gta in gts.get(*sample_index).iter() {
                     if gta == &Unphased(1) {
                         bv.push(true);
                     } else {
