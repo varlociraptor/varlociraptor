@@ -177,26 +177,31 @@ impl<'a> From<&'a bam::Record> for ExactAltLoci {
             Ok(bam::record::Aux::String(xa)) => {
                 ExactAltLoci {
                     inner: xa.split(';').filter_map(|xa| {
-                        let items: Vec<_> = xa.split(',').collect();
-                        if items.len() == 4 {
-                            let contig = items[0];
-                            let mut pos = items[1];
-                            if pos.starts_with('-') || pos.starts_with('-') {
-                                pos = &pos[1..];
-                            }
-                            if let Ok(pos) = pos.parse() {
-                                Some(genome::Locus::new(contig.to_owned(), pos))
+                        if xa.is_empty() {
+                            // last semicolon passed
+                            None
+                        } else {
+                            let items: Vec<_> = xa.split(',').collect();
+                            if items.len() == 4 {
+                                let contig = items[0];
+                                let mut pos = items[1];
+                                if pos.starts_with('-') || pos.starts_with('-') {
+                                    pos = &pos[1..];
+                                }
+                                if let Ok(pos) = pos.parse() {
+                                    Some(genome::Locus::new(contig.to_owned(), pos))
+                                } else {
+                                    None
+                                }
                             } else {
+                                warn!("{}", INVALID_XA_FORMAT_MSG);
                                 None
                             }
-                        } else {
-                            warn!("{}", INVALID_XA_FORMAT_MSG);
-                            None
                         }
                     }).collect()
                 }
             }
-            Ok(_) => {
+            Ok(tag) => {
                 warn!("{}", INVALID_XA_FORMAT_MSG);
                 ExactAltLoci::default()
             }
