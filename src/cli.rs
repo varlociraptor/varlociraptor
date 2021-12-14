@@ -854,6 +854,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                             }))
                             .variant_type_fractions(scenario.variant_type_fractions())
+                            .options(scenario.options().clone())
                             .build();
 
                         // setup caller
@@ -1132,6 +1133,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
                     .variant_type(Some(VariantType::Snv))
+                    .options(scenario.options().clone())
                     .build();
                 prior.check()?;
 

@@ -142,6 +142,15 @@ pub(crate) struct Scenario {
     sample_idx: Mutex<Option<HashMap<String, usize>>>,
     #[serde(default)]
     species: Option<Species>,
+    #[serde(default)]
+    options: Options,
+}
+
+#[derive(Default, Clone, Debug, Deserialize, CopyGetters)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub(crate) struct Options {
+    #[getset(get_copy = "pub(crate)")]
+    non_absent_uniform_prior: bool,
 }
 
 impl Scenario {

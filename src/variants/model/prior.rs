@@ -73,6 +73,7 @@ pub(crate) struct Prior {
     heterozygosity: Option<LogProb>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
     variant_type_fractions: grammar::VariantTypeFraction,
+    options: grammar::Options,
     #[builder(default)]
     variant_type: Option<VariantType>,
     #[builder(default)]
@@ -89,6 +90,7 @@ impl Clone for Prior {
             somatic_effective_mutation_rate: self.somatic_effective_mutation_rate.clone(),
             heterozygosity: self.heterozygosity,
             inheritance: self.inheritance.clone(),
+            options: self.options.clone(),
             cache: RefCell::default(),
             variant_type_fractions: self.variant_type_fractions.clone(),
             variant_type: self.variant_type.clone(),
@@ -279,9 +281,22 @@ impl Prior {
         event[sample].allele_freq - germline_vafs[sample]
     }
 
+    fn calc_prob_absent(&self, template_event: &LikelihoodOperands) -> LogProb {
+        let event = LikelihoodOperands::absent(template_event.events().len());
+        let germline_vafs = vec![AlleleFreq(0.0); template_event.events().len()];
+        self.calc_prob(&event, germline_vafs)
+    }
+
     fn calc_prob(&self, event: &LikelihoodOperands, germline_vafs: Vec<AlleleFreq>) -> LogProb {
         if germline_vafs.len() == event.len() {
             // recursion end
+
+            if self.options.non_absent_uniform_prior() {
+                // only distinguish between absent and non-absent
+                if !event.is_absent() {
+                    return self.calc_prob_absent(event).ln_one_minus_exp();
+                }
+            }
 
             // step 1: population
             let mut prob = if let Some(heterozygosity) = self.vartype_heterozygosity() {

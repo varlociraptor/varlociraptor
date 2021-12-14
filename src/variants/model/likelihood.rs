@@ -26,6 +26,10 @@ impl Event {
     pub(crate) fn is_artifact(&self) -> bool {
         self.artifacts.is_artifact()
     }
+
+    pub(crate) fn is_absent(&self) -> bool {
+        *self.allele_freq == 0.0
+    }
 }
 
 fn prob_sample_alt(observation: &Observation<ReadPosition>, allele_freq: LogProb) -> LogProb {

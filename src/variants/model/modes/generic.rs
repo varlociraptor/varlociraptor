@@ -1,7 +1,7 @@
 use bio::stats::bayesian::model::{Likelihood, Model, Posterior, Prior};
 use bio::stats::LogProb;
 use derive_builder::Builder;
-use itertools::Itertools;
+use itertools::{repeat_n, Itertools};
 use vec_map::{Values, VecMap};
 
 use crate::grammar;
@@ -124,8 +124,28 @@ impl LikelihoodOperands {
         Self::default()
     }
 
+    pub(crate) fn absent(n_samples: usize) -> Self {
+        let mut operands = LikelihoodOperands::new();
+        operands.events = repeat_n(
+            likelihood::Event {
+                allele_freq: AlleleFreq(0.0),
+                artifacts: Artifacts::none(),
+                is_discrete: true,
+            },
+            n_samples,
+        )
+        .enumerate()
+        .collect();
+
+        operands
+    }
+
     pub(crate) fn len(&self) -> usize {
         self.events.len()
+    }
+
+    pub(crate) fn is_absent(&self) -> bool {
+        self.events.values().all(|event| event.is_absent())
     }
 
     pub(crate) fn push(&mut self, event: Event) {
