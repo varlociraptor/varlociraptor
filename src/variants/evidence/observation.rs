@@ -387,8 +387,7 @@ impl<P: Clone, A: Clone> Observation<P, A> {
     }
 
     pub(crate) fn is_strong_alt_support(&self) -> bool {
-        self.is_uniquely_mapping()
-            && BayesFactor::new(self.prob_alt, self.prob_ref).evidence_kass_raftery()
+        BayesFactor::new(self.prob_alt, self.prob_ref).evidence_kass_raftery()
                 >= KassRaftery::Strong
     }
 
@@ -420,56 +419,29 @@ impl ProcessedObservation {
     ) {
         if !pileup.is_empty() {
             // METHOD: adjust MAPQ to get rid of stochastically inflated ones.
-            // The idea here is to estimate the probability that this locus is
-            // actually filled with reads from a homolog (e.g. induced by another variant somewhere else), say ph.
-            // We do this by considering all non-max MAPQs as indicative of this.
-            // Conservatively, we recalibrate those to a probability of 0.5.
-            // Then, adjusted MAPQs are calculated as ph * 0.5 + 1-ph * max_mapq.
-            // Technically, we just compute the mean here, which yields the same result.
-
-            let min_prob_mapping = pileup.iter().filter_map(|obs| {
-                if obs.alt_locus == AltLocus::Major {
-                    Some(NotNan::new(*obs.prob_mapping_orig()).unwrap())
-                } else {
-                    None
-                }
-            }).min().map(|p| LogProb(*p));
-
-            if min_prob_mapping.is_none() {
-                return;
-            }
-
-            let max_prob_mapping =
-                LogProb::from(PHREDProb(alignment_properties.max_mapq as f64)).ln_one_minus_exp();
-            let is_max_prob_mapping =
-                |obs: &ProcessedObservation| relative_eq!(*obs.prob_mapping_orig(), *max_prob_mapping);
-
-            let max_count = pileup.iter().filter(|obs| {
-                obs.alt_locus == AltLocus::Major && is_max_prob_mapping(obs)
-            }).count();
-            let total_count = pileup.iter().filter(|obs| {
-                obs.alt_locus == AltLocus::Major
-            }).count();
-            let prevalence_certain = LogProb((max_count as f64 / total_count as f64).ln());
-
-            let adjusted = (prevalence_certain + max_prob_mapping).ln_add_exp(prevalence_certain.ln_one_minus_exp() + min_prob_mapping.unwrap());
+            // Via looking at the median, we first distinguish whether the MAPQs are representing variance around
+            // a confident high value or if they are rather varying around something smaller.
+            // In the latter case, we take the minimum MAPQ as a conservative adjustment.
+            // In the former case, we take the mean MAPQ as an adjustment (in case it is smaller than the actual MAPQ).
+            // By that, we effectively diminish high MAPQs of reads that just achieve them
+            // because of e.g. randomly better matching bases in themselves or their mates.
 
             let probs = pileup
                 .iter()
                 .filter_map(|obs| {
-                    if obs.alt_locus == AltLocus::Major {
-                        Some(if is_max_prob_mapping(obs) {
-                            obs.prob_mapping_orig()
-                        } else {
-                            *PROB_05
-                        })
-                    } else {
-                        None
-                    }
+                    if true || obs.alt_locus == AltLocus::Major  { Some(obs.prob_mapping_orig()) } else { None }
                 })
                 .collect_vec();
 
             let mut prob_sum = LogProb::ln_sum_exp(&probs);
+            let mut prob_min = LogProb(
+                *probs
+                    .iter()
+                    .map(|prob| NotNan::new(**prob).unwrap())
+                    .min()
+                    .unwrap_or_else(|| NotNan::new(0.0).unwrap()),
+            );
+            let prob_median = LogProb(probs.iter().map(|prob| **prob).collect_vec().median());
 
             let calc_average = |prob_sum: LogProb, n| LogProb(*prob_sum - (n as f64).ln());
             let mut average = calc_average(prob_sum, pileup.len());
@@ -479,21 +451,35 @@ impl ProcessedObservation {
                 // low MAPQ reads are not in the pileup. In order to correct for this sampling issue,
                 // we add one pseudo low MAPQ observation. The higher the depth becomes, the less this observation
                 // plays a role.
-                prob_sum = prob_sum.ln_add_exp(*PROB_05);
+                prob_sum = prob_sum.ln_add_exp(average + *PROB_09);
 
                 average = calc_average(prob_sum, pileup.len() + 1);
             }
-            for obs in pileup {
-                if let Some(min_prob_mapping) = min_prob_mapping {
-                    if obs.alt_locus == AltLocus::Major {
-                        obs.prob_mapping_adj = Some(adjusted);
-                        obs.prob_mismapping_adj = Some(adjusted.ln_one_minus_exp());
+
+            let max_prob_mapping =
+                LogProb::from(PHREDProb(alignment_properties.max_mapq as f64)).ln_one_minus_exp();
+
+            // if prob_min == LogProb::ln_zero() {
+            //     // METHOD: a MAPQ of 0 is technically a probability of 1 for not being the correct locus.
+            //     // However, statistically it makes more sense to assume a probability of 0.5 for multi-mappers.
+            //     prob_min = *PROB_05;
+            // }
+
+            if prob_median == max_prob_mapping {
+                for obs in pileup {
+                    // maximum MAPQ is median, reduce to average as (a bit less) conservative estimate
+                    if average < obs.prob_mapping_orig() {
+                        obs.prob_mapping_adj = Some(average);
+                        obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
                     }
                 }
-                // if obs.alt_locus == AltLocus::Major && obs.prob_mapping_orig() > average {
-                //     obs.prob_mapping_adj = Some(average);
-                //     obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
-                // }
+            } else {
+                for obs in pileup {
+                    // smaller MAPQ, use the minimum as conservative estimate because usually
+                    // the mapper overestimates MAPQs in such cases
+                    obs.prob_mapping_adj = Some(prob_min);
+                    obs.prob_mismapping_adj = Some(prob_min.ln_one_minus_exp());
+                }
             }
         }
     }

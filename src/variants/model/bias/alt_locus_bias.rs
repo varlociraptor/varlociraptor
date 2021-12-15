@@ -39,9 +39,15 @@ impl Bias for AltLocusBias {
     }
 
     fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
-        // METHOD: we consider this bias if there is at least one non maximum MAPQ read.
-        !self.is_artifact() || pileups.iter().any(|pileup| {
-            pileup.iter().any(|obs| !obs.is_max_mapq)
-        })
+        // METHOD: we consider this bias if more than 10% of the reads does not have the maximum MAPQ.
+        if !self.is_artifact() {
+            return true;
+        }
+
+        let n: usize = pileups.iter().map(|pileup| pileup.iter().filter(|obs| obs.is_strong_alt_support()).count()).sum();
+        let non_max_mapq: usize = pileups.iter().map(|pileup| {
+            pileup.iter().filter(|obs| !obs.is_max_mapq && obs.is_strong_alt_support()).count()
+        }).sum();
+        n > 0 && non_max_mapq as f64 > (n as f64 * 0.01) && (n - non_max_mapq) < 10
     }
 }

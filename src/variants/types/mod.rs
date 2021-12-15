@@ -84,7 +84,7 @@ impl AlleleSupport {
     /// likelihood such that subtle differences in allele frequencies become numercically
     /// invisible in the resulting likelihood.
     pub(crate) fn prob_missed_allele(&self) -> LogProb {
-        self.prob_ref_allele.ln_add_exp(self.prob_alt_allele) - LogProb(2.0_f64.ln())
+        self.prob_ref_allele().ln_add_exp(self.prob_alt_allele()) - LogProb(2.0_f64.ln())
     }
 
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {

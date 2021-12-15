@@ -63,12 +63,12 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
             pileups.iter().any(|pileup| {
                 let strong_all = pileup
                     .iter()
-                    .filter(|obs| obs.is_strong_alt_support())
+                    .filter(|obs| obs.is_uniquely_mapping() && obs.is_strong_alt_support())
                     .count();
                 if strong_all >= 10 {
                     let strong_bias_evidence = pileup
                         .iter()
-                        .filter(|obs| obs.is_strong_alt_support() && self.is_bias_evidence(obs))
+                        .filter(|obs| obs.is_uniquely_mapping() && obs.is_strong_alt_support() && self.is_bias_evidence(obs))
                         .count();
                     // METHOD: there is bias evidence if we have at least two third of the strong observations supporting the bias
                     let ratio = strong_bias_evidence as f64 / strong_all as f64;
@@ -157,6 +157,7 @@ impl Artifacts {
             vec![HomopolymerError::default()]
         };
         let alt_locus_bias = AltLocusBias::iter().collect_vec();
+        //let alt_locus_bias = vec![AltLocusBias::None];
 
         Box::new(
             strand_biases
