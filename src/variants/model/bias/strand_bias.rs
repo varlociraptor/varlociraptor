@@ -1,10 +1,12 @@
 use bio::stats::probs::LogProb;
 use bio::stats::Prob;
 
+use itertools::Itertools;
 use ordered_float::NotNan;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
+use crate::variants::evidence::observation::ProcessedObservation;
+use crate::variants::evidence::observation::Strand;
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Debug, Ord, EnumIter, Hash)]
@@ -17,13 +19,13 @@ pub(crate) enum StrandBias {
 impl Default for StrandBias {
     fn default() -> Self {
         StrandBias::None {
-            forward_rate: NotNan::new(0.5).unwrap(),
+            forward_rate: NotNan::new(0.5).unwrap(), // TODO remove
         }
     }
 }
 
 impl Bias for StrandBias {
-    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
         match (self, observation.strand) {
             (StrandBias::Forward, Strand::Forward) => LogProb::ln_one(),
             (StrandBias::Reverse, Strand::Forward) => LogProb::ln_zero(),
@@ -44,7 +46,7 @@ impl Bias for StrandBias {
         }
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_any(&self, _observation: &ProcessedObservation) -> LogProb {
         *PROB_05
     }
 
@@ -56,13 +58,13 @@ impl Bias for StrandBias {
         }
     }
 
-    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         // METHOD: if all reads come from the forward or reverse strand,
         // we cannot estimate a strand bias and None is the only informative one.
         !self.is_artifact() || Self::estimate_forward_rate(pileups).is_some()
     }
 
-    fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
+    fn learn_parameters(&mut self, pileups: &[Vec<ProcessedObservation>]) {
         if let StrandBias::None {
             ref mut forward_rate,
         } = self
@@ -76,38 +78,46 @@ impl Bias for StrandBias {
 }
 
 impl StrandBias {
-    fn estimate_forward_rate(pileups: &[Vec<Observation<ReadPosition>>]) -> Option<NotNan<f64>> {
-        let strong_all = pileups
-            .iter()
-            .map(|pileup| pileup.iter().filter(|obs| obs.is_strong_ref_support()))
-            .flatten()
-            .count();
-        let strong_forward = pileups
-            .iter()
-            .map(|pileup| {
-                pileup
-                    .iter()
-                    .filter(|obs| obs.is_strong_ref_support() && obs.strand == Strand::Forward)
-            })
-            .flatten()
-            .count();
-        if strong_all > 10 && strong_forward > 0 && strong_forward != strong_all {
-            Some(NotNan::new(strong_forward as f64 / strong_all as f64).unwrap())
-        } else if pileups
-            .iter()
-            .flatten()
-            .all(|obs| obs.strand == Strand::Forward)
-            || pileups
+    fn estimate_forward_rate(pileups: &[Vec<ProcessedObservation>]) -> Option<NotNan<f64>> {
+        let strong_all = LogProb::ln_sum_exp(
+            &pileups
                 .iter()
+                .map(|pileup| {
+                    pileup.iter().filter_map(|obs| {
+                        if obs.is_strong_ref_support() && obs.strand != Strand::Both {
+                            Some(obs.prob_mapping())
+                        } else {
+                            None
+                        }
+                    })
+                })
                 .flatten()
-                .all(|obs| obs.strand == Strand::Reverse)
-        {
-            // If all reads are either forward or reverse, the bias cannot be estimated at all,
-            // and we record that by returning None here.
-            None
-        } else {
-            // If there are not enough strong ref reads, we just assume the default 0.5.
-            Some(NotNan::new(0.5).unwrap())
+                .collect_vec(),
+        )
+        .exp();
+        let strong_forward = LogProb::ln_sum_exp(
+            &pileups
+                .iter()
+                .map(|pileup| {
+                    pileup.iter().filter_map(|obs| {
+                        if obs.is_strong_ref_support() && obs.strand == Strand::Forward {
+                            Some(obs.prob_mapping())
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .flatten()
+                .collect_vec(),
+        )
+        .exp();
+
+        if strong_all > 2.0 {
+            let forward_fraction = strong_forward / strong_all;
+            if forward_fraction >= 0.4 && forward_fraction <= 0.6 {
+                return Some(NotNan::new(0.5).unwrap());
+            }
         }
+        None
     }
 }

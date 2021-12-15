@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 use bio::stats::probs::LogProb;
 
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::evidence::observation::ProcessedObservation;
 use crate::variants::model::bias::Bias;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -24,7 +24,7 @@ impl Default for HomopolymerError {
 }
 
 impl Bias for HomopolymerError {
-    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
         match (observation.homopolymer_indel_len, self) {
             (Some(_), HomopolymerError::Some) => {
                 observation.prob_observable_at_homopolymer_artifact.unwrap()
@@ -41,11 +41,11 @@ impl Bias for HomopolymerError {
         }
     }
 
-    fn prob_ref(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_ref(&self, observation: &ProcessedObservation) -> LogProb {
         self.prob_alt(observation)
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_any(&self, _observation: &ProcessedObservation) -> LogProb {
         LogProb::ln_one() // TODO check this
     }
 
@@ -53,7 +53,7 @@ impl Bias for HomopolymerError {
         *self != HomopolymerError::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         if !self.is_artifact() {
             return true;
         }
@@ -63,15 +63,15 @@ impl Bias for HomopolymerError {
             .any(|pileup| pileup.iter().any(|obs| self.is_bias_evidence(obs)))
     }
 
-    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_possible(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         self.is_informative(pileups)
     }
 
-    fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_likely(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         self.is_informative(pileups)
     }
 
-    fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
+    fn is_bias_evidence(&self, observation: &ProcessedObservation) -> bool {
         observation.homopolymer_indel_len.unwrap_or(0) != 0
     }
 

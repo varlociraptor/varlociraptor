@@ -474,6 +474,8 @@ impl Realigner for PairHMMRealigner {
         allele_params.shrink_to_hit(hit);
 
         // METHOD: Further, we run the HMM on a band around the best edit distance.
+        // Just to be sure that we don't miss some ambiguity, we add some additional
+        // edit operations to the band.
         self.pairhmm.prob_related(
             allele_params,
             &self.gap_params,

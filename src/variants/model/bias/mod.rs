@@ -5,14 +5,16 @@ use bio::stats::probs::LogProb;
 use itertools::Itertools;
 use strum::IntoEnumIterator;
 
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::evidence::observation::ProcessedObservation;
 
+pub(crate) mod alt_locus_bias;
 pub(crate) mod homopolymer_error;
 pub(crate) mod read_orientation_bias;
 pub(crate) mod read_position_bias;
 pub(crate) mod softclip_bias;
 pub(crate) mod strand_bias;
 
+pub(crate) use alt_locus_bias::AltLocusBias;
 pub(crate) use homopolymer_error::HomopolymerError;
 pub(crate) use read_orientation_bias::ReadOrientationBias;
 pub(crate) use read_position_bias::ReadPositionBias;
@@ -20,17 +22,17 @@ pub(crate) use softclip_bias::SoftclipBias;
 pub(crate) use strand_bias::StrandBias;
 
 pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
-    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb;
+    fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb;
 
-    fn prob_ref(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_ref(&self, observation: &ProcessedObservation) -> LogProb {
         self.prob_any(observation)
     }
 
-    fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb;
+    fn prob_any(&self, observation: &ProcessedObservation) -> LogProb;
 
     fn is_artifact(&self) -> bool;
 
-    fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_possible(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         if !self.is_artifact() {
             return true;
         }
@@ -42,11 +44,11 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
         })
     }
 
-    fn is_informative(&self, _pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_informative(&self, _pileups: &[Vec<ProcessedObservation>]) -> bool {
         true
     }
 
-    fn is_bias_evidence(&self, observation: &Observation<ReadPosition>) -> bool {
+    fn is_bias_evidence(&self, observation: &ProcessedObservation) -> bool {
         self.prob_alt(observation) != LogProb::ln_zero()
     }
 
@@ -54,19 +56,23 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
         0.66666
     }
 
-    fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_likely(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         if !self.is_artifact() {
             true
         } else {
             pileups.iter().any(|pileup| {
                 let strong_all = pileup
                     .iter()
-                    .filter(|obs| obs.is_strong_alt_support())
+                    .filter(|obs| obs.is_uniquely_mapping() && obs.is_strong_alt_support())
                     .count();
                 if strong_all >= 10 {
                     let strong_bias_evidence = pileup
                         .iter()
-                        .filter(|obs| obs.is_strong_alt_support() && self.is_bias_evidence(obs))
+                        .filter(|obs| {
+                            obs.is_uniquely_mapping()
+                                && obs.is_strong_alt_support()
+                                && self.is_bias_evidence(obs)
+                        })
                         .count();
                     // METHOD: there is bias evidence if we have at least two third of the strong observations supporting the bias
                     let ratio = strong_bias_evidence as f64 / strong_all as f64;
@@ -89,7 +95,7 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
     }
 
     /// Learn parameters needed for estimation on current pileup.
-    fn learn_parameters(&mut self, _pileups: &[Vec<Observation<ReadPosition>>]) {
+    fn learn_parameters(&mut self, _pileups: &[Vec<ProcessedObservation>]) {
         // METHOD: by default, there is nothing to learn, however, a bias can use this to
         // infer some parameters over which we would otherwise need to integrate (which would hamper
         // performance too much).
@@ -108,6 +114,8 @@ pub(crate) struct Artifacts {
     softclip_bias: SoftclipBias,
     #[getset(get = "pub(crate)")]
     homopolymer_error: HomopolymerError,
+    #[getset(get = "pub(crate)")]
+    alt_locus_bias: AltLocusBias,
 }
 
 impl Artifacts {
@@ -152,6 +160,8 @@ impl Artifacts {
         } else {
             vec![HomopolymerError::default()]
         };
+        let alt_locus_bias = AltLocusBias::iter().collect_vec();
+        //let alt_locus_bias = vec![AltLocusBias::None];
 
         Box::new(
             strand_biases
@@ -160,13 +170,15 @@ impl Artifacts {
                 .cartesian_product(read_position_biases.into_iter())
                 .cartesian_product(softclip_biases.into_iter())
                 .cartesian_product(homopolymer_error.into_iter())
-                .filter_map(|((((sb, rob), rpb), scb), dib)| {
+                .cartesian_product(alt_locus_bias.into_iter())
+                .filter_map(|(((((sb, rob), rpb), scb), dib), alb)| {
                     if [
                         sb.is_artifact(),
                         rob.is_artifact(),
                         rpb.is_artifact(),
                         scb.is_artifact(),
                         dib.is_artifact(),
+                        alb.is_artifact(),
                     ]
                     .iter()
                     .map(|artifact| if *artifact { 1 } else { 0 })
@@ -180,6 +192,7 @@ impl Artifacts {
                                 .read_position_bias(rpb)
                                 .softclip_bias(scb)
                                 .homopolymer_error(dib)
+                                .alt_locus_bias(alb)
                                 .build()
                                 .unwrap(),
                         )
@@ -197,56 +210,63 @@ impl Artifacts {
             .read_position_bias(ReadPositionBias::None)
             .softclip_bias(SoftclipBias::None)
             .homopolymer_error(HomopolymerError::default())
+            .alt_locus_bias(AltLocusBias::None)
             .build()
             .unwrap()
     }
 
-    pub(crate) fn is_possible(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    pub(crate) fn is_possible(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         self.strand_bias.is_possible(pileups)
             && self.read_orientation_bias.is_possible(pileups)
             && self.read_position_bias.is_possible(pileups)
             && self.softclip_bias.is_possible(pileups)
             && self.homopolymer_error.is_possible(pileups)
+            && self.alt_locus_bias.is_possible(pileups)
     }
 
-    pub(crate) fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    pub(crate) fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         self.strand_bias.is_informative(pileups)
             && self.read_orientation_bias.is_informative(pileups)
             && self.read_position_bias.is_informative(pileups)
             && self.softclip_bias.is_informative(pileups)
             && self.homopolymer_error.is_informative(pileups)
+            && self.alt_locus_bias.is_informative(pileups)
     }
 
-    pub(crate) fn is_likely(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    pub(crate) fn is_likely(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         self.strand_bias.is_likely(pileups)
             && self.read_orientation_bias.is_likely(pileups)
             && self.read_position_bias.is_likely(pileups)
             && self.softclip_bias.is_likely(pileups)
             && self.homopolymer_error.is_likely(pileups)
+            && self.alt_locus_bias.is_likely(pileups)
     }
 
-    pub(crate) fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    pub(crate) fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
         self.strand_bias.prob_alt(observation)
             + self.read_orientation_bias.prob_alt(observation)
             + self.read_position_bias.prob_alt(observation)
             + self.softclip_bias.prob_alt(observation)
             + self.homopolymer_error.prob_alt(observation)
+            + self.alt_locus_bias.prob_alt(observation)
     }
 
-    pub(crate) fn prob_ref(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    pub(crate) fn prob_ref(&self, observation: &ProcessedObservation) -> LogProb {
         self.strand_bias.prob_ref(observation)
             + self.read_orientation_bias.prob_ref(observation)
             + self.read_position_bias.prob_ref(observation)
             + self.softclip_bias.prob_ref(observation)
             + self.homopolymer_error.prob_ref(observation)
+            + self.alt_locus_bias.prob_ref(observation)
     }
 
-    pub(crate) fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    pub(crate) fn prob_any(&self, observation: &ProcessedObservation) -> LogProb {
         self.strand_bias.prob_any(observation)
             + self.read_orientation_bias.prob_any(observation)
             + self.read_position_bias.prob_any(observation)
             + self.softclip_bias.prob_any(observation)
             + self.homopolymer_error.prob_any(observation)
+            + self.alt_locus_bias.prob_any(observation)
     }
 
     pub(crate) fn is_artifact(&self) -> bool {
@@ -255,9 +275,10 @@ impl Artifacts {
             || self.read_position_bias.is_artifact()
             || self.softclip_bias.is_artifact()
             || self.homopolymer_error.is_artifact()
+            || self.alt_locus_bias.is_artifact()
     }
 
-    pub(crate) fn learn_parameters(&mut self, pileups: &[Vec<Observation<ReadPosition>>]) {
+    pub(crate) fn learn_parameters(&mut self, pileups: &[Vec<ProcessedObservation>]) {
         self.homopolymer_error.learn_parameters(pileups);
         self.strand_bias.learn_parameters(pileups);
     }

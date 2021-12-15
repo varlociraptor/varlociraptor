@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::cmp;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -83,7 +84,7 @@ impl AlleleSupport {
     /// likelihood such that subtle differences in allele frequencies become numercically
     /// invisible in the resulting likelihood.
     pub(crate) fn prob_missed_allele(&self) -> LogProb {
-        self.prob_ref_allele.ln_add_exp(self.prob_alt_allele) - LogProb(2.0_f64.ln())
+        self.prob_ref_allele().ln_add_exp(self.prob_alt_allele()) - LogProb(2.0_f64.ln())
     }
 
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
@@ -163,6 +164,10 @@ where
         prob_mismapping.ln_one_minus_exp()
     }
 
+    fn min_mapq(&self, evidence: &SingleEndEvidence) -> u8 {
+        evidence.mapq()
+    }
+
     fn extract_observations(
         &self,
         buffer: &mut sample::RecordBuffer,
@@ -234,6 +239,13 @@ where
                 }
                 p.ln_one_minus_exp()
             }
+        }
+    }
+
+    fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
+        match evidence {
+            PairedEndEvidence::SingleEnd(record) => record.mapq(),
+            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
         }
     }
 

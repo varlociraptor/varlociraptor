@@ -2,7 +2,7 @@ use bio::stats::probs::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::evidence::observation::ProcessedObservation;
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
@@ -19,7 +19,7 @@ impl Default for ReadOrientationBias {
 }
 
 impl Bias for ReadOrientationBias {
-    fn prob_alt(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
         match (self, observation.read_orientation) {
             (ReadOrientationBias::None, SequenceReadPairOrientation::F1R2) => *PROB_05, // normal
             (ReadOrientationBias::None, SequenceReadPairOrientation::F2R1) => *PROB_05, // normal
@@ -31,7 +31,7 @@ impl Bias for ReadOrientationBias {
         }
     }
 
-    fn prob_any(&self, _observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_any(&self, _observation: &ProcessedObservation) -> LogProb {
         *PROB_05
     }
 
@@ -39,7 +39,7 @@ impl Bias for ReadOrientationBias {
         *self != ReadOrientationBias::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<Observation<ReadPosition>>]) -> bool {
+    fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
         if let ReadOrientationBias::None = *self {
             return true;
         }
@@ -64,6 +64,35 @@ impl Bias for ReadOrientationBias {
             })
             .sum();
         let n: usize = pileups.iter().map(|pileup| pileup.len()).sum();
-        (n_uncertain as f64) < (n as f64 / 2.0)
+        let enough_information = (n_uncertain as f64) < (n as f64 / 2.0);
+
+        // METHOD: read orientation bias needs a uniform distribution of F1R2 and F2R1 among the
+        // reference reads. Otherwise, we cannot reliably detect whether there is something odd
+        // in the alt reads.
+        let strong_ref_total_count = pileups
+            .iter()
+            .flatten()
+            .filter(|observation| {
+                observation.is_strong_ref_support()
+                    && (observation.read_orientation == SequenceReadPairOrientation::F1R2
+                        || observation.read_orientation == SequenceReadPairOrientation::F2R1)
+            })
+            .count();
+        let strong_ref_f1r2 = pileups
+            .iter()
+            .flatten()
+            .filter(|observation| {
+                observation.is_strong_ref_support()
+                    && (observation.read_orientation == SequenceReadPairOrientation::F1R2)
+            })
+            .count();
+        let uniform_distribution = if strong_ref_total_count > 2 {
+            let fraction = strong_ref_f1r2 as f64 / strong_ref_total_count as f64;
+            fraction >= 0.4 && fraction <= 0.6
+        } else {
+            false
+        };
+
+        enough_information && uniform_distribution
     }
 }

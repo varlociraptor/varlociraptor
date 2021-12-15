@@ -7,7 +7,7 @@ use bio::stats::{bayesian::model::Likelihood, LogProb};
 use lru::LruCache;
 
 use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::evidence::observation::{Observation, ProcessedObservation, ReadPosition};
 use crate::variants::model::bias::Artifacts;
 use crate::variants::model::AlleleFreq;
 use crate::variants::sample::Pileup;
@@ -28,7 +28,7 @@ impl Event {
     }
 }
 
-fn prob_sample_alt(observation: &Observation<ReadPosition>, allele_freq: LogProb) -> LogProb {
+fn prob_sample_alt(observation: &ProcessedObservation, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
         // The effective sample probability for the alt allele is the allele frequency times
         // the probability to obtain a feasible fragment (prob_sample_alt).
@@ -92,7 +92,7 @@ impl ContaminatedSampleLikelihoodModel {
         allele_freq_secondary: LogProb,
         biases_primary: &Artifacts,
         biases_secondary: &Artifacts,
-        observation: &Observation<ReadPosition>,
+        observation: &ProcessedObservation,
     ) -> LogProb {
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
@@ -171,7 +171,7 @@ impl SampleLikelihoodModel {
         &self,
         allele_freq: LogProb,
         biases: &Artifacts,
-        observation: &Observation<ReadPosition>,
+        observation: &ProcessedObservation,
     ) -> LogProb {
         // Step 1: likelihood for the mapping case.
         let prob = likelihood_mapping(allele_freq, biases, observation);
@@ -196,7 +196,7 @@ impl SampleLikelihoodModel {
 fn likelihood_mapping(
     allele_freq: LogProb,
     biases: &Artifacts,
-    observation: &Observation<ReadPosition>,
+    observation: &ProcessedObservation,
 ) -> LogProb {
     // Step 1: calculate probability to sample from alt allele
     let prob_sample_alt = prob_sample_alt(observation, allele_freq);

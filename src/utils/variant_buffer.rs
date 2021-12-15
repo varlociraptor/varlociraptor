@@ -92,7 +92,7 @@ impl VariantBuffer {
                         let variant_index = self.variant_index;
                         self.variant_index += 1;
 
-                        return Ok(Some(Variants {
+                        let variants = Variants {
                             variant_of_interest: &self.variants[variant_index],
                             before: &self.variants[..variant_index],
                             after: if variant_index < self.variants.len() {
@@ -102,7 +102,15 @@ impl VariantBuffer {
                             },
                             locus: self.locus.clone().unwrap(),
                             record_info: self.record_infos.get(variant_index).unwrap(),
-                        }));
+                        };
+                        if self.log_each_record {
+                            info!(
+                                "Alt variants at previous locus: {}",
+                                variants.n_alt_variants()
+                            );
+                        }
+
+                        return Ok(Some(variants));
                     } else if self.current_record.is_some() {
                         self.state = State::InitLocus;
                     } else {
@@ -183,6 +191,10 @@ pub(crate) struct Variants<'a> {
 impl<'a> Variants<'a> {
     pub(crate) fn alt_variants(&self) -> impl Iterator<Item = &'a model::Variant> {
         self.before.iter().chain(self.after.iter())
+    }
+
+    pub(crate) fn n_alt_variants(&self) -> usize {
+        self.before.len() + self.after.len()
     }
 }
 
