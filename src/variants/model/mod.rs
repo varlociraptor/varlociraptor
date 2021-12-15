@@ -288,6 +288,7 @@ mod tests {
             .strand(Strand::Both)
             .softclipped(false)
             .prob_observable_at_homopolymer_artifact(None)
+            .prob_observable_at_homopolymer_variant(None)
             .homopolymer_indel_len(None)
             .paired(true)
             .prob_hit_base(LogProb::from(0.01f64.ln()))

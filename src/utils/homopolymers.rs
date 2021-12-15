@@ -133,8 +133,11 @@ pub(crate) fn extend_homopolymer_stretch(base: u8, seq: &mut dyn Iterator<Item =
 #[derive(Debug, Clone, CopyGetters)]
 #[getset(get_copy = "pub(crate)")]
 pub(crate) struct HomopolymerErrorModel {
-    prob_homopolymer_insertion: LogProb,
-    prob_homopolymer_deletion: LogProb,
+    prob_homopolymer_artifact_insertion: LogProb,
+    prob_homopolymer_artifact_deletion: LogProb,
+    prob_homopolymer_variant_deletion: LogProb,
+    prob_homopolymer_variant_insertion: LogProb,
+    prob_homopolymer_variant_no_indel: LogProb,
     variant_homopolymer_indel_len: i8,
 }
 
@@ -160,17 +163,24 @@ impl HomopolymerErrorModel {
                 )
             };
 
-            let mut prob_homopolymer_insertion = prob_homopolymer_error(&|item_len| item_len > 0);
-            let mut prob_homopolymer_deletion = prob_homopolymer_error(&|item_len| item_len < 0);
+            let prob_homopolymer_insertion = prob_homopolymer_error(&|item_len| item_len > 0);
+            let prob_homopolymer_deletion = prob_homopolymer_error(&|item_len| item_len < 0);
+            let mut prob_homopolymer_artifact_deletion = prob_homopolymer_deletion;
+            let mut prob_homopolymer_artifact_insertion = prob_homopolymer_insertion;
             let prob_total = prob_homopolymer_insertion.ln_add_exp(prob_homopolymer_deletion);
             if prob_total != LogProb::ln_zero() {
-                prob_homopolymer_insertion -= prob_total;
-                prob_homopolymer_deletion -= prob_total;
+                prob_homopolymer_artifact_insertion -= prob_total;
+                prob_homopolymer_artifact_deletion -= prob_total;
             } // else both of them are already zero, nothing to do.
 
             let model = Some(HomopolymerErrorModel {
-                prob_homopolymer_insertion,
-                prob_homopolymer_deletion,
+                prob_homopolymer_artifact_insertion: prob_homopolymer_artifact_insertion,
+                prob_homopolymer_artifact_deletion: prob_homopolymer_artifact_deletion,
+                prob_homopolymer_variant_insertion: prob_homopolymer_insertion,
+                prob_homopolymer_variant_deletion: prob_homopolymer_deletion,
+                prob_homopolymer_variant_no_indel: prob_homopolymer_error(&|item_len| {
+                    item_len == 0
+                }),
                 variant_homopolymer_indel_len,
             });
 
