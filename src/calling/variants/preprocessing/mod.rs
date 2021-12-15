@@ -513,7 +513,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "11";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "12";
 
 pub(crate) struct Observations {
     pub(crate) observations: Vec<ProcessedObservation>,

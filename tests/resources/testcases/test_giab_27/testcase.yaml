@@ -1,7 +1,7 @@
 expected:
   posteriors:
     # write down a list of expressions of the form
-    - PROB_PRESENT >= 0.6
+    - PROB_PRESENT >= 0.5
 
 # necessary bam files
 samples:
