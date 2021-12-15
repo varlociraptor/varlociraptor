@@ -113,7 +113,8 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             "SOFTCLIPPED",
             "ALT_INDEL_OPERATIONS",
             "PAIRED",
-            "PROB_HOMOPOLYMER_OBSERVABLE",
+            "PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE",
+            "PROB_HOMOPOLYMER_VARIANT_OBSERVABLE",
             "HOMOPOLYMER_INDEL_LEN",
             "IS_MAX_MAPQ",
             "ALT_LOCUS",
@@ -513,7 +514,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     }
 }
 
-pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "12";
+pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "13";
 
 pub(crate) struct Observations {
     pub(crate) observations: Vec<ProcessedObservation>,
@@ -566,7 +567,9 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
     let softclipped: BitVec<u8> = read_values(record, b"SOFTCLIPPED", false)?;
     let paired: BitVec<u8> = read_values(record, b"PAIRED", false)?;
     let prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
-        read_values(record, b"PROB_HOMOPOLYMER_OBSERVABLE", true)?;
+        read_values(record, b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE", true)?;
+    let prob_observable_at_homopolymer_variant: Vec<Option<MiniLogProb>> =
+        read_values(record, b"PROB_HOMOPOLYMER_VARIANT_OBSERVABLE", true)?;
     let homopolymer_indel_len: Vec<Option<i8>> =
         read_values(record, b"HOMOPOLYMER_INDEL_LEN", true)?;
     let is_homopolymer_indel = !prob_observable_at_homopolymer_artifact.is_empty();
@@ -596,10 +599,14 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
                 obs.homopolymer_indel_len(homopolymer_indel_len[i])
                     .prob_observable_at_homopolymer_artifact(
                         prob_observable_at_homopolymer_artifact[i].map(|prob| prob.to_logprob()),
+                    )
+                    .prob_observable_at_homopolymer_variant(
+                        prob_observable_at_homopolymer_variant[i].map(|prob| prob.to_logprob()),
                     );
             } else {
                 obs.homopolymer_indel_len(None)
-                    .prob_observable_at_homopolymer_artifact(None);
+                    .prob_observable_at_homopolymer_artifact(None)
+                    .prob_observable_at_homopolymer_variant(None);
             }
             obs.build().unwrap()
         })
@@ -630,6 +637,8 @@ pub(crate) fn write_observations(
     let mut prob_hit_base = vec();
     let mut prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
         Vec::with_capacity(observations.len());
+    let mut prob_observable_at_homopolymer_variant: Vec<Option<MiniLogProb>> =
+        Vec::with_capacity(observations.len());
     let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(observations.len());
     let mut is_max_mapq: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
     let mut alt_locus = Vec::with_capacity(observations.len());
@@ -653,6 +662,10 @@ pub(crate) fn write_observations(
 
         prob_observable_at_homopolymer_artifact.push(
             obs.prob_observable_at_homopolymer_artifact
+                .map(|prob| encode_logprob(prob)),
+        );
+        prob_observable_at_homopolymer_variant.push(
+            obs.prob_observable_at_homopolymer_variant
                 .map(|prob| encode_logprob(prob)),
         );
         homopolymer_indel_len.push(obs.homopolymer_indel_len);
@@ -704,8 +717,13 @@ pub(crate) fn write_observations(
         // only record values if there is any homopolymer error observation
         push_values(
             record,
-            b"PROB_HOMOPOLYMER_OBSERVABLE",
+            b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE",
             &prob_observable_at_homopolymer_artifact,
+        )?;
+        push_values(
+            record,
+            b"PROB_HOMOPOLYMER_VARIANT_OBSERVABLE",
+            &prob_observable_at_homopolymer_variant,
         )?;
         push_values(record, b"HOMOPOLYMER_INDEL_LEN", &homopolymer_indel_len)?;
     }
@@ -726,7 +744,8 @@ pub(crate) fn remove_observation_header_entries(header: &mut bcf::Header) {
     header.remove_info(b"PAIRED");
     header.remove_info(b"PROB_HIT_BASE");
     header.remove_info(b"READ_POSITION");
-    header.remove_info(b"PROB_HOMOPOLYMER_OBSERVABLE");
+    header.remove_info(b"PROB_HOMOPOLYMER_ARTIFACT_OBSERVABLE");
+    header.remove_info(b"PROB_HOMOPOLYMER_VARIANT_OBSERVABLE");
     header.remove_info(b"HOMOPOLYMER_INDEL_LEN");
     header.remove_info(b"IS_MAX_MAPQ");
     header.remove_info(b"ALT_LOCUS");

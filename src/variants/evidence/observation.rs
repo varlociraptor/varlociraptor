@@ -269,6 +269,7 @@ where
     pub(crate) read_position: P,
     /// Probability to make this observation at a homopolymer artifact
     pub(crate) prob_observable_at_homopolymer_artifact: Option<LogProb>,
+    pub(crate) prob_observable_at_homopolymer_variant: Option<LogProb>,
     /// Homopolymer indel length (None if there is no homopolymer indel compared to reference)
     pub(crate) homopolymer_indel_len: Option<i8>,
     pub(crate) is_max_mapq: bool,
@@ -325,6 +326,7 @@ impl Observation<Option<u32>, ExactAltLoci> {
                 }
             }),
             prob_observable_at_homopolymer_artifact: self.prob_observable_at_homopolymer_artifact,
+            prob_observable_at_homopolymer_variant: self.prob_observable_at_homopolymer_variant,
             homopolymer_indel_len: self.homopolymer_indel_len,
             is_max_mapq: self.is_max_mapq,
             alt_locus: if let Some(major_alt_locus) = major_alt_locus {
@@ -543,7 +545,7 @@ where
                 // Unstranded observations (e.g. only insert size), are too unreliable, or do not contain
                 // any information (e.g. no overlap).
                 Some(allele_support) if allele_support.strand() != Strand::None => {
-                    let read_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
+                    let alt_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
                     let mut obs = ObservationBuilder::default();
                     obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
@@ -567,25 +569,49 @@ where
                         .alt_locus(evidence.alt_loci());
 
                     if let Some(homopolymer_error_model) = homopolymer_error_model {
-                        let ref_indel_len = read_indel_len
-                            + homopolymer_error_model.variant_homopolymer_indel_len();
+                        let ref_indel_len =
+                            alt_indel_len + homopolymer_error_model.variant_homopolymer_indel_len();
                         if ref_indel_len == 0 {
                             // no homopolymer indel in read compared to reference
                             obs.homopolymer_indel_len(None)
-                                .prob_observable_at_homopolymer_artifact(None);
+                                .prob_observable_at_homopolymer_artifact(None)
+                                .prob_observable_at_homopolymer_variant(None);
                         } else {
-                            obs.homopolymer_indel_len(Some(read_indel_len))
-                                .prob_observable_at_homopolymer_artifact(if ref_indel_len == 0 {
-                                    unreachable!("caught above");
-                                } else if ref_indel_len > 0 {
-                                    Some(homopolymer_error_model.prob_homopolymer_insertion())
+                            obs.homopolymer_indel_len(Some(alt_indel_len));
+                            assert!(ref_indel_len != 0); // caught above
+                            if ref_indel_len > 0 {
+                                obs.prob_observable_at_homopolymer_artifact(Some(
+                                    homopolymer_error_model.prob_homopolymer_artifact_insertion(),
+                                ))
+                                .prob_observable_at_homopolymer_variant(if alt_indel_len == 0 {
+                                    Some(
+                                        homopolymer_error_model.prob_homopolymer_variant_no_indel(),
+                                    )
                                 } else {
-                                    Some(homopolymer_error_model.prob_homopolymer_deletion())
+                                    Some(
+                                        homopolymer_error_model
+                                            .prob_homopolymer_variant_insertion(),
+                                    )
                                 });
+                            } else {
+                                obs.prob_observable_at_homopolymer_artifact(Some(
+                                    homopolymer_error_model.prob_homopolymer_artifact_deletion(),
+                                ))
+                                .prob_observable_at_homopolymer_variant(if alt_indel_len == 0 {
+                                    Some(
+                                        homopolymer_error_model.prob_homopolymer_variant_no_indel(),
+                                    )
+                                } else {
+                                    Some(
+                                        homopolymer_error_model.prob_homopolymer_variant_deletion(),
+                                    )
+                                });
+                            }
                         }
                     } else {
                         obs.homopolymer_indel_len(None)
-                            .prob_observable_at_homopolymer_artifact(None);
+                            .prob_observable_at_homopolymer_artifact(None)
+                            .prob_observable_at_homopolymer_variant(None);
                     }
 
                     Some(obs.build().unwrap())
