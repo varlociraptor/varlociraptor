@@ -2,6 +2,14 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.8.2](https://www.github.com/varlociraptor/varlociraptor/compare/v4.8.1...v4.8.2) (2021-12-15)
+
+
+### Bug Fixes
+
+* adjust mapqs by prevalence of non-unique reads at locus. ([#242](https://www.github.com/varlociraptor/varlociraptor/issues/242)) ([a63f8bd](https://www.github.com/varlociraptor/varlociraptor/commit/a63f8bd7f7a19b9a3f3bc6f425669667f6043af9))
+* various model improvements and corresponding test cases ([#245](https://www.github.com/varlociraptor/varlociraptor/issues/245)) ([d3a5997](https://www.github.com/varlociraptor/varlociraptor/commit/d3a5997bad1f348580139bf287c589172b0d051c))
+
 ### [4.8.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.8.0...v4.8.1) (2021-12-08)
 
 
