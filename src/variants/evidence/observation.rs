@@ -406,6 +406,14 @@ impl<P: Clone, A: Clone> Observation<P, A> {
             >= KassRaftery::Positive
     }
 
+    pub(crate) fn has_homopolymer_error(&self) -> bool {
+        self.homopolymer_indel_len
+            .map(|indel_len| indel_len != 0)
+            .unwrap_or(false)
+    }
+}
+
+impl ProcessedObservation {
     pub(crate) fn adjust_prob_mapping(
         pileup: &mut [Self],
         alignment_properties: &AlignmentProperties,
@@ -419,18 +427,44 @@ impl<P: Clone, A: Clone> Observation<P, A> {
             // Then, adjusted MAPQs are calculated as ph * 0.5 + 1-ph * max_mapq.
             // Technically, we just compute the mean here, which yields the same result.
 
+            let min_prob_mapping = pileup.iter().filter_map(|obs| {
+                if obs.alt_locus == AltLocus::Major {
+                    Some(NotNan::new(*obs.prob_mapping_orig()).unwrap())
+                } else {
+                    None
+                }
+            }).min().map(|p| LogProb(*p));
+
+            if min_prob_mapping.is_none() {
+                return;
+            }
+
             let max_prob_mapping =
                 LogProb::from(PHREDProb(alignment_properties.max_mapq as f64)).ln_one_minus_exp();
             let is_max_prob_mapping =
-                |obs: &Observation<P, A>| relative_eq!(*obs.prob_mapping_orig(), *max_prob_mapping);
+                |obs: &ProcessedObservation| relative_eq!(*obs.prob_mapping_orig(), *max_prob_mapping);
+
+            let max_count = pileup.iter().filter(|obs| {
+                obs.alt_locus == AltLocus::Major && is_max_prob_mapping(obs)
+            }).count();
+            let total_count = pileup.iter().filter(|obs| {
+                obs.alt_locus == AltLocus::Major
+            }).count();
+            let prevalence_certain = LogProb((max_count as f64 / total_count as f64).ln());
+
+            let adjusted = (prevalence_certain + max_prob_mapping).ln_add_exp(prevalence_certain.ln_one_minus_exp() + min_prob_mapping.unwrap());
 
             let probs = pileup
                 .iter()
-                .map(|obs| {
-                    if is_max_prob_mapping(obs) {
-                        obs.prob_mapping_orig()
+                .filter_map(|obs| {
+                    if obs.alt_locus == AltLocus::Major {
+                        Some(if is_max_prob_mapping(obs) {
+                            obs.prob_mapping_orig()
+                        } else {
+                            *PROB_05
+                        })
                     } else {
-                        *PROB_05
+                        None
                     }
                 })
                 .collect_vec();
@@ -450,18 +484,18 @@ impl<P: Clone, A: Clone> Observation<P, A> {
                 average = calc_average(prob_sum, pileup.len() + 1);
             }
             for obs in pileup {
-                if obs.prob_mapping_orig() > average {
-                    obs.prob_mapping_adj = Some(average);
-                    obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
+                if let Some(min_prob_mapping) = min_prob_mapping {
+                    if obs.alt_locus == AltLocus::Major {
+                        obs.prob_mapping_adj = Some(adjusted);
+                        obs.prob_mismapping_adj = Some(adjusted.ln_one_minus_exp());
+                    }
                 }
+                // if obs.alt_locus == AltLocus::Major && obs.prob_mapping_orig() > average {
+                //     obs.prob_mapping_adj = Some(average);
+                //     obs.prob_mismapping_adj = Some(average.ln_one_minus_exp());
+                // }
             }
         }
-    }
-
-    pub(crate) fn has_homopolymer_error(&self) -> bool {
-        self.homopolymer_indel_len
-            .map(|indel_len| indel_len != 0)
-            .unwrap_or(false)
     }
 }
 
@@ -504,11 +538,15 @@ pub(crate) fn locus_to_bucket(
 ) -> genome::Locus {
     // METHOD: map each locus to the nearest multiple of the read len from the left.
     // This way, varying reads become comparable
-    genome::Locus::new(
+
+    let coeff = alignment_properties.max_read_len as u64 * 10;
+
+    let bucket = genome::Locus::new(
         locus.contig().to_owned(),
-        (locus.pos() / alignment_properties.max_read_len as u64)
-            * alignment_properties.max_read_len as u64,
-    )
+        (locus.pos() / coeff) * coeff,
+    );
+
+    bucket
 }
 
 /// Something that can be converted into observations.

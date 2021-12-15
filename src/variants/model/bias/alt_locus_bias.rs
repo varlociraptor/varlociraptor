@@ -18,14 +18,15 @@ impl Default for AltLocusBias {
 
 impl Bias for AltLocusBias {
     fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
-        // METHOD: either a reduced MAPQ or a read pointing to the major alt locus (or both)
+        // METHOD: a read pointing to the major alt locus
         // are indicative for the variant to come from a different (distant) allele.
         // If all alt reads agree on this, we consider the bias to be present.
         match (self, observation.is_max_mapq, observation.alt_locus) {
             (AltLocusBias::None, _, _) => *PROB_05, // normal
             (AltLocusBias::Some, true, AltLocus::Some | AltLocus::None) => LogProb::ln_zero(), // no bias
             (AltLocusBias::Some, true, AltLocus::Major) => LogProb::ln_one(), // bias
-            (AltLocusBias::Some, false, _) => LogProb::ln_one(),              // bias
+            (AltLocusBias::Some, false, AltLocus::Major) => LogProb::ln_one(),              // bias
+            (AltLocusBias::Some, false, AltLocus::Some | AltLocus::None) => LogProb::ln_zero(),              // no bias
         }
     }
 
@@ -35,5 +36,12 @@ impl Bias for AltLocusBias {
 
     fn is_artifact(&self) -> bool {
         *self != AltLocusBias::None
+    }
+
+    fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
+        // METHOD: we consider this bias if there is at least one non maximum MAPQ read.
+        !self.is_artifact() || pileups.iter().any(|pileup| {
+            pileup.iter().any(|obs| !obs.is_max_mapq)
+        })
     }
 }
