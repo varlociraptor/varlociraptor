@@ -1,11 +1,8 @@
+# True het GIAB variant (1:43664319). It looks a bit like a homopolymer error but ideally we should not mark it as such.
+
 expected:
   allelefreqs:
-    # write down a list of expressions of the form
-    - sample_name > 0.45 && sample_name < 0.55
-  posteriors:
-    # write down a list of expressions of the form
-    - PROB_SOMATIC_TUMOR <= 0.05
-    - PROB_GERMLINE_HET > 0.05
+    - NA12878 == 0.5
 
 # necessary bam files
 samples:
