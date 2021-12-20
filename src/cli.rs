@@ -1231,13 +1231,11 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
                             from: parent_idx(parent)?,
                             somatic: *somatic,
                         },
-                        grammar::Inheritance::Subclonal {
-                            from: parent,
-                            origin,
-                        } => Inheritance::Subclonal {
-                            from: parent_idx(parent)?,
-                            origin: *origin,
-                        },
+                        grammar::Inheritance::Subclonal { from: parent } => {
+                            Inheritance::Subclonal {
+                                from: parent_idx(parent)?,
+                            }
+                        }
                     })
                 } else {
                     None

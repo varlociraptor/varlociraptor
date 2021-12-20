@@ -643,31 +643,7 @@ pub(crate) enum Inheritance {
     #[serde(rename = "clonal")]
     Clonal { from: String, somatic: bool },
     #[serde(rename = "subclonal")]
-    Subclonal {
-        from: String,
-        origin: SubcloneOrigin,
-    },
-}
-
-#[derive(
-    Display,
-    Debug,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    IntoStaticStr,
-    EnumVariantNames,
-    PartialEq,
-    Eq,
-    Hash,
-)]
-#[strum(serialize_all = "kebab_case")]
-pub(crate) enum SubcloneOrigin {
-    #[serde(rename = "single-cell")]
-    SingleCell,
-    #[serde(rename = "multi-cell")]
-    MultiCell,
+    Subclonal { from: String },
 }
 
 #[derive(
