@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.10.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.9.0...v4.10.0) (2021-12-20)
+
+
+### Features
+
+* support subclonal inheritance ([#248](https://www.github.com/varlociraptor/varlociraptor/issues/248)) ([1d55f23](https://www.github.com/varlociraptor/varlociraptor/commit/1d55f2314de7f0465bc0eae08edb6b7d62a1c113))
+
 ## [4.9.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.8.1...v4.9.0) (2021-12-15)
 
 
