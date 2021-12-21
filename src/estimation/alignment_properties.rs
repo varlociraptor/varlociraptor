@@ -13,7 +13,7 @@ use anyhow::Result;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
-use statrs::statistics::{OrderStatistics, Statistics};
+use statrs::statistics::{Data, Distribution, OrderStatistics, Statistics};
 
 use crate::reference;
 use crate::utils::homopolymers::extend_homopolymer_stretch;
@@ -350,16 +350,20 @@ impl AlignmentProperties {
             properties.insert_size = None;
             Ok(properties)
         } else {
+            let mut tlens = Data::new(tlens);
             let upper = tlens.percentile(95);
             let lower = tlens.percentile(5);
-            let valid = tlens
-                .into_iter()
-                .filter(|l| *l <= upper && *l >= lower)
-                .collect_vec();
+            let mut valid = Data::new(
+                tlens
+                    .iter()
+                    .cloned()
+                    .filter(|l| *l <= upper && *l >= lower)
+                    .collect_vec(),
+            );
 
             properties.insert_size = Some(InsertSize {
                 mean: valid.iter().sum::<f64>() / valid.len() as f64,
-                sd: valid.iter().std_dev(),
+                sd: valid.std_dev().unwrap(),
             });
             Ok(properties)
         }
