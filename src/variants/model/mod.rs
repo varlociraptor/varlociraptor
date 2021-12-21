@@ -96,7 +96,7 @@ impl ContinuousAlleleFreqs {
             inner: AlleleFreq(value)..AlleleFreq(value),
             left_exclusive: false,
             right_exclusive: false,
-            zero_offset: NotNan::from(1.0),
+            zero_offset: NotNan::from(1.0_f64),
         }
     }
 
