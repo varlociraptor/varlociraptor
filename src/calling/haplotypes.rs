@@ -1,14 +1,17 @@
+use crate::variants::model::AlleleFreq;
 use anyhow::Result;
 use bio::stats::bayesian::model::Model;
 use bio::stats::probs::{LogProb, Prob};
+use bio::stats::PHREDProb;
 use bio_types::genome::AbstractLocus;
 use bv::BitVec;
 use derive_builder::Builder;
 use hdf5;
-use ordered_float::NotNaN;
+use ordered_float::NotNan;
 use rust_htslib::bcf;
 use rust_htslib::bcf::record::GenotypeAllele::Unphased;
 use rust_htslib::bcf::Read;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
@@ -181,41 +184,23 @@ impl KallistoEstimates {
     }
 }
 
-#[derive(Derefable, Debug, Clone, PartialEq, Eq, Hash, new)]
-pub(crate) struct Variant(#[deref] String);
+#[derive(Derefable, Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd, new)]
+pub(crate) struct VariantID(#[deref] i32);
 
-#[derive(Derefable, Debug, Clone, PartialEq, Eq)]
-pub(crate) struct HaplotypeVariants(#[deref] HashMap<Variant, BitVec>);
+#[derive(Derefable, Debug, Clone, PartialEq, Eq, PartialOrd)]
+pub(crate) struct HaplotypeVariants(#[deref] BTreeMap<VariantID, BitVec>);
 
 impl HaplotypeVariants {
     pub(crate) fn new(
         haplotype_variants: &mut bcf::Reader,
         haplotypes: &Vec<String>,
     ) -> Result<Self> {
-        let mut candidate_variants = HashMap::new();
+        let mut candidate_variants = BTreeMap::new();
         for record_result in haplotype_variants.records() {
             let record = record_result?;
 
-            //store the variant
-            let mut variant = String::new();
-            variant.push_str(&format!("{}{}", record.contig(), "_"));
-            let pos = record.pos().to_string();
-            variant.push_str(&format!("{}{}", pos, "_"));
-            for allele in record.alleles() {
-                if allele.len() == 1 {
-                    for c in allele {
-                        let base = char::from(*c).to_string();
-                        variant.push_str(&format!("{}{}", base, "_"));
-                    }
-                } else {
-                    //the case for structural variants
-                    for c in allele {
-                        let base = char::from(*c).to_string();
-                        variant.push_str(&base);
-                    }
-                    variant.push_str("_")
-                }
-            }
+            //store the IDs
+            let variant_id: i32 = String::from_utf8(record.id())?.parse().unwrap();
 
             //store the haplotypes that carry the variant
             let header = record.header();
@@ -225,62 +210,67 @@ impl HaplotypeVariants {
                 let mut s = String::new();
                 x.read_to_string(&mut s);
                 if haplotypes.contains(&s) {
-                    haplotype_indices.push(sample_index);
+                    haplotype_indices.push(sample_index); //pushing the exact indices of haplotypes that are found in header.samples()
                 }
             }
+
             let mut bv: BitVec<usize> = BitVec::new();
 
             for sample_index in haplotype_indices.iter() {
                 for gta in gts.get(*sample_index).iter() {
-                    if gta == &Unphased(1) {
-                        bv.push(true);
-                    } else {
-                        bv.push(false);
-                        break;
-                    }
+                    bv.push(*gta == Unphased(1));
                 }
             }
-            candidate_variants.insert(Variant(variant.clone()), bv);
+            candidate_variants.insert(VariantID(variant_id.clone()), bv);
         }
         Ok(HaplotypeVariants(candidate_variants))
     }
 }
+#[derive(Debug, Clone, Derefable)]
+pub(crate) struct AlleleFreqDist(#[deref] BTreeMap<AlleleFreq, f64>);
 
-#[derive(Derefable, Debug, Clone, PartialEq, Eq)]
-pub(crate) struct HaplotypeCalls(#[deref] HashMap<Variant, String>);
+impl AlleleFreqDist {
+    pub(crate) fn vaf_query(&self, vaf: AlleleFreq, likelihood: &Prob) -> Result<Prob> {
+        if self.contains_key(&vaf) {
+            let likelihood = likelihood * Prob::from(PHREDProb(*self.get(&vaf).unwrap()));
+        } else {
+            let (x_0, y_0) = self.range(..vaf).next_back().unwrap();
+            let (x_1, y_1) = self.range(vaf..).next().unwrap();
+
+            let density = NotNan::new(*y_0).unwrap() + (vaf - *x_0) * (*y_1 - *y_0) / (*x_1 - *x_0); //calculation of density for given vaf by linear interpolation
+            let likelihood = likelihood * Prob::from(PHREDProb(NotNan::into_inner(density)));
+        }
+        Ok(*likelihood)
+    }
+}
+
+#[derive(Derefable, Debug, Clone)]
+pub(crate) struct HaplotypeCalls(#[deref] BTreeMap<VariantID, AlleleFreqDist>);
 
 impl HaplotypeCalls {
     pub(crate) fn new(haplotype_calls: &mut bcf::Reader) -> Result<Self> {
-        let mut calls = HashMap::new();
+        let mut calls = BTreeMap::new();
         for record_result in haplotype_calls.records() {
             let record = record_result?;
 
             //store the variant and the afd if the prob_present field is not nan (to save space)
             if !record.info(b"PROB_PRESENT").float()?.unwrap()[0].is_nan() {
-                let mut variant = String::new();
-                variant.push_str(&format!("{}{}", record.contig(), "_"));
-                let pos = record.pos().to_string();
-                variant.push_str(&format!("{}{}", pos, "_"));
-                for allele in record.alleles() {
-                    if allele.len() == 1 {
-                        for c in allele {
-                            let base = char::from(*c).to_string();
-                            variant.push_str(&format!("{}{}", base, "_"));
-                        }
-                    } else {
-                        //the case for structural variants
-                        for c in allele {
-                            let base = char::from(*c).to_string();
-                            variant.push_str(&base);
-                        }
-                        variant.push_str("_")
-                    }
-                }
+                let variant_id: i32 = String::from_utf8(record.id())?.parse().unwrap();
 
                 //store the afd string
                 let afd_utf = record.format(b"AFD").string()?[0];
                 let afd = std::str::from_utf8(afd_utf).unwrap();
-                calls.insert(Variant(variant.clone()), afd.to_string());
+                let mut vaf_density = BTreeMap::new();
+                for pair in afd.split(",") {
+                    let (vaf, density) = pair.split_once("=").unwrap();
+                    let (vaf, density): (AlleleFreq, f64) =
+                        (vaf.parse().unwrap(), density.parse().unwrap());
+                    vaf_density.insert(vaf, density);
+                }
+                calls.insert(
+                    VariantID(variant_id.clone()),
+                    AlleleFreqDist(vaf_density.clone()),
+                );
             }
         }
         Ok(HaplotypeCalls(calls))
