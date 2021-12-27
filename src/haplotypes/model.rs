@@ -132,18 +132,26 @@ impl Likelihood {
         // TODO compute likelihood based on Varlociraptor VAFs.
         // Let us postpone this until we have a working version with kallisto only.
         let variant_matrix: Vec<BitVec> = data.haplotype_variants.values().cloned().collect();
-        let mut likelihood = Prob(1.0);
-        for (bv, (_, afd)) in variant_matrix.iter().zip(data.haplotype_calls.iter()) {
-            let variant_sum = 0.0;
-            for (i, fraction) in event.iter().enumerate() {
-                if bv[i.try_into().unwrap()] == true {
-                    let variant_sum = variant_sum + NotNan::into_inner(*fraction);
-                }
-            }
-            let vaf_sum = NotNan::new(f64::from(Prob::from(PHREDProb(variant_sum)))).unwrap();
-            let likelihood = afd.vaf_query(vaf_sum, &likelihood);
-        }
-        LogProb::from(likelihood)
+        let variant_calls: Vec<AlleleFreqDist> = data.haplotype_calls.values().cloned().collect();
+
+        variant_matrix
+            .iter()
+            .zip(variant_calls.iter())
+            .map(|(matrix, afd)| {
+                let vaf_sum = event
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, fraction)| {
+                        if matrix[i as u64] {
+                            Some(fraction)
+                        } else {
+                            None
+                        }
+                    })
+                    .sum();
+                afd.vaf_query(vaf_sum)
+            })
+            .sum()
         //LogProb::ln_one()
     }
 }

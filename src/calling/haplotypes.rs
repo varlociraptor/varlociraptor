@@ -18,6 +18,7 @@ use std::convert::TryInto;
 use std::io;
 use std::io::Read as OtherRead;
 use std::path::PathBuf;
+use std::str;
 
 use crate::haplotypes::model::{Data, HaplotypeFractions, Likelihood, Marginal, Posterior, Prior};
 
@@ -195,52 +196,59 @@ impl HaplotypeVariants {
         haplotype_variants: &mut bcf::Reader,
         haplotypes: &Vec<String>,
     ) -> Result<Self> {
-        let mut candidate_variants = BTreeMap::new();
+        let mut variant_records = BTreeMap::new();
         for record_result in haplotype_variants.records() {
             let record = record_result?;
-
-            //store the IDs
             let variant_id: i32 = String::from_utf8(record.id())?.parse().unwrap();
-
-            //store the haplotypes that carry the variant
             let header = record.header();
             let gts = record.genotypes()?; //genotypes of all samples
+            
             let mut haplotype_indices = Vec::new();
-            for (sample_index, mut x) in header.samples().into_iter().enumerate() {
-                let mut s = String::new();
-                x.read_to_string(&mut s);
-                if haplotypes.contains(&s) {
-                    haplotype_indices.push(sample_index); //pushing the exact indices of haplotypes that are found in header.samples()
-                }
-            }
+            header
+                .samples()
+                .iter()
+                .enumerate()
+                .for_each(|(sample_index, sample)| {
+                    if haplotypes.contains(&str::from_utf8(sample).unwrap().to_owned()) {
+                        haplotype_indices.push(sample_index); //pushing the exact indices of haplotypes that are found in header.samples()
+                    }
+                });
 
-            let mut bv: BitVec<usize> = BitVec::new();
-
-            for sample_index in haplotype_indices.iter() {
+            let mut haplotype_indices2 = Vec::new();
+            haplotypes.iter().for_each(|sample| {
+                let position = header
+                    .samples()
+                    .iter()
+                    .map(|x| str::from_utf8(x).unwrap())
+                    .position(|x| &x == sample)
+                    .unwrap();
+                haplotype_indices2.push(position)
+            });
+            
+            let mut haplotype_variants: BitVec<usize> = BitVec::new();
+            haplotype_indices.iter().for_each(|sample_index| {
                 for gta in gts.get(*sample_index).iter() {
-                    bv.push(*gta == Unphased(1));
+                    haplotype_variants.push(*gta == Unphased(1));
                 }
-            }
-            candidate_variants.insert(VariantID(variant_id.clone()), bv);
+            });
+            variant_records.insert(VariantID(variant_id.clone()), haplotype_variants);
         }
-        Ok(HaplotypeVariants(candidate_variants))
+        Ok(HaplotypeVariants(variant_records))
     }
 }
 #[derive(Debug, Clone, Derefable)]
 pub(crate) struct AlleleFreqDist(#[deref] BTreeMap<AlleleFreq, f64>);
 
 impl AlleleFreqDist {
-    pub(crate) fn vaf_query(&self, vaf: AlleleFreq, likelihood: &Prob) -> Result<Prob> {
+    pub(crate) fn vaf_query(&self, vaf: AlleleFreq) -> LogProb {
         if self.contains_key(&vaf) {
-            let likelihood = likelihood * Prob::from(PHREDProb(*self.get(&vaf).unwrap()));
+            LogProb::from(PHREDProb(*self.get(&vaf).unwrap()))
         } else {
             let (x_0, y_0) = self.range(..vaf).next_back().unwrap();
             let (x_1, y_1) = self.range(vaf..).next().unwrap();
-
             let density = NotNan::new(*y_0).unwrap() + (vaf - *x_0) * (*y_1 - *y_0) / (*x_1 - *x_0); //calculation of density for given vaf by linear interpolation
-            let likelihood = likelihood * Prob::from(PHREDProb(NotNan::into_inner(density)));
+            LogProb::from(PHREDProb(NotNan::into_inner(density)))
         }
-        Ok(*likelihood)
     }
 }
 
