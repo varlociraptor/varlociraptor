@@ -6,11 +6,11 @@
 use std::cell::RefCell;
 use std::cmp;
 use std::ops::Range;
-use std::rc::Rc;
+
 use std::sync::Arc;
 
 use anyhow::Result;
-use bio::stats::pairhmm::EmissionParameters;
+
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;
@@ -20,7 +20,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
 use crate::variants::evidence::insert_size::estimate_insert_size;
-use crate::variants::evidence::observation::Strand;
+use crate::variants::evidence::observations::read_observation::Strand;
 use crate::variants::evidence::realignment::pairhmm::{
     RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };

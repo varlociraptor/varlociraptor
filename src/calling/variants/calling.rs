@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::str;
 use std::sync::RwLock;
 
@@ -22,7 +23,8 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
-use crate::variants::evidence::observation::{Observation, ProcessedObservation};
+use crate::variants::evidence::observations::pileup::Pileup;
+
 use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
@@ -467,7 +469,7 @@ where
         for record in records.iter_mut() {
             let pileup = if let Some(record) = record {
                 let Observations {
-                    observations: mut pileup,
+                    mut pileup,
                     is_homopolymer_indel,
                 } = read_observations(record)?;
                 if is_homopolymer_indel && !self.omit_homopolymer_artifact_detection {
@@ -479,15 +481,12 @@ where
                     // SVs and can induce artifactual SNVs or MNVs. By removing them,
                     // we just conservatively reduce the coverage to those which are
                     // clearly not influenced by a close SV.
-                    pileup = Observation::remove_nonstandard_alignments(
-                        pileup,
-                        self.omit_read_orientation_bias,
-                    );
+                    pileup.remove_nonstandard_alignments(self.omit_read_orientation_bias);
                 }
 
                 pileup
             } else {
-                Vec::new()
+                Pileup::default()
             };
             pileups.push(pileup);
         }
@@ -703,7 +702,7 @@ where
                 .enumerate()
                 .map(|(sample, (pileup, estimate))| {
                     let mut sample_builder = SampleInfoBuilder::default();
-                    sample_builder.observations(pileup);
+                    sample_builder.pileup(Rc::new(pileup));
                     match estimate {
                         model::likelihood::Event {
                             artifacts: biases, ..
@@ -776,7 +775,7 @@ struct WorkItem {
     rid: u32,
     call: Call,
     variant_builder: VariantBuilder,
-    pileups: Option<Vec<Vec<ProcessedObservation>>>,
+    pileups: Option<Vec<Pileup>>,
     snv: Option<model::modes::generic::Snv>,
     bnd_event: Option<Vec<u8>>,
     index: usize,

@@ -13,7 +13,7 @@ use anyhow::Result;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use rust_htslib::bam::{self, record::Cigar};
-use statrs::statistics::{Data, Distribution, OrderStatistics, Statistics};
+use statrs::statistics::{Data, Distribution, OrderStatistics};
 
 use crate::reference;
 use crate::utils::homopolymers::extend_homopolymer_stretch;
@@ -353,7 +353,7 @@ impl AlignmentProperties {
             let mut tlens = Data::new(tlens);
             let upper = tlens.percentile(95);
             let lower = tlens.percentile(5);
-            let mut valid = Data::new(
+            let valid = Data::new(
                 tlens
                     .iter()
                     .cloned()

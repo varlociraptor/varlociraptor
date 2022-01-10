@@ -263,8 +263,8 @@ impl Variant {
 
 #[cfg(test)]
 mod tests {
-    use crate::variants::evidence::observation::{
-        AltLocus, ObservationBuilder, ProcessedObservation, ReadPosition, Strand,
+    use crate::variants::evidence::observations::read_observation::{
+        AltLocus, ProcessedReadObservation, ReadObservationBuilder, ReadPosition, Strand,
     };
     use bio_types::sequence::SequenceReadPairOrientation;
 
@@ -274,8 +274,8 @@ mod tests {
         prob_mapping: LogProb,
         prob_alt: LogProb,
         prob_ref: LogProb,
-    ) -> ProcessedObservation {
-        ObservationBuilder::default()
+    ) -> ProcessedReadObservation {
+        ReadObservationBuilder::default()
             .name(None)
             .prob_mapping_mismapping(prob_mapping)
             .prob_alt(prob_alt)

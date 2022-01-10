@@ -7,10 +7,10 @@ use bio::stats::{bayesian::model::Likelihood, LogProb};
 use lru::LruCache;
 
 use crate::utils::NUMERICAL_EPSILON;
-use crate::variants::evidence::observation::{Observation, ProcessedObservation, ReadPosition};
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Artifacts;
 use crate::variants::model::AlleleFreq;
-use crate::variants::sample::Pileup;
 
 pub(crate) type ContaminatedSampleCache = LruCache<ContaminatedSampleEvent, LogProb>;
 pub(crate) type SingleSampleCache = LruCache<Event, LogProb>;
@@ -28,7 +28,7 @@ impl Event {
     }
 }
 
-fn prob_sample_alt(observation: &ProcessedObservation, allele_freq: LogProb) -> LogProb {
+fn prob_sample_alt(observation: &ProcessedReadObservation, allele_freq: LogProb) -> LogProb {
     if allele_freq != LogProb::ln_one() {
         // The effective sample probability for the alt allele is the allele frequency times
         // the probability to obtain a feasible fragment (prob_sample_alt).
@@ -92,7 +92,7 @@ impl ContaminatedSampleLikelihoodModel {
         allele_freq_secondary: LogProb,
         biases_primary: &Artifacts,
         biases_secondary: &Artifacts,
-        observation: &ProcessedObservation,
+        observation: &ProcessedReadObservation,
     ) -> LogProb {
         // Step 1: likelihoods for the mapping case.
         // Case 1: read comes from primary sample and is correctly mapped
@@ -135,16 +135,20 @@ impl Likelihood<ContaminatedSampleCache> for ContaminatedSampleLikelihoodModel {
             let ln_af_secondary = LogProb(events.secondary.allele_freq.ln());
 
             // calculate product of per-observation likelihoods in log space
-            let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-                let lh = self.likelihood_observation(
-                    ln_af_primary,
-                    ln_af_secondary,
-                    &events.primary.artifacts,
-                    &events.secondary.artifacts,
-                    obs,
-                );
-                prob + lh
-            });
+            let likelihood =
+                pileup
+                    .read_observations()
+                    .iter()
+                    .fold(LogProb::ln_one(), |prob, obs| {
+                        let lh = self.likelihood_observation(
+                            ln_af_primary,
+                            ln_af_secondary,
+                            &events.primary.artifacts,
+                            &events.secondary.artifacts,
+                            obs,
+                        );
+                        prob + lh
+                    });
 
             assert!(!likelihood.is_nan());
 
@@ -171,7 +175,7 @@ impl SampleLikelihoodModel {
         &self,
         allele_freq: LogProb,
         biases: &Artifacts,
-        observation: &ProcessedObservation,
+        observation: &ProcessedReadObservation,
     ) -> LogProb {
         // Step 1: likelihood for the mapping case.
         let prob = likelihood_mapping(allele_freq, biases, observation);
@@ -196,7 +200,7 @@ impl SampleLikelihoodModel {
 fn likelihood_mapping(
     allele_freq: LogProb,
     biases: &Artifacts,
-    observation: &ProcessedObservation,
+    observation: &ProcessedReadObservation,
 ) -> LogProb {
     // Step 1: calculate probability to sample from alt allele
     let prob_sample_alt = prob_sample_alt(observation, allele_freq);
@@ -229,10 +233,14 @@ impl Likelihood<SingleSampleCache> for SampleLikelihoodModel {
             let ln_af = LogProb(event.allele_freq.ln());
 
             // calculate product of per-read likelihoods in log space
-            let likelihood = pileup.iter().fold(LogProb::ln_one(), |prob, obs| {
-                let lh = self.likelihood_observation(ln_af, &event.artifacts, obs);
-                prob + lh
-            });
+            let likelihood =
+                pileup
+                    .read_observations()
+                    .iter()
+                    .fold(LogProb::ln_one(), |prob, obs| {
+                        let lh = self.likelihood_observation(ln_af, &event.artifacts, obs);
+                        prob + lh
+                    });
 
             assert!(!likelihood.is_nan());
 
@@ -293,9 +301,9 @@ mod tests {
     #[test]
     fn test_likelihood_pileup_absent() {
         let model = ContaminatedSampleLikelihoodModel::new(1.0);
-        let mut observations = Vec::new();
+        let mut observations = Pileup::default();
         for _ in 0..10 {
-            observations.push(observation(
+            observations.read_observations_mut().push(observation(
                 LogProb::ln_one(),
                 LogProb::ln_zero(),
                 LogProb::ln_one(),
@@ -314,6 +322,7 @@ mod tests {
         assert_relative_eq!(
             *lh,
             *observations
+                .read_observations()
                 .iter()
                 .map(|observation| biases().prob_ref(&observation))
                 .sum::<LogProb>()
@@ -323,9 +332,9 @@ mod tests {
     #[test]
     fn test_likelihood_pileup_absent_single() {
         let model = SampleLikelihoodModel::new();
-        let mut observations = Vec::new();
+        let mut observations = Pileup::default();
         for _ in 0..10 {
-            observations.push(observation(
+            observations.read_observations_mut().push(observation(
                 LogProb::ln_one(),
                 LogProb::ln_zero(),
                 LogProb::ln_one(),
@@ -337,6 +346,7 @@ mod tests {
         assert_relative_eq!(
             *lh,
             *observations
+                .read_observations()
                 .iter()
                 .map(|observation| biases().prob_ref(&observation))
                 .sum::<LogProb>()
@@ -348,16 +358,16 @@ mod tests {
     #[allow(clippy::float_cmp)]
     fn test_likelihood_pileup() {
         let model = ContaminatedSampleLikelihoodModel::new(1.0);
-        let mut observations = Vec::new();
+        let mut observations = Pileup::default();
         for _ in 0..5 {
-            observations.push(observation(
+            observations.read_observations_mut().push(observation(
                 LogProb::ln_one(),
                 LogProb::ln_one(),
                 LogProb::ln_zero(),
             ));
         }
         for _ in 0..5 {
-            observations.push(observation(
+            observations.read_observations_mut().push(observation(
                 LogProb::ln_one(),
                 LogProb::ln_zero(),
                 LogProb::ln_one(),

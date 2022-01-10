@@ -2,7 +2,8 @@ use bio::stats::probs::LogProb;
 use bio_types::sequence::SequenceReadPairOrientation;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::ProcessedObservation;
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
@@ -19,7 +20,7 @@ impl Default for ReadOrientationBias {
 }
 
 impl Bias for ReadOrientationBias {
-    fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
+    fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.read_orientation) {
             (ReadOrientationBias::None, SequenceReadPairOrientation::F1R2) => *PROB_05, // normal
             (ReadOrientationBias::None, SequenceReadPairOrientation::F2R1) => *PROB_05, // normal
@@ -31,7 +32,7 @@ impl Bias for ReadOrientationBias {
         }
     }
 
-    fn prob_any(&self, _observation: &ProcessedObservation) -> LogProb {
+    fn prob_any(&self, _observation: &ProcessedReadObservation) -> LogProb {
         *PROB_05
     }
 
@@ -39,7 +40,7 @@ impl Bias for ReadOrientationBias {
         *self != ReadOrientationBias::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
+    fn is_informative(&self, pileups: &[Pileup]) -> bool {
         if let ReadOrientationBias::None = *self {
             return true;
         }
@@ -52,6 +53,7 @@ impl Bias for ReadOrientationBias {
         // reference reads.
         let n_uncertain: usize = pileups
             .iter()
+            .map(|pileup| pileup.read_observations().iter())
             .flatten()
             .map(|observation| {
                 if !(observation.read_orientation == SequenceReadPairOrientation::F1R2
@@ -63,7 +65,10 @@ impl Bias for ReadOrientationBias {
                 }
             })
             .sum();
-        let n: usize = pileups.iter().map(|pileup| pileup.len()).sum();
+        let n: usize = pileups
+            .iter()
+            .map(|pileup| pileup.read_observations().len())
+            .sum();
         let enough_information = (n_uncertain as f64) < (n as f64 / 2.0);
 
         // METHOD: read orientation bias needs a uniform distribution of F1R2 and F2R1 among the
@@ -71,6 +76,7 @@ impl Bias for ReadOrientationBias {
         // in the alt reads.
         let strong_ref_total_count = pileups
             .iter()
+            .map(|pileup| pileup.read_observations().iter())
             .flatten()
             .filter(|observation| {
                 observation.is_strong_ref_support()
@@ -80,6 +86,7 @@ impl Bias for ReadOrientationBias {
             .count();
         let strong_ref_f1r2 = pileups
             .iter()
+            .map(|pileup| pileup.read_observations().iter())
             .flatten()
             .filter(|observation| {
                 observation.is_strong_ref_support()

@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::str;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -21,7 +22,7 @@ use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
 use rust_htslib::bcf::{self, Read as BCFRead};
 
-use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
+use crate::calling::variants::{Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -30,10 +31,10 @@ use crate::utils;
 use crate::utils::variant_buffer::{VariantBuffer, Variants};
 use crate::utils::MiniLogProb;
 use crate::variants;
-use crate::variants::evidence::observation::{
-    AltLocus, Observation, ObservationBuilder, ProcessedObservation, ReadPosition, Strand,
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::{
+    AltLocus, ReadObservationBuilder, ReadPosition, Strand,
 };
-use crate::variants::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model;
 use crate::variants::sample::Sample;
@@ -154,7 +155,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     pub(crate) fn process(&mut self) -> Result<()> {
         let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
         bcf_reader.set_threads(1)?;
-        let mut progress_logger = ProgressLogger::builder()
+        let progress_logger = ProgressLogger::builder()
             .with_items_name("records")
             .with_frequency(std::time::Duration::from_secs(20))
             .start();
@@ -216,7 +217,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 
             if let Some(path) = &self.raw_observation_output {
                 let mut wrt = csv::WriterBuilder::new().delimiter(b'\t').from_path(path)?;
-                for obs in &pileup {
+                for obs in pileup.read_observations() {
                     wrt.serialize(obs)?;
                 }
             }
@@ -229,7 +230,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                         variants.locus().pos() as usize,
                         Some(chrom_seq.as_ref()),
                     )
-                    .observations(Some(pileup))
+                    .pileup(Some(Rc::new(pileup)))
                     .build()
                     .unwrap(),
             );
@@ -239,7 +240,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
             // process breakend
             if let model::Variant::Breakend { event, .. } = variants.variant_of_interest() {
                 if let Some(pileup) = self.process_pileup(&variants, sample)? {
-                    let pileup = Some(pileup);
+                    let pileup = Rc::new(pileup);
                     for breakend in self
                         .breakend_groups
                         .read()
@@ -268,7 +269,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
                                     breakend.locus().pos() as usize,
                                     None,
                                 )
-                                .observations(pileup.clone())
+                                .pileup(Some(Rc::clone(&pileup)))
                                 .build()
                                 .unwrap(),
                         );
@@ -282,11 +283,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
         }
     }
 
-    fn process_pileup(
-        &self,
-        variants: &Variants,
-        sample: &mut Sample,
-    ) -> Result<Option<Vec<ProcessedObservation>>> {
+    fn process_pileup(&self, variants: &Variants, sample: &mut Sample) -> Result<Option<Pileup>> {
         let interval = |len: u64| {
             genome::Interval::new(
                 variants.locus().contig().to_owned(),
@@ -517,7 +514,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
 pub(crate) static OBSERVATION_FORMAT_VERSION: &str = "13";
 
 pub(crate) struct Observations {
-    pub(crate) observations: Vec<ProcessedObservation>,
+    pub(crate) pileup: Pileup,
     pub(crate) is_homopolymer_indel: bool,
 }
 
@@ -576,9 +573,9 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
     let is_max_mapq: BitVec<u8> = read_values(record, b"IS_MAX_MAPQ", false)?;
     let alt_locus: Vec<AltLocus> = read_values(record, b"ALT_LOCUS", false)?;
 
-    let obs = (0..prob_mapping.len())
+    let read_obs = (0..prob_mapping.len())
         .map(|i| {
-            let mut obs = ObservationBuilder::default();
+            let mut obs = ReadObservationBuilder::default();
             obs.name(None) // we do not pass the read names to the calling process
                 .prob_mapping_mismapping(prob_mapping[i].to_logprob())
                 .prob_alt(prob_alt[i].to_logprob())
@@ -612,39 +609,41 @@ pub(crate) fn read_observations(record: &mut bcf::Record) -> Result<Observations
         })
         .collect_vec();
 
+    let depth_obs = Vec::new(); // TODO: read depth observations!
+
     Ok(Observations {
-        observations: obs,
+        pileup: Pileup::new(read_obs, depth_obs),
         is_homopolymer_indel,
     })
 }
 
-pub(crate) fn write_observations(
-    observations: &[ProcessedObservation],
-    record: &mut bcf::Record,
-) -> Result<()> {
-    let vec = || Vec::with_capacity(observations.len());
+pub(crate) fn write_observations(pileup: &Pileup, record: &mut bcf::Record) -> Result<()> {
+    // TODO: write depth observations
+    let read_observations = pileup.read_observations();
+
+    let vec = || Vec::with_capacity(read_observations.len());
     let mut prob_mapping = vec();
     let mut prob_ref = vec();
     let mut prob_alt = vec();
     let mut prob_missed_allele = vec();
     let mut prob_sample_alt = vec();
     let mut prob_double_overlap = vec();
-    let mut strand = Vec::with_capacity(observations.len());
-    let mut read_orientation = Vec::with_capacity(observations.len());
-    let mut softclipped: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
-    let mut paired: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
-    let mut read_position = Vec::with_capacity(observations.len());
+    let mut strand = Vec::with_capacity(read_observations.len());
+    let mut read_orientation = Vec::with_capacity(read_observations.len());
+    let mut softclipped: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
+    let mut paired: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
+    let mut read_position = Vec::with_capacity(read_observations.len());
     let mut prob_hit_base = vec();
     let mut prob_observable_at_homopolymer_artifact: Vec<Option<MiniLogProb>> =
-        Vec::with_capacity(observations.len());
+        Vec::with_capacity(read_observations.len());
     let mut prob_observable_at_homopolymer_variant: Vec<Option<MiniLogProb>> =
-        Vec::with_capacity(observations.len());
-    let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(observations.len());
-    let mut is_max_mapq: BitVec<u8> = BitVec::with_capacity(observations.len() as u64);
-    let mut alt_locus = Vec::with_capacity(observations.len());
+        Vec::with_capacity(read_observations.len());
+    let mut homopolymer_indel_len: Vec<Option<i8>> = Vec::with_capacity(read_observations.len());
+    let mut is_max_mapq: BitVec<u8> = BitVec::with_capacity(read_observations.len() as u64);
+    let mut alt_locus = Vec::with_capacity(read_observations.len());
 
     let encode_logprob = |prob: LogProb| utils::MiniLogProb::new(prob);
-    for obs in observations {
+    for obs in read_observations {
         prob_mapping.push(encode_logprob(obs.prob_mapping()));
         prob_ref.push(encode_logprob(obs.prob_ref));
         prob_alt.push(encode_logprob(obs.prob_alt));
@@ -764,13 +763,4 @@ pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli:
         path: bcfpath.as_ref().to_owned(),
     }
     .into())
-}
-
-struct WorkItem {
-    start: u64,
-    chrom: String,
-    variants: Vec<model::Variant>,
-    record_id: Vec<u8>,
-    record_mateid: Option<Vec<u8>>,
-    record_index: usize,
 }

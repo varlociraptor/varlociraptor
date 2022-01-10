@@ -16,8 +16,8 @@ use vec_map::VecMap;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{
-    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
+use crate::variants::evidence::observations::read_observation::{
+    Evidence, Observable, PairedEndEvidence, ReadObservation, SingleEndEvidence, Strand,
 };
 use crate::variants::sample;
 
@@ -40,7 +40,6 @@ pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
 pub(crate) use snv::Snv;
 
-use super::evidence::realignment::pairhmm::RefBaseVariantEmission;
 use super::evidence::realignment::Realignable;
 
 #[derive(Debug, CopyGetters, Getters, Builder)]
@@ -174,7 +173,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
-    ) -> Result<Vec<Observation>> {
+    ) -> Result<Vec<ReadObservation>> {
         let locus = self.loci();
         buffer.fetch(locus, false)?;
 
@@ -255,7 +254,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
-    ) -> Result<Vec<Observation>> {
+    ) -> Result<Vec<ReadObservation>> {
         // We cannot use a hash function here because candidates have to be considered
         // in a deterministic order. Otherwise, subsampling high-depth regions will result
         // in slightly different probabilities each time.

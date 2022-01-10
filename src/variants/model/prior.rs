@@ -488,7 +488,7 @@ impl Prior {
         if !relative_eq!(*germline_vaf, *germline_vafs[parent]) {
             LogProb::ln_zero()
         } else {
-            let parent_somatic_vaf = self.effective_somatic_vaf(parent, event, germline_vafs);
+            let _parent_somatic_vaf = self.effective_somatic_vaf(parent, event, germline_vafs);
             let parent_total_vaf = event[parent].allele_freq;
 
             match self.vartype_somatic_effective_mutation_rate(sample) {

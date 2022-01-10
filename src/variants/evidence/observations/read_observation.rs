@@ -12,13 +12,12 @@ use std::str;
 
 use anyhow::Result;
 use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
-use bio::stats::{LogProb, PHREDProb, Prob};
+use bio::stats::{LogProb, PHREDProb};
 use bio_types::genome::{self, AbstractLocus};
 use bio_types::sequence::SequenceReadPairOrientation;
 use counter::Counter;
-use ordered_float::NotNan;
+
 use rust_htslib::bam;
-use statrs::statistics::OrderStatistics;
 
 use serde::Serialize;
 // use bio::stats::bayesian::bayes_factors::evidence::KassRaftery;
@@ -28,16 +27,15 @@ use itertools::Itertools;
 use crate::errors::{self, Error};
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::utils::homopolymers::HomopolymerErrorModel;
+use crate::utils::PROB_095;
 use crate::utils::{self, PROB_05};
-use crate::utils::{PROB_09, PROB_095};
 use crate::variants::sample;
 use crate::variants::types::Variant;
 
-use super::realignment::pairhmm::RefBaseVariantEmission;
-use super::realignment::Realignable;
+use crate::variants::evidence::realignment::Realignable;
 
 /// Calculate expected value of sequencing depth, considering mapping quality.
-pub(crate) fn expected_depth(obs: &[ProcessedObservation]) -> u32 {
+pub(crate) fn expected_depth(obs: &[ProcessedReadObservation]) -> u32 {
     LogProb::ln_sum_exp(&obs.iter().map(|o| o.prob_mapping).collect_vec())
         .exp()
         .round() as u32
@@ -204,11 +202,11 @@ impl<'a> From<&'a bam::Record> for ExactAltLoci {
                         .collect(),
                 }
             }
-            Ok(tag) => {
+            Ok(_tag) => {
                 warn!("{}", INVALID_XA_FORMAT_MSG);
                 ExactAltLoci::default()
             }
-            Err(e) => {
+            Err(_e) => {
                 // no XA tag found, return empty.
                 ExactAltLoci::default()
             }
@@ -225,7 +223,7 @@ pub(crate) enum AltLocus {
 
 /// An observation for or against a variant.
 #[derive(Clone, Debug, Builder, Default, Serialize)]
-pub(crate) struct Observation<P = Option<u32>, A = ExactAltLoci>
+pub(crate) struct ReadObservation<P = Option<u32>, A = ExactAltLoci>
 where
     P: Clone,
     A: Clone,
@@ -276,9 +274,9 @@ where
     pub(crate) alt_locus: A,
 }
 
-pub(crate) type ProcessedObservation = Observation<ReadPosition, AltLocus>;
+pub(crate) type ProcessedReadObservation = ReadObservation<ReadPosition, AltLocus>;
 
-impl<P: Clone, A: Clone> ObservationBuilder<P, A> {
+impl<P: Clone, A: Clone> ReadObservationBuilder<P, A> {
     pub(crate) fn prob_mapping_mismapping(&mut self, prob_mapping: LogProb) -> &mut Self {
         self.prob_mapping(prob_mapping)
             .prob_mismapping(prob_mapping.ln_one_minus_exp())
@@ -290,14 +288,14 @@ impl<P: Clone, A: Clone> ObservationBuilder<P, A> {
     }
 }
 
-impl Observation<Option<u32>, ExactAltLoci> {
+impl ReadObservation<Option<u32>, ExactAltLoci> {
     pub(crate) fn process(
         &self,
         major_read_position: Option<u32>,
         major_alt_locus: &Option<genome::Locus>,
         alignment_properties: &AlignmentProperties,
-    ) -> Observation<ReadPosition, AltLocus> {
-        Observation {
+    ) -> ReadObservation<ReadPosition, AltLocus> {
+        ReadObservation {
             name: self.name.clone(),
             prob_mapping: self.prob_mapping,
             prob_mismapping: self.prob_mismapping,
@@ -348,7 +346,7 @@ impl Observation<Option<u32>, ExactAltLoci> {
     }
 }
 
-impl<P: Clone, A: Clone> Observation<P, A> {
+impl<P: Clone, A: Clone> ReadObservation<P, A> {
     pub(crate) fn bayes_factor_alt(&self) -> BayesFactor {
         BayesFactor::new(self.prob_alt, self.prob_ref)
     }
@@ -363,25 +361,6 @@ impl<P: Clone, A: Clone> Observation<P, A> {
 
     pub(crate) fn prob_mismapping(&self) -> LogProb {
         self.prob_mismapping_adj.unwrap_or(self.prob_mismapping)
-    }
-
-    /// Remove all non-standard alignments from pileup (softclipped observations, non-standard read orientations).
-    pub(crate) fn remove_nonstandard_alignments(
-        pileup: Vec<Self>,
-        omit_read_orientation_bias: bool,
-    ) -> Vec<Self> {
-        // METHOD: this can be helpful to get cleaner SNV and MNV calls. Support for those should be
-        // solely driven by standard alignments, that are in expected orientation.
-        // Otherwise called SNVs can be artifacts of near SVs.
-        pileup
-            .into_iter()
-            .filter(|obs| {
-                omit_read_orientation_bias
-                    || (obs.read_orientation == SequenceReadPairOrientation::F1R2
-                        || obs.read_orientation == SequenceReadPairOrientation::F2R1
-                        || obs.read_orientation == SequenceReadPairOrientation::None)
-            })
-            .collect()
     }
 
     pub(crate) fn is_uniquely_mapping(&self) -> bool {
@@ -414,7 +393,7 @@ impl<P: Clone, A: Clone> Observation<P, A> {
     }
 }
 
-impl ProcessedObservation {
+impl ProcessedReadObservation {
     pub(crate) fn adjust_prob_mapping(
         pileup: &mut [Self],
         alignment_properties: &AlignmentProperties,
@@ -465,7 +444,7 @@ impl ProcessedObservation {
 }
 
 pub(crate) fn major_read_position(
-    pileup: &[Observation<Option<u32>, ExactAltLoci>],
+    pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
 ) -> Option<u32> {
     let counter: Counter<_> = pileup.iter().filter_map(|obs| obs.read_position).collect();
     let most_common = counter.most_common();
@@ -477,7 +456,7 @@ pub(crate) fn major_read_position(
 }
 
 pub(crate) fn major_alt_locus(
-    pileup: &[Observation<Option<u32>, ExactAltLoci>],
+    pileup: &[ReadObservation<Option<u32>, ExactAltLoci>],
     alignment_properties: &AlignmentProperties,
 ) -> Option<genome::Locus> {
     let counter: Counter<_> = pileup
@@ -522,7 +501,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
         alt_variants: &[Box<dyn Realignable>],
-    ) -> Result<Vec<Observation>>;
+    ) -> Result<Vec<ReadObservation>>;
 
     /// Convert MAPQ (from read mapper) to LogProb for the event that the read maps
     /// correctly.
@@ -538,7 +517,7 @@ where
         alignment_properties: &mut AlignmentProperties,
         homopolymer_error_model: &Option<HomopolymerErrorModel>,
         alt_variants: &[Box<dyn Realignable>],
-    ) -> Result<Option<Observation>> {
+    ) -> Result<Option<ReadObservation>> {
         Ok(
             match self.allele_support(evidence, alignment_properties, alt_variants)? {
                 // METHOD: only consider allele support if it comes either from forward or reverse strand.
@@ -547,7 +526,7 @@ where
                 Some(allele_support) if allele_support.strand() != Strand::None => {
                     let alt_indel_len = allele_support.homopolymer_indel_len().unwrap_or(0);
 
-                    let mut obs = ObservationBuilder::default();
+                    let mut obs = ReadObservationBuilder::default();
                     obs.name(Some(str::from_utf8(evidence.name()).unwrap().to_owned()))
                         .prob_mapping_mismapping(self.prob_mapping(evidence))
                         .prob_alt(allele_support.prob_alt_allele())

@@ -6,7 +6,7 @@
 use std::cmp;
 use std::fmt::Debug;
 use std::ops::Range;
-use std::rc::Rc;
+
 use std::sync::Arc;
 
 use bio::stats::pairhmm;

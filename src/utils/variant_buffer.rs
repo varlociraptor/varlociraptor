@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 use anyhow::Result;
 use bio_types::genome::{AbstractLocus, Locus};
 use progress_logger::ProgressLogger;
