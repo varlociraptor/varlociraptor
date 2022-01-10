@@ -24,9 +24,7 @@ use crate::errors;
 use crate::grammar;
 use crate::utils;
 use crate::variants::evidence::observations::pileup::Pileup;
-use crate::variants::evidence::observations::read_observation::{
-    ProcessedReadObservation, ReadObservation,
-};
+
 use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,

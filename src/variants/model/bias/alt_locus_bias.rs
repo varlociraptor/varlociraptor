@@ -46,7 +46,7 @@ impl Bias for AltLocusBias {
         }
     }
 
-    fn prob_any(&self, observation: &ProcessedReadObservation) -> LogProb {
+    fn prob_any(&self, _observation: &ProcessedReadObservation) -> LogProb {
         *PROB_05
     }
 

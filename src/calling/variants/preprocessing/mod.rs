@@ -22,7 +22,7 @@ use progress_logger::ProgressLogger;
 use rust_htslib::bam::{self, Read as BAMRead};
 use rust_htslib::bcf::{self, Read as BCFRead};
 
-use crate::calling::variants::{chrom, Call, CallBuilder, VariantBuilder};
+use crate::calling::variants::{Call, CallBuilder, VariantBuilder};
 use crate::cli;
 use crate::errors;
 use crate::estimation::alignment_properties::AlignmentProperties;
@@ -33,7 +33,7 @@ use crate::utils::MiniLogProb;
 use crate::variants;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
-    AltLocus, ProcessedReadObservation, ReadObservationBuilder, ReadPosition, Strand,
+    AltLocus, ReadObservationBuilder, ReadPosition, Strand,
 };
 use crate::variants::evidence::realignment::{self, Realignable};
 use crate::variants::model;
@@ -155,7 +155,7 @@ impl<R: realignment::Realigner + Clone + std::marker::Send + std::marker::Sync>
     pub(crate) fn process(&mut self) -> Result<()> {
         let mut bcf_reader = bcf::Reader::from_path(&self.inbcf)?;
         bcf_reader.set_threads(1)?;
-        let mut progress_logger = ProgressLogger::builder()
+        let progress_logger = ProgressLogger::builder()
             .with_items_name("records")
             .with_frequency(std::time::Duration::from_secs(20))
             .start();

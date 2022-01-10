@@ -6,11 +6,11 @@
 use std::cell::RefCell;
 use std::cmp;
 use std::ops::Range;
-use std::rc::Rc;
+
 use std::sync::Arc;
 
 use anyhow::Result;
-use bio::stats::pairhmm::EmissionParameters;
+
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 use rust_htslib::bam;

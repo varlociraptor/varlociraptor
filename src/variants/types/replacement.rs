@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
-use bio::stats::pairhmm::EmissionParameters;
+
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval};
 
@@ -19,7 +19,7 @@ use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{
-    ReadEmission, RefBaseEmission, RefBaseVariantEmission, VariantEmission,
+    RefBaseEmission, RefBaseVariantEmission, VariantEmission,
 };
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};

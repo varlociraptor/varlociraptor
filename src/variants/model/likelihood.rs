@@ -9,7 +9,7 @@ use lru::LruCache;
 use crate::utils::NUMERICAL_EPSILON;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::{
-    ProcessedReadObservation, ReadObservation, ReadPosition,
+    ProcessedReadObservation,
 };
 use crate::variants::model::bias::Artifacts;
 use crate::variants::model::AlleleFreq;

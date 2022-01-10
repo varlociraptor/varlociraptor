@@ -9,12 +9,12 @@ use std::fmt::Debug;
 
 use bio::alignment::AlignmentOperation;
 use bio::pattern_matching::myers::{self, long};
-use bio::stats::pairhmm;
+
 
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
-use super::pairhmm::{ReadVsAlleleEmission, RefBaseVariantEmission, VariantEmission};
+use super::pairhmm::{ReadVsAlleleEmission, VariantEmission};
 
 enum Myers {
     Short(myers::Myers<u128>),

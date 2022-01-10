@@ -353,7 +353,7 @@ impl AlignmentProperties {
             let mut tlens = Data::new(tlens);
             let upper = tlens.percentile(95);
             let lower = tlens.percentile(5);
-            let mut valid = Data::new(
+            let valid = Data::new(
                 tlens
                     .iter()
                     .cloned()
