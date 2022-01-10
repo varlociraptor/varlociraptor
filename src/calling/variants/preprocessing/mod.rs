@@ -764,12 +764,3 @@ pub(crate) fn read_preprocess_options<P: AsRef<Path>>(bcfpath: P) -> Result<cli:
     }
     .into())
 }
-
-struct WorkItem {
-    start: u64,
-    chrom: String,
-    variants: Vec<model::Variant>,
-    record_id: Vec<u8>,
-    record_mateid: Option<Vec<u8>>,
-    record_index: usize,
-}
