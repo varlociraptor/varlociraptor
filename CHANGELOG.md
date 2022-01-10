@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [4.11.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.10.1...v4.11.0) (2022-01-10)
+
+
+### Features
+
+* enable "false" in event expressions, in order to explicitly specify that an event is always false. ([#254](https://www.github.com/varlociraptor/varlociraptor/issues/254)) ([69b4eec](https://www.github.com/varlociraptor/varlociraptor/commit/69b4eece1bc8f42b11cb4a840f4ed1801541e4d4))
+
 ### [4.10.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.10.0...v4.10.1) (2021-12-21)
 
 
