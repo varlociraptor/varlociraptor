@@ -25,9 +25,7 @@ use crate::utils;
 use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::evidence::observations::read_observation::expected_depth;
 use crate::variants::evidence::observations::read_observation::AltLocus;
-use crate::variants::evidence::observations::read_observation::{
-    ReadPosition, Strand,
-};
+use crate::variants::evidence::observations::read_observation::{ReadPosition, Strand};
 use crate::variants::model;
 use crate::variants::model::bias::AltLocusBias;
 use crate::variants::model::{

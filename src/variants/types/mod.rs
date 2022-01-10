@@ -40,7 +40,6 @@ pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
 pub(crate) use snv::Snv;
 
-
 use super::evidence::realignment::Realignable;
 
 #[derive(Debug, CopyGetters, Getters, Builder)]

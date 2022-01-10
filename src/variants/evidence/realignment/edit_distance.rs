@@ -10,7 +10,6 @@ use std::fmt::Debug;
 use bio::alignment::AlignmentOperation;
 use bio::pattern_matching::myers::{self, long};
 
-
 use crate::utils::homopolymers::HomopolymerIndelOperation;
 use crate::variants::evidence::realignment::pairhmm::{RefBaseEmission, EDIT_BAND};
 
