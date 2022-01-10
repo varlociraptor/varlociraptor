@@ -1,7 +1,10 @@
 use bio::stats::probs::LogProb;
 
 use crate::utils::PROB_05;
-use crate::variants::evidence::observation::{AltLocus, ProcessedObservation};
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::{
+    AltLocus, ProcessedReadObservation,
+};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
@@ -17,7 +20,7 @@ impl Default for AltLocusBias {
 }
 
 impl Bias for AltLocusBias {
-    fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
+    fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         // METHOD: a read pointing to the major alt locus
         // are indicative for the variant to come from a different (distant) allele.
         // If all alt reads agree on this, we consider the bias to be present.
@@ -30,7 +33,7 @@ impl Bias for AltLocusBias {
         }
     }
 
-    fn prob_ref(&self, observation: &ProcessedObservation) -> LogProb {
+    fn prob_ref(&self, observation: &ProcessedReadObservation) -> LogProb {
         // METHOD: ref reads should not point to the alt locus. The reason is that in that case,
         // the homology does not appear to be variant specific, and hence the normal MAPQs
         // should be able to capure it.
@@ -43,7 +46,7 @@ impl Bias for AltLocusBias {
         }
     }
 
-    fn prob_any(&self, observation: &ProcessedObservation) -> LogProb {
+    fn prob_any(&self, observation: &ProcessedReadObservation) -> LogProb {
         *PROB_05
     }
 
@@ -51,7 +54,7 @@ impl Bias for AltLocusBias {
         *self != AltLocusBias::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
+    fn is_informative(&self, pileups: &[Pileup]) -> bool {
         // METHOD: we consider this bias if more than 10% of the reads does not have the maximum MAPQ.
         if !self.is_artifact() {
             return true;
@@ -61,6 +64,7 @@ impl Bias for AltLocusBias {
             .iter()
             .map(|pileup| {
                 pileup
+                    .read_observations()
                     .iter()
                     .filter(|obs| obs.is_strong_alt_support())
                     .count()
@@ -70,6 +74,7 @@ impl Bias for AltLocusBias {
             .iter()
             .map(|pileup| {
                 pileup
+                    .read_observations()
                     .iter()
                     .filter(|obs| !obs.is_max_mapq && obs.is_strong_alt_support())
                     .count()

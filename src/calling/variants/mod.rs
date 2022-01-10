@@ -7,6 +7,7 @@ pub(crate) mod calling;
 pub(crate) mod preprocessing;
 
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::str;
 use std::u8;
 
@@ -21,10 +22,11 @@ use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
-use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::AltLocus;
-use crate::variants::evidence::observation::{
-    Observation, ProcessedObservation, ReadPosition, Strand,
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::expected_depth;
+use crate::variants::evidence::observations::read_observation::AltLocus;
+use crate::variants::evidence::observations::read_observation::{
+    ProcessedReadObservation, ReadObservation, ReadPosition, Strand,
 };
 use crate::variants::model;
 use crate::variants::model::bias::AltLocusBias;
@@ -92,8 +94,8 @@ impl Call {
         record.set_qual(f32::missing());
 
         // add raw observations
-        if let Some(ref obs) = variant.observations {
-            write_observations(obs, &mut record)?;
+        if let Some(ref pileup) = variant.pileup {
+            write_observations(pileup, &mut record)?;
         }
 
         bcf_writer.write(&record)?;
@@ -199,12 +201,15 @@ impl Call {
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
 
-                obs_counts.insert(i, expected_depth(&sample_info.observations) as i32);
+                obs_counts.insert(
+                    i,
+                    expected_depth(&sample_info.pileup.read_observations()) as i32,
+                );
 
                 observations.insert(
                     i,
                     utils::generalized_cigar(
-                        sample_info.observations.iter().map(|obs| {
+                        sample_info.pileup.read_observations().iter().map(|obs| {
                             let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                             format!(
                                 "{}{}{}{}{}{}{}{}",
@@ -259,7 +264,7 @@ impl Call {
                 simple_observations.insert(
                     i,
                     utils::generalized_cigar(
-                        sample_info.observations.iter().map(|obs| {
+                        sample_info.pileup.read_observations().iter().map(|obs| {
                             let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                             format!(
                                 "{}",
@@ -328,11 +333,10 @@ impl Call {
         // set event probabilities
         // determine whether marginal probability is zero (prob becomes NaN)
         // this is a missing data case, which we want to present accordingly
-        let is_missing_data = variant.sample_info.iter().all(|sample| {
-            sample
-                .as_ref()
-                .map_or(true, |info| info.observations.is_empty())
-        });
+        let is_missing_data = variant
+            .sample_info
+            .iter()
+            .all(|sample| sample.as_ref().map_or(true, |info| info.pileup.is_empty()));
 
         let mut push_prob =
             |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob]);
@@ -462,7 +466,7 @@ pub(crate) struct Variant {
     #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
-    observations: Option<Vec<ProcessedObservation>>,
+    pileup: Option<Rc<Pileup>>,
     #[builder(default)]
     #[getset(get = "pub(crate)")]
     sample_info: Vec<Option<SampleInfo>>,
@@ -553,11 +557,10 @@ impl VariantBuilder {
     }
 }
 
-#[derive(Clone, Debug, Builder)]
+#[derive(Debug, Clone, Builder)]
 pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
-    #[builder(default = "Vec::new()")]
-    observations: Vec<ProcessedObservation>,
+    pileup: Rc<Pileup>,
     artifacts: Artifacts,
     vaf_dist: Option<HashMap<AlleleFreq, LogProb>>,
 }

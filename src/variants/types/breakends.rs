@@ -9,13 +9,11 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::ops::Range;
 use std::path::Path;
-use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
 
 use anyhow::Result;
 use bio::alphabets::dna;
-use bio::stats::pairhmm::EmissionParameters;
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 use regex::Regex;

@@ -2,7 +2,8 @@ use std::hash::Hash;
 
 use bio::stats::probs::LogProb;
 
-use crate::variants::evidence::observation::ProcessedObservation;
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Bias;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -24,7 +25,7 @@ impl Default for HomopolymerError {
 }
 
 impl Bias for HomopolymerError {
-    fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
+    fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (observation.homopolymer_indel_len, self) {
             (Some(len), HomopolymerError::Some) => {
                 dbg!((len, observation.prob_observable_at_homopolymer_artifact));
@@ -38,11 +39,11 @@ impl Bias for HomopolymerError {
         }
     }
 
-    fn prob_ref(&self, observation: &ProcessedObservation) -> LogProb {
+    fn prob_ref(&self, observation: &ProcessedReadObservation) -> LogProb {
         self.prob_alt(observation)
     }
 
-    fn prob_any(&self, _observation: &ProcessedObservation) -> LogProb {
+    fn prob_any(&self, _observation: &ProcessedReadObservation) -> LogProb {
         LogProb::ln_one() // TODO check this
     }
 
@@ -50,25 +51,28 @@ impl Bias for HomopolymerError {
         *self != HomopolymerError::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
+    fn is_informative(&self, pileups: &[Pileup]) -> bool {
         if !self.is_artifact() {
             return true;
         }
         // METHOD: this bias is only relevant if there is at least one recorded indel operation (indel operations are only recorded for some variants).
-        pileups
-            .iter()
-            .any(|pileup| pileup.iter().any(|obs| self.is_bias_evidence(obs)))
+        pileups.iter().any(|pileup| {
+            pileup
+                .read_observations()
+                .iter()
+                .any(|obs| self.is_bias_evidence(obs))
+        })
     }
 
-    fn is_possible(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
+    fn is_possible(&self, pileups: &[Pileup]) -> bool {
         self.is_informative(pileups)
     }
 
-    fn is_likely(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
+    fn is_likely(&self, pileups: &[Pileup]) -> bool {
         self.is_informative(pileups)
     }
 
-    fn is_bias_evidence(&self, observation: &ProcessedObservation) -> bool {
+    fn is_bias_evidence(&self, observation: &ProcessedReadObservation) -> bool {
         observation.homopolymer_indel_len.unwrap_or(0) != 0
     }
 

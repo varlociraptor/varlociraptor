@@ -1,6 +1,7 @@
 use bio::stats::probs::LogProb;
 
-use crate::variants::evidence::observation::ProcessedObservation;
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::ProcessedReadObservation;
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
@@ -16,7 +17,7 @@ impl Default for SoftclipBias {
 }
 
 impl Bias for SoftclipBias {
-    fn prob_alt(&self, observation: &ProcessedObservation) -> LogProb {
+    fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.softclipped) {
             (SoftclipBias::Some, true) => LogProb::ln_one(),
             (SoftclipBias::Some, false) => LogProb::ln_zero(),
@@ -24,7 +25,7 @@ impl Bias for SoftclipBias {
         }
     }
 
-    fn prob_any(&self, _observation: &ProcessedObservation) -> LogProb {
+    fn prob_any(&self, _observation: &ProcessedReadObservation) -> LogProb {
         LogProb::ln_one()
     }
 
@@ -32,13 +33,13 @@ impl Bias for SoftclipBias {
         *self != SoftclipBias::None
     }
 
-    fn is_informative(&self, pileups: &[Vec<ProcessedObservation>]) -> bool {
+    fn is_informative(&self, pileups: &[Pileup]) -> bool {
         if !self.is_artifact() {
             return true;
         }
         // METHOD: this bias is only relevant if there is at least one softclip.
         pileups
             .iter()
-            .any(|pileup| pileup.iter().any(|obs| obs.softclipped))
+            .any(|pileup| pileup.read_observations().iter().any(|obs| obs.softclipped))
     }
 }

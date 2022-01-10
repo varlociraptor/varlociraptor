@@ -19,15 +19,15 @@ use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
 use crate::reference;
-use crate::variants::evidence::observation::{
-    self, major_read_position, Observable, Observation, ReadPosition,
+use crate::variants::evidence::observations::read_observation::{
+    self, major_read_position, Observable, ReadObservation,
 };
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
 
-use super::evidence::observation::{major_alt_locus, ProcessedObservation};
-use super::evidence::realignment::pairhmm::RefBaseVariantEmission;
+use super::evidence::observations::read_observation::major_alt_locus;
 use super::evidence::realignment::Realignable;
+use crate::variants::evidence::observations::pileup::Pileup;
 
 #[derive(new, Getters, Debug)]
 pub(crate) struct RecordBuffer {
@@ -130,8 +130,6 @@ impl Default for ProtocolStrandedness {
         ProtocolStrandedness::Opposite
     }
 }
-
-pub(crate) type Pileup = Vec<ProcessedObservation>;
 
 pub(crate) enum SubsampleCandidates {
     Necessary {
@@ -237,7 +235,7 @@ impl Sample {
         alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Pileup>
     where
-        E: observation::Evidence + Eq + Hash,
+        E: read_observation::Evidence + Eq + Hash,
         L: variants::types::Loci,
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
@@ -254,7 +252,7 @@ impl Sample {
             .iter()
             .map(|obs| obs.process(major_pos, &major_alt_locus, &self.alignment_properties))
             .collect();
-        Observation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
-        Ok(observations)
+        ReadObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
+        Ok(Pileup::new(observations, Vec::new())) // TODO add depth observations!
     }
 }
