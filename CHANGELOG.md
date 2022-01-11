@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+### [4.11.1](https://www.github.com/varlociraptor/varlociraptor/compare/v4.11.0...v4.11.1) (2022-01-11)
+
+
+### Bug Fixes
+
+* remove debug messages ([350c747](https://www.github.com/varlociraptor/varlociraptor/commit/350c7473c3bbaf2b9680b09cace84426870558fc))
+
 ## [4.11.0](https://www.github.com/varlociraptor/varlociraptor/compare/v4.10.1...v4.11.0) (2022-01-10)
 
 
