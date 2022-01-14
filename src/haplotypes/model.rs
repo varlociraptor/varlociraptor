@@ -50,17 +50,22 @@ impl Marginal {
             let event = HaplotypeFractions(fractions.to_vec());
             joint_prob(&event, data)
         } else {
+            let fraction_upper_bound = NotNan::new(1.0).unwrap() - fractions.iter().sum();
             let density = |fraction| {
                 let mut fractions = fractions.clone();
                 fractions.push(fraction);
                 self.calc_marginal(data, haplotype_index + 1, &mut fractions, joint_prob)
             };
-            adaptive_integration::ln_integrate_exp(
-                density,
-                NotNaN::new(0.0).unwrap(),
-                NotNaN::new(1.0).unwrap(),
-                NotNaN::new(0.1).unwrap(),
-            )
+            if fraction_upper_bound == 1.0 {
+                density(NotNan::new(0.0).unwrap())
+            } else {
+                adaptive_integration::ln_integrate_exp(
+                    density,
+                    NotNaN::new(0.0).unwrap(),
+                    fraction_upper_bound,
+                    NotNaN::new(0.1).unwrap(),
+                )
+            }
         }
     }
 }

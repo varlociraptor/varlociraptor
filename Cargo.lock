@@ -59,15 +59,6 @@ checksum = "595d3cfa7a60d4555cb5067b99f07142a08ea778de5cf993f7b75c7d8fabc486"
 
 [[package]]
 name = "approx"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0e60b75072ecd4168020818c0107f2857bb6c4e64252d8d3983f6263b40a5c3"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "approx"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "072df7202e63b127ab55acfe16ce97013d5b97bf160489336d3f1840fd78e99e"
@@ -199,12 +190,12 @@ dependencies = [
 
 [[package]]
 name = "bio"
-version = "0.37.0"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cd1fa26bbc8822577da82a89c3c362fce337fdca5c1f41f14b4ca6b72065c37"
+checksum = "29cd6c491c1e2cea3cbb14afd8c23ed1538b8b36f2dd5eb216d662630cf90b65"
 dependencies = [
  "anyhow",
- "approx 0.3.2",
+ "approx",
  "bio-types",
  "bit-set",
  "bv",
@@ -214,18 +205,18 @@ dependencies = [
  "enum-map",
  "fnv",
  "fxhash",
- "getset 0.0.9",
- "itertools 0.9.0",
+ "getset",
+ "itertools 0.10.1",
  "itertools-num",
  "lazy_static",
  "multimap",
- "ndarray 0.13.1",
+ "ndarray 0.15.3",
  "newtype_derive",
  "num-integer",
  "num-traits",
  "ordered-float",
  "petgraph 0.5.1",
- "rand 0.7.3",
+ "rand 0.8.4",
  "regex",
  "serde",
  "serde_derive",
@@ -963,17 +954,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi 0.10.2+wasi-snapshot-preview1",
-]
-
-[[package]]
-name = "getset"
-version = "0.0.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bb3f5b7d8d70c9bd23cf29b2b38094661418fb0ea79f1b0cc2019a11d6f5429"
-dependencies = [
- "proc-macro2 1.0.28",
- "quote 1.0.9",
- "syn 1.0.74",
 ]
 
 [[package]]
@@ -2567,7 +2547,7 @@ version = "4.4.2"
 dependencies = [
  "GSL",
  "anyhow",
- "approx 0.5.0",
+ "approx",
  "askama",
  "auto_ops",
  "bincode",
@@ -2587,7 +2567,7 @@ dependencies = [
  "env_logger",
  "eval",
  "fern",
- "getset 0.1.1",
+ "getset",
  "half",
  "hdf5",
  "itertools 0.10.1",
