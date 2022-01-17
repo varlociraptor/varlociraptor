@@ -1,26 +1,20 @@
+use crate::haplotypes::model::{Data, HaplotypeFractions, Likelihood, Marginal, Posterior, Prior};
 use crate::variants::model::AlleleFreq;
 use anyhow::Result;
-use bio::stats::bayesian::model::Model;
-use bio::stats::probs::{LogProb, Prob};
-use bio::stats::PHREDProb;
+use bio::stats::{
+    bayesian::model::Model,
+    probs::{LogProb, Prob},
+    PHREDProb,
+};
 use bio_types::genome::AbstractLocus;
 use bv::BitVec;
 use derive_builder::Builder;
 use hdf5;
 use ordered_float::NotNan;
-use rust_htslib::bcf;
-use rust_htslib::bcf::record::GenotypeAllele::Unphased;
-use rust_htslib::bcf::Read;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::convert::TryFrom;
-use std::convert::TryInto;
-use std::io;
-use std::io::Read as OtherRead;
-use std::path::PathBuf;
-use std::str;
-
-use crate::haplotypes::model::{Data, HaplotypeFractions, Likelihood, Marginal, Posterior, Prior};
+use rust_htslib::bcf::{self, record::GenotypeAllele::Unphased, Read};
+use std::collections::{BTreeMap, HashMap};
+use std::{io, path::PathBuf, str};
+use std::time::{Duration, Instant};
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -37,7 +31,6 @@ impl Caller {
         // Step 1: obtain kallisto estimates.
         let kallisto_estimates = KallistoEstimates::new(&self.hdf5_reader, self.min_norm_counts)?;
         let haplotypes: Vec<_> = kallisto_estimates.keys().map(|x| x.to_string()).collect();
-
         let haplotype_variants = HaplotypeVariants::new(&mut self.haplotype_variants, &haplotypes)?;
         let haplotype_calls = HaplotypeCalls::new(&mut self.haplotype_calls)?;
 
@@ -202,19 +195,7 @@ impl HaplotypeVariants {
             let variant_id: i32 = String::from_utf8(record.id())?.parse().unwrap();
             let header = record.header();
             let gts = record.genotypes()?; //genotypes of all samples
-            
             let mut haplotype_indices = Vec::new();
-            header
-                .samples()
-                .iter()
-                .enumerate()
-                .for_each(|(sample_index, sample)| {
-                    if haplotypes.contains(&str::from_utf8(sample).unwrap().to_owned()) {
-                        haplotype_indices.push(sample_index); //pushing the exact indices of haplotypes that are found in header.samples()
-                    }
-                });
-
-            let mut haplotype_indices2 = Vec::new();
             haplotypes.iter().for_each(|sample| {
                 let position = header
                     .samples()
@@ -222,16 +203,15 @@ impl HaplotypeVariants {
                     .map(|x| str::from_utf8(x).unwrap())
                     .position(|x| &x == sample)
                     .unwrap();
-                haplotype_indices2.push(position)
+                haplotype_indices.push(position)
             });
-            
             let mut haplotype_variants: BitVec<usize> = BitVec::new();
             haplotype_indices.iter().for_each(|sample_index| {
                 for gta in gts.get(*sample_index).iter() {
                     haplotype_variants.push(*gta == Unphased(1));
                 }
             });
-            variant_records.insert(VariantID(variant_id.clone()), haplotype_variants);
+            variant_records.insert(VariantID(variant_id), haplotype_variants);
         }
         Ok(HaplotypeVariants(variant_records))
     }
@@ -260,14 +240,10 @@ impl HaplotypeCalls {
         let mut calls = BTreeMap::new();
         for record_result in haplotype_calls.records() {
             let record = record_result?;
-
-            //store the variant and the afd if the prob_present field is not nan (to save space)
-            if !record.info(b"PROB_PRESENT").float()?.unwrap()[0].is_nan() {
+            let afd_utf = record.format(b"AFD").string()?;
+            if afd_utf[0] != b".".to_vec() {
                 let variant_id: i32 = String::from_utf8(record.id())?.parse().unwrap();
-
-                //store the afd string
-                let afd_utf = record.format(b"AFD").string()?[0];
-                let afd = std::str::from_utf8(afd_utf).unwrap();
+                let afd = std::str::from_utf8(afd_utf[0]).unwrap();
                 let mut vaf_density = BTreeMap::new();
                 for pair in afd.split(",") {
                     let (vaf, density) = pair.split_once("=").unwrap();
@@ -275,10 +251,7 @@ impl HaplotypeCalls {
                         (vaf.parse().unwrap(), density.parse().unwrap());
                     vaf_density.insert(vaf, density);
                 }
-                calls.insert(
-                    VariantID(variant_id.clone()),
-                    AlleleFreqDist(vaf_density.clone()),
-                );
+                calls.insert(VariantID(variant_id), AlleleFreqDist(vaf_density));
             }
         }
         Ok(HaplotypeCalls(calls))

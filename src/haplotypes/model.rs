@@ -1,23 +1,22 @@
-use crate::calling::haplotypes;
+use crate::utils::adaptive_integration;
 use crate::{
     calling::haplotypes::{
-        AlleleFreqDist, HaplotypeCalls, HaplotypeVariants, KallistoEstimate, KallistoEstimates,
+        self,
+        {AlleleFreqDist, HaplotypeCalls, HaplotypeVariants, KallistoEstimate, KallistoEstimates},
     },
     variants::model::AlleleFreq,
 };
-use bio::stats::bayesian;
-use bio::stats::{bayesian::model, LogProb};
-
-use crate::utils::adaptive_integration;
-use bio::stats::{PHREDProb, Prob};
+use bio::stats::{
+    {bayesian, bayesian::model, LogProb},
+    {PHREDProb, Prob},
+};
 use bv::BitVec;
-use ordered_float::NotNaN;
 use ordered_float::NotNan;
 use statrs::function::beta::ln_beta;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::mem;
+use std::{
+    collections::{BTreeMap, HashMap},
+    mem,
+};
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug, Derefable)]
 pub(crate) struct HaplotypeFractions(#[deref] Vec<AlleleFreq>);
@@ -50,20 +49,21 @@ impl Marginal {
             let event = HaplotypeFractions(fractions.to_vec());
             joint_prob(&event, data)
         } else {
-            let fraction_upper_bound = NotNan::new(1.0).unwrap() - fractions.iter().sum();
-            let density = |fraction| {
+            let fraction_upper_bound =
+                NotNan::new(1.0).unwrap() - fractions.iter().sum::<NotNan<f64>>();
+            let mut density = |fraction| {
                 let mut fractions = fractions.clone();
                 fractions.push(fraction);
                 self.calc_marginal(data, haplotype_index + 1, &mut fractions, joint_prob)
             };
-            if fraction_upper_bound == 1.0 {
+            if fraction_upper_bound == NotNan::new(0.0).unwrap() {
                 density(NotNan::new(0.0).unwrap())
             } else {
                 adaptive_integration::ln_integrate_exp(
                     density,
-                    NotNaN::new(0.0).unwrap(),
+                    NotNan::new(0.0).unwrap(),
                     fraction_upper_bound,
-                    NotNaN::new(0.1).unwrap(),
+                    NotNan::new(0.1).unwrap(),
                 )
             }
         }
@@ -121,7 +121,7 @@ impl Likelihood {
             .map(|(fraction, estimate)| {
                 neg_binom(
                     estimate.count,
-                    NotNaN::into_inner(*fraction),
+                    NotNan::into_inner(*fraction),
                     estimate.dispersion,
                 )
             })
@@ -157,7 +157,6 @@ impl Likelihood {
                 afd.vaf_query(vaf_sum)
             })
             .sum()
-        //LogProb::ln_one()
     }
 }
 
