@@ -13,8 +13,8 @@ use hdf5;
 use ordered_float::NotNan;
 use rust_htslib::bcf::{self, record::GenotypeAllele::Unphased, Read};
 use std::collections::{BTreeMap, HashMap};
-use std::{io, path::PathBuf, str};
 use std::time::{Duration, Instant};
+use std::{io, path::PathBuf, str};
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
