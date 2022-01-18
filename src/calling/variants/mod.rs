@@ -7,6 +7,7 @@ pub(crate) mod calling;
 pub(crate) mod preprocessing;
 
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::str;
 use std::u8;
 
@@ -15,16 +16,20 @@ use bio::stats::{LogProb, PHREDProb};
 use bio_types::sequence::SequenceReadPairOrientation;
 use derive_builder::Builder;
 use itertools::Itertools;
+use ordered_float::OrderedFloat;
 use rust_htslib::bcf::{self, record::Numeric, Read};
 use vec_map::VecMap;
 
 use crate::calling::variants::preprocessing::write_observations;
 use crate::utils;
-use crate::variants::evidence::observation::expected_depth;
-use crate::variants::evidence::observation::{Observation, ReadPosition, Strand};
+use crate::variants::evidence::observations::pileup::Pileup;
+use crate::variants::evidence::observations::read_observation::expected_depth;
+use crate::variants::evidence::observations::read_observation::AltLocus;
+use crate::variants::evidence::observations::read_observation::{ReadPosition, Strand};
 use crate::variants::model;
+use crate::variants::model::bias::AltLocusBias;
 use crate::variants::model::{
-    bias::Biases, bias::DivIndelBias, bias::ReadOrientationBias, bias::ReadPositionBias,
+    bias::Artifacts, bias::HomopolymerError, bias::ReadOrientationBias, bias::ReadPositionBias,
     bias::SoftclipBias, bias::StrandBias, AlleleFreq,
 };
 
@@ -87,8 +92,8 @@ impl Call {
         record.set_qual(f32::missing());
 
         // add raw observations
-        if let Some(ref obs) = variant.observations {
-            write_observations(obs, &mut record)?;
+        if let Some(ref pileup) = variant.pileup {
+            write_observations(pileup, &mut record)?;
         }
 
         bcf_writer.write(&record)?;
@@ -110,16 +115,18 @@ impl Call {
             record.set_id(id)?;
         }
 
-        let mut event_probs = HashMap::new();
+        let mut event_probs = Vec::new();
         let mut allelefreq_estimates = VecMap::new();
         let mut observations = VecMap::new();
         let mut simple_observations = VecMap::new();
+        let mut vaf_densities = VecMap::new();
         let mut obs_counts = VecMap::new();
         let mut strand_bias = VecMap::new();
         let mut read_orientation_bias = VecMap::new();
         let mut read_position_bias = VecMap::new();
         let mut softclip_bias = VecMap::new();
-        let mut divindel_bias = VecMap::new();
+        let mut homopolymer_error = VecMap::new();
+        let mut alt_locus_bias = VecMap::new();
         let mut alleles = Vec::new();
         let mut svlens = Vec::new();
         let mut events = Vec::new();
@@ -134,8 +141,9 @@ impl Call {
             .as_ref()
             .expect("bug: event probs must be set")
         {
-            event_probs.insert(event, *prob);
+            event_probs.push((event, *prob));
         }
+        event_probs.sort_unstable_by_key(|(_, prob)| OrderedFloat(-prob.0));
 
         let no_obs = variant
             .sample_info
@@ -146,15 +154,15 @@ impl Call {
             if let Some(ref sample_info) = sample_info {
                 strand_bias.insert(
                     i,
-                    match sample_info.biases.strand_bias() {
-                        StrandBias::None => b'.',
+                    match sample_info.artifacts.strand_bias() {
+                        StrandBias::None { .. } => b'.',
                         StrandBias::Forward => b'+',
                         StrandBias::Reverse => b'-',
                     },
                 );
                 read_orientation_bias.insert(
                     i,
-                    match sample_info.biases.read_orientation_bias() {
+                    match sample_info.artifacts.read_orientation_bias() {
                         ReadOrientationBias::None => b'.',
                         ReadOrientationBias::F1R2 => b'>',
                         ReadOrientationBias::F2R1 => b'<',
@@ -162,43 +170,58 @@ impl Call {
                 );
                 read_position_bias.insert(
                     i,
-                    match sample_info.biases.read_position_bias() {
+                    match sample_info.artifacts.read_position_bias() {
                         ReadPositionBias::None => b'.',
                         ReadPositionBias::Some => b'^',
                     },
                 );
                 softclip_bias.insert(
                     i,
-                    match sample_info.biases.softclip_bias() {
+                    match sample_info.artifacts.softclip_bias() {
                         SoftclipBias::None => b'.',
                         SoftclipBias::Some => b'$',
                     },
                 );
-                divindel_bias.insert(
+                homopolymer_error.insert(
                     i,
-                    match sample_info.biases.divindel_bias() {
-                        DivIndelBias::None => b'.',
-                        DivIndelBias::Some { .. } => b'*',
+                    match sample_info.artifacts.homopolymer_error() {
+                        HomopolymerError::None { .. } => b'.',
+                        HomopolymerError::Some { .. } => b'*',
+                    },
+                );
+                alt_locus_bias.insert(
+                    i,
+                    match sample_info.artifacts.alt_locus_bias() {
+                        AltLocusBias::None => b'.',
+                        AltLocusBias::Some => b'*',
                     },
                 );
 
                 allelefreq_estimates.insert(i, *sample_info.allelefreq_estimate as f32);
 
-                obs_counts.insert(i, expected_depth(&sample_info.observations) as i32);
+                obs_counts.insert(
+                    i,
+                    expected_depth(&sample_info.pileup.read_observations()) as i32,
+                );
 
                 observations.insert(
                     i,
                     utils::generalized_cigar(
-                        sample_info.observations.iter().map(|obs| {
+                        sample_info.pileup.read_observations().iter().map(|obs| {
                             let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                             format!(
-                                "{}{}{}{}{}{}{}",
-                                if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
-                                    score.to_ascii_lowercase()
-                                } else {
+                                "{}{}{}{}{}{}{}{}",
+                                if obs.is_max_mapq {
                                     score.to_ascii_uppercase()
+                                } else {
+                                    score.to_ascii_lowercase()
                                 },
                                 if obs.paired { 'p' } else { 's' },
+                                match obs.alt_locus {
+                                    AltLocus::Major => '#',
+                                    AltLocus::Some => '*',
+                                    AltLocus::None => '.',
+                                },
                                 match obs.strand {
                                     Strand::Both => '*',
                                     Strand::Reverse => '-',
@@ -216,7 +239,7 @@ impl Call {
                                     ReadPosition::Some => '*',
                                 },
                                 if obs.softclipped { '$' } else { '.' },
-                                if obs.has_alt_indel_operations {
+                                if obs.has_homopolymer_error() {
                                     '*'
                                 } else {
                                     '.'
@@ -239,14 +262,14 @@ impl Call {
                 simple_observations.insert(
                     i,
                     utils::generalized_cigar(
-                        sample_info.observations.iter().map(|obs| {
+                        sample_info.pileup.read_observations().iter().map(|obs| {
                             let score = utils::bayes_factor_to_letter(obs.bayes_factor_alt());
                             format!(
                                 "{}",
-                                if obs.prob_mapping_orig() < LogProb(0.95_f64.ln()) {
-                                    score.to_ascii_lowercase()
-                                } else {
+                                if obs.is_max_mapq {
                                     score.to_ascii_uppercase()
+                                } else {
+                                    score.to_ascii_lowercase()
                                 }
                             )
                         }),
@@ -262,6 +285,8 @@ impl Call {
                         },
                     ),
                 );
+
+                vaf_densities.insert(i, sample_info.vaf_dist.clone());
             }
         }
 
@@ -306,22 +331,21 @@ impl Call {
         // set event probabilities
         // determine whether marginal probability is zero (prob becomes NaN)
         // this is a missing data case, which we want to present accordingly
-        let is_missing_data = variant.sample_info.iter().all(|sample| {
-            sample
-                .as_ref()
-                .map_or(true, |info| info.observations.is_empty())
-        });
+        let is_missing_data = variant
+            .sample_info
+            .iter()
+            .all(|sample| sample.as_ref().map_or(true, |info| info.pileup.is_empty()));
 
         let mut push_prob =
             |event, prob| record.push_info_float(event_tag_name(event).as_bytes(), &vec![prob]);
         if is_missing_data {
             // missing data
-            for event in event_probs.keys() {
+            for (event, _) in event_probs {
                 push_prob(event, f32::missing())?;
             }
         } else {
             assert!(
-                !event_probs.values().any(|prob| prob.is_nan()),
+                !event_probs.iter().any(|(_, prob)| prob.is_nan()),
                 "bug: event probability is NaN but not all observations are empty for record at {}:{}",
                 str::from_utf8(&self.chrom).unwrap(),
                 self.pos + 1,
@@ -339,6 +363,18 @@ impl Call {
 
             let afs = allelefreq_estimates.values().cloned().collect_vec();
             record.push_format_float(b"AF", &afs)?;
+
+            let sobs = simple_observations
+                .values()
+                .map(|sample_obs| {
+                    if sample_obs.is_empty() {
+                        b"."
+                    } else {
+                        sample_obs.as_bytes()
+                    }
+                })
+                .collect_vec();
+            record.push_format_string(b"SOBS", &sobs)?;
 
             let obs = observations
                 .values()
@@ -370,28 +406,39 @@ impl Call {
             let scb = softclip_bias.values().map(|scb| vec![*scb]).collect_vec();
             record.push_format_string(b"SCB", &scb)?;
 
-            let dib = divindel_bias.values().map(|dib| vec![*dib]).collect_vec();
-            record.push_format_string(b"DIB", &dib)?;
+            let he = homopolymer_error.values().map(|he| vec![*he]).collect_vec();
+            record.push_format_string(b"HE", &he)?;
 
-            let sobs = simple_observations
+            let alb = alt_locus_bias.values().map(|alb| vec![*alb]).collect_vec();
+            record.push_format_string(b"ALB", &alb)?;
+
+            let vaf_densities = vaf_densities
                 .values()
-                .map(|sample_obs| {
-                    if sample_obs.is_empty() {
-                        b"."
-                    } else {
-                        sample_obs.as_bytes()
-                    }
+                .map(|vaf_dist| {
+                    vaf_dist.as_ref().map_or_else(
+                        || b".".to_vec(),
+                        |dist| {
+                            dist.iter()
+                                .sorted_by_key(|(vaf, _)| *vaf)
+                                .map(|(vaf, prob)| {
+                                    format!("{:.2}={:.2}", *vaf, *PHREDProb::from(*prob))
+                                })
+                                .join(",")
+                                .into_bytes()
+                        },
+                    )
                 })
                 .collect_vec();
-            record.push_format_string(b"SOBS", &sobs)?;
+            record.push_format_string(b"AFD", &vaf_densities)?;
         } else {
             record.push_format_integer(b"DP", &vec![i32::missing(); variant.sample_info.len()])?;
             record.push_format_float(b"AF", &vec![f32::missing(); variant.sample_info.len()])?;
-            record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SOBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"OBS", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"SB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"ROB", &vec![b".".to_vec(); variant.sample_info.len()])?;
             record.push_format_string(b"RPB", &vec![b".".to_vec(); variant.sample_info.len()])?;
+            record.push_format_string(b"AFD", &vec![b".".to_vec(); variant.sample_info.len()])?;
         }
 
         bcf_writer.write(&record)?;
@@ -417,7 +464,7 @@ pub(crate) struct Variant {
     #[getset(get = "pub(crate)")]
     event_probs: Option<HashMap<String, LogProb>>,
     #[builder(default = "None")]
-    observations: Option<Vec<Observation<ReadPosition>>>,
+    pileup: Option<Rc<Pileup>>,
     #[builder(default)]
     #[getset(get = "pub(crate)")]
     sample_info: Vec<Option<SampleInfo>>,
@@ -508,12 +555,12 @@ impl VariantBuilder {
     }
 }
 
-#[derive(Clone, Debug, Builder)]
+#[derive(Debug, Clone, Builder)]
 pub(crate) struct SampleInfo {
     allelefreq_estimate: AlleleFreq,
-    #[builder(default = "Vec::new()")]
-    observations: Vec<Observation<ReadPosition>>,
-    biases: Biases,
+    pileup: Rc<Pileup>,
+    artifacts: Artifacts,
+    vaf_dist: Option<HashMap<AlleleFreq, LogProb>>,
 }
 
 /// Wrapper for comparing alleles for compatibility in BCF files.
@@ -534,7 +581,7 @@ impl<'a> PartialEq for BCFGrouper<'a> {
     }
 }
 
-fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
+pub(crate) fn chrom<'a>(inbcf: &'a bcf::Reader, record: &bcf::Record) -> &'a [u8] {
     inbcf.header().rid2name(record.rid().unwrap()).unwrap()
 }
 

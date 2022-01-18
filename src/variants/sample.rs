@@ -18,11 +18,16 @@ use rand::{rngs::StdRng, SeedableRng};
 use rust_htslib::bam;
 
 use crate::estimation::alignment_properties;
-use crate::variants::evidence::observation::{
-    self, major_read_position, Observable, Observation, ReadPosition,
+use crate::reference;
+use crate::variants::evidence::observations::read_observation::{
+    self, major_read_position, Observable, ReadObservation,
 };
 use crate::variants::model::VariantType;
 use crate::variants::{self, types::Variant};
+
+use super::evidence::observations::read_observation::major_alt_locus;
+use super::evidence::realignment::Realignable;
+use crate::variants::evidence::observations::pileup::Pileup;
 
 #[derive(new, Getters, Debug)]
 pub(crate) struct RecordBuffer {
@@ -126,8 +131,6 @@ impl Default for ProtocolStrandedness {
     }
 }
 
-pub(crate) type Pileup = Vec<Observation<ReadPosition>>;
-
 pub(crate) enum SubsampleCandidates {
     Necessary {
         rng: StdRng,
@@ -165,10 +168,14 @@ impl SubsampleCandidates {
 pub(crate) fn estimate_alignment_properties<P: AsRef<Path>>(
     path: P,
     omit_insert_size: bool,
-    allow_hardclips: bool,
+    reference_buffer: &mut reference::Buffer,
 ) -> Result<alignment_properties::AlignmentProperties> {
     let mut bam = bam::Reader::from_path(path)?;
-    alignment_properties::AlignmentProperties::estimate(&mut bam, omit_insert_size, allow_hardclips)
+    alignment_properties::AlignmentProperties::estimate(
+        &mut bam,
+        omit_insert_size,
+        reference_buffer,
+    )
 }
 
 /// A sequenced sample, e.g., a tumor or a normal sample.
@@ -222,9 +229,13 @@ fn is_valid_record(record: &bam::Record) -> bool {
 
 impl Sample {
     /// Extract observations for the given variant.
-    pub(crate) fn extract_observations<V, E, L>(&mut self, variant: &V) -> Result<Pileup>
+    pub(crate) fn extract_observations<V, E, L>(
+        &mut self,
+        variant: &V,
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Pileup>
     where
-        E: observation::Evidence + Eq + Hash,
+        E: read_observation::Evidence + Eq + Hash,
         L: variants::types::Loci,
         V: Variant<Loci = L, Evidence = E> + Observable<E>,
     {
@@ -232,12 +243,16 @@ impl Sample {
             &mut self.record_buffer,
             &mut self.alignment_properties,
             self.max_depth,
+            alt_variants,
         )?;
         // Process for each observation whether it is from the major read position or not.
         let major_pos = major_read_position(&observations);
-        Ok(observations
+        let major_alt_locus = major_alt_locus(&observations, &self.alignment_properties);
+        let mut observations: Vec<_> = observations
             .iter()
-            .map(|obs| obs.process(major_pos))
-            .collect())
+            .map(|obs| obs.process(major_pos, &major_alt_locus, &self.alignment_properties))
+            .collect();
+        ReadObservation::adjust_prob_mapping(&mut observations, &self.alignment_properties);
+        Ok(Pileup::new(observations, Vec::new())) // TODO add depth observations!
     }
 }

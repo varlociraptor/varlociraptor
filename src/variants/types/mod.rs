@@ -3,6 +3,7 @@
 // This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use std::cmp;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -13,8 +14,10 @@ use rust_htslib::bam;
 use vec_map::VecMap;
 
 use crate::estimation::alignment_properties::AlignmentProperties;
-use crate::variants::evidence::observation::{
-    Evidence, Observable, Observation, PairedEndEvidence, SingleEndEvidence, Strand,
+use crate::utils::homopolymers::HomopolymerErrorModel;
+use crate::utils::PROB_05;
+use crate::variants::evidence::observations::read_observation::{
+    Evidence, Observable, PairedEndEvidence, ReadObservation, SingleEndEvidence, Strand,
 };
 use crate::variants::sample;
 
@@ -37,11 +40,11 @@ pub(crate) use none::None;
 pub(crate) use replacement::Replacement;
 pub(crate) use snv::Snv;
 
+use super::evidence::realignment::Realignable;
+
 #[derive(Debug, CopyGetters, Getters, Builder)]
 pub(crate) struct AlleleSupport {
-    #[getset(get_copy = "pub")]
     prob_ref_allele: LogProb,
-    #[getset(get_copy = "pub")]
     prob_alt_allele: LogProb,
     #[getset(get_copy = "pub")]
     strand: Strand,
@@ -50,17 +53,37 @@ pub(crate) struct AlleleSupport {
     read_position: Option<u32>,
     #[builder(default)]
     #[getset(get_copy = "pub")]
-    has_alt_indel_operations: bool,
+    homopolymer_indel_len: Option<i8>,
 }
 
 impl AlleleSupport {
+    fn both_alleles_impossible(&self) -> bool {
+        *self.prob_ref_allele == f64::NEG_INFINITY && *self.prob_alt_allele == f64::NEG_INFINITY
+    }
+
+    pub(crate) fn prob_ref_allele(&self) -> LogProb {
+        if self.both_alleles_impossible() {
+            *PROB_05
+        } else {
+            self.prob_ref_allele
+        }
+    }
+
+    pub(crate) fn prob_alt_allele(&self) -> LogProb {
+        if self.both_alleles_impossible() {
+            *PROB_05
+        } else {
+            self.prob_alt_allele
+        }
+    }
+
     /// METHOD: This is an estimate of the allele likelihood at the true location in case
     /// the read is mismapped. The value has to be approximately in the range of prob_alt
     /// and prob_ref. Otherwise it could cause numerical problems, by dominating the
     /// likelihood such that subtle differences in allele frequencies become numercically
     /// invisible in the resulting likelihood.
     pub(crate) fn prob_missed_allele(&self) -> LogProb {
-        self.prob_ref_allele.ln_add_exp(self.prob_alt_allele) - LogProb(2.0_f64.ln())
+        self.prob_ref_allele().ln_add_exp(self.prob_alt_allele()) - LogProb(2.0_f64.ln())
     }
 
     pub(crate) fn merge(&mut self, other: &AlleleSupport) -> &mut Self {
@@ -69,12 +92,18 @@ impl AlleleSupport {
 
         if self.strand == Strand::None {
             self.strand = other.strand;
-            self.has_alt_indel_operations = other.has_alt_indel_operations;
+            self.homopolymer_indel_len = other.homopolymer_indel_len;
         } else if other.strand != Strand::None {
             if self.strand != other.strand {
                 self.strand = Strand::Both;
             }
-            self.has_alt_indel_operations |= other.has_alt_indel_operations;
+            self.homopolymer_indel_len =
+                match (self.homopolymer_indel_len, other.homopolymer_indel_len) {
+                    (Some(indel_len), Some(_other_indel_len)) => Some(indel_len), // just keep one of them
+                    (Some(indel_len), None) => Some(indel_len),
+                    (None, Some(indel_len)) => Some(indel_len),
+                    (None, None) => None,
+                }
         }
 
         self
@@ -105,6 +134,7 @@ pub(crate) trait Variant {
         &self,
         evidence: &Self::Evidence,
         alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>>;
 
     /// Calculate probability to sample a record length like the given one from the alt allele.
@@ -114,9 +144,13 @@ pub(crate) trait Variant {
         alignment_properties: &AlignmentProperties,
     ) -> LogProb;
 
-    /// Whether the variant shall report indel operations for the DivIndelBias calculation.
-    fn report_indel_operations(&self) -> bool {
-        false
+    /// Return the homopolymer indel len of the variant, if any.
+    fn homopolymer_indel_len(&self) -> Option<i8> {
+        None
+    }
+
+    fn is_homopolymer_indel(&self) -> bool {
+        self.homopolymer_indel_len().is_some()
     }
 }
 
@@ -129,14 +163,21 @@ where
         prob_mismapping.ln_one_minus_exp()
     }
 
+    fn min_mapq(&self, evidence: &SingleEndEvidence) -> u8 {
+        evidence.mapq()
+    }
+
     fn extract_observations(
         &self,
         buffer: &mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
-    ) -> Result<Vec<Observation>> {
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Vec<ReadObservation>> {
         let locus = self.loci();
         buffer.fetch(locus, false)?;
+
+        let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
 
         let candidates: Vec<_> = buffer
             .iter()
@@ -163,7 +204,12 @@ where
         let mut observations = Vec::new();
         for evidence in candidates {
             if subsampler.keep() {
-                if let Some(obs) = self.evidence_to_observation(&evidence, alignment_properties)? {
+                if let Some(obs) = self.evidence_to_observation(
+                    &evidence,
+                    alignment_properties,
+                    &homopolymer_error_model,
+                    alt_variants,
+                )? {
                     observations.push(obs);
                 }
             }
@@ -195,16 +241,26 @@ where
         }
     }
 
+    fn min_mapq(&self, evidence: &PairedEndEvidence) -> u8 {
+        match evidence {
+            PairedEndEvidence::SingleEnd(record) => record.mapq(),
+            PairedEndEvidence::PairedEnd { left, right } => cmp::min(left.mapq(), right.mapq()),
+        }
+    }
+
     fn extract_observations(
         &self,
         buffer: &mut sample::RecordBuffer,
         alignment_properties: &mut AlignmentProperties,
         max_depth: usize,
-    ) -> Result<Vec<Observation>> {
+        alt_variants: &[Box<dyn Realignable>],
+    ) -> Result<Vec<ReadObservation>> {
         // We cannot use a hash function here because candidates have to be considered
         // in a deterministic order. Otherwise, subsampling high-depth regions will result
         // in slightly different probabilities each time.
         let mut candidate_records = BTreeMap::new();
+
+        let homopolymer_error_model = HomopolymerErrorModel::new(self, alignment_properties);
 
         let mut fetches = buffer.build_fetches(true);
         for locus in self.loci().iter() {
@@ -292,7 +348,12 @@ where
         let mut observations = Vec::new();
         for evidence in &candidates {
             if !subsample || subsampler.keep() {
-                if let Some(obs) = self.evidence_to_observation(evidence, alignment_properties)? {
+                if let Some(obs) = self.evidence_to_observation(
+                    evidence,
+                    alignment_properties,
+                    &homopolymer_error_model,
+                    alt_variants,
+                )? {
                     observations.push(obs);
                 }
             }

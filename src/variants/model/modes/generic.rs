@@ -8,11 +8,11 @@ use crate::grammar;
 use crate::utils::adaptive_integration;
 use crate::utils::log2_fold_change::{Log2FoldChange, Log2FoldChangePredicate};
 use crate::utils::PROB_05;
+use crate::variants::evidence::observations::pileup::Pileup;
 use crate::variants::model;
 use crate::variants::model::likelihood;
 use crate::variants::model::likelihood::Event;
-use crate::variants::model::{bias::Biases, AlleleFreq, Contamination, VariantType};
-use crate::variants::sample::Pileup;
+use crate::variants::model::{bias::Artifacts, AlleleFreq, Contamination, VariantType};
 use std::ops::Index;
 
 #[derive(new, Clone, Debug)]
@@ -21,7 +21,7 @@ pub(crate) struct Snv {
     altbase: u8,
 }
 
-#[derive(new, Clone, Debug, Getters)]
+#[derive(new, Debug, Getters)]
 #[get = "pub"]
 pub(crate) struct Data {
     pileups: Vec<Pileup>,
@@ -160,7 +160,7 @@ impl GenericPosterior {
         vaf_tree_node: &grammar::vaftree::Node,
         likelihood_operands: &mut LikelihoodOperands,
         data: &<Self as Posterior>::Data,
-        biases: &Biases,
+        biases: &Artifacts,
         joint_prob: &mut F,
     ) -> LogProb {
         let mut subdensity = |likelihood_operands: &mut LikelihoodOperands| {
@@ -217,17 +217,34 @@ impl GenericPosterior {
                             *sample,
                             likelihood::Event {
                                 allele_freq,
-                                biases: biases.clone(),
+                                artifacts: biases.clone(),
                                 is_discrete,
                             },
                         );
                     };
 
-                let n_obs = data.pileups[*sample].len();
-                let is_clear_ref = n_obs > 10
-                    && data.pileups[*sample]
-                        .iter()
-                        .all(|obs| obs.is_positive_ref_support());
+                let (n_obs, is_clear_ref) = {
+                    let pileup = &data.pileups[*sample];
+                    if pileup.read_observations().is_empty()
+                        && !pileup.depth_observations().is_empty()
+                    {
+                        // CNV case
+                        // METHOD: We cannot determine the ref support in general without alt allele frequencies.
+                        // Hence we always assume that there is no clear ref support and do the full
+                        // evaluation below.
+                        // This should be fine since there should be much less CNV calls than small variants.
+                        (pileup.depth_observations().len(), false)
+                    } else {
+                        // normal variants, only consider read observations for these heuristic markers
+                        let n_obs = pileup.read_observations().len();
+                        let is_clear_ref = n_obs > 10
+                            && pileup
+                                .read_observations()
+                                .iter()
+                                .all(|obs| obs.is_positive_ref_support());
+                        (n_obs, is_clear_ref)
+                    }
+                };
 
                 match vafs {
                     grammar::VAFSpectrum::Set(vafs) => {
@@ -358,7 +375,7 @@ impl Posterior for GenericPosterior {
                 && bias.is_likely(&data.pileups)
         });
 
-        LogProb::ln_sum_exp(
+        let p = LogProb::ln_sum_exp(
             &possible_biases
                 .cartesian_product(vaf_tree)
                 .map(|(biases, node)| {
@@ -367,7 +384,8 @@ impl Posterior for GenericPosterior {
                         + self.density(node, &mut likelihood_operands, data, biases, joint_prob)
                 })
                 .collect_vec(),
-        )
+        );
+        p
     }
 }
 

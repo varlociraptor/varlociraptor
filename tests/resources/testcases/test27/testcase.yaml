@@ -2,7 +2,7 @@
 
 expected:
   posteriors:
-  - PROB_SOMATIC_TUMOR >= 4.0
+  - PROB_SOMATIC_TUMOR >= 4.0 || (PROB_SOMATIC_TUMOR >= 3.0 && PROB_ARTIFACT >= 2.0)
 
 # necessary bam files
 samples:

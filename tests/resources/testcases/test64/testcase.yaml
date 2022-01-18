@@ -3,7 +3,7 @@
 expected:
   posteriors:
     # write down a list of expressions of the form
-    - PROB_ABSENT <= 0.001
+    - PROB_ABSENT <= 0.001 || PROB_ARTIFACT <= 0.001
 
 # necessary bam files
 samples:

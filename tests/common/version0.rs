@@ -103,6 +103,8 @@ impl Testcase for TestcaseVersion0 {
                         reference_buffer_size: 10,
                         min_bam_refetch_distance: 1,
                         pairhmm_mode: "exact".to_owned(),
+                        log_mode: "default".to_owned(),
+                        output_raw_observations: None,
                     },
                 };
 

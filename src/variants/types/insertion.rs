@@ -10,34 +10,55 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
-use bio::stats::pairhmm::EmissionParameters;
+
 use bio::stats::LogProb;
 use bio_types::genome::{self, AbstractInterval, AbstractLocus};
 
+use crate::default_ref_base_emission;
 use crate::estimation::alignment_properties::AlignmentProperties;
 use crate::reference;
-use crate::variants::evidence::realignment::pairhmm::{ReadEmission, RefBaseEmission};
+use crate::utils::homopolymers::{extend_homopolymer_stretch, is_homopolymer_seq};
+use crate::variants::evidence::realignment::pairhmm::{
+    RefBaseEmission, RefBaseVariantEmission, VariantEmission,
+};
 use crate::variants::evidence::realignment::{Realignable, Realigner};
 use crate::variants::sampling_bias::{ReadSamplingBias, SamplingBias};
 use crate::variants::types::{AlleleSupport, MultiLocus, PairedEndEvidence, SingleLocus, Variant};
-use crate::{default_emission, default_ref_base_emission};
 
 pub(crate) struct Insertion<R: Realigner> {
     locus: MultiLocus,
     ins_seq: Rc<Vec<u8>>,
     realigner: RefCell<R>,
+    homopolymer: Option<Range<u64>>,
 }
 
 impl<R: Realigner> Insertion<R> {
-    pub(crate) fn new(locus: genome::Locus, ins_seq: Vec<u8>, realigner: R) -> Self {
-        Insertion {
+    pub(crate) fn new(locus: genome::Locus, ins_seq: Vec<u8>, realigner: R) -> Result<Self> {
+        let start = locus.pos() as usize;
+        let ref_seq = &realigner.ref_buffer().seq(locus.contig())?;
+
+        let homopolymer = if is_homopolymer_seq(&ins_seq) {
+            let end = (start
+                + ins_seq.len()
+                + extend_homopolymer_stretch(ins_seq[0], &mut ref_seq[start + 1..].iter()))
+                as u64;
+            let start = start as u64 + 1
+                - extend_homopolymer_stretch(ins_seq[0], &mut ref_seq[..start + 1].iter().rev())
+                    as u64;
+            Some(start..end)
+        } else {
+            None
+        };
+
+        Ok(Insertion {
             locus: MultiLocus::new(vec![SingleLocus::new(genome::Interval::new(
                 locus.contig().to_owned(),
                 locus.pos()..locus.pos() + 1,
             ))]),
             ins_seq: Rc::new(ins_seq),
             realigner: RefCell::new(realigner),
-        }
+            homopolymer,
+        })
     }
 
     pub(crate) fn locus(&self) -> &SingleLocus {
@@ -45,23 +66,20 @@ impl<R: Realigner> Insertion<R> {
     }
 }
 
-impl<'a, R: Realigner> Realignable<'a> for Insertion<R> {
-    type EmissionParams = InsertionEmissionParams<'a>;
-
+impl<R: Realigner> Realignable for Insertion<R> {
     fn alt_emission_params(
         &self,
-        read_emission_params: Rc<ReadEmission<'a>>,
         ref_buffer: Arc<reference::Buffer>,
         _: &genome::Interval,
         ref_window: usize,
-    ) -> Result<Vec<InsertionEmissionParams<'a>>> {
+    ) -> Result<Vec<Box<dyn RefBaseVariantEmission>>> {
         let l = self.ins_seq.len() as usize;
         let start = self.locus().range().start as usize;
 
         let ref_seq = ref_buffer.seq(self.locus().contig())?;
 
         let ref_seq_len = ref_seq.len();
-        Ok(vec![InsertionEmissionParams {
+        Ok(vec![Box::new(InsertionEmissionParams {
             ref_seq,
             ref_offset: start.saturating_sub(ref_window),
             ref_end: cmp::min(start + l + ref_window, ref_seq_len),
@@ -69,8 +87,8 @@ impl<'a, R: Realigner> Realignable<'a> for Insertion<R> {
             ins_len: l,
             ins_end: start + l,
             ins_seq: Rc::clone(&self.ins_seq),
-            read_emission: read_emission_params,
-        }])
+            homopolymer: self.homopolymer.clone(),
+        })])
     }
 }
 
@@ -103,9 +121,12 @@ impl<R: Realigner> Variant for Insertion<R> {
     type Evidence = PairedEndEvidence;
     type Loci = MultiLocus;
 
-    fn report_indel_operations(&self) -> bool {
-        // METHOD: enable DivIndelBias to detect e.g. homopolymer errors due to PCR
-        true
+    fn homopolymer_indel_len(&self) -> Option<i8> {
+        if self.homopolymer.is_some() {
+            Some(self.ins_seq.len() as i8)
+        } else {
+            None
+        }
     }
 
     fn is_valid_evidence(
@@ -136,22 +157,30 @@ impl<R: Realigner> Variant for Insertion<R> {
         &self,
         evidence: &Self::Evidence,
         _alignment_properties: &AlignmentProperties,
+        alt_variants: &[Box<dyn Realignable>],
     ) -> Result<Option<AlleleSupport>> {
         match evidence {
-            PairedEndEvidence::SingleEnd(record) => Ok(Some(
-                self.realigner
-                    .borrow_mut()
-                    .allele_support(record, self.locus.iter(), self)?,
-            )),
+            PairedEndEvidence::SingleEnd(record) => {
+                Ok(Some(self.realigner.borrow_mut().allele_support(
+                    record,
+                    self.locus.iter(),
+                    self,
+                    alt_variants,
+                )?))
+            }
             PairedEndEvidence::PairedEnd { left, right } => {
-                let left_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(left, self.locus.iter(), self)?;
-                let right_support =
-                    self.realigner
-                        .borrow_mut()
-                        .allele_support(right, self.locus.iter(), self)?;
+                let left_support = self.realigner.borrow_mut().allele_support(
+                    left,
+                    self.locus.iter(),
+                    self,
+                    alt_variants,
+                )?;
+                let right_support = self.realigner.borrow_mut().allele_support(
+                    right,
+                    self.locus.iter(),
+                    self,
+                    alt_variants,
+                )?;
 
                 let mut support = left_support;
 
@@ -187,7 +216,7 @@ impl<R: Realigner> Variant for Insertion<R> {
 }
 
 /// Emission parameters for PairHMM over insertion allele.
-pub(crate) struct InsertionEmissionParams<'a> {
+pub(crate) struct InsertionEmissionParams {
     ref_seq: Arc<Vec<u8>>,
     ref_offset: usize,
     ref_end: usize,
@@ -195,10 +224,10 @@ pub(crate) struct InsertionEmissionParams<'a> {
     ins_end: usize,
     ins_len: usize,
     ins_seq: Rc<Vec<u8>>,
-    read_emission: Rc<ReadEmission<'a>>,
+    homopolymer: Option<Range<u64>>,
 }
 
-impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
+impl RefBaseEmission for InsertionEmissionParams {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         let i_ = i + self.ref_offset;
@@ -211,18 +240,20 @@ impl<'a> RefBaseEmission for InsertionEmissionParams<'a> {
         }
     }
 
-    fn variant_ref_range(&self) -> Option<Range<usize>> {
-        Some(self.ins_start..self.ins_end)
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        self.homopolymer.clone()
+    }
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.ref_end - self.ref_offset + self.ins_len
     }
 
     default_ref_base_emission!();
 }
 
-impl<'a> EmissionParameters for InsertionEmissionParams<'a> {
-    default_emission!();
-
-    #[inline]
-    fn len_x(&self) -> usize {
-        self.ref_end - self.ref_offset + self.ins_len
+impl VariantEmission for InsertionEmissionParams {
+    fn is_homopolymer_indel(&self) -> bool {
+        self.homopolymer.is_some()
     }
 }

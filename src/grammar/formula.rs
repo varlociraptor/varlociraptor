@@ -671,7 +671,7 @@ impl Formula {
     fn negate(&self, scenario: &Scenario, contig: &str) -> Result<Self> {
         Ok(match self {
             Formula::Terminal(FormulaTerminal::False) => {
-                panic!("bug: negation not implemented for false terminal (this is unexpected since the grammar does not allow to specify false).")
+                panic!("bug: negation not implemented for false terminal (you cannot use false in a negated statement in the grammar).")
             }
             Formula::Conjunction { operands } => Formula::Disjunction {
                 operands: operands
@@ -859,9 +859,7 @@ impl Formula {
             }) => {
                 panic!("bug: expressions should be expanded before applying negations");
             }
-            Formula::Terminal(FormulaTerminal::False) => {
-                panic!("bug: false terminals may not appear in formula to be negated because this is not allowed in the grammar");
-            }
+            Formula::Terminal(FormulaTerminal::False) => Formula::Terminal(FormulaTerminal::False),
             Formula::Terminal(FormulaTerminal::Log2FoldChange {
                 sample_a,
                 sample_b,
@@ -1427,6 +1425,7 @@ where
                 predicate,
             })
         }
+        Rule::false_literal => Formula::Terminal(FormulaTerminal::False),
         Rule::cmp_ops => unreachable!(),
         Rule::formula => unreachable!(),
         Rule::subformula => unreachable!(),

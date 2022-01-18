@@ -1,0 +1,46 @@
+# Pindel call that is a somatic call in reality (case af: 0.125)
+# This is test02, but formulated with the grammar approach. It should yield
+# exactly the same results as test02.
+
+expected:
+  allelefreqs:
+    # true AF=0.125
+  - tumor >= 0.05 && tumor <= 0.125
+  - relapse >= 0.05 && relapse <= 0.125
+  - normal == 0.0
+  posteriors:
+    # There are some fragments with increased insert size that let prosic think
+    # there is a bit of evidence for having a somatic normal call. This makes
+    # the probability for somatic tumor weak.
+  - PROB_SOMATIC_TUMOR <= 1.3
+
+# necessary bam files
+samples:
+  normal:
+    path: normal.bam
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+  tumor:
+    path: tumor.bam
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+  relapse:
+    path: tumor.bam
+    properties: '{"insert_size":{"mean":312.0,"sd":11.89254089203071},"max_del_cigar_len":30,"max_ins_cigar_len":12,"frac_max_softclip":0.69}'
+
+
+
+# candidate variant
+candidate: candidates.vcf
+
+scenario: scenario.yaml
+
+# reference sequence
+reference:
+  name: chr1
+  seq: TGCTTCTCACTAGAAGAGATTGTACTTTGAAGGTATATACTCTTCTGTGAGACTTGAAAGTAGTATAGGGCAGTGAGAAGTGGGATACTACAAAAGGCACAGCTTAAACAAAATACATGCAGAGTAAATGTAGAGATTGGTCATCTCTGGCTTCAATAAGGGGAAATGATCAGAATTTTAGGAGAAAAGGCTGGAAAGGAAGGTAGGCTGAGACTTTGGGATGAGGTATTTGAGCAAGGGAGTGATAATGATTCAATTTGTCTTTAAAAGAGTCTCAGTGTATAGGTTAGGGATAAGGACTCATGCTCAGATTATGAAAGTGGTCATGGTGTTTGGGGGATAGTAGAAAAACATTTGCAGGAGATAGCACCAAGATAATAGAGATTTGATAAGGTCGAAGAAGTTGGAATCCTCAAAGAAGATTGAATAGTCAGTCTTGGATAGTAACATCTTTCACTGAAATAGGGACAAggggatgattgtacagggagaggagcggcaggaaatgatgaaatcagttttgaatctgttgaatcagaggtactggtaacacactaaggaagatgtcaagtagATTTGTGGAAATAGTTTTTAGAGCTGGAATCAGGTGAGTTCAAAGGCAAAATGTGATGGTCAAGAAATAGAACTGAGAGCTGGATCCTTGGGAAAGGGTGAGAAGGCATAAAGCCAAGTTGGGTATGGGTAGGACACATTAATCATTGCCTCAAAGGCTGTGGTGGGGACCCCATGTGCACTGGCCCATGTAGGGCACTACTGGGAATGGTACAGAGGGGAGCAGAGAGGATGATGATGTTACCTGCACTTATTGTTCCAGGGGCCTGTGGCAAAAGAACTGAGCGGACTGCCATCTGGACCCTCTGCCGGATCATGTCCTCCTCCCCCTCCACCATGCCCCCCTCCTCCCCCAGTCTCTACCATTTCATGCTCATATGAGTCTGCTTCCCGCTCATCACTGTTCGCGCAGATTAATCAGGGGGAGAGCATTACACATGGTGAGTGAGCACTTGGACACGAACAGTAGGTACAACAAGTTGTGTGGGCCAGACCCCACCAACCAGAACCGTCTGTAAACTACAACCCTGGCTTGTGTGGTGGAGACTCGTTTGGTGTGTCCTGTTCCTTTAAGGGACGGCAAAGCTGGCTTAAATGGAAATTGAAAATGATGATCACAGTTGGAGGAAGCCATCTGCCCCATGGGAAAGTGACTTAATATTAGGTAGCATATATAGAGGACCCTCTTGTGCCAAGGCACAGAGCTGGCGGTTTTCCCCAGAGCTTTTTCCGTGGCACCACATGGCCTCTGGGAAGGCATTGTGTTAGGGAGTTAACTTCCTCAGAAGATGCATACTGGTTACATGGAAAATTTGCATGAGAGTGACCTAATGTTGGTATAAAGTAGATACCCTTAACACAGCTGGTGGAAGTCTGAGTTGTCCAGCCACTTCTAGGAATCTATGATCATAGTAGCTAAAAATGGTGTAACAACCTAAATCCAACTGTAAGAGAAATGGCTAACTACCACATGTCCTCTTGATGAAATGttttttatttttttattttttttgagacggagttttgctcgtttcccagcctggagtgcaatggcgcgatctcggctcaccgcaacctccacctcccaggttcaagcaattctcctgcctcagcctcccgagtacctgggattacagccatgcgtcaccatgcctggctaattttttttttttgtatttttagtagagatggggtttctccatgttggtcagcctggtctcaaactcctgacctcaggtgatctgcccacctcggcctcccaaagtgctgggattacaggtgtgagccaccacgcccggccTCTTGATGAAATGTTGTGCCACCATTACATGTTTTTCTACAGTGAACCATGTAATGTTTAAGAAAAAAAAAATCTAGTATGTAAATTACAACCACAAGGAATGGTGGAGATAAAAAGGCCATTCAGTATTTGTTATACAGTTAACATAGATCTGGCCATGTTCAAAGCGAGGCGTGTGTCAGCCTGCTGTGGGAGATGATGAATTATTTTTCCCTTAAAACATAAAAGAAATATATTTTTACttttattttttattttattttattttttttgagatgggagtctcactttgttgctcaggctggagtgcagtggcgtgatcttggctcactgcaatctctgcctcccaggttcaagcagttctcctgcctcagcctcctaaatagctgggactacagcacctgccaccacacccggctaatttttttgtacttttagtagagactaaaaatacaccatggtagccaggctggttttgaactcctaacttcaggtgatccgcctgccttggcctcccagagtgtgg
+
+options: '{"Call": {"kind": {"Variants": {"protocol_strandedness":"Opposite", "spurious_ins_rate": 2.8e-06, "spurious_del_rate":
+  5.1e-06, "spurious_insext_rate": 0.0, "spurious_delext_rate": 0.0, "indel_window":
+  64, "omit_snvs": false, "omit_indels": false, "max_indel_len": 1000, "max_depth":
+  200, "reference": "../hg18/chr1.fa", "candidates": "candidates.vcf", "output": null,
+  "testcase_locus": "chr1:40306163", "testcase_prefix": "../testcases/test02", "mode":
+  {"Generic": {"scenario": "scenario.yaml", "bams": ["tumor=tumor.bam", "normal=normal.bam"], "alignment_properties": []}}}}}}'

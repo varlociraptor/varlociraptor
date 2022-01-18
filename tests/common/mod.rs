@@ -65,6 +65,20 @@ pub(crate) trait Testcase {
 
     fn path(&self) -> &PathBuf;
 
+    /// Index of record in the candidates.vcf to evaluate expressions for.
+    fn test_record_index(&self) -> usize {
+        self.yaml()
+            .as_hash()
+            .unwrap()
+            .get(&Yaml::String("record-index".to_owned()))
+            .map(|value| {
+                value
+                    .as_i64()
+                    .expect("Invalid record index, expected integer") as usize
+            })
+            .unwrap_or(0)
+    }
+
     fn preprocess_options(&self, sample_name: &str) -> String {
         self.yaml()["samples"][sample_name]["options"]
             .as_str()
@@ -112,11 +126,13 @@ pub(crate) trait Testcase {
         }
     }
 
-    fn omit_divindel_bias(&self) -> bool {
-        if self.yaml()["omit_divindel_bias"].is_badvalue() {
+    fn omit_homopolymer_artifact_detection(&self) -> bool {
+        if self.yaml()["omit_homopolymer_artifact_detection"].is_badvalue() {
             false
         } else {
-            self.yaml()["omit_divindel_bias"].as_bool().unwrap()
+            self.yaml()["omit_homopolymer_artifact_detection"]
+                .as_bool()
+                .unwrap()
         }
     }
 
@@ -147,7 +163,14 @@ pub(crate) trait Testcase {
         temp_preprocess: &tempfile::TempDir,
     ) -> PathBuf {
         let mut path = temp_preprocess.as_ref().join(sample_name);
-        path.set_extension(".bcf");
+        path.set_extension("bcf");
+
+        path
+    }
+
+    fn sample_observations_path(&self, sample_name: &str) -> PathBuf {
+        let mut path = self.path().join(sample_name);
+        path.set_extension("obs.tsv");
 
         path
     }
@@ -196,6 +219,7 @@ pub(crate) trait Testcase {
                             ref mut bam,
                             ref mut alignment_properties,
                             ref mut pairhmm_mode,
+                            ref mut output_raw_observations,
                             ..
                         },
                 } => {
@@ -214,6 +238,7 @@ pub(crate) trait Testcase {
                     *output = Some(self.sample_preprocessed_path(sample_name, &temp_preprocess));
                     *alignment_properties = Some(props.path().to_owned());
                     *pairhmm_mode = pairhmm_mode_override.to_owned();
+                    *output_raw_observations = Some(self.sample_observations_path(sample_name));
 
                     run(options)?;
                 }
@@ -233,8 +258,8 @@ pub(crate) trait Testcase {
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
                         omit_softclip_bias: self.omit_softclip_bias(),
-                        omit_divindel_bias: self.omit_divindel_bias(),
-                        min_divindel_other_rate: 0.05,
+                        omit_homopolymer_artifact_detection: self
+                            .omit_homopolymer_artifact_detection(),
                         output: Some(self.output()),
                         mode: VariantCallMode::Generic {
                             scenario: self.scenario().unwrap(),
@@ -255,6 +280,7 @@ pub(crate) trait Testcase {
                                 })
                                 .collect_vec(),
                         },
+                        log_mode: "default".to_owned(),
                     },
                 };
 
@@ -270,8 +296,8 @@ pub(crate) trait Testcase {
                         omit_read_orientation_bias: self.omit_read_orientation_bias(),
                         omit_read_position_bias: self.omit_read_position_bias(),
                         omit_softclip_bias: self.omit_softclip_bias(),
-                        omit_divindel_bias: self.omit_divindel_bias(),
-                        min_divindel_other_rate: 0.25,
+                        omit_homopolymer_artifact_detection: self
+                            .omit_homopolymer_artifact_detection(),
                         output: Some(self.output()),
                         mode: VariantCallMode::TumorNormal {
                             tumor_observations: self
@@ -280,6 +306,7 @@ pub(crate) trait Testcase {
                                 .sample_preprocessed_path("normal", &temp_preprocess),
                             purity: self.purity().unwrap(),
                         },
+                        log_mode: "default".to_owned(),
                     },
                 };
 
@@ -292,12 +319,14 @@ pub(crate) trait Testcase {
         let mut reader = bcf::Reader::from_path(self.output()).unwrap();
         let mut calls = reader.records().map(|r| r.unwrap()).collect_vec();
 
-        if !utils::is_bnd(&mut calls[0]).expect("bug: failed to check for breakend") {
-            // If not a breakend, allow only one call.
-            assert_eq!(calls.len(), 1, "unexpected number of calls");
-        }
+        let calls: Box<dyn Iterator<Item = &mut bcf::Record>> =
+            if utils::is_bnd(&mut calls[0]).expect("bug: failed to check for breakend") {
+                Box::new(calls.iter_mut())
+            } else {
+                Box::new(calls.iter_mut().skip(self.test_record_index()).take(1))
+            };
 
-        for call in calls.iter_mut() {
+        for call in calls {
             let afs = call.format(b"AF").float().unwrap();
             if let Some(exprs) = self.yaml()["expected"]["allelefreqs"].as_vec() {
                 for expr in exprs.iter() {
@@ -325,8 +354,9 @@ pub(crate) trait Testcase {
                             bcf::HeaderRecord::Info { values, .. } => {
                                 let id = values.get("ID").unwrap().clone();
                                 if id.starts_with("PROB_") {
-                                    let values = call.info(id.as_bytes()).float().unwrap().unwrap();
-                                    expr = expr.value(id.clone(), values[0])
+                                    if let Ok(Some(values)) = call.info(id.as_bytes()).float() {
+                                        expr = expr.value(id.clone(), values[0])
+                                    }
                                 }
                             }
                             _ => (), // ignore other tags

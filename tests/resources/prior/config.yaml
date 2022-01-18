@@ -10,7 +10,6 @@ scenarios:
       - a
   tumor-normal-relapse:
     samples:
-      - tumor
       - relapse
   tumor-normal:
     samples:

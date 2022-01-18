@@ -76,6 +76,7 @@ pub enum Varlociraptor {
     #[structopt(
         name = "decode-phred",
         about = "Decode PHRED-scaled values to human readable probabilities.",
+        usage = "varlociraptor decode-phred < in.bcf > out.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     DecodePHRED,
@@ -97,6 +98,13 @@ pub enum Varlociraptor {
         #[structopt(subcommand)]
         kind: PlotKind,
     },
+    #[structopt(
+        name = "genotype",
+        about = "Infer classical genotypes from Varlociraptor's AF field (1.0: 1/1, 0.5: 0/1, 0.0: 0/0, otherwise: 0/1). This assumes diploid samples.",
+        usage = "varlociraptor genotype < in.bcf > out.bcf",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    Genotype,
 }
 
 pub struct PreprocessInput {
@@ -133,12 +141,12 @@ fn default_pairhmm_mode() -> String {
     "exact".to_owned()
 }
 
-fn default_min_bam_refetch_distance() -> u64 {
-    1
+fn default_log_mode() -> String {
+    "default".to_owned()
 }
 
-fn default_min_divindel_other_rate() -> f64 {
-    0.05
+fn default_min_bam_refetch_distance() -> u64 {
+    1
 }
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
@@ -150,7 +158,8 @@ pub enum PreprocessKind {
                  The obtained observations are printed to STDOUT in BCF format. Note that the resulting BCFs \
                  will be very large and are only intended for internal use (e.g. for piping into 'varlociraptor \
                  call variants generic').",
-        usage = "varlociraptor preprocess variants reference.fasta --candidates candidates.bcf --bam sample.bam > sample.observations.bcf",
+        usage = "varlociraptor preprocess variants reference.fasta --alignment-properties alignment-properties.json \
+                 --candidates candidates.bcf --bam sample.bam > sample.observations.bcf",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Variants {
@@ -163,7 +172,7 @@ pub enum PreprocessKind {
             parse(from_os_str),
             long,
             required = true,
-            help = "VCF/BCF file to process (if omitted, read from STDIN)."
+            help = "sorted VCF/BCF file to process (if omitted, read from STDIN)."
         )]
         candidates: PathBuf,
         #[structopt(
@@ -196,7 +205,8 @@ pub enum PreprocessKind {
         #[structopt(
             long = "alignment-properties",
             help = "Alignment properties JSON file for sample. If not provided, properties \
-                    will be estimated from the given BAM file."
+                    will be estimated from the given BAM file. It is recommended to estimate alignment \
+                    properties separately, see 'varlociraptor estimate alignment-properties --help'."
         )]
         alignment_properties: Option<PathBuf>,
         #[structopt(
@@ -272,6 +282,24 @@ pub enum PreprocessKind {
         )]
         #[serde(default = "default_pairhmm_mode")]
         pairhmm_mode: String,
+        #[structopt(
+            long = "log-mode",
+            possible_values = &["default", "each-record"],
+            default_value = "default",
+            help = "Specify how progress should be logged. By default, a record count will be printed. With 'each-record', \
+            Varlociraptor will additionally print contig and position of each processed candidate variant record. This is \
+            useful for debugging."
+        )]
+        #[serde(default = "default_log_mode")]
+        log_mode: String,
+        #[structopt(
+            parse(from_os_str),
+            long = "output-raw-observations",
+            help = "Output raw observations to the given TSV file path. Attention, only use this for debugging when processing \
+            a single variant. Otherwise it will cause a huge file and significant performance hits."
+        )]
+        #[serde(default)]
+        output_raw_observations: Option<PathBuf>,
     },
 }
 
@@ -323,6 +351,25 @@ pub enum PlotKind {
 
 #[derive(Debug, StructOpt, Serialize, Deserialize, Clone)]
 pub enum EstimateKind {
+    #[structopt(
+        name = "alignment-properties",
+        about = "Estimate properties like insert size, maximum softclip length, and the PCR homopolymer error model.",
+        usage = "varlociraptor estimate alignment-properties reference.fasta --bam sample.bam > sample.alignment-properties.json",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    AlignmentProperties {
+        #[structopt(
+            parse(from_os_str),
+            help = "FASTA file with reference genome. Has to be indexed with samtools faidx."
+        )]
+        reference: PathBuf,
+        #[structopt(
+            long,
+            required = true,
+            help = "BAM file with aligned reads from a single sample."
+        )]
+        bam: PathBuf,
+    },
     #[structopt(
         name = "mutational-burden",
         about = "Estimate mutational burden. Takes Varlociraptor calls (must be annotated \
@@ -403,26 +450,12 @@ pub enum CallKind {
         #[serde(default)]
         omit_softclip_bias: bool,
         #[structopt(
-            long = "omit-divindel-bias",
-            help = "Do not consider divindel bias when calculating the probability of an \
-                    artifact. Divindel bias is used to e.g. detect PCR homopolymer artifacts. \
-                    If you are sure that your protocol did not use any PCR or if you are \
-                    running on data with lots of homopolymer errors from the sequencer (e.g. nanopore) \
-                    you should use this flag to omit divindel bias consideration."
+            long = "omit-homopolymer-artifact-detection",
+            help = "Do not perform PCR homopolymer artifact detection when calculating the probability of an \
+                    artifact. If you are sure that your protocol did not use any PCR you should use this flag."
         )]
         #[serde(default)]
-        omit_divindel_bias: bool,
-        #[structopt(
-            long = "min-divindel-rate",
-            default_value = "0.05",
-            help = "Minimum fraction of \
-                    of additional indel operations when realigning against a variant allele. The smaller this value is chosen, \
-                    the more agressive will Varlociraptor be when marking a variant as being a divindel artifact \
-                    (i.e., an artifact induced by various (slightly) different indels as it occurs in homopolymer \
-                    runs that give rise to PCR errors)."
-        )]
-        #[serde(default = "default_min_divindel_other_rate")]
-        min_divindel_other_rate: f64,
+        omit_homopolymer_artifact_detection: bool,
         #[structopt(
             long = "testcase-locus",
             help = "Create a test case for the given locus. Locus must be given in the form \
@@ -448,6 +481,16 @@ pub enum CallKind {
             help = "Output variant calls to given path (in BCF format). If omitted, prints calls to STDOUT."
         )]
         output: Option<PathBuf>,
+        #[structopt(
+            long = "log-mode",
+            possible_values = &["default", "each-record"],
+            default_value = "default",
+            help = "Specify how progress should be logged. By default, a record count will be printed. With 'each-record', \
+            Varlociraptor will additionally print contig and position of each processed candidate variant record. This is \
+            useful for debugging."
+        )]
+        #[serde(default = "default_log_mode")]
+        log_mode: String,
     },
 
     #[structopt(
@@ -680,6 +723,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     reference_buffer_size,
                     min_bam_refetch_distance,
                     pairhmm_mode,
+                    log_mode,
+                    output_raw_observations,
                 } => {
                     // TODO: handle testcases
 
@@ -696,13 +741,17 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         );
                     };
 
-                    // If we omit the insert size information for calculating the evidence, we can savely allow hardclips here.
-                    let allow_hardclips = omit_insert_size;
+                    let mut reference_buffer = Arc::new(reference::Buffer::new(
+                        fasta::IndexedReader::from_file(&reference)
+                            .context("Unable to read genome reference.")?,
+                        reference_buffer_size,
+                    ));
+
                     let alignment_properties = est_or_load_alignment_properties(
                         &alignment_properties,
                         &bam,
                         omit_insert_size,
-                        allow_hardclips,
+                        Arc::get_mut(&mut reference_buffer).unwrap(),
                     )?;
 
                     let gap_params = GapParams {
@@ -712,15 +761,16 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         prob_deletion_extend_artifact: LogProb::from(spurious_delext_rate),
                     };
 
-                    let reference_buffer = Arc::new(reference::Buffer::new(
-                        fasta::IndexedReader::from_file(&reference)
-                            .context("Unable to read genome reference.")?,
-                        reference_buffer_size,
-                    ));
+                    let log_each_record = if log_mode == "each-record" {
+                        true
+                    } else {
+                        false
+                    };
 
                     if pairhmm_mode == "fast" {
                         let mut processor =
                             calling::variants::preprocessing::ObservationProcessor::builder()
+                                .log_each_record(log_each_record)
                                 .alignment_properties(alignment_properties)
                                 .protocol_strandedness(protocol_strandedness)
                                 .max_depth(max_depth)
@@ -736,6 +786,7 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     realignment_window,
                                     reference_buffer,
                                 ))
+                                .raw_observation_output(output_raw_observations)
                                 .build();
 
                         processor.process()?;
@@ -757,6 +808,8 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                     gap_params,
                                     realignment_window,
                                 ))
+                                .log_each_record(log_each_record)
+                                .raw_observation_output(output_raw_observations)
                                 .build();
 
                         processor.process()?;
@@ -772,12 +825,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     omit_read_orientation_bias,
                     omit_read_position_bias,
                     omit_softclip_bias,
-                    omit_divindel_bias,
-                    min_divindel_other_rate,
+                    omit_homopolymer_artifact_detection,
                     testcase_locus,
                     testcase_prefix,
                     testcase_anonymous,
                     output,
+                    log_mode,
                 } => {
                     let testcase_builder = if let Some(testcase_locus) = testcase_locus {
                         if let Some(testcase_prefix) = testcase_prefix {
@@ -793,6 +846,12 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                         }
                     } else {
                         None
+                    };
+
+                    let log_each_record = if log_mode == "each-record" {
+                        true
+                    } else {
+                        false
                     };
 
                     let call_generic = |scenario: grammar::Scenario,
@@ -833,12 +892,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                                 sample_infos.somatic_effective_mutation_rates,
                             )
                             .inheritance(sample_infos.inheritance)
-                            .genome_size(
-                                scenario
-                                    .species()
-                                    .as_ref()
-                                    .and_then(|species| *species.genome_size()),
-                            )
                             .heterozygosity(scenario.species().as_ref().and_then(|species| {
                                 species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                             }))
@@ -853,14 +906,16 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                             .omit_read_orientation_bias(omit_read_orientation_bias)
                             .omit_read_position_bias(omit_read_position_bias)
                             .omit_softclip_bias(omit_softclip_bias)
-                            .omit_divindel_bias(omit_divindel_bias)
-                            .min_divindel_other_rate(min_divindel_other_rate)
+                            .omit_homopolymer_artifact_detection(
+                                omit_homopolymer_artifact_detection,
+                            )
                             .scenario(scenario)
                             .prior(prior)
                             .contaminations(sample_infos.contaminations)
                             .resolutions(sample_infos.resolutions)
                             .breakend_index(breakend_index)
                             .outbcf(output)
+                            .log_each_record(log_each_record)
                             .build()
                             .unwrap();
 
@@ -1076,6 +1131,9 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
         Varlociraptor::DecodePHRED => {
             conversion::decode_phred::decode_phred()?;
         }
+        Varlociraptor::Genotype => {
+            conversion::genotype::genotype()?;
+        }
         Varlociraptor::Estimate { kind } => match kind {
             EstimateKind::MutationalBurden {
                 events,
@@ -1090,6 +1148,13 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                 mode,
                 cutoff as f64,
             )?,
+            EstimateKind::AlignmentProperties { reference, bam } => {
+                let mut reference_buffer =
+                    reference::Buffer::new(fasta::IndexedReader::from_file(&reference)?, 1);
+                let alignment_properties =
+                    estimate_alignment_properties(bam, false, &mut reference_buffer)?;
+                println!("{}", serde_json::to_string(&alignment_properties)?);
+            }
         },
         Varlociraptor::Plot { kind } => match kind {
             PlotKind::VariantCallingPrior {
@@ -1123,12 +1188,6 @@ pub fn run(opt: Varlociraptor) -> Result<()> {
                     .germline_mutation_rate(sample_infos.germline_mutation_rates)
                     .somatic_effective_mutation_rate(sample_infos.somatic_effective_mutation_rates)
                     .inheritance(sample_infos.inheritance)
-                    .genome_size(
-                        scenario
-                            .species()
-                            .as_ref()
-                            .and_then(|species| *species.genome_size()),
-                    )
                     .heterozygosity(scenario.species().as_ref().and_then(|species| {
                         species.heterozygosity().map(|het| LogProb::from(Prob(het)))
                     }))
@@ -1150,14 +1209,14 @@ pub(crate) fn est_or_load_alignment_properties(
     alignment_properties_file: &Option<impl AsRef<Path>>,
     bam_file: impl AsRef<Path>,
     omit_insert_size: bool,
-    allow_hardclips: bool,
+    reference_buffer: &mut reference::Buffer,
 ) -> Result<AlignmentProperties> {
     if let Some(alignment_properties_file) = alignment_properties_file {
         Ok(serde_json::from_reader(File::open(
             alignment_properties_file,
         )?)?)
     } else {
-        estimate_alignment_properties(bam_file, omit_insert_size, allow_hardclips)
+        estimate_alignment_properties(bam_file, omit_insert_size, reference_buffer)
     }
 }
 
@@ -1232,13 +1291,11 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
                             from: parent_idx(parent)?,
                             somatic: *somatic,
                         },
-                        grammar::Inheritance::Subclonal {
-                            from: parent,
-                            origin,
-                        } => Inheritance::Subclonal {
-                            from: parent_idx(parent)?,
-                            origin: *origin,
-                        },
+                        grammar::Inheritance::Subclonal { from: parent } => {
+                            Inheritance::Subclonal {
+                                from: parent_idx(parent)?,
+                            }
+                        }
                     })
                 } else {
                     None

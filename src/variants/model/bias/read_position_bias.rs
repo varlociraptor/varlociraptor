@@ -1,6 +1,8 @@
 use bio::stats::probs::LogProb;
 
-use crate::variants::evidence::observation::{Observation, ReadPosition};
+use crate::variants::evidence::observations::read_observation::{
+    ProcessedReadObservation, ReadPosition,
+};
 use crate::variants::model::bias::Bias;
 
 #[derive(Copy, Clone, PartialOrd, PartialEq, Eq, Debug, Ord, EnumIter, Hash)]
@@ -16,7 +18,7 @@ impl Default for ReadPositionBias {
 }
 
 impl Bias for ReadPositionBias {
-    fn prob(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_alt(&self, observation: &ProcessedReadObservation) -> LogProb {
         match (self, observation.read_position) {
             (ReadPositionBias::None, _) => observation.prob_hit_base, // normal
             (ReadPositionBias::Some, ReadPosition::Major) => LogProb::ln_one(), // bias
@@ -24,7 +26,7 @@ impl Bias for ReadPositionBias {
         }
     }
 
-    fn prob_any(&self, observation: &Observation<ReadPosition>) -> LogProb {
+    fn prob_any(&self, observation: &ProcessedReadObservation) -> LogProb {
         observation.prob_hit_base
     }
 

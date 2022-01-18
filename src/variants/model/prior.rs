@@ -18,7 +18,7 @@ use statrs::distribution::{self, Discrete};
 use crate::errors;
 use crate::grammar;
 use crate::variants::model::modes::generic::LikelihoodOperands;
-use crate::variants::model::{bias::Biases, likelihood, AlleleFreq, VariantType};
+use crate::variants::model::{bias::Artifacts, likelihood, AlleleFreq, VariantType};
 
 pub(crate) trait UpdatablePrior {
     fn set_universe_and_ploidies(
@@ -36,17 +36,9 @@ pub(crate) trait CheckablePrior {
 
 #[derive(Debug, Clone)]
 pub(crate) enum Inheritance {
-    Mendelian {
-        from: (usize, usize),
-    },
-    Clonal {
-        from: usize,
-        somatic: bool,
-    },
-    Subclonal {
-        from: usize,
-        origin: grammar::SubcloneOrigin,
-    },
+    Mendelian { from: (usize, usize) },
+    Clonal { from: usize, somatic: bool },
+    Subclonal { from: usize },
 }
 
 #[derive(Derefable, Debug)]
@@ -72,7 +64,6 @@ pub(crate) struct Prior {
     somatic_effective_mutation_rate: grammar::SampleInfo<Option<f64>>,
     heterozygosity: Option<LogProb>,
     inheritance: grammar::SampleInfo<Option<Inheritance>>,
-    genome_size: Option<f64>,
     variant_type_fractions: grammar::VariantTypeFraction,
     #[builder(default)]
     variant_type: Option<VariantType>,
@@ -90,7 +81,6 @@ impl Clone for Prior {
             somatic_effective_mutation_rate: self.somatic_effective_mutation_rate.clone(),
             heterozygosity: self.heterozygosity,
             inheritance: self.inheritance.clone(),
-            genome_size: self.genome_size,
             cache: RefCell::default(),
             variant_type_fractions: self.variant_type_fractions.clone(),
             variant_type: self.variant_type.clone(),
@@ -108,7 +98,7 @@ impl Prior {
             let sample = event.len();
             let new_event = |vaf| likelihood::Event {
                 allele_freq: vaf,
-                biases: Biases::none(),
+                artifacts: Artifacts::none(),
                 is_discrete: false,
             };
 
@@ -338,17 +328,13 @@ impl Prior {
                             &germline_vafs,
                             *somatic,
                         )),
-                        Some(Inheritance::Subclonal {
-                            from: parent,
-                            origin,
-                        }) => {
+                        Some(Inheritance::Subclonal { from: parent }) => {
                             // here, somatic variation is already included in the returned probability
                             Some(self.prob_subclonal_inheritance(
                                 sample,
                                 *parent,
                                 event,
                                 &germline_vafs,
-                                *origin,
                             ))
                         }
                         None => {
@@ -496,119 +482,34 @@ impl Prior {
         parent: usize,
         event: &LikelihoodOperands,
         germline_vafs: &[AlleleFreq],
-        origin: grammar::SubcloneOrigin,
     ) -> LogProb {
-        warn!("subclonal inheritance implementation is not yet completed and will likely yield wrong results");
         let total_vaf = event[sample].allele_freq;
         let germline_vaf = germline_vafs[sample];
         if !relative_eq!(*germline_vaf, *germline_vafs[parent]) {
             LogProb::ln_zero()
         } else {
-            let parent_somatic_vaf = self.effective_somatic_vaf(parent, event, germline_vafs);
+            let _parent_somatic_vaf = self.effective_somatic_vaf(parent, event, germline_vafs);
             let parent_total_vaf = event[parent].allele_freq;
-            match (origin, self.vartype_somatic_effective_mutation_rate(sample)) {
-                (grammar::SubcloneOrigin::SingleCell, None) => {
-                    // METHOD: no de novo somatic mutation. total_vaf must reflect ploidy.
-                    if relative_eq!(*parent_total_vaf, 1.0) {
-                        if relative_eq!(*total_vaf, 1.0) {
-                            LogProb::ln_one()
-                        } else {
-                            // METHOD: impossible, since all parental allele copies host the variant.
-                            LogProb::ln_zero()
-                        }
-                    } else if self.is_valid_germline_vaf(sample, total_vaf) {
-                        let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
-                        if *total_vaf > 0.0 {
-                            // METHOD: alt present, hence the cell has to come from the subclone with the alt allele.
-                            prob_alt
-                        } else {
-                            // METHOD: alt not present, hence the cell has to come from the ref subclone.
-                            prob_alt.ln_one_minus_exp()
-                        }
+
+            match self.vartype_somatic_effective_mutation_rate(sample) {
+                Some(somatic_mutation_rate) => {
+                    if *parent_total_vaf == 0.0 && *germline_vaf == 0.0 {
+                        // METHOD: variant is denovo in this sample, calculate somatic mutation probability
+                        self.prob_somatic_mutation(somatic_mutation_rate, total_vaf)
                     } else {
-                        // METHOD: VAF must reflect ploidy.
-                        LogProb::ln_zero()
-                    }
-                }
-                (grammar::SubcloneOrigin::MultiCell, None) => {
-                    if relative_eq!(*parent_somatic_vaf, 1.0) {
-                        if relative_eq!(*total_vaf, 1.0) {
-                            // METHOD: The parent has a VAF of 1.0.
-                            // In this case, it must be inherited unmodified.
-                            LogProb::ln_one()
-                        } else {
-                            LogProb::ln_zero()
-                        }
-                    } else {
-                        // METHOD: anything is possible here, since we do not know which cells were inherited.
+                        // METHOD: inherited, consider uniform probability because anything can happen during subclonal inheritance
                         LogProb::ln_one()
                     }
                 }
-                (grammar::SubcloneOrigin::MultiCell, Some(somatic_mutation_rate)) => {
-                    // METHOD: number of cells in the parent (this just needs to be high, the particular number is irrelevant)
-                    let n: f64 = 10000.0;
-                    let binom =
-                        distribution::Binomial::new(parent_somatic_vaf.abs(), n as u64).unwrap();
-                    // METHOD: we may inherit any fraction of the parental effective somatic vaf
-                    let density = |_, somatic_vaf: f64| {
-                        let somatic_vaf = AlleleFreq(somatic_vaf);
-                        let inherited_somatic_vaf = if *parent_somatic_vaf >= 0.0 {
-                            total_vaf - germline_vaf - somatic_vaf
-                        } else {
-                            somatic_vaf - total_vaf + germline_vaf
-                        };
-                        let q = LogProb(
-                            binom
-                                .pmf((n * inherited_somatic_vaf.abs()).round() as u64)
-                                .ln(),
-                        );
-                        let p = self.prob_somatic_mutation(somatic_mutation_rate, somatic_vaf);
-                        q + p
-                    };
-
-                    LogProb::ln_simpsons_integrate_exp(density, 0.0, 1.0, 5)
-                }
-                (grammar::SubcloneOrigin::SingleCell, Some(somatic_mutation_rate)) => {
-                    if *parent_total_vaf == 1.0 {
-                        // de novo backmutation or no mutation
-                        let somatic_vaf = total_vaf - AlleleFreq(1.0);
-                        self.prob_somatic_mutation(somatic_mutation_rate, somatic_vaf)
+                None => {
+                    // METHOD: somatic variation has to stay the same since it is inherited and unmodified (no own somatic mutation rate defined).
+                    if relative_eq!(
+                        *self.effective_somatic_vaf(sample, event, germline_vafs),
+                        *self.effective_somatic_vaf(parent, event, germline_vafs)
+                    ) {
+                        LogProb::ln_one()
                     } else {
-                        let prob_alt = LogProb::from(Prob::from(*parent_total_vaf));
-                        let ploidy = self.ploidies.as_ref().unwrap()[sample].unwrap();
-                        if *total_vaf > 0.0 {
-                            // case 1: cell comes from the alt allele subclone
-                            (prob_alt
-                                + LogProb::ln_sum_exp(
-                                    &(0..=ploidy)
-                                        .into_iter()
-                                        .map(|n_alt| {
-                                            self.prob_somatic_mutation(
-                                                somatic_mutation_rate,
-                                                total_vaf
-                                                    - AlleleFreq(n_alt as f64 / ploidy as f64),
-                                            )
-                                        })
-                                        .collect_vec(),
-                                ))
-                            .ln_add_exp(
-                                // case 2: cell comes from the ref allele subclone
-                                prob_alt.ln_one_minus_exp()
-                                    + self.prob_somatic_mutation(somatic_mutation_rate, total_vaf),
-                            )
-                        } else {
-                            // METHOD: alt not present, hence the cell has to come from the ref subclone or there is a backmutation.
-                            (prob_alt.ln_one_minus_exp()
-                                + self
-                                    .prob_somatic_mutation(somatic_mutation_rate, AlleleFreq(0.0)))
-                            .ln_add_exp(
-                                prob_alt
-                                    + self.prob_somatic_mutation(
-                                        somatic_mutation_rate,
-                                        -parent_total_vaf,
-                                    ),
-                            )
-                        }
+                        LogProb::ln_zero()
                     }
                 }
             }
@@ -824,9 +725,6 @@ impl CheckablePrior for Prior {
             .into())
         };
         for sample in 0..self.n_samples() {
-            if self.has_somatic_variation(sample) && self.genome_size.is_none() {
-                return err("somatic variation defined but unknown genome size: define genome size in the scenario");
-            }
             if let Some(inheritance) = &self.inheritance[sample] {
                 if match inheritance {
                     Inheritance::Mendelian { from: (p1, p2) }

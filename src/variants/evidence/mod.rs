@@ -5,5 +5,5 @@
 
 pub(crate) mod bases;
 pub(crate) mod insert_size;
-pub(crate) mod observation;
+pub(crate) mod observations;
 pub(crate) mod realignment;

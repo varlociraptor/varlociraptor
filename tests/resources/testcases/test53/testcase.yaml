@@ -1,8 +1,6 @@
 # false positive from syndip benchmark
 
 expected:
-  allelefreqs:
-    - chm == 0.0
   posteriors:
     - PROB_PRESENT > 1.0
 

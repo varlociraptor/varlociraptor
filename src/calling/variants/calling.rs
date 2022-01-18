@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::str;
 use std::sync::RwLock;
 
 use anyhow::{Context, Result};
 use bio::stats::{bayesian, LogProb};
+use bio_types::genome;
+use bio_types::genome::AbstractLocus;
 use derive_builder::Builder;
 use itertools::Itertools;
 use progress_logger::ProgressLogger;
@@ -20,15 +23,18 @@ use crate::calling::variants::{
 use crate::errors;
 use crate::grammar;
 use crate::utils;
-use crate::variants::evidence::observation::{Observation, ReadPosition};
-use crate::variants::model;
+use crate::variants::evidence::observations::pileup::Pileup;
+
 use crate::variants::model::modes::generic::LikelihoodOperands;
 use crate::variants::model::modes::generic::{
     self, GenericLikelihood, GenericModelBuilder, GenericPosterior,
 };
 use crate::variants::model::Contamination;
-use crate::variants::model::{bias::Biases, AlleleFreq};
+use crate::variants::model::{self};
+use crate::variants::model::{bias::Artifacts, AlleleFreq};
 use crate::variants::types::breakends::BreakendIndex;
+
+use super::preprocessing::Observations;
 
 pub(crate) type AlleleFreqCombination = LikelihoodOperands;
 
@@ -47,8 +53,7 @@ where
     omit_read_orientation_bias: bool,
     omit_read_position_bias: bool,
     omit_softclip_bias: bool,
-    omit_divindel_bias: bool,
-    min_divindel_other_rate: f64,
+    omit_homopolymer_artifact_detection: bool,
     scenario: grammar::Scenario,
     outbcf: Option<PathBuf>,
     contaminations: grammar::SampleInfo<Option<Contamination>>,
@@ -57,6 +62,7 @@ where
     breakend_index: BreakendIndex,
     #[builder(default)]
     breakend_results: RwLock<HashMap<Vec<u8>, BreakendResult>>,
+    log_each_record: bool,
 }
 
 impl<Pr> Caller<Pr>
@@ -112,19 +118,8 @@ where
               Description=\"Expected sequencing depth, while considering mapping uncertainty\">",
         );
         header.push_record(
-            b"##FORMAT=<ID=OBS,Number=A,Type=String,\
-              Description=\"Summary of observations. Each entry is encoded as CBTSOPXI, with C being a count, \
-              B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
-              as s=single end and p=paired end, S being the strand that supports the observation (+, -, or * for both), \
-              O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
-              P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
-              X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
-              I denoting indel operations in the respective alignments against the alt allele \
-              (* = some indel, . = no indel or information irrelevant for variant type). \
-              Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
-              scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
-              probability for correct mapping of fragment is <95%). Note that we extend Kass Raftery scores with \
-              a term for equality between the evidence of the two alleles (E=equal).\">",
+            b"##FORMAT=<ID=AF,Number=A,Type=Float,\
+              Description=\"Maximum a posteriori probability estimate of allele frequency\">",
         );
         header.push_record(
             b"##FORMAT=<ID=SOBS,Number=A,Type=String,\
@@ -136,8 +131,22 @@ where
               a term for equality between the evidence of the two alleles (E=equal).\">",
         );
         header.push_record(
-            b"##FORMAT=<ID=AF,Number=A,Type=Float,\
-              Description=\"Maximum a posteriori probability estimate of allele frequency\">",
+            b"##FORMAT=<ID=OBS,Number=A,Type=String,\
+              Description=\"Summary of observations. Each entry is encoded as CBTASOPXI, with C being a count, \
+              B being the posterior odds for the alt allele (see below), T being the type of alignment, encoded \
+              as s=single end and p=paired end, A denoting whether the observations also map to an alternative locus \
+              (# = most found alternative locus, * = other locus, . = no locus), \
+              S being the strand that supports the observation (+, -, or * for both), \
+              O being the read orientation (> = F1R2, < = F2R1, * = unknown, ! = non standard, e.g. R1F2), \
+              P being the read position (^ = most found read position, * = any other position or position is irrelevant), \
+              X denoting whether the respective alignments entail a softclip ($ = softclip, . = no soft clip), and \
+              I denoting indel operations in the respective alignments against the alt allele \
+              (* = some indel, . = no indel or information irrelevant for variant type). \
+              Posterior odds for alt allele of each fragment are given as extended Kass Raftery \
+              scores: N=none, E=equal, B=barely, P=positive, S=strong, V=very strong (lower case if \
+              probability for correct mapping of fragment does not correspond to the maximum reported value by the mapper \
+              (for bwa, this is usually 60 in PHRED scale)). Note that we extend Kass Raftery scores with \
+              a term for equality between the evidence of the two alleles (E=equal).\">",
         );
         header.push_record(
             b"##FORMAT=<ID=SB,Number=A,Type=String,\
@@ -175,12 +184,29 @@ where
               event (PROB_ARTIFACT).\">",
         );
         header.push_record(
-            b"##FORMAT=<ID=DIB,Number=A,Type=String,\
-              Description=\"Divindel bias estimate: * indicates that ALT allele is associated with \
-              with indel operations of varying length, . indicates that there is no divindel bias.
-              Divindel bias is indicative of systematic PCR amplification errors, e.g. induced by \
-              homopolymers. Probability for divindel bias is captured by the ARTIFACT \
+            b"##FORMAT=<ID=HE,Number=A,Type=String,\
+              Description=\"Homopolymer error estimate: * indicates that ALT allele is associated with \
+              with homopolymer indel operations of varying length, . indicates that there is no homopolymer error.
+              Homopolymer error is indicative of systematic PCR amplification errors. \
+              Probability for such homopolymer artifacts is captured by the ARTIFACT \
               event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=ALB,Number=A,Type=String,\
+              Description=\"Alt locus bias estimate: * indicates that ALT allele is systematically associated \
+              with either MAPQs smaller than the maximum MAPQ or a major alternative alignment (XA tag) \
+              reported by the used read mapper. \
+              This would be indicative of ALT reads actually coming from another locus (e.g. some repeat, \
+              a homology, a distant variant allele, or a CNV). \
+              Probability for mapping quality bias is captured by the ARTIFACT \
+              event (PROB_ARTIFACT).\">",
+        );
+        header.push_record(
+            b"##FORMAT=<ID=AFD,Number=A,Type=String,\
+              Description=\"Sampled posterior probability densities of allele frequencies in PHRED scale \
+              (the smaller the higher, with 0 being equal to an unscaled probability of 1). \
+              In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
+              these can be seen as posterior probabilities. Note that densities can be greater than one.\">",
         );
 
         Ok(header)
@@ -247,7 +273,7 @@ where
         // data structures
         // For SNVs and MNVs we need a special model as here read orientation bias and read position bias needs to be considered.
         let mut models = HashMap::new();
-        let mut events = Vec::new();
+        let mut events = HashMap::new();
         let mut last_rids = HashMap::new();
 
         // process calls
@@ -294,44 +320,55 @@ where
                 }
             }
 
-            let mut work_item = self.preprocess_record(&mut records, i, &observations)?;
-
-            // process work item
-            let contig = str::from_utf8(work_item.call.chrom()).unwrap();
-            let _model;
-            let _last_rid;
-
-            let model_mode = (
-                work_item.check_read_orientation_bias,
-                work_item.check_read_position_bias,
-                work_item.check_softclip_bias,
-            );
-            _model = models.entry(model_mode).or_insert_with(|| self.model());
-            {
-                let entry = last_rids.entry(model_mode).or_insert(None);
-                _last_rid = *entry;
-                *entry = Some(work_item.rid);
+            if self.log_each_record {
+                info!(
+                    "Processing record at {}:{}",
+                    first_record.contig(),
+                    first_record.pos() + 1
+                );
             }
 
             // obtain variant type
             let variant_type =
                 utils::collect_variants(records.first_not_none_mut()?, false, None)?[0].to_type();
 
+            let mut work_item = self.preprocess_record(&mut records, i, &observations)?;
+
+            // process work item
+            let contig = str::from_utf8(work_item.call.chrom()).unwrap();
+            let _model;
+            let _events;
+            let _last_rid;
+
+            let model_mode = (
+                work_item.check_read_orientation_bias,
+                work_item.check_read_position_bias,
+                work_item.check_softclip_bias,
+                work_item.check_homopolymer_artifact_detection,
+            );
+            _model = models.entry(model_mode).or_insert_with(|| self.model());
+            _events = events.entry(model_mode).or_insert_with(Vec::new);
+            {
+                let entry = last_rids.entry(model_mode).or_insert(None);
+                _last_rid = *entry;
+                *entry = Some(work_item.rid);
+            }
+
             self.configure_model(
                 work_item.rid,
                 _last_rid,
                 _model,
-                &mut events,
+                _events,
                 contig,
                 variant_type,
                 work_item.check_read_orientation_bias,
                 work_item.check_strand_bias,
                 work_item.check_read_position_bias,
                 work_item.check_softclip_bias,
-                work_item.check_divindel_bias,
+                work_item.check_homopolymer_artifact_detection,
             )?;
 
-            self.call_record(&mut work_item, _model, &events);
+            self.call_record(&mut work_item, _model, &_events);
 
             work_item.call.write_final_record(&mut bcf_writer)?;
             progress_logger.update(1u64);
@@ -350,6 +387,8 @@ where
             let first_record = records.first_not_none_mut()?;
             let start = first_record.pos() as u64;
             let chrom = chrom(observations.first_not_none()?, first_record);
+
+            let _locus = genome::Locus::new(str::from_utf8(chrom).unwrap().to_owned(), start);
 
             let call = CallBuilder::default()
                 .chrom(chrom.to_owned())
@@ -414,7 +453,7 @@ where
             check_strand_bias: !self.omit_strand_bias,
             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias,
             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias,
-            check_divindel_bias: !self.omit_divindel_bias,
+            check_homopolymer_artifact_detection: false,
         };
 
         if let Some(ref event) = work_item.bnd_event {
@@ -429,23 +468,25 @@ where
         let mut pileups = Vec::new();
         for record in records.iter_mut() {
             let pileup = if let Some(record) = record {
-                let mut pileup = read_observations(record)?;
+                let Observations {
+                    mut pileup,
+                    is_homopolymer_indel,
+                } = read_observations(record)?;
+                if is_homopolymer_indel && !self.omit_homopolymer_artifact_detection {
+                    // METHOD: check for homopolymer artifacts if at least one pileup contains the corresponding information.
+                    work_item.check_homopolymer_artifact_detection |= true;
+                }
                 if is_snv_or_mnv {
-                    // METHOD: adjust MAPQ to get rid of stochastically inflated ones
-                    //Observation::adjust_prob_mapping(&mut pileup);
                     // METHOD: remove non-standard alignments. They might come from near
                     // SVs and can induce artifactual SNVs or MNVs. By removing them,
                     // we just conservatively reduce the coverage to those which are
                     // clearly not influenced by a close SV.
-                    pileup = Observation::remove_nonstandard_alignments(
-                        pileup,
-                        self.omit_read_orientation_bias,
-                    );
+                    pileup.remove_nonstandard_alignments(self.omit_read_orientation_bias);
                 }
 
                 pileup
             } else {
-                Vec::new()
+                Pileup::default()
             };
             pileups.push(pileup);
         }
@@ -467,10 +508,10 @@ where
         consider_strand_bias: bool,
         consider_read_position_bias: bool,
         consider_softclip_bias: bool,
-        consider_divindel_bias: bool,
+        consider_homopolymer_error: bool,
     ) -> Result<()> {
-        if !rid.map_or(false, |rid: u32| current_rid == rid) {
-            // rid is not the same as before, obtain event universe
+        if !rid.map_or(false, |rid: u32| current_rid == rid) || events.is_empty() {
+            // rid is not the same as before or the model mode has changed to something new, obtain event universe
             // clear old events
             events.clear();
 
@@ -478,7 +519,7 @@ where
             events.push(model::Event {
                 name: "absent".to_owned(),
                 vafs: grammar::VAFTree::absent(self.n_samples()),
-                biases: vec![Biases::none()],
+                biases: vec![Artifacts::none()],
             });
 
             // add events from scenario
@@ -486,18 +527,18 @@ where
                 events.push(model::Event {
                     name: event_name.clone(),
                     vafs: vaftree.clone(),
-                    biases: vec![Biases::none()],
+                    biases: vec![Artifacts::none()],
                 });
 
-                let biases: Vec<_> = Biases::all_artifact_combinations(
+                let biases: Vec<_> = Artifacts::all_artifact_combinations(
                     consider_read_orientation_bias,
                     consider_strand_bias,
                     consider_read_position_bias,
                     consider_softclip_bias,
-                    consider_divindel_bias,
-                    self.min_divindel_other_rate,
+                    consider_homopolymer_error,
                 )
                 .collect();
+
                 if !biases.is_empty() {
                     // Corresponding biased event.
                     events.push(model::Event {
@@ -646,32 +687,74 @@ where
         for (map_estimates, _) in model_instance.event_posteriors() {
             if map_estimates
                 .iter()
-                .any(|estimate| estimate.biases.is_artifact())
+                .any(|estimate| estimate.artifacts.is_artifact())
                 && !is_artifact
             {
                 // METHOD: skip MAP that is an artifact if the overall artifact event is not the strongest one.
                 // This ensures consistency between the events and the per sample MAPs.
                 continue;
             }
+            // This is the MAP estimate we want to report, build sample information with it.
             return data
                 .into_pileups()
                 .into_iter()
                 .zip(map_estimates.iter())
-                .map(|(pileup, estimate)| {
+                .enumerate()
+                .map(|(sample, (pileup, estimate))| {
                     let mut sample_builder = SampleInfoBuilder::default();
-                    sample_builder.observations(pileup);
+                    sample_builder.pileup(Rc::new(pileup));
                     match estimate {
-                        model::likelihood::Event { biases, .. } if biases.is_artifact() => {
+                        model::likelihood::Event {
+                            artifacts: biases, ..
+                        } if biases.is_artifact() => {
                             sample_builder
                                 .allelefreq_estimate(AlleleFreq(0.0))
-                                .biases(biases.clone());
+                                .artifacts(biases.clone());
                         }
                         model::likelihood::Event { allele_freq, .. } => {
                             sample_builder
                                 .allelefreq_estimate(*allele_freq)
-                                .biases(Biases::none());
+                                .artifacts(Artifacts::none());
                         }
                     };
+
+                    // METHOD: Collect VAF dist for sample by looking at all alternative VAFs with the same VAFs for the other samples as the MAP.
+                    sample_builder.vaf_dist(if !estimate.is_artifact() {
+                        Some(
+                            model_instance
+                                .event_posteriors()
+                                .filter_map(|(estimate, prob)| {
+                                    let event = estimate.events().get(sample).unwrap();
+                                    let others_equal_map = || {
+                                        map_estimates.events().iter().all(
+                                            |(other_sample, map_event)| {
+                                                //dbg!((other_sample, sample, estimate.events().get(other_sample).unwrap(), map_event));
+                                                if other_sample != sample {
+                                                    // check if other event is the same as the map event
+                                                    let other_event = estimate
+                                                        .events()
+                                                        .get(other_sample)
+                                                        .unwrap();
+                                                    other_event == map_event
+                                                } else {
+                                                    // don't do that for our current sample
+                                                    true
+                                                }
+                                            },
+                                        )
+                                    };
+                                    if !event.is_artifact() && others_equal_map() {
+                                        Some((event.allele_freq, prob))
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect(),
+                        )
+                    } else {
+                        None
+                    });
+
                     Some(sample_builder.build().unwrap())
                 })
                 .collect_vec();
@@ -692,7 +775,7 @@ struct WorkItem {
     rid: u32,
     call: Call,
     variant_builder: VariantBuilder,
-    pileups: Option<Vec<Vec<Observation<ReadPosition>>>>,
+    pileups: Option<Vec<Pileup>>,
     snv: Option<model::modes::generic::Snv>,
     bnd_event: Option<Vec<u8>>,
     index: usize,
@@ -700,5 +783,5 @@ struct WorkItem {
     check_strand_bias: bool,
     check_read_position_bias: bool,
     check_softclip_bias: bool,
-    check_divindel_bias: bool,
+    check_homopolymer_artifact_detection: bool,
 }

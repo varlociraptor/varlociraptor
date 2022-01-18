@@ -6,7 +6,7 @@
 use std::cmp;
 use std::fmt::Debug;
 use std::ops::Range;
-use std::rc::Rc;
+
 use std::sync::Arc;
 
 use bio::stats::pairhmm;
@@ -17,7 +17,7 @@ use crate::variants::evidence::bases::prob_read_base_miscall;
 use crate::variants::evidence::realignment::edit_distance::EditDistanceHit;
 
 /// Width of band around alignment with optimal edit distance.
-pub(crate) const EDIT_BAND: usize = 2;
+pub(crate) const EDIT_BAND: usize = 4;
 
 lazy_static! {
     static ref PROB_CONFUSION: LogProb = LogProb::from(Prob(0.3333));
@@ -34,11 +34,9 @@ pub(crate) trait RefBaseEmission {
 
     fn set_ref_end(&mut self, value: usize);
 
-    fn read_emission(&self) -> &ReadEmission;
-
     /// Reference area that is altered by the variant.
     /// Can return None if not applicable (default).
-    fn variant_ref_range(&self) -> Option<Range<usize>>;
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>>;
 
     fn shrink_to_hit(&mut self, hit: &EditDistanceHit) {
         self.set_ref_end(cmp::min(
@@ -47,6 +45,12 @@ pub(crate) trait RefBaseEmission {
         ));
         self.set_ref_offset(self.ref_offset() + hit.start().saturating_sub(EDIT_BAND));
     }
+
+    fn len_x(&self) -> usize;
+}
+
+pub(crate) trait VariantEmission {
+    fn is_homopolymer_indel(&self) -> bool;
 }
 
 #[macro_export]
@@ -66,10 +70,6 @@ macro_rules! default_ref_base_emission {
 
         fn set_ref_end(&mut self, value: usize) {
             self.ref_end = value;
-        }
-
-        fn read_emission(&self) -> &ReadEmission {
-            &self.read_emission
         }
     };
 }
@@ -125,30 +125,82 @@ impl pairhmm::StartEndGapParameters for GapParams {
     }
 }
 
-#[macro_export]
-macro_rules! default_emission {
-    () => {
-        #[inline]
-        fn prob_emit_xy(&self, i: usize, j: usize) -> bio::stats::pairhmm::XYEmission {
-            let r = self.ref_base(i);
-            self.read_emission.prob_match_mismatch(j, r)
-        }
+#[derive(Getters, new)]
+pub(crate) struct ReadVsAlleleEmission<'a> {
+    #[getset(get = "pub(crate)")]
+    read_emission: &'a ReadEmission<'a>,
+    allele_emission: Box<dyn RefBaseVariantEmission>,
+}
 
-        #[inline]
-        fn prob_emit_x(&self, _: usize) -> LogProb {
-            LogProb::ln_one()
-        }
+impl<'a> RefBaseEmission for ReadVsAlleleEmission<'a> {
+    #[inline]
+    fn ref_base(&self, i: usize) -> u8 {
+        self.allele_emission.ref_base(i)
+    }
 
-        #[inline]
-        fn prob_emit_y(&self, j: usize) -> LogProb {
-            self.read_emission.prob_insertion(j)
-        }
+    #[inline]
+    fn ref_offset(&self) -> usize {
+        self.allele_emission.ref_offset()
+    }
 
-        #[inline]
-        fn len_y(&self) -> usize {
-            self.read_emission.read_end() - self.read_emission.read_offset()
-        }
-    };
+    #[inline]
+    fn ref_end(&self) -> usize {
+        self.allele_emission.ref_end()
+    }
+
+    #[inline]
+    fn set_ref_offset(&mut self, value: usize) {
+        self.allele_emission.set_ref_offset(value)
+    }
+
+    #[inline]
+    fn set_ref_end(&mut self, value: usize) {
+        self.allele_emission.set_ref_end(value)
+    }
+
+    #[inline]
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
+        self.allele_emission.variant_homopolymer_ref_range()
+    }
+
+    #[inline]
+    fn len_x(&self) -> usize {
+        self.allele_emission.len_x()
+    }
+}
+
+impl<'a> VariantEmission for ReadVsAlleleEmission<'a> {
+    #[inline]
+    fn is_homopolymer_indel(&self) -> bool {
+        self.allele_emission.is_homopolymer_indel()
+    }
+}
+
+impl<'a> pairhmm::EmissionParameters for ReadVsAlleleEmission<'a> {
+    #[inline]
+    fn prob_emit_xy(&self, i: usize, j: usize) -> bio::stats::pairhmm::XYEmission {
+        let r = self.allele_emission.ref_base(i);
+        self.read_emission.prob_match_mismatch(j, r)
+    }
+
+    #[inline]
+    fn prob_emit_x(&self, _: usize) -> LogProb {
+        LogProb::ln_one()
+    }
+
+    #[inline]
+    fn prob_emit_y(&self, j: usize) -> LogProb {
+        self.read_emission.prob_insertion(j)
+    }
+
+    #[inline]
+    fn len_y(&self) -> usize {
+        self.read_emission.read_end() - self.read_emission.read_offset()
+    }
+
+    fn len_x(&self) -> usize {
+        self.allele_emission.len_x()
+    }
 }
 
 #[derive(Getters)]
@@ -216,31 +268,36 @@ impl<'a> ReadEmission<'a> {
 }
 
 /// Emission parameters for PairHMM over reference allele.
-pub(crate) struct ReferenceEmissionParams<'a> {
+pub(crate) struct ReferenceEmissionParams {
     pub(crate) ref_seq: Arc<Vec<u8>>,
     pub(crate) ref_offset: usize,
     pub(crate) ref_end: usize,
-    pub(crate) read_emission: Rc<ReadEmission<'a>>,
 }
 
-impl<'a> RefBaseEmission for ReferenceEmissionParams<'a> {
+impl RefBaseEmission for ReferenceEmissionParams {
     #[inline]
     fn ref_base(&self, i: usize) -> u8 {
         self.ref_seq[i + self.ref_offset]
     }
 
-    fn variant_ref_range(&self) -> Option<Range<usize>> {
+    fn variant_homopolymer_ref_range(&self) -> Option<Range<u64>> {
         None
     }
-
-    default_ref_base_emission!();
-}
-
-impl<'a> pairhmm::EmissionParameters for ReferenceEmissionParams<'a> {
-    default_emission!();
 
     #[inline]
     fn len_x(&self) -> usize {
         self.ref_end - self.ref_offset
     }
+
+    default_ref_base_emission!();
 }
+
+impl VariantEmission for ReferenceEmissionParams {
+    fn is_homopolymer_indel(&self) -> bool {
+        false
+    }
+}
+
+pub(crate) trait RefBaseVariantEmission: RefBaseEmission + VariantEmission {}
+
+impl<T: RefBaseEmission + VariantEmission> RefBaseVariantEmission for T {}

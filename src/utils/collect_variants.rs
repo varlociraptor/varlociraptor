@@ -1,4 +1,5 @@
 use anyhow::Result;
+use bio_types::genome::AbstractLocus;
 use itertools::Itertools;
 use rust_htslib::{bcf, bcf::record::Numeric};
 
@@ -80,13 +81,15 @@ pub(crate) fn collect_variants(
     let is_valid_insertion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
         alt_allele == b"<INS>"
             || (ref_allele.len() < alt_allele.len()
-                && ref_allele == &alt_allele[..ref_allele.len()])
+                && ref_allele == &alt_allele[..ref_allele.len()]
+                && ref_allele.len() == 1)
     };
 
     let is_valid_deletion_alleles = |ref_allele: &[u8], alt_allele: &[u8]| {
         alt_allele == b"<DEL>"
             || (ref_allele.len() > alt_allele.len()
-                && &ref_allele[..alt_allele.len()] == alt_allele)
+                && &ref_allele[..alt_allele.len()] == alt_allele
+                && alt_allele.len() == 1)
     };
 
     let mut variants = Vec::new();
@@ -129,9 +132,11 @@ pub(crate) fn collect_variants(
             // get sequence
             let alleles = record.alleles();
             if alleles.len() > 2 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "SVTYPE=INS but more than one ALT allele".to_owned(),
-                }
+                return Err(errors::invalid_bcf_record(
+                    record.contig(),
+                    record.pos(),
+                    "SVTYPE=INS but more than one ALT allele",
+                )
                 .into());
             }
             let ref_allele = alleles[0];
@@ -157,17 +162,20 @@ pub(crate) fn collect_variants(
                 }
             };
             if svlen == 0 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "Absolute value of SVLEN or END - POS must be greater than zero."
-                        .to_owned(),
-                }
+                return Err(errors::invalid_bcf_record(
+                    record.contig(),
+                    record.pos(),
+                    "Absolute value of SVLEN or END - POS must be greater than zero.",
+                )
                 .into());
             }
             let alleles = record.alleles();
             if alleles.len() > 2 {
-                return Err(errors::Error::InvalidBCFRecord {
-                    msg: "SVTYPE=DEL but more than one ALT allele".to_owned(),
-                }
+                return Err(errors::invalid_bcf_record(
+                    record.contig(),
+                    record.pos(),
+                    "SVTYPE=DEL but more than one ALT allele",
+                )
                 .into());
             }
             let ref_allele = alleles[0];
@@ -201,7 +209,6 @@ pub(crate) fn collect_variants(
                 // MNV
                 variants.push(model::Variant::Mnv(alt_allele.to_vec()));
             } else {
-                // TODO fix position if variant is like this: cttt -> ct
                 if is_valid_deletion_alleles(ref_allele, alt_allele) {
                     variants.push(model::Variant::Deletion(
                         (ref_allele.len() - alt_allele.len()) as u64,
