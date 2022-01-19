@@ -401,7 +401,7 @@ fn hla_typing_high_logprobs() {
     output.push("test.csv");
     let _ = &varlociraptor::calling::haplotypes::CallerBuilder::default()
         .hdf5_reader(hdf5::File::open("tests/abundance.h5").unwrap())
-        .vcf_reader(bcf::Reader::from_path("tests/foo.vcf").unwrap())
+        .haplotype_variants(bcf::Reader::from_path("tests/foo.vcf").unwrap())
         .min_norm_counts(0.001)
         .outcsv(Some(output))
         .build()

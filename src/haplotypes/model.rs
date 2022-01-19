@@ -1,22 +1,13 @@
 use crate::utils::adaptive_integration;
 use crate::{
-    calling::haplotypes::{
-        self,
-        {AlleleFreqDist, HaplotypeCalls, HaplotypeVariants, KallistoEstimate, KallistoEstimates},
-    },
+    calling::haplotypes::{AlleleFreqDist, HaplotypeCalls, HaplotypeVariants, KallistoEstimate},
     variants::model::AlleleFreq,
 };
-use bio::stats::{
-    {bayesian, bayesian::model, LogProb},
-    {PHREDProb, Prob},
-};
+use bio::stats::{bayesian::model, LogProb};
 use bv::BitVec;
 use ordered_float::NotNan;
 use statrs::function::beta::ln_beta;
-use std::{
-    collections::{BTreeMap, HashMap},
-    mem,
-};
+use std::{collections::HashMap, mem};
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug, Derefable)]
 pub(crate) struct HaplotypeFractions(#[deref] Vec<AlleleFreq>);
@@ -110,7 +101,7 @@ impl Likelihood {
         &self,
         event: &HaplotypeFractions,
         data: &Data,
-        cache: &mut Cache,
+        _cache: &mut Cache,
     ) -> LogProb {
         // TODO compute likelihood using neg_binom on the counts and dispersion
         // in the data and the fractions in the events.
@@ -132,7 +123,7 @@ impl Likelihood {
         &self,
         event: &HaplotypeFractions,
         data: &Data,
-        cache: &mut Cache,
+        _cache: &mut Cache,
     ) -> LogProb {
         // TODO compute likelihood based on Varlociraptor VAFs.
         // Let us postpone this until we have a working version with kallisto only.
@@ -166,7 +157,7 @@ pub(crate) struct Prior;
 impl model::Prior for Prior {
     type Event = HaplotypeFractions;
 
-    fn compute(&self, event: &Self::Event) -> LogProb {
+    fn compute(&self, _event: &Self::Event) -> LogProb {
         // flat prior for now
         LogProb::ln_one()
     }

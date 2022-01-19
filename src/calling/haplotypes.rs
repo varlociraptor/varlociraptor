@@ -1,20 +1,14 @@
-use crate::haplotypes::model::{Data, HaplotypeFractions, Likelihood, Marginal, Posterior, Prior};
+use crate::haplotypes::model::{Data, Likelihood, Marginal, Posterior, Prior};
 use crate::variants::model::AlleleFreq;
 use anyhow::Result;
-use bio::stats::{
-    bayesian::model::Model,
-    probs::{LogProb, Prob},
-    PHREDProb,
-};
-use bio_types::genome::AbstractLocus;
+use bio::stats::{bayesian::model::Model, probs::LogProb, PHREDProb};
 use bv::BitVec;
 use derive_builder::Builder;
 use hdf5;
 use ordered_float::NotNan;
 use rust_htslib::bcf::{self, record::GenotypeAllele::Unphased, Read};
 use std::collections::{BTreeMap, HashMap};
-use std::time::{Duration, Instant};
-use std::{io, path::PathBuf, str};
+use std::{path::PathBuf, str};
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -30,7 +24,7 @@ impl Caller {
     pub fn call(&mut self) -> Result<()> {
         // Step 1: obtain kallisto estimates.
         let kallisto_estimates = KallistoEstimates::new(&self.hdf5_reader, self.min_norm_counts)?;
-        let haplotypes: Vec<_> = kallisto_estimates.keys().map(|x| x.to_string()).collect();
+        let haplotypes: Vec<String> = kallisto_estimates.keys().map(|x| x.to_string()).collect();
         let haplotype_variants = HaplotypeVariants::new(&mut self.haplotype_variants, &haplotypes)?;
         let haplotype_calls = HaplotypeCalls::new(&mut self.haplotype_calls)?;
 
@@ -60,7 +54,6 @@ impl Caller {
 
         //write best record on top
         let mut records = Vec::new();
-        let best = posterior.next().unwrap();
         let (haplotype_frequencies, best_density) = posterior.next().unwrap();
         let best_odds = 1;
         records.push(best_density.exp().to_string());
@@ -201,7 +194,7 @@ impl HaplotypeVariants {
                     .samples()
                     .iter()
                     .map(|x| str::from_utf8(x).unwrap())
-                    .position(|x| &x == sample)
+                    .position(|x| x == sample)
                     .unwrap();
                 haplotype_indices.push(position)
             });
@@ -245,7 +238,7 @@ impl HaplotypeCalls {
                 let variant_id: i32 = String::from_utf8(record.id())?.parse().unwrap();
                 let afd = std::str::from_utf8(afd_utf[0]).unwrap();
                 let mut vaf_density = BTreeMap::new();
-                for pair in afd.split(",") {
+                for pair in afd.split(',') {
                     let (vaf, density) = pair.split_once("=").unwrap();
                     let (vaf, density): (AlleleFreq, f64) =
                         (vaf.parse().unwrap(), density.parse().unwrap());
