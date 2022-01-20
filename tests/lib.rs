@@ -396,15 +396,24 @@ fn test_fdr_control_local3() {
 // }
 
 #[test]
-fn hla_typing_high_logprobs() {
+fn compare_haplotype_fractions() {
     let mut output = std::path::PathBuf::new();
-    output.push("test.csv");
+    output.push("test_output.csv");
     let _ = &varlociraptor::calling::haplotypes::CallerBuilder::default()
         .hdf5_reader(hdf5::File::open("tests/abundance.h5").unwrap())
-        .haplotype_variants(bcf::Reader::from_path("tests/foo.vcf").unwrap())
-        .min_norm_counts(0.001)
+        .haplotype_variants(bcf::Reader::from_path("tests/hla-allele-variants.vcf.gz").unwrap())
+        .haplotype_calls(bcf::Reader::from_path("tests/SampleM1.bcf").unwrap())
+        .min_norm_counts(0.01)
         .outcsv(Some(output))
         .build()
         .unwrap()
         .call();
+    
+    let mut rdr = csv::Reader::from_path("test_output.csv").unwrap();
+    let mut iter = rdr.records();
+
+    if let Some(result) = iter.next() {
+        let record = result.unwrap();
+        assert_eq!(record[2], "0.5".to_string()); //HLA:HLA02743 from allele group P
+    }
 }

@@ -27,7 +27,7 @@ impl Caller {
         let haplotypes: Vec<String> = kallisto_estimates.keys().map(|x| x.to_string()).collect();
         let haplotype_variants = HaplotypeVariants::new(&mut self.haplotype_variants, &haplotypes)?;
         let haplotype_calls = HaplotypeCalls::new(&mut self.haplotype_calls)?;
-
+        dbg!(&kallisto_estimates);
         // Step 2: setup model.
         let model = Model::new(Likelihood::new(), Prior::new(), Posterior::new());
 
@@ -95,7 +95,6 @@ impl KallistoEstimates {
     /// Generate new instance.
     pub(crate) fn new(hdf5_reader: &hdf5::File, min_norm_counts: f64) -> Result<Self> {
         let seqnames = Self::filter_seqnames(hdf5_reader, min_norm_counts)?;
-
         let ids = hdf5_reader
             .dataset("aux/ids")?
             .read_1d::<hdf5::types::FixedAscii<255>>()?;
