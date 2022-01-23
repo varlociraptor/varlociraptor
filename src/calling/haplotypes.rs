@@ -27,7 +27,6 @@ impl Caller {
         let haplotypes: Vec<String> = kallisto_estimates.keys().map(|x| x.to_string()).collect();
         let haplotype_variants = HaplotypeVariants::new(&mut self.haplotype_variants, &haplotypes)?;
         let haplotype_calls = HaplotypeCalls::new(&mut self.haplotype_calls)?;
-        dbg!(&kallisto_estimates);
         // Step 2: setup model.
         let model = Model::new(Likelihood::new(), Prior::new(), Posterior::new());
 
