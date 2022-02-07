@@ -202,7 +202,7 @@ where
               event (PROB_ARTIFACT).\">",
         );
         header.push_record(
-            b"##FORMAT=<ID=AFD,Number=A,Type=String,\
+            b"##FORMAT=<ID=AFD,Number=.,Type=String,\
               Description=\"Sampled posterior probability densities of allele frequencies in PHRED scale \
               (the smaller the higher, with 0 being equal to an unscaled probability of 1). \
               In the discrete case (no somatic mutation rate or continuous universe in the scenario), \
