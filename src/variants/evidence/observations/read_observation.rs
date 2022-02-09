@@ -550,6 +550,7 @@ where
                     if let Some(homopolymer_error_model) = homopolymer_error_model {
                         let ref_indel_len =
                             alt_indel_len + homopolymer_error_model.variant_homopolymer_indel_len();
+
                         if ref_indel_len == 0 {
                             // no homopolymer indel in read compared to reference
                             obs.homopolymer_indel_len(None)
