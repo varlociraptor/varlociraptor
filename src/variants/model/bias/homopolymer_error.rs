@@ -54,9 +54,7 @@ impl Bias for HomopolymerError {
         if !self.is_artifact() {
             return true;
         }
-        // METHOD: this bias is only relevant if there is at least one recorded indel operation 
-        // (indel operations are only recorded for some variants) or no alt support
-        // observation in each sample.
+        // METHOD: we require all alt supporting samples to have at least one homopolymer indel relative to the alt allele.
         pileups.iter().all(|pileup| {
             !pileup.read_observations()
                 .iter()
